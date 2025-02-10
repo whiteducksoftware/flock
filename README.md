@@ -1,8 +1,10 @@
-# Flock by White Duck
+<p align="center">
+<img src="docs/img/flock.png" width="600"><br>
+<h1 align="center">Flock</h1><br>
 
-### Declarative LLM Orchestration at Scale
 
-<img src="docs/img/flock.png" width="600">
+
+
 
 | Traditional Agent Frameworks 🙃          |                        Flock 🐤🐧🐓🦆                         |
 |------------------------------------------|--------------------------------------------------------------|
@@ -235,4 +237,4 @@ Flock was created to overcome the limitations of traditional agent frameworks. K
 - Extended testing frameworks and validation tools
 
 Join us in building the next generation of reliable, production-ready AI agent systems!
-```
+
