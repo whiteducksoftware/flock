@@ -1,6 +1,6 @@
 # Flock
 
-### Declarative LLM Orchestration at Scale
+### AI agent framework
 
 <img src="docs/img/flock.png" width="600">
 
