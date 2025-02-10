@@ -5,7 +5,10 @@ import os
 
 import httpx
 
+from flock.core.logging.trace_and_logged import traced_and_logged
 
+
+@traced_and_logged
 def create_user_stories_as_github_issue(title: str, body: str) -> str:
     """Create a new GitHub issue representing a user story.
 
@@ -44,6 +47,7 @@ def create_user_stories_as_github_issue(title: str, body: str) -> str:
         return "Failed to create issue. Please try again later."
 
 
+@traced_and_logged
 def upload_readme(content: str):
     """Upload or update the README.md file in a GitHub repository.
 
@@ -110,6 +114,7 @@ def upload_readme(content: str):
             print("Failed to upload README.md:", response.json())
 
 
+@traced_and_logged
 def create_files(file_paths) -> str:
     """Create multiple files in a GitHub repository with a predefined content.
 

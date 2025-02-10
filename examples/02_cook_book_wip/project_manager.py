@@ -85,7 +85,7 @@ async def main():
 
     issue_agent = FlockAgent(
         name="issue_agent",
-        input="readme, catchy_project_name, project_pitch, techstack, project_implementation_plan",
+        input="current_feature, readme, techstack, project_implementation_plan, all_feature_titles",
         output="user_stories_on_github, files_on_github",
         tools=[github.create_user_stories_as_github_issue, github.create_files],
         use_cache=True,
@@ -99,9 +99,10 @@ async def main():
     flock.add_agent(idea_agent)
     flock.add_agent(project_plan_agent)
     flock.add_agent(readme_agent)
+    flock.add_agent(feature_agent)
     flock.add_agent(issue_agent)
 
-    await flock.run_async(
+    features : Features = await flock.run_async(
         input={"query": "fun software project idea"},
         start_agent=idea_agent,
     )

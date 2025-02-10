@@ -14,6 +14,9 @@ from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 
 logger = get_logger("flock")
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -253,24 +256,32 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 - Return a dictionary similar to:
                     {"idea": "A fun app idea based on ...", "query": "build an app", "context": {"previous_idea": "messaging app"}}
         """
-        try:
-            self.__dspy_signature = self.create_dspy_signature_class(
-                self.name, self.description, f"{self.input} -> {self.output}"
-            )
-            # Initialize the language model.
-            self._configure_language_model()
-            # Select the appropriate DSPy task based on tool availability.
-            agent_task = self._select_task(self.__dspy_signature)
-            # Execute the task with the provided inputs.
-            result = agent_task(**inputs)
-            # Process the result and ensure fallback values for missing keys.
-            result = self._process_result(result, inputs)
-            return result
-        except Exception as eval_error:
-            logger.error(
-                f"Error during evaluation in agent '{self.name}': {eval_error}"
-            )
-            raise
+        with tracer.start_as_current_span("agent.evaluate") as span:
+            span.set_attribute("agent.name", self.name)
+            span.set_attribute("inputs", str(inputs))
+            try:
+                # Create and configure the signature and language model.
+                self.__dspy_signature = self.create_dspy_signature_class(
+                    self.name,
+                    self.description,
+                    f"{self.input} -> {self.output}",
+                )
+                self._configure_language_model()
+                agent_task = self._select_task(self.__dspy_signature)
+                # Execute the task.
+                result = agent_task(**inputs)
+                result = self._process_result(result, inputs)
+                span.set_attribute("result", str(result))
+                logger.info("Evaluation successful", agent=self.name)
+                return result
+            except Exception as eval_error:
+                logger.error(
+                    "Error during evaluation",
+                    agent=self.name,
+                    error=str(eval_error),
+                )
+                span.record_exception(eval_error)
+                raise
 
     async def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Run the agent with the given inputs and return its generated output.
@@ -318,15 +329,23 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             The method might return:
                 {"result": "A conversational chatbot that uses AI to...", "query": "build a chatbot", "context": {"user": "Alice"}}
         """
-        try:
-            await self.initialize(inputs)
-            result = await self.evaluate(inputs)
-            await self.terminate(inputs, result)
-            return result
-        except Exception as run_error:
-            await self.on_error(run_error, inputs)
-            logger.error(f"Error running agent '{self.name}': {run_error}")
-            raise
+        with tracer.start_as_current_span("agent.run") as span:
+            span.set_attribute("agent.name", self.name)
+            span.set_attribute("inputs", str(inputs))
+            try:
+                await self.initialize(inputs)
+                result = await self.evaluate(inputs)
+                await self.terminate(inputs, result)
+                span.set_attribute("result", str(result))
+                logger.info("Agent run completed", agent=self.name)
+                return result
+            except Exception as run_error:
+                logger.error(
+                    "Error running agent", agent=self.name, error=str(run_error)
+                )
+                await self.on_error(run_error, inputs)
+                span.record_exception(run_error)
+                raise
 
     async def run_temporal(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Execute this agent via a Temporal workflow for enhanced fault tolerance and asynchronous processing.
@@ -369,29 +388,40 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 result = await agent.run_temporal({"query": "analyze data", "context": {"source": "sales"}})
             will execute the agent on a Temporal worker and return the output in a structured dictionary format.
         """
-        try:
-            from temporalio.client import Client
+        with tracer.start_as_current_span("agent.run_temporal") as span:
+            span.set_attribute("agent.name", self.name)
+            span.set_attribute("inputs", str(inputs))
+            try:
+                from temporalio.client import Client
 
-            from flock.workflow.agent_activities import run_flock_agent_activity
-            from flock.workflow.temporal_setup import run_activity
+                from flock.workflow.agent_activities import (
+                    run_flock_agent_activity,
+                )
+                from flock.workflow.temporal_setup import run_activity
 
-            client = await Client.connect("localhost:7233", namespace="default")
-            agent_data = self.to_dict()
-            inputs_data = inputs
+                client = await Client.connect(
+                    "localhost:7233", namespace="default"
+                )
+                agent_data = self.to_dict()
+                inputs_data = inputs
 
-            result = await run_activity(
-                client,
-                self.name,
-                run_flock_agent_activity,
-                {"agent_data": agent_data, "inputs": inputs_data},
-            )
-            return result
-
-        except Exception as temporal_error:
-            logger.error(
-                f"Error running Temporal workflow for agent '{self.name}': {temporal_error}"
-            )
-            raise
+                result = await run_activity(
+                    client,
+                    self.name,
+                    run_flock_agent_activity,
+                    {"agent_data": agent_data, "inputs": inputs_data},
+                )
+                span.set_attribute("result", str(result))
+                logger.info("Temporal run successful", agent=self.name)
+                return result
+            except Exception as temporal_error:
+                logger.error(
+                    "Error in Temporal workflow",
+                    agent=self.name,
+                    error=str(temporal_error),
+                )
+                span.record_exception(temporal_error)
+                raise
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the FlockAgent instance to a dictionary.

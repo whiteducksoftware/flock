@@ -13,6 +13,8 @@ Key points:
 
 import sys
 
+from opentelemetry import trace
+
 # Always import Temporal workflow (since it's part of the project)
 from temporalio import workflow
 
@@ -37,6 +39,16 @@ def in_workflow_context() -> bool:
         return False
 
 
+def get_current_trace_id() -> str:
+    """Fetch the current trace ID from OpenTelemetry, if available."""
+    current_span = trace.get_current_span()
+    span_context = current_span.get_span_context()
+    # Format the trace_id as hex (if valid)
+    if span_context.is_valid:
+        return format(span_context.trace_id, "032x")
+    return "no-trace"
+
+
 # Configure Loguru for non-workflow (local/worker) contexts.
 # Note that in workflow code, we will use Temporal's workflow.logger instead.
 loguru_logger.remove()
@@ -44,7 +56,10 @@ loguru_logger.add(
     sys.stderr,
     level="DEBUG",
     colorize=True,
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{message}</cyan>",
+    format=(
+        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
+        "<cyan>[trace_id: {extra[trace_id]}]</cyan> | <magenta>[{extra[category]}]</magenta> | {message}"
+    ),
 )
 # Optionally add a file handler, e.g.:
 # loguru_logger.add("logs/flock.log", rotation="100 MB", retention="30 days", level="DEBUG")
@@ -92,9 +107,12 @@ class FlockLogger:
         if in_workflow_context():
             # Use Temporal's workflow.logger inside a workflow context.
             return workflow.logger
-        else:
-            # Bind a new Loguru logger with the given name as context.
-            return loguru_logger.bind(name=self.name)
+        # Bind our logger with category and trace_id
+        return loguru_logger.bind(
+            name=self.name,
+            category=self.name,  # Customize this per module (e.g., "flock", "agent", "context")
+            trace_id=get_current_trace_id(),
+        )
 
     def debug(self, message: str, *args, **kwargs):
         self._get_logger().debug(message, *args, **kwargs)
