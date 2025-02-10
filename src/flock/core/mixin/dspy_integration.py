@@ -3,8 +3,6 @@
 import sys
 from typing import Any
 
-import dspy
-
 from flock.core.logging.logging import get_logger
 from flock.core.util.input_resolver import split_top_level
 
@@ -16,11 +14,13 @@ class DSPyIntegrationMixin:
 
     def create_dspy_signature_class(
         self, agent_name, description_spec, fields_spec
-    ) -> dspy.Signature:
+    ) -> Any:
         """Trying to create a dynamic class using dspy library."""
         # ---------------------------
         # 1. Parse the class specification.
         # ---------------------------
+        import dspy
+
         base_class = dspy.Signature
 
         # Start building the class dictionary with a docstring and annotations dict.
@@ -116,13 +116,15 @@ class DSPyIntegrationMixin:
         return type("dspy_" + agent_name, (base_class,), class_dict)
 
     def _configure_language_model(self) -> None:
+        import dspy
+
         """Initialize and configure the language model using dspy."""
         lm = dspy.LM(self.model, cache=self.use_cache)
         dspy.configure(lm=lm)
 
     def _select_task(
         self,
-        signature: dspy.Signature,
+        signature: Any,
     ) -> Any:
         """Select and instantiate the appropriate task based on tool availability.
 
@@ -134,6 +136,8 @@ class DSPyIntegrationMixin:
         Returns:
             An instance of a dspy task (either ReAct or Predict).
         """
+        import dspy
+
         dspy_solver = None
         if self.tools:
             dspy_solver = dspy.ReAct(

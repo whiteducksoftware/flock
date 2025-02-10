@@ -193,7 +193,9 @@ class Flock:
                     self.context, self.output_formatter, box_result
                 )
             else:
-                return await run_temporal_workflow(self.context, box_result)
+                return await run_temporal_workflow(
+                    self.context, self.output_formatter, box_result
+                )
         except Exception as e:
             logger.exception("Execution failed", error=str(e))
             raise

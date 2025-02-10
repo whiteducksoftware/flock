@@ -32,6 +32,8 @@ async def run_agent(
     """
     registry = Registry()
     previous_agent_name = ""
+    if isinstance(context, dict):
+        context = FlockContext.from_dict(context)
     current_agent_name = context.get_variable(FLOCK_CURRENT_AGENT)
     handoff_data: HandoffBase = None
 
