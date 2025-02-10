@@ -3,6 +3,9 @@
 <h1 align="center">Flock</h1><br>
 
 
+## Overview
+
+Flock is a framework for orchestrating LLM-powered agents. It leverages a **declarative approach** where you simply specify what each agent needs as input and what it produces as output—without having to write lengthy, brittle prompts. Under the hood, Flock transforms these declarations into robust workflows, using cutting-edge components such as Temporal and DSPy to handle fault tolerance, state management, and error recovery.
 
 
 
@@ -21,14 +24,16 @@
 | • Hard to scale and parallelize          | • Modular, concurrent, and batch processing                   |
 |                                          |                                                              |
 
-## Overview
-
-Flock is a framework for orchestrating LLM-powered agents. It leverages a **declarative approach** where you simply specify what each agent needs as input and what it produces as output—without having to write lengthy, brittle prompts. Under the hood, Flock transforms these declarations into robust workflows, using cutting-edge components such as Temporal and DSPy to handle fault tolerance, state management, and error recovery.
 
 ## Key Innovations
 
 - **Declarative Agent System:**  
   Define agents by declaring their input/output interfaces (with type hints and human-readable descriptions) using a concise syntax.  
+
+
+  <img src="docs/img/examples/01_01.png" width="300"><br>
+
+
   Example syntax:
   ```python
   input = "query: str|The search query, context: dict|The full conversation context"
@@ -148,7 +153,20 @@ TODO: Insert charts
 
 - Python 3.12+
 - (Optional) Temporal server running locally for production-grade workflow features
-- API keys for integrated services (e.g., Tavily for web search)
+- API keys for integrated services
+
+
+recommended services
+```bash
+export OPENAI_API_KEY=sk-proj-
+export TAVILY_API_KEY=tvly-
+```
+
+or in `.env`
+
+For LLM interaction LiteLLM is getting used. Please refer to its documentation on how to easily use other models and/or provider.
+
+https://docs.litellm.ai/docs/providers
 
 ## Installation
 
@@ -170,7 +188,6 @@ pip install flock-core[all-tools]
 
 ## Development
 
-### Setup
 
 1. **Clone the Repository:**
 
