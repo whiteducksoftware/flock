@@ -6,8 +6,6 @@ on:
   push:
     branches:
       - master # Replace with your default branch
-    paths:
-      - "./**"
 
 jobs:
   build-and-publish:
