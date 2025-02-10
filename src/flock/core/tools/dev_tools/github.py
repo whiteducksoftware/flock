@@ -66,7 +66,9 @@ def upload_readme(content: str):
     GITHUB_TOKEN = os.getenv("GITHUB_PAT")
 
     if not GITHUB_USERNAME or not REPO_NAME or not GITHUB_TOKEN:
-        raise ValueError("Missing environment variables: GITHUB_USERNAME, GITHUB_REPO, or GITHUB_PAT")
+        raise ValueError(
+            "Missing environment variables: GITHUB_USERNAME, GITHUB_REPO, or GITHUB_PAT"
+        )
 
     GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_USERNAME}/{REPO_NAME}/contents/README.md"
 
@@ -75,13 +77,20 @@ def upload_readme(content: str):
     with httpx.Client() as client:
         response = client.get(
             GITHUB_API_URL,
-            headers={"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"},
+            headers={
+                "Authorization": f"Bearer {GITHUB_TOKEN}",
+                "Accept": "application/vnd.github.v3+json",
+            },
         )
 
         data = response.json()
         sha = data.get("sha", None)
 
-        payload = {"message": "Updating README.md", "content": encoded_content, "branch": "main"}
+        payload = {
+            "message": "Updating README.md",
+            "content": encoded_content,
+            "branch": "main",
+        }
 
         if sha:
             payload["sha"] = sha
@@ -89,7 +98,10 @@ def upload_readme(content: str):
         response = client.put(
             GITHUB_API_URL,
             json=payload,
-            headers={"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"},
+            headers={
+                "Authorization": f"Bearer {GITHUB_TOKEN}",
+                "Accept": "application/vnd.github.v3+json",
+            },
         )
 
         if response.status_code in [200, 201]:
@@ -122,7 +134,9 @@ def create_files(file_paths) -> str:
         GITHUB_TOKEN = os.getenv("GITHUB_PAT")
 
         if not GITHUB_USERNAME or not REPO_NAME or not GITHUB_TOKEN:
-            raise ValueError("Missing environment variables: GITHUB_USERNAME, GITHUB_REPO, or GITHUB_PAT")
+            raise ValueError(
+                "Missing environment variables: GITHUB_USERNAME, GITHUB_REPO, or GITHUB_PAT"
+            )
 
         encoded_content = base64.b64encode(b"#created by flock").decode()
 
@@ -132,13 +146,20 @@ def create_files(file_paths) -> str:
 
                 response = client.get(
                     GITHUB_API_URL,
-                    headers={"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"},
+                    headers={
+                        "Authorization": f"token {GITHUB_TOKEN}",
+                        "Accept": "application/vnd.github.v3+json",
+                    },
                 )
 
                 data = response.json()
                 sha = data.get("sha", None)
 
-                payload = {"message": f"Creating {file_path}", "content": encoded_content, "branch": "main"}
+                payload = {
+                    "message": f"Creating {file_path}",
+                    "content": encoded_content,
+                    "branch": "main",
+                }
 
                 if sha:
                     print(f"Skipping {file_path}, file already exists.")
@@ -147,7 +168,10 @@ def create_files(file_paths) -> str:
                 response = client.put(
                     GITHUB_API_URL,
                     json=payload,
-                    headers={"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"},
+                    headers={
+                        "Authorization": f"token {GITHUB_TOKEN}",
+                        "Accept": "application/vnd.github.v3+json",
+                    },
                 )
 
                 if response.status_code in [200, 201]:
