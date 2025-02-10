@@ -228,6 +228,15 @@ wheels = [
 ]
 
 [[package]]
+name = "art"
+version = "6.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ee/6e/dc8dc5c2d99a171cb97a02b817c2dd8db3b33c53bdb29852ba2802676fd1/art-6.4.tar.gz", hash = "sha256:417fea674bff8cea7ed058291ad1b81a6032dfce5152f28e629fa4a798a2c14c", size = 670900 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a1/15/727410b4f105e7e4e84632b8c0802beb93911b9a218838606050fa7ba15c/art-6.4-py3-none-any.whl", hash = "sha256:4e58b6f0a0bb8574efb311eff24bdd28bf889c0c526ccbbb5410c644340a301c", size = 608628 },
+]
+
+[[package]]
 name = "asttokens"
 version = "2.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -931,6 +940,7 @@ name = "flock-core"
 version = "0.2.1"
 source = { editable = "." }
 dependencies = [
+    { name = "art" },
     { name = "cloudpickle" },
     { name = "devtools" },
     { name = "dspy" },
@@ -984,6 +994,7 @@ tools = [
 
 [package.metadata]
 requires-dist = [
+    { name = "art", specifier = ">=6.4" },
     { name = "cloudpickle", specifier = ">=3.1.1" },
     { name = "devtools", specifier = ">=0.12.2" },
     { name = "docling", marker = "extra == 'all-tools'", specifier = ">=2.18.0" },

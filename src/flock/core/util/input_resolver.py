@@ -72,7 +72,15 @@ def _parse_keys(keys: list[str]) -> list[str]:
     return res_keys
 
 
-def resolve_inputs(input_spec: str, context: FlockContext) -> dict:
+def top_level_to_keys(s: str) -> list[str]:
+    """Convert a top-level comma-separated string to a list of keys."""
+    top_level_split = split_top_level(s)
+    return _parse_keys(top_level_split)
+
+
+def resolve_inputs(
+    input_spec: str, context: FlockContext, previous_agent_name: str
+) -> dict:
     """Build a dictionary of inputs based on the input specification string and the provided context.
 
     The lookup rules are:
@@ -125,7 +133,7 @@ def resolve_inputs(input_spec: str, context: FlockContext) -> dict:
                 continue
 
             # Fallback to the initial input
-            inputs[key] = context.get_variable("init." + key)
+            inputs[key] = context.get_variable("flock." + key)
 
         # Case 2: A compound key (e.g., "agent_name.property" or "context.property")
         elif len(split_key) == 2:

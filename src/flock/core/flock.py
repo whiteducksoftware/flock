@@ -4,6 +4,8 @@ import os
 import uuid
 from typing import TypeVar
 
+from rich.prompt import Prompt
+
 from flock.core.context.context import FlockContext
 from flock.core.context.context_manager import initialize_context
 from flock.core.execution.local_executor import run_local_workflow
@@ -13,6 +15,8 @@ from flock.core.logging.formatters.base_formatter import FormatterOptions
 from flock.core.logging.formatters.pprint_formatter import PrettyPrintFormatter
 from flock.core.logging.logging import get_logger
 from flock.core.registry.agent_registry import Registry
+from flock.core.util.cli_helper import display_banner
+from flock.core.util.input_resolver import top_level_to_keys
 
 T = TypeVar("T", bound=FlockAgent)
 logger = get_logger("flock")
@@ -30,7 +34,9 @@ class Flock:
         model: str = "openai/gpt-4o",
         local_debug: bool = False,
         enable_logging: bool = False,
-        output_formatter: FormatterOptions = FormatterOptions(PrettyPrintFormatter),
+        output_formatter: FormatterOptions = FormatterOptions(
+            PrettyPrintFormatter
+        ),
     ):
         """Initialize the Flock orchestrator.
 
@@ -40,8 +46,15 @@ class Flock:
             enable_logging (bool): If True, enable verbose logging. Defaults to False.
             output_formatter (FormatterOptions): Options for formatting output results.
         """
-        logger.info("Initializing Flock", model=model, local_debug=local_debug, enable_logging=enable_logging)
+        logger.info(
+            "Initializing Flock",
+            model=model,
+            local_debug=local_debug,
+            enable_logging=enable_logging,
+        )
         logger.enable_logging = enable_logging
+
+        display_banner()
 
         self.agents: dict[str, FlockAgent] = {}
         self.registry = Registry()
@@ -72,16 +85,22 @@ class Flock:
         """
         if not agent.model:
             agent.model = self.model
-            logger.debug(f"Using default model for agent {agent.name}", model=self.model)
+            logger.debug(
+                f"Using default model for agent {agent.name}", model=self.model
+            )
 
         if agent.name in self.agents:
-            logger.warning(f"Agent {agent.name} already exists, returning existing instance")
+            logger.warning(
+                f"Agent {agent.name} already exists, returning existing instance"
+            )
             return self.agents[agent.name]
         logger.info("Adding new agent")
 
         self.agents[agent.name] = agent
         self.registry.register_agent(agent)
-        self.context.add_agent_definition(type(agent), agent.name, agent.to_dict())
+        self.context.add_agent_definition(
+            type(agent), agent.name, agent.to_dict()
+        )
 
         if hasattr(agent, "tools") and agent.tools:
             for tool in agent.tools:
@@ -104,7 +123,7 @@ class Flock:
     async def run_async(
         self,
         start_agent: FlockAgent | str,
-        input: dict,
+        input: dict = {},
         context: FlockContext = None,
         run_id: str = "",
         box_result: bool = True,
@@ -138,20 +157,41 @@ class Flock:
                 start_agent = self.registry.get_agent(start_agent)
                 if not start_agent:
                     logger.error("Agent not found", agent_name=start_agent)
-                    raise ValueError(f"Agent '{start_agent}' not found in registry")
+                    raise ValueError(
+                        f"Agent '{start_agent}' not found in registry"
+                    )
             if context:
                 logger.debug("Using provided context")
                 self.context = context
             if not run_id:
                 run_id = f"{start_agent.name}_{uuid.uuid4().hex[:4]}"
                 logger.debug("Generated run ID", run_id=run_id)
-            # Initialize the context with standardized variables
-            initialize_context(self.context, start_agent.name, input, run_id, self.local_debug)
 
-            logger.info("Starting agent execution", agent=start_agent.name, local_debug=self.local_debug)
+            # TODO - Add a check for required input keys
+            input_keys = top_level_to_keys(start_agent.input)
+            for key in input_keys:
+                if key.startswith("flock."):
+                    key = key[6:]  # Remove the "flock." prefix
+                if key not in input:
+                    input[key] = Prompt.ask(
+                        f"Please enter {key} for {start_agent.name}"
+                    )
+
+            # Initialize the context with standardized variables
+            initialize_context(
+                self.context, start_agent.name, input, run_id, self.local_debug
+            )
+
+            logger.info(
+                "Starting agent execution",
+                agent=start_agent.name,
+                local_debug=self.local_debug,
+            )
 
             if self.local_debug:
-                return await run_local_workflow(self.context, self.output_formatter, box_result)
+                return await run_local_workflow(
+                    self.context, self.output_formatter, box_result
+                )
             else:
                 return await run_temporal_workflow(self.context, box_result)
         except Exception as e:
