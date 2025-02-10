@@ -1,0 +1,30 @@
+/* Hide original comment spans */
+pre code span.c1 {
+    display: none;
+  }
+  
+  /* Style for the toggle button */
+  .comment-toggle-btn {
+    margin: 0 5px;
+    padding: 2px 4px;
+    font-size: 0.8em;
+    cursor: pointer;
+    background: #eee;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+  }
+  
+  /* Basic styling for the popup */
+  .comment-popup {
+    display: none; /* Hidden by default */
+    position: absolute;
+    background: #f9f9f9;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 5px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    z-index: 1000;
+    max-width: 300px;
+    font-size: 0.9em;
+  }
+  

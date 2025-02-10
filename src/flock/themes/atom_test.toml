@@ -1,0 +1,65 @@
+# Colors (Atom)
+
+[colors.bright]
+black = "#000000"
+blue = "#96cbfe"
+cyan = "#85befd"
+green = "#94fa36"
+magenta = "#b9b6fc"
+red = "#fd5ff1"
+white = "#e0e0e0"
+yellow = "#f5ffa8"
+
+[colors.cursor]
+cursor = "#d0d0d0"
+text = "#151515"
+
+[colors.normal]
+black = "#000000"
+blue = "#85befd"
+cyan = "#85befd"
+green = "#87c38a"
+magenta = "#b9b6fc"
+red = "#fd5ff1"
+white = "#e0e0e0"
+yellow = "#ffd7b1"
+
+[colors.primary]
+background = "#161719"
+foreground = "#c5c8c6"
+
+[colors.selection]
+background = "#444444"
+text = "#c5c8c6"
+
+[rich]
+# Token-based color settings:
+table_header_style = "bold color.cursor.text on color.cursor.cursor"
+table_title_style = "bold color.primary.foreground"
+panel_style = "on color.primary.background"
+table_border_style = "color.bright.blue"
+panel_border_style = "color.bright.blue"
+column_output = "bold color.primary.foreground"
+column_value = "color.primary.foreground"
+table_style = ""
+table_footer_style = "none"
+table_caption_style = "none"
+
+# Non-color table layout properties:
+table_show_lines = true
+table_box = "ASCII"
+table_row_styles = ["", "dim"]
+table_safe_box = true
+table_padding = [0, 1]
+table_collapse_padding = false
+table_pad_edge = true
+table_expand = false
+table_show_footer = false
+table_show_edge = true
+table_leading = 0
+table_caption = ""
+table_title_justify = "center"
+table_caption_justify = "center"
+table_highlight = false
+panel_padding = [1, 2]
+panel_title_align = "left"

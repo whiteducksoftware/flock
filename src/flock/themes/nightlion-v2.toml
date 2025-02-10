@@ -1,0 +1,77 @@
+[rich]
+panel_style = "on #171717"
+table_header_style = "bold #000000 on #b5d5ff"
+table_title_style = "bold #bbbbbb"
+table_border_style = "#62cbe8"
+panel_border_style = "#62cbe8"
+column_output = "bold #bbbbbb"
+column_value = "#bbbbbb"
+bright_black = "#555555"
+bright_blue = "#62cbe8"
+bright_cyan = "#00ccd8"
+bright_green = "#7df71d"
+bright_magenta = "#ff9bf5"
+bright_red = "#ff5555"
+bright_white = "#ffffff"
+bright_yellow = "#ffff55"
+normal_black = "#4c4c4c"
+normal_blue = "#64d0f0"
+normal_cyan = "#00dadf"
+normal_green = "#04f623"
+normal_magenta = "#ce6fdb"
+normal_red = "#bb0000"
+normal_white = "#bbbbbb"
+normal_yellow = "#f3f167"
+cursor_cursor = "#bbbbbb"
+cursor_text = "#ffffff"
+table_show_lines = true
+table_box = "HEAVY"
+panel_padding = [ 2, 2,]
+panel_title_align = "center"
+table_row_styles = [ "", "dim",]
+table_safe_box = true
+table_padding = [ 0, 1,]
+table_collapse_padding = false
+table_pad_edge = true
+table_expand = false
+table_show_footer = false
+table_show_edge = true
+table_leading = 0
+table_style = "none"
+table_footer_style = "none"
+table_caption_style = "none"
+table_title_justify = "center"
+table_caption_justify = "center"
+table_highlight = false
+
+[colors.bright]
+black = "#555555"
+blue = "#62cbe8"
+cyan = "#00ccd8"
+green = "#7df71d"
+magenta = "#ff9bf5"
+red = "#ff5555"
+white = "#ffffff"
+yellow = "#ffff55"
+
+[colors.cursor]
+cursor = "#bbbbbb"
+text = "#ffffff"
+
+[colors.normal]
+black = "#4c4c4c"
+blue = "#64d0f0"
+cyan = "#00dadf"
+green = "#04f623"
+magenta = "#ce6fdb"
+red = "#bb0000"
+white = "#bbbbbb"
+yellow = "#f3f167"
+
+[colors.primary]
+background = "#171717"
+foreground = "#bbbbbb"
+
+[colors.selection]
+background = "#b5d5ff"
+text = "#000000"

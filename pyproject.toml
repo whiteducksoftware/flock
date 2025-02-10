@@ -1,0 +1,108 @@
+[project]
+name = "flock-core"
+version = "0.2.1"
+description = "Declarative LLM Orchestration at Scale"
+readme = "README.md"
+authors = [
+    { name = "Andre Ratzenberger", email = "andre.ratzenberger@whiteduck.de" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "cloudpickle>=3.1.1",
+    "devtools>=0.12.2",
+    "dspy==2.5.42",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "msgpack>=1.1.0",
+    "pydantic>=2.10.5",
+    "python-box>=7.3.2",
+    "rich>=13.9.4",
+    "temporalio>=1.9.0",
+    "toml>=0.10.2",
+]
+
+[project.optional-dependencies]
+all-tools = ["docling>=2.18.0", "tavily-python>=0.5.0", "markdownify>=0.14.1"]
+tools = ["tavily-python>=0.5.0", "markdownify>=0.14.1"]
+
+
+[dependency-groups]
+app = ["monsterui>=0.0.23", "python-fasthtml>=0.12.0"]
+tools = ["tavily-python>=0.5.0", "markdownify>=0.14.1"]
+dev = [
+    "pytest>=8.3.3",
+    "pytest-clarity>=1.0.1",
+    "pytest-cov>=6.0.0",
+    "pytest-sugar>=1.0.0",
+    "ipykernel>=6.29.5",
+    "ruff>=0.7.2",
+    "pytest-asyncio>=0.24.0",
+    "ipywidgets>=8.1.5",
+    "poethepoet>=0.30.0",
+]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.3",
+    "mkdocstrings[python]>=0.28.0",
+    "termage>=0.6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flock"]
+
+
+[tool.ruff]
+cache-dir = ".cache/ruff"
+line-length = 80
+
+## formatting
+format.quote-style = "double"
+format.indent-style = "space"
+format.skip-magic-trailing-comma = false
+format.line-ending = "auto"
+format.docstring-code-format = true
+format.docstring-code-line-length = "dynamic"
+## linting
+lint.select = [
+    'D',   #pydocstyle
+    'E',
+    'W',   # pycodestyle
+    'F',   #pyflakes
+    'I',   # sort imports
+    'UP',  #pyupgrade
+    "RUF", # ruff dev's own rules
+    "SIM", # pyflakes simplicity
+    "C90", # more complexity rules
+]
+lint.ignore = ["E203", "E266", "E501", "F541", "D417"]
+lint.exclude = ["logs/", "data/", "tests/", "docs/", "dump/"]
+lint.pydocstyle.convention = "google"
+lint.isort.combine-as-imports = true
+include = ["src/"]
+exclude = [
+    "logs/",
+    "data/",
+    "tests/",
+    "docs/",
+    "src/templates/",
+    "dump/",
+    "src/frontend/",
+    "examples/",
+]
+
+[tool.pytest.ini_options]
+addopts = " -v"
+minversion = "6.0"
+python_files = "test_*.py"
+python_classes = "Test"
+python_functions = "test"
+verbosity_test_cases = 2
