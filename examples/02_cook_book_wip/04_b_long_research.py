@@ -1,6 +1,7 @@
 
 
 import asyncio
+from typing import Generator
 
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
@@ -14,47 +15,41 @@ async def main():
 
     flock = Flock(local_debug=True, output_formatter=FormatterOptions(formatter=RichTables, wait_for_input=True, settings={}),enable_logging=True)
     
-    idea_agent = FlockAgent(
-        name="idea_agent",
-        input="query",
-        output="a_fun_software_project_idea",
+    outline_agent = FlockAgent(
+        name="outluine_agent",
+        description="Outline a thorough overview of a topic.",
+        input="topic",
+        output="title,sections: list[str],section_subheadings: dict[str, list[str]]|mapping from section headings to subheadings",
         tools=[basic_tools.web_search_tavily],
     )
 
-    project_plan_agent = FlockAgent(
-        name="project_plan_agent",
-        input="software_project_idea",
-        output="catchy_project_name, project_pitch, techstack, project_implementation_plan",
+
+    draft_agent = FlockAgent(
+        name="draft_agent",
+        input="topic,section_heading,section_subheadings: list[str]",
+        output="content|markdown-formatted section",
         tools=[basic_tools.web_search_tavily],
     )
 
-    readme_agent = FlockAgent(
-        name="readme_agent",
-        input="catchy_project_name, project_pitch, techstack, project_implementation_plan",
-        output="readme",
-        tools=[github.upload_readme],
-    )   
+     
+    flock.add_agent(outline_agent)
+    flock.add_agent(draft_agent)
 
-    issue_agent = FlockAgent(
-        name="issue_agent",
-        input="readme, catchy_project_name, project_pitch, techstack, project_implementation_plan",
-        output="user_stories_on_github, files_on_github",
-        tools=[github.create_user_stories_as_github_issue, github.create_files],
-    )   
-
-    idea_agent.hand_off = project_plan_agent
-    project_plan_agent.hand_off = readme_agent
-    readme_agent.hand_off = issue_agent
-
-    flock.add_agent(idea_agent)
-    flock.add_agent(project_plan_agent)
-    flock.add_agent(readme_agent)
-    flock.add_agent(issue_agent)
-
-    await flock.run_async(
-        input="a random software project idea",
-        start_agent=idea_agent,
+    result = await flock.run_async(
+        input={"topic": "Latest research about training algorithms"},
+        start_agent=outline_agent,
     )
+    sections =[]
+    for heading, subheadings in result.section_subheadings.items():
+            section, subheadings = f"## {heading}", [f"### {subheading}" for subheading in subheadings]
+            result_content = await flock.run_async(
+                input={"topic": result.topic,
+                       "section_heading": section,
+                       "section_subheadings": subheadings
+                       },
+                start_agent=draft_agent,
+            )
+            sections.append(result_content.content)
 
 
 

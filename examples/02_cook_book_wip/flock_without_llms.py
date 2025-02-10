@@ -18,7 +18,7 @@ from flock.core.flock_agent import FlockAgent
 
 # Define a simple agent that doubles the input value.
 class DoublerAgent(FlockAgent):
-    async def _evaluate(self, inputs: dict[str, any]) -> dict[str, any]:
+    async def evaluate(self, inputs: dict[str, any]) -> dict[str, any]:
         # Retrieve the input value (defaulting to 0 if not provided)
         value = inputs.get("value", 0)
         # Return the doubled value
@@ -26,7 +26,7 @@ class DoublerAgent(FlockAgent):
 
 # Define another agent that adds 5 to the doubled value.
 class AdderAgent(FlockAgent):
-    async def _evaluate(self, inputs: dict[str, any]) -> dict[str, any]:
+    async def evaluate(self, inputs: dict[str, any]) -> dict[str, any]:
         # Retrieve the "doubled" value (defaulting to 0 if not provided)
         doubled = inputs.get("doubled", 0)
         # Return the final result after adding 5

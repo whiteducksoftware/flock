@@ -1,5 +1,4 @@
-# Flock by White Duck
-
+# Flock 
 
 <img src="/img/flock.png" width="800" style="display: block; margin: 0 auto;">
 

@@ -20,5 +20,5 @@ async def run_declarative_agent_activity(params: dict) -> dict:
     agent = FlockAgent.from_dict(agent_data)
     # Reconstruct the FlockContext from the state.
     context = FlockContext.from_dict(context_data)
-    result = await agent._evaluate(context)
+    result = await agent.evaluate(context)
     return result

@@ -194,7 +194,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         """
         pass
 
-    async def _evaluate(self, inputs: dict[str, Any]) -> dict[str, Any]:
+    async def evaluate(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Process the agent's task using the provided inputs and return the result.
 
         This asynchronous method is the core execution engine for a FlockAgent. It performs the following steps:
@@ -252,11 +252,6 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 - Configure the language model and execute the appropriate task (ReAct if tools are provided, otherwise Predict).
                 - Return a dictionary similar to:
                     {"idea": "A fun app idea based on ...", "query": "build an app", "context": {"previous_idea": "messaging app"}}
-
-        **Note:**
-            This method is intended for internal use by the FlockAgent and is typically invoked by the higher-level
-            `run` method after performing any necessary lifecycle hooks (such as initialization or error handling).
-            This extensive documentation is provided to explain the internal workings of the agent execution process.
         """
         try:
             self.__dspy_signature = self.create_dspy_signature_class(
@@ -325,7 +320,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         """
         try:
             await self.initialize(inputs)
-            result = await self._evaluate(inputs)
+            result = await self.evaluate(inputs)
             await self.terminate(inputs, result)
             return result
         except Exception as run_error:
