@@ -45,7 +45,7 @@ async def run_agent(
     while agent:
         # Get the inputs for the agent
 
-        agent_inputs = resolve_inputs(agent.input, context)
+        agent_inputs = resolve_inputs(agent.input, context, previous_agent_name)
 
         # Execute the agent
         logger.info("Executing agent")

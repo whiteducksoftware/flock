@@ -8,7 +8,6 @@ from flock.core.logging.formatters.base_formatter import BaseFormatter
 with workflow.unsafe.imports_passed_through():
     from rich.console import Console, Group
     from rich.panel import Panel
-    from rich.pretty import Pretty
     from rich.table import Table
 
 
@@ -71,17 +70,16 @@ def create_rich_renderable(
                 return Group(*rendered_items)
 
     else:
-        if isinstance(value, str):
-            if max_length > 0 and len(value) > max_length:
-                omitted = len(value) - max_length
-                value = (
-                    value[:max_length]
-                    + f"[bold bright_yellow]...(+{omitted}chars)[/bold bright_yellow]"
-                )
-            return f"\n{value}\n"
-        else:
-            pretty = Pretty(value, max_length=max_length, expand_all=True)
-            return pretty
+        s = str(value).strip()
+        if max_length > 0 and len(s) > max_length:
+            omitted = len(s) - max_length
+            s = (
+                s[:max_length]
+                + f"[bold bright_yellow]...(+{omitted}chars)[/bold bright_yellow]"
+            )
+        if isinstance(value, str) and "\n" in value:
+            return f"\n{s}\n"
+        return s
 
 
 class RichTables(BaseFormatter):
