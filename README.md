@@ -153,7 +153,20 @@ TODO: Insert charts
 
 - Python 3.12+
 - (Optional) Temporal server running locally for production-grade workflow features
-- API keys for integrated services (e.g., Tavily for web search)
+- API keys for integrated services
+
+
+recommended services
+```bash
+export OPENAI_API_KEY=sk-proj-
+export TAVILY_API_KEY=tvly-
+```
+
+or in `.env`
+
+For LLM interaction LiteLLM is getting used. Please refer to its documentation on how to easily use other models and/or provider.
+
+https://docs.litellm.ai/docs/providers
 
 ## Installation
 
@@ -175,7 +188,6 @@ pip install flock-core[all-tools]
 
 ## Development
 
-### Setup
 
 1. **Clone the Repository:**
 

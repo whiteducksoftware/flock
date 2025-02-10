@@ -1,5 +1,5 @@
 {
-	"name": "flock dev + ruff",
+	"name": "flock dev",
 	"image": "ghcr.io/astral-sh/uv:python3.12-bookworm",
 	"customizations": {
 		"vscode": {
