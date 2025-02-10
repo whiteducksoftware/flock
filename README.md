@@ -1,4 +1,4 @@
-# Flock by white duck
+# Flock
 
 ### Declarative LLM Orchestration at Scale
 
