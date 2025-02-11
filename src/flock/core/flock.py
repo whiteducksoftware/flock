@@ -161,7 +161,12 @@ class Flock:
             Exception: For any other errors encountered during execution.
         """
         with tracer.start_as_current_span("run_async") as span:
-            span.set_attribute("start_agent", start_agent.name)
+            span.set_attribute(
+                "start_agent",
+                start_agent.name
+                if hasattr(start_agent, "name")
+                else start_agent,
+            )
             span.set_attribute("input", str(input))
             span.set_attribute("context", str(context))
             span.set_attribute("run_id", run_id)
