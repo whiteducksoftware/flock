@@ -13,11 +13,6 @@ tracer = trace.get_tracer(__name__)
 console = Console()
 
 
-from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Button, Footer, Header, Input, Label, Static, Tree
-
-
 def main():
     """Main entry point for the Flock package."""
     with tracer.start_as_current_span("flock_main") as span:

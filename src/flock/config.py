@@ -26,7 +26,10 @@ JAEGER_TRANSPORT = os.getenv(
     "JAEGER_TRANSPORT", "http"
 ).lower()  # Options: "grpc" or "http"
 OTEL_SQL_PATH = os.getenv("OTEL_SQL_PATH", "sqlite:///otel.db")
-OTEL_FILE_PATH = os.getenv("OTEL_FILE_PATH", "otel.json")
+OTEL_FILE_PATH = os.getenv("OTEL_FILE_PATH", "telemetry.json")
+OTEL_ENABLE_SQL = os.getenv("OTEL_ENABLE_SQL", "FALSE") == "1"
+OTEL_ENABLE_FILE = os.getenv("OTEL_ENABLE_FILE", "FALSE") == "1"
+OTEL_ENABLE_JAEGER = os.getenv("OTEL_ENABLE_JAEGER", "FALSE") == "1"
 
 
 TELEMETRY = TelemetryConfig(
