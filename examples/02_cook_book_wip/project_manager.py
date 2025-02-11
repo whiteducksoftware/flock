@@ -54,14 +54,14 @@ async def main():
     idea_agent = FlockAgent(
         name="idea_agent",
         input="query",
-        output="a_fun_software_project_idea",
+        output="software_project_idea",
         tools=[basic_tools.web_search_tavily],
         use_cache=True,
     )
 
     project_plan_agent = FlockAgent(
         name="project_plan_agent",
-        input="a_fun_software_project_idea",
+        input="software_project_idea",
         output="catchy_project_name, project_pitch, techstack, project_implementation_plan",
         tools=[basic_tools.web_search_tavily],
         use_cache=True,
@@ -103,7 +103,6 @@ async def main():
     flock.add_agent(issue_agent)
 
     features : Features = await flock.run_async(
-        input={"query": "fun software project idea"},
         start_agent=idea_agent,
     )
 
