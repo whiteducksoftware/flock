@@ -2,6 +2,10 @@
 <img src="docs/img/flock.png" width="600"><br>
 <h1 align="center">Flock<br></h1><br>
 
+<img alt="Dynamic TOML Badge" src="https://img.shields.io/badge/dynamic/toml?url=https://github.com/whiteducksoftware/flock/blob/master/pyproject.toml&query=$.project.version">
+
+
+
 
 ## Overview
 
