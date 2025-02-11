@@ -1,12 +1,16 @@
 """Mixin class for integrating with the dspy library."""
 
 import sys
-from typing import Any
+from typing import Any, Literal
 
 from flock.core.logging.logging import get_logger
 from flock.core.util.input_resolver import split_top_level
 
 logger = get_logger("flock")
+
+AgentType = (
+    Literal["ReAct"] | Literal["Completion"] | Literal["ChainOfThought"] | None
+)
 
 
 class DSPyIntegrationMixin:
@@ -125,6 +129,7 @@ class DSPyIntegrationMixin:
     def _select_task(
         self,
         signature: Any,
+        agent_type_override: AgentType,
     ) -> Any:
         """Select and instantiate the appropriate task based on tool availability.
 
@@ -139,16 +144,33 @@ class DSPyIntegrationMixin:
         import dspy
 
         dspy_solver = None
-        if self.tools:
-            dspy_solver = dspy.ReAct(
-                signature,
-                tools=self.tools,
-                max_iters=10,
-            )
+
+        if agent_type_override:
+            if agent_type_override == "ChainOfThought":
+                dspy_solver = dspy.ChainOfThought(
+                    signature,
+                )
+            if agent_type_override == "ReAct":
+                dspy.ReAct(
+                    signature,
+                    tools=self.tools,
+                    max_iters=10,
+                )
+            if agent_type_override == "Completion":
+                dspy_solver = dspy.Predict(
+                    signature,
+                )
         else:
-            dspy_solver = dspy.Predict(
-                signature,
-            )
+            if self.tools:
+                dspy_solver = dspy.ReAct(
+                    signature,
+                    tools=self.tools,
+                    max_iters=10,
+                )
+            else:
+                dspy_solver = dspy.Predict(
+                    signature,
+                )
 
         return dspy_solver
 

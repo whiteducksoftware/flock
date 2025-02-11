@@ -1,6 +1,6 @@
 <p align="center">
 <img src="docs/img/flock.png" width="600"><br>
-<h1 align="center">Flock</h1><br>
+<h1 align="center">Flock<br></h1><br>
 
 
 ## Overview
@@ -52,6 +52,10 @@ Flock is a framework for orchestrating LLM-powered agents. It leverages a **decl
 
 - **DSPy Integration:**  
   Flock leverages DSPy for managing LLM interactions. The framework constructs clean signature strings and updates field metadata so that DSPy can include detailed instructions and context for each agent call.
+
+
+<p align="center">
+<img src="docs/img/flock_cli.png" width="200"><br>
 
 ## Quick Start
 

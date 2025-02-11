@@ -1,7 +1,7 @@
 """FlockAgent is the core, declarative base class for all agents in the Flock framework."""
 
 from abc import ABC
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Union
 
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
 from flock.core.logging.logging import get_logger
-from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
+from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 
 logger = get_logger("flock")
@@ -23,6 +23,15 @@ tracer = trace.get_tracer(__name__)
 class FlockAgentConfig:
     """Configuration options for a FlockAgent."""
 
+    agent_type_override: AgentType = field(
+        default=None,
+        metadata={
+            "description": "Overrides the agent type. TOOL USE ONLY WORKS WITH REACT"
+        },
+    )
+    disable_output: bool = field(
+        default=False, metadata={"description": "Disables the agent's output."}
+    )
     save_to_file: bool = field(
         default=False,
         metadata={
@@ -33,7 +42,7 @@ class FlockAgentConfig:
 
 
 @dataclass
-class HandoffBase:
+class HandOff:
     """Base class for handoff returns."""
 
     next_agent: Union[str, "FlockAgent"] = field(
@@ -170,32 +179,58 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         description="Configuration options for the agent, such as serialization settings.",
     )
 
+    # Lifecycle callback fields: if provided, these callbacks are used instead of overriding the methods.
+    initialize_callback: Callable[[dict[str, Any]], Awaitable[None]] | None = (
+        Field(
+            default=None,
+            description="Optional callback function for initialization. If provided, this async function is called with the inputs.",
+        )
+    )
+    terminate_callback: (
+        Callable[[dict[str, Any], dict[str, Any]], Awaitable[None]] | None
+    ) = Field(
+        default=None,
+        description="Optional callback function for termination. If provided, this async function is called with the inputs and result.",
+    )
+    on_error_callback: (
+        Callable[[Exception, dict[str, Any]], Awaitable[None]] | None
+    ) = Field(
+        default=None,
+        description="Optional callback function for error handling. If provided, this async function is called with the error and inputs.",
+    )
+
     # Lifecycle hooks
     async def initialize(self, inputs: dict[str, Any]) -> None:
-        """The very first thing to get called.
+        """Called at the very start of the agent's execution.
 
-        Override this method to perform any setup or configuration tasks,
-        such as loading resources or validating inputs.
+        Override this method or provide an `initialize_callback` to perform setup tasks such as input validation or resource loading.
         """
-        pass
+        if self.initialize_callback is not None:
+            await self.initialize_callback(self, inputs)
+        else:
+            pass
 
     async def terminate(
         self, inputs: dict[str, Any], result: dict[str, Any]
     ) -> None:
-        """The very last thing to get called.
+        """Called at the very end of the agent's execution.
 
-        Override this method to perform any cleanup tasks,
-        such as releasing resources or logging results.
+        Override this method or provide a `terminate_callback` to perform cleanup tasks such as releasing resources or logging results.
         """
-        pass
+        if self.terminate_callback is not None:
+            await self.terminate_callback(self, inputs, result)
+        else:
+            pass
 
     async def on_error(self, error: Exception, inputs: dict[str, Any]) -> None:
         """Called if the agent encounters an error during execution.
 
-        Override this method to implement
-        custom error handling or recovery strategies.
+        Override this method or provide an `on_error_callback` to implement custom error handling or recovery strategies.
         """
-        pass
+        if self.on_error_callback is not None:
+            await self.on_error_callback(self, error, inputs)
+        else:
+            pass
 
     async def evaluate(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Process the agent's task using the provided inputs and return the result.
@@ -267,7 +302,10 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                     f"{self.input} -> {self.output}",
                 )
                 self._configure_language_model()
-                agent_task = self._select_task(self.__dspy_signature)
+                agent_task = self._select_task(
+                    self.__dspy_signature,
+                    agent_type_override=self.config.agent_type_override,
+                )
                 # Execute the task.
                 result = agent_task(**inputs)
                 result = self._process_result(result, inputs)
@@ -482,7 +520,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 return {k: convert_callable(v) for k, v in obj.items()}
             return obj
 
-        data = self.dict()
+        data = self.model_dump()
         return convert_callable(data)
 
     @classmethod

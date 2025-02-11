@@ -7,7 +7,7 @@ from temporalio import activity
 
 from flock.core.context.context import FlockContext
 from flock.core.context.context_vars import FLOCK_CURRENT_AGENT
-from flock.core.flock_agent import FlockAgent, HandoffBase
+from flock.core.flock_agent import FlockAgent, HandOff
 from flock.core.logging.formatters.base_formatter import FormatterOptions
 from flock.core.logging.formatters.formatter_factory import FormatterFactory
 from flock.core.logging.logging import get_logger
@@ -79,7 +79,11 @@ async def run_agent(
                         raise
 
                 # Optionally display formatted output.
-                if output_formatter:
+                display_output = True
+                if agent.config:
+                    display_output = not agent.config.disable_output
+
+                if output_formatter and display_output:
                     formatter = FormatterFactory.create_formatter(
                         output_formatter
                     )
@@ -103,7 +107,7 @@ async def run_agent(
                     return result
 
                 # Determine the next agent.
-                handoff_data = HandoffBase()
+                handoff_data = HandOff()
                 if callable(agent.hand_off):
                     logger.debug("Executing handoff function", agent=agent.name)
                     try:
