@@ -54,7 +54,9 @@ class Flock:
             span.set_attribute("model", model)
             span.set_attribute("local_debug", local_debug)
             span.set_attribute("enable_logging", enable_logging)
-            span.set_attribute("output_formatter", output_formatter)
+            span.set_attribute(
+                "output_formatter", output_formatter.formatter.__name__
+            )
             logger.info(
                 "Initializing Flock",
                 model=model,

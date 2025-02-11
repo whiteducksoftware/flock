@@ -124,7 +124,7 @@ async def run_agent(
                         )
                         iter_span.record_exception(e)
                         return {"error": f"Handoff function error: {e}"}
-                elif isinstance(agent.hand_off, (str, FlockAgent)):
+                elif isinstance(agent.hand_off, str | FlockAgent):
                     handoff_data.next_agent = (
                         agent.hand_off
                         if isinstance(agent.hand_off, str)

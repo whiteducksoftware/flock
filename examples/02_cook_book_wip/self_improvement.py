@@ -1,26 +1,11 @@
 """
-Title: Building Your First Flock Agent
-
-In this example, we'll walk you through creating and running a simple Flock system with a single agent.
-Flock enables you to build LLM-powered agents by simply declaring what data each agent receives and what it
-produces—no more tedious prompt engineering!
-
-What you'll learn:
-  - How to set up the Flock model (using litellm; check out https://docs.litellm.ai/docs/providers for valid model IDs).
-  - How to create a Flock instance that serves as the central orchestrator and context holder.
-  - How to define a simple agent (named "bloggy") by declaring its input and output.
-  - How to add the agent to your Flock.
-  - How to run the agent workflow asynchronously in local debug mode (without needing Temporal).
-
-The "bloggy" agent in this example is designed to take a blog idea as input and generate a funny blog title
-along with a list of blog headers as output.
-
-Let's get started!
+Title: Reasoning assistant with self managed memory
 """
-
+import warnings
+warnings.simplefilter("error", UserWarning)
 import asyncio
 from dataclasses import dataclass, field
-from devtools import pprint
+
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent, FlockAgentConfig, HandOff
 
@@ -36,7 +21,6 @@ class Chat:
     answer_to_query: str = ""
     memory: str = ""
     
-    # Triggers before the agent responds to the user query
     async def before_response(self, agent, inputs):
         console = Console()
         # Load the memory from file (if it exists)
@@ -58,7 +42,7 @@ class Chat:
         console = Console()
         self.answer_to_query = outputs["answer_to_query"]
         self.chat_history.append({"user": self.user_query, "assistant": self.answer_to_query})
-        self.memory += outputs.get("important_knowledge_to_add_to_memory", "")
+        self.memory += outputs.get("important_new_knowledge_to_add_to_memory", "") + "\n"
 
         # Save updated memory to file
         with open("memory.txt", "w") as file:
