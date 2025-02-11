@@ -1,11 +1,12 @@
 """This module sets up OpenTelemetry tracing for a service."""
 
+import os
+import sqlite3
+
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (
-    BatchSpanProcessor,
-)
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 from flock.core.logging.telemetry_exporter.file_span import FileSpanExporter
 from flock.core.logging.telemetry_exporter.sqllite_span import (
@@ -55,7 +56,7 @@ class TelemetryConfig:
         # List to collect our span processors.
         span_processors = []
 
-        # If a Jaeger endpoint is specified, add the Jaeger gRPC exporter.
+        # If a Jaeger endpoint is specified, add the Jaeger exporter.
         if self.jaeger_endpoint:
             if self.jaeger_transport == "grpc":
                 from opentelemetry.exporter.jaeger.proto.grpc import (
@@ -92,8 +93,30 @@ class TelemetryConfig:
                 )
             )
 
-        # If a SQLite database path is provided, add the custom SQLite exporter.
+        # If a SQLite database path is provided, ensure the DB exists and add the SQLite exporter.
         if self.sqlite_db_path:
+            # Check if the database file exists; if not, create it and set up the schema.
+            if not os.path.isfile(self.sqlite_db_path):
+                conn = sqlite3.connect(self.sqlite_db_path)
+                cursor = conn.cursor()
+                # Create a table for spans. Adjust the schema as needed.
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS spans (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        trace_id TEXT,
+                        span_id TEXT,
+                        parent_span_id TEXT,
+                        name TEXT,
+                        start_time TEXT,
+                        end_time TEXT,
+                        attributes TEXT
+                    )
+                    """
+                )
+                conn.commit()
+                conn.close()
+
             sqlite_exporter = SQLiteSpanExporter(self.sqlite_db_path)
             span_processors.append(
                 BatchSpanProcessor(

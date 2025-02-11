@@ -16,6 +16,7 @@ dependencies = [
     "cloudpickle>=3.1.1",
     "devtools>=0.12.2",
     "dspy==2.5.42",
+    "duckduckgo-search>=7.3.2",
     "httpx>=0.28.1",
     "loguru>=0.7.3",
     "msgpack>=1.1.0",
@@ -29,6 +30,8 @@ dependencies = [
     "python-box>=7.3.2",
     "rich>=13.9.4",
     "temporalio>=1.9.0",
+    "textual>=1.0.0",
+    "textual-dev>=1.7.0",
     "toml>=0.10.2",
 ]
 
@@ -64,6 +67,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flock"]
+
+[project.scripts]
+flock = "flock:main"
 
 
 [tool.ruff]
