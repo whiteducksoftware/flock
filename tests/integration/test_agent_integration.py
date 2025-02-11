@@ -4,6 +4,9 @@ import pytest
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
 
+# This is the model that will be used for the tests
+MODEL = "ollama_chat/qwen"
+
 @pytest.fixture
 def flock():
     return Flock(local_debug=True)

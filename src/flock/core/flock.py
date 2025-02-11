@@ -167,6 +167,7 @@ class Flock:
                 if hasattr(start_agent, "name")
                 else start_agent,
             )
+
             span.set_attribute("input", str(input))
             span.set_attribute("context", str(context))
             span.set_attribute("run_id", run_id)
@@ -183,6 +184,7 @@ class Flock:
                         raise ValueError(
                             f"Agent '{start_agent}' not found in registry"
                         )
+                    start_agent.resolve_callables(context=self.context)
                 if context:
                     logger.debug("Using provided context")
                     self.context = context

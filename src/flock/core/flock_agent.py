@@ -127,14 +127,14 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         "", description="A human-readable description of the agent."
     )
 
-    input: str | None = Field(
+    input: str | Callable[..., str] | None = Field(
         None,
         description=(
             "A comma-separated list of input keys. Optionally supports type hints (:) and descriptions (|). "
             "For example: 'query: str | The search query, chapter_list: list[str] | The chapter list of the document'."
         ),
     )
-    output: str | None = Field(
+    output: str | Callable[..., str] | None = Field(
         None,
         description=(
             "A comma-separated list of output keys.  Optionally supports type hints (:) and descriptions (|). "
@@ -160,7 +160,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         ),
     )
 
-    termination: str | None = Field(
+    termination: str | Callable[..., str] | None = Field(
         None,
         description="An optional termination condition or phrase used to indicate when the agent should stop processing.",
     )
@@ -422,6 +422,20 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 )
                 span.record_exception(temporal_error)
                 raise
+
+    def resolve_callables(self, context) -> None:
+        """Resolve any callable fields in the agent instance using the provided context.
+
+        This method resolves any callable fields in the agent instance using the provided context. It iterates over
+        the agent's fields and replaces any callable objects (such as lifecycle hooks or tools) with their corresponding
+        resolved values from the context. This ensures that the agent is fully configured and ready
+        """
+        if isinstance(self.input, Callable):
+            self.input = self.input(context)
+        if isinstance(self.output, Callable):
+            self.output = self.output(context)
+        if isinstance(self.description, Callable):
+            self.description = self.description(context)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the FlockAgent instance to a dictionary.

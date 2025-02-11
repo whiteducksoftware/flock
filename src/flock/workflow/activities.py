@@ -38,6 +38,7 @@ async def run_agent(
         logger.info("Starting agent chain", initial_agent=current_agent_name)
 
         agent = registry.get_agent(current_agent_name)
+        agent.resolve_callables(context=context)
         if not agent:
             logger.error("Agent not found", agent=current_agent_name)
             span.record_exception(
@@ -143,6 +144,7 @@ async def run_agent(
                 # Prepare the next agent.
                 try:
                     agent = registry.get_agent(handoff_data.next_agent)
+                    agent.resolve_callables(context=context)
                     if not agent:
                         logger.error(
                             "Next agent not found",
