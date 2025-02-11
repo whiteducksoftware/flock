@@ -1,7 +1,11 @@
 """
 Title: Reasoning assistant with self managed memory
 """
+
+from datetime import datetime
 import warnings
+
+from flock.core.tools import basic_tools
 warnings.simplefilter("error", UserWarning)
 import asyncio
 from dataclasses import dataclass, field
@@ -83,12 +87,13 @@ async def main():
 
     chatty = FlockAgent(
         name="chatty", 
-        description="You are Chatty, a friendly assistant that loves to chat.",
+        description=f"You are Chatty, a friendly assistant that loves to chat. Today is {datetime.now().strftime('%A, %B %d, %Y')}",
         input="user_query, memory | Memory of previous interactions, chat_history | the current chat history", 
         output="answer_to_query, important_new_knowledge_to_add_to_memory | Empty string if no knowledge to add",
         initialize_callback=chat_helper.before_response,
         terminate_callback=chat_helper.after_response,
-        config=FlockAgentConfig(disable_output=True,agent_type_override="ChainOfThought")
+        config=FlockAgentConfig(disable_output=True),
+        tools=[basic_tools.web_search_tavily],
     )
     flock.add_agent(chatty)
 

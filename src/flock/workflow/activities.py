@@ -96,7 +96,7 @@ async def run_agent(
                     context.record(
                         agent.name,
                         result,
-                        timestamp=datetime.now(),
+                        timestamp=datetime.now().isoformat(),
                         hand_off=None,
                         called_from=previous_agent_name,
                     )
