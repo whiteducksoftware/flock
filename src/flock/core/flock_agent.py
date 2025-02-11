@@ -1,7 +1,7 @@
 """FlockAgent is the core, declarative base class for all agents in the Flock framework."""
 
 from abc import ABC
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Union
 
@@ -10,16 +10,28 @@ from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
 from flock.core.logging.logging import get_logger
-from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
+from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 
 logger = get_logger("flock")
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
 class FlockAgentConfig:
     """Configuration options for a FlockAgent."""
 
+    agent_type_override: AgentType = field(
+        default=None,
+        metadata={
+            "description": "Overrides the agent type. TOOL USE ONLY WORKS WITH REACT"
+        },
+    )
+    disable_output: bool = field(
+        default=False, metadata={"description": "Disables the agent's output."}
+    )
     save_to_file: bool = field(
         default=False,
         metadata={
@@ -30,7 +42,7 @@ class FlockAgentConfig:
 
 
 @dataclass
-class HandoffBase:
+class HandOff:
     """Base class for handoff returns."""
 
     next_agent: Union[str, "FlockAgent"] = field(
@@ -124,14 +136,14 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         "", description="A human-readable description of the agent."
     )
 
-    input: str | None = Field(
+    input: str | Callable[..., str] | None = Field(
         None,
         description=(
             "A comma-separated list of input keys. Optionally supports type hints (:) and descriptions (|). "
             "For example: 'query: str | The search query, chapter_list: list[str] | The chapter list of the document'."
         ),
     )
-    output: str | None = Field(
+    output: str | Callable[..., str] | None = Field(
         None,
         description=(
             "A comma-separated list of output keys.  Optionally supports type hints (:) and descriptions (|). "
@@ -157,7 +169,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         ),
     )
 
-    termination: str | None = Field(
+    termination: str | Callable[..., str] | None = Field(
         None,
         description="An optional termination condition or phrase used to indicate when the agent should stop processing.",
     )
@@ -167,32 +179,58 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         description="Configuration options for the agent, such as serialization settings.",
     )
 
+    # Lifecycle callback fields: if provided, these callbacks are used instead of overriding the methods.
+    initialize_callback: Callable[[dict[str, Any]], Awaitable[None]] | None = (
+        Field(
+            default=None,
+            description="Optional callback function for initialization. If provided, this async function is called with the inputs.",
+        )
+    )
+    terminate_callback: (
+        Callable[[dict[str, Any], dict[str, Any]], Awaitable[None]] | None
+    ) = Field(
+        default=None,
+        description="Optional callback function for termination. If provided, this async function is called with the inputs and result.",
+    )
+    on_error_callback: (
+        Callable[[Exception, dict[str, Any]], Awaitable[None]] | None
+    ) = Field(
+        default=None,
+        description="Optional callback function for error handling. If provided, this async function is called with the error and inputs.",
+    )
+
     # Lifecycle hooks
     async def initialize(self, inputs: dict[str, Any]) -> None:
-        """The very first thing to get called.
+        """Called at the very start of the agent's execution.
 
-        Override this method to perform any setup or configuration tasks,
-        such as loading resources or validating inputs.
+        Override this method or provide an `initialize_callback` to perform setup tasks such as input validation or resource loading.
         """
-        pass
+        if self.initialize_callback is not None:
+            await self.initialize_callback(self, inputs)
+        else:
+            pass
 
     async def terminate(
         self, inputs: dict[str, Any], result: dict[str, Any]
     ) -> None:
-        """The very last thing to get called.
+        """Called at the very end of the agent's execution.
 
-        Override this method to perform any cleanup tasks,
-        such as releasing resources or logging results.
+        Override this method or provide a `terminate_callback` to perform cleanup tasks such as releasing resources or logging results.
         """
-        pass
+        if self.terminate_callback is not None:
+            await self.terminate_callback(self, inputs, result)
+        else:
+            pass
 
     async def on_error(self, error: Exception, inputs: dict[str, Any]) -> None:
         """Called if the agent encounters an error during execution.
 
-        Override this method to implement
-        custom error handling or recovery strategies.
+        Override this method or provide an `on_error_callback` to implement custom error handling or recovery strategies.
         """
-        pass
+        if self.on_error_callback is not None:
+            await self.on_error_callback(self, error, inputs)
+        else:
+            pass
 
     async def evaluate(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Process the agent's task using the provided inputs and return the result.
@@ -253,24 +291,35 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 - Return a dictionary similar to:
                     {"idea": "A fun app idea based on ...", "query": "build an app", "context": {"previous_idea": "messaging app"}}
         """
-        try:
-            self.__dspy_signature = self.create_dspy_signature_class(
-                self.name, self.description, f"{self.input} -> {self.output}"
-            )
-            # Initialize the language model.
-            self._configure_language_model()
-            # Select the appropriate DSPy task based on tool availability.
-            agent_task = self._select_task(self.__dspy_signature)
-            # Execute the task with the provided inputs.
-            result = agent_task(**inputs)
-            # Process the result and ensure fallback values for missing keys.
-            result = self._process_result(result, inputs)
-            return result
-        except Exception as eval_error:
-            logger.error(
-                f"Error during evaluation in agent '{self.name}': {eval_error}"
-            )
-            raise
+        with tracer.start_as_current_span("agent.evaluate") as span:
+            span.set_attribute("agent.name", self.name)
+            span.set_attribute("inputs", str(inputs))
+            try:
+                # Create and configure the signature and language model.
+                self.__dspy_signature = self.create_dspy_signature_class(
+                    self.name,
+                    self.description,
+                    f"{self.input} -> {self.output}",
+                )
+                self._configure_language_model()
+                agent_task = self._select_task(
+                    self.__dspy_signature,
+                    agent_type_override=self.config.agent_type_override,
+                )
+                # Execute the task.
+                result = agent_task(**inputs)
+                result = self._process_result(result, inputs)
+                span.set_attribute("result", str(result))
+                logger.info("Evaluation successful", agent=self.name)
+                return result
+            except Exception as eval_error:
+                logger.error(
+                    "Error during evaluation",
+                    agent=self.name,
+                    error=str(eval_error),
+                )
+                span.record_exception(eval_error)
+                raise
 
     async def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Run the agent with the given inputs and return its generated output.
@@ -318,15 +367,23 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             The method might return:
                 {"result": "A conversational chatbot that uses AI to...", "query": "build a chatbot", "context": {"user": "Alice"}}
         """
-        try:
-            await self.initialize(inputs)
-            result = await self.evaluate(inputs)
-            await self.terminate(inputs, result)
-            return result
-        except Exception as run_error:
-            await self.on_error(run_error, inputs)
-            logger.error(f"Error running agent '{self.name}': {run_error}")
-            raise
+        with tracer.start_as_current_span("agent.run") as span:
+            span.set_attribute("agent.name", self.name)
+            span.set_attribute("inputs", str(inputs))
+            try:
+                await self.initialize(inputs)
+                result = await self.evaluate(inputs)
+                await self.terminate(inputs, result)
+                span.set_attribute("result", str(result))
+                logger.info("Agent run completed", agent=self.name)
+                return result
+            except Exception as run_error:
+                logger.error(
+                    "Error running agent", agent=self.name, error=str(run_error)
+                )
+                await self.on_error(run_error, inputs)
+                span.record_exception(run_error)
+                raise
 
     async def run_temporal(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Execute this agent via a Temporal workflow for enhanced fault tolerance and asynchronous processing.
@@ -369,29 +426,54 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 result = await agent.run_temporal({"query": "analyze data", "context": {"source": "sales"}})
             will execute the agent on a Temporal worker and return the output in a structured dictionary format.
         """
-        try:
-            from temporalio.client import Client
+        with tracer.start_as_current_span("agent.run_temporal") as span:
+            span.set_attribute("agent.name", self.name)
+            span.set_attribute("inputs", str(inputs))
+            try:
+                from temporalio.client import Client
 
-            from flock.workflow.agent_activities import run_flock_agent_activity
-            from flock.workflow.temporal_setup import run_activity
+                from flock.workflow.agent_activities import (
+                    run_flock_agent_activity,
+                )
+                from flock.workflow.temporal_setup import run_activity
 
-            client = await Client.connect("localhost:7233", namespace="default")
-            agent_data = self.to_dict()
-            inputs_data = inputs
+                client = await Client.connect(
+                    "localhost:7233", namespace="default"
+                )
+                agent_data = self.to_dict()
+                inputs_data = inputs
 
-            result = await run_activity(
-                client,
-                self.name,
-                run_flock_agent_activity,
-                {"agent_data": agent_data, "inputs": inputs_data},
-            )
-            return result
+                result = await run_activity(
+                    client,
+                    self.name,
+                    run_flock_agent_activity,
+                    {"agent_data": agent_data, "inputs": inputs_data},
+                )
+                span.set_attribute("result", str(result))
+                logger.info("Temporal run successful", agent=self.name)
+                return result
+            except Exception as temporal_error:
+                logger.error(
+                    "Error in Temporal workflow",
+                    agent=self.name,
+                    error=str(temporal_error),
+                )
+                span.record_exception(temporal_error)
+                raise
 
-        except Exception as temporal_error:
-            logger.error(
-                f"Error running Temporal workflow for agent '{self.name}': {temporal_error}"
-            )
-            raise
+    def resolve_callables(self, context) -> None:
+        """Resolve any callable fields in the agent instance using the provided context.
+
+        This method resolves any callable fields in the agent instance using the provided context. It iterates over
+        the agent's fields and replaces any callable objects (such as lifecycle hooks or tools) with their corresponding
+        resolved values from the context. This ensures that the agent is fully configured and ready
+        """
+        if isinstance(self.input, Callable):
+            self.input = self.input(context)
+        if isinstance(self.output, Callable):
+            self.output = self.output(context)
+        if isinstance(self.description, Callable):
+            self.description = self.description(context)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the FlockAgent instance to a dictionary.
@@ -438,7 +520,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 return {k: convert_callable(v) for k, v in obj.items()}
             return obj
 
-        data = self.dict()
+        data = self.model_dump()
         return convert_callable(data)
 
     @classmethod

@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.2.1"
+version = "0.2.2"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -19,6 +19,11 @@ dependencies = [
     "httpx>=0.28.1",
     "loguru>=0.7.3",
     "msgpack>=1.1.0",
+    "opentelemetry-api>=1.30.0",
+    "opentelemetry-exporter-jaeger>=1.21.0",
+    "opentelemetry-exporter-otlp>=1.30.0",
+    "opentelemetry-instrumentation-logging>=0.51b0",
+    "opentelemetry-sdk>=1.30.0",
     "pydantic>=2.10.5",
     "python-box>=7.3.2",
     "rich>=13.9.4",

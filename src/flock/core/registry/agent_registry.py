@@ -1,8 +1,14 @@
-"""Registry for storing and managing agents and tools."""
+"""Registry for storing and managing agents and tools with logging and tracing integration."""
 
 from collections.abc import Callable
 
+from opentelemetry import trace
+
 from flock.core.flock_agent import FlockAgent
+from flock.core.logging.logging import get_logger
+
+logger = get_logger("registry")
+tracer = trace.get_tracer(__name__)
 
 
 class Registry:
@@ -16,88 +22,97 @@ class Registry:
     _instance = None
 
     def __new__(cls):
-        """Singleton pattern implementation."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialize()
-        return cls._instance
+        with tracer.start_as_current_span("Registry.__new__") as span:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialize()
+                logger.info("Registry instance created")
+                span.set_attribute("instance.created", True)
+            return cls._instance
 
     def _initialize(self):
-        """Initialize the registry's storage."""
-        self._agents: list[FlockAgent] = []
-        self._tools: list[tuple[str, Callable]] = []
+        with tracer.start_as_current_span("Registry._initialize"):
+            self._agents: list[FlockAgent] = []
+            self._tools: list[tuple[str, Callable]] = []
+            logger.info("Registry initialized", agents_count=0, tools_count=0)
 
     def register_tool(self, tool_name: str, tool: Callable) -> None:
-        """Register a tool with the registry.
-
-        Args:
-            tool_name: The name to register the tool under
-            tool: The tool function to register
-        """
-        try:
-            self._tools.append((tool_name, tool))
-        except Exception:
-            raise
+        with tracer.start_as_current_span("Registry.register_tool") as span:
+            span.set_attribute("tool_name", tool_name)
+            try:
+                self._tools.append((tool_name, tool))
+                logger.info("Tool registered", tool_name=tool_name)
+            except Exception as e:
+                logger.error(
+                    "Error registering tool", tool_name=tool_name, error=str(e)
+                )
+                span.record_exception(e)
+                raise
 
     def register_agent(self, agent: FlockAgent) -> None:
-        """Register an agent with the registry.
-
-        Args:
-            agent: The agent instance to register
-        """
-        try:
-            self._agents.append(agent)
-        except Exception:
-            raise
+        with tracer.start_as_current_span("Registry.register_agent") as span:
+            span.set_attribute("agent_name", agent.name)
+            try:
+                self._agents.append(agent)
+                logger.info("Agent registered", agent=agent.name)
+            except Exception as e:
+                logger.error(
+                    "Error registering agent", agent=agent.name, error=str(e)
+                )
+                span.record_exception(e)
+                raise
 
     def get_agent(self, name: str) -> FlockAgent | None:
-        """Retrieve an agent by name.
-
-        Args:
-            name: The name of the agent to retrieve
-
-        Returns:
-            The agent instance if found, None otherwise
-        """
-        try:
-            for agent in self._agents:
-                if agent.name == name:
-                    return agent
-            return None
-        except Exception:
-            raise
+        with tracer.start_as_current_span("Registry.get_agent") as span:
+            span.set_attribute("search_agent_name", name)
+            try:
+                for agent in self._agents:
+                    if agent.name == name:
+                        logger.info("Agent found", agent=name)
+                        span.set_attribute("found", True)
+                        return agent
+                logger.warning("Agent not found", agent=name)
+                span.set_attribute("found", False)
+                return None
+            except Exception as e:
+                logger.error("Error retrieving agent", agent=name, error=str(e))
+                span.record_exception(e)
+                raise
 
     def get_tool(self, name: str) -> Callable | None:
-        """Retrieve a tool by name.
-
-        Args:
-            name: The name of the tool to retrieve
-
-        Returns:
-            The tool function if found, None otherwise
-        """
-        try:
-            for tool_name, tool in self._tools:
-                if tool_name == name:
-                    return tool
-            return None
-        except Exception:
-            raise
+        with tracer.start_as_current_span("Registry.get_tool") as span:
+            span.set_attribute("search_tool_name", name)
+            try:
+                for tool_name, tool in self._tools:
+                    if tool_name == name:
+                        logger.info("Tool found", tool=name)
+                        span.set_attribute("found", True)
+                        return tool
+                logger.warning("Tool not found", tool=name)
+                span.set_attribute("found", False)
+                return None
+            except Exception as e:
+                logger.error("Error retrieving tool", tool=name, error=str(e))
+                span.record_exception(e)
+                raise
 
     def get_tools(self, names: list[str] | None) -> list[Callable]:
-        """Retrieve multiple tools by name.
-
-        Args:
-            names: List of tool names to retrieve
-
-        Returns:
-            List of found tool functions (may be empty if none found)
-        """
-        try:
-            if not names:
-                return []
-
-            tools = [self.get_tool(name) for name in names]
-            return [tool for tool in tools if tool is not None]
-        except Exception:
-            raise
+        with tracer.start_as_current_span("Registry.get_tools") as span:
+            span.set_attribute("search_tool_names", str(names))
+            try:
+                if not names:
+                    logger.info("No tool names provided")
+                    return []
+                tools = [self.get_tool(name) for name in names]
+                found_tools = [tool for tool in tools if tool is not None]
+                logger.info(
+                    "Tools retrieved", requested=names, found=len(found_tools)
+                )
+                span.set_attribute("found_tools_count", len(found_tools))
+                return found_tools
+            except Exception as e:
+                logger.error(
+                    "Error retrieving tools", names=str(names), error=str(e)
+                )
+                span.record_exception(e)
+                raise

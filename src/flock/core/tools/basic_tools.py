@@ -3,7 +3,10 @@
 import importlib
 import os
 
+from flock.core.logging.trace_and_logged import traced_and_logged
 
+
+@traced_and_logged
 def web_search_tavily(query: str):
     """Performs a web search using the Tavily client.
 
@@ -32,9 +35,12 @@ def web_search_tavily(query: str):
         except Exception:
             raise
     else:
-        raise ImportError("Optional tool dependencies not installed. Install with 'pip install flock-core[tools]'.")
+        raise ImportError(
+            "Optional tool dependencies not installed. Install with 'pip install flock-core[tools]'."
+        )
 
 
+@traced_and_logged
 def get_web_content_as_markdown(url: str):
     """Fetches web content from a URL and converts it to Markdown.
 
@@ -51,7 +57,10 @@ def get_web_content_as_markdown(url: str):
         ImportError: If either 'httpx' or 'markdownify' dependencies are not installed.
         Exception: Re-raises any exceptions encountered during the HTTP request or conversion.
     """
-    if importlib.util.find_spec("httpx") is not None and importlib.util.find_spec("markdownify") is not None:
+    if (
+        importlib.util.find_spec("httpx") is not None
+        and importlib.util.find_spec("markdownify") is not None
+    ):
         import httpx
         from markdownify import markdownify as md
 
@@ -63,9 +72,12 @@ def get_web_content_as_markdown(url: str):
         except Exception:
             raise
     else:
-        raise ImportError("Optional tool dependencies not installed. Install with 'pip install flock-core[tools]'.")
+        raise ImportError(
+            "Optional tool dependencies not installed. Install with 'pip install flock-core[tools]'."
+        )
 
 
+@traced_and_logged
 def get_anything_as_markdown(url_or_file_path: str):
     """Converts the content of a URL or file into Markdown format.
 
@@ -94,9 +106,12 @@ def get_anything_as_markdown(url_or_file_path: str):
         except Exception:
             raise
     else:
-        raise ImportError("Optional tool dependencies not installed. Install with 'pip install flock-core[all-tools]'.")
+        raise ImportError(
+            "Optional tool dependencies not installed. Install with 'pip install flock-core[all-tools]'."
+        )
 
 
+@traced_and_logged
 def evaluate_math(expression: str) -> float:
     """Evaluates a mathematical expression using the dspy interpreter.
 
@@ -121,6 +136,7 @@ def evaluate_math(expression: str) -> float:
         raise
 
 
+@traced_and_logged
 def code_eval(python_code: str) -> float:
     """Executes Python code using the dspy interpreter.
 
@@ -145,6 +161,7 @@ def code_eval(python_code: str) -> float:
         raise
 
 
+@traced_and_logged
 def get_current_time() -> str:
     """Retrieves the current time in ISO 8601 format.
 
@@ -157,6 +174,7 @@ def get_current_time() -> str:
     return time
 
 
+@traced_and_logged
 def count_words(text: str) -> int:
     """Counts the number of words in the provided text.
 
@@ -172,6 +190,7 @@ def count_words(text: str) -> int:
     return count
 
 
+@traced_and_logged
 def extract_urls(text: str) -> list[str]:
     """Extracts all URLs from the given text.
 
@@ -191,6 +210,7 @@ def extract_urls(text: str) -> list[str]:
     return urls
 
 
+@traced_and_logged
 def extract_numbers(text: str) -> list[float]:
     """Extracts all numerical values from the provided text.
 
@@ -209,6 +229,7 @@ def extract_numbers(text: str) -> list[float]:
     return numbers
 
 
+@traced_and_logged
 def json_parse_safe(text: str) -> dict:
     """Safely parses a JSON string into a dictionary.
 
@@ -230,6 +251,7 @@ def json_parse_safe(text: str) -> dict:
         return {}
 
 
+@traced_and_logged
 def save_to_file(content: str, filename: str):
     """Saves the given content to a file.
 
@@ -250,6 +272,7 @@ def save_to_file(content: str, filename: str):
         raise
 
 
+@traced_and_logged
 def read_from_file(filename: str) -> str:
     """Reads and returns the content of a file.
 
