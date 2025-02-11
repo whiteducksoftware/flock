@@ -940,7 +940,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.2.1"
+version = "0.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "cloudpickle" },
@@ -951,6 +951,7 @@ dependencies = [
     { name = "msgpack" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-jaeger" },
+    { name = "opentelemetry-exporter-jaeger-proto-grpc" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-instrumentation-logging" },
     { name = "opentelemetry-sdk" },
@@ -1012,6 +1013,7 @@ requires-dist = [
     { name = "msgpack", specifier = ">=1.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.30.0" },
     { name = "opentelemetry-exporter-jaeger", specifier = ">=1.21.0" },
+    { name = "opentelemetry-exporter-jaeger-proto-grpc", specifier = ">=1.21.0" },
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.30.0" },
     { name = "opentelemetry-instrumentation-logging", specifier = ">=0.51b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.30.0" },

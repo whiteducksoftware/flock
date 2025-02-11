@@ -15,14 +15,13 @@ from flock.core.flock_agent import FlockAgent
 from flock.core.logging.formatters.base_formatter import FormatterOptions
 from flock.core.logging.formatters.pprint_formatter import PrettyPrintFormatter
 from flock.core.logging.logging import get_logger
-from flock.core.logging.telemetry import setup_tracing
 from flock.core.registry.agent_registry import Registry
 from flock.core.util.cli_helper import display_banner
 from flock.core.util.input_resolver import top_level_to_keys
 
 T = TypeVar("T", bound=FlockAgent)
 logger = get_logger("flock")
-tracer = setup_tracing()
+
 tracer = trace.get_tracer(__name__)
 
 
