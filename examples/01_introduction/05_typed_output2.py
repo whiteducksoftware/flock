@@ -39,6 +39,8 @@ class RandomPerson:
     favorite_movie: str  
     short_bio: str
 
+RandomUserList = list[RandomPerson]
+
 async def main():
    
     flock = Flock(local_debug=True)
@@ -53,7 +55,7 @@ async def main():
     people_agent = FlockAgent(
         name="people_agent",
         input="amount_of_people",
-        output="random_user_list: list[RandomPerson]",
+        output="random_user_list: RandomUserList",
         use_cache=True,
     )
     flock.add_agent(people_agent)
