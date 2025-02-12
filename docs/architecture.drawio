@@ -1,0 +1,24 @@
+<mxfile host="65bd71144e">
+    <diagram id="iQ7YuHOuaVDECIdskFDT" name="Page-1">
+        <mxGraphModel grid="0" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="850" pageHeight="1100" background="light-dark(#FFFFFF, #d8cfb1)" math="0" shadow="1">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="2" value="sequenceDiagram&#xa;    participant Client&#xa;    participant Flock&#xa;    participant FlockAgent&#xa;    participant Registry&#xa;    participant Context&#xa;    participant LLM&#xa;    &#xa;    Client-&gt;&gt;Flock: run_async(agent, input)&#xa;    Flock-&gt;&gt;Registry: get_agent(name)&#xa;    Registry--&gt;&gt;Flock: agent instance&#xa;    &#xa;    Flock-&gt;&gt;Context: initialize_context(agent, input)&#xa;    &#xa;    Flock-&gt;&gt;FlockAgent: run(inputs)&#xa;    activate FlockAgent&#xa;    &#xa;    FlockAgent-&gt;&gt;FlockAgent: initialize(inputs)&#xa;    FlockAgent-&gt;&gt;FlockAgent: _evaluate(inputs)&#xa;    &#xa;    FlockAgent-&gt;&gt;LLM: process with tools/prompts&#xa;    LLM--&gt;&gt;FlockAgent: response&#xa;    &#xa;    FlockAgent-&gt;&gt;FlockAgent: terminate(inputs, result)&#xa;    FlockAgent--&gt;&gt;Flock: result&#xa;    deactivate FlockAgent&#xa;    &#xa;    Flock--&gt;&gt;Client: final result" style="shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;" vertex="1" parent="1">
+                    <mxGeometry x="271" y="360" width="300" height="300" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="mQwFuZfSuTjpqv4SXbYC" name="Page-2">
+        <mxGraphModel dx="354" dy="259" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="light-dark(#FFFFFF, #ffffde)" math="0" shadow="1">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="gh-ZxXSGDDD0mwRwWCxR-1" value="graph TD&#xa;    subgraph Client Application&#xa;        client[Client Code]&#xa;    end&#xa;&#xa;    subgraph Flock Framework&#xa;        orchestrator[Flock Orchestrator]&#xa;        registry[Agent Registry]&#xa;        context[Context Manager]&#xa;        &#xa;        subgraph Agents&#xa;            base[FlockAgent Base]&#xa;&#xa;        end&#xa;        &#xa;        subgraph Execution&#xa;            local[Local Executor]&#xa;            temporal[Temporal Executor]&#xa;        end&#xa;        &#xa;        subgraph Core Services&#xa;            logging[Logging System]&#xa;            tools[Tool Registry]&#xa;            formatter[Output Formatters]&#xa;        end&#xa;    end&#xa;&#xa;    subgraph External Services&#xa;        llm[Language Models]&#xa;        temporal_server[Temporal Server]&#xa;    end&#xa;&#xa;    %% Client interactions&#xa;    client --&gt; orchestrator&#xa;    &#xa;    %% Orchestrator relations&#xa;    orchestrator --&gt; registry&#xa;    orchestrator --&gt; context&#xa;    orchestrator --&gt; local&#xa;    orchestrator --&gt; temporal&#xa;    &#xa;    %% Agent relations&#xa;    base --&gt; tools&#xa;    base --&gt; logging&#xa;    base --&gt; formatter&#xa;&#xa;    &#xa;    %% Execution relations&#xa;    local --&gt; llm&#xa;    temporal --&gt; temporal_server&#xa;    temporal_server --&gt; llm&#xa;    &#xa;    %% Registry relations&#xa;    registry --&gt; base&#xa;    registry --&gt; tools&#xa;&#xa;    %% Style&#xa;    classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;&#xa;    classDef external fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;&#xa;    classDef core fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;&#xa;    &#xa;    class llm,temporal_server external;&#xa;    class orchestrator,registry,context,base,local,temporal core;" style="shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;" vertex="1" parent="1">
+                    <mxGeometry x="274" y="325" width="300" height="300" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
