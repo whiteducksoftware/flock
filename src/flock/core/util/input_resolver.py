@@ -3,6 +3,25 @@
 from flock.core.context.context import FlockContext
 
 
+def get_callable_members(obj):
+    """Extract all callable (methods/functions) members from a module or class.
+    Returns a list of callable objects.
+    """
+    import inspect
+
+    # Get all members of the object
+    members = inspect.getmembers(obj)
+
+    # Filter for callable members that don't start with underscore (to exclude private/special methods)
+    callables = [
+        member[1]
+        for member in members
+        if inspect.isroutine(member[1]) and not member[0].startswith("_")
+    ]
+
+    return callables
+
+
 def split_top_level(s: str) -> list[str]:
     """Split a string on commas that are not enclosed within brackets, parentheses, or quotes.
 

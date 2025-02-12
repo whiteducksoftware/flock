@@ -151,7 +151,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         ),
     )
 
-    tools: list[Callable[..., Any]] | None = Field(
+    tools: list[Callable[..., Any] | Any] | None = Field(
         default=None,
         description="An optional list of callable tools that the agent can leverage during execution.",
     )

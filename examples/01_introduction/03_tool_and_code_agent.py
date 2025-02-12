@@ -52,7 +52,7 @@ async def main():
         name="my_celebrity_age_agent",
         input="a_person",
         output="persons_age_in_days",
-        tools=[basic_tools.web_search_tavily, basic_tools.code_eval],
+        tools=[basic_tools.web_search_duckduckgo, basic_tools.code_eval],
         use_cache=True,
     )
     flock.add_agent(agent)

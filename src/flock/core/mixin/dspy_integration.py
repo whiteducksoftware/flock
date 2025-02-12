@@ -1,10 +1,11 @@
 """Mixin class for integrating with the dspy library."""
 
+import inspect
 import sys
 from typing import Any, Literal
 
 from flock.core.logging.logging import get_logger
-from flock.core.util.input_resolver import split_top_level
+from flock.core.util.input_resolver import get_callable_members, split_top_level
 
 logger = get_logger("flock")
 
@@ -68,15 +69,19 @@ class DSPyIntegrationMixin:
                 # TODO: We have to find a way to avoid using eval here.
                 # This is a security risk, as it allows arbitrary code execution.
 
-                try:
-                    field_type = eval(type_str, sys.modules[__name__].__dict__)
-                except Exception:
-                    field_type = eval(
-                        type_str, sys.modules["__main__"].__dict__
-                    )
+                field_type = dspy.PythonInterpreter(
+                    sys.modules[__name__].__dict__
+                    | sys.modules["__main__"].__dict__
+                ).execute(type_str)
+
+                # try:
+                #     field_type = eval(type_str, sys.modules[__name__].__dict__)
+                # except Exception:
+                #     field_type = eval(
+                #         type_str, sys.modules["__main__"].__dict__
+                #     )
 
             except Exception:
-                # If evaluation fails, default to str.
                 field_type = str
 
             return name, field_type, desc
@@ -143,6 +148,14 @@ class DSPyIntegrationMixin:
         """
         import dspy
 
+        processed_tools = []
+        if self.tools:
+            for tool in self.tools:
+                if inspect.ismodule(tool) or inspect.isclass(tool):
+                    processed_tools.extend(get_callable_members(tool))
+                else:
+                    processed_tools.append(tool)
+
         dspy_solver = None
 
         if agent_type_override:
@@ -153,7 +166,7 @@ class DSPyIntegrationMixin:
             if agent_type_override == "ReAct":
                 dspy.ReAct(
                     signature,
-                    tools=self.tools,
+                    tools=processed_tools,
                     max_iters=10,
                 )
             if agent_type_override == "Completion":
@@ -164,7 +177,7 @@ class DSPyIntegrationMixin:
             if self.tools:
                 dspy_solver = dspy.ReAct(
                     signature,
-                    tools=self.tools,
+                    tools=processed_tools,
                     max_iters=10,
                 )
             else:

@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 from flock.core.logging.formatters.base_formatter import BaseFormatter
@@ -10,12 +9,14 @@ class PrettyPrintFormatter(BaseFormatter):
     ) -> None:
         """Print an agent's result using Rich formatting."""
         from rich.console import Console
-        from rich.json import JSON
 
         console = Console()
 
         console.print(agent_name)
-        console.print(JSON(json.dumps(result)))
+        console.print(str(result), markup=True)
+        # try:
+        #     console.print(JSON(json.dumps(result)))
+        # except Exception:
 
     def display_data(self, data: dict[str, Any], **kwargs) -> None:
         """Print an agent's result using Rich formatting."""
