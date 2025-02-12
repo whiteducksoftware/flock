@@ -5,7 +5,6 @@ import uuid
 from typing import TypeVar
 
 from opentelemetry import trace
-from rich.prompt import Prompt
 
 from flock.core.context.context import FlockContext
 from flock.core.context.context_manager import initialize_context
@@ -199,6 +198,8 @@ class Flock:
                     if key.startswith("flock."):
                         key = key[6:]  # Remove the "flock." prefix
                     if key not in input:
+                        from rich.prompt import Prompt
+
                         input[key] = Prompt.ask(
                             f"Please enter {key} for {start_agent.name}"
                         )

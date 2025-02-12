@@ -1,14 +1,17 @@
 """A simple exporter that writes span data as JSON lines into a file."""
 
 import json
-from pathlib import Path
 
 from opentelemetry.sdk.trace.export import SpanExportResult
 from opentelemetry.trace import Status, StatusCode
+from temporalio import workflow
 
 from flock.core.logging.telemetry_exporter.base_exporter import (
     TelemetryExporter,
 )
+
+with workflow.unsafe.imports_passed_through():
+    from pathlib import Path
 
 
 class FileSpanExporter(TelemetryExporter):

@@ -6,12 +6,15 @@ from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from temporalio import workflow
 
-from flock.core.flock import root_tracer
-from flock.core.logging.telemetry_exporter.file_exporter import FileSpanExporter
-from flock.core.logging.telemetry_exporter.sqlite_exporter import (
-    SqliteTelemetryExporter,
-)
+with workflow.unsafe.imports_passed_through():
+    from flock.core.logging.telemetry_exporter.file_exporter import (
+        FileSpanExporter,
+    )
+    from flock.core.logging.telemetry_exporter.sqlite_exporter import (
+        SqliteTelemetryExporter,
+    )
 
 
 class TelemetryConfig:
@@ -107,7 +110,6 @@ class TelemetryConfig:
         for processor in span_processors:
             provider.add_span_processor(processor)
 
-        self.global_tracer = root_tracer
         sys.excepthook = self.log_exception_to_otel
 
     def log_exception_to_otel(self, exc_type, exc_value, exc_traceback):
