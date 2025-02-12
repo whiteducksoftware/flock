@@ -1,6 +1,5 @@
 # File: src/flock/core/logging.py
-"""A unified logging module for Flock that works both in local/worker contexts
-and inside Temporal workflows.
+"""A unified logging module for Flock that works both in local/worker contexts and inside Temporal workflows.
 
 Key points:
   - We always have Temporal imported, so we cannot decide based on import.
@@ -24,6 +23,7 @@ with workflow.unsafe.imports_passed_through():
 
 def in_workflow_context() -> bool:
     """Returns True if this code is running inside a Temporal workflow context.
+
     It does this by attempting to call workflow.info() and returning True
     if successful. Otherwise, it returns False.
     """
@@ -31,10 +31,7 @@ def in_workflow_context() -> bool:
         workflow.logger.debug("Checking if in workflow context...")
         # loguru_logger.debug("Checking if in workflow context...")
         # This call will succeed only if we're in a workflow context.
-        if hasattr(workflow.info(), "is_replaying"):
-            return True
-        else:
-            return False
+        return bool(hasattr(workflow.info(), "is_replaying"))
     except Exception:
         return False
 
@@ -67,22 +64,24 @@ loguru_logger.add(
 
 # Define a dummy logger that does nothing
 class DummyLogger:
-    def debug(self, *args, **kwargs):
+    """A dummy logger that does nothing when called."""
+
+    def debug(self, *args, **kwargs):  # noqa: D102
         pass
 
-    def info(self, *args, **kwargs):
+    def info(self, *args, **kwargs):  # noqa: D102
         pass
 
-    def warning(self, *args, **kwargs):
+    def warning(self, *args, **kwargs):  # noqa: D102
         pass
 
-    def error(self, *args, **kwargs):
+    def error(self, *args, **kwargs):  # noqa: D102
         pass
 
-    def exception(self, *args, **kwargs):
+    def exception(self, *args, **kwargs):  # noqa: D102
         pass
 
-    def success(self, *args, **kwargs):
+    def success(self, *args, **kwargs):  # noqa: D102
         pass
 
 
@@ -92,7 +91,7 @@ dummy_logger = DummyLogger()
 class FlockLogger:
     """A unified logger that selects the appropriate logging mechanism based on context.
 
-    - If running in a workflow context, it uses Temporal's built‑in logger.
+    - If running in a workflow context, it uses Temporal's built-in logger.
       Additionally, if workflow.info().is_replaying is True, it suppresses debug/info/warning logs.
     - Otherwise, it uses Loguru.
     """
@@ -114,22 +113,22 @@ class FlockLogger:
             trace_id=get_current_trace_id(),
         )
 
-    def debug(self, message: str, *args, **kwargs):
+    def debug(self, message: str, *args, **kwargs):  # noqa: D102
         self._get_logger().debug(message, *args, **kwargs)
 
-    def info(self, message: str, *args, **kwargs):
+    def info(self, message: str, *args, **kwargs):  # noqa: D102
         self._get_logger().info(message, *args, **kwargs)
 
-    def warning(self, message: str, *args, **kwargs):
+    def warning(self, message: str, *args, **kwargs):  # noqa: D102
         self._get_logger().warning(message, *args, **kwargs)
 
-    def error(self, message: str, *args, **kwargs):
+    def error(self, message: str, *args, **kwargs):  # noqa: D102
         self._get_logger().error(message, *args, **kwargs)
 
-    def exception(self, message: str, *args, **kwargs):
+    def exception(self, message: str, *args, **kwargs):  # noqa: D102
         self._get_logger().exception(message, *args, **kwargs)
 
-    def success(self, message: str, *args, **kwargs):
+    def success(self, message: str, *args, **kwargs):  # noqa: D102
         self._get_logger().success(message, *args, **kwargs)
 
 

@@ -1,29 +1,47 @@
 # flock/config.py
-import os
+from decouple import config
 
 from flock.core.logging.telemetry import TelemetryConfig
 
 # -- Connection and External Service Configurations --
-TEMPORAL_SERVER_URL = os.getenv("TEMPORAL_SERVER_URL", "localhost:7233")
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "openai/gpt-4o")
+TEMPORAL_SERVER_URL = config("TEMPORAL_SERVER_URL", "localhost:7233")
+DEFAULT_MODEL = config("DEFAULT_MODEL", "openai/gpt-4o")
+
 
 # API Keys and related settings
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
-GITHUB_PAT = os.getenv("GITHUB_PAT", "")
-GITHUB_REPO = os.getenv("GITHUB_REPO", "")
-GITHUB_USERNAME = os.getenv("GITHUB_USERNAME", "")
+TAVILY_API_KEY = config("TAVILY_API_KEY", "")
+GITHUB_PAT = config("GITHUB_PAT", "")
+GITHUB_REPO = config("GITHUB_REPO", "")
+GITHUB_USERNAME = config("GITHUB_USERNAME", "")
 
 # -- Debugging and Logging Configurations --
-LOCAL_DEBUG = os.getenv("LOCAL_DEBUG", "0") == "1"
-LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
+LOCAL_DEBUG = config("LOCAL_DEBUG", True)
+LOG_LEVEL = config("LOG_LEVEL", "DEBUG")
+LOGGING_DIR = config("LOGGING_DIR", "logs")
 
-OTL_SERVICE_NAME = os.getenv("OTL_SERVICE_NAME", "otel-flock")
-JAEGER_ENDPOINT = os.getenv(
+OTEL_SERVICE_NAME = config("OTL_SERVICE_NAME", "otel-flock")
+JAEGER_ENDPOINT = config(
     "JAEGER_ENDPOINT", "http://localhost:14268/api/traces"
 )  # Default gRPC endpoint for Jaeger
-JAEGER_TRANSPORT = os.getenv(
+JAEGER_TRANSPORT = config(
     "JAEGER_TRANSPORT", "http"
 ).lower()  # Options: "grpc" or "http"
+OTEL_SQL_DATABASE_NAME = config("OTEL_SQL_DATABASE", "flock_events.db")
+OTEL_FILE_NAME = config("OTEL_FILE_NAME", "flock_events.jsonl")
+OTEL_ENABLE_SQL = config("OTEL_ENABLE_SQL", True)
+OTEL_ENABLE_FILE = config("OTEL_ENABLE_FILE", True)
+OTEL_ENABLE_JAEGER = config("OTEL_ENABLE_JAEGER", True)
 
 
-TELEMETRY = TelemetryConfig(OTL_SERVICE_NAME, JAEGER_ENDPOINT, JAEGER_TRANSPORT)
+TELEMETRY = TelemetryConfig(
+    OTEL_SERVICE_NAME,
+    JAEGER_ENDPOINT,
+    JAEGER_TRANSPORT,
+    LOGGING_DIR,
+    OTEL_FILE_NAME,
+    OTEL_SQL_DATABASE_NAME,
+    OTEL_ENABLE_JAEGER,
+    OTEL_ENABLE_FILE,
+    OTEL_ENABLE_SQL,
+)
+TELEMETRY.setup_tracing()

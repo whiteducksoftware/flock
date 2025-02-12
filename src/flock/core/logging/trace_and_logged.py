@@ -1,3 +1,5 @@
+"""A decorator that wraps a function in an OpenTelemetry span and logs its inputs, outputs, and exceptions."""
+
 import functools
 import inspect
 
@@ -10,7 +12,9 @@ tracer = trace.get_tracer(__name__)
 
 
 def traced_and_logged(func):
-    """A decorator that wraps a function in an OpenTelemetry span and logs its inputs,
+    """A decorator that wraps a function in an OpenTelemetry span.
+
+    and logs its inputs,
     outputs, and exceptions. Supports both synchronous and asynchronous functions.
     """
     if inspect.iscoroutinefunction(func):

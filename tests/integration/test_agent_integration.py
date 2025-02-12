@@ -5,7 +5,7 @@ from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
 
 # This is the model that will be used for the tests
-MODEL = "ollama_chat/qwen"
+MODEL = "openai/gpt-4o"
 
 @pytest.fixture
 def flock():
