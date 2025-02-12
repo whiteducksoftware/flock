@@ -1,6 +1,8 @@
 <p align="center">
 <img src="docs/img/flock.png" width="600"><br>
-<img alt="Dynamic TOML Badge" src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fwhiteducksoftware%2Fflock%2Frefs%2Fheads%2Fbadges%2Fpyproject.toml%3Ftoken%3DGHSAT0AAAAAACVFDVNBU3S6HLJSC36P3YNQZ5LNPQQ&query=%24.project.version&style=for-the-badge&logo=pypi&logoSize=large&label=pip%20version&link=https%3A%2F%2Fpypi.org%2Fproject%2Fflock-core%2F">
+<img alt="Dynamic TOML Badge" src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fwhiteducksoftware%2Fflock%2Frefs%2Fheads%2Fmaster%2Fpyproject.toml&query=%24.project.version&style=for-the-badge&logo=pypi&label=pip%20version">
+<img alt="X (formerly Twitter) Follow" src="https://img.shields.io/twitter/follow/whiteduck_gmbh?style=for-the-badge&logo=X">
+
 
 
 
