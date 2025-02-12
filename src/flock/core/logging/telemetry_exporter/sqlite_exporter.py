@@ -100,4 +100,4 @@ class SqliteTelemetryExporter(TelemetryExporter):
 
     def shutdown(self) -> None:
         """Cleanup resources."""
-        print("SQLite exporter shutdown completed.")
+        pass

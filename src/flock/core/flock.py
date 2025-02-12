@@ -5,6 +5,7 @@ import uuid
 from typing import TypeVar
 
 from opentelemetry import trace
+from opentelemetry.baggage import get_baggage, set_baggage
 
 from flock.core.context.context import FlockContext
 from flock.core.context.context_manager import initialize_context
@@ -62,6 +63,11 @@ class Flock:
                 enable_logging=enable_logging,
             )
             logger.enable_logging = enable_logging
+            session_id = get_baggage("session_id")
+            if not session_id:
+                session_id = str(uuid.uuid4())
+            set_baggage("session_id", session_id)
+            span.set_attribute("session_id", get_baggage("session_id"))
 
             display_banner()
 
@@ -191,6 +197,8 @@ class Flock:
                 if not run_id:
                     run_id = f"{start_agent.name}_{uuid.uuid4().hex[:4]}"
                     logger.debug("Generated run ID", run_id=run_id)
+
+                set_baggage("run_id", run_id)
 
                 # TODO - Add a check for required input keys
                 input_keys = top_level_to_keys(start_agent.input)

@@ -8,6 +8,10 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from temporalio import workflow
 
+from flock.core.logging.span_middleware.baggage_span_processor import (
+    BaggageAttributeSpanProcessor,
+)
+
 with workflow.unsafe.imports_passed_through():
     from flock.core.logging.telemetry_exporter.file_exporter import (
         FileSpanExporter,
@@ -109,6 +113,10 @@ class TelemetryConfig:
         # Register all span processors with the provider.
         for processor in span_processors:
             provider.add_span_processor(processor)
+
+        provider.add_span_processor(
+            BaggageAttributeSpanProcessor(baggage_keys=["session_id", "run_id"])
+        )
 
         sys.excepthook = self.log_exception_to_otel
 
