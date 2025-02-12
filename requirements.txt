@@ -6,15 +6,31 @@ devtools==0.12.2
     # via flock-core (./pyproject.toml)
 dspy==2.5.42
     # via flock-core (./pyproject.toml)
+duckduckgo-search==7.3.2
+    # via flock-core (./pyproject.toml)
 httpx==0.28.1
     # via flock-core (./pyproject.toml)
 loguru==0.7.3
     # via flock-core (./pyproject.toml)
 msgpack==1.1.0
     # via flock-core (./pyproject.toml)
+opentelemetry-api==1.30.0
+    # via flock-core (./pyproject.toml)
+opentelemetry-exporter-jaeger==1.21.0
+    # via flock-core (./pyproject.toml)
+opentelemetry-exporter-jaeger-proto-grpc==1.21.0
+    # via flock-core (./pyproject.toml)
+opentelemetry-exporter-otlp==1.30.0
+    # via flock-core (./pyproject.toml)
+opentelemetry-instrumentation-logging==0.51b0
+    # via flock-core (./pyproject.toml)
+opentelemetry-sdk==1.30.0
+    # via flock-core (./pyproject.toml)
 pydantic==2.10.6
     # via flock-core (./pyproject.toml)
 python-box==7.3.2
+    # via flock-core (./pyproject.toml)
+python-decouple==3.8
     # via flock-core (./pyproject.toml)
 rich==13.9.4
     # via flock-core (./pyproject.toml)
