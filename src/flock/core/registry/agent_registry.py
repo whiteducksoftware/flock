@@ -2,12 +2,12 @@
 
 from collections.abc import Callable
 
-from opentelemetry import trace
-
 from flock.core.flock_agent import FlockAgent
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("registry")
+from opentelemetry import trace
+
 tracer = trace.get_tracer(__name__)
 
 

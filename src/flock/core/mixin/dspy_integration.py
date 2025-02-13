@@ -79,20 +79,28 @@ class DSPyIntegrationMixin:
                 try:
                     field_type = eval(type_str, sys.modules[__name__].__dict__)
                 except Exception as e:
-                    print("Failed to evaluate type_str in __name__" + e)
+                    logger.warning(
+                        "Failed to evaluate type_str in __name__" + str(e)
+                    )
                     field_type = eval(
                         type_str, sys.modules["__main__"].__dict__
                     )
 
-            except Exception:
+            except Exception as ex:
                 # AREPL fix - var
+                logger.warning(
+                    "Failed to evaluate type_str in __main__" + str(ex)
+                )
                 try:
                     field_type = eval(
                         f"exec_locals.get('{type_str}')",
                         sys.modules["__main__"].__dict__,
                     )
-                except Exception as e:
-                    print(e)
+                except Exception as ex_arepl:
+                    logger.warning(
+                        "Failed to evaluate type_str in exec_locals"
+                        + str(ex_arepl)
+                    )
                     field_type = str
 
             return name, field_type, desc

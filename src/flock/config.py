@@ -30,7 +30,7 @@ OTEL_SQL_DATABASE_NAME = config("OTEL_SQL_DATABASE", "flock_events.db")
 OTEL_FILE_NAME = config("OTEL_FILE_NAME", "flock_events.jsonl")
 OTEL_ENABLE_SQL: bool = config("OTEL_ENABLE_SQL", True) == "True"
 OTEL_ENABLE_FILE: bool = config("OTEL_ENABLE_FILE", True) == "True"
-OTEL_ENABLE_JAEGER: bool = config("OTEL_ENABLE_JAEGER", True) == "True"
+OTEL_ENABLE_JAEGER: bool = config("OTEL_ENABLE_JAEGER", False) == "True"
 
 
 TELEMETRY = TelemetryConfig(

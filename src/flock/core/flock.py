@@ -99,31 +99,34 @@ class Flock:
         Returns:
             FlockAgent: The registered agent instance.
         """
-        if not agent.model:
-            agent.model = self.model
-            logger.debug(
-                f"Using default model for agent {agent.name}", model=self.model
+        with tracer.start_as_current_span("add_agent") as span:
+            span.set_attribute("agent_name", agent.name)
+            if not agent.model:
+                agent.model = self.model
+                logger.debug(
+                    f"Using default model for agent {agent.name}",
+                    model=self.model,
+                )
+
+            if agent.name in self.agents:
+                logger.warning(
+                    f"Agent {agent.name} already exists, returning existing instance"
+                )
+                return self.agents[agent.name]
+            logger.info("Adding new agent")
+
+            self.agents[agent.name] = agent
+            self.registry.register_agent(agent)
+            self.context.add_agent_definition(
+                type(agent), agent.name, agent.to_dict()
             )
 
-        if agent.name in self.agents:
-            logger.warning(
-                f"Agent {agent.name} already exists, returning existing instance"
-            )
-            return self.agents[agent.name]
-        logger.info("Adding new agent")
-
-        self.agents[agent.name] = agent
-        self.registry.register_agent(agent)
-        self.context.add_agent_definition(
-            type(agent), agent.name, agent.to_dict()
-        )
-
-        if hasattr(agent, "tools") and agent.tools:
-            for tool in agent.tools:
-                self.registry.register_tool(tool.__name__, tool)
-                logger.debug("Registered tool", tool_name=tool.__name__)
-        logger.success("Agent added successfully")
-        return agent
+            if hasattr(agent, "tools") and agent.tools:
+                for tool in agent.tools:
+                    self.registry.register_tool(tool.__name__, tool)
+                    logger.debug("Registered tool", tool_name=tool.__name__)
+            logger.success("Agent added successfully")
+            return agent
 
     def add_tool(self, tool_name: str, tool: callable):
         """Register a tool with the Flock system.
@@ -132,9 +135,12 @@ class Flock:
             tool_name (str): The name under which the tool will be registered.
             tool (callable): The tool function to register.
         """
-        logger.info("Registering tool", tool_name=tool_name)
-        self.registry.register_tool(tool_name, tool)
-        logger.debug("Tool registered successfully")
+        with tracer.start_as_current_span("add_tool") as span:
+            span.set_attribute("tool_name", tool_name)
+            span.set_attribute("tool", tool.__name__)
+            logger.info("Registering tool", tool_name=tool_name)
+            self.registry.register_tool(tool_name, tool)
+            logger.debug("Tool registered successfully")
 
     async def run_async(
         self,
