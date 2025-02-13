@@ -8,18 +8,18 @@ class PrettyPrintFormatter(BaseFormatter):
         self, result: dict[str, Any], agent_name: str, **kwargs
     ) -> None:
         """Print an agent's result using Rich formatting."""
+        from devtools import pformat
         from rich.console import Console
+        from rich.panel import Panel
 
         console = Console()
 
-        console.print(agent_name)
-        console.print(str(result), markup=True)
-        # try:
-        #     console.print(JSON(json.dumps(result)))
-        # except Exception:
+        s = pformat(result, highlight=False)
+
+        console.print(Panel(s, title=agent_name, highlight=True))
 
     def display_data(self, data: dict[str, Any], **kwargs) -> None:
         """Print an agent's result using Rich formatting."""
-        from devtools import pprint
+        from devtools import sprint
 
-        pprint(data)
+        sprint(data, sprint.green)
