@@ -40,6 +40,7 @@ class Flock:
         output_formatter: FormatterOptions = FormatterOptions(
             PrettyPrintFormatter
         ),
+        show_cli_banner: bool = True,
     ):
         """Initialize the Flock orchestrator.
 
@@ -66,10 +67,10 @@ class Flock:
             session_id = get_baggage("session_id")
             if not session_id:
                 session_id = str(uuid.uuid4())
-            set_baggage("session_id", session_id)
-            span.set_attribute("session_id", get_baggage("session_id"))
+                set_baggage("session_id", session_id)
 
-            display_banner()
+            if show_cli_banner:
+                display_banner()
 
             self.agents: dict[str, FlockAgent] = {}
             self.registry = Registry()
