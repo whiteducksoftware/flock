@@ -14,6 +14,8 @@ from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 
 logger = get_logger("flock")
+
+
 from opentelemetry import trace
 
 tracer = trace.get_tracer(__name__)
