@@ -69,20 +69,31 @@ class DSPyIntegrationMixin:
                 # TODO: We have to find a way to avoid using eval here.
                 # This is a security risk, as it allows arbitrary code execution.
                 # Figure out why the following code doesn't work as well as the eval.
+
+                # import dspy
+
                 # field_type = dspy.PythonInterpreter(
-                #     sys.modules[__name__].__dict__
-                #     | sys.modules["__main__"].__dict__
+                #     sys.modules[__name__].__dict__ | sys.modules["__main__"].__dict__
                 # ).execute(type_str)
 
                 try:
                     field_type = eval(type_str, sys.modules[__name__].__dict__)
-                except Exception:
+                except Exception as e:
+                    print("Failed to evaluate type_str in __name__" + e)
                     field_type = eval(
                         type_str, sys.modules["__main__"].__dict__
                     )
 
             except Exception:
-                field_type = str
+                # AREPL fix - var
+                try:
+                    field_type = eval(
+                        f"exec_locals.get('{type_str}')",
+                        sys.modules["__main__"].__dict__,
+                    )
+                except Exception as e:
+                    print(e)
+                    field_type = str
 
             return name, field_type, desc
 
