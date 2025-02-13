@@ -159,7 +159,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     )
 
     use_cache: bool = Field(
-        default=False,
+        default=True,
         description="Set to True to enable caching of the agent's results.",
     )
 
