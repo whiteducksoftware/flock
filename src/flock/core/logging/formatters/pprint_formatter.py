@@ -20,6 +20,12 @@ class PrettyPrintFormatter(BaseFormatter):
 
     def display_data(self, data: dict[str, Any], **kwargs) -> None:
         """Print an agent's result using Rich formatting."""
-        from devtools import sprint
+        from devtools import pformat
+        from rich.console import Console
+        from rich.panel import Panel
 
-        sprint(data, sprint.green)
+        console = Console()
+
+        s = pformat(data, highlight=False)
+
+        console.print(Panel(s, highlight=True))
