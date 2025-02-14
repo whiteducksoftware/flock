@@ -25,6 +25,12 @@ Flock is a framework for orchestrating LLM-powered agents. It leverages a **decl
 | • Hard to scale and parallelize          | • Modular, concurrent, and batch processing                   |
 |                                          |                                                              |
 
+## Video Demonstration
+
+<video controls>
+  <source src="docs/vid/flock_3min_all.mp4" type="video/mp4">
+</video>
+
 
 ## Key Innovations
 
