@@ -11,7 +11,7 @@ bloggy = FlockAgent(name="bloggy", input="blog_idea", output="funny_blog_title, 
 bloggy.save_to_file()
 
 
-not_bloggy = FlockAgent.load_from_file("bloggy.cloudpickle")
+not_bloggy = FlockAgent.load_from_file("bloggy.json")
 result = not_bloggy.run(inputs={"blog_idea": "A blog about cats"})
 PrettyPrintFormatter().display_data(result)
 
@@ -32,7 +32,7 @@ custom_bloggy = FlockAgent(name="custom_bloggy",
 custom_bloggy.save_to_file()
 
 
-not_bloggy = FlockAgent.load_from_file("custom_bloggy.cloudpickle")
+not_bloggy = FlockAgent.load_from_file("custom_bloggy.json")
 result = not_bloggy.run(inputs={"blog_idea": "A blog about cats"})
 PrettyPrintFormatter().display_data(result)
 
@@ -45,7 +45,7 @@ class MyCustomAgent2(FlockAgent):
         return {"result": "Different result!"}
 
 
-not_custom_bloggy = MyCustomAgent2.load_from_file("custom_bloggy.cloudpickle")
+not_custom_bloggy = MyCustomAgent2.load_from_file("custom_bloggy.json")
 result = not_custom_bloggy.run(inputs={"blog_idea": "A blog about cats"})
 PrettyPrintFormatter().display_data(result)
 

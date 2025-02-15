@@ -339,7 +339,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     def save_to_file(self, file_path: str | None = None) -> None:
         """Save the serialized agent to a file."""
         if file_path is None:
-            file_path = f"{self.name}.{format}"
+            file_path = f"{self.name}.json"
         dict_data = self.to_dict()
 
         # create all needed directories

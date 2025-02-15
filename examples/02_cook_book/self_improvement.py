@@ -95,6 +95,7 @@ async def main():
         config=FlockAgentConfig(disable_output=True),
         tools=[basic_tools.web_search_tavily],
     )
+    
     flock.add_agent(chatty)
 
     chatty.hand_off = chat_helper.hand_off
