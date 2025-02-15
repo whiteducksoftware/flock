@@ -3,8 +3,9 @@
 import asyncio
 import os
 import uuid
-from typing import TypeVar
+from typing import Any, TypeVar
 
+import cloudpickle
 from opentelemetry import trace
 from opentelemetry.baggage import get_baggage, set_baggage
 
@@ -155,6 +156,139 @@ class Flock:
         return asyncio.run(
             self.run_async(start_agent, input, context, run_id, box_result)
         )
+
+    def save_to_file(self, file_path: str) -> None:
+        """Save the Flock instance to a file.
+
+        This method serializes the Flock instance to a dictionary using the `to_dict()` method and saves it to a file.
+        The saved file can be reloaded later using the `from_file()` method.
+
+        Args:
+            file_path (str): The path to the file where the Flock instance should be saved.
+        """
+        hex_str = cloudpickle.dumps(self).hex()
+
+        path = os.path.dirname(file_path)
+        if path:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        with open(file_path, "w") as file:
+            file.write(hex_str)
+
+    @staticmethod
+    def load_from_file(file_path: str) -> "Flock":
+        """Load a Flock instance from a file.
+
+        This class method deserializes a Flock instance from a file that was previously saved using the `save_to_file()`
+        method. It reads the file, converts the hexadecimal string back into a Flock instance, and returns it.
+
+        Args:
+            file_path (str): The path to the file containing the serialized Flock instance.
+
+        Returns:
+            Flock: A new Flock instance reconstructed from the saved file.
+        """
+        with open(file_path) as file:
+            hex_str = file.read()
+        return cloudpickle.loads(bytes.fromhex(hex_str))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the FlockAgent instance to a dictionary.
+
+        This method converts the entire agent instance—including its configuration, state, and lifecycle hooks—
+        into a dictionary format. It uses cloudpickle to serialize any callable objects (such as functions or
+        methods), converting them into hexadecimal string representations. This ensures that the agent can be
+        easily persisted, transmitted, or logged as JSON.
+
+        The serialization process is recursive:
+        - If a field is a callable (and not a class), it is serialized using cloudpickle.
+        - Lists and dictionaries are processed recursively to ensure that all nested callables are properly handled.
+
+        **Returns:**
+            dict[str, Any]: A dictionary representing the FlockAgent, which includes all of its configuration data.
+            This dictionary is suitable for storage, debugging, or transmission over the network.
+
+        **Example:**
+            For an agent defined as:
+                name = "idea_agent",
+                model = "openai/gpt-4o",
+                input = "query: str | The search query, context: dict | The full conversation context",
+                output = "idea: str | The generated idea"
+            Calling `agent.to_dict()` might produce:
+                {
+                    "name": "idea_agent",
+                    "model": "openai/gpt-4o",
+                    "input": "query: str | The search query, context: dict | The full conversation context",
+                    "output": "idea: str | The generated idea",
+                    "tools": ["<serialized tool representation>"],
+                    "use_cache": False,
+                    "hand_off": None,
+                    "termination": None,
+                    ...
+                }
+        """
+
+        def convert_callable(obj: Any) -> Any:
+            if callable(obj) and not isinstance(obj, type):
+                return cloudpickle.dumps(obj).hex()
+            if isinstance(obj, list):
+                return [convert_callable(item) for item in obj]
+            if isinstance(obj, dict):
+                return {k: convert_callable(v) for k, v in obj.items()}
+            return obj
+
+        data = self.model_dump()
+        return convert_callable(data)
+
+    @classmethod
+    def from_dict(cls: type[T], data: dict[str, Any]) -> T:
+        """Deserialize a FlockAgent instance from a dictionary.
+
+        This class method reconstructs a FlockAgent from its serialized dictionary representation, as produced
+        by the `to_dict()` method. It recursively processes the dictionary to convert any serialized callables
+        (stored as hexadecimal strings via cloudpickle) back into executable callable objects.
+
+        **Arguments:**
+            data (dict[str, Any]): A dictionary representation of a FlockAgent, typically produced by `to_dict()`.
+                The dictionary should contain all configuration fields and state information necessary to fully
+                reconstruct the agent.
+
+        **Returns:**
+            FlockAgent: An instance of FlockAgent reconstructed from the provided dictionary. The deserialized agent
+            will have the same configuration, state, and behavior as the original instance.
+
+        **Example:**
+            Suppose you have the following dictionary:
+                {
+                    "name": "idea_agent",
+                    "model": "openai/gpt-4o",
+                    "input": "query: str | The search query, context: dict | The full conversation context",
+                    "output": "idea: str | The generated idea",
+                    "tools": ["<serialized tool representation>"],
+                    "use_cache": False,
+                    "hand_off": None,
+                    "termination": None,
+                    ...
+                }
+            Then, calling:
+                agent = FlockAgent.from_dict(data)
+            will return a FlockAgent instance with the same properties and behavior as when it was originally serialized.
+        """
+
+        def convert_callable(obj: Any) -> Any:
+            if isinstance(obj, str) and len(obj) > 2:
+                try:
+                    return cloudpickle.loads(bytes.fromhex(obj))
+                except Exception:
+                    return obj
+            if isinstance(obj, list):
+                return [convert_callable(item) for item in obj]
+            if isinstance(obj, dict):
+                return {k: convert_callable(v) for k, v in obj.items()}
+            return obj
+
+        converted = convert_callable(data)
+        return cls(**converted)
 
     async def run_async(
         self,
