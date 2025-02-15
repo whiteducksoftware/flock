@@ -64,7 +64,7 @@ async def run_agent(
                 with tracer.start_as_current_span("execute_agent") as exec_span:
                     logger.info("Executing agent", agent=agent.name)
                     try:
-                        result = await agent.run(agent_inputs)
+                        result = await agent.run_async(agent_inputs)
                         exec_span.set_attribute("result", str(result))
                         logger.debug(
                             "Agent execution completed", agent=agent.name

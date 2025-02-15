@@ -147,7 +147,12 @@ class DSPyIntegrationMixin:
         import dspy
 
         """Initialize and configure the language model using dspy."""
-        lm = dspy.LM(self.model, cache=self.use_cache)
+        lm = dspy.LM(
+            self.model,
+            cache=self.use_cache,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+        )
         dspy.configure(lm=lm)
 
     def _select_task(

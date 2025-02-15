@@ -1,5 +1,6 @@
 """High-level orchestrator for creating and executing agents."""
 
+import asyncio
 import os
 import uuid
 from typing import TypeVar
@@ -141,6 +142,19 @@ class Flock:
             logger.info("Registering tool", tool_name=tool_name)
             self.registry.register_tool(tool_name, tool)
             logger.debug("Tool registered successfully")
+
+    def run(
+        self,
+        start_agent: FlockAgent | str,
+        input: dict = {},
+        context: FlockContext = None,
+        run_id: str = "",
+        box_result: bool = True,
+    ) -> dict:
+        """Entry point for running an agent system synchronously."""
+        return asyncio.run(
+            self.run_async(start_agent, input, context, run_id, box_result)
+        )
 
     async def run_async(
         self,

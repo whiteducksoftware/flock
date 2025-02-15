@@ -13,7 +13,7 @@ from flock.core.logging import flock_logger, live_update_handler, performance_ha
 class TemporalLoggingAgent(FlockAgent):
     """Demo agent that showcases logging with Temporal integration."""
 
-    async def run(self, context: FlockContext) -> dict:
+    async def run_async(self, context: FlockContext) -> dict:
         workflow_id = context.state.get("workflow_id", "temporal-demo")
         flock_logger.set_context(workflow_id=workflow_id)
 
@@ -97,7 +97,7 @@ async def main():
             agent = TemporalLoggingAgent(name="local-demo", model="demo-model")
             context = FlockContext()
             context.state["workflow_id"] = workflow_id
-            await agent.run(context)
+            await agent.run_async(context)
         else:
             # Let our error handler format other errors beautifully
             raise
