@@ -1,9 +1,7 @@
 # src/your_package/core/execution/temporal_executor.py
-from devtools import pprint
 
 from flock.core.context.context import FlockContext
 from flock.core.context.context_vars import FLOCK_RUN_ID
-from flock.core.logging.formatters.formatter_factory import FormatterFactory
 from flock.core.logging.logging import get_logger
 from flock.workflow.activities import (
     run_agent,  # Activity function used in Temporal
@@ -16,7 +14,6 @@ logger = get_logger("flock")
 
 async def run_temporal_workflow(
     context: FlockContext,
-    output_formatter,
     box_result: bool = True,
 ) -> dict:
     """Execute the agent workflow via Temporal for robust, distributed processing.
@@ -43,11 +40,7 @@ async def run_temporal_workflow(
 
     agent_name = context.get_variable("FLOCK_CURRENT_AGENT")
     logger.debug("Formatting Temporal result", agent=agent_name)
-    if output_formatter:
-        formatter = FormatterFactory.create_formatter(output_formatter)
-        formatter.display(result, agent_name, output_formatter.wait_for_input)
-    else:
-        pprint(result)
+
     if box_result:
         from box import Box
 

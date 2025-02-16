@@ -1,12 +1,16 @@
 # src/your_package/core/execution/local_executor.py
 from flock.core.context.context import FlockContext
 from flock.core.logging.logging import get_logger
-from flock.workflow.activities import run_agent  # This should be the local activity function
+from flock.workflow.activities import (
+    run_agent,  # This should be the local activity function
+)
 
 logger = get_logger("flock")
 
 
-async def run_local_workflow(context: FlockContext, output_formatter, box_result: bool = True) -> dict:
+async def run_local_workflow(
+    context: FlockContext, box_result: bool = True
+) -> dict:
     """Execute the agent workflow locally (for debugging).
 
     Args:
@@ -18,7 +22,7 @@ async def run_local_workflow(context: FlockContext, output_formatter, box_result
         A dictionary containing the workflow result.
     """
     logger.info("Running local debug workflow")
-    result = await run_agent(context, output_formatter)
+    result = await run_agent(context)
     if box_result:
         from box import Box
 

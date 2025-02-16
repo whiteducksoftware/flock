@@ -1,5 +1,8 @@
 """Flock package initialization."""
 
+from flock.cli.constants import CLI_THEME_BUILDER
+from flock.core.logging.formatters.theme_builder import theme_builder
+
 
 def main():
     """Main function."""
@@ -35,6 +38,7 @@ def main():
             CLI_LOAD_FLOCK,
             # CLI_LOAD_EXAMPLE,
             questionary.Separator(),
+            CLI_THEME_BUILDER,
             CLI_SETTINGS,
             questionary.Separator(),
             CLI_START_ADVANCED_MODE,
@@ -45,6 +49,8 @@ def main():
 
     if result == CLI_LOAD_FLOCK:
         load_flock()
+    if result == CLI_THEME_BUILDER:
+        theme_builder()
 
 
 if __name__ == "__main__":

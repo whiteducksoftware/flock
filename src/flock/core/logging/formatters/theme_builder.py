@@ -371,7 +371,7 @@ def save_theme(theme: dict, filename: pathlib.Path) -> None:
 # --- Main Interactive Loop --- #
 
 
-def main():
+def theme_builder():
     console = Console(force_terminal=True, color_system="truecolor")
     themes_dir = pathlib.Path(__file__).parent.parent.parent.parent / "themes"
     theme_files = load_theme_files(themes_dir)
@@ -458,7 +458,7 @@ def main():
     )
     if sel2.lower() == "r":
         console.print("Regenerating samples...")
-        main()  # restart the builder
+        theme_builder()  # restart the builder
         return
     try:
         sel2 = int(sel2)
@@ -474,7 +474,3 @@ def main():
     save_path = themes_dir / filename
     save_theme(chosen_sample_theme, save_path)
     console.print(f"\n[green]Theme saved as {save_path}.[/green]")
-
-
-if __name__ == "__main__":
-    main()

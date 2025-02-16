@@ -29,7 +29,7 @@ async def main():
         description="Outline a thorough overview of a topic.",
         input="topic",
         output="title,sections: list[str],section_subheadings: dict[str, list[str]]|mapping from section headings to subheadings",
-        tools=[basic_tools.web_search_tavily],
+        tools=[basic_tools.web_search_tavily, basic_tools.get_web_content_as_markdown],
     )
 
 
@@ -37,7 +37,7 @@ async def main():
         name="draft_agent",
         input="flock.topic,flock.section_heading,flock.section_subheadings: list[str]",
         output="content|markdown-formatted section",
-        tools=[basic_tools.web_search_tavily],
+        tools=[basic_tools.web_search_tavily, basic_tools.get_web_content_as_markdown],
     )
 
      

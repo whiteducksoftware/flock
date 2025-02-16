@@ -23,7 +23,7 @@ import asyncio
 from pprint import pprint
 
 from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent
+from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
 from flock.core.logging.formatters.base_formatter import FormatterOptions
 from flock.core.logging.formatters.rich_formatters import RichTables
 from flock.core.logging.formatters.themed_formatter import ThemedAgentResultFormatter
@@ -35,8 +35,7 @@ async def main():
     # --------------------------------
     # Some people need some swag in their output
     # See the formatting examples
-    format_options = FormatterOptions(RichTables)
-    flock = Flock(local_debug=True, output_formatter=format_options)
+    flock = Flock(local_debug=True)
 
 
     # --------------------------------
@@ -54,6 +53,7 @@ async def main():
         output="title, headings: list[str], entities_and_metadata: list[dict[str, str]], type:Literal['news', 'blog', 'opinion piece', 'tweet']",
         tools=[basic_tools.get_web_content_as_markdown],
         use_cache=True,
+        output_config=FlockAgentOutputConfig("ThemedTables","apple-classic")
     )
     flock.add_agent(agent)
 

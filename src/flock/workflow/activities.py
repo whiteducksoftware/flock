@@ -8,8 +8,6 @@ from temporalio import activity
 from flock.core.context.context import FlockContext
 from flock.core.context.context_vars import FLOCK_CURRENT_AGENT
 from flock.core.flock_agent import FlockAgent, HandOff
-from flock.core.logging.formatters.base_formatter import FormatterOptions
-from flock.core.logging.formatters.formatter_factory import FormatterFactory
 from flock.core.logging.logging import get_logger
 from flock.core.registry.agent_registry import Registry
 from flock.core.util.input_resolver import resolve_inputs
@@ -19,9 +17,7 @@ tracer = trace.get_tracer(__name__)
 
 
 @activity.defn
-async def run_agent(
-    context: FlockContext, output_formatter: FormatterOptions = None
-) -> dict:
+async def run_agent(context: FlockContext) -> dict:
     """Runs a chain of agents using the provided context.
 
     The context contains state, history, and agent definitions.
@@ -77,19 +73,6 @@ async def run_agent(
                         )
                         exec_span.record_exception(e)
                         raise
-
-                # Optionally display formatted output.
-                display_output = True
-                if agent.config:
-                    display_output = not agent.config.disable_output
-
-                if output_formatter and display_output:
-                    formatter = FormatterFactory.create_formatter(
-                        output_formatter
-                    )
-                    formatter.display(
-                        result, agent.name, output_formatter.wait_for_input
-                    )
 
                 # If there is no handoff, record the result and finish.
                 if not agent.hand_off:

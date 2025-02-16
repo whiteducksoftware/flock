@@ -51,7 +51,7 @@ async def main():
     bloggy = FlockAgent(
         name="bloggy", 
         input="blog_idea", 
-        output="funny_blog_title, blog_headers"
+        output="funny_blog_title, blog_headers",
     )
     flock.add_agent(bloggy)
 

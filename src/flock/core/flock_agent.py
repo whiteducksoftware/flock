@@ -6,12 +6,16 @@ import os
 from abc import ABC
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, TypeVar, Union
+from typing import Any, Literal, TypeVar, Union
 
 import cloudpickle
 from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
+from flock.core.logging.formatters.pprint_formatter import PrettyPrintFormatter
+from flock.core.logging.formatters.themed_formatter import (
+    ThemedAgentResultFormatter,
+)
 from flock.core.logging.logging import get_logger
 from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
@@ -45,6 +49,23 @@ class FlockAgentConfig:
     )
     max_tokens: int = field(
         default=2000, metadata={"description": "Max tokens for the LLM"}
+    )
+
+
+@dataclass
+class FlockAgentOutputConfig:
+    """Configuration options for a FlockAgent."""
+
+    output_type: Literal["NoOutput", "PrettyPrint", "ThemedTables"] = field(
+        default="ThemedTables",
+        metadata={"description": "How to output the agent's output."},
+    )
+    theme: str = field(
+        default="3024-night",
+        metadata={"description": "Disables the agent's output."},
+    )
+    max_length: int = field(
+        default=1000, metadata={"description": "Disables the agent's output."}
     )
 
 
@@ -184,6 +205,11 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     config: FlockAgentConfig = Field(
         default_factory=FlockAgentConfig,
         description="Configuration options for the agent, such as serialization settings.",
+    )
+
+    output_config: FlockAgentOutputConfig = Field(
+        default_factory=FlockAgentOutputConfig,
+        description="Configuration options for the agent's output.",
     )
 
     # Lifecycle callback fields: if provided, these callbacks are used instead of overriding the methods.
@@ -414,6 +440,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             try:
                 await self.initialize(inputs)
                 result = await self.evaluate(inputs)
+                self.display_output(result)
                 await self.terminate(inputs, result)
                 span.set_attribute("result", str(result))
                 logger.info("Agent run completed", agent=self.name)
@@ -425,6 +452,22 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 await self.on_error(run_error, inputs)
                 span.record_exception(run_error)
                 raise
+
+    def display_info(self) -> None:
+        pass
+
+    def display_output(self, result: dict[str, Any]) -> None:
+        """Display the agent's output using the configured output formatter."""
+        if self.output_config.output_type == "PrettyPrint":
+            PrettyPrintFormatter(self.output_config.max_length).display_result(
+                result, self.name
+            )
+        elif self.output_config.output_type == "ThemedTables":
+            ThemedAgentResultFormatter(
+                self.output_config.theme, self.output_config.max_length
+            ).display_result(result, self.name)
+        else:
+            pass
 
     async def run_temporal(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Execute this agent via a Temporal workflow for enhanced fault tolerance and asynchronous processing.
