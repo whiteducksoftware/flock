@@ -1,9 +1,12 @@
 """High-level orchestrator for creating and executing agents."""
 
+import asyncio
+import json
 import os
 import uuid
-from typing import TypeVar
+from typing import Any, TypeVar
 
+import cloudpickle
 from opentelemetry import trace
 from opentelemetry.baggage import get_baggage, set_baggage
 
@@ -78,6 +81,8 @@ class Flock:
             self.model = model
             self.local_debug = local_debug
             self.output_formatter = output_formatter
+            self.start_agent: FlockAgent | str | None = None
+            self.input: dict = {}
 
             if local_debug:
                 os.environ["LOCAL_DEBUG"] = "1"
@@ -142,9 +147,173 @@ class Flock:
             self.registry.register_tool(tool_name, tool)
             logger.debug("Tool registered successfully")
 
+    def run(
+        self,
+        start_agent: FlockAgent | str | None = None,
+        input: dict = {},
+        context: FlockContext = None,
+        run_id: str = "",
+        box_result: bool = True,
+    ) -> dict:
+        """Entry point for running an agent system synchronously."""
+        return asyncio.run(
+            self.run_async(start_agent, input, context, run_id, box_result)
+        )
+
+    def save_to_file(
+        self,
+        file_path: str,
+        start_agent: str | None = None,
+        input: dict | None = None,
+    ) -> None:
+        """Save the Flock instance to a file.
+
+        This method serializes the Flock instance to a dictionary using the `to_dict()` method and saves it to a file.
+        The saved file can be reloaded later using the `from_file()` method.
+
+        Args:
+            file_path (str): The path to the file where the Flock instance should be saved.
+        """
+        hex_str = cloudpickle.dumps(self).hex()
+
+        result = {
+            "start_agent": start_agent,
+            "input": input,
+            "flock": hex_str,
+        }
+
+        path = os.path.dirname(file_path)
+        if path:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        with open(file_path, "w") as file:
+            file.write(json.dumps(result))
+
+    @staticmethod
+    def load_from_file(file_path: str) -> "Flock":
+        """Load a Flock instance from a file.
+
+        This class method deserializes a Flock instance from a file that was previously saved using the `save_to_file()`
+        method. It reads the file, converts the hexadecimal string back into a Flock instance, and returns it.
+
+        Args:
+            file_path (str): The path to the file containing the serialized Flock instance.
+
+        Returns:
+            Flock: A new Flock instance reconstructed from the saved file.
+        """
+        with open(file_path) as file:
+            json_flock = json.load(file)
+            hex_str = json_flock["flock"]
+            flock = cloudpickle.loads(bytes.fromhex(hex_str))
+            if json_flock["start_agent"]:
+                agent = flock.registry.get_agent(json_flock["start_agent"])
+                flock.start_agent = agent
+            if json_flock["input"]:
+                flock.input = json_flock["input"]
+            return flock
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the FlockAgent instance to a dictionary.
+
+        This method converts the entire agent instance—including its configuration, state, and lifecycle hooks—
+        into a dictionary format. It uses cloudpickle to serialize any callable objects (such as functions or
+        methods), converting them into hexadecimal string representations. This ensures that the agent can be
+        easily persisted, transmitted, or logged as JSON.
+
+        The serialization process is recursive:
+        - If a field is a callable (and not a class), it is serialized using cloudpickle.
+        - Lists and dictionaries are processed recursively to ensure that all nested callables are properly handled.
+
+        **Returns:**
+            dict[str, Any]: A dictionary representing the FlockAgent, which includes all of its configuration data.
+            This dictionary is suitable for storage, debugging, or transmission over the network.
+
+        **Example:**
+            For an agent defined as:
+                name = "idea_agent",
+                model = "openai/gpt-4o",
+                input = "query: str | The search query, context: dict | The full conversation context",
+                output = "idea: str | The generated idea"
+            Calling `agent.to_dict()` might produce:
+                {
+                    "name": "idea_agent",
+                    "model": "openai/gpt-4o",
+                    "input": "query: str | The search query, context: dict | The full conversation context",
+                    "output": "idea: str | The generated idea",
+                    "tools": ["<serialized tool representation>"],
+                    "use_cache": False,
+                    "hand_off": None,
+                    "termination": None,
+                    ...
+                }
+        """
+
+        def convert_callable(obj: Any) -> Any:
+            if callable(obj) and not isinstance(obj, type):
+                return cloudpickle.dumps(obj).hex()
+            if isinstance(obj, list):
+                return [convert_callable(item) for item in obj]
+            if isinstance(obj, dict):
+                return {k: convert_callable(v) for k, v in obj.items()}
+            return obj
+
+        data = self.model_dump()
+        return convert_callable(data)
+
+    @classmethod
+    def from_dict(cls: type[T], data: dict[str, Any]) -> T:
+        """Deserialize a FlockAgent instance from a dictionary.
+
+        This class method reconstructs a FlockAgent from its serialized dictionary representation, as produced
+        by the `to_dict()` method. It recursively processes the dictionary to convert any serialized callables
+        (stored as hexadecimal strings via cloudpickle) back into executable callable objects.
+
+        **Arguments:**
+            data (dict[str, Any]): A dictionary representation of a FlockAgent, typically produced by `to_dict()`.
+                The dictionary should contain all configuration fields and state information necessary to fully
+                reconstruct the agent.
+
+        **Returns:**
+            FlockAgent: An instance of FlockAgent reconstructed from the provided dictionary. The deserialized agent
+            will have the same configuration, state, and behavior as the original instance.
+
+        **Example:**
+            Suppose you have the following dictionary:
+                {
+                    "name": "idea_agent",
+                    "model": "openai/gpt-4o",
+                    "input": "query: str | The search query, context: dict | The full conversation context",
+                    "output": "idea: str | The generated idea",
+                    "tools": ["<serialized tool representation>"],
+                    "use_cache": False,
+                    "hand_off": None,
+                    "termination": None,
+                    ...
+                }
+            Then, calling:
+                agent = FlockAgent.from_dict(data)
+            will return a FlockAgent instance with the same properties and behavior as when it was originally serialized.
+        """
+
+        def convert_callable(obj: Any) -> Any:
+            if isinstance(obj, str) and len(obj) > 2:
+                try:
+                    return cloudpickle.loads(bytes.fromhex(obj))
+                except Exception:
+                    return obj
+            if isinstance(obj, list):
+                return [convert_callable(item) for item in obj]
+            if isinstance(obj, dict):
+                return {k: convert_callable(v) for k, v in obj.items()}
+            return obj
+
+        converted = convert_callable(data)
+        return cls(**converted)
+
     async def run_async(
         self,
-        start_agent: FlockAgent | str,
+        start_agent: FlockAgent | str | None = None,
         input: dict = {},
         context: FlockContext = None,
         run_id: str = "",
@@ -180,57 +349,63 @@ class Flock:
                 if hasattr(start_agent, "name")
                 else start_agent,
             )
+            if start_agent:
+                self.start_agent = start_agent
+            if input:
+                self.input = input
 
-            span.set_attribute("input", str(input))
+            span.set_attribute("input", str(self.input))
             span.set_attribute("context", str(context))
             span.set_attribute("run_id", run_id)
             span.set_attribute("box_result", box_result)
 
             try:
-                if isinstance(start_agent, str):
+                if isinstance(self.start_agent, str):
                     logger.debug(
-                        "Looking up agent by name", agent_name=start_agent
+                        "Looking up agent by name", agent_name=self.start_agent
                     )
-                    start_agent = self.registry.get_agent(start_agent)
-                    if not start_agent:
-                        logger.error("Agent not found", agent_name=start_agent)
-                        raise ValueError(
-                            f"Agent '{start_agent}' not found in registry"
+                    self.start_agent = self.registry.get_agent(self.start_agent)
+                    if not self.start_agent:
+                        logger.error(
+                            "Agent not found", agent_name=self.start_agent
                         )
-                    start_agent.resolve_callables(context=self.context)
+                        raise ValueError(
+                            f"Agent '{self.start_agent}' not found in registry"
+                        )
+                    self.start_agent.resolve_callables(context=self.context)
                 if context:
                     logger.debug("Using provided context")
                     self.context = context
                 if not run_id:
-                    run_id = f"{start_agent.name}_{uuid.uuid4().hex[:4]}"
+                    run_id = f"{self.start_agent.name}_{uuid.uuid4().hex[:4]}"
                     logger.debug("Generated run ID", run_id=run_id)
 
                 set_baggage("run_id", run_id)
 
                 # TODO - Add a check for required input keys
-                input_keys = top_level_to_keys(start_agent.input)
+                input_keys = top_level_to_keys(self.start_agent.input)
                 for key in input_keys:
                     if key.startswith("flock."):
                         key = key[6:]  # Remove the "flock." prefix
-                    if key not in input:
+                    if key not in self.input:
                         from rich.prompt import Prompt
 
-                        input[key] = Prompt.ask(
-                            f"Please enter {key} for {start_agent.name}"
+                        self.input[key] = Prompt.ask(
+                            f"Please enter {key} for {self.start_agent.name}"
                         )
 
                 # Initialize the context with standardized variables
                 initialize_context(
                     self.context,
-                    start_agent.name,
-                    input,
+                    self.start_agent.name,
+                    self.input,
                     run_id,
                     self.local_debug,
                 )
 
                 logger.info(
                     "Starting agent execution",
-                    agent=start_agent.name,
+                    agent=self.start_agent.name,
                     local_debug=self.local_debug,
                 )
 

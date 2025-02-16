@@ -1,9 +1,12 @@
 """FlockAgent is the core, declarative base class for all agents in the Flock framework."""
 
+import asyncio
+import json
+import os
 from abc import ABC
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal, Union
+from typing import Any, TypeVar, Union
 
 import cloudpickle
 from pydantic import BaseModel, Field
@@ -21,6 +24,9 @@ from opentelemetry import trace
 tracer = trace.get_tracer(__name__)
 
 
+T = TypeVar("T", bound="FlockAgent")
+
+
 @dataclass
 class FlockAgentConfig:
     """Configuration options for a FlockAgent."""
@@ -34,13 +40,12 @@ class FlockAgentConfig:
     disable_output: bool = field(
         default=False, metadata={"description": "Disables the agent's output."}
     )
-    save_to_file: bool = field(
-        default=False,
-        metadata={
-            "description": "Saves the serialized agent to a file every time it gets serialized."
-        },
+    temperature: float = field(
+        default=0.0, metadata={"description": "Temperature for the LLM"}
     )
-    data_type: Literal["json", "cloudpickle", "msgpack"] = "cloudpickle"
+    max_tokens: int = field(
+        default=2000, metadata={"description": "Max tokens for the LLM"}
+    )
 
 
 @dataclass
@@ -188,6 +193,12 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             description="Optional callback function for initialization. If provided, this async function is called with the inputs.",
         )
     )
+    evaluate_callback: (
+        Callable[[dict[str, Any]], Awaitable[dict[str, Any]]] | None
+    ) = Field(
+        default=None,
+        description="Optional callback function for evaluate. If provided, this async function is called with the inputs instead of the internal evaluate",
+    )
     terminate_callback: (
         Callable[[dict[str, Any], dict[str, Any]], Awaitable[None]] | None
     ) = Field(
@@ -296,6 +307,8 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         with tracer.start_as_current_span("agent.evaluate") as span:
             span.set_attribute("agent.name", self.name)
             span.set_attribute("inputs", str(inputs))
+            if self.evaluate_callback is not None:
+                return await self.evaluate_callback(self, inputs)
             try:
                 # Create and configure the signature and language model.
                 self.__dspy_signature = self.create_dspy_signature_class(
@@ -323,7 +336,33 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 span.record_exception(eval_error)
                 raise
 
-    async def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
+    def save_to_file(self, file_path: str | None = None) -> None:
+        """Save the serialized agent to a file."""
+        if file_path is None:
+            file_path = f"{self.name}.json"
+        dict_data = self.to_dict()
+
+        # create all needed directories
+        path = os.path.dirname(file_path)
+        if path:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        with open(file_path, "w") as file:
+            file.write(json.dumps(dict_data))
+
+    @classmethod
+    def load_from_file(cls: type[T], file_path: str) -> T:
+        """Load a serialized agent from a file."""
+        with open(file_path) as file:
+            data = json.load(file)
+        # Fallback: use the current class.
+        return cls.from_dict(data)
+
+    def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Run the agent with the given inputs and return its generated output."""
+        return asyncio.run(self.run_async(inputs))
+
+    async def run_async(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Run the agent with the given inputs and return its generated output.
 
         This method represents the primary execution flow for a FlockAgent and performs the following
@@ -526,7 +565,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         return convert_callable(data)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FlockAgent":
+    def from_dict(cls: type[T], data: dict[str, Any]) -> T:
         """Deserialize a FlockAgent instance from a dictionary.
 
         This class method reconstructs a FlockAgent from its serialized dictionary representation, as produced
