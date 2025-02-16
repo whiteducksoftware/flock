@@ -1,6 +1,7 @@
 """High-level orchestrator for creating and executing agents."""
 
 import asyncio
+import json
 import os
 import uuid
 from typing import Any, TypeVar
@@ -80,6 +81,8 @@ class Flock:
             self.model = model
             self.local_debug = local_debug
             self.output_formatter = output_formatter
+            self.start_agent: FlockAgent | str | None = None
+            self.input: dict = {}
 
             if local_debug:
                 os.environ["LOCAL_DEBUG"] = "1"
@@ -146,7 +149,7 @@ class Flock:
 
     def run(
         self,
-        start_agent: FlockAgent | str,
+        start_agent: FlockAgent | str | None = None,
         input: dict = {},
         context: FlockContext = None,
         run_id: str = "",
@@ -157,7 +160,12 @@ class Flock:
             self.run_async(start_agent, input, context, run_id, box_result)
         )
 
-    def save_to_file(self, file_path: str) -> None:
+    def save_to_file(
+        self,
+        file_path: str,
+        start_agent: str | None = None,
+        input: dict | None = None,
+    ) -> None:
         """Save the Flock instance to a file.
 
         This method serializes the Flock instance to a dictionary using the `to_dict()` method and saves it to a file.
@@ -168,12 +176,18 @@ class Flock:
         """
         hex_str = cloudpickle.dumps(self).hex()
 
+        result = {
+            "start_agent": start_agent,
+            "input": input,
+            "flock": hex_str,
+        }
+
         path = os.path.dirname(file_path)
         if path:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
         with open(file_path, "w") as file:
-            file.write(hex_str)
+            file.write(json.dumps(result))
 
     @staticmethod
     def load_from_file(file_path: str) -> "Flock":
@@ -189,8 +203,15 @@ class Flock:
             Flock: A new Flock instance reconstructed from the saved file.
         """
         with open(file_path) as file:
-            hex_str = file.read()
-        return cloudpickle.loads(bytes.fromhex(hex_str))
+            json_flock = json.load(file)
+            hex_str = json_flock["flock"]
+            flock = cloudpickle.loads(bytes.fromhex(hex_str))
+            if json_flock["start_agent"]:
+                agent = flock.registry.get_agent(json_flock["start_agent"])
+                flock.start_agent = agent
+            if json_flock["input"]:
+                flock.input = json_flock["input"]
+            return flock
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the FlockAgent instance to a dictionary.
@@ -292,7 +313,7 @@ class Flock:
 
     async def run_async(
         self,
-        start_agent: FlockAgent | str,
+        start_agent: FlockAgent | str | None = None,
         input: dict = {},
         context: FlockContext = None,
         run_id: str = "",
@@ -328,57 +349,63 @@ class Flock:
                 if hasattr(start_agent, "name")
                 else start_agent,
             )
+            if start_agent:
+                self.start_agent = start_agent
+            if input:
+                self.input = input
 
-            span.set_attribute("input", str(input))
+            span.set_attribute("input", str(self.input))
             span.set_attribute("context", str(context))
             span.set_attribute("run_id", run_id)
             span.set_attribute("box_result", box_result)
 
             try:
-                if isinstance(start_agent, str):
+                if isinstance(self.start_agent, str):
                     logger.debug(
-                        "Looking up agent by name", agent_name=start_agent
+                        "Looking up agent by name", agent_name=self.start_agent
                     )
-                    start_agent = self.registry.get_agent(start_agent)
-                    if not start_agent:
-                        logger.error("Agent not found", agent_name=start_agent)
-                        raise ValueError(
-                            f"Agent '{start_agent}' not found in registry"
+                    self.start_agent = self.registry.get_agent(self.start_agent)
+                    if not self.start_agent:
+                        logger.error(
+                            "Agent not found", agent_name=self.start_agent
                         )
-                    start_agent.resolve_callables(context=self.context)
+                        raise ValueError(
+                            f"Agent '{self.start_agent}' not found in registry"
+                        )
+                    self.start_agent.resolve_callables(context=self.context)
                 if context:
                     logger.debug("Using provided context")
                     self.context = context
                 if not run_id:
-                    run_id = f"{start_agent.name}_{uuid.uuid4().hex[:4]}"
+                    run_id = f"{self.start_agent.name}_{uuid.uuid4().hex[:4]}"
                     logger.debug("Generated run ID", run_id=run_id)
 
                 set_baggage("run_id", run_id)
 
                 # TODO - Add a check for required input keys
-                input_keys = top_level_to_keys(start_agent.input)
+                input_keys = top_level_to_keys(self.start_agent.input)
                 for key in input_keys:
                     if key.startswith("flock."):
                         key = key[6:]  # Remove the "flock." prefix
-                    if key not in input:
+                    if key not in self.input:
                         from rich.prompt import Prompt
 
-                        input[key] = Prompt.ask(
-                            f"Please enter {key} for {start_agent.name}"
+                        self.input[key] = Prompt.ask(
+                            f"Please enter {key} for {self.start_agent.name}"
                         )
 
                 # Initialize the context with standardized variables
                 initialize_context(
                     self.context,
-                    start_agent.name,
-                    input,
+                    self.start_agent.name,
+                    self.input,
                     run_id,
                     self.local_debug,
                 )
 
                 logger.info(
                     "Starting agent execution",
-                    agent=start_agent.name,
+                    agent=self.start_agent.name,
                     local_debug=self.local_debug,
                 )
 

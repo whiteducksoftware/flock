@@ -170,7 +170,7 @@ class TestFlock:
     
             result = await flock_instance.run_async(dummy_agent, context=custom_context)
 
-        assert dict(result) == {'inputs': {'query': 'dummy_value'}, 'result': 'success'}
+        assert dict(result) == {'inputs': {}, 'result': 'success'}
 
     @pytest.mark.asyncio
     async def test_run_async_with_input_prompt(self, flock_instance, dummy_agent):

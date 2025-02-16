@@ -1,33 +1,50 @@
 """Flock package initialization."""
 
-import questionary
-from rich.console import Console
-
-from flock.core.util.cli_helper import display_banner
-
-console = Console()
-
 
 def main():
     """Main function."""
+    import questionary
+    from rich.console import Console
+
+    from flock.cli.constants import (
+        CLI_CREATE_AGENT,
+        CLI_CREATE_FLOCK,
+        CLI_LOAD_AGENT,
+        CLI_LOAD_EXAMPLE,
+        CLI_LOAD_FLOCK,
+        CLI_SETTINGS,
+        CLI_START_ADVANCED_MODE,
+        CLI_START_WEB_SERVER,
+    )
+    from flock.cli.load_flock import load_flock
+    from flock.core.util.cli_helper import display_banner
+
+    console = Console()
+
     display_banner()
 
     console.print("Flock Management Console\n", style="bold green")
 
-    questionary.select(
+    result = questionary.select(
         "What do you want to do?",
         choices=[
             questionary.Separator(line=" "),
-            "1. Create an agent",
-            "2. Create a flock",
-            "3. Load an agent",
-            "4. Load a *.flock file",
+            # CLI_CREATE_AGENT,
+            # CLI_CREATE_FLOCK,
+            # CLI_LOAD_AGENT,
+            CLI_LOAD_FLOCK,
+            # CLI_LOAD_EXAMPLE,
             questionary.Separator(),
-            "Start advanced mode (coming soon)",
-            "Start web server (coming soon)",
+            CLI_SETTINGS,
+            questionary.Separator(),
+            CLI_START_ADVANCED_MODE,
+            CLI_START_WEB_SERVER,
             "Exit",
         ],
     ).ask()
+
+    if result == CLI_LOAD_FLOCK:
+        load_flock()
 
 
 if __name__ == "__main__":
