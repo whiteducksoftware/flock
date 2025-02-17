@@ -24,17 +24,13 @@ from pprint import pprint
 
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
-from flock.core.logging.formatters.base_formatter import FormatterOptions
-from flock.core.logging.formatters.rich_formatters import RichTables
-from flock.core.logging.formatters.themed_formatter import ThemedAgentResultFormatter
+from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.tools import basic_tools
 
 async def main():
     # --------------------------------
     # Create the flock
     # --------------------------------
-    # Some people need some swag in their output
-    # See the formatting examples
     flock = Flock(local_debug=True)
 
 
@@ -47,13 +43,18 @@ async def main():
     # - you can define if the agent should use the cache 
     #   results will get cached and if true and if the input is the same as before, the agent will return the cached result
     #   this is useful for expensive operations like web scraping and for debugging
+    # Some people need some swag in their output
+    # Flock supports rendering the output as a table and you can choose a theme
     agent = FlockAgent(
         name="my_agent",
         input="url",
         output="title, headings: list[str], entities_and_metadata: list[dict[str, str]], type:Literal['news', 'blog', 'opinion piece', 'tweet']",
         tools=[basic_tools.get_web_content_as_markdown],
         use_cache=True,
-        output_config=FlockAgentOutputConfig("ThemedTables","apple-classic")
+        output_config=FlockAgentOutputConfig(
+            render_table=True,
+            theme=OutputTheme.abernathy
+        )
     )
     flock.add_agent(agent)
 
