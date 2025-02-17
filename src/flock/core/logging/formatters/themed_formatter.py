@@ -5,7 +5,6 @@ import random
 import re
 from typing import Any
 
-from devtools import pprint
 from temporalio import workflow
 
 with workflow.unsafe.imports_passed_through():
@@ -534,6 +533,7 @@ class ThemedAgentResultFormatter:
         self.syntax_style = create_pygments_syntax_theme(
             load_syntax_theme_from_file(theme)
         )
+
         console = Console()
         panel = self.format_result(
             result=result,
@@ -542,8 +542,3 @@ class ThemedAgentResultFormatter:
             styles=styles,
         )
         console.print(panel)
-
-    @staticmethod
-    def display_data(data: dict[str, Any]) -> None:
-        """Print agent data using Rich formatting."""
-        pprint(data)

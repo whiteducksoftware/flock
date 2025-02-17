@@ -57,7 +57,7 @@ class FlockAgentOutputConfig:
     """Configuration options for a FlockAgent."""
 
     render_table: bool = field(
-        default=True, metadata={"description": "Renders a table."}
+        default=False, metadata={"description": "Renders a table."}
     )
     theme: OutputTheme = field(  # type: ignore
         default=OutputTheme.afterglow,

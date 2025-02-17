@@ -54,7 +54,10 @@ async def main():
         name="bloggy", 
         input="blog_idea", 
         output="funny_blog_title, blog_headers",
-        output_config=FlockAgentOutputConfig(render_table=True, theme=OutputTheme.afterglow)
+        output_config=FlockAgentOutputConfig(
+            render_table=False,
+            theme=OutputTheme.abernathy
+        )
     )
     flock.add_agent(bloggy)
 
