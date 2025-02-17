@@ -44,4 +44,3 @@ TELEMETRY = TelemetryConfig(
     OTEL_ENABLE_FILE,
     OTEL_ENABLE_SQL,
 )
-TELEMETRY.setup_tracing()

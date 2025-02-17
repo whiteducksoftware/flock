@@ -118,7 +118,7 @@ class TelemetryConfig:
         provider.add_span_processor(
             BaggageAttributeSpanProcessor(baggage_keys=["session_id", "run_id"])
         )
-        self.global_tracer = trace.get_tracer("flock")
+        # self.global_tracer = trace.get_tracer("flock")
         sys.excepthook = self.log_exception_to_otel
 
     def log_exception_to_otel(self, exc_type, exc_value, exc_traceback):

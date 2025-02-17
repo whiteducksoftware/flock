@@ -28,23 +28,20 @@ In later examples, we will explore more advanced hand-off scenarios and fall bac
 import asyncio
 
 from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent
-from flock.core.logging.formatters.base_formatter import FormatterOptions
-from flock.core.logging.formatters.rich_formatters import RichTables
+from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
+from flock.core.logging.formatters.themes import OutputTheme
 
 
 async def main():
 
-    flock = Flock(local_debug=True, output_formatter=
-                    FormatterOptions(formatter=RichTables, 
-                                   wait_for_input=True, 
-                                   settings={}),
-                    enable_logging=True)
+    flock = Flock(local_debug=True,enable_logging=True)
     
     idea_agent = FlockAgent(
         name="idea_agent",
         input="query",
         output="a_fun_software_project_idea",
+        output_config=FlockAgentOutputConfig(render_table=True, 
+                                             wait_for_input=True), # wait for input to continue
         use_cache=True,
     )
 
@@ -52,6 +49,8 @@ async def main():
         name="project_plan_agent",
         input="a_fun_software_project_idea",
         output="catchy_project_name, project_pitch, techstack, project_implementation_plan",
+        output_config=FlockAgentOutputConfig(render_table=True, 
+                                             wait_for_input=True), # wait for input to continue
         use_cache=True,
     )
     

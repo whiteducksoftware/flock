@@ -23,10 +23,9 @@ from devtools import debug
 
 
 from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent
-from flock.core.logging.formatters.base_formatter import FormatterOptions
-from flock.core.logging.formatters.rich_formatters import RichTables
+from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
 from flock.core.logging.formatters.themed_formatter import ThemedAgentResultFormatter
+from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.tools import basic_tools
 
 MODEL = "openai/gpt-4o"
@@ -35,10 +34,7 @@ async def main():
     # --------------------------------
     # Create the flock
     # --------------------------------
-    # In case the table of example 02 wasn't fancy enough
-    # The author had over 300 cli themes lying around....
-    format_options = FormatterOptions(ThemedAgentResultFormatter, wait_for_input=False, settings={"theme": "adventuretime"})
-    flock = Flock(local_debug=True, output_formatter=format_options)
+    flock = Flock(local_debug=True)
 
 
     # --------------------------------
@@ -53,6 +49,10 @@ async def main():
         input="a_person",
         output="persons_age_in_days",
         tools=[basic_tools.web_search_duckduckgo, basic_tools.code_eval],
+        output_config=FlockAgentOutputConfig(
+            render_table=True,
+            theme=OutputTheme.adventuretime
+        ),
         use_cache=True,
     )
     flock.add_agent(agent)

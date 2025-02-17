@@ -10,6 +10,7 @@ import cloudpickle
 from opentelemetry import trace
 from opentelemetry.baggage import get_baggage, set_baggage
 
+from flock.config import TELEMETRY
 from flock.core.context.context import FlockContext
 from flock.core.context.context_manager import initialize_context
 from flock.core.execution.local_executor import run_local_workflow
@@ -22,7 +23,7 @@ from flock.core.util.input_resolver import top_level_to_keys
 
 T = TypeVar("T", bound=FlockAgent)
 logger = get_logger("flock")
-
+TELEMETRY.setup_tracing()
 tracer = trace.get_tracer(__name__)
 
 

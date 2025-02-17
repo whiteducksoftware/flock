@@ -66,6 +66,9 @@ class FlockAgentOutputConfig:
     max_length: int = field(
         default=1000, metadata={"description": "Disables the agent's output."}
     )
+    wait_for_input: bool = field(
+        default=False, metadata={"description": "Wait for input."}
+    )
 
 
 @dataclass
@@ -461,6 +464,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             self.output_config.theme,
             self.output_config.max_length,
             self.output_config.render_table,
+            self.output_config.wait_for_input,
         ).display_result(result, self.name)
 
     async def run_temporal(self, inputs: dict[str, Any]) -> dict[str, Any]:

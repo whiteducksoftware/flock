@@ -22,8 +22,6 @@ from typing import Literal
 
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
-from flock.core.logging.formatters.base_formatter import FormatterOptions
-from flock.core.logging.formatters.rich_formatters import RichTables
 from flock.core.logging.formatters.themed_formatter import ThemedAgentResultFormatter
 from flock.core.tools import basic_tools
 
