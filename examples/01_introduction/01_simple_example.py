@@ -21,7 +21,9 @@ Let's get started!
 import asyncio
 
 from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent
+from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
+from flock.core.logging.formatters.themes import OutputTheme
+
 
 
 # --------------------------------
@@ -52,6 +54,7 @@ async def main():
         name="bloggy", 
         input="blog_idea", 
         output="funny_blog_title, blog_headers",
+        output_config=FlockAgentOutputConfig(render_table=True, theme=OutputTheme.afterglow)
     )
     flock.add_agent(bloggy)
 

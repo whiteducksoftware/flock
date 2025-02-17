@@ -6,16 +6,16 @@ import os
 from abc import ABC
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypeVar, Union
+from typing import Any, TypeVar, Union
 
 import cloudpickle
 from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
-from flock.core.logging.formatters.pprint_formatter import PrettyPrintFormatter
 from flock.core.logging.formatters.themed_formatter import (
     ThemedAgentResultFormatter,
 )
+from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.logging.logging import get_logger
 from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
@@ -56,12 +56,11 @@ class FlockAgentConfig:
 class FlockAgentOutputConfig:
     """Configuration options for a FlockAgent."""
 
-    output_type: Literal["NoOutput", "PrettyPrint", "ThemedTables"] = field(
-        default="ThemedTables",
-        metadata={"description": "How to output the agent's output."},
+    render_table: bool = field(
+        default=True, metadata={"description": "Renders a table."}
     )
-    theme: str = field(
-        default="3024-night",
+    theme: OutputTheme = field(  # type: ignore
+        default=OutputTheme.afterglow,
         metadata={"description": "Disables the agent's output."},
     )
     max_length: int = field(
@@ -458,16 +457,11 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
     def display_output(self, result: dict[str, Any]) -> None:
         """Display the agent's output using the configured output formatter."""
-        if self.output_config.output_type == "PrettyPrint":
-            PrettyPrintFormatter(self.output_config.max_length).display_result(
-                result, self.name
-            )
-        elif self.output_config.output_type == "ThemedTables":
-            ThemedAgentResultFormatter(
-                self.output_config.theme, self.output_config.max_length
-            ).display_result(result, self.name)
-        else:
-            pass
+        ThemedAgentResultFormatter(
+            self.output_config.theme,
+            self.output_config.max_length,
+            self.output_config.render_table,
+        ).display_result(result, self.name)
 
     async def run_temporal(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Execute this agent via a Temporal workflow for enhanced fault tolerance and asynchronous processing.

@@ -8,13 +8,15 @@ from typing import Any
 from devtools import pprint
 from temporalio import workflow
 
-from flock.core.logging.formatters.base_formatter import BaseFormatter
-
 with workflow.unsafe.imports_passed_through():
+    from pygments.style import Style
+    from pygments.token import Token
     from rich import box
     from rich.console import Console, Group
     from rich.panel import Panel
+    from rich.syntax import PygmentsSyntaxTheme, Syntax
     from rich.table import Table
+    from rich.theme import Theme
 
 import toml  # install with: pip install toml
 
@@ -335,18 +337,99 @@ def create_rich_renderable(
         return s
 
 
-class ThemedAgentResultFormatter(BaseFormatter):
+def load_syntax_theme_from_file(filepath: str) -> dict:
+    """Load a syntax highlighting theme from a TOML file and map it to Rich styles."""
+    with open(filepath) as f:
+        theme = toml.load(f)
+
+    if "colors" not in theme:
+        raise ValueError(
+            f"Theme file {filepath} does not contain a 'colors' section."
+        )
+
+    # Map theme colors to syntax categories
+    syntax_theme = {
+        "background": theme["colors"]["primary"].get("background", "#161719"),
+        "text": theme["colors"]["primary"].get("foreground", "#c5c8c6"),
+        "comment": theme["colors"]["normal"].get("black", "#666666"),
+        "keyword": theme["colors"]["bright"].get("magenta", "#ff79c6"),
+        "builtin": theme["colors"]["bright"].get("cyan", "#8be9fd"),
+        "string": theme["colors"]["bright"].get("green", "#50fa7b"),
+        "name": theme["colors"]["bright"].get("blue", "#6272a4"),
+        "number": theme["colors"]["bright"].get("yellow", "#f1fa8c"),
+        "operator": theme["colors"]["bright"].get("red", "#ff5555"),
+        "punctuation": theme["colors"]["normal"].get("white", "#bbbbbb"),
+        "error": theme["colors"]["bright"].get("red", "#ff5555"),
+    }
+
+    return syntax_theme
+
+
+def create_rich_syntax_theme(syntax_theme: dict) -> Theme:
+    """Convert a syntax theme dict to a Rich-compatible Theme."""
+    return Theme(
+        {
+            "background": f"on {syntax_theme['background']}",
+            "text": syntax_theme["text"],
+            "keyword": f"bold {syntax_theme['keyword']}",
+            "builtin": f"bold {syntax_theme['builtin']}",
+            "string": syntax_theme["string"],
+            "name": syntax_theme["name"],
+            "number": syntax_theme["number"],
+            "operator": syntax_theme["operator"],
+            "punctuation": syntax_theme["punctuation"],
+            "error": f"bold {syntax_theme['error']}",
+        }
+    )
+
+
+def create_pygments_syntax_theme(syntax_theme: dict) -> PygmentsSyntaxTheme:
+    """Convert a syntax theme dict to a Pygments-compatible Rich syntax theme."""
+
+    class CustomSyntaxStyle(Style):
+        """Dynamically generated Pygments style based on the loaded theme."""
+
+        background_color = syntax_theme["background"]
+        styles = {
+            Token.Text: syntax_theme["text"],
+            Token.Comment: f"italic {syntax_theme['comment']}",
+            Token.Keyword: f"bold {syntax_theme['keyword']}",
+            Token.Name.Builtin: f"bold {syntax_theme['builtin']}",
+            Token.String: syntax_theme["string"],
+            Token.Name: syntax_theme["name"],
+            Token.Number: syntax_theme["number"],
+            Token.Operator: syntax_theme["operator"],
+            Token.Punctuation: syntax_theme["punctuation"],
+            Token.Error: f"bold {syntax_theme['error']}",
+        }
+
+    return PygmentsSyntaxTheme(CustomSyntaxStyle)
+
+
+class ThemedAgentResultFormatter:
     """Formats agent results in a Rich table with nested subtables and theme support."""
 
-    def __init__(self, theme: str = "atom", max_length: int = -1):
+    def __init__(
+        self,
+        theme: str = "atom",
+        max_length: int = -1,
+        render_table: bool = True,
+    ):
         """Initialize the formatter with a theme and optional max length."""
         self.theme = theme
         self.styles = None
         self.max_length = max_length
+        self.render_table = render_table
 
     def format_result(
-        self, result: dict[str, Any], agent_name: str, theme, styles
+        self,
+        result: dict[str, Any],
+        agent_name: str,
+        theme,
+        styles,
     ) -> Panel:
+        from devtools import pformat
+
         """Format an agent's result as a Rich Panel containing a table."""
         box_style = (
             getattr(box, styles["table_box"])
@@ -394,14 +477,32 @@ class ThemedAgentResultFormatter(BaseFormatter):
             )
             table.add_row(key, rich_renderable)
 
-        return Panel(
-            table,
-            title="🐤🐧🐓🦆",
-            title_align=styles["panel_title_align"],
-            border_style=styles["panel_border_style"],
-            padding=styles["panel_padding"],
-            style=styles["panel_style"],
-        )
+        s = pformat(result, highlight=False)
+
+        if self.render_table:
+            return Panel(
+                table,
+                title="🐤🐧🐓🦆",
+                title_align=styles["panel_title_align"],
+                border_style=styles["panel_border_style"],
+                padding=styles["panel_padding"],
+                style=styles["panel_style"],
+            )
+        else:
+            syntax = Syntax(
+                s,  # The formatted string
+                "python",  # Highlight as Python (change this for other formats)
+                theme=self.syntax_style,  # Choose a Rich theme (matches your color setup)
+                line_numbers=False,
+            )
+            return Panel(
+                syntax,
+                title=agent_name,
+                title_align=styles["panel_title_align"],
+                border_style=styles["panel_border_style"],
+                padding=styles["panel_padding"],
+                style=styles["panel_style"],
+            )
 
     def display_result(self, result: dict[str, Any], agent_name: str) -> None:
         """Print an agent's result using Rich formatting."""
@@ -410,7 +511,11 @@ class ThemedAgentResultFormatter(BaseFormatter):
             pathlib.Path(__file__).parent.parent.parent.parent / "themes"
         )
         all_themes = list(themes_dir.glob("*.toml"))
-        theme = theme + ".toml" if not theme.endswith(".toml") else theme
+        theme = (
+            theme.value + ".toml"
+            if not theme.value.endswith(".toml")
+            else theme.value
+        )
         theme = (
             pathlib.Path(__file__).parent.parent.parent.parent
             / "themes"
@@ -426,7 +531,9 @@ class ThemedAgentResultFormatter(BaseFormatter):
 
         styles = get_default_styles(theme_dict)
         self.styles = styles
-
+        self.syntax_style = create_pygments_syntax_theme(
+            load_syntax_theme_from_file(theme)
+        )
         console = Console()
         panel = self.format_result(
             result=result,
