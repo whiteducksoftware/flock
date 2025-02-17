@@ -159,8 +159,8 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     """
 
     name: str = Field(..., description="Unique identifier for the agent.")
-    model: str = Field(
-        "openai/gpt-4o", description="The model to use (e.g., 'openai/gpt-4o')."
+    model: str | None = Field(
+        None, description="The model to use (e.g., 'openai/gpt-4o')."
     )
     description: str | Callable[..., str] = Field(
         "", description="A human-readable description of the agent."
