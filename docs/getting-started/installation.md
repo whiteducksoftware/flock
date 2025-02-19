@@ -1,3 +1,3 @@
-# Index
+# Installation
 
 Documentation in progress...

@@ -1,3 +1,3 @@
-# Index
+# Workflows
 
 Documentation in progress...

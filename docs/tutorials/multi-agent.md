@@ -1,3 +1,3 @@
-# Index
+# Multi Agent
 
 Documentation in progress...

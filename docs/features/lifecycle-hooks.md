@@ -1,3 +1,3 @@
-# Index
+# Lifecycle Hooks
 
 Documentation in progress...

@@ -1,3 +1,3 @@
-# Index
+# Flock Core
 
 Documentation in progress...

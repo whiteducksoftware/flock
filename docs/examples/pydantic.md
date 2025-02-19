@@ -1,3 +1,3 @@
-# Index
+# Pydantic
 
 Documentation in progress...

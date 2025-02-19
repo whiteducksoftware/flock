@@ -1,3 +1,3 @@
-# Index
+# Concepts
 
 Documentation in progress...

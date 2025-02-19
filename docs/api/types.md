@@ -1,3 +1,3 @@
-# Index
+# Types
 
 Documentation in progress...

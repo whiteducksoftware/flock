@@ -1,3 +1,3 @@
-# Index
+# Type System
 
 Documentation in progress...

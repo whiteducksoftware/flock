@@ -1,3 +1,3 @@
-# Index
+# Declarative
 
 Documentation in progress...

@@ -1,3 +1,3 @@
-# Index
+# Components
 
 Documentation in progress...

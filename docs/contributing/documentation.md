@@ -1,3 +1,3 @@
-# Index
+# Documentation
 
 Documentation in progress...

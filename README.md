@@ -1,5 +1,5 @@
 <p align="center">
-<img src="docs/img/flock.png" width="600"><br>
+<img src="docs/assets/images/flock.png" width="600"><br>
 <img alt="Dynamic TOML Badge" src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fwhiteducksoftware%2Fflock%2Frefs%2Fheads%2Fmaster%2Fpyproject.toml&query=%24.project.version&style=for-the-badge&logo=pypi&label=pip%20version">
 <a href="https://www.linkedin.com/company/whiteduck" target="_blank"><img alt="LinkedIn" src="https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white&label=whiteduck"></a>
 <a href="https://bsky.app/profile/whiteduck-gmbh.bsky.social" target="_blank"><img alt="Bluesky" src="https://img.shields.io/badge/bluesky-Follow-blue?style=for-the-badge&logo=bluesky&logoColor=%23fff&color=%23333&labelColor=%230285FF&label=whiteduck-gmbh"></a>
@@ -65,7 +65,7 @@ https://github.com/user-attachments/assets/bdab4786-d532-459f-806a-024727164dcc
 
 
 <p align="center">
-<img src="docs/img/flock_cli.png" width="200"><br>
+<img src="docs/assets/images//flock_cli.png" width="200"><br>
 
 ## Examples
 
@@ -329,7 +329,9 @@ Documentation in progress!
 
 ## Architecture
 
-Documentation in progress!
+<img src="docs/assets/images/components_chart.png" width="800"><br>
+
+<img src="docs/assets/images/flow_chart.png" width="800"><br>
 
 
 ## Requirements

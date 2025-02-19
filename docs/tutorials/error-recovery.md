@@ -1,3 +1,3 @@
-# Index
+# Error Recovery
 
 Documentation in progress...

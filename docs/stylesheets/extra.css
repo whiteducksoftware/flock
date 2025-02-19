@@ -1,0 +1,23 @@
+.md-header__button.md-logo img {
+    width: 64px;  /* Increase from default 24px */
+    height: auto; /* Maintain aspect ratio */
+}
+
+/* If you also want to increase the logo in the navigation sidebar */
+.md-nav__title .md-logo img {
+    width: 48px;
+    height: auto;
+}
+
+
+.md-header__button.md-logo img {
+    filter: sepia(90%) saturate(1000%) hue-rotate(312deg) brightness(78%) contrast(165%);
+
+}
+
+/* .md-header__button.md-logo img {
+    background-color: orange;
+    mix-blend-mode: multiply;
+} */
+
+

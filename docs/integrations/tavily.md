@@ -1,3 +1,3 @@
-# Index
+# Tavily
 
 Documentation in progress...

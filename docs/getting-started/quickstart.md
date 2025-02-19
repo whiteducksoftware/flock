@@ -1,3 +1,3 @@
-# Index
+# Quickstart
 
 Documentation in progress...

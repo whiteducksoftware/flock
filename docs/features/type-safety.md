@@ -1,3 +1,3 @@
-# Index
+# Type Safety
 
 Documentation in progress...

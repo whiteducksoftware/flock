@@ -1,3 +1,3 @@
-# Index
+# Temporal
 
 Documentation in progress...

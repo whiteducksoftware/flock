@@ -1,3 +1,3 @@
-# Index
+# Design Decisions
 
 Documentation in progress...

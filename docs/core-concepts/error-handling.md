@@ -1,3 +1,3 @@
-# Index
+# Error Handling
 
 Documentation in progress...

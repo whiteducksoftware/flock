@@ -1,3 +1,3 @@
-# Index
+# Configuration
 
 Documentation in progress...
