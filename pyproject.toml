@@ -31,6 +31,7 @@ dependencies = [
     "python-decouple>=3.8",
     "questionary>=2.1.0",
     "rich>=13.9.4",
+    "sentence-transformers>=3.4.1",
     "temporalio>=1.9.0",
     "toml>=0.10.2",
 ]
