@@ -1,7 +1,7 @@
 # Welcome to Flock
 
-<p align="center">
-<img src="assets/images/flock.png" width="600"><br>
+![Flock Banner](assets/images/flock.png){ width="800" }
+
 
 Flock is a powerful framework for orchestrating LLM-powered agents that takes a fresh approach to agent development. Instead of wrestling with complex prompts, you simply declare what your agents need and what they should produce—Flock handles the rest.
 

@@ -6,6 +6,8 @@ on:
   push:
     branches:
       - master # Replace with your default branch
+    paths:
+      - 'pyproject.toml'  # Only trigger on changes to pyproject.toml (version number)
 
 jobs:
   build-and-publish:
