@@ -21,7 +21,6 @@ from flock.core.memory.memory_parser import MemoryMappingParser
 from flock.core.memory.memory_storage import FlockMemoryStore
 from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
-from flock.memory.memory_manager import MemoryManager
 
 logger = get_logger("flock")
 
@@ -229,10 +228,6 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     output_config: FlockAgentOutputConfig = Field(
         default_factory=FlockAgentOutputConfig,
         description="Configuration options for the agent's output.",
-    )
-
-    memory_manager: MemoryManager | None = Field(
-        default=None, description="Optional memory manager for the agent"
     )
 
     memory_enabled: bool = Field(default=True)
