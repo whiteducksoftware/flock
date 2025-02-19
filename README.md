@@ -311,6 +311,34 @@ Super simple rules to remember:
 1. Point the first agent to the next one using `hand_off`
 2. Make sure their inputs and outputs match up
 
+### Tools of the trade
+
+Of couse no agent framework is complete without using tools.
+Flock enables agents to use any python function you pass as tool or to use one of the plenty default tools
+
+```python
+bloggy = FlockAgent(
+    name="bloggy",
+    input="blog_idea: str|The topic to blog about",
+    output=(
+        "funny_blog_title: str|A catchy title for the blog, "
+        "blog_headers: list[str]|List of section headers for the blog"
+        "analysis_results: dict[str,Any] | Result of calculated analysis if necessary"
+    )
+    tools=[basic_tools.web_search_duckduckgo, basic_tools.code_eval],
+)
+
+result = flock.run(
+    input={"blog_idea": "A blog about cats, with an analysis how old the oldest cat became in days"},
+    start_agent=bloggy
+)
+```
+
+These tools are available out of the box:
+
+
+
+
 That's all there is to it! `bloggy` comes up with amazing headers, and `content_writer` turns them into full blog sections. No more writer's block! 🎉
 
 And this is just the beginning - you can chain as many agents as you want. Maybe add a proofreader? Or an SEO optimizer? But let's not get ahead of ourselves! 😉

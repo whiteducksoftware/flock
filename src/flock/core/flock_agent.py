@@ -17,6 +17,8 @@ from flock.core.logging.formatters.themed_formatter import (
 )
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.logging.logging import get_logger
+from flock.core.memory.memory_parser import MemoryMappingParser
+from flock.core.memory.memory_storage import FlockMemoryStore
 from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 from flock.memory.memory_manager import MemoryManager
@@ -234,8 +236,9 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     )
 
     memory_enabled: bool = Field(default=True)
-    memory_mapping: Optional[str] = Field(default=None)
-    memory_store: Optional[FlockMemoryStore] = Field(default=None)
+    memory_mapping: str | None = Field(default=None)
+    memory_store: FlockMemoryStore | None = Field(default=None)
+    memory_ops: dict[str, Any] | None = Field(default=None)
 
     # Lifecycle callback fields: if provided, these callbacks are used instead of overriding the methods.
     initialize_callback: Callable[[dict[str, Any]], Awaitable[None]] | None = (
@@ -273,11 +276,11 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             # Initialize memory store if needed
             if self.memory_store is None:
                 self.memory_store = FlockMemoryStore()
-            
+
             # Create default mapping if none provided
             if self.memory_mapping is None:
                 self.memory_mapping = self._create_default_mapping()
-        
+
         self.memory_ops = MemoryMappingParser().parse(self.memory_mapping)
 
         if self.initialize_callback is not None:
@@ -307,7 +310,9 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         else:
             pass
 
-    async def evaluate(self, inputs: dict[str, Any]) -> dict[str, Any]:
+    async def evaluate(
+        self, inputs: dict[str, Any], memory_result=None
+    ) -> dict[str, Any]:
         """Process the agent's task using the provided inputs and return the result.
 
         This asynchronous method is the core execution engine for a FlockAgent. It performs the following steps:
@@ -372,11 +377,18 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             if self.evaluate_callback is not None:
                 return await self.evaluate_callback(self, inputs)
             try:
+                input_definition = self.input
+                if memory_result:
+                    input_definition = (
+                        input_definition
+                        + ", memory_result: dict | The result from memory"
+                    )
+                    inputs["memory_result"] = memory_result
                 # Create and configure the signature and language model.
                 self.__dspy_signature = self.create_dspy_signature_class(
                     self.name,
                     self.description,
-                    f"{self.input} -> {self.output}",
+                    f"{input_definition} -> {self.output}",
                 )
                 self._configure_language_model()
                 agent_task = self._select_task(
@@ -411,6 +423,27 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
         with open(file_path, "w") as file:
             file.write(json.dumps(dict_data))
+
+    def _create_default_mapping(self) -> str:
+        return f"{self.name}: {self.output}"
+
+    async def evaluate_memory(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Evaluate the agent's memory and return the result.
+
+        This method is called before the agent's main evaluation to retrieve relevant information from memory.
+        It is used to provide additional context or data that can be used during the agent's execution.
+        """
+        pass
+
+    async def update_memory(
+        self, inputs: dict[str, Any], result: dict[str, Any]
+    ) -> None:
+        """Update the agent's memory with the provided inputs and result.
+
+        This method is called after the agent's main evaluation to store relevant information in memory.
+        It is used to capture the agent's output or any other data that should be remembered for future interactions.
+        """
+        pass
 
     @classmethod
     def load_from_file(cls: type[T], file_path: str) -> T:
@@ -476,7 +509,9 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             try:
                 await self.initialize(inputs)
                 memory_result = await self.evaluate_memory(inputs)
-                result = await self.evaluate(inputs)
+                result = await self.evaluate(
+                    inputs, memory_result=memory_result
+                )
                 self.display_output(result)
                 await self.update_memory(inputs, result)
                 await self.terminate(inputs, result)
