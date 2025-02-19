@@ -19,6 +19,7 @@ from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.logging.logging import get_logger
 from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
+from flock.memory.memory_manager import MemoryManager
 
 logger = get_logger("flock")
 
@@ -49,6 +50,17 @@ class FlockAgentConfig:
     )
     max_tokens: int = field(
         default=2000, metadata={"description": "Max tokens for the LLM"}
+    )
+    use_memory: bool = field(
+        default=False, metadata={"description": "Enable memory for this agent"}
+    )
+    memory_config: dict = field(
+        default_factory=lambda: {
+            "storage_type": "json",  # or "in_memory"
+            "file_path": "agent_memory.json",
+            "similarity_threshold": 40,
+            "context_window": 3,
+        }
     )
 
 
@@ -215,6 +227,10 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     output_config: FlockAgentOutputConfig = Field(
         default_factory=FlockAgentOutputConfig,
         description="Configuration options for the agent's output.",
+    )
+
+    memory_manager: MemoryManager | None = Field(
+        default=None, description="Optional memory manager for the agent"
     )
 
     # Lifecycle callback fields: if provided, these callbacks are used instead of overriding the methods.
