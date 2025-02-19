@@ -233,6 +233,10 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         default=None, description="Optional memory manager for the agent"
     )
 
+    memory_enabled: bool = Field(default=True)
+    memory_mapping: Optional[str] = Field(default=None)
+    memory_store: Optional[FlockMemoryStore] = Field(default=None)
+
     # Lifecycle callback fields: if provided, these callbacks are used instead of overriding the methods.
     initialize_callback: Callable[[dict[str, Any]], Awaitable[None]] | None = (
         Field(
@@ -265,6 +269,17 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
         Override this method or provide an `initialize_callback` to perform setup tasks such as input validation or resource loading.
         """
+        if self.memory_enabled:
+            # Initialize memory store if needed
+            if self.memory_store is None:
+                self.memory_store = FlockMemoryStore()
+            
+            # Create default mapping if none provided
+            if self.memory_mapping is None:
+                self.memory_mapping = self._create_default_mapping()
+        
+        self.memory_ops = MemoryMappingParser().parse(self.memory_mapping)
+
         if self.initialize_callback is not None:
             await self.initialize_callback(self, inputs)
         else:
@@ -460,8 +475,10 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             span.set_attribute("inputs", str(inputs))
             try:
                 await self.initialize(inputs)
+                memory_result = await self.evaluate_memory(inputs)
                 result = await self.evaluate(inputs)
                 self.display_output(result)
+                await self.update_memory(inputs, result)
                 await self.terminate(inputs, result)
                 span.set_attribute("result", str(result))
                 logger.info("Agent run completed", agent=self.name)
