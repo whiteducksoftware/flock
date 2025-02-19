@@ -37,7 +37,8 @@ Just like ordering a pizza—you specify what you want, not the 30 steps to make
 - Simplified testing and validation
 
 ### 🛠 Unparalleled Flexibility
-Every aspect of an agent can be customized:
+
+- Every aspect of an agent can be customized
 - Lifecycle hooks (`initialize()`, `terminate()`, `evaluate()`, `on_error()`)
 - Setup and cleanup procedures
 - Error handling strategies
