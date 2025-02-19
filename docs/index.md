@@ -10,7 +10,9 @@ Flock is a powerful framework for orchestrating LLM-powered agents that takes a 
 Flock transforms how you build and deploy LLM-powered agents through its innovative declarative approach:
 
 ### 🎯 Declarative Agent Definitions
+
 Instead of writing lengthy, brittle prompts, simply specify:
+
 - What inputs your agent needs
 - What outputs it should produce
 - Let Flock handle the rest
