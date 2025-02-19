@@ -82,6 +82,7 @@ result = flock.run(
 ## Ready to Get Started?
 
 Check out our guides:
+
 - [Quick Start Guide](getting-started/quickstart.md)
 - [Core Concepts](core-concepts/agents.md)
 - [Examples](examples/hello-flock.md)
