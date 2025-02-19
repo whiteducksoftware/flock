@@ -1,5 +1,5 @@
 <p align="center">
-<img src="docs/img/flock.png" width="600"><br>
+<img src="docs/assets/images/flock.png" width="600"><br>
 <img alt="Dynamic TOML Badge" src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fwhiteducksoftware%2Fflock%2Frefs%2Fheads%2Fmaster%2Fpyproject.toml&query=%24.project.version&style=for-the-badge&logo=pypi&label=pip%20version">
 <a href="https://www.linkedin.com/company/whiteduck" target="_blank"><img alt="LinkedIn" src="https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white&label=whiteduck"></a>
 <a href="https://bsky.app/profile/whiteduck-gmbh.bsky.social" target="_blank"><img alt="Bluesky" src="https://img.shields.io/badge/bluesky-Follow-blue?style=for-the-badge&logo=bluesky&logoColor=%23fff&color=%23333&labelColor=%230285FF&label=whiteduck-gmbh"></a>
@@ -30,7 +30,15 @@ Flock is a framework for orchestrating LLM-powered agents. It leverages a **decl
 
 https://github.com/user-attachments/assets/bdab4786-d532-459f-806a-024727164dcc
 
+## Table of Contents
 
+- [Key Innovations](#key-innovations)
+- [Examples](#examples)
+  - [Hello Flock!](#hello-flock)
+  - [It's not my type](#its-not-my-type)
+  - [Being pydantic](#being-pydantic)
+  - [Building a chain gang!](#building-a-chain-gang)
+- [Installation](#installation)
 
 
 ## Key Innovations
@@ -57,7 +65,7 @@ https://github.com/user-attachments/assets/bdab4786-d532-459f-806a-024727164dcc
 
 
 <p align="center">
-<img src="docs/img/flock_cli.png" width="200"><br>
+<img src="docs/assets/images//flock_cli.png" width="200"><br>
 
 ## Examples
 
@@ -255,6 +263,58 @@ And BAM! Your finished data model filled up to the brim with data! 🎊
 }
 ```
 
+### Building a chain gang
+
+Our `bloggy` is great, but what if we want to turn those amazing headers into full blog posts? Time to bring in a friend! 🤝
+Let's see how easy it is to make agents work together 🔗
+
+```python
+from flock.core import Flock, FlockAgent
+
+flock = Flock(model="openai/gpt-4o")
+
+# First agent: Our trusty bloggy generates titles and headers! 📝
+bloggy = FlockAgent(
+    name="bloggy",
+    input="blog_idea: str|The topic to blog about",
+    output=(
+        "funny_blog_title: str|A catchy title for the blog, "
+        "blog_headers: list[str]|List of section headers for the blog"
+    )
+)
+
+# Second agent: The content wizard that brings headers to life! ✨
+content_writer = FlockAgent(
+    name="content_writer",
+    input=(
+        "funny_blog_title: str|The blog title to work with, "
+        "blog_headers: list[str]|The headers to expand into content"
+    ),
+    output="blog_sections: list[BlogSection]|The fully written blog sections"
+)
+
+# Make them besties! 🤝
+bloggy.hand_off = content_writer
+
+# Add your dynamic duo to the flock
+flock.add_agent(bloggy)
+flock.add_agent(content_writer)
+
+# Let them create some magic! 🎨
+result = flock.run(
+    input={"blog_idea": "A blog about cats"},
+    start_agent=bloggy
+)
+```
+
+Super simple rules to remember:
+1. Point the first agent to the next one using `hand_off`
+2. Make sure their inputs and outputs match up
+
+That's all there is to it! `bloggy` comes up with amazing headers, and `content_writer` turns them into full blog sections. No more writer's block! 🎉
+
+And this is just the beginning - you can chain as many agents as you want. Maybe add a proofreader? Or an SEO optimizer? But let's not get ahead of ourselves! 😉
+
 So far we've barely scratched the surface of what flock has to offer, and we're currently hard at work building up the documentation for all the other super cool features Flock has up its sleeve! Stay tuned! 🚀
 
 ## Temporal Workflow Integration
@@ -269,7 +329,9 @@ Documentation in progress!
 
 ## Architecture
 
-Documentation in progress!
+<img src="docs/assets/images/components_chart.png" width="800"><br>
+
+<img src="docs/assets/images/flow_chart.png" width="800"><br>
 
 
 ## Requirements

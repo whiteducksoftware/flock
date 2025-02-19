@@ -1,32 +1,10 @@
-site_name: Flock
-theme:
-  logo: assets/images/icon.png
-  features:
-    - content.code.copy
-    - content.code.select
-    - content.code.annotate
-  name: material
-  palette:
-    - media: (prefers-color-scheme)
-      toggle:
-        icon: material/brightness-auto
-        name: Switch to light mode
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: orange
-      accent: amber
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: orange
-      accent: amber
-      toggle:
-        icon: material/brightness-4
-        name: Switch to system preference
-extra_css:
-  - stylesheets/extra.css
+import os
+from pathlib import Path
+
+import yaml
+
+# The mkdocs navigation structure
+NAV_STRUCTURE = """
 nav:
   - Home: index.md
   
@@ -96,40 +74,58 @@ nav:
     - Type System Usage: examples/type-system.md
     - Pydantic Models: examples/pydantic.md
     - Chain Gang: examples/chain-gang.md
+"""
 
-plugins:
-  # - termage:
-  #     write_files: false
-  #     inline_styles: true
-  #     name_template: termage_{count}.svg
-  #     path: assets
-  #     background: "#212121"
-  #     foreground: "#ffffff"
-  #     tabs:
-  #       - Python
-  #       - Output
-  #     chrome: true
-  #     width: 100
-  #     height: 200
-  - search
-  - mkdocstrings:
-      handlers:
-        python:
-          options:
-            show_root_heading: false
-            separate_signature: true
-markdown_extensions:
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
-  - pymdownx.superfences
-  - pymdownx.details
-  - attr_list
-  - admonition
-  - codehilite:
-      guess_lang: false
-  - pymdownx.tabbed:
-      alternate_style: true
+
+def create_markdown_file(file_path: Path, title: str) -> None:
+    """Create a markdown file with a title and placeholder content."""
+    content = f"""# {title}
+
+Documentation in progress...
+"""
+    file_path.write_text(content)
+
+
+def extract_paths_from_nav(
+    nav_dict: dict, paths: list, current_path: str = ""
+) -> None:
+    """Recursively extract all markdown file paths from the nav structure."""
+    for item in nav_dict:
+        if isinstance(item, dict):
+            for key, value in item.items():
+                if isinstance(value, str):
+                    paths.append(value)
+                elif isinstance(value, list):
+                    extract_paths_from_nav(value, paths, current_path)
+
+
+def main():
+    # Parse the YAML structure
+    nav_data = yaml.safe_load(NAV_STRUCTURE)
+
+    # Extract all markdown file paths
+    markdown_paths = []
+    extract_paths_from_nav(nav_data["nav"], markdown_paths)
+
+    # Create docs directory if it doesn't exist
+    docs_dir = Path("docs")
+    docs_dir.mkdir(exist_ok=True)
+
+    # Create all necessary directories and markdown files
+    for md_path in markdown_paths:
+        # Convert path to Path object relative to docs directory
+        full_path = docs_dir / md_path
+
+        # Create parent directories if they don't exist
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Generate title from the filename
+        title = os.path.splitext(full_path.name)[0].replace("-", " ").title()
+
+        # Create the markdown file
+        create_markdown_file(full_path, title)
+        print(f"Created: {full_path}")
+
+
+if __name__ == "__main__":
+    main()

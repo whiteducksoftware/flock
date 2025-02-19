@@ -1,0 +1,3 @@
+# Error Handling
+
+Documentation in progress...

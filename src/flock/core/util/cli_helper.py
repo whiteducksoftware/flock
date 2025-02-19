@@ -28,3 +28,22 @@ def display_banner():
     )
     console.print(banner_text)
     console.print(f"[bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n")
+
+
+def display_banner_no_version():
+    """Display the Flock banner."""
+    banner_text = Text(
+        f"""
+🦆    🐓     🐤     🐧
+╭━━━━━━━━━━━━━━━━━━━━━━━━╮
+│ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
+│ ▒█▀▀▀ █░░ █░░█ █░░ █▀▄ │
+│ ▒█░░░ ▀▀▀ ▀▀▀▀ ▀▀▀ ▀░▀ │
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯
+🦆     🐤    🐧     🐓
+""",
+        justify="center",
+        style="bold orange3",
+    )
+    console.print(banner_text)
+    console.print(f"[bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n")

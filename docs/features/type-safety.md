@@ -1,0 +1,3 @@
+# Type Safety
+
+Documentation in progress...
