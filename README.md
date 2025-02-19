@@ -36,120 +36,228 @@ https://github.com/user-attachments/assets/bdab4786-d532-459f-806a-024727164dcc
 ## Key Innovations
 
 - **Declarative Agent System:**  
+  When you order a pizza at your favorite place, you just tell them what pizza you want, not the 30 steps to get there!
+  And thanks to an invention called LLMs, we now have the technology to come up with those 30 steps.
+
+  Flock takes advantage of that.
+
   Define agents by declaring their input/output interfaces (with type hints and human-readable descriptions) using a concise syntax.  
-
-
-  <img src="docs/img/examples/01_01.png" width="300"><br>
-
-
-  Example syntax:
-  ```python
-  input = "query: str|The search query, context: dict|The full conversation context"
-  output = "idea: str|The generated software project idea"
-  ```
   The framework automatically extracts type and description details, builds precise prompts, and configures the underlying LLM.
 
-- **Lifecycle Hooks:**  
-  Each agent (via the new `FlockAgent` base class) supports lifecycle hooks such as `initialize()`, `terminate()`, and `on_error()`. This ensures that agents can perform setup, cleanup, and robust error handling—all without cluttering the main business logic.
-
-- **Fault Tolerance & Temporal Integration:**  
-  Flock is built with production readiness in mind. By integrating with Temporal, your agent workflows enjoy automatic retries, durable state management, and resilience against failures. This means that a single agent crash won't bring down your entire system.
+  Testing becomes quite simple as well. You got the pizza you ordered? Passed ✅
 
 - **Type Safety and Clear Contracts:**  
   Agents are implemented as Pydantic models. This provides automatic JSON serialization/deserialization, strong typing, and an explicit contract for inputs and outputs. Testing, validation, and integration become straightforward.
 
-- **DSPy Integration:**  
-  Flock leverages DSPy for managing LLM interactions. The framework constructs clean signature strings and updates field metadata so that DSPy can include detailed instructions and context for each agent call.
+- **Unparalleled Flexibility:**  
+  Each agent (via the new `FlockAgent` base class) supports lifecycle hooks such as `initialize()`, `terminate()`, `evaluate()`, and `on_error()`. This ensures that agents can perform setup, cleanup, and robust error handling—all without cluttering the main business logic. Everything is overridable or lets you provide your own callables per callback. We mean `everything` quite literally. Except for the agent name, literally every property of an agent can be set to a callable, leading to highly dynamic and capable agents.
+
+- **Fault Tolerance & Temporal Integration:**  
+  Flock is built with production readiness in mind. By integrating with Temporal, your agent workflows enjoy automatic retries, durable state management, and resilience against failures. This means that a single agent crash won't bring down your entire system.
 
 
 <p align="center">
 <img src="docs/img/flock_cli.png" width="200"><br>
 
-## Quick Start
+## Examples
 
-Below is a simple example of how to create and run an agent with Flock:
+Let's showcase easy to understand examples to give you an idea what flock offers!
+All examples and/or similar examples can be found in the examples folder!
+
+### Hello Flock!
+
+
+Let's start the most simple way possible 🚀
 
 ```python
-import asyncio
-from flock.core.flock import Flock
-from flock.core.agents.flock_agent import FlockAgent
-from flock.core.tools import basic_tools
 
-async def main():
-    # Initialize Flock
-    flock = Flock(model="openai/gpt-4o")
+from flock.core import Flock, FlockAgent
 
-    # Create an agent with clear input/output declarations and optional tools.
-    idea_agent = FlockAgent(
-        name="idea_agent",
-        input="query: str|The search query, context: dict|Additional context",
-        output="a_fun_software_project_idea: str|The generated software project idea",
-        tools=[basic_tools.web_search_tavily],
-    )
-    flock.add_agent(idea_agent)
+MODEL = "openai/gpt-4o"
 
-    # Run the agent locally (with built-in debugging/logging)
-    result = await flock.run_async(
-        start_agent=idea_agent,
-        input="build a revolutionary app",
-        local_debug=True
-    )
-    print(result)
+flock = Flock(model=MODEL, local_debug=True)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+bloggy = FlockAgent(
+    name="bloggy", 
+    input="blog_idea", 
+    output="funny_blog_title, blog_headers"
+)
+flock.add_agent(bloggy)
+
+result = flock.run(
+    start_agent=bloggy, 
+    input={"blog_idea": "A blog about cats"}
+)
+
 ```
 
-## Advanced Usage
+With almost no boilerplate needed, getting your first agent to run is as easy as cake!
 
-### Agents with Lifecycle Hooks
+`bloggy` takes in a `blog_idea` to produce a `funny_blog_title` and `blog_headers`. That is all!
 
-Customize behavior by overriding lifecycle methods:
+Flock does take care of the rest, which frees you from needing to write paragraphs of text.
+You might think abstracting prompting like this means less control - but nope! Quite the contrary, it'll increase your control over it!
 
-- **initialize(inputs):** Set up resources, validate inputs, or log pre-run state.
-- **terminate(inputs, result):** Clean up resources, log output, or perform post-run actions.
-- **on_error(error, inputs):** Handle exceptions gracefully, log detailed error information, and trigger recovery logic.
+When we let `bloggy` loose in the flock:
 
-### Agents with Tools
-
-Agents can seamlessly integrate external tools for enhanced functionality:
 
 ```python
-from flock.core.tools import basic_tools
+{
+    'funny_blog_title': '"Whisker Wonders: The Purr-fect Guide to Cat-tastrophes and Feline Follies"',
+    'blog_headers': (
+        '1. "The Cat\'s Meow: Understanding Your Feline\'s Language"\n'
+        '2. "Paws and Reflect: The Secret Life of Cats"\n'
+        '3. "Fur Real: Debunking Myths About Our Furry Friends"\n'
+        '4. "Claw-some Adventures: How to Entertain Your Indoor Cat"\n'
+        '5. "Cat-astrophic Cuteness: Why We Can\'t Resist Those Whiskers"\n'
+        '6. "Tail Tales: The History of Cats and Their Human Companions"\n'
+        '7. "Purr-sonality Plus: What Your Cat\'s Behavior Says About Them"\n'
+        '8. "Kitty Conundrums: Solving Common Cat Problems with Humor"'
+    ),
+    'blog_idea': 'A blog about cats',
+}
+```
 
-research_agent = FlockAgent(
-    name="research_agent",
-    input="research_topic: str|Topic to investigate",
-    output="research_result: str|The outcome of the research",
-    tools=[basic_tools.web_search_tavily],
+Look at that! A real Python object with fields exactly as we defined them in the agent.
+No need to mess around with parsing or post-processing! 🎉
+
+### It's not my type
+
+You probably noticed that your headers aren't a real Python list, but you need one for your downstream task. Flock got you! Just sprinkle some type hints in your agent definition! ✨
+
+```python
+
+from flock.core import Flock, FlockAgent
+
+MODEL = "openai/gpt-4o"
+
+flock = Flock(model=MODEL, local_debug=True)
+
+bloggy = FlockAgent(
+    name="bloggy", 
+    input="blog_idea", 
+    output="funny_blog_title, blog_headers: list[str]"
+)
+flock.add_agent(bloggy)
+
+result = flock.run(
+    start_agent=bloggy, 
+    input={"blog_idea": "A blog about cats"}
+)
+
+```
+
+Et voila! Now you get:
+
+```python
+{
+    'funny_blog_title': '"Whisker Me This: The Purr-fect Guide to Cat-tastic Adventures"',
+    'blog_headers': [
+        "The Cat's Out of the Bag: Understanding Feline Behavior",
+        'Paws and Reflect: The Secret Life of Cats',
+        'Feline Fine: Health Tips for Your Kitty',
+        "Cat-astrophic Cuteness: Why We Can't Resist Them",
+        'Meow-sic to Your Ears: Communicating with Your Cat',
+        'Claw-some Toys and Games: Keeping Your Cat Entertained',
+        'The Tail End: Myths and Facts About Cats',
+    ],
+    'blog_idea': 'A blog about cats',
+}
+
+```
+
+### Being pydantic
+
+That's not enough for you, since you already got your data classes defined and don't want to redefine them again for some agents?
+
+Also got some hard constraints, like the title needs to be in ALL CAPS? 🔥
+
+Check this out:
+
+```python
+from pydantic import BaseModel, Field
+
+class BlogSection(BaseModel):
+    header: str
+    content: str
+
+class MyBlog(BaseModel):
+    funny_blog_title: str = Field(description="The funny blog title in all caps")
+    blog_sections: list[BlogSection]
+```
+
+Since flock is bein' pedantic about pydantic, you can just use your pydantic models like you would use type hints:
+
+```python
+bloggy = FlockAgent(
+    name="bloggy", 
+    input="blog_idea", 
+    output="blog: MyBlog",
 )
 ```
 
-### Agent Chaining
+And BAM! Your finished data model filled up to the brim with data! 🎊
 
-Chain agents together to create complex workflows:
 
 ```python
-# Define the first agent in the chain.
-project_plan_agent = FlockAgent(
-    name="project_plan_agent",
-    input="project_idea: str|Initial project idea",
-    output="plan_headings: list[str]|Headings for the project plan",
-    tools=[basic_tools.web_search_tavily, basic_tools.code_eval],
-)
-
-# Define a second agent that builds on the output of the first.
-content_agent = FlockAgent(
-    name="content_agent",
-    input="context: dict|Global context, project_plan_agent.plan_headings: list[str]|Plan headings",
-    output="project_plan_content: str|Detailed content for the plan",
-)
-
-# Set up hand-off from the first agent to the second.
-project_plan_agent.hand_off = content_agent
+{
+  'blog': MyBlog(
+      funny_blog_title='THE PURR-FECT LIFE: CATS AND THEIR QUIRKY ANTICS',
+      blog_sections=[
+          BlogSection(
+              header='Introduction to the Feline World',
+              content=(
+                  'Cats have been our companions for thousands of years, yet they remain as mysterious and intriguin'
+                  'g as ever. From their graceful movements to their independent nature, cats have a unique charm th'
+                  "at captivates us. In this blog, we'll explore the fascinating world of cats and their quirky anti"
+                  'cs that make them the purr-fect pets.'
+              ),
+          ),
+          BlogSection(
+              header='The Mysterious Ways of Cats',
+              content=(
+                  'Ever wonder why your cat suddenly sprints across the room at 3 AM or stares at a blank wall for h'
+                  'ours? Cats are known for their mysterious behaviors that often leave us scratching our heads. The'
+                  'se antics are not just random; they are deeply rooted in their instincts and natural behaviors. L'
+                  "et's dive into some of the most common and puzzling cat behaviors."
+              ),
+          ),
+          BlogSection(
+              header="The Art of Napping: A Cat's Guide",
+              content=(
+                  "Cats are the ultimate nappers, spending up to 16 hours a day snoozing. But there's more to a catn"
+                  'ap than meets the eye. Cats have perfected the art of napping, and each nap serves a purpose, whe'
+                  "ther it's a quick power nap or a deep sleep. Learn how cats choose their napping spots and the sc"
+                  'ience behind their sleep patterns.'
+              ),
+          ),
+          BlogSection(
+              header='The Great Cat Conspiracy: Do They Really Rule the World?',
+              content=(
+                  "It's a well-known fact among cat owners that cats secretly rule the world. With their ability to "
+                  "manipulate humans into providing endless treats and belly rubs, it's no wonder they have us wrapp"
+                  "ed around their little paws. Explore the humorous side of cat ownership and the 'conspiracy' theo"
+                  'ries that suggest cats are the true overlords of our homes.'
+              ),
+          ),
+          BlogSection(
+              header='Conclusion: Why We Love Cats',
+              content=(
+                  'Despite their quirks and sometimes aloof nature, cats have a special place in our hearts. Their c'
+                  "ompanionship, playful antics, and soothing purrs bring joy and comfort to our lives. Whether you'"
+                  "re a lifelong cat lover or a new cat parent, there's no denying the unique bond we share with our"
+                  " feline friends. So, here's to the purr-fect life with cats!"
+              ),
+          ),
+      ],
+  ),
+  'blog_idea': 'A blog about cats',
+}
 ```
 
-### Temporal Workflow Integration
+So far we've barely scratched the surface of what flock has to offer, and we're currently hard at work building up the documentation for all the other super cool features Flock has up its sleeve! Stay tuned! 🚀
+
+## Temporal Workflow Integration
 
 Flock supports execution on Temporal, ensuring robust, fault-tolerant workflows:
 
@@ -157,13 +265,16 @@ Flock supports execution on Temporal, ensuring robust, fault-tolerant workflows:
 - **Retries & Error Handling:** Automatic recovery via Temporal's built-in mechanisms.
 - **Scalability:** Seamless orchestration of distributed agent workflows.
 
+Documentation in progress!
+
 ## Architecture
 
-TODO: Insert charts
+Documentation in progress!
+
 
 ## Requirements
 
-- Python 3.12+
+- Python 3.10+
 - (Optional) Temporal server running locally for production-grade workflow features
 - API keys for integrated services
 
@@ -204,7 +315,7 @@ pip install flock-core[all-tools]
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/yourusername/flock.git
+   git clone https://github.com/whiteducksoftware/flock
    cd flock
    ```
 
@@ -220,30 +331,28 @@ pip install flock-core[all-tools]
    uv build && uv pip install -e .
    ```
 
-Install Jaeger for telemetry
-```
+4. **Install Jaeger for telemetry**
+    ```
 
-docker run -d --name jaeger \
-  -e COLLECTOR_ZIPKIN_HTTP_PORT=9411 \
-  -p 5775:5775/udp \
-  -p 6831:6831/udp \
-  -p 6832:6832/udp \
-  -p 5778:5778 \
-  -p 16686:16686 \
-  -p 14268:14268 \
-  -p 14250:14250 \
-  -p 9411:9411 \
-  jaegertracing/all-in-one:1.41
+    docker run -d --name jaeger \
+      -e COLLECTOR_ZIPKIN_HTTP_PORT=9411 \
+      -p 5775:5775/udp \
+      -p 6831:6831/udp \
+      -p 6832:6832/udp \
+      -p 5778:5778 \
+      -p 16686:16686 \
+      -p 14268:14268 \
+      -p 14250:14250 \
+      -p 9411:9411 \
+      jaegertracing/all-in-one:1.41
 
 
-```
+    ```
 
-or zipkin
+5. **Create your .env**
 
-```
-docker run -d -p 9411:9411 openzipkin/zipkin
+    Use `.env_template` as a template for you custom config variables
 
-```
 
 ## Contributing
 
@@ -258,7 +367,6 @@ This project is licensed under the terms of the LICENSE file included in the rep
 - Built with [DSPy](https://github.com/stanfordnlp/dspy)
 - Uses [Temporal](https://temporal.io/) for workflow management
 - Integrates with [Tavily](https://tavily.com/) for web search capabilities
-- Web interface built with FastHTML and MonsterUI
 
 ## Evolution & Future Direction
 
@@ -290,4 +398,5 @@ Flock was created to overcome the limitations of traditional agent frameworks. K
 - Extended testing frameworks and validation tools
 
 Join us in building the next generation of reliable, production-ready AI agent systems!
+Become part of the FLOCK!
 

@@ -146,10 +146,13 @@ class Flock:
         context: FlockContext = None,
         run_id: str = "",
         box_result: bool = True,
+        agents: list[FlockAgent] = [],
     ) -> dict:
         """Entry point for running an agent system synchronously."""
         return asyncio.run(
-            self.run_async(start_agent, input, context, run_id, box_result)
+            self.run_async(
+                start_agent, input, context, run_id, box_result, agents
+            )
         )
 
     def save_to_file(
@@ -310,6 +313,7 @@ class Flock:
         context: FlockContext = None,
         run_id: str = "",
         box_result: bool = True,
+        agents: list[FlockAgent] = [],
     ) -> dict:
         """Entry point for running an agent system asynchronously.
 
@@ -326,6 +330,7 @@ class Flock:
             context (FlockContext, optional): A FlockContext instance to use. If not provided, a default context is used.
             run_id (str, optional): A unique identifier for this run. If empty, one is generated automatically.
             box_result (bool, optional): If True, wraps the output in a Box for nicer formatting. Defaults to True.
+            agents (list, optional): additional way to add agents to flock instead of add_agent
 
         Returns:
             dict: A dictionary containing the result of the agent workflow execution.
@@ -341,6 +346,9 @@ class Flock:
                 if hasattr(start_agent, "name")
                 else start_agent,
             )
+            for agent in agents:
+                self.add_agent(agent)
+
             if start_agent:
                 self.start_agent = start_agent
             if input:

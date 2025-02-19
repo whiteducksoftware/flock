@@ -15,14 +15,13 @@ import asyncio
 
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
-from flock.core.logging.formatters.base_formatter import FormatterOptions
-from flock.core.logging.formatters.rich_formatters import RichTables
+
 from flock.core.tools import basic_tools
 
 
 async def main():
 
-    flock = Flock(local_debug=True, output_formatter=FormatterOptions(formatter=RichTables, settings={}),enable_logging=True)
+    flock = Flock(local_debug=True,enable_logging=True)
     
     outline_agent = FlockAgent(
         name="outline_agent",

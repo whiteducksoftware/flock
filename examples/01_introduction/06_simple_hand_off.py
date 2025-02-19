@@ -29,8 +29,6 @@ import asyncio
 
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
-from flock.core.logging.formatters.themes import OutputTheme
-
 
 async def main():
 
@@ -56,12 +54,10 @@ async def main():
     
     idea_agent.hand_off = project_plan_agent
 
-    flock.add_agent(idea_agent)
-    flock.add_agent(project_plan_agent)
-
     await flock.run_async(
-        input={"query": "fun software project idea"},
+        input={"query": "fun software project idea about ducks"},
         start_agent=idea_agent,
+        agents=[idea_agent,project_plan_agent]
     )
 
 

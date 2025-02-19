@@ -69,6 +69,9 @@ class FlockAgentOutputConfig:
     wait_for_input: bool = field(
         default=False, metadata={"description": "Wait for input."}
     )
+    write_to_file: bool = field(
+        default=False, metadata={"description": "Write to file."}
+    )
 
 
 @dataclass
@@ -465,6 +468,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             self.output_config.max_length,
             self.output_config.render_table,
             self.output_config.wait_for_input,
+            self.output_config.write_to_file,
         ).display_result(result, self.name)
 
     async def run_temporal(self, inputs: dict[str, Any]) -> dict[str, Any]:

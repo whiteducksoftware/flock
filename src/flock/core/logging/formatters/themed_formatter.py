@@ -416,6 +416,7 @@ class ThemedAgentResultFormatter:
         max_length: int = -1,
         render_table: bool = True,
         wait_for_input: bool = False,
+        write_to_file: bool = False,
     ):
         """Initialize the formatter with a theme and optional max length."""
         self.theme = theme
@@ -423,6 +424,7 @@ class ThemedAgentResultFormatter:
         self.max_length = max_length
         self.render_table = render_table
         self.wait_for_input = wait_for_input
+        self.write_to_file = write_to_file
 
     def format_result(
         self,
@@ -481,6 +483,11 @@ class ThemedAgentResultFormatter:
             table.add_row(key, rich_renderable)
 
         s = pformat(result, highlight=False)
+
+        if self.write_to_file:
+            output_file = pathlib.Path(f"{agent_name}_result.txt")
+            with open(output_file, "w") as f:
+                f.write(s)
 
         if self.render_table:
             return Panel(
