@@ -11,7 +11,11 @@ from pydantic import BaseModel, Field, PrivateAttr
 # Import SentenceTransformer for production-grade embeddings.
 from sentence_transformers import SentenceTransformer
 
+# Import the Flock logger.
+from flock.core.logging.logging import get_logger
+
 tracer = trace.get_tracer(__name__)
+logger = get_logger("memory")
 
 
 class MemoryEntry(BaseModel):
@@ -27,9 +31,6 @@ class MemoryEntry(BaseModel):
     decay_factor: float = Field(default=1.0)
 
 
-from pydantic import BaseModel, Field
-
-
 class MemoryGraph(BaseModel):
     """Graph representation of concept relationships.
     The graph is stored as a JSON string for serialization, while a private attribute holds the actual NetworkX graph.
@@ -41,17 +42,19 @@ class MemoryGraph(BaseModel):
             json_graph.node_link_data(nx.Graph(), edges="links")
         )
     )
-
     # Private attribute for the actual NetworkX graph.
     _graph: nx.Graph = PrivateAttr()
 
     def __init__(self, **data):
         super().__init__(**data)
         try:
-            # Reconstruct the graph from the JSON representation, explicitly setting edges="links".
             data_graph = json.loads(self.graph_json)
             self._graph = json_graph.node_link_graph(data_graph, edges="links")
-        except Exception:
+            logger.debug(
+                f"MemoryGraph initialized from JSON with {len(self._graph.nodes())} nodes."
+            )
+        except Exception as e:
+            logger.error(f"Failed to load MemoryGraph from JSON: {e}")
             self._graph = nx.Graph()
 
     @property
@@ -64,9 +67,11 @@ class MemoryGraph(BaseModel):
         self.graph_json = json.dumps(
             json_graph.node_link_data(self._graph, edges="links")
         )
+        logger.debug("MemoryGraph JSON updated.")
 
     def add_concepts(self, concepts: set[str]) -> None:
         """Add a set of concepts to the graph and update their associations."""
+        logger.debug(f"Adding concepts: {concepts}")
         for concept in concepts:
             self._graph.add_node(concept)
         for c1 in concepts:
@@ -90,6 +95,7 @@ class MemoryGraph(BaseModel):
         Returns:
             A dictionary mapping each concept to its activation level.
         """
+        logger.debug(f"Spreading activation from concepts: {initial_concepts}")
         activated = {concept: 1.0 for concept in initial_concepts}
         frontier = list(initial_concepts)
 
@@ -106,6 +112,7 @@ class MemoryGraph(BaseModel):
                     activated[neighbor] = new_activation
                     frontier.append(neighbor)
 
+        logger.debug(f"Activation levels: {activated}")
         return activated
 
 
@@ -120,7 +127,6 @@ class FlockMemoryStore(BaseModel):
     clusters: dict[int, list[MemoryEntry]] = Field(default_factory=dict)
     # Instead of np.ndarray, store centroids as lists of floats.
     cluster_centroids: dict[int, list[float]] = Field(default_factory=dict)
-
     # The embedding model is stored as a private attribute, as it's not serializable.
     _embedding_model: SentenceTransformer | None = PrivateAttr(default=None)
 
@@ -130,18 +136,26 @@ class FlockMemoryStore(BaseModel):
         """
         if self._embedding_model is None:
             try:
+                logger.debug(
+                    "Loading SentenceTransformer model 'all-MiniLM-L6-v2'."
+                )
                 self._embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
             except Exception as e:
+                logger.error(f"Failed to load embedding model: {e}")
                 raise RuntimeError(f"Failed to load embedding model: {e}")
         return self._embedding_model
 
     def compute_embedding(self, text: str) -> np.ndarray:
         """Compute and return the embedding for the provided text as a NumPy array."""
+        logger.debug(
+            f"Computing embedding for text: {text[:30]}..."
+        )  # Log first 30 chars for brevity.
         model = self.get_embedding_model()
         try:
             embedding = model.encode(text, convert_to_numpy=True)
             return embedding
         except Exception as e:
+            logger.error(f"Error computing embedding: {e}")
             raise RuntimeError(f"Error computing embedding: {e}")
 
     def _calculate_similarity(
@@ -161,16 +175,19 @@ class FlockMemoryStore(BaseModel):
             )
             return similarity
         except Exception as e:
+            logger.error(f"Error computing similarity: {e}")
             raise RuntimeError(f"Error computing similarity: {e}")
 
     def exact_match(self, inputs: dict[str, Any]) -> list[MemoryEntry]:
         """Perform an exact key-based lookup in short-term memory.
         Returns entries where all provided key-value pairs exist in the entry's inputs.
         """
+        logger.debug(f"Performing exact match lookup with inputs: {inputs}")
         matches = []
         for entry in self.short_term:
             if all(item in entry.inputs.items() for item in inputs.items()):
                 matches.append(entry)
+        logger.debug(f"Exact match found {len(matches)} entries.")
         return matches
 
     def combine_results(
@@ -185,6 +202,9 @@ class FlockMemoryStore(BaseModel):
         Returns:
             A dictionary with "combined_results" as a sorted list of memory entries.
         """
+        logger.debug(
+            f"Combining results for inputs: {inputs} with weights: {weights}"
+        )
         query_text = " ".join(str(value) for value in inputs.values())
         query_embedding = self.compute_embedding(query_text)
 
@@ -221,14 +241,15 @@ class FlockMemoryStore(BaseModel):
             total_score = data["semantic_score"] + data["exact_score"]
             results.append((total_score, data["entry"]))
         results.sort(key=lambda x: x[0], reverse=True)
+        logger.debug(f"Combined results count: {len(results)}")
         return {"combined_results": [entry for score, entry in results]}
 
     def add_entry(self, entry: MemoryEntry) -> None:
-        """Add a new memory entry to short-term memory, update the concept graph and clusters.
-
+        """Add a new memory entry to short-term memory, update the concept graph and clusters,
         and check for promotion to long-term memory.
         """
         with tracer.start_as_current_span("memory.add_entry") as span:
+            logger.info(f"Adding memory entry with id: {entry.id}")
             span.set_attribute("entry.id", entry.id)
             self.short_term.append(entry)
             self.concept_graph.add_concepts(entry.concepts)
@@ -238,6 +259,7 @@ class FlockMemoryStore(BaseModel):
 
     def _promote_to_long_term(self, entry: MemoryEntry) -> None:
         """Promote an entry to long-term memory."""
+        logger.info(f"Promoting entry {entry.id} to long-term memory.")
         if entry not in self.long_term:
             self.long_term.append(entry)
 
@@ -260,6 +282,7 @@ class FlockMemoryStore(BaseModel):
             A list of MemoryEntry objects sorted by a combined score.
         """
         with tracer.start_as_current_span("memory.retrieve") as span:
+            logger.debug("Retrieving memory entries...")
             results = []
             current_time = datetime.now()
             decay_rate = 0.0001
@@ -296,10 +319,12 @@ class FlockMemoryStore(BaseModel):
                 entry.access_count += 1
                 self._update_decay_factors(entry)
             results.sort(key=lambda x: x[0], reverse=True)
+            logger.debug(f"Retrieved {len(results)} memory entries.")
             return [entry for score, entry in results]
 
     def _update_decay_factors(self, retrieved_entry: MemoryEntry) -> None:
         """Update decay factors: increase for the retrieved entry and decrease for others."""
+        logger.debug(f"Updating decay factor for entry {retrieved_entry.id}")
         retrieved_entry.decay_factor *= 1.1
         for entry in self.short_term:
             if entry != retrieved_entry:
@@ -307,13 +332,18 @@ class FlockMemoryStore(BaseModel):
 
     def _update_clusters(self) -> None:
         """Update memory clusters using k-means clustering on entry embeddings."""
+        logger.debug("Updating memory clusters...")
         if len(self.short_term) < 2:
+            logger.debug("Not enough entries for clustering.")
             return
 
         valid_entries = [
             entry for entry in self.short_term if entry.embedding is not None
         ]
         if not valid_entries:
+            logger.debug(
+                "No valid entries with embeddings found for clustering."
+            )
             return
 
         embeddings = [np.array(entry.embedding) for entry in valid_entries]
@@ -337,3 +367,4 @@ class FlockMemoryStore(BaseModel):
             self.clusters[i] = cluster_entries
             # Convert the centroid (np.ndarray) to a list of floats.
             self.cluster_centroids[i] = kmeans.cluster_centers_[i].tolist()
+        logger.debug(f"Clustering complete with {n_clusters} clusters.")

@@ -27,6 +27,29 @@ TELEMETRY.setup_tracing()
 tracer = trace.get_tracer(__name__)
 
 
+def init_loggers(enable_logging: bool = False):
+    """Initialize the loggers for the Flock system.
+
+    Args:
+        enable_logging (bool): If True, enable verbose logging. Defaults to False.
+    """
+    logger.enable_logging = enable_logging
+    other_loggers = get_logger("interpreter")
+    other_loggers.enable_logging = enable_logging
+    other_loggers = get_logger("memory")
+    other_loggers.enable_logging = enable_logging
+    other_loggers = get_logger("activities")
+    other_loggers.enable_logging = enable_logging
+    other_loggers = get_logger("context")
+    other_loggers.enable_logging = enable_logging
+    other_loggers = get_logger("registry")
+    other_loggers.enable_logging = enable_logging
+    other_loggers = get_logger("tools")
+    other_loggers.enable_logging = enable_logging
+    other_loggers = get_logger("agent")
+    other_loggers.enable_logging = enable_logging
+
+
 class Flock:
     """High-level orchestrator for creating and executing agents.
 
@@ -38,7 +61,7 @@ class Flock:
         self,
         model: str = "openai/gpt-4o",
         local_debug: bool = False,
-        enable_logging: bool = False,
+        enable_logging: bool | list[str] = False,
         show_cli_banner: bool = True,
     ):
         """Initialize the Flock orchestrator.
@@ -60,6 +83,7 @@ class Flock:
                 enable_logging=enable_logging,
             )
             logger.enable_logging = enable_logging
+            init_loggers(enable_logging)
             session_id = get_baggage("session_id")
             if not session_id:
                 session_id = str(uuid.uuid4())

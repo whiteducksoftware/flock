@@ -22,7 +22,7 @@ from flock.core.memory.memory_storage import FlockMemoryStore
 from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 
-logger = get_logger("flock")
+logger = get_logger("agent")
 
 
 from opentelemetry import trace

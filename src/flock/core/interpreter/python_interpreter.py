@@ -22,6 +22,13 @@ from typing import (
     Any,
 )
 
+from opentelemetry import trace
+
+from flock.core.logging.logging import get_logger
+
+tracer = trace.get_tracer(__name__)
+logger = get_logger("interpreter")
+
 
 class InterpreterError(ValueError):
     r"""An error raised when the interpreter cannot evaluate a Python
@@ -74,7 +81,8 @@ class PythonInterpreter:
 
     def log(self, message: str) -> None:
         """Print a log message immediately."""
-        print(message, flush=True)
+        # print(message, flush=True)
+        logger.info(message, flush=True)
 
     def execute(
         self,
