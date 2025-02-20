@@ -13,6 +13,8 @@ Imagine you're organizing a huge library of experiences. This library has:
 
 That's basically what Flock's memory system does!
 
+
+
 ## 💭 How Memories Are Stored
 
 ### 1. Memory Entries
@@ -43,6 +45,8 @@ memory = {
 - This helps find related memories quickly
 - Uses a smart AI model (Sentence Transformers) to create these fingerprints
 
+![Concept Graph](../assets/images/memory_flow.png){ width="600" }
+
 ### 3. Concept Graph
 
 - Maintains a network of connected concepts
@@ -50,7 +54,12 @@ memory = {
 - The more often concepts appear together, the stronger their connection
 - Helps find related memories even if they use different words
 
+
+![Concept Graph](../assets/images/memory_concepts.png){ width="600" }
+
 ## 🔍 How Memories Are Retrieved
+
+![Concept Graph](../assets/images/memory_flow_chart.png){ width="600" }
 
 ### 1. Similarity Search
 

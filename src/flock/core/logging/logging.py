@@ -61,6 +61,17 @@ COLOR_MAP = {
     "agent": "light-magenta",
 }
 
+LOGGERS = [
+    "flock",
+    "interpreter",
+    "memory",
+    "activities",
+    "context",
+    "registry",
+    "tools",
+    "agent",
+]
+
 
 def color_for_category(category: str) -> str:
     """Return the ANSI color code name for the given category."""

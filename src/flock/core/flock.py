@@ -16,7 +16,7 @@ from flock.core.context.context_manager import initialize_context
 from flock.core.execution.local_executor import run_local_workflow
 from flock.core.execution.temporal_executor import run_temporal_workflow
 from flock.core.flock_agent import FlockAgent
-from flock.core.logging.logging import get_logger
+from flock.core.logging.logging import LOGGERS, get_logger
 from flock.core.registry.agent_registry import Registry
 from flock.core.util.cli_helper import display_banner
 from flock.core.util.input_resolver import top_level_to_keys
@@ -34,10 +34,15 @@ def init_loggers(enable_logging: bool | list[str] = False):
         enable_logging (bool): If True, enable verbose logging. Defaults to False.
     """
     if isinstance(enable_logging, list):
-        for log_name in enable_logging:
-            other_loggers = get_logger(log_name)
-            other_loggers.enable_logging = True
+        for logger in LOGGERS:
+            if logger in enable_logging:
+                other_loggers = get_logger(logger)
+                other_loggers.enable_logging = True
+            else:
+                other_loggers = get_logger(logger)
+                other_loggers.enable_logging = False
     else:
+        logger = get_logger("flock")
         logger.enable_logging = enable_logging
         other_loggers = get_logger("interpreter")
         other_loggers.enable_logging = enable_logging
