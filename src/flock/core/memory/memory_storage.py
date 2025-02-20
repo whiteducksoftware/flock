@@ -50,7 +50,7 @@ class SemanticOperation(MemoryOperation):
     """Semantic search operation."""
 
     type: Literal["semantic"] = "semantic"
-    threshold: float = 0.8
+    threshold: float = 0.5
     max_results: int = 10
     recency_filter: str | None = None  # e.g., "7d", "24h"
 

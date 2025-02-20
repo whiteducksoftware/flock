@@ -25,6 +25,7 @@ from flock.core.memory.memory_storage import (
     FilterOperation,
     FlockMemoryStore,
     MemoryEntry,
+    SemanticOperation,
 )
 from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
@@ -245,7 +246,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     )
     memory_mapping: str | None = Field(default=None)
     memory_store: FlockMemoryStore | None = Field(default=None)
-    memory_ops: dict[str, Any] | None = Field(default=None)
+    memory_ops: list | None = Field(default=None)
 
     # Lifecycle callback fields: if provided, these callbacks are used instead of overriding the methods.
     initialize_callback: Callable[[dict[str, Any]], Awaitable[None]] | None = (
@@ -473,6 +474,9 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         """Check memory before main evaluation."""
         if not self.memory_enabled or not self.memory_store:
             return None
+
+        if not self.memory_ops:
+            self.memory_ops.append(SemanticOperation())
 
         try:
             # Convert input to embedding
