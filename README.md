@@ -334,14 +334,26 @@ result = flock.run(
 )
 ```
 
-These tools are available out of the box:
+These tools are available out of the box (needs `flock-core[tools]`):
 
-
+- web_search_tavily
+- web_search_duckduckgo
+- get_web_content_as_markdown
+- get_anything_as_markdown (uses docling and needs `flock-core[all-tools]`)
+- evaluate_math
+- code_eval
+- get_current_time
+- count_words
+- extract_urls
+- extract_numbers
+- json_parse_safe
+- save_to_file
+- read_from_file
 
 
 That's all there is to it! `bloggy` comes up with amazing headers, and `content_writer` turns them into full blog sections. No more writer's block! 🎉
 
-And this is just the beginning - you can chain as many agents as you want. Maybe add a proofreader? Or an SEO optimizer? But let's not get ahead of ourselves! 😉
+And this is just the beginning - you can chain as many agents as you want. Maybe add a proofreader? Or add memory? Or an SEO optimizer? But let's not get ahead of ourselves! 😉
 
 So far we've barely scratched the surface of what flock has to offer, and we're currently hard at work building up the documentation for all the other super cool features Flock has up its sleeve! Stay tuned! 🚀
 

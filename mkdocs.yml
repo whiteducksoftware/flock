@@ -39,6 +39,7 @@ nav:
   - Core Concepts:
     - Agents: core-concepts/agents.md
     - Type System: core-concepts/type-system.md
+    - Memory: core-concepts/memory.md
     - Workflows: core-concepts/workflows.md
     - Declarative Programming: core-concepts/declarative.md
     - Error Handling: core-concepts/error-handling.md

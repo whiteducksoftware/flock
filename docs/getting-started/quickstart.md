@@ -2,7 +2,7 @@
 
 Ready to join the Flock? Let's get you flying! 🐤
 
-## Before We Take Off 🚀
+## 🚀 Before We Take Off 
 
 Here's what you'll need for your journey:
 
@@ -10,7 +10,7 @@ Here's what you'll need for your journey:
 - An OpenAI API key (or any other LLM provider - we're not picky!)
 - pip (or your favorite Python package manager)
 
-## Landing the Basics 🛬
+## 🛬 Landing the Basics 
 
 First things first, let's get Flock installed:
 
@@ -28,7 +28,7 @@ pip install flock-core[tools]
 pip install flock-core[all-tools]
 ```
 
-## Setting Up Your Nest 🪹
+## 🪹 Setting Up Your Nest 
 
 Time to set up your environment! You've got two ways to do this:
 
@@ -49,7 +49,11 @@ Or create a cozy `.env` file:
 OPENAI_API_KEY=your-super-secret-key
 ```
 
-## Your First Flock Friend 🐥
+Or suprise 3rd way:
+
+Ignore the api key and use your favorite local model! See next section on how easy it is!
+
+## 🐥 Your First Flock Friend 
 
 Let's create your first agent! Make a new file called `first_agent.py` and let's get coding:
 
@@ -59,6 +63,7 @@ from flock.core import Flock, FlockAgent
 # Get your flock ready for action!
 flock = Flock(
     model="openai/gpt-4",  # Pick your favorite model
+    # model="ollama_chat/qwen2.5-coder:14b" or use your favorite local model!
     local_debug=True       # See what's happening behind the scenes
 )
 
@@ -89,7 +94,7 @@ Which will result in something similar to this:
 
 
 
-## What Just Happened? 🤔
+## 🤔 What Just Happened? 
 
 Let's break down the magic:
 
@@ -134,7 +139,7 @@ Let's break down the magic:
 As you can see, you wouldn't even need to print out the results yourself. Each agent can present its output itself.
 This should highlight how you can use the resulting object like a real Python object!
 
-## Leveling Up with Type Hints 🎮
+## 🎮 Leveling Up with Type Hints 
 
 Want to make your agent even smarter? Let's add some type hints and descriptions!
 
@@ -167,7 +172,7 @@ Amazing!
 
 Want to make your agent even smarter? Then check out:
 
-## What's Next? 🎯
+## 🎯 What's Next? 
 
 Now that you've got your first agent up and running, here are some fun things to try:
 
@@ -175,21 +180,22 @@ Now that you've got your first agent up and running, here are some fun things to
 2. Try [Agent Chaining](../features/agent-chaining.md) - make your agents work together like a well-oiled machine
 3. Add some [Error Handling](../core-concepts/error-handling.md) - because even agents need a safety net
 4. Explore [Lifecycle Hooks](../features/lifecycle-hooks.md) - for when you want to be extra fancy
+5. Implant some [Memory](../core-concepts/memory.md) - Make your agents remember what you did last summer
 
-## Troubleshooting (Or: "Help, My Agent Is Acting Weird!") 🔧
+## 🔧 Help, My Agent Is Acting Weird!
 
 - **API Key Issues**: Double-check that secret key - typos are sneaky!
 - **Model Confusion**: Make sure your model name is right (e.g., "openai/gpt-4")
 - **Type Troubles**: Your inputs should match what your agent expects
 
-## Pro Tips 🌟
+## 🌟 Pro Tips 
 
 - Start with `local_debug=True` - This runs your agent straightforwardly as 'normal' local code. Setting it to False will run the agents with Temporal, a bullet-proof workflow engine we'll take a look at later!
 - Give your agents clear, fun names - they deserve it, and we'll need to remember them for agent chaining!
 - Use type hints and descriptions - tackle edge cases and the fine details of your agent
 - Test different inputs - agents love variety!
 
-## Want to Learn More? 📚
+## 📚 Want to Learn More? 
 
 Check out these pages (they're more fun than they sound, we promise!):
 

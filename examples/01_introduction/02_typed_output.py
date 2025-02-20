@@ -31,7 +31,7 @@ async def main():
     # --------------------------------
     # Create the flock
     # --------------------------------
-    flock = Flock(local_debug=True)
+    flock = Flock(local_debug=True, enable_logging=True)
 
 
     # --------------------------------

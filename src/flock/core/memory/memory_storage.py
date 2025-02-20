@@ -1,11 +1,12 @@
 """Flock memory storage with short-term and long-term memory, concept graph, and clustering.
 
-Loosely based on the ideas of the library memoripy
+Based on concept graph spreading activation and embedding-based semantic search.
 """
 
 import json
 from datetime import datetime
-from typing import Any
+from enum import Enum
+from typing import Any, Literal
 
 import networkx as nx
 import numpy as np
@@ -21,6 +22,69 @@ from flock.core.logging.logging import get_logger
 
 tracer = trace.get_tracer(__name__)
 logger = get_logger("memory")
+
+
+class MemoryScope(Enum):
+    LOCAL = "local"
+    GLOBAL = "global"
+    BOTH = "both"
+
+
+class MemoryOperation(BaseModel):
+    """Base class for memory operations."""
+
+    type: str
+    scope: MemoryScope = MemoryScope.BOTH
+
+
+class CombineOperation(MemoryOperation):
+    """Combine results from multiple operations using weighted scoring."""
+
+    type: Literal["combine"] = "combine"
+    weights: dict[str, float] = Field(
+        default_factory=lambda: {"semantic": 0.7, "exact": 0.3}
+    )
+
+
+class SemanticOperation(MemoryOperation):
+    """Semantic search operation."""
+
+    type: Literal["semantic"] = "semantic"
+    threshold: float = 0.8
+    max_results: int = 10
+    recency_filter: str | None = None  # e.g., "7d", "24h"
+
+
+class ExactOperation(MemoryOperation):
+    """Exact matching operation."""
+
+    type: Literal["exact"] = "exact"
+    keys: list[str] = Field(default_factory=list)
+
+
+class EnrichOperation(MemoryOperation):
+    """Enrich memory with tool results."""
+
+    type: Literal["enrich"] = "enrich"
+    tools: list[str]
+    strategy: Literal["comprehensive", "quick", "validated"] = "comprehensive"
+
+
+class FilterOperation(MemoryOperation):
+    """Filter memory results."""
+
+    type: Literal["filter"] = "filter"
+    recency: str | None = None
+    relevance: float | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SortOperation(MemoryOperation):
+    """Sort memory results."""
+
+    type: Literal["sort"] = "sort"
+    by: Literal["relevance", "recency", "access_count"] = "relevance"
+    ascending: bool = False
 
 
 class MemoryEntry(BaseModel):
@@ -335,17 +399,7 @@ class FlockMemoryStore(BaseModel):
         similarity_threshold: float = 0.8,
         exclude_last_n: int = 0,
     ) -> list[MemoryEntry]:
-        """Retrieve memory entries using semantic similarity and concept-based activation.
-
-        Args:
-            query_embedding: The embedding for the query text.
-            query_concepts: A set of concepts derived from the query.
-            similarity_threshold: Minimum score to consider a match.
-            exclude_last_n: Exclude the last N entries (if needed).
-
-        Returns:
-            A list of MemoryEntry objects sorted by a combined score.
-        """
+        """Retrieve memory entries using semantic similarity and concept-based activation."""
         with tracer.start_as_current_span("memory.retrieve") as span:
             logger.debug("Retrieving memory entries...")
             results = []
@@ -360,29 +414,48 @@ class FlockMemoryStore(BaseModel):
                 if exclude_last_n > 0
                 else self.short_term
             )
+
             for entry in entries:
                 if entry.embedding is None:
                     continue
+
+                # Calculate base similarity
                 entry_embedding = np.array(entry.embedding)
                 norm_entry = entry_embedding / (
                     np.linalg.norm(entry_embedding) + 1e-8
                 )
                 similarity = float(np.dot(norm_query, norm_entry))
+
+                # Calculate modifiers
                 time_diff = (current_time - entry.timestamp).total_seconds()
                 decay = np.exp(-decay_rate * time_diff)
-                reinforcement = np.log1p(entry.access_count)
+                # Add 1 to base score so new entries aren't zeroed out
+                reinforcement = 1.0 + np.log1p(entry.access_count)
+
+                # Calculate final score
                 final_score = (
                     similarity * decay * reinforcement * entry.decay_factor
                 )
+
                 span.add_event(
                     "memory score",
-                    attributes={"entry_id": entry.id, "score": final_score},
+                    attributes={
+                        "entry_id": entry.id,
+                        "similarity": similarity,
+                        "final_score": final_score,
+                    },
                 )
-                if final_score >= similarity_threshold:
+
+                # If base similarity passes threshold, include in results
+                if similarity >= similarity_threshold:
                     results.append((final_score, entry))
+
+            # Update access counts and decay for retrieved entries
             for _, entry in results:
                 entry.access_count += 1
                 self._update_decay_factors(entry)
+
+            # Sort by final score
             results.sort(key=lambda x: x[0], reverse=True)
             logger.debug(f"Retrieved {len(results)} memory entries.")
             return [entry for score, entry in results]
