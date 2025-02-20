@@ -12,7 +12,6 @@ from typing import Any, Literal, TypeVar, Union
 import cloudpickle
 import numpy as np
 from pydantic import BaseModel, Field
-from tqdm import tqdm
 
 from flock.core.context.context import FlockContext
 from flock.core.logging.formatters.themed_formatter import (
@@ -583,15 +582,15 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
     async def _extract_information_and_update_memory(
         self, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> list[dict]:
-        """Split entries using DSPy for intelligent chunking."""
+    ) -> str:
+        """Very simple but effective way to extract information from the interaction and store it in memory."""
         # Create splitter signature
         split_signature = self.create_dspy_signature_class(
             f"{self.name}_splitter",
-            "Extract a list of important data and information for future reference",
+            "Extract a list of potentially needed data and information for future reference",
             """
             content: str | The content to split
-            -> chunks: list[str] | list of important data and information for future reference
+            -> chunks: list[str] | list of data and information for future reference
             """,
         )
 
@@ -603,28 +602,28 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         full_text = json.dumps(inputs) + json.dumps(result)
         split_result = splitter(content=full_text)
 
-        chunks = []
-        for i, chunk in tqdm(enumerate(split_result.chunks)):
-            # Extract concepts for each chunk separately
-            chunk_concepts = await self._extract_concepts(chunk)
-            logger.debug(f"Chunk {i} concepts: {list(chunk_concepts)}")
+        chunks = "\n".join(split_result.chunks)
+        chunk_concepts = await self._extract_concepts(chunks)
+        logger.debug(
+            f"Chunk concepts for extracted info: {list(chunk_concepts)}"
+        )
 
-            entry = MemoryEntry(
-                id=str(uuid.uuid4()),
-                content=chunk,
-                embedding=self.memory_store.compute_embedding(chunk).tolist(),
-                concepts=chunk_concepts,
-                timestamp=datetime.now(),
-            )
+        entry = MemoryEntry(
+            id=str(uuid.uuid4()),
+            content=chunks,
+            embedding=self.memory_store.compute_embedding(chunks).tolist(),
+            concepts=chunk_concepts,
+            timestamp=datetime.now(),
+        )
 
-            # Add to memory store
-            self.memory_store.add_entry(entry)
-            logger.debug(
-                "Stored interaction in memory",
-                agent=self.name,
-                entry_id=entry.id,
-                concepts=chunk_concepts,
-            )
+        # Add to memory store
+        self.memory_store.add_entry(entry)
+        logger.debug(
+            "Stored interaction in memory",
+            agent=self.name,
+            entry_id=entry.id,
+            concepts=chunk_concepts,
+        )
 
         return chunks
 
