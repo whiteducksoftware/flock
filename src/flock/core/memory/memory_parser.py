@@ -1,3 +1,5 @@
+"""Parser for memory mapping declarations into executable operations."""
+
 import re
 from typing import Any
 

@@ -5,8 +5,7 @@ import json
 import os
 from abc import ABC
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
-from typing import Any, TypeVar, Union
+from typing import Any, Literal, TypeVar, Union
 
 import cloudpickle
 from pydantic import BaseModel, Field
@@ -33,73 +32,74 @@ tracer = trace.get_tracer(__name__)
 T = TypeVar("T", bound="FlockAgent")
 
 
-@dataclass
-class FlockAgentConfig:
+class FlockAgentConfig(BaseModel):
     """Configuration options for a FlockAgent."""
 
-    agent_type_override: AgentType = field(
+    agent_type_override: AgentType = Field(
         default=None,
-        metadata={
+        descriptions={
             "description": "Overrides the agent type. TOOL USE ONLY WORKS WITH REACT"
         },
     )
-    disable_output: bool = field(
-        default=False, metadata={"description": "Disables the agent's output."}
+    disable_output: bool = Field(
+        default=False,
+        descriptions="Disables the agent's output.",
     )
-    temperature: float = field(
-        default=0.0, metadata={"description": "Temperature for the LLM"}
+    temperature: float = Field(
+        default=0.0, descriptions="Temperature for the LLM"
     )
-    max_tokens: int = field(
-        default=2000, metadata={"description": "Max tokens for the LLM"}
+    max_tokens: int = Field(default=2000, descriptions="Max tokens for the LLM")
+
+
+class FlockAgentMemoryConfig(BaseModel):
+    """Flock Agent Memory Configuration."""
+
+    use_memory: bool = Field(
+        default=False,
+        descriptions="Enable memory for this agent",
     )
-    use_memory: bool = field(
-        default=False, metadata={"description": "Enable memory for this agent"}
+    storage_type: Literal["json", "in_memory"] = Field(
+        default="json", descriptions="Storage type for memory"
     )
-    memory_config: dict = field(
-        default_factory=lambda: {
-            "storage_type": "json",  # or "in_memory"
-            "file_path": "agent_memory.json",
-            "similarity_threshold": 40,
-            "context_window": 3,
-        }
+    file_path: str = Field(
+        default="agent_memory.json", descriptions="File path for memory storage"
+    )
+    similarity_threshold: int = Field(
+        default=40, descriptions="Similarity threshold for memory"
+    )
+    context_window: int = Field(
+        default=3, descriptions="Context window for memory"
     )
 
 
-@dataclass
-class FlockAgentOutputConfig:
+class FlockAgentOutputConfig(BaseModel):
     """Configuration options for a FlockAgent."""
 
-    render_table: bool = field(
-        default=False, metadata={"description": "Renders a table."}
-    )
-    theme: OutputTheme = field(  # type: ignore
+    render_table: bool = Field(default=False, descriptions="Renders a table.")
+    theme: OutputTheme = Field(  # type: ignore
         default=OutputTheme.afterglow,
-        metadata={"description": "Disables the agent's output."},
+        descriptions="Disables the agent's output.",
     )
-    max_length: int = field(
-        default=1000, metadata={"description": "Disables the agent's output."}
+    max_length: int = Field(
+        default=1000,
+        descriptions="Disables the agent's output.",
     )
-    wait_for_input: bool = field(
-        default=False, metadata={"description": "Wait for input."}
-    )
-    write_to_file: bool = field(
-        default=False, metadata={"description": "Write to file."}
-    )
+    wait_for_input: bool = Field(default=False, descriptions="Wait for input.")
+    write_to_file: bool = Field(default=False, descriptions="Write to file.")
 
 
-@dataclass
-class HandOff:
+class HandOff(BaseModel):
     """Base class for handoff returns."""
 
-    next_agent: Union[str, "FlockAgent"] = field(
-        default="", metadata={"description": "Next agent to invoke"}
+    next_agent: Union[str, "FlockAgent"] = Field(
+        default="", description="Next agent to invoke"
     )
-    input: dict[str, Any] = field(
+    input: dict[str, Any] = Field(
         default_factory=dict,
-        metadata={"description": "Input data for the next agent"},
+        description="Input data for the next agent",
     )
-    context: FlockContext = field(
-        default=None, metadata={"description": "Override context parameters"}
+    context: FlockContext = Field(
+        default=None, descrio="Override context parameters"
     )
 
 
@@ -228,6 +228,11 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     output_config: FlockAgentOutputConfig = Field(
         default_factory=FlockAgentOutputConfig,
         description="Configuration options for the agent's output.",
+    )
+
+    memory_config: FlockAgentMemoryConfig = Field(
+        default_factory=FlockAgentMemoryConfig,
+        description="Configuration options for the agent's memory.",
     )
 
     memory_enabled: bool = Field(default=True)

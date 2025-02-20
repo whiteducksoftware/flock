@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class OutputTheme(Enum):
+class OutputTheme(str, Enum):
     tomorrow_night_eighties = "tomorrow-night-eighties"
     builtin_light = "builtin-light"
     iterm2_dark_background = "iterm2-dark-background"

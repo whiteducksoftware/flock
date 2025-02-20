@@ -102,6 +102,7 @@ class MemoryEntry(BaseModel):
 
 class MemoryGraph(BaseModel):
     """Graph representation of concept relationships.
+
     The graph is stored as a JSON string for serialization, while a private attribute holds the actual NetworkX graph.
     """
 
@@ -115,6 +116,7 @@ class MemoryGraph(BaseModel):
     _graph: nx.Graph = PrivateAttr()
 
     def __init__(self, **data):
+        """Initialize the MemoryGraph with a NetworkX graph from JSON data."""
         super().__init__(**data)
         try:
             data_graph = json.loads(self.graph_json)
@@ -246,7 +248,8 @@ class MemoryGraph(BaseModel):
 
 
 class FlockMemoryStore(BaseModel):
-    """Enhanced Flock memory storage with short-term and long-term memory,
+    """Enhanced Flock memory storage with short-term and long-term memory.
+
     including embedding-based semantic search, exact matching, and result combination.
     """
 
@@ -261,6 +264,7 @@ class FlockMemoryStore(BaseModel):
 
     def get_embedding_model(self) -> SentenceTransformer:
         """Initialize and return the SentenceTransformer model.
+
         Uses "all-MiniLM-L6-v2" as the default model.
         """
         if self._embedding_model is None:
@@ -291,6 +295,7 @@ class FlockMemoryStore(BaseModel):
         self, query_embedding: np.ndarray, entry_embedding: np.ndarray
     ) -> float:
         """Compute the cosine similarity between two embeddings.
+
         Returns a float between 0 and 1.
         """
         try:
@@ -309,6 +314,7 @@ class FlockMemoryStore(BaseModel):
 
     def exact_match(self, inputs: dict[str, Any]) -> list[MemoryEntry]:
         """Perform an exact key-based lookup in short-term memory.
+
         Returns entries where all provided key-value pairs exist in the entry's inputs.
         """
         logger.debug(f"Performing exact match lookup with inputs: {inputs}")
@@ -374,7 +380,8 @@ class FlockMemoryStore(BaseModel):
         return {"combined_results": [entry for score, entry in results]}
 
     def add_entry(self, entry: MemoryEntry) -> None:
-        """Add a new memory entry to short-term memory, update the concept graph and clusters,
+        """Add a new memory entry to short-term memory, update the concept graph and clusters.
+
         and check for promotion to long-term memory.
         """
         with tracer.start_as_current_span("memory.add_entry") as span:
