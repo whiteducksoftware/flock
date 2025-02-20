@@ -3,11 +3,14 @@
 import asyncio
 import json
 import os
+import uuid
 from abc import ABC
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta
 from typing import Any, Literal, TypeVar, Union
 
 import cloudpickle
+import numpy as np
 from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
@@ -17,7 +20,11 @@ from flock.core.logging.formatters.themed_formatter import (
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.logging.logging import get_logger
 from flock.core.memory.memory_parser import MemoryMappingParser
-from flock.core.memory.memory_storage import FlockMemoryStore
+from flock.core.memory.memory_storage import (
+    FilterOperation,
+    FlockMemoryStore,
+    MemoryEntry,
+)
 from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 
@@ -427,23 +434,164 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
     def _create_default_mapping(self) -> str:
         return f"{self.name}: {self.output}"
 
-    async def evaluate_memory(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        """Evaluate the agent's memory and return the result.
+    async def _extract_concepts(self, text: str) -> set[str]:
+        """Extract concepts using DSPy integration."""
+        # Create a signature for concept extraction
+        concept_signature = self.create_dspy_signature_class(
+            f"{self.name}_concept_extractor",
+            "Extract key concepts from text",
+            "text: str | Text to analyze -> concepts: list[str] | Key concepts",
+        )
 
-        This method is called before the agent's main evaluation to retrieve relevant information from memory.
-        It is used to provide additional context or data that can be used during the agent's execution.
-        """
-        pass
+        # Configure and run the predictor
+        self._configure_language_model()
+        predictor = self._select_task(concept_signature, "Completion")
+        result = predictor(text=text)
+
+        # Convert to set
+        concept_list = result.concepts if hasattr(result, "concepts") else []
+        concepts = set(concept_list)
+        logger.debug(f"Extracted concepts: {concept_list}")
+        return concepts
+
+    async def evaluate_memory(
+        self, inputs: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Check memory before main evaluation."""
+        if (
+            not self.memory_enabled
+            or not self.memory_store
+            or not self.memory_ops
+        ):
+            return None
+
+        try:
+            # Convert input to embedding
+            input_text = json.dumps(inputs)
+            query_embedding = self.memory_store.compute_embedding(input_text)
+
+            # Extract concepts from input
+            concepts = await self._extract_concepts(input_text)
+
+            memory_results = []
+            for op in self.memory_ops:
+                if op.type == "semantic":
+                    # Semantic search
+                    semantic_results = self.memory_store.retrieve(
+                        query_embedding,
+                        concepts,
+                        similarity_threshold=op.threshold,
+                    )
+                    memory_results.extend(semantic_results)
+
+                elif op.type == "exact":
+                    # Exact matching
+                    exact_results = self.memory_store.exact_match(inputs)
+                    memory_results.extend(exact_results)
+
+                elif op.type == "filter":
+                    # Apply filters
+                    memory_results = [
+                        entry
+                        for entry in memory_results
+                        if self._apply_filters(entry, op)
+                    ]
+
+                elif op.type == "combine":
+                    # Combine results using weights
+                    memory_results = self.memory_store.combine_results(
+                        inputs, op.weights
+                    ).get("combined_results", [])
+
+            if memory_results:
+                logger.debug(
+                    f"Found {len(memory_results)} relevant memories after operations",
+                    agent=self.name,
+                )
+                return {"memory_results": memory_results}
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"Memory retrieval failed: {e!s}", agent=self.name)
+            return None
+
+    def _apply_filters(
+        self, entry: MemoryEntry, filter_op: FilterOperation
+    ) -> bool:
+        """Apply filter operation to memory entry."""
+        # Check recency if specified
+        if filter_op.recency:
+            cutoff = self._parse_time_window(filter_op.recency)
+            if entry.timestamp < cutoff:
+                return False
+
+        # Check relevance if specified
+        if filter_op.relevance is not None:
+            relevance_score = entry.decay_factor * np.log1p(entry.access_count)
+            if relevance_score < filter_op.relevance:
+                return False
+
+        # Check metadata if specified
+        if filter_op.metadata:
+            entry_metadata = getattr(entry, "metadata", {})
+            for key, value in filter_op.metadata.items():
+                if key not in entry_metadata or entry_metadata[key] != value:
+                    return False
+
+        return True
+
+    def _parse_time_window(self, window: str) -> datetime:
+        """Parse time window string (e.g., '7d', '24h') into datetime."""
+        value = int(window[:-1])
+        unit = window[-1]
+
+        if unit == "d":
+            delta = timedelta(days=value)
+        elif unit == "h":
+            delta = timedelta(hours=value)
+        else:
+            raise ValueError(f"Unknown time unit: {unit}")
+
+        return datetime.now() - delta
 
     async def update_memory(
         self, inputs: dict[str, Any], result: dict[str, Any]
     ) -> None:
-        """Update the agent's memory with the provided inputs and result.
+        """Store results in memory after evaluation."""
+        if not self.memory_enabled or not self.memory_store:
+            return
 
-        This method is called after the agent's main evaluation to store relevant information in memory.
-        It is used to capture the agent's output or any other data that should be remembered for future interactions.
-        """
-        pass
+        try:
+            # Combine inputs and results for concept extraction
+            full_text = json.dumps(inputs) + json.dumps(result)
+
+            # Extract concepts
+            concepts = await self._extract_concepts(full_text)
+
+            # Create memory entry
+            entry = MemoryEntry(
+                id=str(uuid.uuid4()),
+                inputs=inputs,
+                outputs=result,
+                embedding=self.memory_store.compute_embedding(
+                    full_text
+                ).tolist(),
+                concepts=concepts,
+                timestamp=datetime.now(),
+            )
+
+            # Add to memory store
+            self.memory_store.add_entry(entry)
+            logger.debug(
+                "Stored interaction in memory",
+                agent=self.name,
+                entry_id=entry.id,
+                concepts=concepts,
+            )
+
+        except Exception as e:
+            logger.warning(f"Memory storage failed: {e!s}", agent=self.name)
 
     @classmethod
     def load_from_file(cls: type[T], file_path: str) -> T:

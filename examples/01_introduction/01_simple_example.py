@@ -21,8 +21,7 @@ Let's get started!
 import asyncio
 
 from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
-from flock.core.logging.formatters.themes import OutputTheme
+from flock.core.flock_agent import FlockAgent
 
 
 
@@ -41,7 +40,7 @@ async def main():
     # The flock is the place where all the agents are at home
     # set local_debug to True to run the flock without Temporal
     # Check out the examples in /temporal to learn about Temporal
-    flock = Flock(model=MODEL, local_debug=True)
+    flock = Flock(model=MODEL, local_debug=True, enable_logging=True)
 
     # --------------------------------
     # Create an agent
@@ -53,7 +52,8 @@ async def main():
     bloggy = FlockAgent(
         name="bloggy", 
         input="blog_idea", 
-        output="funny_blog_title, blog_headers"
+        output="funny_blog_title, blog_headers",
+        memory_enabled=True
     )
     flock.add_agent(bloggy)
 
