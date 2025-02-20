@@ -98,8 +98,7 @@ class MemoryEntry(BaseModel):
     """A single memory entry."""
 
     id: str
-    inputs: dict[str, Any]
-    outputs: dict[str, Any]
+    content: str
     embedding: list[float] | None = None
     timestamp: datetime = Field(default_factory=datetime.now)
     access_count: int = Field(default=0)
@@ -366,8 +365,7 @@ class FlockMemoryStore(BaseModel):
             store.short_term = [
                 MemoryEntry(
                     id=entry["id"],
-                    inputs=entry["inputs"],
-                    outputs=entry["outputs"],
+                    content=entry["content"],
                     embedding=entry.get("embedding"),
                     timestamp=datetime.fromisoformat(entry["timestamp"]),
                     access_count=entry.get("access_count", 0),
@@ -381,8 +379,7 @@ class FlockMemoryStore(BaseModel):
             store.long_term = [
                 MemoryEntry(
                     id=entry["id"],
-                    inputs=entry["inputs"],
-                    outputs=entry["outputs"],
+                    content=entry["content"],
                     embedding=entry.get("embedding"),
                     timestamp=datetime.fromisoformat(entry["timestamp"]),
                     access_count=entry.get("access_count", 0),
@@ -405,8 +402,7 @@ class FlockMemoryStore(BaseModel):
                     int(k): [
                         MemoryEntry(
                             id=entry["id"],
-                            inputs=entry["inputs"],
-                            outputs=entry["outputs"],
+                            content=entry["content"],
                             embedding=entry.get("embedding"),
                             timestamp=datetime.fromisoformat(
                                 entry["timestamp"]

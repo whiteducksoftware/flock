@@ -581,17 +581,17 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         if self.memory_store:
             self.memory_store.concept_graph.save_as_image(file_path)
 
-    async def _split_entry(
+    async def _extract_information_and_update_memory(
         self, inputs: dict[str, Any], result: dict[str, Any]
     ) -> list[dict]:
         """Split entries using DSPy for intelligent chunking."""
         # Create splitter signature
         split_signature = self.create_dspy_signature_class(
             f"{self.name}_splitter",
-            "Split content into meaningful, self-contained chunks",
+            "Extract a list of important data and information for future reference",
             """
             content: str | The content to split
-            -> chunks: list[dict[str,str]] | List of chunks with content as key and summary as value
+            -> chunks: list[str] | list of important data and information for future reference
             """,
         )
 
@@ -605,32 +605,14 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
         chunks = []
         for i, chunk in tqdm(enumerate(split_result.chunks)):
-            # Create memory entry for each chunk
-            chunk_entry = {
-                "inputs": {
-                    "original_inputs": inputs,
-                    "chunk_index": i,
-                    "total_chunks": len(split_result.chunks),
-                    "chunk_summary": chunk["summary"],
-                },
-                "outputs": {
-                    "chunk_content": chunk["content"],
-                    "original_result": result,
-                },
-            }
-            chunks.append(chunk_entry)
-
             # Extract concepts for each chunk separately
-            chunk_concepts = await self._extract_concepts(chunk["content"])
+            chunk_concepts = await self._extract_concepts(chunk)
             logger.debug(f"Chunk {i} concepts: {list(chunk_concepts)}")
 
             entry = MemoryEntry(
                 id=str(uuid.uuid4()),
-                inputs=chunk_entry["inputs"],
-                outputs=chunk_entry["outputs"],
-                embedding=self.memory_store.compute_embedding(
-                    chunk["content"]
-                ).tolist(),
+                content=chunk,
+                embedding=self.memory_store.compute_embedding(chunk).tolist(),
                 concepts=chunk_concepts,
                 timestamp=datetime.now(),
             )
@@ -675,15 +657,8 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         if not self.memory_enabled or not self.memory_store:
             return
         try:
-            full_text = json.dumps(inputs) + json.dumps(result)
-            if (
-                len(full_text) > self.memory_config.max_length
-            ):  # configurable threshold
-                # Split and store chunks
-                await self._split_entry(inputs, result)
-            else:
-                # Store as single entry
-                await self._store_single_entry(full_text, inputs, result)
+            await self._extract_information_and_update_memory(inputs, result)
+
         except Exception as e:
             logger.warning(f"Memory storage failed: {e!s}", agent=self.name)
 
