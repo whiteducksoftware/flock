@@ -1,3 +1,8 @@
+"""Flock memory storage with short-term and long-term memory, concept graph, and clustering.
+
+Loosely based on the ideas of the library memoripy
+"""
+
 import json
 from datetime import datetime
 from typing import Any
@@ -114,6 +119,66 @@ class MemoryGraph(BaseModel):
 
         logger.debug(f"Activation levels: {activated}")
         return activated
+
+    def save_as_image(self, filename: str = "memory_graph.png") -> None:
+        """Visualize the concept graph and save it as a PNG image.
+
+        This method uses matplotlib to:
+          - Draw all nodes and edges
+          - Label edges with their "weight" attribute
+          - Lay out the graph using a spring layout
+          - Save the resulting figure to the specified filename
+
+        Args:
+            filename: The path (including .png) where the image will be saved.
+        """
+        import matplotlib
+
+        # Use a non-interactive backend if running headless or in certain environments
+        matplotlib.use("Agg")
+
+        import matplotlib.pyplot as plt
+
+        logger.info(f"Saving MemoryGraph visualization to '{filename}'")
+
+        # If graph is empty, just log and return
+        if self._graph.number_of_nodes() == 0:
+            logger.warning("MemoryGraph is empty; skipping image creation.")
+            return
+
+        try:
+            # Create a figure
+            plt.figure(figsize=(8, 6))
+
+            # Use a spring layout for the graph
+            pos = nx.spring_layout(self._graph, seed=42)
+
+            # Draw nodes and edges
+            nx.draw_networkx_nodes(
+                self._graph, pos, node_size=800, node_color="#1f78b4"
+            )
+            nx.draw_networkx_edges(self._graph, pos, edge_color="#999999")
+
+            # Draw node labels
+            nx.draw_networkx_labels(self._graph, pos, font_color="black")
+
+            # If you'd like to see edge weights, retrieve them and draw
+            edge_labels = nx.get_edge_attributes(self._graph, "weight")
+            if edge_labels:
+                nx.draw_networkx_edge_labels(
+                    self._graph, pos, edge_labels=edge_labels
+                )
+
+            plt.title("Memory Graph")
+            plt.axis("off")
+
+            # Save as PNG with a high DPI for clarity
+            plt.savefig(filename, dpi=300, bbox_inches="tight")
+            plt.close()
+            logger.info(f"MemoryGraph image saved to '{filename}'")
+        except Exception as e:
+            logger.error(f"Failed to save MemoryGraph image: {e}")
+            plt.close()
 
 
 class FlockMemoryStore(BaseModel):

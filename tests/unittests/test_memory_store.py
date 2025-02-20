@@ -17,6 +17,7 @@ def test_memory_graph_serialization():
     concepts = {"concept1", "concept2", "concept3"}
     mg.add_concepts(concepts)
     data_after = json.loads(mg.graph_json)
+    mg.save_as_image("test_graph.png")
     # Check that all nodes are present.
     assert len(data_after["nodes"]) == 3
     # In a complete graph of 3 nodes (undirected), there are 3 edges.
