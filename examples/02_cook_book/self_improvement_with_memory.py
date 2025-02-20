@@ -31,8 +31,6 @@ class Chat:
         # Use a Rich-styled prompt to get user input
         self.user_query = Prompt.ask("[bold cyan]User[/bold cyan]")
         inputs["user_query"] = self.user_query
-        inputs["chat_history"] = self.chat_history
-        inputs["memory"] = self.memory
 
     # Triggers after the agent responds to the user query
     async def after_response(self, agent:FlockAgent, inputs, outputs):
@@ -40,7 +38,6 @@ class Chat:
         console = Console()
         self.answer_to_query = outputs["answer_to_query"]
         self.chat_history.append({"user": self.user_query, "assistant": self.answer_to_query})
-        self.memory += outputs.get("important_new_knowledge_to_add_to_memory", "") + "\n"
 
         agent.save_memory_graph("chat_memory_graph.json")
         agent.export_memory_graph("chat_memory_graph.png")
@@ -85,9 +82,6 @@ async def main():
         name="chatty", 
         description=f"""You are Chatty, a friendly assistant that loves to chat. 
                     Today is {datetime.now().strftime('%A, %B %d, %Y')}.
-                    Use web_search_duckduckgo to search the web, 
-                    +get_web_content_as_markdown to get web content as markdown, 
-                    and code_eval for all tasks that require code execution.
                     """,
         input="user_query", 
         output="answer_to_query",
@@ -107,7 +101,7 @@ async def main():
 
     await flock.run_async(
         start_agent=chatty, 
-        input={"memory": "","user_query": "","chat_history": ""}
+        input={"user_query": ""}
     )
 
 

@@ -69,11 +69,18 @@ class FlockAgentMemoryConfig(BaseModel):
     file_path: str = Field(
         default="agent_memory.json", descriptions="File path for memory storage"
     )
-    similarity_threshold: int = Field(
-        default=40, descriptions="Similarity threshold for memory"
+    save_memory_after_every_update: bool = Field(
+        default=True,
+        descriptions="Saves the memory after every update",
+    )
+    similarity_threshold: float = Field(
+        default=0.5, descriptions="Similarity threshold for memory"
     )
     context_window: int = Field(
-        default=3, descriptions="Context window for memory"
+        default=3, descriptions="Number of memory entries to return"
+    )
+    max_length: int = Field(
+        default=1000, descriptions="Max length of memory entry before splitting"
     )
 
 
@@ -280,19 +287,19 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
         Override this method or provide an `initialize_callback` to perform setup tasks such as input validation or resource loading.
         """
-        if self.memory_enabled:
-            # Initialize memory store if needed
-            if self.memory_store is None:
-                file_path = None
-                if self.memory_config:
-                    file_path = self.memory_config.file_path
-                self.memory_store = FlockMemoryStore.load_from_file(file_path)
+        if self.memory_enabled and self.memory_store is None:
+            file_path = None
+            if self.memory_config:
+                file_path = self.memory_config.file_path
+            else:
+                self.memory_config = FlockAgentMemoryConfig()
+            self.memory_store = FlockMemoryStore.load_from_file(file_path)
 
-            # Create default mapping if none provided
-            if self.memory_mapping is None:
-                self.memory_mapping = self._create_default_mapping()
-
-        self.memory_ops = MemoryMappingParser().parse(self.memory_mapping)
+        if self.memory_mapping is None:
+            self.memory_ops = []
+            self.memory_ops.append(SemanticOperation())
+        else:
+            self.memory_ops = MemoryMappingParser().parse(self.memory_mapping)
 
         if self.initialize_callback is not None:
             await self.initialize_callback(self, inputs)
@@ -435,9 +442,6 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         with open(file_path, "w") as file:
             file.write(json.dumps(dict_data))
 
-    def _create_default_mapping(self) -> str:
-        return f"{self.name}: {self.output}"
-
     async def _extract_concepts(self, text: str) -> set[str]:
         """Extract concepts using DSPy integration."""
         existing_concepts = None
@@ -474,9 +478,6 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         """Check memory before main evaluation."""
         if not self.memory_enabled or not self.memory_store:
             return None
-
-        if not self.memory_ops:
-            self.memory_ops.append(SemanticOperation())
 
         try:
             # Convert input to embedding
@@ -645,9 +646,6 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
         return chunks
 
-    async def _store_chunk(self, chunk: dict[str, Any]) -> None:
-        pass
-
     async def _store_single_entry(
         self, full_text: str, inputs: dict[str, Any], result: dict[str, Any]
     ) -> None:
@@ -676,23 +674,16 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         """Store results in memory after evaluation."""
         if not self.memory_enabled or not self.memory_store:
             return
-
         try:
-            # Combine inputs and results for concept extraction
             full_text = json.dumps(inputs) + json.dumps(result)
-
-            # Extract concepts
-            # concepts = await self._extract_concepts(full_text)
-
-            if len(full_text) > 1000:  # configurable threshold
+            if (
+                len(full_text) > self.memory_config.max_length
+            ):  # configurable threshold
                 # Split and store chunks
-                chunks = await self._split_entry(inputs, result)
-                for chunk in chunks:
-                    await self._store_chunk(chunk)
+                await self._split_entry(inputs, result)
             else:
                 # Store as single entry
                 await self._store_single_entry(full_text, inputs, result)
-
         except Exception as e:
             logger.warning(f"Memory storage failed: {e!s}", agent=self.name)
 
