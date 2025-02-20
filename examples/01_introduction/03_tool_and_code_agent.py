@@ -54,6 +54,7 @@ async def main():
             theme=OutputTheme.adventuretime
         ),
         use_cache=True,
+        memory_enabled=True,
     )
     flock.add_agent(agent)
 
@@ -65,6 +66,9 @@ async def main():
         start_agent=agent,
         input={"a_person": "Johnny Depp"},
     )
+
+    agent.save_memory_graph("celebrity_age_calculator.json")
+    agent.export_memory_graph("celebrity_age_calculator.png")
 
 
 if __name__ == "__main__":

@@ -62,6 +62,13 @@ class ExactOperation(MemoryOperation):
     keys: list[str] = Field(default_factory=list)
 
 
+class ChunkOperation(MemoryOperation):
+    """Operation for handling chunked entries."""
+
+    type: Literal["chunk"] = "chunk"
+    reconstruct: bool = True
+
+
 class EnrichOperation(MemoryOperation):
     """Enrich memory with tool results."""
 
@@ -142,7 +149,8 @@ class MemoryGraph(BaseModel):
 
     def add_concepts(self, concepts: set[str]) -> None:
         """Add a set of concepts to the graph and update their associations."""
-        logger.debug(f"Adding concepts: {concepts}")
+        concept_list = list(concepts)
+        logger.debug(f"Adding concepts: {concept_list}")
         for concept in concepts:
             self._graph.add_node(concept)
         for c1 in concepts:
@@ -187,61 +195,125 @@ class MemoryGraph(BaseModel):
         return activated
 
     def save_as_image(self, filename: str = "memory_graph.png") -> None:
-        """Visualize the concept graph and save it as a PNG image.
+        """Visualize the concept graph and save it as a PNG image with improved readability.
 
-        This method uses matplotlib to:
-          - Draw all nodes and edges
-          - Label edges with their "weight" attribute
-          - Lay out the graph using a spring layout
-          - Save the resulting figure to the specified filename
+        This method uses matplotlib to create a clear and readable visualization by:
+        - Using a larger figure size
+        - Implementing better node spacing
+        - Adding adjustable text labels
+        - Using a more visually appealing color scheme
+        - Adding edge weight visualization
 
         Args:
             filename: The path (including .png) where the image will be saved.
         """
         import matplotlib
 
-        # Use a non-interactive backend if running headless or in certain environments
         matplotlib.use("Agg")
-
         import matplotlib.pyplot as plt
 
         logger.info(f"Saving MemoryGraph visualization to '{filename}'")
 
-        # If graph is empty, just log and return
         if self._graph.number_of_nodes() == 0:
             logger.warning("MemoryGraph is empty; skipping image creation.")
             return
 
         try:
-            # Create a figure
-            plt.figure(figsize=(8, 6))
+            # Create a larger figure with higher DPI
+            plt.figure(figsize=(16, 12), dpi=100)
 
-            # Use a spring layout for the graph
-            pos = nx.spring_layout(self._graph, seed=42)
+            # Use Kamada-Kawai layout for better node distribution
+            pos = nx.kamada_kawai_layout(self._graph)
 
-            # Draw nodes and edges
+            # Calculate node sizes based on degree
+            node_degrees = dict(self._graph.degree())
+            node_sizes = [
+                2000 * (1 + node_degrees[node] * 0.2)
+                for node in self._graph.nodes()
+            ]
+
+            # Calculate edge weights for width and transparency
+            edge_weights = [
+                d["weight"] for (u, v, d) in self._graph.edges(data=True)
+            ]
+            max_weight = max(edge_weights) if edge_weights else 1
+            edge_widths = [1 + (w / max_weight) * 3 for w in edge_weights]
+            edge_alphas = [0.2 + (w / max_weight) * 0.8 for w in edge_weights]
+
+            # Draw the network with custom styling
+            # Nodes
             nx.draw_networkx_nodes(
-                self._graph, pos, node_size=800, node_color="#1f78b4"
+                self._graph,
+                pos,
+                node_size=node_sizes,
+                node_color="#5fa4d4",  # Lighter blue
+                alpha=0.7,
+                edgecolors="white",
             )
-            nx.draw_networkx_edges(self._graph, pos, edge_color="#999999")
 
-            # Draw node labels
-            nx.draw_networkx_labels(self._graph, pos, font_color="black")
-
-            # If you'd like to see edge weights, retrieve them and draw
-            edge_labels = nx.get_edge_attributes(self._graph, "weight")
-            if edge_labels:
-                nx.draw_networkx_edge_labels(
-                    self._graph, pos, edge_labels=edge_labels
+            # Edges with varying width and transparency
+            for (u, v, d), width, alpha in zip(
+                self._graph.edges(data=True), edge_widths, edge_alphas
+            ):
+                nx.draw_networkx_edges(
+                    self._graph,
+                    pos,
+                    edgelist=[(u, v)],
+                    width=width,
+                    alpha=alpha,
+                    edge_color="#2c3e50",  # Darker blue-grey
                 )
 
-            plt.title("Memory Graph")
+            # Add labels with better positioning and background
+            labels = nx.get_node_attributes(self._graph, "name") or {
+                node: node for node in self._graph.nodes()
+            }
+            label_pos = {
+                node: (x, y + 0.02) for node, (x, y) in pos.items()
+            }  # Slightly offset labels
+
+            # Draw labels with white background for better readability
+            for node, (x, y) in label_pos.items():
+                plt.text(
+                    x,
+                    y,
+                    labels[node],
+                    horizontalalignment="center",
+                    verticalalignment="center",
+                    fontsize=8,
+                    fontweight="bold",
+                    bbox=dict(
+                        facecolor="white", edgecolor="none", alpha=0.7, pad=2.0
+                    ),
+                )
+
+            # Add edge weight labels for significant weights
+            edge_labels = nx.get_edge_attributes(self._graph, "weight")
+            significant_edges = {
+                (u, v): w
+                for (u, v), w in edge_labels.items()
+                if w > max_weight * 0.3
+            }
+            if significant_edges:
+                nx.draw_networkx_edge_labels(
+                    self._graph,
+                    pos,
+                    edge_labels=significant_edges,
+                    font_size=6,
+                    bbox=dict(facecolor="white", edgecolor="none", alpha=0.7),
+                )
+
+            # Improve layout
+            plt.title("Memory Concept Graph", fontsize=16, pad=20)
             plt.axis("off")
 
-            # Save as PNG with a high DPI for clarity
-            plt.savefig(filename, dpi=300, bbox_inches="tight")
+            # Add padding and save
+            plt.tight_layout(pad=2.0)
+            plt.savefig(filename, bbox_inches="tight", facecolor="white")
             plt.close()
-            logger.info(f"MemoryGraph image saved to '{filename}'")
+
+            logger.info(f"MemoryGraph image saved successfully to '{filename}'")
+
         except Exception as e:
             logger.error(f"Failed to save MemoryGraph image: {e}")
             plt.close()
@@ -262,6 +334,159 @@ class FlockMemoryStore(BaseModel):
     # The embedding model is stored as a private attribute, as it's not serializable.
     _embedding_model: SentenceTransformer | None = PrivateAttr(default=None)
 
+    @classmethod
+    def load_from_file(cls, file_path: str | None = None) -> "FlockMemoryStore":
+        """Load a memory store from a JSON file.
+
+        Args:
+            file_path: Path to the JSON file containing the serialized memory store.
+                      If None, returns an empty memory store.
+
+        Returns:
+            FlockMemoryStore: A new memory store instance with loaded data.
+
+        Raises:
+            FileNotFoundError: If the specified file doesn't exist
+            JSONDecodeError: If the file contains invalid JSON
+            ValueError: If the JSON structure is invalid
+        """
+        if file_path is None:
+            logger.debug("No file path provided, creating new memory store")
+            return cls()
+
+        try:
+            logger.info(f"Loading memory store from {file_path}")
+            with open(file_path) as f:
+                data = json.load(f)
+
+            # Initialize a new store
+            store = cls()
+
+            # Load short-term memory entries
+            store.short_term = [
+                MemoryEntry(
+                    id=entry["id"],
+                    inputs=entry["inputs"],
+                    outputs=entry["outputs"],
+                    embedding=entry.get("embedding"),
+                    timestamp=datetime.fromisoformat(entry["timestamp"]),
+                    access_count=entry.get("access_count", 0),
+                    concepts=set(entry.get("concepts", [])),
+                    decay_factor=entry.get("decay_factor", 1.0),
+                )
+                for entry in data.get("short_term", [])
+            ]
+
+            # Load long-term memory entries
+            store.long_term = [
+                MemoryEntry(
+                    id=entry["id"],
+                    inputs=entry["inputs"],
+                    outputs=entry["outputs"],
+                    embedding=entry.get("embedding"),
+                    timestamp=datetime.fromisoformat(entry["timestamp"]),
+                    access_count=entry.get("access_count", 0),
+                    concepts=set(entry.get("concepts", [])),
+                    decay_factor=entry.get("decay_factor", 1.0),
+                )
+                for entry in data.get("long_term", [])
+            ]
+
+            # Load concept graph
+            if "concept_graph" in data:
+                graph_data = json.loads(data["concept_graph"]["graph_json"])
+                store.concept_graph = MemoryGraph(
+                    graph_json=json.dumps(graph_data)
+                )
+
+            # Load clusters
+            if "clusters" in data:
+                store.clusters = {
+                    int(k): [
+                        MemoryEntry(
+                            id=entry["id"],
+                            inputs=entry["inputs"],
+                            outputs=entry["outputs"],
+                            embedding=entry.get("embedding"),
+                            timestamp=datetime.fromisoformat(
+                                entry["timestamp"]
+                            ),
+                            access_count=entry.get("access_count", 0),
+                            concepts=set(entry.get("concepts", [])),
+                            decay_factor=entry.get("decay_factor", 1.0),
+                        )
+                        for entry in v
+                    ]
+                    for k, v in data["clusters"].items()
+                }
+
+            # Load cluster centroids
+            if "cluster_centroids" in data:
+                store.cluster_centroids = {
+                    int(k): v for k, v in data["cluster_centroids"].items()
+                }
+
+            # Initialize the embedding model
+            store._embedding_model = None  # Will be lazy-loaded when needed
+
+            logger.info(
+                f"Successfully loaded memory store with "
+                f"{len(store.short_term)} short-term and "
+                f"{len(store.long_term)} long-term entries"
+            )
+            return store
+
+        except FileNotFoundError:
+            logger.warning(
+                f"Memory file {file_path} not found, creating new store"
+            )
+            return cls()
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in memory file: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error loading memory store: {e}")
+            raise ValueError(f"Failed to load memory store: {e}")
+
+    @classmethod
+    def merge_stores(
+        cls, stores: list["FlockMemoryStore"]
+    ) -> "FlockMemoryStore":
+        """Merge multiple memory stores into a single store.
+
+        Args:
+            stores: List of FlockMemoryStore instances to merge
+
+        Returns:
+            FlockMemoryStore: A new memory store containing merged data
+        """
+        merged = cls()
+
+        # Merge short-term and long-term memories
+        for store in stores:
+            merged.short_term.extend(store.short_term)
+            merged.long_term.extend(store.long_term)
+
+        # Merge concept graphs
+        merged_graph = nx.Graph()
+        for store in stores:
+            if store.concept_graph and store.concept_graph.graph:
+                merged_graph = nx.compose(
+                    merged_graph, store.concept_graph.graph
+                )
+
+        merged.concept_graph = MemoryGraph(
+            graph_json=json.dumps(
+                nx.node_link_data(merged_graph, edges="links")
+            )
+        )
+
+        # Recompute clusters for the merged data
+        if merged.short_term:
+            merged._update_clusters()
+
+        return merged
+
     def get_embedding_model(self) -> SentenceTransformer:
         """Initialize and return the SentenceTransformer model.
 
@@ -281,7 +506,7 @@ class FlockMemoryStore(BaseModel):
     def compute_embedding(self, text: str) -> np.ndarray:
         """Compute and return the embedding for the provided text as a NumPy array."""
         logger.debug(
-            f"Computing embedding for text: {text[:30]}..."
+            f"Computing embedding for text: {text[:100].replace('{', '{{').replace('}', '}}')}..."
         )  # Log first 30 chars for brevity.
         model = self.get_embedding_model()
         try:

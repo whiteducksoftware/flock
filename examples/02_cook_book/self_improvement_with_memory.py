@@ -11,7 +11,7 @@ import asyncio
 from dataclasses import dataclass, field
 
 from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent, FlockAgentConfig, HandOff
+from flock.core.flock_agent import FlockAgent, FlockAgentConfig, FlockAgentMemoryConfig, HandOff
 
 from rich.prompt import Prompt
 from rich.panel import Panel
@@ -27,12 +27,6 @@ class Chat:
     
     async def before_response(self, agent, inputs):
         console = Console()
-        # Load the memory from file (if it exists)
-        try:
-            with open("memory.txt", "r") as file:
-                self.memory = file.read()
-        except FileNotFoundError:
-            self.memory = ""
 
         # Use a Rich-styled prompt to get user input
         self.user_query = Prompt.ask("[bold cyan]User[/bold cyan]")
@@ -41,16 +35,15 @@ class Chat:
         inputs["memory"] = self.memory
 
     # Triggers after the agent responds to the user query
-    async def after_response(self, agent, inputs, outputs):
+    async def after_response(self, agent:FlockAgent, inputs, outputs):
         # Update answer and history based on the agent's outputs
         console = Console()
         self.answer_to_query = outputs["answer_to_query"]
         self.chat_history.append({"user": self.user_query, "assistant": self.answer_to_query})
         self.memory += outputs.get("important_new_knowledge_to_add_to_memory", "") + "\n"
 
-        # Save updated memory to file
-        with open("memory.txt", "w") as file:
-            file.write(self.memory)
+        agent.save_memory_graph("chat_memory_graph.json")
+        agent.export_memory_graph("chat_memory_graph.png")
 
         # Display the assistant's reasoning (if available) in a styled panel
         reasoning = outputs.get("reasoning", "")
@@ -75,14 +68,6 @@ class Chat:
         if self.user_query.lower() == "goodbye":
             return None
         return HandOff(next_agent="chatty")
-    
-    
-def optimize_memory(optimized_memory:str):
-    try:
-        with open("memory.txt", "w") as file:
-            file.write(optimized_memory)
-    except FileNotFoundError:
-        pass
 
 
 MODEL = "openai/gpt-4o"
@@ -92,6 +77,9 @@ async def main():
     chat_helper = Chat()
     flock = Flock(model=MODEL, local_debug=True)
 
+    memory_config = FlockAgentMemoryConfig()
+    memory_config.storage_type = "json"
+    memory_config.file_path = "chat_memory_graph.json"
 
     chatty = FlockAgent(
         name="chatty", 
@@ -100,18 +88,17 @@ async def main():
                     Use web_search_duckduckgo to search the web, 
                     +get_web_content_as_markdown to get web content as markdown, 
                     and code_eval for all tasks that require code execution.
-                    Save knowledge to memory for future reference.
-                    Once in a while optimize your knowledge by calling the optimize_memory tool 
-                    with the optimized memory as input.
                     """,
-        input="user_query, memory | Memory of previous interactions, chat_history | the current chat history", 
-        output="answer_to_query, important_new_knowledge_to_add_to_memory | Empty string if no knowledge to add",
+        input="user_query", 
+        output="answer_to_query",
         initialize_callback=chat_helper.before_response,
         terminate_callback=chat_helper.after_response,
         config=FlockAgentConfig(disable_output=True),
         tools=[basic_tools.web_search_duckduckgo, 
                basic_tools.get_web_content_as_markdown, 
-               basic_tools.code_eval,optimize_memory],
+               basic_tools.code_eval],
+        memory_enabled=True,
+        memory_config=memory_config
     )
     
     flock.add_agent(chatty)

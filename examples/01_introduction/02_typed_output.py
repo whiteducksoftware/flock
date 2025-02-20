@@ -31,7 +31,7 @@ async def main():
     # --------------------------------
     # Create the flock
     # --------------------------------
-    flock = Flock(local_debug=True, enable_logging=True)
+    flock = Flock(local_debug=True)
 
 
     # --------------------------------
@@ -54,7 +54,8 @@ async def main():
         output_config=FlockAgentOutputConfig(
             render_table=True,
             theme=OutputTheme.abernathy
-        )
+        ),
+        memory_enabled=True
     )
     flock.add_agent(agent)
 
@@ -68,6 +69,9 @@ async def main():
         start_agent=agent,
         input={"url": "https://lite.cnn.com/travel/alexander-the-great-macedon-persian-empire-darius/index.html"},
     )
+
+    agent.save_memory_graph("memory_graph.json")
+    agent.export_memory_graph("memory_graph.png")
 
     # --------------------------------
     # The result type

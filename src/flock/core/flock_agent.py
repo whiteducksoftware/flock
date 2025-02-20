@@ -12,6 +12,7 @@ from typing import Any, Literal, TypeVar, Union
 import cloudpickle
 import numpy as np
 from pydantic import BaseModel, Field
+from tqdm import tqdm
 
 from flock.core.context.context import FlockContext
 from flock.core.logging.formatters.themed_formatter import (
@@ -61,10 +62,6 @@ class FlockAgentConfig(BaseModel):
 class FlockAgentMemoryConfig(BaseModel):
     """Flock Agent Memory Configuration."""
 
-    use_memory: bool = Field(
-        default=False,
-        descriptions="Enable memory for this agent",
-    )
     storage_type: Literal["json", "in_memory"] = Field(
         default="json", descriptions="Storage type for memory"
     )
@@ -242,7 +239,10 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         description="Configuration options for the agent's memory.",
     )
 
-    memory_enabled: bool = Field(default=True)
+    memory_enabled: bool = Field(
+        default=False,
+        description="Enable memory for this agent",
+    )
     memory_mapping: str | None = Field(default=None)
     memory_store: FlockMemoryStore | None = Field(default=None)
     memory_ops: dict[str, Any] | None = Field(default=None)
@@ -282,7 +282,10 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         if self.memory_enabled:
             # Initialize memory store if needed
             if self.memory_store is None:
-                self.memory_store = FlockMemoryStore()
+                file_path = None
+                if self.memory_config:
+                    file_path = self.memory_config.file_path
+                self.memory_store = FlockMemoryStore.load_from_file(file_path)
 
             # Create default mapping if none provided
             if self.memory_mapping is None:
@@ -436,17 +439,27 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
     async def _extract_concepts(self, text: str) -> set[str]:
         """Extract concepts using DSPy integration."""
+        existing_concepts = None
+        if self.memory_store.concept_graph:
+            existing_concepts = set(
+                self.memory_store.concept_graph.graph.nodes()
+            )
+
+        input_def = "text: str | Text to analyze"
+        if existing_concepts:
+            input_def += ", existing_concepts: list[str] | Already known concepts that might apply"
+
         # Create a signature for concept extraction
         concept_signature = self.create_dspy_signature_class(
             f"{self.name}_concept_extractor",
             "Extract key concepts from text",
-            "text: str | Text to analyze -> concepts: list[str] | Key concepts",
+            f"{input_def} -> concepts: list[str] | Max five key concepts all lower case",
         )
 
         # Configure and run the predictor
         self._configure_language_model()
         predictor = self._select_task(concept_signature, "Completion")
-        result = predictor(text=text)
+        result = predictor(text=text, existing_concepts=list(existing_concepts))
 
         # Convert to set
         concept_list = result.concepts if hasattr(result, "concepts") else []
@@ -458,11 +471,7 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         self, inputs: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Check memory before main evaluation."""
-        if (
-            not self.memory_enabled
-            or not self.memory_store
-            or not self.memory_ops
-        ):
+        if not self.memory_enabled or not self.memory_store:
             return None
 
         try:
@@ -555,6 +564,108 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
         return datetime.now() - delta
 
+    def save_memory_graph(self, file_path: str) -> None:
+        """Save the memory graph to a file."""
+        if self.memory_store:
+            json_str = self.memory_store.model_dump_json()
+            with open(file_path, "w") as file:
+                file.write(json_str)
+
+    def export_memory_graph(self, file_path: str) -> None:
+        """Export the memory graph to an image file."""
+        if self.memory_store:
+            self.memory_store.concept_graph.save_as_image(file_path)
+
+    async def _split_entry(
+        self, inputs: dict[str, Any], result: dict[str, Any]
+    ) -> list[dict]:
+        """Split entries using DSPy for intelligent chunking."""
+        # Create splitter signature
+        split_signature = self.create_dspy_signature_class(
+            f"{self.name}_splitter",
+            "Split content into meaningful, self-contained chunks",
+            """
+            content: str | The content to split
+            -> chunks: list[dict[str,str]] | List of chunks with content as key and summary as value
+            """,
+        )
+
+        # Configure and run the predictor
+        self._configure_language_model()
+        splitter = self._select_task(split_signature, "Completion")
+
+        # Get the content to split
+        full_text = json.dumps(inputs) + json.dumps(result)
+        split_result = splitter(content=full_text)
+
+        chunks = []
+        for i, chunk in tqdm(enumerate(split_result.chunks)):
+            # Create memory entry for each chunk
+            chunk_entry = {
+                "inputs": {
+                    "original_inputs": inputs,
+                    "chunk_index": i,
+                    "total_chunks": len(split_result.chunks),
+                    "chunk_summary": chunk["summary"],
+                },
+                "outputs": {
+                    "chunk_content": chunk["content"],
+                    "original_result": result,
+                },
+            }
+            chunks.append(chunk_entry)
+
+            # Extract concepts for each chunk separately
+            chunk_concepts = await self._extract_concepts(chunk["content"])
+            logger.debug(f"Chunk {i} concepts: {list(chunk_concepts)}")
+
+            entry = MemoryEntry(
+                id=str(uuid.uuid4()),
+                inputs=chunk_entry["inputs"],
+                outputs=chunk_entry["outputs"],
+                embedding=self.memory_store.compute_embedding(
+                    chunk["content"]
+                ).tolist(),
+                concepts=chunk_concepts,
+                timestamp=datetime.now(),
+            )
+
+            # Add to memory store
+            self.memory_store.add_entry(entry)
+            logger.debug(
+                "Stored interaction in memory",
+                agent=self.name,
+                entry_id=entry.id,
+                concepts=chunk_concepts,
+            )
+
+        return chunks
+
+    async def _store_chunk(self, chunk: dict[str, Any]) -> None:
+        pass
+
+    async def _store_single_entry(
+        self, full_text: str, inputs: dict[str, Any], result: dict[str, Any]
+    ) -> None:
+        concepts = await self._extract_concepts(full_text)
+        entry = MemoryEntry(
+            id=str(uuid.uuid4()),
+            inputs=inputs,
+            outputs=result,
+            embedding=self.memory_store.compute_embedding(full_text).tolist(),
+            concepts=concepts,
+            timestamp=datetime.now(),
+        )
+
+        # Add to memory store
+        self.memory_store.add_entry(entry)
+        logger.debug(
+            "Stored interaction in memory",
+            agent=self.name,
+            entry_id=entry.id,
+            concepts=concepts,
+        )
+
     async def update_memory(
         self, inputs: dict[str, Any], result: dict[str, Any]
     ) -> None:
@@ -567,28 +678,16 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             full_text = json.dumps(inputs) + json.dumps(result)
 
             # Extract concepts
-            concepts = await self._extract_concepts(full_text)
+            # concepts = await self._extract_concepts(full_text)
 
-            # Create memory entry
-            entry = MemoryEntry(
-                id=str(uuid.uuid4()),
-                inputs=inputs,
-                outputs=result,
-                embedding=self.memory_store.compute_embedding(
-                    full_text
-                ).tolist(),
-                concepts=concepts,
-                timestamp=datetime.now(),
-            )
-
-            # Add to memory store
-            self.memory_store.add_entry(entry)
-            logger.debug(
-                "Stored interaction in memory",
-                agent=self.name,
-                entry_id=entry.id,
-                concepts=concepts,
-            )
+            if len(full_text) > 1000:  # configurable threshold
+                # Split and store chunks
+                chunks = await self._split_entry(inputs, result)
+                for chunk in chunks:
+                    await self._store_chunk(chunk)
+            else:
+                # Store as single entry
+                await self._store_single_entry(full_text, inputs, result)
 
         except Exception as e:
             logger.warning(f"Memory storage failed: {e!s}", agent=self.name)
