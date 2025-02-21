@@ -27,6 +27,7 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.30.0",
     "opentelemetry-instrumentation-logging>=0.51b0",
     "opentelemetry-sdk>=1.30.0",
+    "pillow>=10.4.0",
     "pydantic>=2.10.5",
     "python-box>=7.3.2",
     "python-decouple>=3.8",
