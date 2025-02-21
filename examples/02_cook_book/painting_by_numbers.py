@@ -13,6 +13,7 @@ from flock.core.logging.formatters.themes import OutputTheme
 class ImagePart(BaseModel):
     image_part: str = Field(description="Part of the image to draw")
     list_of_coordinates: list[tuple[float,float]] = Field(default_factory=list, description="List of coordinates to connect to create a part of the image. X<10 - Y<10 - coordinates are floats - use this accuracy for better results")
+    matplotlib_color: str = Field(default="b", description="Color of the line in the plot")
 
 # global variables
 MODEL = "openai/gpt-4"
@@ -34,7 +35,7 @@ async def draw_image(agent,input,output):
     for image_part in image_parts:
         coordinates = np.array(image_part.list_of_coordinates)  # Convert list to numpy array
         if len(coordinates) > 1:
-            plt.plot(coordinates[:, 0], coordinates[:, 1], marker='x', linestyle='-', markersize=5, color='b')
+            plt.plot(coordinates[:, 0], coordinates[:, 1], marker='x', linestyle='-', markersize=5, color=image_part.matplotlib_color)
     
     plt.axis('equal')  # Keep aspect ratio
     plt.grid(True)
