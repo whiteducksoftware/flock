@@ -12,7 +12,7 @@ from flock.core.logging.formatters.themes import OutputTheme
 # Class for parts of the final image
 class ImagePart(BaseModel):
     image_part: str = Field(description="Part of the image to draw")
-    list_of_coordinates: list[tuple[float,float]] = Field(default_factory=list, description="List of coordinates to connect to create a part of the image. X<100 - Y<100 - coordinates are floats - use this accuracy for better results")
+    list_of_coordinates: list[tuple[float,float]] = Field(default_factory=list, description="List of coordinates to connect to create a part of the image. X<10 - Y<10 - coordinates are floats - use this accuracy for better results")
 
 # global variables
 MODEL = "openai/gpt-4"
@@ -66,7 +66,7 @@ config = FlockAgentConfig(agent_type_override="ChainOfThought")
 
 agent = FlockAgent(name="the_painter", 
                     input="subject_to_draw: str", 
-                    description="Draws an image by connecting the coordinates of the image parts. 0/0 is bottom left corner - 100/100 is top right corner",
+                    description="Draws an image by connecting the coordinates of the image parts. 0/0 is bottom left corner - 10/10 is top right corner",
                     output="list_of_all_image_parts: list[ImagePart] | list of all image parts to draw by connecting the coordinates",
                     config=config, 
                     terminate_callback=draw_image,
