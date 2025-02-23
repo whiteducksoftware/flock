@@ -232,3 +232,13 @@ def get_logger(name: str = "flock", enable_logging: bool = True) -> FlockLogger:
     else:
         _LOGGER_CACHE[name].enable_logging = enable_logging
     return _LOGGER_CACHE[name]
+
+
+def get_module_loggers() -> list[FlockLogger]:
+    """Return a cached FlockLogger instance for the given module name."""
+    result = []
+    for kvp in _LOGGER_CACHE:
+        if kvp.startswith("module."):
+            result.append(_LOGGER_CACHE[kvp])
+
+    return result

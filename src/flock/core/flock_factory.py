@@ -3,7 +3,8 @@
 from collections.abc import Callable
 from typing import Any
 
-from flock.core.flock_agent import FlockAgent
+from flock.core.flock_agent import FlockAgent, HandOff
+from flock.core.logging.formatters.themes import OutputTheme
 from flock.evaluators.dspy.default import (
     DefaultEvaluator,
     DefaultEvaluatorConfig,
@@ -18,11 +19,13 @@ class FlockFactory:
     def create_default_agent(
         name: str,
         description: str | Callable[..., str] | None = None,
+        model: str | Callable[..., str] | None = "openai/gpt-4o",
         input_def: str | Callable[..., str] | None = None,
         output_def: str | Callable[..., str] | None = None,
-        model: str | Callable[..., str] | None = "openai/gpt-4o",
         tools: list[Callable[..., Any] | Any] | None = None,
-        hand_off: str | Callable[..., Any] | None = None,
+        hand_off: str | HandOff | Callable[..., HandOff] | None = None,
+        enable_rich_tables: bool = False,
+        output_theme: OutputTheme = OutputTheme.abernathy,
     ) -> FlockAgent:
         """Creates a default FlockAgent with some common modules.
 
@@ -33,9 +36,7 @@ class FlockFactory:
         """
         eval_config = DefaultEvaluatorConfig(model=model)
 
-        evaluator = DefaultEvaluator(
-            name="default_evaluator", config=eval_config
-        )
+        evaluator = DefaultEvaluator(name="default", config=eval_config)
         agent = FlockAgent(
             name=name,
             input=input_def,
@@ -46,7 +47,9 @@ class FlockFactory:
             description=description,
             evaluator=evaluator,
         )
-        output_config = OutputModuleConfig()
+        output_config = OutputModuleConfig(
+            render_table=enable_rich_tables, theme=output_theme
+        )
         output_module = OutputModule("output", config=output_config)
 
         agent.add_module(output_module)

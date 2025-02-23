@@ -1,3 +1,5 @@
+import json
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Literal
@@ -14,6 +16,7 @@ tracer = trace.get_tracer(__name__)
 
 @dataclass
 class AgentRunRecord:
+    id: str = field(default="")
     agent: str = field(default="")
     data: dict[str, Any] = field(default_factory=dict)
     timestamp: str = field(default="")
@@ -49,6 +52,7 @@ class FlockContext(Serializable):
         called_from: str,
     ) -> None:
         record = AgentRunRecord(
+            id=agent_name + "_" + uuid.uuid4().hex[:4],
             agent=agent_name,
             data=data.copy(),
             timestamp=timestamp,
@@ -61,7 +65,7 @@ class FlockContext(Serializable):
         self.set_variable(FLOCK_LAST_RESULT, data)
         self.set_variable(FLOCK_LAST_AGENT, agent_name)
         logger.info(
-            "Agent run recorded",
+            f"Agent run recorded - run_id '{record.id}'",
             agent=agent_name,
             timestamp=timestamp,
             data=data,
@@ -80,12 +84,19 @@ class FlockContext(Serializable):
         old_value = self.state.get(key)
         self.state[key] = value
         if old_value != value:
-            logger.info(
-                "Context variable updated",
-                variable=key,
-                old=old_value,
-                new=value,
+            escaped_value = json.dumps(value, ensure_ascii=False)
+            escaped_value = (
+                json.dumps(value, ensure_ascii=False)
+                .replace("{", "{{")
+                .replace("}", "}}")
             )
+
+            logger.info(
+                "Context variable updated - {} -> {}",
+                key,
+                escaped_value,  # Arguments in order
+            )
+
             current_span = trace.get_current_span()
             if current_span.get_span_context().is_valid:
                 current_span.add_event(

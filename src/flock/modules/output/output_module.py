@@ -13,6 +13,9 @@ from flock.core.logging.formatters.themed_formatter import (
     ThemedAgentResultFormatter,
 )
 from flock.core.logging.formatters.themes import OutputTheme
+from flock.core.logging.logging import get_logger
+
+logger = get_logger("module.output")
 
 
 class OutputModuleConfig(FlockModuleConfig):
@@ -155,6 +158,7 @@ class OutputModule(FlockModule):
         self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
     ) -> dict[str, Any]:
         """Format and display the output."""
+        logger.debug("Formatting and displaying output")
         # Display the result using the formatter
         self._formatter.display_result(result, agent.name)
 

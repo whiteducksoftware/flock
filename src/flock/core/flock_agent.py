@@ -112,8 +112,21 @@ class FlockAgent(BaseModel, ABC):
         with tracer.start_as_current_span("agent.initialize") as span:
             span.set_attribute("agent.name", self.name)
             span.set_attribute("inputs", str(inputs))
-            for module in self.get_enabled_modules():
-                await module.initialize(self, inputs)
+
+            try:
+                for module in self.get_enabled_modules():
+                    logger.info(
+                        f"agent.initialize - module {module.name}",
+                        agent=self.name,
+                    )
+                    await module.initialize(self, inputs)
+            except Exception as module_error:
+                logger.error(
+                    "Error during initialize",
+                    agent=self.name,
+                    error=str(module_error),
+                )
+                span.record_exception(module_error)
 
     async def terminate(
         self, inputs: dict[str, Any], result: dict[str, Any]
@@ -122,16 +135,35 @@ class FlockAgent(BaseModel, ABC):
             span.set_attribute("agent.name", self.name)
             span.set_attribute("inputs", str(inputs))
             span.set_attribute("result", str(result))
-            for module in self.get_enabled_modules():
-                await module.terminate(self, inputs, result)
+            logger.info(
+                f"agent.terminate",
+                agent=self.name,
+            )
+            try:
+                for module in self.get_enabled_modules():
+                    await module.terminate(self, inputs, inputs)
+            except Exception as module_error:
+                logger.error(
+                    "Error during terminate",
+                    agent=self.name,
+                    error=str(module_error),
+                )
+                span.record_exception(module_error)
 
     async def on_error(self, error: Exception, inputs: dict[str, Any]) -> None:
         with tracer.start_as_current_span("agent.on_error") as span:
             span.set_attribute("agent.name", self.name)
             span.set_attribute("inputs", str(inputs))
-
-            for module in self.get_enabled_modules():
-                await module.on_error(self, error, inputs)
+            try:
+                for module in self.get_enabled_modules():
+                    await module.on_error(self, error, inputs)
+            except Exception as module_error:
+                logger.error(
+                    "Error during on_error",
+                    agent=self.name,
+                    error=str(module_error),
+                )
+                span.record_exception(module_error)
 
     async def evaluate(self, inputs: dict[str, Any]) -> dict[str, Any]:
         with tracer.start_as_current_span("agent.evaluate") as span:

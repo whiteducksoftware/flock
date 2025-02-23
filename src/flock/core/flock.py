@@ -16,7 +16,7 @@ from flock.core.context.context_manager import initialize_context
 from flock.core.execution.local_executor import run_local_workflow
 from flock.core.execution.temporal_executor import run_temporal_workflow
 from flock.core.flock_agent import FlockAgent
-from flock.core.logging.logging import LOGGERS, get_logger
+from flock.core.logging.logging import LOGGERS, get_logger, get_module_loggers
 from flock.core.registry.agent_registry import Registry
 from flock.core.util.cli_helper import display_banner
 from flock.core.util.input_resolver import top_level_to_keys
@@ -59,6 +59,10 @@ def init_loggers(enable_logging: bool | list[str] = False):
         other_loggers = get_logger("agent")
         other_loggers.enable_logging = enable_logging
 
+        module_loggers = get_module_loggers()
+        for module_logger in module_loggers:
+            module_logger.enable_logging = enable_logging
+
 
 class Flock:
     """High-level orchestrator for creating and executing agents.
@@ -86,14 +90,14 @@ class Flock:
             span.set_attribute("model", model)
             span.set_attribute("local_debug", local_debug)
             span.set_attribute("enable_logging", enable_logging)
+
+            init_loggers(enable_logging)
             logger.info(
                 "Initializing Flock",
                 model=model,
                 local_debug=local_debug,
                 enable_logging=enable_logging,
             )
-            init_loggers(enable_logging)
-
             session_id = get_baggage("session_id")
             if not session_id:
                 session_id = str(uuid.uuid4())
@@ -144,7 +148,7 @@ class Flock:
                     f"Agent {agent.name} already exists, returning existing instance"
                 )
                 return self.agents[agent.name]
-            logger.info("Adding new agent")
+            logger.info(f"Adding new agent '{agent.name}'")
 
             self.agents[agent.name] = agent
             self.registry.register_agent(agent)
@@ -155,8 +159,11 @@ class Flock:
             if hasattr(agent, "tools") and agent.tools:
                 for tool in agent.tools:
                     self.registry.register_tool(tool.__name__, tool)
-                    logger.debug("Registered tool", tool_name=tool.__name__)
-            logger.success("Agent added successfully")
+                    logger.debug(
+                        f"Registered tool '{tool.__name__}'",
+                        tool_name=tool.__name__,
+                    )
+            logger.success(f"'{agent.name}' added successfully")
             return agent
 
     def add_tool(self, tool_name: str, tool: callable):
@@ -396,7 +403,8 @@ class Flock:
             try:
                 if isinstance(self.start_agent, str):
                     logger.debug(
-                        "Looking up agent by name", agent_name=self.start_agent
+                        f"Looking up agent '{self.start_agent.name}' in registry",
+                        agent_name=self.start_agent,
                     )
                     self.start_agent = self.registry.get_agent(self.start_agent)
                     if not self.start_agent:
@@ -411,8 +419,8 @@ class Flock:
                     logger.debug("Using provided context")
                     self.context = context
                 if not run_id:
-                    run_id = f"{self.start_agent.name}_{uuid.uuid4().hex[:4]}"
-                    logger.debug("Generated run ID", run_id=run_id)
+                    run_id = f"flock_{uuid.uuid4().hex[:4]}"
+                    logger.debug(f"Generated run ID '{run_id}'", run_id=run_id)
 
                 set_baggage("run_id", run_id)
 
