@@ -38,7 +38,7 @@ MODEL = "openai/gpt-4o"
 # The flock is the place where all the agents are at home
 # set local_debug to True to run the flock without Temporal
 # Check out the examples in /temporal to learn about Temporal
-flock = Flock(model=MODEL, local_debug=True)
+flock = Flock(model=MODEL)
 
 # --------------------------------
 # Create an agent

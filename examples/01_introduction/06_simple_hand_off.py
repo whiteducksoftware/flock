@@ -27,39 +27,34 @@ In later examples, we will explore more advanced hand-off scenarios and fall bac
 
 import asyncio
 
-from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
-
-async def main():
-
-    flock = Flock(local_debug=True,enable_logging=True)
-    
-    idea_agent = FlockAgent(
-        name="idea_agent",
-        input="query",
-        output="a_fun_software_project_idea",
-        output_config=FlockAgentOutputConfig(render_table=True, 
-                                             wait_for_input=True), # wait for input to continue
-        use_cache=True,
-    )
-
-    project_plan_agent = FlockAgent(
-        name="project_plan_agent",
-        input="a_fun_software_project_idea",
-        output="catchy_project_name, project_pitch, techstack, project_implementation_plan",
-        output_config=FlockAgentOutputConfig(render_table=True, 
-                                             wait_for_input=True), # wait for input to continue
-        use_cache=True,
-    )
-    
-    idea_agent.hand_off = project_plan_agent
-
-    await flock.run_async(
-        input={"query": "fun software project idea about ducks"},
-        start_agent=idea_agent,
-        agents=[idea_agent,project_plan_agent]
-    )
+from flock.core import Flock, FlockFactory
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+
+flock = Flock()
+
+idea_agent = FlockFactory.create_default_agent(
+    name="idea_agent",
+    input_def="query",
+    output_def="a_fun_software_project_idea",
+    enable_rich_tables=True,
+    wait_for_input=True,
+)
+
+project_plan_agent = FlockFactory.create_default_agent(
+    name="project_plan_agent",
+    input_def="a_fun_software_project_idea",
+    output_def="catchy_project_name, project_pitch, techstack, project_implementation_plan",
+    enable_rich_tables=True,
+    wait_for_input=True,
+)
+
+idea_agent.hand_off = project_plan_agent
+
+flock.run(
+    input={"query": "fun software project idea about ducks"},
+    start_agent=idea_agent,
+    agents=[idea_agent,project_plan_agent]
+)
+
+

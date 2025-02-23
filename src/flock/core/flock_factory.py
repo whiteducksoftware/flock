@@ -27,6 +27,9 @@ class FlockFactory:
         use_cache: bool = True,
         enable_rich_tables: bool = False,
         output_theme: OutputTheme = OutputTheme.abernathy,
+        wait_for_input: bool = False,
+        temperature: float = 0.0,
+        max_tokens: int = 4096,
     ) -> FlockAgent:
         """Creates a default FlockAgent with some common modules.
 
@@ -35,7 +38,12 @@ class FlockFactory:
         - Caching
         - Logging
         """
-        eval_config = DefaultEvaluatorConfig(model=model, use_cache=use_cache)
+        eval_config = DefaultEvaluatorConfig(
+            model=model,
+            use_cache=use_cache,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
 
         evaluator = DefaultEvaluator(name="default", config=eval_config)
         agent = FlockAgent(
@@ -49,7 +57,9 @@ class FlockFactory:
             evaluator=evaluator,
         )
         output_config = OutputModuleConfig(
-            render_table=enable_rich_tables, theme=output_theme
+            render_table=enable_rich_tables,
+            theme=output_theme,
+            wait_for_input=wait_for_input,
         )
         output_module = OutputModule("output", config=output_config)
 

@@ -17,59 +17,46 @@ that person's age in days. We then use it to calculate Johnny Depp's age in days
 Let's see how it's done!
 """
 
-import asyncio
+
 
 from devtools import debug
+from flock.core import Flock, FlockFactory
 
-
-from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent, FlockAgentOutputConfig
-from flock.core.logging.formatters.themed_formatter import ThemedAgentResultFormatter
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.tools import basic_tools
 
-MODEL = "openai/gpt-4o"
 
-async def main():
-    # --------------------------------
-    # Create the flock
-    # --------------------------------
-    flock = Flock(local_debug=True)
+# --------------------------------
+# Create the flock
+# --------------------------------
+flock = Flock()
 
 
-    # --------------------------------
-    # Tools
-    # --------------------------------
-    # Let's talk abou tools
-    # DeclarativeAgent has a tools argument that takes in ANY callable
-    # like the ones in flock.core.tools.basic_tools
-    # or your own custom tools
-    agent = FlockAgent(
-        name="my_celebrity_age_agent",
-        input="a_person",
-        output="persons_age_in_days",
-        tools=[basic_tools.web_search_duckduckgo, basic_tools.code_eval],
-        output_config=FlockAgentOutputConfig(
-            render_table=True,
-            theme=OutputTheme.adventuretime
-        ),
-        use_cache=True,
-        memory_enabled=True,
-    )
-    flock.add_agent(agent)
+# --------------------------------
+# Tools
+# --------------------------------
+# Let's talk about tools
+# A FlockAgent has a tools argument that takes in ANY callable
+# like the ones in flock.core.tools.basic_tools
+# or your own custom tools
+agent = FlockFactory.create_default_agent(
+    name="my_celebrity_age_agent",
+    input_def="a_person",
+    output_def="persons_age_in_days",
+    tools=[basic_tools.web_search_duckduckgo, basic_tools.code_eval],
+    enable_rich_tables=True,
+    output_theme=OutputTheme.adventuretime,
+    use_cache=True,
+)
+flock.add_agent(agent)
 
-    # --------------------------------
-    # Run the agent
-    # --------------------------------
-    # Let's calculate Johnny Depp's age in days
-    await flock.run_async(
-        start_agent=agent,
-        input={"a_person": "Johnny Depp"},
-    )
-
-    agent.save_memory_graph("celebrity_age_calculator.json")
-    agent.export_memory_graph("celebrity_age_calculator.png")
+# --------------------------------
+# Run the agent
+# --------------------------------
+# Let's calculate Johnny Depp's age in days
+flock.run(
+    start_agent=agent,
+    input={"a_person": "Johnny Depp"},
+)
 
 
-if __name__ == "__main__":
-    asyncio.run(main())

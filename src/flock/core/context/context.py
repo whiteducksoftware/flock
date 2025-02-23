@@ -1,4 +1,3 @@
-import json
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -84,12 +83,7 @@ class FlockContext(Serializable):
         old_value = self.state.get(key)
         self.state[key] = value
         if old_value != value:
-            escaped_value = json.dumps(value, ensure_ascii=False)
-            escaped_value = (
-                json.dumps(value, ensure_ascii=False)
-                .replace("{", "{{")
-                .replace("}", "}}")
-            )
+            escaped_value = str(value).replace("{", "{{").replace("}", "}}")
 
             logger.info(
                 "Context variable updated - {} -> {}",

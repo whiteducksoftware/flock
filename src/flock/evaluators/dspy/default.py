@@ -12,8 +12,8 @@ class DefaultEvaluatorConfig(FlockEvaluatorConfig):
     agent_type_override: str | None = None
     model: str | None = "openai/gpt-4o"
     use_cache: bool = True
-    temperature: float = 0.7
-    max_tokens: int = 100
+    temperature: float = 0.0
+    max_tokens: int = 4096
 
 
 class DefaultEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):

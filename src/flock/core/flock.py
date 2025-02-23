@@ -74,7 +74,7 @@ class Flock:
     def __init__(
         self,
         model: str = "openai/gpt-4o",
-        local_debug: bool = False,
+        enable_temporal: bool = False,
         enable_logging: bool | list[str] = False,
         show_cli_banner: bool = True,
     ):
@@ -88,14 +88,14 @@ class Flock:
         """
         with tracer.start_as_current_span("flock_init") as span:
             span.set_attribute("model", model)
-            span.set_attribute("local_debug", local_debug)
+            span.set_attribute("enable_temporal", enable_temporal)
             span.set_attribute("enable_logging", enable_logging)
 
             init_loggers(enable_logging)
             logger.info(
                 "Initializing Flock",
                 model=model,
-                local_debug=local_debug,
+                enable_temporal=enable_temporal,
                 enable_logging=enable_logging,
             )
             session_id = get_baggage("session_id")
@@ -110,11 +110,11 @@ class Flock:
             self.registry = Registry()
             self.context = FlockContext()
             self.model = model
-            self.local_debug = local_debug
+            self.enable_temporal = enable_temporal
             self.start_agent: FlockAgent | str | None = None
             self.input: dict = {}
 
-            if local_debug:
+            if not enable_temporal:
                 os.environ["LOCAL_DEBUG"] = "1"
                 logger.debug("Set LOCAL_DEBUG environment variable")
             elif "LOCAL_DEBUG" in os.environ:
@@ -442,16 +442,16 @@ class Flock:
                     self.start_agent.name,
                     self.input,
                     run_id,
-                    self.local_debug,
+                    not self.enable_temporal,
                 )
 
                 logger.info(
                     "Starting agent execution",
                     agent=self.start_agent.name,
-                    local_debug=self.local_debug,
+                    enable_temporal=self.enable_temporal,
                 )
 
-                if self.local_debug:
+                if not self.enable_temporal:
                     return await run_local_workflow(self.context, box_result)
                 else:
                     return await run_temporal_workflow(self.context, box_result)
