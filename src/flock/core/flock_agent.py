@@ -3,29 +3,20 @@
 import asyncio
 import json
 import os
-import uuid
 from abc import ABC
-from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta
+from collections.abc import Callable
 from typing import Any, Literal, TypeVar, Union
 
 import cloudpickle
-import numpy as np
 from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
+from flock.core.flock_module import FlockModule, ModuleManager
 from flock.core.logging.formatters.themed_formatter import (
     ThemedAgentResultFormatter,
 )
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.logging.logging import get_logger
-from flock.core.memory.memory_parser import MemoryMappingParser
-from flock.core.memory.memory_storage import (
-    FilterOperation,
-    FlockMemoryStore,
-    MemoryEntry,
-    SemanticOperation,
-)
 from flock.core.mixin.dspy_integration import AgentType, DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
 
@@ -231,6 +222,11 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         description="An optional termination condition or phrase used to indicate when the agent should stop processing.",
     )
 
+    module_manager: ModuleManager = Field(
+        default_factory=ModuleManager,
+        description="Manages modules attached to this agent",
+    )
+
     config: FlockAgentConfig = Field(
         default_factory=FlockAgentConfig,
         description="Configuration options for the agent, such as serialization settings.",
@@ -241,44 +237,17 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         description="Configuration options for the agent's output.",
     )
 
-    memory_config: FlockAgentMemoryConfig = Field(
-        default_factory=FlockAgentMemoryConfig,
-        description="Configuration options for the agent's memory.",
-    )
+    def add_module(self, module: FlockModule) -> None:
+        """Add a module to this agent."""
+        self.module_manager.add_module(module)
 
-    memory_enabled: bool = Field(
-        default=False,
-        description="Enable memory for this agent",
-    )
-    memory_mapping: str | None = Field(default=None)
-    memory_store: FlockMemoryStore | None = Field(default=None)
-    memory_ops: list | None = Field(default=None)
+    def remove_module(self, module_name: str) -> None:
+        """Remove a module from this agent."""
+        self.module_manager.remove_module(module_name)
 
-    # Lifecycle callback fields: if provided, these callbacks are used instead of overriding the methods.
-    initialize_callback: Callable[[dict[str, Any]], Awaitable[None]] | None = (
-        Field(
-            default=None,
-            description="Optional callback function for initialization. If provided, this async function is called with the inputs.",
-        )
-    )
-    evaluate_callback: (
-        Callable[[dict[str, Any]], Awaitable[dict[str, Any]]] | None
-    ) = Field(
-        default=None,
-        description="Optional callback function for evaluate. If provided, this async function is called with the inputs instead of the internal evaluate",
-    )
-    terminate_callback: (
-        Callable[[dict[str, Any], dict[str, Any]], Awaitable[None]] | None
-    ) = Field(
-        default=None,
-        description="Optional callback function for termination. If provided, this async function is called with the inputs and result.",
-    )
-    on_error_callback: (
-        Callable[[Exception, dict[str, Any]], Awaitable[None]] | None
-    ) = Field(
-        default=None,
-        description="Optional callback function for error handling. If provided, this async function is called with the error and inputs.",
-    )
+    def get_module(self, module_name: str) -> FlockModule | None:
+        """Get a module by name."""
+        return self.module_manager.get_module(module_name)
 
     # Lifecycle hooks
     async def initialize(self, inputs: dict[str, Any]) -> None:
@@ -286,24 +255,9 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
         Override this method or provide an `initialize_callback` to perform setup tasks such as input validation or resource loading.
         """
-        if self.memory_enabled and self.memory_store is None:
-            file_path = None
-            if self.memory_config:
-                file_path = self.memory_config.file_path
-            else:
-                self.memory_config = FlockAgentMemoryConfig()
-            self.memory_store = FlockMemoryStore.load_from_file(file_path)
+        await self.module_manager.run_pre_initialize(self, inputs)
 
-        if self.memory_mapping is None:
-            self.memory_ops = []
-            self.memory_ops.append(SemanticOperation())
-        else:
-            self.memory_ops = MemoryMappingParser().parse(self.memory_mapping)
-
-        if self.initialize_callback is not None:
-            await self.initialize_callback(self, inputs)
-        else:
-            pass
+        await self.module_manager.run_post_initialize(self, inputs)
 
     async def terminate(
         self, inputs: dict[str, Any], result: dict[str, Any]
@@ -312,20 +266,16 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
         Override this method or provide a `terminate_callback` to perform cleanup tasks such as releasing resources or logging results.
         """
-        if self.terminate_callback is not None:
-            await self.terminate_callback(self, inputs, result)
-        else:
-            pass
+        await self.module_manager.run_pre_terminate(self, inputs, result)
+
+        await self.module_manager.run_post_terminate(self, inputs, result)
 
     async def on_error(self, error: Exception, inputs: dict[str, Any]) -> None:
         """Called if the agent encounters an error during execution.
 
         Override this method or provide an `on_error_callback` to implement custom error handling or recovery strategies.
         """
-        if self.on_error_callback is not None:
-            await self.on_error_callback(self, error, inputs)
-        else:
-            pass
+        await self.module_manager.run_on_error(self, error, inputs)
 
     async def evaluate(
         self, inputs: dict[str, Any], memory_result=None
@@ -391,17 +341,11 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
         with tracer.start_as_current_span("agent.evaluate") as span:
             span.set_attribute("agent.name", self.name)
             span.set_attribute("inputs", str(inputs))
-            if self.evaluate_callback is not None:
-                return await self.evaluate_callback(self, inputs)
+            inputs = await self.module_manager.run_pre_evaluate(self, inputs)
+
             try:
                 input_definition = self.input
-                if memory_result:
-                    input_definition = (
-                        input_definition
-                        + ", memory_result: dict | The result from memory"
-                    )
-                    inputs["memory_result"] = memory_result
-                # Create and configure the signature and language model.
+
                 self.__dspy_signature = self.create_dspy_signature_class(
                     self.name,
                     self.description,
@@ -416,6 +360,10 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 result = agent_task(**inputs)
                 result = self._process_result(result, inputs)
                 span.set_attribute("result", str(result))
+                result = await self.module_manager.run_post_evaluate(
+                    self, inputs, result
+                )
+
                 logger.info("Evaluation successful", agent=self.name)
                 return result
             except Exception as eval_error:
@@ -440,226 +388,6 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
 
         with open(file_path, "w") as file:
             file.write(json.dumps(dict_data))
-
-    async def _extract_concepts(self, text: str) -> set[str]:
-        """Extract concepts using DSPy integration."""
-        existing_concepts = None
-        if self.memory_store.concept_graph:
-            existing_concepts = set(
-                self.memory_store.concept_graph.graph.nodes()
-            )
-
-        input_def = "text: str | Text to analyze"
-        if existing_concepts:
-            input_def += ", existing_concepts: list[str] | Already known concepts that might apply"
-
-        # Create a signature for concept extraction
-        concept_signature = self.create_dspy_signature_class(
-            f"{self.name}_concept_extractor",
-            "Extract key concepts from text",
-            f"{input_def} -> concepts: list[str] | Max five key concepts all lower case",
-        )
-
-        # Configure and run the predictor
-        self._configure_language_model()
-        predictor = self._select_task(concept_signature, "Completion")
-        result = predictor(text=text, existing_concepts=list(existing_concepts))
-
-        # Convert to set
-        concept_list = result.concepts if hasattr(result, "concepts") else []
-        concepts = set(concept_list)
-        logger.debug(f"Extracted concepts: {concept_list}")
-        return concepts
-
-    async def evaluate_memory(
-        self, inputs: dict[str, Any]
-    ) -> dict[str, Any] | None:
-        """Check memory before main evaluation."""
-        if not self.memory_enabled or not self.memory_store:
-            return None
-
-        try:
-            # Convert input to embedding
-            input_text = json.dumps(inputs)
-            query_embedding = self.memory_store.compute_embedding(input_text)
-
-            # Extract concepts from input
-            concepts = await self._extract_concepts(input_text)
-
-            memory_results = []
-            for op in self.memory_ops:
-                if op.type == "semantic":
-                    # Semantic search
-                    semantic_results = self.memory_store.retrieve(
-                        query_embedding,
-                        concepts,
-                        similarity_threshold=op.threshold,
-                    )
-                    memory_results.extend(semantic_results)
-
-                elif op.type == "exact":
-                    # Exact matching
-                    exact_results = self.memory_store.exact_match(inputs)
-                    memory_results.extend(exact_results)
-
-                elif op.type == "filter":
-                    # Apply filters
-                    memory_results = [
-                        entry
-                        for entry in memory_results
-                        if self._apply_filters(entry, op)
-                    ]
-
-                elif op.type == "combine":
-                    # Combine results using weights
-                    memory_results = self.memory_store.combine_results(
-                        inputs, op.weights
-                    ).get("combined_results", [])
-
-            if memory_results:
-                logger.debug(
-                    f"Found {len(memory_results)} relevant memories after operations",
-                    agent=self.name,
-                )
-                return {"memory_results": memory_results}
-
-            return None
-
-        except Exception as e:
-            logger.warning(f"Memory retrieval failed: {e!s}", agent=self.name)
-            return None
-
-    def _apply_filters(
-        self, entry: MemoryEntry, filter_op: FilterOperation
-    ) -> bool:
-        """Apply filter operation to memory entry."""
-        # Check recency if specified
-        if filter_op.recency:
-            cutoff = self._parse_time_window(filter_op.recency)
-            if entry.timestamp < cutoff:
-                return False
-
-        # Check relevance if specified
-        if filter_op.relevance is not None:
-            relevance_score = entry.decay_factor * np.log1p(entry.access_count)
-            if relevance_score < filter_op.relevance:
-                return False
-
-        # Check metadata if specified
-        if filter_op.metadata:
-            entry_metadata = getattr(entry, "metadata", {})
-            for key, value in filter_op.metadata.items():
-                if key not in entry_metadata or entry_metadata[key] != value:
-                    return False
-
-        return True
-
-    def _parse_time_window(self, window: str) -> datetime:
-        """Parse time window string (e.g., '7d', '24h') into datetime."""
-        value = int(window[:-1])
-        unit = window[-1]
-
-        if unit == "d":
-            delta = timedelta(days=value)
-        elif unit == "h":
-            delta = timedelta(hours=value)
-        else:
-            raise ValueError(f"Unknown time unit: {unit}")
-
-        return datetime.now() - delta
-
-    def save_memory_graph(self, file_path: str) -> None:
-        """Save the memory graph to a file."""
-        if self.memory_store:
-            json_str = self.memory_store.model_dump_json()
-            with open(file_path, "w") as file:
-                file.write(json_str)
-
-    def export_memory_graph(self, file_path: str) -> None:
-        """Export the memory graph to an image file."""
-        if self.memory_store:
-            self.memory_store.concept_graph.save_as_image(file_path)
-
-    async def _extract_information_and_update_memory(
-        self, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> str:
-        """Very simple but effective way to extract information from the interaction and store it in memory."""
-        # Create splitter signature
-        split_signature = self.create_dspy_signature_class(
-            f"{self.name}_splitter",
-            "Extract a list of potentially needed data and information for future reference",
-            """
-            content: str | The content to split
-            -> chunks: list[str] | list of data and information for future reference
-            """,
-        )
-
-        # Configure and run the predictor
-        self._configure_language_model()
-        splitter = self._select_task(split_signature, "Completion")
-
-        # Get the content to split
-        full_text = json.dumps(inputs) + json.dumps(result)
-        split_result = splitter(content=full_text)
-
-        chunks = "\n".join(split_result.chunks)
-        chunk_concepts = await self._extract_concepts(chunks)
-        logger.debug(
-            f"Chunk concepts for extracted info: {list(chunk_concepts)}"
-        )
-
-        entry = MemoryEntry(
-            id=str(uuid.uuid4()),
-            content=chunks,
-            embedding=self.memory_store.compute_embedding(chunks).tolist(),
-            concepts=chunk_concepts,
-            timestamp=datetime.now(),
-        )
-
-        # Add to memory store
-        self.memory_store.add_entry(entry)
-        logger.debug(
-            "Stored interaction in memory",
-            agent=self.name,
-            entry_id=entry.id,
-            concepts=chunk_concepts,
-        )
-
-        return chunks
-
-    async def _store_single_entry(
-        self, full_text: str, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> None:
-        concepts = await self._extract_concepts(full_text)
-        entry = MemoryEntry(
-            id=str(uuid.uuid4()),
-            inputs=inputs,
-            outputs=result,
-            embedding=self.memory_store.compute_embedding(full_text).tolist(),
-            concepts=concepts,
-            timestamp=datetime.now(),
-        )
-
-        # Add to memory store
-        self.memory_store.add_entry(entry)
-        logger.debug(
-            "Stored interaction in memory",
-            agent=self.name,
-            entry_id=entry.id,
-            concepts=concepts,
-        )
-
-    async def update_memory(
-        self, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> None:
-        """Store results in memory after evaluation."""
-        if not self.memory_enabled or not self.memory_store:
-            return
-        try:
-            await self._extract_information_and_update_memory(inputs, result)
-
-        except Exception as e:
-            logger.warning(f"Memory storage failed: {e!s}", agent=self.name)
 
     @classmethod
     def load_from_file(cls: type[T], file_path: str) -> T:
@@ -891,6 +619,12 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
             return obj
 
         data = self.model_dump()
+        module_data = {}
+        for name, module in self.module_manager.modules.items():
+            module_data[name] = module.dict()
+
+        data["modules"] = module_data
+
         return convert_callable(data)
 
     @classmethod
@@ -940,5 +674,15 @@ class FlockAgent(BaseModel, ABC, PromptParserMixin, DSPyIntegrationMixin):
                 return {k: convert_callable(v) for k, v in obj.items()}
             return obj
 
+        module_data = data.pop("modules", {})
         converted = convert_callable(data)
-        return cls(**converted)
+        agent = cls(**converted)
+
+        for name, module_dict in module_data.items():
+            module_type = module_dict.pop("type", None)
+            if module_type:
+                module_class = globals()[module_type]
+                module = module_class(**module_dict)
+                agent.add_module(module)
+
+        return agent
