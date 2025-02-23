@@ -1,5 +1,6 @@
 """Factory for creating pre-configured Flock agents."""
 
+from collections.abc import Callable
 from typing import Any
 
 from flock.core.flock_agent import FlockAgent
@@ -11,22 +12,24 @@ class FlockAgentFactory:
     @staticmethod
     def create_default_agent(
         name: str,
-        input_def: str,
-        output_def: str,
-        model: str = "openai/gpt-4",
-        **kwargs,
+        description: str | Callable[..., str] | None = None,
+        input_def: str | Callable[..., str] | None = None,
+        output_def: str | Callable[..., str] | None = None,
+        model: str | Callable[..., str] | None = None,
+        tool: list[Callable[..., Any] | Any] | None = None,
+        hand_off: str | Callable[..., Any] | None = None,
     ) -> FlockAgent:
-        """Create an agent configured for production use.
+        """Creates a default FlockAgent with some common modules.
 
         Includes:
-        - Memory with persistence
-        - Error handling with retries
         - Telemetry/tracing
         - Caching
-        - Production-level logging
+        - Logging
         """
         agent = FlockAgent(
-            name=name, input=input_def, output=output_def, **kwargs
+            name=name,
+            input=input_def,
+            output=output_def,
         )
 
         return agent
