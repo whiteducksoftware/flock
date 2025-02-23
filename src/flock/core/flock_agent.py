@@ -14,7 +14,6 @@ from flock.core.context.context import FlockContext
 from flock.core.flock_evaluator import FlockEvaluator
 from flock.core.flock_module import FlockModule, ModuleManager
 from flock.core.logging.logging import get_logger
-from flock.core.mixin.dspy_integration import AgentType
 
 logger = get_logger("agent")
 
@@ -25,25 +24,6 @@ tracer = trace.get_tracer(__name__)
 
 
 T = TypeVar("T", bound="FlockAgent")
-
-
-class FlockAgentConfig(BaseModel):
-    """Configuration options for a FlockAgent."""
-
-    agent_type_override: AgentType = Field(
-        default=None,
-        descriptions={
-            "description": "Overrides the agent type. TOOL USE ONLY WORKS WITH REACT"
-        },
-    )
-    disable_output: bool = Field(
-        default=False,
-        descriptions="Disables the agent's output.",
-    )
-    temperature: float = Field(
-        default=0.0, descriptions="Temperature for the LLM"
-    )
-    max_tokens: int = Field(default=2000, descriptions="Max tokens for the LLM")
 
 
 class HandOff(BaseModel):
@@ -116,11 +96,6 @@ class FlockAgent(BaseModel, ABC):
     module_manager: ModuleManager = Field(
         default_factory=ModuleManager,
         description="Manages modules attached to this agent",
-    )
-
-    config: FlockAgentConfig = Field(
-        default_factory=FlockAgentConfig,
-        description="Configuration options for the agent, such as serialization settings.",
     )
 
     def add_module(self, module: FlockModule) -> None:

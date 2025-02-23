@@ -4,7 +4,11 @@ from collections.abc import Callable
 from typing import Any
 
 from flock.core.flock_agent import FlockAgent
-from flock.evaluators.dspy.default import DefaultEvaluator
+from flock.evaluators.dspy.default import (
+    DefaultEvaluator,
+    DefaultEvaluatorConfig,
+)
+from flock.modules.output.output_module import OutputModule
 
 
 class FlockAgentFactory:
@@ -27,12 +31,21 @@ class FlockAgentFactory:
         - Caching
         - Logging
         """
+        eval_config = DefaultEvaluatorConfig(model=model)
+
+        evaluator = DefaultEvaluator()
         agent = FlockAgent(
             name=name,
             input=input_def,
             output=output_def,
+            tools=tools,
+            hand_off=hand_off,
+            model=model,
+            description=description,
             evaluator=DefaultEvaluator,
         )
+
+        agent.add_module(OutputModule())
 
         return agent
 
