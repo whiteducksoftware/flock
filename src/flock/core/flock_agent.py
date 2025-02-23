@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
 from flock.core.flock_evaluator import FlockEvaluator
-from flock.core.flock_module import FlockModule, ModuleManager
+from flock.core.flock_module import FlockModule
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("agent")
@@ -93,48 +93,58 @@ class FlockAgent(BaseModel, ABC):
         description="Evaluator to use for agent evaluation",
     )
 
-    module_manager: ModuleManager = Field(
-        default_factory=ModuleManager,
-        description="Manages modules attached to this agent",
+    modules: dict[str, FlockModule] = Field(
+        None,
+        description="FlockModules attached to this agent",
     )
 
     def add_module(self, module: FlockModule) -> None:
         """Add a module to this agent."""
-        self.module_manager.add_module(module)
+        self.modules[module.name] = module
 
     def remove_module(self, module_name: str) -> None:
         """Remove a module from this agent."""
-        self.module_manager.remove_module(module_name)
+        if module_name in self.modules:
+            del self.modules[module_name]
 
     def get_module(self, module_name: str) -> FlockModule | None:
         """Get a module by name."""
-        return self.module_manager.get_module(module_name)
+        return self.modules.get(module_name)
+
+    def get_enabled_modules(self, module_name: str) -> FlockModule | None:
+        """Get a module by name."""
+        return [m for m in self.modules.values() if m.config.enabled]
 
     # Lifecycle hooks
     async def initialize(self, inputs: dict[str, Any]) -> None:
-        await self.module_manager.run_initialize(self, inputs)
+        for module in self.get_enabled_modules():
+            await module.initialize(self, inputs)
 
     async def terminate(
         self, inputs: dict[str, Any], result: dict[str, Any]
     ) -> None:
-        await self.module_manager.run_terminate(self, inputs, result)
+        for module in self.get_enabled_modules():
+            await module.terminate(self, inputs, result)
 
     async def on_error(self, error: Exception, inputs: dict[str, Any]) -> None:
-        await self.module_manager.run_on_error(self, error, inputs)
+        for module in self.get_enabled_modules():
+            await module.on_error(self, error, inputs)
 
     async def evaluate(self, inputs: dict[str, Any]) -> dict[str, Any]:
         with tracer.start_as_current_span("agent.evaluate") as span:
             span.set_attribute("agent.name", self.name)
             span.set_attribute("inputs", str(inputs))
-            inputs = await self.module_manager.run_pre_evaluate(self, inputs)
+
+            for module in self.get_enabled_modules():
+                inputs = await module.pre_evaluate(self, inputs)
 
             try:
                 result = await self.evaluator.evaluate(self, inputs)
 
+                for module in self.get_enabled_modules():
+                    result = await module.post_evaluate(self, inputs, result)
+
                 span.set_attribute("result", str(result))
-                result = await self.module_manager.run_post_evaluate(
-                    self, inputs, result
-                )
 
                 logger.info("Evaluation successful", agent=self.name)
                 return result

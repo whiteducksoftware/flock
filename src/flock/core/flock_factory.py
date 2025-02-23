@@ -11,7 +11,7 @@ from flock.evaluators.dspy.default import (
 from flock.modules.output.output_module import OutputModule
 
 
-class FlockAgentFactory:
+class FlockFactory:
     """Factory for creating pre-configured Flock agents with common module setups."""
 
     @staticmethod

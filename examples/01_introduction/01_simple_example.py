@@ -20,8 +20,7 @@ Let's get started!
 
 import asyncio
 
-from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent
+from flock.core import Flock, FlockAgent, FlockFactory
 
 
 
@@ -49,11 +48,10 @@ async def main():
     # The Flock just declares what agents get in and what agents produce
     # bloggy takes in a blog_idea and outputs a funny_blog_title 
     # and blog_headers
-    bloggy = FlockAgent(
-        name="bloggy", 
-        input="blog_idea", 
-        output="funny_blog_title, blog_headers",
-        memory_enabled=True
+    bloggy = FlockFactory.create_default_agent(
+        name="bloggy",
+        input_def="blog_idea",
+        output_def="funny_blog_title, blog_headers",
     )
     flock.add_agent(bloggy)
 
