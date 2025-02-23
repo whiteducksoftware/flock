@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import Field
 
+from flock.core import FlockAgent
 from flock.core.flock_module import FlockModule, FlockModuleConfig
 from flock.core.logging.formatters.themed_formatter import (
     ThemedAgentResultFormatter,
@@ -151,7 +152,7 @@ class OutputModule(FlockModule):
             json.dump(output_data, f, indent=2)
 
     async def post_evaluate(
-        self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
+        self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
     ) -> dict[str, Any]:
         """Format and display the output."""
         # Display the result using the formatter
