@@ -1,6 +1,6 @@
 """Base classes and implementations for the Flock module system."""
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, create_model
@@ -26,23 +26,7 @@ class FlockModuleConfig(BaseModel):
 
     @classmethod
     def with_fields(cls: type[T], **field_definitions) -> type[T]:
-        """Create a new config class with additional fields.
-
-        This helper method allows modules to easily define their config
-        requirements without subclassing.
-
-        Args:
-            **field_definitions: Field definitions to add to the config class
-
-        Returns:
-            A new config class with the specified fields
-
-        Example:
-            MyConfig = FlockModuleConfig.with_fields(
-                api_key=Field(str, description="API key for the service"),
-                max_retries=Field(int, default=3)
-            )
-        """
+        """Create a new config class with additional fields."""
         return create_model(
             f"Dynamic{cls.__name__}", __base__=cls, **field_definitions
         )
@@ -64,42 +48,26 @@ class FlockModule(BaseModel, ABC):
         default_factory=FlockModuleConfig, description="Module configuration"
     )
 
-    @abstractmethod
-    async def pre_initialize(self, agent: Any, inputs: dict[str, Any]) -> None:
-        """Called before agent initialization."""
+    async def initialize(self, agent: Any, inputs: dict[str, Any]) -> None:
+        """Called when the agent starts running."""
         pass
 
-    @abstractmethod
-    async def post_initialize(self, agent: Any, inputs: dict[str, Any]) -> None:
-        """Called after agent initialization."""
-        pass
-
-    @abstractmethod
     async def pre_evaluate(
         self, agent: Any, inputs: dict[str, Any]
     ) -> dict[str, Any]:
         """Called before agent evaluation, can modify inputs."""
         return inputs
 
-    @abstractmethod
     async def post_evaluate(
         self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
     ) -> dict[str, Any]:
         """Called after agent evaluation, can modify results."""
         return result
 
-    @abstractmethod
-    async def pre_terminate(
+    async def terminate(
         self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
     ) -> None:
-        """Called before agent termination."""
-        pass
-
-    @abstractmethod
-    async def post_terminate(
-        self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> None:
-        """Called after agent termination."""
+        """Called when the agent finishes running."""
         pass
 
     async def on_error(
@@ -110,10 +78,7 @@ class FlockModule(BaseModel, ABC):
 
 
 class ModuleManager:
-    """Manages modules for a FlockAgent.
-
-    Handles module registration, lifecycle events, and maintaining module state.
-    """
+    """Manages modules for a FlockAgent."""
 
     def __init__(self):
         self.modules: dict[str, FlockModule] = {}
@@ -133,21 +98,12 @@ class ModuleManager:
 
     def get_enabled_modules(self) -> list[FlockModule]:
         """Get all enabled modules."""
-        return [m for m in self.modules.values() if m.enabled]
+        return [m for m in self.modules.values() if m.config.enabled]
 
-    async def run_pre_initialize(
-        self, agent: Any, inputs: dict[str, Any]
-    ) -> None:
-        """Run pre_initialize for all enabled modules."""
+    async def run_initialize(self, agent: Any, inputs: dict[str, Any]) -> None:
+        """Run initialize for all enabled modules."""
         for module in self.get_enabled_modules():
-            await module.pre_initialize(agent, inputs)
-
-    async def run_post_initialize(
-        self, agent: Any, inputs: dict[str, Any]
-    ) -> None:
-        """Run post_initialize for all enabled modules."""
-        for module in self.get_enabled_modules():
-            await module.post_initialize(agent, inputs)
+            await module.initialize(agent, inputs)
 
     async def run_pre_evaluate(
         self, agent: Any, inputs: dict[str, Any]
@@ -169,19 +125,12 @@ class ModuleManager:
             )
         return current_result
 
-    async def run_pre_terminate(
+    async def run_terminate(
         self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
     ) -> None:
-        """Run pre_terminate for all enabled modules."""
+        """Run terminate for all enabled modules."""
         for module in self.get_enabled_modules():
-            await module.pre_terminate(agent, inputs, result)
-
-    async def run_post_terminate(
-        self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> None:
-        """Run post_terminate for all enabled modules."""
-        for module in self.get_enabled_modules():
-            await module.post_terminate(agent, inputs, result)
+            await module.terminate(agent, inputs, result)
 
     async def run_on_error(
         self, agent: Any, error: Exception, inputs: dict[str, Any]
