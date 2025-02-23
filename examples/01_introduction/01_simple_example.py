@@ -65,8 +65,7 @@ async def main():
         input={"blog_idea": "A blog about cats"}
     )
 
-    bloggy.save_memory_graph("bloggy_memory_graph.json")
-    bloggy.export_memory_graph("bloggy_memory_graph.png")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

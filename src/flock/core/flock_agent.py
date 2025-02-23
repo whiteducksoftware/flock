@@ -75,7 +75,7 @@ class FlockAgent(BaseModel, ABC):
         description="Set to True to enable caching of the agent's results.",
     )
 
-    hand_off: str | Callable[..., Any] | None = Field(
+    hand_off: str | HandOff | Callable[..., HandOff] | None = Field(
         None,
         description=(
             "Specifies the next agent in the workflow or a callable that determines the handoff. "
@@ -111,24 +111,35 @@ class FlockAgent(BaseModel, ABC):
         """Get a module by name."""
         return self.modules.get(module_name)
 
-    def get_enabled_modules(self) -> FlockModule | None:
+    def get_enabled_modules(self) -> list[FlockModule | None]:
         """Get a module by name."""
         return [m for m in self.modules.values() if m.config.enabled]
 
     # Lifecycle hooks
     async def initialize(self, inputs: dict[str, Any]) -> None:
-        for module in self.get_enabled_modules():
-            await module.initialize(self, inputs)
+        with tracer.start_as_current_span("agent.initialize") as span:
+            span.set_attribute("agent.name", self.name)
+            span.set_attribute("inputs", str(inputs))
+            for module in self.get_enabled_modules():
+                await module.initialize(self, inputs)
 
     async def terminate(
         self, inputs: dict[str, Any], result: dict[str, Any]
     ) -> None:
-        for module in self.get_enabled_modules():
-            await module.terminate(self, inputs, result)
+        with tracer.start_as_current_span("agent.terminate") as span:
+            span.set_attribute("agent.name", self.name)
+            span.set_attribute("inputs", str(inputs))
+            span.set_attribute("result", str(result))
+            for module in self.get_enabled_modules():
+                await module.terminate(self, inputs, result)
 
     async def on_error(self, error: Exception, inputs: dict[str, Any]) -> None:
-        for module in self.get_enabled_modules():
-            await module.on_error(self, error, inputs)
+        with tracer.start_as_current_span("agent.on_error") as span:
+            span.set_attribute("agent.name", self.name)
+            span.set_attribute("inputs", str(inputs))
+
+            for module in self.get_enabled_modules():
+                await module.on_error(self, error, inputs)
 
     async def evaluate(self, inputs: dict[str, Any]) -> dict[str, Any]:
         with tracer.start_as_current_span("agent.evaluate") as span:
@@ -139,7 +150,7 @@ class FlockAgent(BaseModel, ABC):
                 inputs = await module.pre_evaluate(self, inputs)
 
             try:
-                result = await self.evaluator.evaluate(self, inputs)
+                result = await self.evaluator.evaluate(self, inputs, self.tools)
 
                 for module in self.get_enabled_modules():
                     result = await module.post_evaluate(self, inputs, result)

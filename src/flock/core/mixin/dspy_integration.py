@@ -161,6 +161,7 @@ class DSPyIntegrationMixin:
         self,
         signature: Any,
         agent_type_override: AgentType,
+        tools: list[Any] | None = None,
     ) -> Any:
         """Select and instantiate the appropriate task based on tool availability.
 
@@ -175,8 +176,8 @@ class DSPyIntegrationMixin:
         import dspy
 
         processed_tools = []
-        if self.tools:
-            for tool in self.tools:
+        if tools:
+            for tool in tools:
                 if inspect.ismodule(tool) or inspect.isclass(tool):
                     processed_tools.extend(get_callable_members(tool))
                 else:
@@ -200,7 +201,7 @@ class DSPyIntegrationMixin:
                     signature,
                 )
         else:
-            if self.tools:
+            if tools:
                 dspy_solver = dspy.ReAct(
                     signature,
                     tools=processed_tools,

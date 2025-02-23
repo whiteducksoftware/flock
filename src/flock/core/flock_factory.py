@@ -20,7 +20,7 @@ class FlockFactory:
         description: str | Callable[..., str] | None = None,
         input_def: str | Callable[..., str] | None = None,
         output_def: str | Callable[..., str] | None = None,
-        model: str | Callable[..., str] | None = None,
+        model: str | Callable[..., str] | None = "openai/gpt-4o",
         tools: list[Callable[..., Any] | Any] | None = None,
         hand_off: str | Callable[..., Any] | None = None,
     ) -> FlockAgent:

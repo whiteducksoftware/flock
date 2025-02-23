@@ -24,7 +24,7 @@ class DefaultEvaluator(FlockEvaluator, DSPyIntegrationMixin):
     )
 
     async def evaluate(
-        self, agent: FlockAgent, inputs: dict[str, Any]
+        self, agent: FlockAgent, inputs: dict[str, Any], tools: list[Any]
     ) -> dict[str, Any]:
         """Evaluate using DSPy."""
         _dspy_signature = self.create_dspy_signature_class(
@@ -40,7 +40,8 @@ class DefaultEvaluator(FlockEvaluator, DSPyIntegrationMixin):
         )
         agent_task = self._select_task(
             _dspy_signature,
-            agent_type_override=agent.config.agent_type_override,
+            agent_type_override=self.config.agent_type_override,
+            tools=tools,
         )
         # Execute the task.
         result = agent_task(**inputs)
