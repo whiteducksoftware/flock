@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any, TypeVar, Union
 
 import cloudpickle
+from opentelemetry import trace
 from pydantic import BaseModel, Field
 
 from flock.core.context.context import FlockContext
@@ -16,10 +17,6 @@ from flock.core.flock_module import FlockModule
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("agent")
-
-
-from opentelemetry import trace
-
 tracer = trace.get_tracer(__name__)
 
 
@@ -81,11 +78,6 @@ class FlockAgent(BaseModel, ABC):
             "Specifies the next agent in the workflow or a callable that determines the handoff. "
             "This allows chaining of agents."
         ),
-    )
-
-    termination: str | Callable[..., str] | None = Field(
-        None,
-        description="An optional termination condition or phrase used to indicate when the agent should stop processing.",
     )
 
     evaluator: FlockEvaluator = Field(

@@ -22,8 +22,6 @@ import asyncio
 
 from flock.core import Flock, FlockAgent, FlockFactory
 
-
-
 # --------------------------------
 # Define the model
 # --------------------------------
@@ -32,40 +30,37 @@ from flock.core import Flock, FlockAgent, FlockFactory
 # https://docs.litellm.ai/docs/providers
 MODEL = "openai/gpt-4o"
 
-async def main():
-    # --------------------------------
-    # Create the flock and context
-    # --------------------------------
-    # The flock is the place where all the agents are at home
-    # set local_debug to True to run the flock without Temporal
-    # Check out the examples in /temporal to learn about Temporal
-    flock = Flock(model=MODEL, local_debug=True, enable_logging=True)
 
-    # --------------------------------
-    # Create an agent
-    # --------------------------------
-    # The Flock doesn't believe in prompts (see the readme for more info)
-    # The Flock just declares what agents get in and what agents produce
-    # bloggy takes in a blog_idea and outputs a funny_blog_title 
-    # and blog_headers
-    bloggy = FlockFactory.create_default_agent(
-        name="bloggy",
-        input_def="blog_idea",
-        output_def="funny_blog_title, blog_headers",
-    )
-    flock.add_agent(bloggy)
+# --------------------------------
+# Create the flock and context
+# --------------------------------
+# The flock is the place where all the agents are at home
+# set local_debug to True to run the flock without Temporal
+# Check out the examples in /temporal to learn about Temporal
+flock = Flock(model=MODEL, local_debug=True, enable_logging=True)
 
+# --------------------------------
+# Create an agent
+# --------------------------------
+# The Flock doesn't believe in prompts (see the readme for more info)
+# The Flock just declares what agents get in and what agents produce
+# bloggy takes in a blog_idea and outputs a funny_blog_title 
+# and blog_headers
+# bloggy = FlockFactory.create_default_agent(
+#     name="bloggy",
+#     input_def="blog_idea",
+#     output_def="funny_blog_title, blog_headers",
+# )
+# flock.add_agent(bloggy)
 
-    # --------------------------------
-    # Run the flock
-    # --------------------------------
-    # Tell the flock who is the starting and what input to give it
-    await flock.run_async(
-        start_agent=bloggy, 
-        input={"blog_idea": "A blog about cats"}
-    )
+bloggy = FlockAgent(name="bloggy", input="blog_idea", output="funny_blog_title, blog_headers")
 
 
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# --------------------------------
+# Run the flock
+# --------------------------------
+# Tell the flock who is the starting and what input to give it
+flock.run(
+    start_agent=bloggy, 
+    input={"blog_idea": "A blog about cats"}
+)
