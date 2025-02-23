@@ -143,15 +143,17 @@ class DSPyIntegrationMixin:
 
         return type("dspy_" + agent_name, (base_class,), class_dict)
 
-    def _configure_language_model(self) -> None:
+    def _configure_language_model(
+        self, model, use_cache, temperature, max_tokens
+    ) -> None:
         import dspy
 
         """Initialize and configure the language model using dspy."""
         lm = dspy.LM(
-            self.model,
-            cache=self.use_cache,
-            temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens,
+            model,
+            cache=use_cache,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
         dspy.configure(lm=lm)
 

@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from flock.core.flock_agent import FlockAgent
+from flock.evaluators.dspy.default import DefaultEvaluator
 
 
 class FlockAgentFactory:
@@ -16,7 +17,7 @@ class FlockAgentFactory:
         input_def: str | Callable[..., str] | None = None,
         output_def: str | Callable[..., str] | None = None,
         model: str | Callable[..., str] | None = None,
-        tool: list[Callable[..., Any] | Any] | None = None,
+        tools: list[Callable[..., Any] | Any] | None = None,
         hand_off: str | Callable[..., Any] | None = None,
     ) -> FlockAgent:
         """Creates a default FlockAgent with some common modules.
@@ -30,6 +31,7 @@ class FlockAgentFactory:
             name=name,
             input=input_def,
             output=output_def,
+            evaluator=DefaultEvaluator,
         )
 
         return agent
