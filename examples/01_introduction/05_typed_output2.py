@@ -15,13 +15,12 @@ and returns a list of randomly generated users. We then print the number of gene
 Let's see how it's done!
 """
 
-import asyncio
+
 from dataclasses import dataclass
 from pprint import pprint
 from typing import Literal
 
 from flock.core import Flock, FlockFactory
-from flock.core.flock_agent import FlockAgent
 
 
 # --------------------------------

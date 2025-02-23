@@ -18,10 +18,8 @@ along with a list of blog headers as output.
 Let's get started!
 """
 
-import asyncio
+from flock.core import Flock, FlockFactory
 
-from flock.core import Flock, FlockAgent, FlockFactory
-from flock.core.logging.formatters.themes import OutputTheme
 
 # --------------------------------
 # Define the model

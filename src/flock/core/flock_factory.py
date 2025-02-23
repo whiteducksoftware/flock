@@ -5,9 +5,9 @@ from typing import Any
 
 from flock.core.flock_agent import FlockAgent, HandOff
 from flock.core.logging.formatters.themes import OutputTheme
-from flock.evaluators.dspy.default import (
-    DefaultEvaluator,
-    DefaultEvaluatorConfig,
+from flock.evaluators.declarative.declarative_evaluator import (
+    DeclarativeEvaluator,
+    DeclarativeEvaluatorConfig,
 )
 from flock.modules.output.output_module import OutputModule, OutputModuleConfig
 
@@ -38,14 +38,14 @@ class FlockFactory:
         - Caching
         - Logging
         """
-        eval_config = DefaultEvaluatorConfig(
+        eval_config = DeclarativeEvaluatorConfig(
             model=model,
             use_cache=use_cache,
             max_tokens=max_tokens,
             temperature=temperature,
         )
 
-        evaluator = DefaultEvaluator(name="default", config=eval_config)
+        evaluator = DeclarativeEvaluator(name="default", config=eval_config)
         agent = FlockAgent(
             name=name,
             input=input_def,

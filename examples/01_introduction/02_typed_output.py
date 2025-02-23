@@ -19,12 +19,10 @@ After executing the agent, you can work with the result as a real Python object 
 Let's dive in!
 """
 
-import asyncio
+
 from pprint import pprint
 
-from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent
-from flock.core.flock_factory import FlockFactory
+from flock.core import Flock, FlockFactory
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.tools import basic_tools
 

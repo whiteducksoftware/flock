@@ -8,11 +8,8 @@ Perhaps your co-worker who loves writing blog post long prompts for his agents t
 You, being the flocky expert, decided to show him how to use 'descriptions' to make your agents do anything his agents can do and more.
 """
 
-import asyncio
 
-from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent
-from flock.core.flock_factory import FlockFactory
+from flock.core import Flock, FlockFactory
  
 flock = Flock()
 
