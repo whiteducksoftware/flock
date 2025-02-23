@@ -5,6 +5,7 @@ from pydantic import Field
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
 from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
+from flock.core.mixin.prompt_parser import PromptParserMixin
 
 
 class DefaultEvaluatorConfig(FlockEvaluatorConfig):
@@ -15,7 +16,7 @@ class DefaultEvaluatorConfig(FlockEvaluatorConfig):
     max_tokens: int = 100
 
 
-class DefaultEvaluator(FlockEvaluator, DSPyIntegrationMixin):
+class DefaultEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
     """Evaluator that uses DSPy for generation."""
 
     config: DefaultEvaluatorConfig = Field(

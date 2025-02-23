@@ -24,6 +24,7 @@ class FlockFactory:
         output_def: str | Callable[..., str] | None = None,
         tools: list[Callable[..., Any] | Any] | None = None,
         hand_off: str | HandOff | Callable[..., HandOff] | None = None,
+        use_cache: bool = True,
         enable_rich_tables: bool = False,
         output_theme: OutputTheme = OutputTheme.abernathy,
     ) -> FlockAgent:
@@ -34,7 +35,7 @@ class FlockFactory:
         - Caching
         - Logging
         """
-        eval_config = DefaultEvaluatorConfig(model=model)
+        eval_config = DefaultEvaluatorConfig(model=model, use_cache=use_cache)
 
         evaluator = DefaultEvaluator(name="default", config=eval_config)
         agent = FlockAgent(

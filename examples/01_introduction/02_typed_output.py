@@ -24,6 +24,7 @@ from pprint import pprint
 
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
+from flock.core.flock_factory import FlockFactory
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.tools import basic_tools
 
@@ -31,7 +32,7 @@ async def main():
     # --------------------------------
     # Create the flock
     # --------------------------------
-    flock = Flock(local_debug=True)
+    flock = Flock(local_debug=True, enable_logging=True)
 
 
     # --------------------------------
@@ -45,17 +46,13 @@ async def main():
     #   this is useful for expensive operations like web scraping and for debugging
     # Some people need some swag in their output
     # Flock supports rendering the output as a table and you can choose a theme
-    agent = FlockAgent(
+    agent = FlockFactory.create_default_agent(
         name="my_agent",
-        input="url",
-        output="title, headings: list[str], entities_and_metadata: list[dict[str, str]], type:Literal['news', 'blog', 'opinion piece', 'tweet']",
+        input_def="url",
+        output_def="title, headings: list[str], entities_and_metadata: list[dict[str, str]], type:Literal['news', 'blog', 'opinion piece', 'tweet']",
         tools=[basic_tools.get_web_content_as_markdown],
-        use_cache=True,
-        output_config=FlockAgentOutputConfig(
-            render_table=True,
-            theme=OutputTheme.abernathy
-        ),
-        memory_enabled=True
+        enable_rich_tables=True,
+        output_theme=OutputTheme.alabaster,
     )
     flock.add_agent(agent)
 

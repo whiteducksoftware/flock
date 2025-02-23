@@ -20,14 +20,16 @@ def display_banner():
 │ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
 │ ▒█▀▀▀ █░░ █░░█ █░░ █▀▄ │
 │ ▒█░░░ ▀▀▀ ▀▀▀▀ ▀▀▀ ▀░▀ │
-╰━━━━━━━━━v{__version__}━━━━━━━━╯
+╰━━━━━━━━━v{__version__}━━━━━━━━━╯
 🦆     🐤    🐧     🐓
 """,
         justify="center",
         style="bold orange3",
     )
     console.print(banner_text)
-    console.print(f"[bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n")
+    console.print(
+        f"[italic]'Hummingbird'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
+    )
 
 
 def display_banner_no_version():
