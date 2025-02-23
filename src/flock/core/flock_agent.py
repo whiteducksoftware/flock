@@ -79,7 +79,7 @@ class FlockAgentOutputConfig(BaseModel):
 
     render_table: bool = Field(default=False, descriptions="Renders a table.")
     theme: OutputTheme = Field(  # type: ignore
-        default=OutputTheme.afterglow,
+        default=OutputTheme.abernathy,
         descriptions="Disables the agent's output.",
     )
     max_length: int = Field(
