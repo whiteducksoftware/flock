@@ -9,7 +9,7 @@ from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
 
 class DefaultEvaluatorConfig(FlockEvaluatorConfig):
     agent_type_override: str | None = None
-    model: str = "openai/gpt-4o"
+    model: str | None = "openai/gpt-4o"
     use_cache: bool = True
     temperature: float = 0.7
     max_tokens: int = 100

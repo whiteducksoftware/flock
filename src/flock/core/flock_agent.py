@@ -46,7 +46,7 @@ class FlockAgent(BaseModel, ABC):
     model: str | None = Field(
         None, description="The model to use (e.g., 'openai/gpt-4o')."
     )
-    description: str | Callable[..., str] = Field(
+    description: str | Callable[..., str] | None = Field(
         "", description="A human-readable description of the agent."
     )
 
@@ -88,13 +88,13 @@ class FlockAgent(BaseModel, ABC):
         description="An optional termination condition or phrase used to indicate when the agent should stop processing.",
     )
 
-    evaluator: FlockEvaluator | None = Field(
+    evaluator: FlockEvaluator = Field(
         None,
         description="Evaluator to use for agent evaluation",
     )
 
     modules: dict[str, FlockModule] = Field(
-        None,
+        default_factory=dict,
         description="FlockModules attached to this agent",
     )
 
@@ -111,7 +111,7 @@ class FlockAgent(BaseModel, ABC):
         """Get a module by name."""
         return self.modules.get(module_name)
 
-    def get_enabled_modules(self, module_name: str) -> FlockModule | None:
+    def get_enabled_modules(self) -> FlockModule | None:
         """Get a module by name."""
         return [m for m in self.modules.values() if m.config.enabled]
 
@@ -260,7 +260,7 @@ class FlockAgent(BaseModel, ABC):
 
         data = self.model_dump()
         module_data = {}
-        for name, module in self.module_manager.modules.items():
+        for name, module in self.modules.items():
             module_data[name] = module.dict()
 
         data["modules"] = module_data

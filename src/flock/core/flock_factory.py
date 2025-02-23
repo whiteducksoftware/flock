@@ -8,7 +8,7 @@ from flock.evaluators.dspy.default import (
     DefaultEvaluator,
     DefaultEvaluatorConfig,
 )
-from flock.modules.output.output_module import OutputModule
+from flock.modules.output.output_module import OutputModule, OutputModuleConfig
 
 
 class FlockFactory:
@@ -33,7 +33,9 @@ class FlockFactory:
         """
         eval_config = DefaultEvaluatorConfig(model=model)
 
-        evaluator = DefaultEvaluator()
+        evaluator = DefaultEvaluator(
+            name="default_evaluator", config=eval_config
+        )
         agent = FlockAgent(
             name=name,
             input=input_def,
@@ -42,10 +44,12 @@ class FlockFactory:
             hand_off=hand_off,
             model=model,
             description=description,
-            evaluator=DefaultEvaluator,
+            evaluator=evaluator,
         )
+        output_config = OutputModuleConfig()
+        output_module = OutputModule("output", config=output_config)
 
-        agent.add_module(OutputModule())
+        agent.add_module(output_module)
 
         return agent
 

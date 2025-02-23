@@ -61,8 +61,8 @@ class OutputModule(FlockModule):
         default_factory=OutputModuleConfig, description="Output configuration"
     )
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    def __init__(self, name: str, config: OutputModuleConfig):
+        super().__init__(name=name, config=config)
         if self.config.write_to_file:
             os.makedirs(self.config.output_dir, exist_ok=True)
         self._formatter = ThemedAgentResultFormatter(
