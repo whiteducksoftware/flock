@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.3.4"
+version = "0.3.5"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -40,6 +40,7 @@ dependencies = [
     "tiktoken>=0.8.0",
     "toml>=0.10.2",
     "tqdm>=4.67.1",
+    "uvicorn>=0.34.0",
     "zep-python>=2.0.2",
 ]
 

@@ -1,21 +1,3 @@
-"""
-Title: Random User List Generator with Data Class Integration and Caching
-
-In this example, you'll see a simple Flock agent in action that generates a list of random users.
-This example demonstrates several cool features:
-  - **Data Class Integration:** We define a `RandomPerson` dataclass to structure the random user data.
-  - **Caching:** Enabled caching ensures that if you run the agent with the same input,
-    it will return a cached result—ideal for speeding up repeated requests.
-  - **Simple Agent Declaration:** Like all Flock agents, this one declares what it needs 
-    ("amount_of_people") and what it produces ("random_user_list: list[RandomPerson]") 
-    without the hassle of prompt engineering.
-
-In this scenario, our agent ("people_agent") takes the number of people to generate as input,
-and returns a list of randomly generated users. We then print the number of generated users.
-Let's see how it's done!
-"""
-
-
 from dataclasses import dataclass
 from pprint import pprint
 from typing import Literal

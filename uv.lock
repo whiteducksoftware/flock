@@ -1045,7 +1045,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.3.3"
+version = "0.3.4"
 source = { editable = "." }
 dependencies = [
     { name = "cloudpickle" },
@@ -1075,6 +1075,7 @@ dependencies = [
     { name = "tiktoken" },
     { name = "toml" },
     { name = "tqdm" },
+    { name = "uvicorn" },
     { name = "zep-python" },
 ]
 
@@ -1149,6 +1150,7 @@ requires-dist = [
     { name = "tiktoken", specifier = ">=0.8.0" },
     { name = "toml", specifier = ">=0.10.2" },
     { name = "tqdm", specifier = ">=4.67.1" },
+    { name = "uvicorn", specifier = ">=0.34.0" },
     { name = "zep-python", specifier = ">=2.0.2" },
 ]
 

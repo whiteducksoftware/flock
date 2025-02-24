@@ -1,14 +1,3 @@
-"""
-Title: Getting into the details with descriptions
-
-Perhaps your co-worker who loves writing blog post long prompts for his agents thought he has found an out:
-"Due to my long prompts I can make my agents do anything I want, which is not possible with your little declarative flocky!" he proclaimed.
-"What do you do when you need your agents to handle edge cases?" he asked. 
-
-You, being the flocky expert, decided to show him how to use 'descriptions' to make your agents do anything his agents can do and more.
-"""
-
-
 from flock.core import Flock, FlockFactory
  
 flock = Flock()
