@@ -35,7 +35,7 @@ class ZepEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
         """
         result = {}
         zep = ZepModule(
-            name="zep",
+            name=self.name,
             config=ZepModuleConfig(
                 zep_api_key=self.config.zep_api_key,
                 zep_url=self.config.zep_url,
