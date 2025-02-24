@@ -85,4 +85,3 @@ def display_banner_no_version():
     console.print(f"[bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n")
 
 
-display_hummingbird()
