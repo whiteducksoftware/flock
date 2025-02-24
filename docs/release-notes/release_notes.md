@@ -1,6 +1,6 @@
 # Flock v0.3 - Hummingbird  
 
-![Flock Banner](../assets/images/flock_hummingbird.png){ width="200" }
+![Flock Banner](../assets/images/hummingbird.png){ width="200" }
 
 We're excited to announce Flock v0.3, codenamed **"Hummingbird"**! This release brings a fundamental redesign of Flock's core architecture, introducing **unprecedented modularity and flexibility** to AI agent development.  
 
