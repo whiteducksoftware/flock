@@ -18,7 +18,7 @@ from flock.core.execution.temporal_executor import run_temporal_workflow
 from flock.core.flock_agent import FlockAgent
 from flock.core.logging.logging import LOGGERS, get_logger, get_module_loggers
 from flock.core.registry.agent_registry import Registry
-from flock.core.util.cli_helper import display_banner
+from flock.core.util.cli_helper import init_console
 from flock.core.util.input_resolver import top_level_to_keys
 
 T = TypeVar("T", bound=FlockAgent)
@@ -76,7 +76,6 @@ class Flock:
         model: str = "openai/gpt-4o",
         enable_temporal: bool = False,
         enable_logging: bool | list[str] = False,
-        show_cli_banner: bool = True,
     ):
         """Initialize the Flock orchestrator.
 
@@ -103,8 +102,7 @@ class Flock:
                 session_id = str(uuid.uuid4())
                 set_baggage("session_id", session_id)
 
-            if show_cli_banner:
-                display_banner()
+            init_console()
 
             self.agents: dict[str, FlockAgent] = {}
             self.registry = Registry()

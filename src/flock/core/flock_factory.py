@@ -31,12 +31,12 @@ class FlockFactory:
         temperature: float = 0.0,
         max_tokens: int = 4096,
     ) -> FlockAgent:
-        """Creates a default FlockAgent with some common modules.
+        """Creates a default FlockAgent.
 
-        Includes:
-        - Telemetry/tracing
-        - Caching
-        - Logging
+        The default agent includes a declarative evaluator with the following modules:
+        - OutputModule
+
+        It also includes often needed configurations like cache usage, rich tables, and output theme.
         """
         eval_config = DeclarativeEvaluatorConfig(
             model=model,
@@ -64,30 +64,5 @@ class FlockFactory:
         output_module = OutputModule("output", config=output_config)
 
         agent.add_module(output_module)
-
-        return agent
-
-    @staticmethod
-    def create_custom_agent(
-        name: str,
-        input_def: str,
-        output_def: str,
-        modules: list[dict[str, Any]],
-        **kwargs,
-    ) -> FlockAgent:
-        """Create an agent with custom module configuration.
-
-        Args:
-            modules: List of dicts with module specs:
-                    [{"type": ModuleClass, "config": {...}}, ...]
-        """
-        agent = FlockAgent(
-            name=name, input=input_def, output=output_def, **kwargs
-        )
-
-        for module_spec in modules:
-            module_type = module_spec["type"]
-            module_config = module_spec.get("config", {})
-            agent.add_module(module_type(config=module_config))
 
         return agent
