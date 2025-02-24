@@ -99,6 +99,13 @@ nav:
     - Pydantic Models: examples/pydantic.md
     - Chain Gang: examples/chain-gang.md
 
+  - Development:
+    - Roadmap: development/dev.md
+    - Topics: development/topics.md
+    - Contribution Guidelines: development/contribution.md
+    - Code of Conduct: development/code-of-conduct.md
+    - License: development/license.md
+
 plugins:
   # - termage:
   #     write_files: false
