@@ -2,6 +2,7 @@
 from flock.core import Flock, FlockFactory
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.evaluators.zep.zep_evaluator import ZepEvaluator, ZepEvaluatorConfig
+from flock.modules.zep.zep_module import ZepModule, ZepModuleConfig
 
 
 # #### **2-Hop Question:**
@@ -21,18 +22,6 @@ from flock.evaluators.zep.zep_evaluator import ZepEvaluator, ZepEvaluatorConfig
 # 2. "Andre lives in Germany."  
 # 3. "Germany is in Europe."  
 # 4. Therefore, the creator of 'flock' lives in Europe.
-
-# ---
-
-# #### **4-Hop Question:**
-# **Question:** What are the names of the pets belonging to the person who works for a cloud consulting company?  
-# **Reasoning:**  
-# 1. "Andre works for White Duck."  
-# 2. "White Duck is a cloud consulting company."  
-# 3. "Andre has two cats."  
-# 4. "One of Andre's cats is named Loki."  
-# 5. "The other cat is named Freya."  
-# 6. Therefore, the pets of the person who works for a cloud consulting company are Loki and Freya.
 
 
 def write_to_kg():
@@ -60,10 +49,22 @@ def read_from_kg():
   # replace the default evaluator with ZepEvaluator
   read_from_kg_agent.evaluator = ZepEvaluator(name="zep", config=ZepEvaluatorConfig())
 
+  # multiple hops needed to answer the question
   read_from_kg_agent.run(inputs={"query": "What kind of company does the employer of the author of 'flock' belong to?"})
 
+def read_from_kg_and_evaluate():
+  read_from_kg_and_evaluate_agent = FlockFactory.create_default_agent(name="my_agent", 
+                                            input="query", 
+                                            output="short_answer",
+                                            output_theme=OutputTheme.aardvark_blue)
+  
+  read_from_kg_and_evaluate_agent.add_module(ZepModule(name="zep", config=ZepModuleConfig()))
+  read_from_kg_and_evaluate_agent.run(inputs={"query": "What kind of company does the employer of the author of 'flock' belong to?"})
+  read_from_kg_and_evaluate_agent.run(inputs={"query": "In which continent does the creator of the agent framework 'flock' live? "})
+  
 
-read_from_kg()
+
+read_from_kg_and_evaluate()
 
 
 
