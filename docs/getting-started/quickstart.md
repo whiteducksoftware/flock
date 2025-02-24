@@ -68,7 +68,7 @@ flock = Flock(
 )
 
 # Meet your new AI friend
-bloggy = FlockAgent(
+bloggy = FlockFactory.create_default_agent(
     name="bloggy",
     input="topic",
     output="catchy_title, blog_headers"
@@ -106,12 +106,13 @@ Let's break down the magic:
 
 2. **Creating Your First Agent**:
    ```python
-   bloggy = FlockAgent(
+   bloggy = FlockFactory.create_default_agent(
         name="bloggy",
         input="topic",
         output="catchy_title, blog_headers"
     )
    ```
+   The FlockFactory is churning out your agents.
    Think of this as defining your agent's job description - what they need and what they'll create.
 
 3. **Action Time!**:
@@ -149,7 +150,7 @@ Also the agent itself offers a description field.
 
 ```python
 # Your agent just got an upgrade!
-bloggy = FlockAgent(
+bloggy = FlockFactory.create_default_agent(
             name="bloggy",
             input="topic",
             description="Bloggy creates fun blog outlines for any given topic",
