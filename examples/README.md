@@ -6,17 +6,18 @@ This part of the repository tries to explain how to use Flock to.
 
 Basic usage of flock
 
-## 02 Hand Off
+## 02 Cook Book
 
-How to chain agents and other tricks
+Recipes to let Flock cook or cook with Flock!
 
-## 03 Cook Book
+## 03 Misc
 
-Recipes to let Flock cook
+Additional Topics like modules and evaluators
 
-## 04 Misc
+## 04 Fake It Til You Make It
 
-Small addendums like logging and formatting
+We re-implement examples of other agent framework.
+For the migrating birds.
 
 ## notebooks
 

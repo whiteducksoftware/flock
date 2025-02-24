@@ -48,8 +48,8 @@ agent = FlockFactory.create_default_agent(
     name="my_agent",
     input="url",
     output="title, headings: list[str]," 
-              "entities_and_metadata: list[dict[str, str]]," 
-              "type:Literal['news', 'blog', 'opinion piece', 'tweet']",
+            "entities_and_metadata: list[dict[str, str]]," 
+            "type:Literal['news', 'blog', 'opinion piece', 'tweet']",
     tools=[basic_tools.get_web_content_as_markdown],
     enable_rich_tables=True,
     output_theme=OutputTheme.aardvark_blue,
