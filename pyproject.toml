@@ -39,6 +39,7 @@ dependencies = [
     "tiktoken>=0.8.0",
     "toml>=0.10.2",
     "tqdm>=4.67.1",
+    "zep-python>=2.0.2",
 ]
 
 [project.optional-dependencies]

@@ -13,8 +13,22 @@
         "source.organizeImports.ruff": "always",
         "source.fixAll.ruff": "always"
     },
-    // we try to make semantic highlighting look good
+    "editor.fontFamily": "'Jetbrains Mono', 'FiraCode Nerd Font', 'Hack Nerd Font', 'monospace'",
+    "editor.smoothScrolling": true,
+    "terminal.integrated.fontFamily": "'Jetbrains Mono', 'FiraCode Nerd Font', 'Hack Nerd Font', 'monospace'",
+    "editor.renderIndentGuides": false,
+    "editor.renderWhitespace": "none",
+    //"terminal.integrated.lineHeight": 1.5,
+    "editor.fontSize": 15.5,
+    "editor.fontLigatures": true,
+    //"editor.lineHeight": 1.5,
+    "editor.minimap.enabled": false,
+    "editor.tabSize": 2,
+    "editor.semanticTokenColorCustomizations": {
+        "enabled": true
+    },
     "editor.semanticHighlighting.enabled": true,
+    // we try to make semantic highlighting look good
     // prevent VSCode from modifying the terminal colors
     "terminal.integrated.minimumContrastRatio": 0,
     "cSpell.words": [
