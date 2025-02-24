@@ -114,7 +114,7 @@ pip install flock-core>=0.3.0
 
 ---  
 
-📖 **Full documentation**: [docs.flock.ai](https://docs.flock.ai)  
-💻 **GitHub**: [github.com/flock-ai](https://github.com/flock-ai)  
+📖 **Full documentation**: [https://whiteducksoftware.github.io/flock](https://whiteducksoftware.github.io/flock)  
+💻 **GitHub**: [https://github.com/whiteducksoftware/flock](https://github.com/whiteducksoftware/flock)  
 
 
