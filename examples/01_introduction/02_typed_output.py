@@ -1,25 +1,3 @@
-"""
-Title: Advanced Flock Agent with Caching, Type Hints, and Tool Integration
-
-In this example, we'll show you how to build a more advanced Flock system that:
-  - Uses a custom output formatter (RichTables) for a polished, swaggy display.
-  - Defines output types using standard Python type hints (including lists and Literals) for structured results.
-  - Integrates external tools (like a web content scraper) so that agents can perform more complex operations.
-  - Leverages caching so that if an agent is called with the same input, the cached result is returned—this is particularly
-    useful for expensive operations such as web scraping or during debugging.
-
-The agent in this example takes a URL as input and outputs:
-  - A title,
-  - A list of headings,
-  - A list of dictionaries mapping entities to metadata, and
-  - A type (limited to one of 'news', 'blog', 'opinion piece', or 'tweet').
-
-After executing the agent, you can work with the result as a real Python object that respects the defined types.
-
-Let's dive in!
-"""
-
-
 from pprint import pprint
 
 from flock.core import Flock, FlockFactory

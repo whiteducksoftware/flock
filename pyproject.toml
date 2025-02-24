@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.3.3"
+version = "0.3.4"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -17,6 +17,7 @@ dependencies = [
     "devtools>=0.12.2",
     "dspy==2.5.42",
     "duckduckgo-search>=7.3.2",
+    "fastapi>=0.115.8",
     "httpx>=0.28.1",
     "loguru>=0.7.3",
     "matplotlib>=3.10.0",

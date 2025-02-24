@@ -3,11 +3,9 @@
         "tests"
     ],
     "python.envFile": "${workspaceFolder}/.env",
-    "python.terminal.run_asyncEnvInCurrentTerminal": true,
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "python.testing.autoTestDiscoverOnSaveEnabled": true,
-    "shiny.python.debugJustMyCode": false,
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
         "source.organizeImports.ruff": "always",
@@ -22,7 +20,7 @@
     "editor.fontSize": 15.5,
     "editor.fontLigatures": true,
     //"editor.lineHeight": 1.5,
-    "editor.minimap.enabled": false,
+    "editor.minimap.enabled": true,
     "editor.tabSize": 2,
     "editor.semanticTokenColorCustomizations": {
         "enabled": true
@@ -30,7 +28,7 @@
     "editor.semanticHighlighting.enabled": true,
     // we try to make semantic highlighting look good
     // prevent VSCode from modifying the terminal colors
-    "terminal.integrated.minimumContrastRatio": 0,
+    "terminal.integrated.minimumContrastRatio": 1,
     "cSpell.words": [
         "deptry",
         "gradio",
