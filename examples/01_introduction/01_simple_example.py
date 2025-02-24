@@ -1,4 +1,5 @@
 from flock.core import Flock, FlockFactory
+from flock.core.flock_api import FlockAPI
 
 
 # --------------------------------
@@ -39,3 +40,4 @@ flock.run(
     start_agent=bloggy, 
     input={"blog_idea": "A blog about cats"}
 )
+

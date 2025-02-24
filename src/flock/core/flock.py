@@ -379,6 +379,8 @@ class Flock:
             Exception: For any other errors encountered during execution.
         """
         with tracer.start_as_current_span("run_async") as span:
+            if isinstance(start_agent, str):
+                start_agent = self.registry.get_agent(start_agent)
             span.set_attribute(
                 "start_agent",
                 start_agent.name
