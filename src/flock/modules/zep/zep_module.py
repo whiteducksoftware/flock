@@ -20,6 +20,8 @@ class ZepModuleConfig(FlockModuleConfig):
     min_fact_rating: float = Field(
         default=0.7, description="Minimum rating for facts to be considered"
     )
+    enable_read: bool = True
+    enable_write: bool = False
 
 
 class ZepModule(FlockModule):
@@ -140,6 +142,8 @@ class ZepModule(FlockModule):
         self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
     ) -> dict[str, Any]:
         """Format and display the output."""
+        if not self.config.enable_write:
+            return result
         logger.debug("Saving data to memory")
         zep_client = Zep(
             base_url=self.config.zep_url, api_key=self.config.zep_api_key
@@ -151,6 +155,9 @@ class ZepModule(FlockModule):
         self, agent: FlockAgent, inputs: dict[str, Any]
     ) -> dict[str, Any]:
         """Format and display the output."""
+        if not self.config.enable_read:
+            return inputs
+
         zep_client = Zep(
             base_url=self.config.zep_url, api_key=self.config.zep_api_key
         )

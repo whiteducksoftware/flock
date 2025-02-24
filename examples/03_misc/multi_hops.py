@@ -25,7 +25,7 @@ from flock.modules.zep.zep_module import ZepModule, ZepModuleConfig
 
 
 def write_to_kg():
-  write_to_kg_agent = FlockFactory.create_default_agent(name="my_agent", 
+  write_to_kg_agent = FlockFactory.create_default_agent(name="write_to_kg_agent", 
                                             input="data", 
                                             output_theme=OutputTheme.aardvark_blue)
 
@@ -42,7 +42,7 @@ def write_to_kg():
   write_to_kg_agent.run(inputs={"data": "Germany is in Europe"})
 
 def read_from_kg():
-  read_from_kg_agent = FlockFactory.create_default_agent(name="my_agent", 
+  read_from_kg_agent = FlockFactory.create_default_agent(name="read_from_kg_agent", 
                                             input="query", 
                                             output_theme=OutputTheme.aardvark_blue)
 
@@ -53,7 +53,7 @@ def read_from_kg():
   read_from_kg_agent.run(inputs={"query": "What kind of company does the employer of the author of 'flock' belong to?"})
 
 def read_from_kg_and_evaluate():
-  read_from_kg_and_evaluate_agent = FlockFactory.create_default_agent(name="my_agent", 
+  read_from_kg_and_evaluate_agent = FlockFactory.create_default_agent(name="read_from_kg_and_evaluate_agent", 
                                             input="query", 
                                             output="short_answer",
                                             output_theme=OutputTheme.aardvark_blue)
