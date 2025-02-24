@@ -1,10 +1,10 @@
-from flock.core import Flock, FlockFactory
-from flock.core.flock_api import FlockAPI
+from flock.core import Flock,FlockFactory,FlockAPI
+
 
 
 MODEL = "openai/gpt-4o"
 
-flock = Flock(model=MODEL)
+flock = Flock(model=MODEL,enable_logging=True)
 
 bloggy = FlockFactory.create_default_agent(
     name="bloggy",

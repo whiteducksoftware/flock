@@ -14,7 +14,7 @@ from flock.core.logging.logging import get_logger
 logger = get_logger("api")
 
 
-class RunRequest(BaseModel):
+class FlockAPIRequest(BaseModel):
     """Request model for running an agent."""
 
     agent_name: str = Field(..., description="Name of the agent to run")
@@ -26,7 +26,7 @@ class RunRequest(BaseModel):
     )
 
 
-class RunResponse(BaseModel):
+class FlockAPIResponse(BaseModel):
     """Response model for run requests."""
 
     run_id: str = Field(..., description="Unique ID for this run")
@@ -53,7 +53,7 @@ class FlockAPI:
     def __init__(self, flock: Flock):
         self.flock = flock
         self.app = FastAPI(title="Flock API")
-        self.runs: dict[str, RunResponse] = {}
+        self.runs: dict[str, FlockAPIResponse] = {}
 
         # Register routes
         self._setup_routes()
@@ -61,9 +61,9 @@ class FlockAPI:
     def _setup_routes(self):
         """Set up API routes."""
 
-        @self.app.post("/run/flock", response_model=RunResponse)
+        @self.app.post("/run/flock", response_model=FlockAPIResponse)
         async def run_flock(
-            request: RunRequest, background_tasks: BackgroundTasks
+            request: FlockAPIRequest, background_tasks: BackgroundTasks
         ):
             """Run an agent with the provided inputs."""
             try:
@@ -71,7 +71,7 @@ class FlockAPI:
                 run_id = str(uuid.uuid4())
 
                 # Create initial response
-                response = RunResponse(
+                response = FlockAPIResponse(
                     run_id=run_id, status="starting", started_at=datetime.now()
                 )
                 self.runs[run_id] = response
@@ -97,9 +97,9 @@ class FlockAPI:
                 logger.error(f"Error starting run: {e!s}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-        @self.app.post("/run/agent", response_model=RunResponse)
+        @self.app.post("/run/agent", response_model=FlockAPIResponse)
         async def run_agent(
-            request: RunRequest, background_tasks: BackgroundTasks
+            request: FlockAPIRequest, background_tasks: BackgroundTasks
         ):
             """Run an agent with the provided inputs."""
             try:
@@ -107,7 +107,7 @@ class FlockAPI:
                 run_id = str(uuid.uuid4())
 
                 # Create initial response
-                response = RunResponse(
+                response = FlockAPIResponse(
                     run_id=run_id, status="starting", started_at=datetime.now()
                 )
                 self.runs[run_id] = response
@@ -133,7 +133,7 @@ class FlockAPI:
                 logger.error(f"Error starting run: {e!s}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-        @self.app.get("/run/{run_id}", response_model=RunResponse)
+        @self.app.get("/run/{run_id}", response_model=FlockAPIResponse)
         async def get_run_status(run_id: str):
             """Get the status of a run."""
             if run_id not in self.runs:
@@ -147,9 +147,10 @@ class FlockAPI:
                 "agents": [
                     {
                         "name": agent.name,
-                        "description": agent.config.description,
+                        "description": agent.description,
                         "input_schema": agent.input,
                         "output_schema": agent.output,
+                        "hand_off": agent.hand_off,
                     }
                     for agent in self.flock.agents.values()
                 ]
