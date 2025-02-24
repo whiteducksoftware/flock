@@ -41,13 +41,18 @@ agent = FlockFactory.create_default_agent(
     output_theme=OutputTheme.aardvark_blue,
 )
 
-# Add Zep module
+# --------------------------------
+# Add a module to the agent
+# --------------------------------
+# Modules are modules (heh) that can be added to an agent to extend its capabilities.
+# Modules run at certain points in the agent's lifecycle and can manipulate the inputs and outputs and the agent itself.
+# In this case, we're adding the Zep module to the agent, 
+# which allows it to use Zep to store and retrieve information in Knowledge Graphs.
 zep = ZepModule(name="zep",config=ZepModuleConfig())
 agent.add_module(zep)
 
+
 flock.add_agent(agent)
-
-
 result = flock.run(
     start_agent=agent,
     input={"url": "https://lite.cnn.com/travel/alexander-the-great-macedon-persian-empire-darius/index.html"},
