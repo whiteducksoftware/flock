@@ -24,8 +24,7 @@ Like a hummingbird, modules are small and nimble code packages. Put enough of th
 
 ### 🎯 New Module System   
 
-- **Complete redesign** of the module architecture  
-- Simple yet powerful lifecycle hooks: `initialize`, `pre_evaluate`, `post_evaluate`, `terminate`  
+- **Pluggable modules system á la FastAPI**   
 - **Easy-to-implement** module interface  
 - **Configuration system** for clean parameter management  
 
@@ -35,6 +34,7 @@ Like a hummingbird, modules are small and nimble code packages. Put enough of th
 - Built-in support for multiple evaluation strategies:  
   - **Declarative Evaluator** – The default way Flock is designed  
   - **Natural Language Evaluator** – Use "classic" prompting  
+  - **Zep Evaluator** – Add or query data
 - **Easily extendable** with custom evaluation approaches  
 
 ### 🏭 FlockFactory    
@@ -46,6 +46,7 @@ Like a hummingbird, modules are small and nimble code packages. Put enough of th
 - **Memory Module** – Persistent agent memory  
 - **Output Module** – Advanced output formatting and storage  
 - **Metrics Module** – Detailed performance tracking  
+- **Zep Module** – Uses Zep for Knowledge Graphs
 
 ---
 
