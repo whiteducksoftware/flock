@@ -15,15 +15,13 @@ and returns a list of randomly generated users. We then print the number of gene
 Let's see how it's done!
 """
 
-import asyncio
+
 from dataclasses import dataclass
 from pprint import pprint
 from typing import Literal
 
-from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent
-from flock.core.logging.formatters.themed_formatter import ThemedAgentResultFormatter
-from flock.core.tools import basic_tools
+from flock.core import Flock, FlockFactory
+
 
 # --------------------------------
 # Define the data model for a random person
@@ -37,43 +35,41 @@ class RandomPerson:
     favorite_movie: str  
     short_bio: str
 
+# And 'hide' it in a alias
 RandomUserList = list[RandomPerson]
 
-async def main():
+
    
-    flock = Flock(local_debug=True)
+flock = Flock()
 
-    # --------------------------------
-    # Define the Random User List Agent
-    # --------------------------------
-    # This agent ("people_agent") is responsible for generating a list of random users.
-    # It requires the input "amount_of_people" and produces an output "random_user_list" 
-    # which is a list of RandomPerson objects.
-    # Caching is enabled so that repeated requests with the same input can return a cached result.
-    people_agent = FlockAgent(
-        name="people_agent",
-        input="amount_of_people",
-        output="random_user_list: RandomUserList",
-        use_cache=True,
-    )
-    flock.add_agent(people_agent)
+# --------------------------------
+# Define the Random User List Agent
+# --------------------------------
+# This agent ("people_agent") is responsible for generating a list of random users.
+# It requires the input "amount_of_people" and produces an output "random_user_list" 
+# which is a RandomUserList object.
+# Internally all dataclass, pydantic basemodels and alias are supported
+people_agent = FlockFactory.create_default_agent(
+    name="people_agent",
+    input="amount_of_people",
+    output="random_user_list: RandomUserList",
+)
+flock.add_agent(people_agent)
 
-    # --------------------------------
-    # Run the agent to generate random users
-    # --------------------------------
-    # We execute the agent asynchronously, passing in the desired amount of people.
-    # The result is a namespace containing the generated random user list.
-    result = await flock.run_async(
-        start_agent=people_agent,
-        input={"amount_of_people": "10"},
-    )
+# --------------------------------
+# Run the agent to generate random users
+# --------------------------------
+# We execute the agent asynchronously, passing in the desired amount of people.
+# The result is a namespace containing the generated random user list.
+result =  flock.run(
+    start_agent=people_agent,
+    input={"amount_of_people": "10"},
+)
 
-    # --------------------------------
-    # Process and display the result
-    # --------------------------------
-    # Here we print the number of users generated to verify our agent's output.
-    pprint(len(result.random_user_list))
+# --------------------------------
+# Process and display the result
+# --------------------------------
+# Here we print the number of users generated to verify our agent's output.
+pprint(len(result.random_user_list))
 
-if __name__ == "__main__":
-    # Run the main coroutine using asyncio
-    asyncio.run(main())
+

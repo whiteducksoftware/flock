@@ -46,17 +46,98 @@ def get_current_trace_id() -> str:
     return "no-trace"
 
 
+# ---------------------------------------------------------------------
+# 2. A color map for different logger names
+#    You can add or change entries as you like.
+# ---------------------------------------------------------------------
+COLOR_MAP = {
+    "flock": "magenta",
+    "interpreter": "cyan",
+    "memory": "yellow",
+    "activities": "blue",
+    "context": "green",
+    "registry": "white",
+    "tools": "light-black",
+    "agent": "light-magenta",
+}
+
+LOGGERS = [
+    "flock",
+    "interpreter",
+    "memory",
+    "activities",
+    "context",
+    "registry",
+    "tools",
+    "agent",
+]
+
+
+def color_for_category(category: str) -> str:
+    """Return the ANSI color code name for the given category."""
+    return COLOR_MAP.get(category, "magenta")  # fallback color
+
+
+def custom_format(record):
+    """A function-based formatter for Loguru that.
+
+    - Prints the time in green
+    - Prints the level with Loguru's <level> tag
+    - Prints the trace_id in cyan
+    - Looks up the category in the record's extras and applies a color
+    - Finally prints the message
+    """
+    t = record["time"].strftime("%Y-%m-%d %H:%M:%S")
+    level_name = record["level"].name
+    category = record["extra"].get("category", "unknown")
+    trace_id = record["extra"].get("trace_id", "no-trace")
+    color = color_for_category(category)
+    message = record["message"]
+
+    return (
+        f"<green>{t}</green> | <level>{level_name: <8}</level> | "
+        f"<cyan>[trace_id: {trace_id}]</cyan> | "
+        f"<{color}>[{category}]</{color}> | {message}\n"
+    )
+
+
+class ImmediateFlushSink:
+    """A custom Loguru sink that writes to a stream and flushes immediately after each message.
+    This ensures that logs appear in real time.
+    """
+
+    def __init__(self, stream=None):
+        self._stream = stream if stream else sys.stderr
+
+    def write(self, message):
+        self._stream.write(message)
+        self._stream.flush()
+
+    def flush(self):
+        self._stream.flush()
+
+
+class PrintAndFlushSink:
+    """A Loguru sink that forcibly prints each log record and flushes immediately,
+    mimicking print(..., flush=True).
+    """
+
+    def write(self, message: str):
+        # message already ends with a newline
+        print(message, end="", flush=True)
+
+    def flush(self):
+        pass  # Already flushed on every write call.
+
+
 # Configure Loguru for non-workflow (local/worker) contexts.
 # Note that in workflow code, we will use Temporal's workflow.logger instead.
 loguru_logger.remove()
 loguru_logger.add(
-    sys.stderr,
+    PrintAndFlushSink(),
     level="DEBUG",
     colorize=True,
-    format=(
-        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
-        "<cyan>[trace_id: {extra[trace_id]}]</cyan> | <magenta>[{extra[category]}]</magenta> | {message}"
-    ),
+    format=custom_format,
 )
 # Optionally add a file handler, e.g.:
 # loguru_logger.add("logs/flock.log", rotation="100 MB", retention="30 days", level="DEBUG")
@@ -113,28 +194,51 @@ class FlockLogger:
             trace_id=get_current_trace_id(),
         )
 
-    def debug(self, message: str, *args, **kwargs):  # noqa: D102
+    def debug(self, message: str, *args, flush: bool = False, **kwargs) -> None:
         self._get_logger().debug(message, *args, **kwargs)
 
-    def info(self, message: str, *args, **kwargs):  # noqa: D102
+    def info(self, message: str, *args, flush: bool = False, **kwargs) -> None:
         self._get_logger().info(message, *args, **kwargs)
 
-    def warning(self, message: str, *args, **kwargs):  # noqa: D102
+    def warning(
+        self, message: str, *args, flush: bool = False, **kwargs
+    ) -> None:
         self._get_logger().warning(message, *args, **kwargs)
 
-    def error(self, message: str, *args, **kwargs):  # noqa: D102
+    def error(self, message: str, *args, flush: bool = False, **kwargs) -> None:
         self._get_logger().error(message, *args, **kwargs)
 
-    def exception(self, message: str, *args, **kwargs):  # noqa: D102
+    def exception(
+        self, message: str, *args, flush: bool = False, **kwargs
+    ) -> None:
         self._get_logger().exception(message, *args, **kwargs)
 
-    def success(self, message: str, *args, **kwargs):  # noqa: D102
+    def success(
+        self, message: str, *args, flush: bool = False, **kwargs
+    ) -> None:
         self._get_logger().success(message, *args, **kwargs)
 
 
-def get_logger(name: str = "flock") -> FlockLogger:
-    """Returns a FlockLogger instance for the given name.
+_LOGGER_CACHE: dict[str, FlockLogger] = {}
 
-    Import and use this function throughout your Flock code instead of importing Loguru directly.
+
+def get_logger(name: str = "flock", enable_logging: bool = True) -> FlockLogger:
+    """Return a cached FlockLogger instance for the given name.
+    If the logger doesn't exist, create it.
+    If it does exist, update 'enable_logging' if a new value is passed.
     """
-    return FlockLogger(name)
+    if name not in _LOGGER_CACHE:
+        _LOGGER_CACHE[name] = FlockLogger(name, enable_logging)
+    else:
+        _LOGGER_CACHE[name].enable_logging = enable_logging
+    return _LOGGER_CACHE[name]
+
+
+def get_module_loggers() -> list[FlockLogger]:
+    """Return a cached FlockLogger instance for the given module name."""
+    result = []
+    for kvp in _LOGGER_CACHE:
+        if kvp.startswith("module."):
+            result.append(_LOGGER_CACHE[kvp])
+
+    return result

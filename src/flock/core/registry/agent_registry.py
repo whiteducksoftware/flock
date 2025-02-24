@@ -2,12 +2,13 @@
 
 from collections.abc import Callable
 
+from opentelemetry import trace
+
 from flock.core.flock_agent import FlockAgent
+from flock.core.flock_module import FlockModule
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("registry")
-from opentelemetry import trace
-
 tracer = trace.get_tracer(__name__)
 
 
@@ -34,6 +35,7 @@ class Registry:
         with tracer.start_as_current_span("Registry._initialize"):
             self._agents: list[FlockAgent] = []
             self._tools: list[tuple[str, Callable]] = []
+            self._modules: list[FlockModule] = []
             logger.info("Registry initialized", agents_count=0, tools_count=0)
 
     def register_tool(self, tool_name: str, tool: Callable) -> None:

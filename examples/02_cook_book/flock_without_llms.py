@@ -37,7 +37,7 @@ async def main():
     # Create the flock
     # --------------------------------
     # Create a Flock instance in local debug mode (no Temporal needed for this simple demo)
-    flock = Flock(local_debug=True)
+    flock = Flock()
 
     # --------------------------------
     # Create the agents

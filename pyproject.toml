@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.2.18"
+version = "0.3.01"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -19,6 +19,7 @@ dependencies = [
     "duckduckgo-search>=7.3.2",
     "httpx>=0.28.1",
     "loguru>=0.7.3",
+    "matplotlib>=3.10.0",
     "msgpack>=1.1.0",
     "opentelemetry-api>=1.30.0",
     "opentelemetry-exporter-jaeger>=1.21.0",
@@ -26,13 +27,18 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.30.0",
     "opentelemetry-instrumentation-logging>=0.51b0",
     "opentelemetry-sdk>=1.30.0",
+    "pillow>=10.4.0",
+    "prometheus-client>=0.21.1",
     "pydantic>=2.10.5",
     "python-box>=7.3.2",
     "python-decouple>=3.8",
     "questionary>=2.1.0",
     "rich>=13.9.4",
+    "sentence-transformers>=3.4.1",
     "temporalio>=1.9.0",
+    "tiktoken>=0.8.0",
     "toml>=0.10.2",
+    "tqdm>=4.67.1",
 ]
 
 [project.optional-dependencies]

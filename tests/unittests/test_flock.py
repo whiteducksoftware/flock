@@ -9,7 +9,6 @@ from rich.prompt import Prompt
 from flock.core.context.context import FlockContext
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
-from flock.core.logging.formatters.base_formatter import FormatterOptions
 
 # ------------------------------------------------------------------------------
 # Dummy agent implementation for testing.
@@ -59,7 +58,6 @@ class TestFlock:
         f = Flock()
         assert f.model == "openai/gpt-4o"
         assert not f.local_debug
-        assert isinstance(f.output_formatter, FormatterOptions)
         assert isinstance(f.context, FlockContext)
         assert isinstance(f.agents, dict)
         # When local_debug is False, LOCAL_DEBUG should not be set.

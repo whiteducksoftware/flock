@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - master  # or master
+      - docs/*  # or docs/*
 
 jobs:
   deploy:

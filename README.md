@@ -311,9 +311,49 @@ Super simple rules to remember:
 1. Point the first agent to the next one using `hand_off`
 2. Make sure their inputs and outputs match up
 
+### Tools of the trade
+
+Of couse no agent framework is complete without using tools.
+Flock enables agents to use any python function you pass as tool or to use one of the plenty default tools
+
+```python
+bloggy = FlockAgent(
+    name="bloggy",
+    input="blog_idea: str|The topic to blog about",
+    output=(
+        "funny_blog_title: str|A catchy title for the blog, "
+        "blog_headers: list[str]|List of section headers for the blog"
+        "analysis_results: dict[str,Any] | Result of calculated analysis if necessary"
+    )
+    tools=[basic_tools.web_search_duckduckgo, basic_tools.code_eval],
+)
+
+result = flock.run(
+    input={"blog_idea": "A blog about cats, with an analysis how old the oldest cat became in days"},
+    start_agent=bloggy
+)
+```
+
+These tools are available out of the box (needs `flock-core[tools]`):
+
+- web_search_tavily
+- web_search_duckduckgo
+- get_web_content_as_markdown
+- get_anything_as_markdown (uses docling and needs `flock-core[all-tools]`)
+- evaluate_math
+- code_eval
+- get_current_time
+- count_words
+- extract_urls
+- extract_numbers
+- json_parse_safe
+- save_to_file
+- read_from_file
+
+
 That's all there is to it! `bloggy` comes up with amazing headers, and `content_writer` turns them into full blog sections. No more writer's block! 🎉
 
-And this is just the beginning - you can chain as many agents as you want. Maybe add a proofreader? Or an SEO optimizer? But let's not get ahead of ourselves! 😉
+And this is just the beginning - you can chain as many agents as you want. Maybe add a proofreader? Or add memory? Or an SEO optimizer? But let's not get ahead of ourselves! 😉
 
 So far we've barely scratched the surface of what flock has to offer, and we're currently hard at work building up the documentation for all the other super cool features Flock has up its sleeve! Stay tuned! 🚀
 

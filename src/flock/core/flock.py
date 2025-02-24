@@ -16,15 +16,52 @@ from flock.core.context.context_manager import initialize_context
 from flock.core.execution.local_executor import run_local_workflow
 from flock.core.execution.temporal_executor import run_temporal_workflow
 from flock.core.flock_agent import FlockAgent
-from flock.core.logging.logging import get_logger
+from flock.core.logging.logging import LOGGERS, get_logger, get_module_loggers
 from flock.core.registry.agent_registry import Registry
-from flock.core.util.cli_helper import display_banner
+from flock.core.util.cli_helper import init_console
 from flock.core.util.input_resolver import top_level_to_keys
 
 T = TypeVar("T", bound=FlockAgent)
 logger = get_logger("flock")
 TELEMETRY.setup_tracing()
 tracer = trace.get_tracer(__name__)
+
+
+def init_loggers(enable_logging: bool | list[str] = False):
+    """Initialize the loggers for the Flock system.
+
+    Args:
+        enable_logging (bool): If True, enable verbose logging. Defaults to False.
+    """
+    if isinstance(enable_logging, list):
+        for logger in LOGGERS:
+            if logger in enable_logging:
+                other_loggers = get_logger(logger)
+                other_loggers.enable_logging = True
+            else:
+                other_loggers = get_logger(logger)
+                other_loggers.enable_logging = False
+    else:
+        logger = get_logger("flock")
+        logger.enable_logging = enable_logging
+        other_loggers = get_logger("interpreter")
+        other_loggers.enable_logging = enable_logging
+        other_loggers = get_logger("memory")
+        other_loggers.enable_logging = enable_logging
+        other_loggers = get_logger("activities")
+        other_loggers.enable_logging = enable_logging
+        other_loggers = get_logger("context")
+        other_loggers.enable_logging = enable_logging
+        other_loggers = get_logger("registry")
+        other_loggers.enable_logging = enable_logging
+        other_loggers = get_logger("tools")
+        other_loggers.enable_logging = enable_logging
+        other_loggers = get_logger("agent")
+        other_loggers.enable_logging = enable_logging
+
+        module_loggers = get_module_loggers()
+        for module_logger in module_loggers:
+            module_logger.enable_logging = enable_logging
 
 
 class Flock:
@@ -37,9 +74,8 @@ class Flock:
     def __init__(
         self,
         model: str = "openai/gpt-4o",
-        local_debug: bool = False,
-        enable_logging: bool = False,
-        show_cli_banner: bool = True,
+        enable_temporal: bool = False,
+        enable_logging: bool | list[str] = False,
     ):
         """Initialize the Flock orchestrator.
 
@@ -51,32 +87,32 @@ class Flock:
         """
         with tracer.start_as_current_span("flock_init") as span:
             span.set_attribute("model", model)
-            span.set_attribute("local_debug", local_debug)
+            span.set_attribute("enable_temporal", enable_temporal)
             span.set_attribute("enable_logging", enable_logging)
+
+            init_loggers(enable_logging)
             logger.info(
                 "Initializing Flock",
                 model=model,
-                local_debug=local_debug,
+                enable_temporal=enable_temporal,
                 enable_logging=enable_logging,
             )
-            logger.enable_logging = enable_logging
             session_id = get_baggage("session_id")
             if not session_id:
                 session_id = str(uuid.uuid4())
                 set_baggage("session_id", session_id)
 
-            if show_cli_banner:
-                display_banner()
+            init_console()
 
             self.agents: dict[str, FlockAgent] = {}
             self.registry = Registry()
             self.context = FlockContext()
             self.model = model
-            self.local_debug = local_debug
+            self.enable_temporal = enable_temporal
             self.start_agent: FlockAgent | str | None = None
             self.input: dict = {}
 
-            if local_debug:
+            if not enable_temporal:
                 os.environ["LOCAL_DEBUG"] = "1"
                 logger.debug("Set LOCAL_DEBUG environment variable")
             elif "LOCAL_DEBUG" in os.environ:
@@ -110,7 +146,7 @@ class Flock:
                     f"Agent {agent.name} already exists, returning existing instance"
                 )
                 return self.agents[agent.name]
-            logger.info("Adding new agent")
+            logger.info(f"Adding new agent '{agent.name}'")
 
             self.agents[agent.name] = agent
             self.registry.register_agent(agent)
@@ -121,8 +157,11 @@ class Flock:
             if hasattr(agent, "tools") and agent.tools:
                 for tool in agent.tools:
                     self.registry.register_tool(tool.__name__, tool)
-                    logger.debug("Registered tool", tool_name=tool.__name__)
-            logger.success("Agent added successfully")
+                    logger.debug(
+                        f"Registered tool '{tool.__name__}'",
+                        tool_name=tool.__name__,
+                    )
+            logger.success(f"'{agent.name}' added successfully")
             return agent
 
     def add_tool(self, tool_name: str, tool: callable):
@@ -362,7 +401,8 @@ class Flock:
             try:
                 if isinstance(self.start_agent, str):
                     logger.debug(
-                        "Looking up agent by name", agent_name=self.start_agent
+                        f"Looking up agent '{self.start_agent.name}' in registry",
+                        agent_name=self.start_agent,
                     )
                     self.start_agent = self.registry.get_agent(self.start_agent)
                     if not self.start_agent:
@@ -377,8 +417,8 @@ class Flock:
                     logger.debug("Using provided context")
                     self.context = context
                 if not run_id:
-                    run_id = f"{self.start_agent.name}_{uuid.uuid4().hex[:4]}"
-                    logger.debug("Generated run ID", run_id=run_id)
+                    run_id = f"flock_{uuid.uuid4().hex[:4]}"
+                    logger.debug(f"Generated run ID '{run_id}'", run_id=run_id)
 
                 set_baggage("run_id", run_id)
 
@@ -400,16 +440,16 @@ class Flock:
                     self.start_agent.name,
                     self.input,
                     run_id,
-                    self.local_debug,
+                    not self.enable_temporal,
                 )
 
                 logger.info(
                     "Starting agent execution",
                     agent=self.start_agent.name,
-                    local_debug=self.local_debug,
+                    enable_temporal=self.enable_temporal,
                 )
 
-                if self.local_debug:
+                if not self.enable_temporal:
                     return await run_local_workflow(self.context, box_result)
                 else:
                     return await run_temporal_workflow(self.context, box_result)

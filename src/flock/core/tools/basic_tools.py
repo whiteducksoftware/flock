@@ -4,8 +4,8 @@ import importlib
 import os
 from typing import Literal
 
+from flock.core.interpreter.python_interpreter import PythonInterpreter
 from flock.core.logging.trace_and_logged import traced_and_logged
-from flock.interpreter.python_interpreter import PythonInterpreter
 
 
 @traced_and_logged

@@ -29,6 +29,7 @@ extra_css:
   - stylesheets/extra.css
 nav:
   - Home: index.md
+  - Release Notes: release-notes/release_notes.md
   
   - Getting Started:
     - Quick Start: getting-started/quickstart.md
@@ -39,6 +40,7 @@ nav:
   - Core Concepts:
     - Agents: core-concepts/agents.md
     - Type System: core-concepts/type-system.md
+    - Memory: core-concepts/memory.md
     - Workflows: core-concepts/workflows.md
     - Declarative Programming: core-concepts/declarative.md
     - Error Handling: core-concepts/error-handling.md
