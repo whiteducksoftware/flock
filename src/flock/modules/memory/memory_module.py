@@ -179,15 +179,15 @@ class MemoryModule(FlockModule):
                 self.memory_store.concept_graph.graph.nodes()
             )
 
-        input_def = "text: str | Text to analyze"
+        input = "text: str | Text to analyze"
         if existing_concepts:
-            input_def += ", existing_concepts: list[str] | Already known concepts that might apply"
+            input += ", existing_concepts: list[str] | Already known concepts that might apply"
 
         # Create signature for concept extraction using agent's capabilities
         concept_signature = agent.create_dspy_signature_class(
             f"{agent.name}_concept_extractor",
             "Extract key concepts from text",
-            f"{input_def} -> concepts: list[str] | Max five key concepts all lower case",
+            f"{input} -> concepts: list[str] | Max five key concepts all lower case",
         )
 
         # Configure and run the predictor

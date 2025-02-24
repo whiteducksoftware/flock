@@ -47,8 +47,8 @@ flock = Flock(model=MODEL)
 # and blog_headers
 bloggy = FlockFactory.create_default_agent(
     name="bloggy",
-    input_def="blog_idea",
-    output_def="funny_blog_title, blog_headers",
+    input="blog_idea",
+    output="funny_blog_title, blog_headers",
 )
 flock.add_agent(bloggy)
 

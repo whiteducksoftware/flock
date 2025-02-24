@@ -51,8 +51,8 @@ flock = Flock()
 # Internally all dataclass, pydantic basemodels and alias are supported
 people_agent = FlockFactory.create_default_agent(
     name="people_agent",
-    input_def="amount_of_people",
-    output_def="random_user_list: RandomUserList",
+    input="amount_of_people",
+    output="random_user_list: RandomUserList",
 )
 flock.add_agent(people_agent)
 

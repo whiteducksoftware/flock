@@ -39,8 +39,8 @@ flock = Flock()
 # or your own custom tools
 agent = FlockFactory.create_default_agent(
     name="my_celebrity_age_agent",
-    input_def="a_person",
-    output_def="persons_age_in_days",
+    input="a_person",
+    output="persons_age_in_days",
     tools=[basic_tools.web_search_duckduckgo, basic_tools.code_eval],
     enable_rich_tables=True,
     output_theme=OutputTheme.adventuretime,

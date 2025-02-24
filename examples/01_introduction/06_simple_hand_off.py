@@ -35,16 +35,16 @@ flock = Flock()
 
 idea_agent = FlockFactory.create_default_agent(
     name="idea_agent",
-    input_def="query",
-    output_def="a_fun_software_project_idea",
+    input="query",
+    output="a_fun_software_project_idea",
     enable_rich_tables=True,
     wait_for_input=True,
 )
 
 project_plan_agent = FlockFactory.create_default_agent(
     name="project_plan_agent",
-    input_def="a_fun_software_project_idea",
-    output_def="catchy_project_name, project_pitch, techstack, project_implementation_plan",
+    input="a_fun_software_project_idea",
+    output="catchy_project_name, project_pitch, techstack, project_implementation_plan",
     enable_rich_tables=True,
     wait_for_input=True,
 )

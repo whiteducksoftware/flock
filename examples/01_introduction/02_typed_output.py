@@ -46,8 +46,8 @@ flock = Flock()
 # Flock supports rendering the output as a table and you can choose a theme (out of like 300 or so)
 agent = FlockFactory.create_default_agent(
     name="my_agent",
-    input_def="url",
-    output_def="title, headings: list[str]," 
+    input="url",
+    output="title, headings: list[str]," 
               "entities_and_metadata: list[dict[str, str]]," 
               "type:Literal['news', 'blog', 'opinion piece', 'tweet']",
     tools=[basic_tools.get_web_content_as_markdown],

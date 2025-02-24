@@ -3,8 +3,7 @@ from flock.core.tools import basic_tools
 
 # Get your flock ready for action!
 flock = Flock(
-    model="openai/gpt-4",  # Pick your favorite model
-    local_debug=True,      
+    model="openai/gpt-4",  # Pick your favorite model  
     enable_logging=True
 )
 

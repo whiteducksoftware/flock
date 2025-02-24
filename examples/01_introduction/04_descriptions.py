@@ -22,8 +22,8 @@ flock = Flock()
 
 a_cat_naming_agent = FlockFactory.create_default_agent(
     name="cat_naming_agent",
-    input_def="animal | the animal to create a cute name for",
-    output_def="""
+    input="animal | the animal to create a cute name for",
+    output="""
         cute_name: list[str] | a list of 5 cute names IN ALL CAPS, 
         error_message | an error message if the input is not a cat
     """,

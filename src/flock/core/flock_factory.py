@@ -21,8 +21,8 @@ class FlockFactory:
         name: str,
         description: str | Callable[..., str] | None = None,
         model: str | Callable[..., str] | None = "openai/gpt-4o",
-        input_def: str | Callable[..., str] | None = None,
-        output_def: str | Callable[..., str] | None = None,
+        input: str | Callable[..., str] | None = None,
+        output: str | Callable[..., str] | None = None,
         tools: list[Callable[..., Any] | Any] | None = None,
         hand_off: str | HandOff | Callable[..., HandOff] | None = None,
         use_cache: bool = True,
@@ -50,8 +50,8 @@ class FlockFactory:
         evaluator = DeclarativeEvaluator(name="default", config=eval_config)
         agent = FlockAgent(
             name=name,
-            input=input_def,
-            output=output_def,
+            input=input,
+            output=output,
             tools=tools,
             hand_off=hand_off,
             model=model,

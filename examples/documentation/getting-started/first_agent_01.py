@@ -1,13 +1,12 @@
-from flock.core import Flock, FlockAgent
+from flock.core import Flock, FlockFactory
 
 # Get your flock ready for action!
 flock = Flock(
     model="openai/gpt-4",  # Pick your favorite model
-    local_debug=True       # See what's happening behind the scenes
 )
 
 # Meet your new AI friend
-bloggy = FlockAgent(
+bloggy = FlockFactory.create_default_agent(
     name="bloggy",
     input="topic",
     output="catchy_title, blog_headers"

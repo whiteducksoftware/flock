@@ -5,7 +5,7 @@ We're excited to announce Flock v0.3, codenamed **"Hummingbird"**! This release 
 
 Modules and evaluators were the last missing pieces to fully modularize Flock.  
 
-Worried this might lead to hard-to-manage boilerplate? No problem! **FlockFactory** provides pre-configured agents, making interaction with modules and evaluators **purely optional**—so you can focus on **what** the agent does, not **how** it works.  
+Worried this might lead to hard-to-manage boilerplate? No problem! **FlockFactory** provides pre-configured agents, making interaction with modules and evaluators **purely optional**, so you can focus on **what** the agent does, not **how** it works.  
 
 But if you want **total control** over your agent, feel free to dive into these new additions. They unlock **crazy new possibilities** in Flock!  
 
@@ -51,7 +51,11 @@ Like a hummingbird, modules are small and nimble code packages. Put enough of th
 
 ---
 
-## Small Changes & Fixes  
+## Small Changes & Fixes 
+
+### Theme Designer
+
+### Color Coded Logging
 
 ---
 
@@ -71,8 +75,8 @@ flock.add_agent(bloggy)
 ```python
 bloggy = FlockFactory.create_default_agent(
     name="bloggy",
-    input_def="blog_idea",
-    output_def="funny_blog_title, blog_headers",
+    input="blog_idea",
+    output="funny_blog_title, blog_headers",
 )
 flock.add_agent(bloggy)
 ```  
