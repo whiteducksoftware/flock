@@ -7,7 +7,7 @@ from opentelemetry import trace
 
 from flock.core.context.context_vars import FLOCK_LAST_AGENT, FLOCK_LAST_RESULT
 from flock.core.logging.logging import get_logger
-from flock.core.util.serializable import Serializable
+from flock.core.serialization.serializable import Serializable
 
 logger = get_logger("context")
 tracer = trace.get_tracer(__name__)

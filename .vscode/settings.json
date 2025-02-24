@@ -14,7 +14,6 @@
     "editor.fontFamily": "'Jetbrains Mono', 'FiraCode Nerd Font', 'Hack Nerd Font', 'monospace'",
     "editor.smoothScrolling": true,
     "terminal.integrated.fontFamily": "'Jetbrains Mono', 'FiraCode Nerd Font', 'Hack Nerd Font', 'monospace'",
-    "editor.renderIndentGuides": false,
     "editor.renderWhitespace": "none",
     //"terminal.integrated.lineHeight": 1.5,
     "editor.fontSize": 15.5,
@@ -52,5 +51,6 @@
         "tag:yaml.org,2002:python/name:material.extensions.emoji.twemoji",
         "tag:yaml.org,2002:python/name:pymdownx.superfences.fence_code_format",
         "tag:yaml.org,2002:python/object/apply:pymdownx.slugs.slugify mapping"
-    ]
+    ],
+    "editor.guides.indentation": false
 }
