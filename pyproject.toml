@@ -28,6 +28,7 @@ dependencies = [
     "opentelemetry-instrumentation-logging>=0.51b0",
     "opentelemetry-sdk>=1.30.0",
     "pillow>=10.4.0",
+    "prometheus-client>=0.21.1",
     "pydantic>=2.10.5",
     "python-box>=7.3.2",
     "python-decouple>=3.8",
@@ -35,6 +36,7 @@ dependencies = [
     "rich>=13.9.4",
     "sentence-transformers>=3.4.1",
     "temporalio>=1.9.0",
+    "tiktoken>=0.8.0",
     "toml>=0.10.2",
     "tqdm>=4.67.1",
 ]

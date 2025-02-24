@@ -1031,7 +1031,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.2.18"
+version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "cloudpickle" },
@@ -1049,6 +1049,7 @@ dependencies = [
     { name = "opentelemetry-instrumentation-logging" },
     { name = "opentelemetry-sdk" },
     { name = "pillow" },
+    { name = "prometheus-client" },
     { name = "pydantic" },
     { name = "python-box" },
     { name = "python-decouple" },
@@ -1056,6 +1057,7 @@ dependencies = [
     { name = "rich" },
     { name = "sentence-transformers" },
     { name = "temporalio" },
+    { name = "tiktoken" },
     { name = "toml" },
     { name = "tqdm" },
 ]
@@ -1117,6 +1119,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-logging", specifier = ">=0.51b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.30.0" },
     { name = "pillow", specifier = ">=10.4.0" },
+    { name = "prometheus-client", specifier = ">=0.21.1" },
     { name = "pydantic", specifier = ">=2.10.5" },
     { name = "python-box", specifier = ">=7.3.2" },
     { name = "python-decouple", specifier = ">=3.8" },
@@ -1126,6 +1129,7 @@ requires-dist = [
     { name = "tavily-python", marker = "extra == 'all-tools'", specifier = ">=0.5.0" },
     { name = "tavily-python", marker = "extra == 'tools'", specifier = ">=0.5.0" },
     { name = "temporalio", specifier = ">=1.9.0" },
+    { name = "tiktoken", specifier = ">=0.8.0" },
     { name = "toml", specifier = ">=0.10.2" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
@@ -3217,6 +3221,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4f/7e/e1ddb1da14ed11d416cc3d683f752f18c4bacab3c5b2cd44fd1d725e0f1c/primp-0.12.1-cp38-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:5407e49166e61287010e9bf6daf84b7b0597a15286a7fb3ad0be36ee43555b4b", size = 3391011 },
     { url = "https://files.pythonhosted.org/packages/9f/71/1abab2beb64337ae050576bf24c60ee31f7c1cac878d25af3546ac696c07/primp-0.12.1-cp38-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:e0fad52ff964126be5996030b636ac92b110871738ff2523b3e74dcda381f226", size = 3578634 },
     { url = "https://files.pythonhosted.org/packages/0a/8d/f8b879fd6fa7b3ca9237d7236efb73169e228083c1b58e16ffa086c4e7ad/primp-0.12.1-cp38-abi3-win_amd64.whl", hash = "sha256:97c8fdc145eb3e9935658a8fff5c9bdc0552fcac3dfb15a1867d3ea08529e056", size = 3120451 },
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.21.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/62/14/7d0f567991f3a9af8d1cd4f619040c93b68f09a02b6d0b6ab1b2d1ded5fe/prometheus_client-0.21.1.tar.gz", hash = "sha256:252505a722ac04b0456be05c05f75f45d760c2911ffc45f2a06bcaed9f3ae3fb", size = 78551 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/c2/ab7d37426c179ceb9aeb109a85cda8948bb269b7561a0be870cc656eefe4/prometheus_client-0.21.1-py3-none-any.whl", hash = "sha256:594b45c410d6f4f8888940fe80b5cc2521b305a1fafe1c58609ef715a001f301", size = 54682 },
 ]
 
 [[package]]

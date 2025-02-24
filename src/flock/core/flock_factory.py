@@ -9,6 +9,7 @@ from flock.evaluators.declarative.declarative_evaluator import (
     DeclarativeEvaluator,
     DeclarativeEvaluatorConfig,
 )
+from flock.modules.performance.metrics_module import MetricsModule, MetricsModuleConfig
 from flock.modules.output.output_module import OutputModule, OutputModuleConfig
 
 
@@ -30,6 +31,7 @@ class FlockFactory:
         wait_for_input: bool = False,
         temperature: float = 0.0,
         max_tokens: int = 4096,
+        alert_latency_threshold_ms: int = 30000,
     ) -> FlockAgent:
         """Creates a default FlockAgent.
 
@@ -63,6 +65,9 @@ class FlockFactory:
         )
         output_module = OutputModule("output", config=output_config)
 
-        agent.add_module(output_module)
+        metrics_config = MetricsModuleConfig(latency_threshold_ms=alert_latency_threshold_ms)
+        metrics_module = MetricsModule("metrics", config=metrics_config)
 
+        agent.add_module(output_module)
+        agent.add_module(metrics_module)
         return agent
