@@ -1,11 +1,12 @@
-
 # Flock v0.3 - Hummingbird  
+
+![Flock Banner](../assets/images/flock_hummingbird.png){ width="200" }
 
 We're excited to announce Flock v0.3, codenamed **"Hummingbird"**! This release brings a fundamental redesign of Flock's core architecture, introducing **unprecedented modularity and flexibility** to AI agent development.  
 
 Modules and evaluators were the last missing pieces to fully modularize Flock.  
 
-Worried this might lead to hard-to-manage boilerplate? No problem! **FlockFactory** provides pre-configured agents, making interaction with modules and evaluators **purely optional**—so you can focus on **what** the agent does, not **how** it works.  
+Worried this might lead to hard-to-manage boilerplate? No problem! **FlockFactory** provides pre-configured agents, making interaction with modules and evaluators **purely optional**, so you can focus on **what** the agent does, not **how** it works.  
 
 But if you want **total control** over your agent, feel free to dive into these new additions. They unlock **crazy new possibilities** in Flock!  
 
@@ -15,29 +16,33 @@ Like a hummingbird, modules are small and nimble code packages. Put enough of th
 - **CLI Interface** – Flock now has a command-line interface  
 - **Color-coded logging** – Better debugging experience  
 - **New examples**  
-- …and much more!  
+- ...and much more!  
 
 ---
 
-## 🚀 Core Changes  
+## 🚀 Core Changes   
 
-### 🎯 New Module System  
+### 🎯 New Module System   
+
 - **Complete redesign** of the module architecture  
 - Simple yet powerful lifecycle hooks: `initialize`, `pre_evaluate`, `post_evaluate`, `terminate`  
 - **Easy-to-implement** module interface  
 - **Configuration system** for clean parameter management  
 
 ### 🔄 New Evaluator System  
+
 - **Pluggable evaluation system**  
 - Built-in support for multiple evaluation strategies:  
   - **Declarative Evaluator** – The default way Flock is designed  
   - **Natural Language Evaluator** – Use "classic" prompting  
 - **Easily extendable** with custom evaluation approaches  
 
-### 🏭 FlockFactory  
-- Provides **pre-configured agents**, so you don’t have to manage modules and evaluators manually!  
+### 🏭 FlockFactory    
+
+- Provides **pre-configured agents**, so you don't have to manage modules and evaluators manually!  
 
 ### 📦 Built-in Modules  
+
 - **Memory Module** – Persistent agent memory  
 - **Output Module** – Advanced output formatting and storage  
 - **Metrics Module** – Detailed performance tracking  
@@ -45,13 +50,18 @@ Like a hummingbird, modules are small and nimble code packages. Put enough of th
 ---
 
 ## ⚠️ Breaking Changes  
+
 - **Removed callback handlers** from `FlockAgent` in favor of modules  
 - **Changed agent initialization** pattern to support evaluators  
 - **Simplified module lifecycle hooks** (removed redundant pre/post hooks)  
 
 ---
 
-## ✨ Small Changes & Fixes  
+## ✨ Small Changes & Fixes 
+
+### Theme Designer
+
+### Color Coded Logging
 
 ---
 
@@ -105,4 +115,5 @@ pip install flock-core>=0.3.0
 
 📖 **Full documentation**: [docs.flock.ai](https://docs.flock.ai)  
 💻 **GitHub**: [github.com/flock-ai](https://github.com/flock-ai)  
+
 

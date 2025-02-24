@@ -29,6 +29,7 @@ extra_css:
   - stylesheets/extra.css
 nav:
   - Home: index.md
+  - Release Notes: release-notes/release_notes.md
   
   - Getting Started:
     - Quick Start: getting-started/quickstart.md
