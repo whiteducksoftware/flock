@@ -20,7 +20,9 @@ logger = get_logger("default_router")
 class DefaultRouterConfig(FlockRouterConfig):
     """Configuration for the default router."""
 
-    hand_off = str | HandOffRequest | Callable[..., HandOffRequest]
+    hand_off: str | HandOffRequest | Callable[..., HandOffRequest] = Field(
+        default="", description="Next agent to hand off to"
+    )
 
 
 class DefaultRouter(FlockRouter):
