@@ -3,14 +3,18 @@
 from collections.abc import Callable
 from typing import Any
 
-from flock.core.flock_agent import FlockAgent, HandOff
+from flock.core.flock_agent import FlockAgent
+from flock.core.flock_router import HandOffRequest
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.evaluators.declarative.declarative_evaluator import (
     DeclarativeEvaluator,
     DeclarativeEvaluatorConfig,
 )
-from flock.modules.performance.metrics_module import MetricsModule, MetricsModuleConfig
 from flock.modules.output.output_module import OutputModule, OutputModuleConfig
+from flock.modules.performance.metrics_module import (
+    MetricsModule,
+    MetricsModuleConfig,
+)
 
 
 class FlockFactory:
@@ -24,7 +28,10 @@ class FlockFactory:
         input: str | Callable[..., str] | None = None,
         output: str | Callable[..., str] | None = None,
         tools: list[Callable[..., Any] | Any] | None = None,
-        hand_off: str | HandOff | Callable[..., HandOff] | None = None,
+        hand_off: str
+        | HandOffRequest
+        | Callable[..., HandOffRequest]
+        | None = None,
         use_cache: bool = True,
         enable_rich_tables: bool = False,
         output_theme: OutputTheme = OutputTheme.abernathy,
@@ -65,7 +72,9 @@ class FlockFactory:
         )
         output_module = OutputModule("output", config=output_config)
 
-        metrics_config = MetricsModuleConfig(latency_threshold_ms=alert_latency_threshold_ms)
+        metrics_config = MetricsModuleConfig(
+            latency_threshold_ms=alert_latency_threshold_ms
+        )
         metrics_module = MetricsModule("metrics", config=metrics_config)
 
         agent.add_module(output_module)

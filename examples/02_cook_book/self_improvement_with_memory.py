@@ -5,13 +5,14 @@ Title: Reasoning assistant with self managed memory
 from datetime import datetime
 import warnings
 
+from flock.core.flock_router import HandOffRequest
 from flock.core.tools import basic_tools
 warnings.simplefilter("error", UserWarning)
 import asyncio
 from dataclasses import dataclass, field
 
 from flock.core.flock import Flock
-from flock.core.flock_agent import FlockAgent, FlockAgentConfig, FlockAgentMemoryConfig, HandOff
+from flock.core.flock_agent import FlockAgent, FlockAgentConfig, FlockAgentMemoryConfigt
 
 from rich.prompt import Prompt
 from rich.panel import Panel
@@ -64,7 +65,7 @@ class Chat:
     def hand_off(self, context, result):
         if self.user_query.lower() == "goodbye":
             return None
-        return HandOff(next_agent="chatty")
+        return HandOffRequest(next_agent="chatty")
 
 
 MODEL = "openai/gpt-4o"

@@ -1,4 +1,3 @@
-
 # Flock v0.3 - Hummingbird  
 
 We're excited to announce Flock v0.3, codenamed **"Hummingbird"**! This release brings a fundamental redesign of Flock's core architecture, introducing **unprecedented modularity and flexibility** to AI agent development.  
@@ -13,17 +12,17 @@ Like a hummingbird, modules are small and nimble code packages. Put enough of th
 
 ### Other notable additions:  
 - **CLI Interface** – Flock now has a command-line interface  
+- **REST API Server** – Expose your agents via HTTP endpoints
 - **Color-coded logging** – Better debugging experience  
 - **New examples**  
 - ...and much more!  
 
 ---
 
-## Core Changes  
+## Core Changes   
 
-### New Module System  
-- **Complete redesign** of the module architecture  
-- Simple yet powerful lifecycle hooks: `initialize`, `pre_evaluate`, `post_evaluate`, `terminate`  
+### New Module System   
+- **Pluggable modules system á la FastAPI**   
 - **Easy-to-implement** module interface  
 - **Configuration system** for clean parameter management  
 
@@ -32,15 +31,44 @@ Like a hummingbird, modules are small and nimble code packages. Put enough of th
 - Built-in support for multiple evaluation strategies:  
   - **Declarative Evaluator** – The default way Flock is designed  
   - **Natural Language Evaluator** – Use "classic" prompting  
+  - **Zep Evaluator** – Add or query data
 - **Easily extendable** with custom evaluation approaches  
 
-### FlockFactory  
+### New Router System
+- **Pluggable router system** for dynamic agent chaining
+- Built-in support for multiple routing strategies:
+  - **Default Router** – Uses the agent's hand_off property
+  - **LLM Router** – Uses an LLM to determine the next agent
+  - **Agent Router** – Uses a dedicated agent to make routing decisions
+- **Easily extendable** with custom routing approaches
+
+### REST API Server
+- **FastAPI-based** HTTP server for exposing agents
+- **Synchronous and asynchronous** execution modes
+- **Run status tracking** with unique run IDs
+- **Agent discovery** endpoint to list available agents
+- **Simple integration** with existing Flock instances
+
+### Auto-Handoff Feature
+- **Dynamic agent chaining** without explicit handoff definitions
+- **LLM-powered routing** to determine the best next agent
+- **Emergent behavior** in multi-agent systems
+- **Simple to use** with the "auto_handoff" string value
+
+### New high end examples like the Repository Analyzer
+- **Automatic documentation generation** for any codebase
+- **Rule-based version** using custom evaluators
+- **LLM-based version** for more flexible and powerful analysis
+- **Comprehensive documentation** including overview, architecture, components, and more
+
+### FlockFactory    
 - Provides **pre-configured agents**, so you don't have to manage modules and evaluators manually!  
 
 ### Built-in Modules  
 - **Memory Module** – Persistent agent memory  
 - **Output Module** – Advanced output formatting and storage  
 - **Metrics Module** – Detailed performance tracking  
+- **Zep Module** – Uses Zep for Knowledge Graphs
 
 ---
 
@@ -99,7 +127,7 @@ See? **Basically nothing changed!** Just more modular and flexible.
 
 ---
 
-## 🛠 Installation  
+## Installation  
 
 ```bash
 pip install flock-core>=0.3.0
@@ -107,5 +135,5 @@ pip install flock-core>=0.3.0
 
 ---  
 
-**Full documentation**: [docs.flock.ai](https://docs.flock.ai)  
-**GitHub**: [github.com/flock-ai](https://github.com/flock-ai)  
+**Full documentation**: [https://whiteducksoftware.github.io/flock](https://whiteducksoftware.github.io/flock)  
+**GitHub**: [https://github.com/whiteducksoftware/flock](https://github.com/whiteducksoftware/flock)

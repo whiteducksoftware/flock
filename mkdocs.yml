@@ -40,20 +40,26 @@ nav:
   - Core Concepts:
     - Agents: core-concepts/agents.md
     - Type System: core-concepts/type-system.md
-    - Memory: core-concepts/memory.md
     - Workflows: core-concepts/workflows.md
+    - Evaluators: core-concepts/evaluators.md
+    - Modules:
+      - Overview: core-concepts/modules.md
+      - Memory Module: core-concepts/modules/memory.md
+      - Metrics Module: core-concepts/modules/metrics.md
+      - Output Module: core-concepts/modules/output.md
+    - Routers:
+      - Overview: core-concepts/routers.md
+      - Default Router: core-concepts/routers/default.md
+      - LLM Router: core-concepts/routers/llm.md
+      - Agent Router: core-concepts/routers/agent.md
     - Declarative Programming: core-concepts/declarative.md
     - Error Handling: core-concepts/error-handling.md
     
-  - Features:
-    - Agent Definition: features/agent-definition.md
-    - Type Safety: features/type-safety.md
-    - Pydantic Integration: features/pydantic.md
-    - Agent Chaining: features/agent-chaining.md
-    - Lifecycle Hooks: features/lifecycle-hooks.md
+  # Features section removed as it's covered in core concepts
     
   - Integrations:
     - Temporal: integrations/temporal.md
+    - REST API: integrations/rest-api.md
     - DSPy: integrations/dspy.md
     - LiteLLM: integrations/litellm.md
     - Tavily: integrations/tavily.md
@@ -95,8 +101,6 @@ nav:
     
   - Examples:
     - Hello Flock: examples/hello-flock.md
-    - Type System Usage: examples/type-system.md
-    - Pydantic Models: examples/pydantic.md
     - Chain Gang: examples/chain-gang.md
 
   - Development:
@@ -134,7 +138,11 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.details
   - attr_list
   - admonition

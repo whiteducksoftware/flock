@@ -5,13 +5,12 @@ import json
 import os
 from abc import ABC
 from collections.abc import Callable
-from typing import Any, TypeVar, Union
+from typing import Any, TypeVar
 
 import cloudpickle
 from opentelemetry import trace
 from pydantic import BaseModel, Field
 
-from flock.core.context.context import FlockContext
 from flock.core.flock_evaluator import FlockEvaluator
 from flock.core.flock_module import FlockModule
 from flock.core.logging.logging import get_logger
@@ -21,21 +20,6 @@ tracer = trace.get_tracer(__name__)
 
 
 T = TypeVar("T", bound="FlockAgent")
-
-
-class HandOff(BaseModel):
-    """Base class for handoff returns."""
-
-    next_agent: Union[str, "FlockAgent"] = Field(
-        default="", description="Next agent to invoke"
-    )
-    input: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Input data for the next agent",
-    )
-    context: FlockContext = Field(
-        default=None, descrio="Override context parameters"
-    )
 
 
 class FlockAgent(BaseModel, ABC):
@@ -72,12 +56,9 @@ class FlockAgent(BaseModel, ABC):
         description="Set to True to enable caching of the agent's results.",
     )
 
-    hand_off: str | HandOff | Callable[..., HandOff] | None = Field(
+    handoff_router: Any = Field(
         None,
-        description=(
-            "Specifies the next agent in the workflow or a callable that determines the handoff. "
-            "This allows chaining of agents."
-        ),
+        description="Router to use for determining the next agent in the workflow.",
     )
 
     evaluator: FlockEvaluator = Field(

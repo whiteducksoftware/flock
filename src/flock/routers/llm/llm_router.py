@@ -1,4 +1,4 @@
-"""Implements the auto-handoff router for dynamic agent chaining."""
+"""LLM-based router implementation for the Flock framework."""
 
 import json
 from typing import Any
@@ -6,14 +6,29 @@ from typing import Any
 import litellm
 
 from flock.core.context.context import FlockContext
-from flock.core.flock_agent import FlockAgent, HandOff
+from flock.core.flock_agent import FlockAgent
+from flock.core.flock_router import (
+    FlockRouter,
+    FlockRouterConfig,
+    HandOffRequest,
+)
 from flock.core.logging.logging import get_logger
 from flock.core.registry.agent_registry import Registry
 
-logger = get_logger("handoff_router")
+logger = get_logger("llm_router")
 
 
-class HandoffRouter:
+class LLMRouterConfig(FlockRouterConfig):
+    """Configuration for the LLM router.
+
+    This class extends FlockRouterConfig with parameters specific to the LLM router.
+    """
+
+    temperature: float = 0.2
+    max_tokens: int = 500
+
+
+class LLMRouter(FlockRouter):
     """Router that uses an LLM to determine the next agent in a workflow.
 
     This class is responsible for:
@@ -23,12 +38,20 @@ class HandoffRouter:
     4. Creating a HandOff object with the selected agent
     """
 
-    def __init__(self, registry: Registry):
-        """Initialize the HandoffRouter.
+    def __init__(
+        self,
+        registry: Registry,
+        name: str = "llm_router",
+        config: LLMRouterConfig | None = None,
+    ):
+        """Initialize the LLMRouter.
 
         Args:
             registry: The agent registry containing all available agents
+            name: The name of the router
+            config: The router configuration
         """
+        super().__init__(name=name, config=config or LLMRouterConfig(name=name))
         self.registry = registry
 
     async def route(
@@ -36,7 +59,7 @@ class HandoffRouter:
         current_agent: FlockAgent,
         result: dict[str, Any],
         context: FlockContext,
-    ) -> HandOff:
+    ) -> HandOffRequest:
         """Determine the next agent to hand off to based on the current agent's output.
 
         Args:
@@ -51,17 +74,17 @@ class HandoffRouter:
         available_agents = self._get_available_agents(current_agent.name)
 
         if not available_agents:
-            logger.warning("No available agents for auto-handoff")
-            return HandOff(next_agent="", input={}, context=None)
+            logger.warning("No available agents for LLM routing")
+            return HandOffRequest(next_agent="", input={}, context=None)
 
         # Use LLM to determine the best next agent
         next_agent_name, score = await self._select_next_agent(
             current_agent, result, available_agents
         )
 
-        if not next_agent_name or score < 0.5:  # Threshold for confidence
+        if not next_agent_name or score < self.config.confidence_threshold:
             logger.info(f"No suitable next agent found (best score: {score})")
-            return HandOff(next_agent="", input={}, context=None)
+            return HandOffRequest(next_agent="", input={}, context=None)
 
         # Get the next agent from the registry
         next_agent = self.registry.get_agent(next_agent_name)
@@ -69,15 +92,15 @@ class HandoffRouter:
             logger.error(
                 f"Selected agent '{next_agent_name}' not found in registry"
             )
-            return HandOff(next_agent="", input={}, context=None)
+            return HandOffRequest(next_agent="", input={}, context=None)
 
         # Create input for the next agent
         next_input = self._create_next_input(current_agent, result, next_agent)
 
         logger.info(
-            f"Auto-handoff selected agent '{next_agent_name}' with score {score}"
+            f"LLM router selected agent '{next_agent_name}' with score {score}"
         )
-        return HandOff(
+        return HandOffRequest(
             next_agent=next_agent_name, input=next_input, context=None
         )
 
@@ -122,10 +145,14 @@ class HandoffRouter:
         try:
             # Call the LLM to get the next agent
             response = await litellm.acompletion(
-                model=current_agent.model or "openai/gpt-4o",
+                model=self.get_model(current_agent),
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_tokens=500,
+                temperature=self.config.temperature
+                if isinstance(self.config, LLMRouterConfig)
+                else 0.2,
+                max_tokens=self.config.max_tokens
+                if isinstance(self.config, LLMRouterConfig)
+                else 500,
             )
 
             content = response.choices[0].message.content
