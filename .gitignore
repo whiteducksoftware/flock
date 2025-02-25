@@ -27,6 +27,7 @@ share/python-wheels/
 MANIFEST
 logs/
 metrics/
+.claude/
 
 
 # PyInstaller

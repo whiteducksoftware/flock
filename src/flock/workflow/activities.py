@@ -107,12 +107,45 @@ async def run_agent(context: FlockContext) -> dict:
                         )
                         iter_span.record_exception(e)
                         return {"error": f"Handoff function error: {e}"}
-                elif isinstance(agent.hand_off, str | FlockAgent):
-                    handoff_data.next_agent = (
-                        agent.hand_off
-                        if isinstance(agent.hand_off, str)
-                        else agent.hand_off.name
-                    )
+                elif isinstance(agent.hand_off, str):
+                    if agent.hand_off == "auto_handoff":
+                        logger.info("Using auto-handoff", agent=agent.name)
+                        try:
+                            from flock.core.execution.handoff_router import (
+                                HandoffRouter,
+                            )
+
+                            # Create a router and get the next agent
+                            router = HandoffRouter(registry)
+                            handoff_data = await router.route(
+                                agent, result, context
+                            )
+
+                            if not handoff_data.next_agent:
+                                logger.info(
+                                    "Auto-handoff found no suitable next agent",
+                                    agent=agent.name,
+                                )
+                                context.record(
+                                    agent.name,
+                                    result,
+                                    timestamp=datetime.now().isoformat(),
+                                    hand_off=None,
+                                    called_from=previous_agent_name,
+                                )
+                                return result
+                        except Exception as e:
+                            logger.error(
+                                "Auto-handoff error",
+                                agent=agent.name,
+                                error=str(e),
+                            )
+                            iter_span.record_exception(e)
+                            return {"error": f"Auto-handoff error: {e}"}
+                    else:
+                        handoff_data.next_agent = agent.hand_off
+                elif isinstance(agent.hand_off, FlockAgent):
+                    handoff_data.next_agent = agent.hand_off.name
                 else:
                     logger.error("Unsupported hand_off type", agent=agent.name)
                     iter_span.add_event("unsupported hand_off type")
