@@ -69,4 +69,8 @@ class DefaultRouter(FlockRouter):
             A HandOff object containing the next agent and input data
         """
         handoff = self.config.hand_off
+        if callable(handoff):
+            handoff = handoff(context, result)
+        if isinstance(handoff, str):
+            handoff = HandOffRequest(next_agent=handoff, hand_off_mode="match")
         return handoff
