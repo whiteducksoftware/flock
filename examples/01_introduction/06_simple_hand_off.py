@@ -1,4 +1,5 @@
 from flock.core import Flock, FlockFactory
+from flock.routers.default.default_router import DefaultRouter
 
 
 
@@ -20,7 +21,7 @@ project_plan_agent = FlockFactory.create_default_agent(
     wait_for_input=True,
 )
 
-idea_agent.hand_off = project_plan_agent
+idea_agent.handoff_router = DefaultRouter()
 
 flock.run(
     input={"query": "fun software project idea about ducks"},

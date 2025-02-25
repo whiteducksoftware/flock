@@ -4,7 +4,6 @@ from collections.abc import Callable
 from typing import Any
 
 from flock.core.flock_agent import FlockAgent
-from flock.core.flock_router import HandOffRequest
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.evaluators.declarative.declarative_evaluator import (
     DeclarativeEvaluator,
@@ -28,10 +27,6 @@ class FlockFactory:
         input: str | Callable[..., str] | None = None,
         output: str | Callable[..., str] | None = None,
         tools: list[Callable[..., Any] | Any] | None = None,
-        hand_off: str
-        | HandOffRequest
-        | Callable[..., HandOffRequest]
-        | None = None,
         use_cache: bool = True,
         enable_rich_tables: bool = False,
         output_theme: OutputTheme = OutputTheme.abernathy,
@@ -60,7 +55,6 @@ class FlockFactory:
             input=input,
             output=output,
             tools=tools,
-            hand_off=hand_off,
             model=model,
             description=description,
             evaluator=evaluator,

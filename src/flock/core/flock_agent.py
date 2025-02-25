@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from flock.core.flock_evaluator import FlockEvaluator
 from flock.core.flock_module import FlockModule
+from flock.core.flock_router import FlockRouter
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("agent")
@@ -56,8 +57,8 @@ class FlockAgent(BaseModel, ABC):
         description="Set to True to enable caching of the agent's results.",
     )
 
-    handoff_router: Any = Field(
-        None,
+    handoff_router: FlockRouter | None = Field(
+        default=None,
         description="Router to use for determining the next agent in the workflow.",
     )
 
