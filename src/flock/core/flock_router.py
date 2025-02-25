@@ -1,7 +1,7 @@
 """Base router class for the Flock framework."""
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -15,6 +15,9 @@ class HandOffRequest(BaseModel):
     next_agent: str | FlockAgent = Field(
         default="", description="Next agent to invoke"
     )
+    # match = use the output fields of the current agent that also exists as input field of the next agent
+    # add = add the output of the current agent to the input of the next agent
+    hand_off_mode: Literal["match", "add"] = Field(default="match")
     input: dict[str, Any] = Field(
         default_factory=dict,
         description="Input data for the next agent",
@@ -31,17 +34,8 @@ class FlockRouterConfig(BaseModel):
     Subclasses can extend this to add additional parameters.
     """
 
-    name: str = Field(
-        default="default_router", description="Name of the router"
-    )
     enabled: bool = Field(
         default=True, description="Whether the router is enabled"
-    )
-    confidence_threshold: float = Field(
-        default=0.5,
-        description="The minimum confidence score required to select an agent.",
-        ge=0.0,
-        le=1.0,
     )
 
 
