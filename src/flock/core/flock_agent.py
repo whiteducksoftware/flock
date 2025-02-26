@@ -15,6 +15,7 @@ from flock.core.flock_evaluator import FlockEvaluator
 from flock.core.flock_module import FlockModule
 from flock.core.flock_router import FlockRouter
 from flock.core.logging.logging import get_logger
+from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
 
 logger = get_logger("agent")
 tracer = trace.get_tracer(__name__)
@@ -23,7 +24,7 @@ tracer = trace.get_tracer(__name__)
 T = TypeVar("T", bound="FlockAgent")
 
 
-class FlockAgent(BaseModel, ABC):
+class FlockAgent(BaseModel, ABC, DSPyIntegrationMixin):
     name: str = Field(..., description="Unique identifier for the agent.")
     model: str | None = Field(
         None, description="The model to use (e.g., 'openai/gpt-4o')."

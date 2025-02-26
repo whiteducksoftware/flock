@@ -959,7 +959,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.3.10"
+version = "0.3.11"
 source = { editable = "." }
 dependencies = [
     { name = "cloudpickle" },
@@ -984,6 +984,7 @@ dependencies = [
     { name = "python-decouple" },
     { name = "questionary" },
     { name = "rich" },
+    { name = "sentence-transformers" },
     { name = "temporalio" },
     { name = "tiktoken" },
     { name = "toml" },
@@ -996,7 +997,6 @@ dependencies = [
 all = [
     { name = "docling" },
     { name = "markdownify" },
-    { name = "sentence-transformers" },
     { name = "tavily-python" },
 ]
 tools = [
@@ -1049,7 +1049,7 @@ requires-dist = [
     { name = "python-decouple", specifier = ">=3.8" },
     { name = "questionary", specifier = ">=2.1.0" },
     { name = "rich", specifier = ">=13.9.4" },
-    { name = "sentence-transformers", marker = "extra == 'all'", specifier = ">=3.4.1" },
+    { name = "sentence-transformers", specifier = ">=3.4.1" },
     { name = "tavily-python", marker = "extra == 'all'", specifier = ">=0.5.0" },
     { name = "tavily-python", marker = "extra == 'tools'", specifier = ">=0.5.0" },
     { name = "temporalio", specifier = ">=1.9.0" },

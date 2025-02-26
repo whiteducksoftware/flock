@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from flock.core.memory.memory_storage import (
+from flock.modules.memory.memory_storage import (
     CombineOperation,
     EnrichOperation,
     ExactOperation,
