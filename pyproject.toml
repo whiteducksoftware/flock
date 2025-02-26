@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.3.8"
+version = "0.3.9"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -35,7 +35,6 @@ dependencies = [
     "python-decouple>=3.8",
     "questionary>=2.1.0",
     "rich>=13.9.4",
-    "sentence-transformers>=3.4.1",
     "temporalio>=1.9.0",
     "tiktoken>=0.8.0",
     "toml>=0.10.2",
@@ -45,13 +44,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-all-tools = ["docling>=2.18.0", "tavily-python>=0.5.0", "markdownify>=0.14.1"]
+all = [
+    "docling>=2.18.0",
+    "tavily-python>=0.5.0",
+    "markdownify>=0.14.1",
+    "sentence-transformers>=3.4.1",
+]
 tools = ["tavily-python>=0.5.0", "markdownify>=0.14.1"]
 
 
 [dependency-groups]
-app = ["monsterui>=0.0.23", "python-fasthtml>=0.12.0"]
-tools = ["tavily-python>=0.5.0", "markdownify>=0.14.1"]
 dev = [
     "pytest>=8.3.3",
     "pytest-clarity>=1.0.1",
