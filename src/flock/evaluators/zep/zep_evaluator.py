@@ -40,6 +40,8 @@ class ZepEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
                 zep_api_key=self.config.zep_api_key,
                 zep_url=self.config.zep_url,
                 min_fact_rating=self.config.min_fact_rating,
+                enable_read=True,
+                enable_write=True,
             ),
         )
         client = zep.get_client()

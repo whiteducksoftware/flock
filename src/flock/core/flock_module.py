@@ -43,7 +43,9 @@ class FlockModule(BaseModel, ABC):
     2. Using FlockModuleConfig.with_fields() to create a config class
     """
 
-    name: str = Field(..., description="Unique identifier for the module")
+    name: str = Field(
+        default="", description="Unique identifier for the module"
+    )
     config: FlockModuleConfig = Field(
         default_factory=FlockModuleConfig, description="Module configuration"
     )

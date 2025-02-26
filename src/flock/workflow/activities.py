@@ -7,7 +7,8 @@ from temporalio import activity
 
 from flock.core.context.context import FlockContext
 from flock.core.context.context_vars import FLOCK_CURRENT_AGENT
-from flock.core.flock_agent import FlockAgent, HandOff
+from flock.core.flock_agent import FlockAgent
+from flock.core.flock_router import HandOffRequest
 from flock.core.logging.logging import get_logger
 from flock.core.registry.agent_registry import Registry
 from flock.core.util.input_resolver import resolve_inputs
@@ -74,8 +75,74 @@ async def run_agent(context: FlockContext) -> dict:
                         exec_span.record_exception(e)
                         raise
 
-                # If there is no handoff, record the result and finish.
-                if not agent.hand_off:
+                # Determine the next agent using the handoff router if available
+                handoff_data = HandOffRequest()
+
+                if agent.handoff_router:
+                    logger.info(
+                        f"Using handoff router: {agent.handoff_router.__class__.__name__}",
+                        agent=agent.name,
+                    )
+                    try:
+                        # Route to the next agent
+                        handoff_data = await agent.handoff_router.route(
+                            agent, result, context
+                        )
+
+                        if callable(handoff_data):
+                            logger.debug(
+                                "Executing handoff function", agent=agent.name
+                            )
+                            try:
+                                handoff_data = handoff_data(context, result)
+                                if isinstance(
+                                    handoff_data.next_agent, FlockAgent
+                                ):
+                                    handoff_data.next_agent = (
+                                        handoff_data.next_agent.name
+                                    )
+                            except Exception as e:
+                                logger.error(
+                                    "Handoff function error {} {}",
+                                    agent=agent.name,
+                                    error=str(e),
+                                )
+                                iter_span.record_exception(e)
+                                return {"error": f"Handoff function error: {e}"}
+                        elif isinstance(handoff_data.next_agent, FlockAgent):
+                            handoff_data.next_agent = (
+                                handoff_data.next_agent.name
+                            )
+
+                        if not handoff_data.next_agent:
+                            logger.info(
+                                "Router found no suitable next agent",
+                                agent=agent.name,
+                            )
+                            context.record(
+                                agent.name,
+                                result,
+                                timestamp=datetime.now().isoformat(),
+                                hand_off=None,
+                                called_from=previous_agent_name,
+                            )
+                            logger.info("Completing chain", agent=agent.name)
+                            iter_span.add_event("chain completed")
+                            return result
+                    except Exception as e:
+                        logger.error(
+                            "Router error {} {}",
+                            agent.name,
+                            str(e),
+                        )
+                        iter_span.record_exception(e)
+                        return {"error": f"Router error: {e}"}
+                else:
+                    # No router, so no handoff
+                    logger.info(
+                        "No handoff router defined, completing chain",
+                        agent=agent.name,
+                    )
                     context.record(
                         agent.name,
                         result,
@@ -83,40 +150,8 @@ async def run_agent(context: FlockContext) -> dict:
                         hand_off=None,
                         called_from=previous_agent_name,
                     )
-                    logger.info(
-                        "No handoff defined, completing chain", agent=agent.name
-                    )
                     iter_span.add_event("chain completed")
                     return result
-
-                # Determine the next agent.
-                handoff_data = HandOff()
-                if callable(agent.hand_off):
-                    logger.debug("Executing handoff function", agent=agent.name)
-                    try:
-                        handoff_data = agent.hand_off(context, result)
-                        if isinstance(handoff_data.next_agent, FlockAgent):
-                            handoff_data.next_agent = (
-                                handoff_data.next_agent.name
-                            )
-                    except Exception as e:
-                        logger.error(
-                            "Handoff function error",
-                            agent=agent.name,
-                            error=str(e),
-                        )
-                        iter_span.record_exception(e)
-                        return {"error": f"Handoff function error: {e}"}
-                elif isinstance(agent.hand_off, str | FlockAgent):
-                    handoff_data.next_agent = (
-                        agent.hand_off
-                        if isinstance(agent.hand_off, str)
-                        else agent.hand_off.name
-                    )
-                else:
-                    logger.error("Unsupported hand_off type", agent=agent.name)
-                    iter_span.add_event("unsupported hand_off type")
-                    return {"error": "Unsupported hand_off type."}
 
                 # Record the agent run in the context.
                 context.record(
@@ -127,10 +162,15 @@ async def run_agent(context: FlockContext) -> dict:
                     called_from=previous_agent_name,
                 )
                 previous_agent_name = agent.name
+                previous_agent_output = agent.output
+                if handoff_data.override_context:
+                    context.update(handoff_data.override_context)
 
                 # Prepare the next agent.
                 try:
                     agent = registry.get_agent(handoff_data.next_agent)
+                    if handoff_data.hand_off_mode == "add":
+                        agent.input = previous_agent_output + ", " + agent.input
                     agent.resolve_callables(context=context)
                     if not agent:
                         logger.error(
@@ -147,6 +187,7 @@ async def run_agent(context: FlockContext) -> dict:
                         }
 
                     context.set_variable(FLOCK_CURRENT_AGENT, agent.name)
+
                     logger.info("Handing off to next agent", next=agent.name)
                     iter_span.set_attribute("next.agent", agent.name)
                 except Exception as e:
