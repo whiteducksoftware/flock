@@ -2,6 +2,7 @@
 
 import importlib
 import os
+import re
 from typing import Literal
 
 from flock.core.interpreter.python_interpreter import PythonInterpreter
@@ -40,6 +41,13 @@ def web_search_duckduckgo(
         return response
     except Exception:
         raise
+
+
+def extract_links_from_markdown(markdown: str, url: str) -> list:
+    # Regular expression to find all markdown links
+    link_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+    links = link_pattern.findall(markdown)
+    return [url + link[1] for link in links]
 
 
 @traced_and_logged

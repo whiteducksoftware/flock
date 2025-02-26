@@ -29,6 +29,7 @@ logs/
 metrics/
 .claude/
 concept_memory/
+news/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
