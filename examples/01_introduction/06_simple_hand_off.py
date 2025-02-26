@@ -1,9 +1,11 @@
 from flock.core import Flock, FlockFactory
+from flock.routers.agent.agent_router import AgentRouter, AgentRouterConfig
 from flock.routers.default.default_router import DefaultRouter, DefaultRouterConfig
+from flock.routers.llm.llm_router import LLMRouter, LLMRouterConfig
 
 
 
-flock = Flock()
+flock = Flock(enable_logging=True)
 
 idea_agent = FlockFactory.create_default_agent(
     name="idea_agent",
@@ -21,7 +23,15 @@ project_plan_agent = FlockFactory.create_default_agent(
     wait_for_input=True,
 )
 
-idea_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=project_plan_agent.name))
+# Default router = handoff to specific agent
+#idea_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=project_plan_agent.name))
+
+# Agent router = handoff to agent based on agent's output
+idea_agent.handoff_router = AgentRouter(config=AgentRouterConfig(with_output=True))
+
+# LLM router = handoff to agent based on LLM's decision
+#idea_agent.handoff_router = LLMRouter(config=LLMRouterConfig())
+
 
 flock.run(
     input={"query": "fun software project idea about ducks"},

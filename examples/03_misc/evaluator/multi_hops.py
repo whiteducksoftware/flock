@@ -75,7 +75,7 @@ def read_from_kg_and_evaluate():
 
 if __name__ == "__main__":
   #write_to_kg()
-  #read_from_kg()
+  read_from_kg()
   #read_from_kg_and_evaluate()
   pass
 

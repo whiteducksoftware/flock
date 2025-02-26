@@ -1,8 +1,6 @@
 """Handoff agent for the agent-based router."""
 
-from typing import Any
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from flock.core.flock_agent import FlockAgent
 
@@ -12,8 +10,8 @@ class AgentInfo(BaseModel):
 
     name: str
     description: str = ""
-    input_schema: dict[str, Any] = Field(default_factory=dict)
-    output_schema: dict[str, Any] = Field(default_factory=dict)
+    input_schema: str = ""
+    output_schema: str = ""
 
 
 class HandoffDecision(BaseModel):
@@ -21,8 +19,7 @@ class HandoffDecision(BaseModel):
 
     agent_name: str
     confidence: float
-    reasoning: str = ""
-    input_mapping: dict[str, str] = Field(default_factory=dict)
+    reasoning: str
 
 
 class HandoffAgent(FlockAgent):
@@ -57,5 +54,5 @@ class HandoffAgent(FlockAgent):
                 "current_result: dict | Output from the current agent, "
                 "available_agents: list[AgentInfo] | List of available agents"
             ),
-            output="decision: HandoffDecision | Decision about which agent to hand off to",
+            output="agent_name: str | Name of the agent to hand off to, confidence: float | Confidence in the decision, reasoning: str | Reasoning for the decision",
         )

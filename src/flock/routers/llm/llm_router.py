@@ -13,7 +13,6 @@ from flock.core.flock_router import (
     HandOffRequest,
 )
 from flock.core.logging.logging import get_logger
-from flock.core.registry.agent_registry import Registry
 
 logger = get_logger("llm_router")
 
@@ -26,6 +25,8 @@ class LLMRouterConfig(FlockRouterConfig):
 
     temperature: float = 0.2
     max_tokens: int = 500
+    confidence_threshold: float = 0.5
+    prompt: str = ""
 
 
 class LLMRouter(FlockRouter):
@@ -40,7 +41,6 @@ class LLMRouter(FlockRouter):
 
     def __init__(
         self,
-        registry: Registry,
         name: str = "llm_router",
         config: LLMRouterConfig | None = None,
     ):
@@ -51,8 +51,13 @@ class LLMRouter(FlockRouter):
             name: The name of the router
             config: The router configuration
         """
+        logger.info(f"Initializing LLM Router '{name}'")
         super().__init__(name=name, config=config or LLMRouterConfig(name=name))
-        self.registry = registry
+        logger.debug(
+            "LLM Router configuration",
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+        )
 
     async def route(
         self,
@@ -70,42 +75,78 @@ class LLMRouter(FlockRouter):
         Returns:
             A HandOff object containing the next agent and input data
         """
+        logger.info(
+            f"Routing from agent '{current_agent.name}'",
+            current_agent=current_agent.name,
+        )
+        logger.debug("Current agent result", result=result)
+
+        agent_definitions = context.agent_definitions
         # Get all available agents from the registry
-        available_agents = self._get_available_agents(current_agent.name)
+        available_agents = self._get_available_agents(
+            agent_definitions, current_agent.name
+        )
+        logger.debug(
+            "Available agents for routing",
+            count=len(available_agents),
+            agents=[a.agent_data["name"] for a in available_agents],
+        )
 
         if not available_agents:
-            logger.warning("No available agents for LLM routing")
-            return HandOffRequest(next_agent="", input={}, context=None)
+            logger.warning(
+                "No available agents for routing",
+                current_agent=current_agent.name,
+            )
+            return HandOffRequest(
+                next_agent="", override_next_agent={}, override_context=None
+            )
 
         # Use LLM to determine the best next agent
         next_agent_name, score = await self._select_next_agent(
             current_agent, result, available_agents
         )
+        logger.info(
+            "Agent selection result",
+            next_agent=next_agent_name,
+            score=score,
+        )
 
         if not next_agent_name or score < self.config.confidence_threshold:
-            logger.info(f"No suitable next agent found (best score: {score})")
-            return HandOffRequest(next_agent="", input={}, context=None)
+            logger.warning(
+                "No suitable next agent found",
+                best_score=score,
+            )
+            return HandOffRequest(
+                next_agent="", override_next_agent={}, override_context=None
+            )
 
         # Get the next agent from the registry
-        next_agent = self.registry.get_agent(next_agent_name)
+        next_agent = agent_definitions.get(next_agent_name)
         if not next_agent:
             logger.error(
-                f"Selected agent '{next_agent_name}' not found in registry"
+                "Selected agent not found in registry",
+                agent_name=next_agent_name,
             )
-            return HandOffRequest(next_agent="", input={}, context=None)
+            return HandOffRequest(
+                next_agent="", override_next_agent={}, override_context=None
+            )
 
         # Create input for the next agent
-        next_input = self._create_next_input(current_agent, result, next_agent)
 
-        logger.info(
-            f"LLM router selected agent '{next_agent_name}' with score {score}"
+        logger.success(
+            f"Successfully routed to agent '{next_agent_name}'",
+            score=score,
+            from_agent=current_agent.name,
         )
         return HandOffRequest(
-            next_agent=next_agent_name, input=next_input, context=None
+            next_agent=next_agent_name,
+            hand_off_mode="add",
+            override_next_agent=None,
+            override_context=None,
         )
 
     def _get_available_agents(
-        self, current_agent_name: str
+        self, agent_definitions: dict[str, Any], current_agent_name: str
     ) -> list[FlockAgent]:
         """Get all available agents except the current one.
 
@@ -115,10 +156,15 @@ class LLMRouter(FlockRouter):
         Returns:
             List of available agents
         """
+        logger.debug(
+            "Getting available agents",
+            total_agents=len(agent_definitions),
+            current_agent=current_agent_name,
+        )
         agents = []
-        for agent in self.registry._agents:
-            if agent.name != current_agent_name:
-                agents.append(agent)
+        for agent in agent_definitions:
+            if agent != current_agent_name:
+                agents.append(agent_definitions.get(agent))
         return agents
 
     async def _select_next_agent(
@@ -137,15 +183,27 @@ class LLMRouter(FlockRouter):
         Returns:
             Tuple of (selected_agent_name, confidence_score)
         """
+        logger.debug(
+            "Selecting next agent",
+            current_agent=current_agent.name,
+            available_count=len(available_agents),
+        )
+
         # Prepare the prompt for the LLM
         prompt = self._create_selection_prompt(
             current_agent, result, available_agents
         )
+        logger.debug("Generated selection prompt", prompt_length=len(prompt))
 
         try:
+            logger.info(
+                "Calling LLM for agent selection",
+                model=current_agent.model,
+                temperature=self.config.temperature,
+            )
             # Call the LLM to get the next agent
             response = await litellm.acompletion(
-                model=self.get_model(current_agent),
+                model=current_agent.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.config.temperature
                 if isinstance(self.config, LLMRouterConfig)
@@ -156,26 +214,48 @@ class LLMRouter(FlockRouter):
             )
 
             content = response.choices[0].message.content
-
             # Parse the response to get the agent name and score
             try:
+                # extract the json object from the response
+                content = content.split("```json")[1].split("```")[0]
                 data = json.loads(content)
                 next_agent = data.get("next_agent", "")
                 score = float(data.get("score", 0))
+                reasoning = data.get("reasoning", "")
+                logger.info(
+                    "Successfully parsed LLM response",
+                    next_agent=next_agent,
+                    score=score,
+                    reasoning=reasoning,
+                )
                 return next_agent, score
             except (json.JSONDecodeError, ValueError) as e:
-                logger.error(f"Error parsing LLM response: {e}")
-                logger.debug(f"Raw LLM response: {content}")
+                logger.error(
+                    "Failed to parse LLM response",
+                    error=str(e),
+                    raw_response=content,
+                )
+                logger.debug("Attempting fallback parsing")
 
                 # Fallback: try to extract the agent name from the text
                 for agent in available_agents:
-                    if agent.name in content:
-                        return agent.name, 0.6  # Default score for fallback
+                    if agent.agent_data["name"] in content:
+                        logger.info(
+                            "Found agent name in response using fallback",
+                            agent=agent.agent_data["name"],
+                        )
+                        return agent.agent_data[
+                            "name"
+                        ], 0.6  # Default score for fallback
 
                 return "", 0.0
 
         except Exception as e:
-            logger.error(f"Error calling LLM for agent selection: {e}")
+            logger.error(
+                "Error calling LLM for agent selection",
+                error=str(e),
+                current_agent=current_agent.name,
+            )
             return "", 0.0
 
     def _create_selection_prompt(
@@ -201,17 +281,22 @@ class LLMRouter(FlockRouter):
         agents_info = []
         for agent in available_agents:
             agent_info = {
-                "name": agent.name,
-                "description": agent.description,
-                "input": agent.input,
-                "output": agent.output,
+                "name": agent.agent_data["name"],
+                "description": agent.agent_data["description"]
+                if agent.agent_data["description"]
+                else "",
+                "input": agent.agent_data["input"],
+                "output": agent.agent_data["output"],
             }
             agents_info.append(agent_info)
 
         agents_str = json.dumps(agents_info, indent=2)
 
         # Create the prompt
-        prompt = f"""
+        if self.config.prompt:
+            prompt = self.config.prompt
+        else:
+            prompt = f"""
 You are a workflow router that determines the next agent to execute in a multi-agent system.
 
 CURRENT AGENT:

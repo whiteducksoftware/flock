@@ -103,7 +103,7 @@ async def run_agent(context: FlockContext) -> dict:
                                     )
                             except Exception as e:
                                 logger.error(
-                                    "Handoff function error",
+                                    "Handoff function error {} {}",
                                     agent=agent.name,
                                     error=str(e),
                                 )
@@ -131,9 +131,9 @@ async def run_agent(context: FlockContext) -> dict:
                             return result
                     except Exception as e:
                         logger.error(
-                            "Router error",
-                            agent=agent.name,
-                            error=str(e),
+                            "Router error {} {}",
+                            agent.name,
+                            str(e),
                         )
                         iter_span.record_exception(e)
                         return {"error": f"Router error: {e}"}
@@ -163,8 +163,8 @@ async def run_agent(context: FlockContext) -> dict:
                 )
                 previous_agent_name = agent.name
                 previous_agent_output = agent.output
-                if handoff_data.context:
-                    context.update(handoff_data.context)
+                if handoff_data.override_context:
+                    context.update(handoff_data.override_context)
 
                 # Prepare the next agent.
                 try:

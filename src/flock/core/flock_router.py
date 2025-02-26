@@ -15,11 +15,11 @@ class HandOffRequest(BaseModel):
     # match = use the output fields of the current agent that also exists as input field of the next agent
     # add = add the output of the current agent to the input of the next agent
     hand_off_mode: Literal["match", "add"] = Field(default="match")
-    input: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Input data for the next agent",
+    override_next_agent: Any | None = Field(
+        default=None,
+        description="Override the next agent to hand off to",
     )
-    context: FlockContext = Field(
+    override_context: FlockContext | None = Field(
         default=None, descrio="Override context parameters"
     )
 
@@ -33,6 +33,10 @@ class FlockRouterConfig(BaseModel):
 
     enabled: bool = Field(
         default=True, description="Whether the router is enabled"
+    )
+    agents: list[str] | None = Field(
+        default=None,
+        description="List of agents to choose from",
     )
 
 
