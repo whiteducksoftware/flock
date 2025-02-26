@@ -6,7 +6,7 @@ from opentelemetry import trace
 from temporalio import activity
 
 from flock.core.context.context import FlockContext
-from flock.core.context.context_vars import FLOCK_CURRENT_AGENT
+from flock.core.context.context_vars import FLOCK_CURRENT_AGENT, FLOCK_MODEL
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_router import HandOffRequest
 from flock.core.logging.logging import get_logger
@@ -35,6 +35,8 @@ async def run_agent(context: FlockContext) -> dict:
         logger.info("Starting agent chain", initial_agent=current_agent_name)
 
         agent = registry.get_agent(current_agent_name)
+        if agent.model is None or agent.evaluator.config.model is None:
+            agent.set_model(context.get_variable(FLOCK_MODEL))
         agent.resolve_callables(context=context)
         if not agent:
             logger.error("Agent not found", agent=current_agent_name)

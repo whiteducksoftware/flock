@@ -52,7 +52,7 @@ def init_console(clear_screen: bool = True):
 │ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
 │ ▒█▀▀▀ █░░ █░░█ █░░ █▀▄ │
 │ ▒█░░░ ▀▀▀ ▀▀▀▀ ▀▀▀ ▀░▀ │
-╰━━━━━━━━━v{__version__}━━━━━━━━━╯
+╰━━━━━━━━━v{__version__}━━━━━━━━╯
 🦆     🐤    🐧     🐓
 """,
         justify="center",
@@ -83,5 +83,3 @@ def display_banner_no_version():
     )
     console.print(banner_text)
     console.print(f"[bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n")
-
-

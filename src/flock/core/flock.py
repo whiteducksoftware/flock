@@ -135,7 +135,7 @@ class Flock:
         with tracer.start_as_current_span("add_agent") as span:
             span.set_attribute("agent_name", agent.name)
             if not agent.model:
-                agent.model = self.model
+                agent.set_model(self.model)
                 logger.debug(
                     f"Using default model for agent {agent.name}",
                     model=self.model,
@@ -443,6 +443,7 @@ class Flock:
                     self.input,
                     run_id,
                     not self.enable_temporal,
+                    self.model,
                 )
 
                 logger.info(

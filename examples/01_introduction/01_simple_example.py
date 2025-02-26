@@ -1,3 +1,4 @@
+import os
 from flock.core import Flock, FlockFactory
 from flock.core.flock_api import FlockAPI
 
@@ -8,7 +9,9 @@ from flock.core.flock_api import FlockAPI
 # Flock uses litellm to talk to LLMs
 # Please consult the litellm documentation for valid IDs:
 # https://docs.litellm.ai/docs/providers
-MODEL = "openai/gpt-4o"
+
+
+MODEL = "azure/ara-gpt4o"
 
 
 # --------------------------------

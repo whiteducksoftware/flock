@@ -5,6 +5,7 @@ from flock.core.context.context_vars import (
     FLOCK_CURRENT_AGENT,
     FLOCK_INITIAL_INPUT,
     FLOCK_LOCAL_DEBUG,
+    FLOCK_MODEL,
     FLOCK_RUN_ID,
 )
 
@@ -15,6 +16,7 @@ def initialize_context(
     input_data: dict,
     run_id: str,
     local_debug: bool,
+    model: str,
 ) -> None:
     """Initialize the FlockContext with standard variables before running an agent.
 
@@ -32,3 +34,4 @@ def initialize_context(
     context.set_variable(FLOCK_LOCAL_DEBUG, local_debug)
     context.run_id = run_id
     context.set_variable(FLOCK_RUN_ID, run_id)
+    context.set_variable(FLOCK_MODEL, model)

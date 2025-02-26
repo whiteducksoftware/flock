@@ -200,6 +200,11 @@ class FlockAgent(BaseModel, ABC):
         """Run the agent with the given inputs and return its generated output."""
         return asyncio.run(self.run_async(inputs))
 
+    def set_model(self, model: str):
+        """Set the model for the agent."""
+        self.model = model
+        self.evaluator.config.model = model
+
     async def run_async(self, inputs: dict[str, Any]) -> dict[str, Any]:
         with tracer.start_as_current_span("agent.run") as span:
             span.set_attribute("agent.name", self.name)
