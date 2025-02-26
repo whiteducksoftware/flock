@@ -23,7 +23,7 @@ class FlockFactory:
     def create_default_agent(
         name: str,
         description: str | Callable[..., str] | None = None,
-        model: str | Callable[..., str] | None = "openai/gpt-4o",
+        model: str | Callable[..., str] | None = None,
         input: str | Callable[..., str] | None = None,
         output: str | Callable[..., str] | None = None,
         tools: list[Callable[..., Any] | Any] | None = None,
