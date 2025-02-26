@@ -49,7 +49,11 @@ agent = FlockFactory.create_default_agent(
 # Modules run at certain points in the agent's lifecycle and can manipulate the inputs and outputs and the agent itself.
 # In this case, we're adding the Zep module to the agent, 
 # which allows it to use Zep to store and retrieve information in Knowledge Graphs.
-zep = MemoryModule(name="mem_semantic",config=MemoryModuleConfig(splitting_mode="semantic"))
+# Currently there are two graph based modules: Zep and Memory.
+# Memory is more lightweight and easier to use, but Zep offers more features and is more powerful.
+
+# zep = ZepModule(name="zep",config=ZepModuleConfig())
+zep = MemoryModule(name="mem_split",config=MemoryModuleConfig(splitting_mode="characters"))
 agent.add_module(zep)
 
 

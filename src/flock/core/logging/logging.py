@@ -106,31 +106,54 @@ def custom_format(record):
 
 class ImmediateFlushSink:
     """A custom Loguru sink that writes to a stream and flushes immediately after each message.
+
     This ensures that logs appear in real time.
     """
 
     def __init__(self, stream=None):
+        """Initialize the ImmediateFlushSink.
+
+        Args:
+            stream (Stream, optional): The stream to write to. Defaults to sys.stderr.
+        """
         self._stream = stream if stream else sys.stderr
 
     def write(self, message):
+        """Write a message to the stream and flush immediately.
+
+        Args:
+            message (str): The message to write.
+        """
         self._stream.write(message)
         self._stream.flush()
 
     def flush(self):
+        """Flush the stream."""
         self._stream.flush()
 
 
 class PrintAndFlushSink:
-    """A Loguru sink that forcibly prints each log record and flushes immediately,
+    """A Loguru sink.
+
+    forcibly prints each log record and flushes immediately,
     mimicking print(..., flush=True).
     """
 
     def write(self, message: str):
+        """Write a message to the stream and flush immediately.
+
+        Args:
+            message (str): The message to write.
+        """
         # message already ends with a newline
         print(message, end="", flush=True)
 
     def flush(self):
-        pass  # Already flushed on every write call.
+        """Flush the stream.
+
+        Already flushed on every write call.
+        """
+        pass
 
 
 # Configure Loguru for non-workflow (local/worker) contexts.
@@ -185,6 +208,12 @@ class FlockLogger:
     """
 
     def __init__(self, name: str, enable_logging: bool = False):
+        """Initialize the FlockLogger.
+
+        Args:
+            name (str): The name of the logger.
+            enable_logging (bool, optional): Whether to enable logging. Defaults to False.
+        """
         self.name = name
         self.enable_logging = enable_logging
 
@@ -207,7 +236,7 @@ class FlockLogger:
             truncated_chars = len(message) - max_length
             return (
                 message[:max_length]
-                + f"<yellow>...+({truncated_chars} chars)</yellow>"
+                + f"...<yellow>+({truncated_chars} chars)</yellow>"
             )
         return message
 
@@ -219,6 +248,13 @@ class FlockLogger:
         max_length: int = MAX_LENGTH,
         **kwargs,
     ) -> None:
+        """Debug a message.
+
+        Args:
+            message (str): The message to debug.
+            flush (bool, optional): Whether to flush the message. Defaults to False.
+            max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
+        """
         message = self._truncate_message(message, max_length)
         self._get_logger().debug(message, *args, **kwargs)
 
@@ -230,6 +266,13 @@ class FlockLogger:
         max_length: int = MAX_LENGTH,
         **kwargs,
     ) -> None:
+        """Info a message.
+
+        Args:
+            message (str): The message to info.
+            flush (bool, optional): Whether to flush the message. Defaults to False.
+            max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
+        """
         message = self._truncate_message(message, max_length)
         self._get_logger().info(message, *args, **kwargs)
 
@@ -241,6 +284,13 @@ class FlockLogger:
         max_length: int = MAX_LENGTH,
         **kwargs,
     ) -> None:
+        """Warning a message.
+
+        Args:
+            message (str): The message to warning.
+            flush (bool, optional): Whether to flush the message. Defaults to False.
+            max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
+        """
         message = self._truncate_message(message, max_length)
         self._get_logger().warning(message, *args, **kwargs)
 
@@ -252,6 +302,13 @@ class FlockLogger:
         max_length: int = MAX_LENGTH,
         **kwargs,
     ) -> None:
+        """Error a message.
+
+        Args:
+            message (str): The message to error.
+            flush (bool, optional): Whether to flush the message. Defaults to False.
+            max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
+        """
         message = self._truncate_message(message, max_length)
         self._get_logger().error(message, *args, **kwargs)
 
@@ -263,6 +320,13 @@ class FlockLogger:
         max_length: int = MAX_LENGTH,
         **kwargs,
     ) -> None:
+        """Exception a message.
+
+        Args:
+            message (str): The message to exception.
+            flush (bool, optional): Whether to flush the message. Defaults to False.
+            max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
+        """
         message = self._truncate_message(message, max_length)
         self._get_logger().exception(message, *args, **kwargs)
 
@@ -274,6 +338,13 @@ class FlockLogger:
         max_length: int = MAX_LENGTH,
         **kwargs,
     ) -> None:
+        """Success a message.
+
+        Args:
+            message (str): The message to success.
+            flush (bool, optional): Whether to flush the message. Defaults to False.
+            max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
+        """
         message = self._truncate_message(message, max_length)
         self._get_logger().success(message, *args, **kwargs)
 
@@ -283,6 +354,7 @@ _LOGGER_CACHE: dict[str, FlockLogger] = {}
 
 def get_logger(name: str = "flock", enable_logging: bool = True) -> FlockLogger:
     """Return a cached FlockLogger instance for the given name.
+
     If the logger doesn't exist, create it.
     If it does exist, update 'enable_logging' if a new value is passed.
     """
