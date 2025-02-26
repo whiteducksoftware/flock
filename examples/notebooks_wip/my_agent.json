@@ -1,1 +1,0 @@
-{"name":"my_agent","model":"openai/gpt-4o-mini","description":"A blog generating agent. Writes the blog title always in caps","hand_off":[],"termination":null,"input":"blog_idea","output":"catchy_blog_title, blog_subheaders","tools":null,"use_cache":false}

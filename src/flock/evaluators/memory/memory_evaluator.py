@@ -53,7 +53,7 @@ class MemoryEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
     async def evaluate(
         self, agent: FlockAgent, inputs: dict[str, Any], tools: list[Any]
     ) -> dict[str, Any]:
-        """Simple evaluator that uses Zep.
+        """Simple evaluator that uses a memory concept graph.
 
         if inputs contain "query", it searches memory for the query and returns the facts.
         if inputs contain "data", it adds the data to memory
@@ -75,12 +75,10 @@ class MemoryEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
         )
 
         if "query" in inputs:
-            query = inputs["query"]
-            facts = memory_module.search_memory(query)
+            facts = await memory_module.search_memory(agent, inputs)
             result = {"facts": facts}
 
         if "data" in inputs:
-            data = inputs["data"]
-            memory_module.add_to_memory(data)
+            await memory_module.add_to_memory(agent, inputs)
             result = {"message": "Data added to memory"}
         return result

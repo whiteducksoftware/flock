@@ -15,6 +15,11 @@ from flock.modules.memory.memory_storage import FlockMemoryStore, MemoryEntry
 
 
 class MemoryModuleConfig(FlockModuleConfig):
+    """Configuration for the MemoryModule.
+
+    This class defines the configuration for the MemoryModule, which is used to configure the memory module.
+    """
+
     folder_path: str = Field(
         default="concept_memory/",
         description="Directory where memory file and concept graph will be saved",
@@ -65,13 +70,27 @@ class MemoryModule(FlockModule):
     memory_store: FlockMemoryStore | None = None
     memory_ops: list = []
 
+    def __init__(self, name, config: MemoryModuleConfig):
+        super().__init__(name=name, config=config)
+        self.memory_store = FlockMemoryStore.load_from_file(
+            self.get_memory_filename(name)
+        )
+
+        if not self.config.memory_mapping:
+            self.memory_ops = []
+            self.memory_ops.append({"type": "semantic"})
+        else:
+            self.memory_ops = MemoryMappingParser().parse(
+                self.config.memory_mapping
+            )
+
     async def initialize(
         self, agent: FlockAgent, inputs: dict[str, Any]
     ) -> None:
         """Initialize memory store if needed."""
         if not self.memory_store:
             self.memory_store = FlockMemoryStore.load_from_file(
-                self.config.file_path
+                self.get_memory_filename(self.name)
             )
 
         if not self.config.memory_mapping:
@@ -186,6 +205,121 @@ class MemoryModule(FlockModule):
         else:
             base, ext = "concept_graph", ".png"
         return f"{folder}{module_name}_{base}_{timestamp}{ext}"
+
+    async def search_memory(
+        self, agent: FlockAgent, query: dict[str, Any]
+    ) -> list[str]:
+        """Search memory for the query."""
+        if not self.memory_store:
+            return []
+
+        try:
+            # Convert input to embedding
+            input_text = json.dumps(query)
+            query_embedding = self.memory_store.compute_embedding(input_text)
+
+            # Extract concepts
+            concepts = await self._extract_concepts(agent, input_text)
+
+            memory_results = []
+            for op in self.memory_ops:
+                if op["type"] == "semantic":
+                    semantic_results = self.memory_store.retrieve(
+                        query_embedding,
+                        concepts,
+                        similarity_threshold=self.config.similarity_threshold,
+                    )
+                    memory_results.extend(semantic_results)
+
+                elif op["type"] == "exact":
+                    exact_results = self.memory_store.exact_match(query)
+                    memory_results.extend(exact_results)
+
+            if memory_results:
+                logger.debug(
+                    f"Found {len(memory_results)} relevant memories",
+                    agent=agent.name,
+                )
+                query["memory_results"] = memory_results
+
+            return query
+
+        except Exception as e:
+            logger.warning(f"Memory retrieval failed: {e!s}", agent=agent.name)
+            return query
+
+    async def add_to_memory(
+        self, agent: FlockAgent, data: dict[str, Any]
+    ) -> None:
+        """Add data to memory."""
+        if not self.memory_store:
+            return
+
+        try:
+            # Extract information chunks
+            if self.config.splitting_mode == "semantic":
+                chunks = await self._semantic_splitter_mode(agent, data, None)
+            if self.config.splitting_mode == "summary":
+                chunks = await self._summarize_mode(agent, data, None)
+            elif self.config.splitting_mode == "characters":
+                chunks = await self._character_splitter_mode(agent, data, None)
+
+            if isinstance(chunks, str):
+                chunk_concepts = await self._extract_concepts(agent, chunks)
+
+                # Create memory entry
+                entry = MemoryEntry(
+                    id=str(uuid.uuid4()),
+                    content=chunks,
+                    embedding=self.memory_store.compute_embedding(
+                        chunks
+                    ).tolist(),
+                    concepts=chunk_concepts,
+                    timestamp=datetime.now(),
+                )
+
+                # Add to memory store
+                self.memory_store.add_entry(entry)
+
+                if self.config.save_after_update:
+                    self.save_memory()
+
+                logger.debug(
+                    "Stored interaction in memory",
+                    agent=agent.name,
+                    entry_id=entry.id,
+                    concepts=chunk_concepts,
+                )
+
+            if isinstance(chunks, list):
+                for chunk in tqdm(chunks, desc="Storing chunks in memory"):
+                    chunk_concepts = await self._extract_concepts(agent, chunk)
+
+                    # Create memory entry
+                    entry = MemoryEntry(
+                        id=str(uuid.uuid4()),
+                        content=str(chunk),
+                        embedding=self.memory_store.compute_embedding(
+                            str(chunk)
+                        ).tolist(),
+                        concepts=chunk_concepts,
+                        timestamp=datetime.now(),
+                    )
+
+                    self.memory_store.add_entry(entry)
+
+                    if self.config.save_after_update:
+                        self.save_memory()
+
+                    logger.debug(
+                        "Stored interaction in memory",
+                        agent=agent.name,
+                        entry_id=entry.id,
+                        concepts=chunk_concepts,
+                    )
+
+        except Exception as e:
+            logger.warning(f"Memory storage failed: {e!s}", agent=agent.name)
 
     async def post_evaluate(
         self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
@@ -360,7 +494,10 @@ class MemoryModule(FlockModule):
         splitter = agent._select_task(split_signature, "Completion")
 
         # Get the content to split
-        full_text = json.dumps(inputs) + json.dumps(result)
+        if result:
+            full_text = json.dumps(inputs) + json.dumps(result)
+        else:
+            full_text = json.dumps(inputs)
         split_result = splitter(content=full_text)
 
         return split_result.chunks
@@ -372,7 +509,10 @@ class MemoryModule(FlockModule):
         # Create splitter signature using agent's capabilities
 
         # Get the content to split
-        full_text = json.dumps(inputs) + json.dumps(result)
+        if result:
+            full_text = json.dumps(inputs) + json.dumps(result)
+        else:
+            full_text = json.dumps(inputs)
         # Split full text by max_length characters
         chunks = [
             full_text[i : i + self.config.max_length]
