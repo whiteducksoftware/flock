@@ -150,7 +150,6 @@ class FlockAPI:
                         "description": agent.description,
                         "input_schema": agent.input,
                         "output_schema": agent.output,
-                        "hand_off": agent.hand_off,
                     }
                     for agent in self.flock.agents.values()
                 ]

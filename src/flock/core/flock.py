@@ -295,6 +295,21 @@ class Flock:
         data = self.model_dump()
         return convert_callable(data)
 
+    def start_api(self, host: str = "0.0.0.0", port: int = 8344) -> None:
+        """Start a REST API server for this Flock instance.
+
+        This method creates a FlockAPI instance for the current Flock and starts the API server.
+        It provides an easier alternative to manually creating and starting the API.
+
+        Args:
+            host (str): The host to bind the server to. Defaults to "0.0.0.0".
+            port (int): The port to bind the server to. Defaults to 8344.
+        """
+        from flock.core.flock_api import FlockAPI
+
+        api = FlockAPI(self)
+        api.start(host=host, port=port)
+
     @classmethod
     def from_dict(cls: type[T], data: dict[str, Any]) -> T:
         """Deserialize a FlockAgent instance from a dictionary.

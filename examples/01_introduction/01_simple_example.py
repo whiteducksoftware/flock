@@ -1,6 +1,5 @@
 import os
-from flock.core import Flock, FlockFactory
-from flock.core.flock_api import FlockAPI
+from flock.core import Flock, FlockFactory 
 
 
 # --------------------------------
@@ -41,6 +40,6 @@ flock.add_agent(bloggy)
 # Tell the flock who is the starting and what input to give it
 flock.run(
     start_agent=bloggy, 
-    input={"blog_idea": "A blog about cats"}
+    input={"blog_idea": "A blog about robot kittens"}
 )
 
