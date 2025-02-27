@@ -170,7 +170,7 @@ def recursive_text_splitter(
 
 @traced_and_logged
 def chunk_text_for_embedding(
-    text: str, chunk_size: int = 1000, overlap: int = 100
+    text: str, file_name: str, chunk_size: int = 1000, overlap: int = 100
 ) -> list[dict[str, Any]]:
     chunks = split_by_characters(text, chunk_size=chunk_size, overlap=overlap)
 
@@ -179,9 +179,9 @@ def chunk_text_for_embedding(
     for i, chunk in enumerate(chunks):
         result.append(
             {
-                "chunk_id": i,
+                "chunk_id": file_name + "_" + str(i),
                 "text": chunk,
-                "length": len(chunk),
+                "file": file_name,
                 "total_chunks": len(chunks),
             }
         )
