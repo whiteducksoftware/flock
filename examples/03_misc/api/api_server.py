@@ -15,6 +15,5 @@ flock.add_agent(bloggy)
 
 # Swagger: http://127.0.0.1:8344/docs
 # Redoc: http://127.0.0.1:8344/redoc
-# POST: http://127.0.0.1:8344/run 
-api = FlockAPI(flock)
-api.start()
+# POST: http://127.0.0.1:8344/run
+flock.start_api()
