@@ -35,7 +35,7 @@ class MemoryEvaluatorConfig(FlockEvaluatorConfig):
         default=True, description="Whether to save memory after each update"
     )
     splitting_mode: Literal["summary", "semantic", "characters", "none"] = (
-        Field(default="none")
+        Field(default="none", description="Mode to split memory content")
     )
     enable_read_only_mode: bool = Field(
         default=False, description="Whether to enable read only mode"

@@ -11,15 +11,7 @@ def write_to_kg():
                                             input="data", 
                                             output_theme=OutputTheme.aardvark_blue)
   
-  # --------------------------------
-  # Evaluators
-  # --------------------------------
-  # Evaluators are the components that evaluate the agent's inputs and outputs.
-  # In this case, we're using the ZepEvaluator to interact with Zep.
-  # This replaces the default declarative evaluator
-  # The ZepEvaluator uses the ZepModule to interact with Zep.
-  # input with "data" will add the data to the memory
-  # input with "query" will search the memory for the query and return the facts
+
   write_to_kg_agent.evaluator = MemoryEvaluator(name="mem_eval", 
                                 config=MemoryEvaluatorConfig(splitting_mode="characters", 
                                                           number_of_concepts_to_extract=3))
@@ -35,12 +27,12 @@ def write_to_kg():
   write_to_kg_agent.run(inputs={"data": "Germany is in Europe"})
 
 def read_from_kg():
-  read_from_kg_agent = FlockFactory.create_default_agent(name="read_from_kg_agent", 
+  read_from_kg_agent = FlockFactory.create_default_agent(model="openai/gpt-4o",name="read_from_kg_agent", 
                                             input="query", 
                                             output_theme=OutputTheme.aardvark_blue)
 
   # replace the default evaluator with ZepEvaluator
-  read_from_kg_agent.evaluator = MemoryEvaluator(name="mem_eval", config=MemoryEvaluator(splitting_mode="characters"))
+  read_from_kg_agent.evaluator = MemoryEvaluator(name="mem_eval", config=MemoryEvaluatorConfig())
 
 
   # #### **2-Hop Question:**
@@ -54,7 +46,7 @@ def read_from_kg():
   read_from_kg_agent.run(inputs={"query": "What kind of company does the employer of the author of 'flock' belong to?"})
 
 def read_from_kg_and_evaluate():
-  read_from_kg_and_evaluate_agent = FlockFactory.create_default_agent(name="read_from_kg_and_evaluate_agent", 
+  read_from_kg_and_evaluate_agent = FlockFactory.create_default_agent(model="openai/gpt-4o",name="read_from_kg_and_evaluate_agent", 
                                             input="query", 
                                             output="short_answer",
                                             output_theme=OutputTheme.aardvark_blue)
@@ -77,8 +69,8 @@ def read_from_kg_and_evaluate():
 
 
 if __name__ == "__main__":
-  write_to_kg()
-  #read_from_kg()
+  #write_to_kg()
+  read_from_kg()
   #read_from_kg_and_evaluate()
   pass
 
