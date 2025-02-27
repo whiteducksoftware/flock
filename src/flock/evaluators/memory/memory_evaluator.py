@@ -40,6 +40,9 @@ class MemoryEvaluatorConfig(FlockEvaluatorConfig):
     enable_read_only_mode: bool = Field(
         default=False, description="Whether to enable read only mode"
     )
+    number_of_concepts_to_extract: int = Field(
+        default=3, description="Number of concepts to extract from the memory"
+    )
 
 
 class MemoryEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
@@ -71,6 +74,7 @@ class MemoryEvaluator(FlockEvaluator, DSPyIntegrationMixin, PromptParserMixin):
                 save_after_update=self.config.save_after_update,
                 splitting_mode=self.config.splitting_mode,
                 enable_read_only_mode=self.config.enable_read_only_mode,
+                number_of_concepts_to_extract=self.config.number_of_concepts_to_extract,
             ),
         )
 

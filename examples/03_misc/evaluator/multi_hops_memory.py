@@ -20,7 +20,9 @@ def write_to_kg():
   # The ZepEvaluator uses the ZepModule to interact with Zep.
   # input with "data" will add the data to the memory
   # input with "query" will search the memory for the query and return the facts
-  write_to_kg_agent.evaluator = MemoryEvaluator(name="mem_eval", config=MemoryEvaluatorConfig(splitting_mode="characters"))
+  write_to_kg_agent.evaluator = MemoryEvaluator(name="mem_eval", 
+                                config=MemoryEvaluatorConfig(splitting_mode="characters", 
+                                                          number_of_concepts_to_extract=3))
 
   write_to_kg_agent.run(inputs={"data": "Andre is 38 years old and author of the agent framework 'flock'"})
   write_to_kg_agent.run(inputs={"data": "Andre works for white duck"})
