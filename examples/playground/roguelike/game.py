@@ -1,11 +1,18 @@
 import random
 import asyncio
 from enum import Enum, auto
-from typing import List, Dict, Tuple, Optional
+from typing import List, Optional
 from dataclasses import dataclass, field
+from itertools import cycle
 
 from flock.core import Flock, FlockFactory
 from flock.core.logging.formatters.themes import OutputTheme
+
+# Import rich components
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.table import Table
+from rich.prompt import Prompt
 
 # Basic game constants
 MAP_WIDTH = 20
@@ -54,10 +61,16 @@ class Entity:
     max_health: int = 10
     attack_power: int = 2
     personality: str = ""
+    chat_history: List[str] = field(default_factory=list)
     is_alive: bool = True
-    
+    color: str = "white"   # New attribute for the entity's color
+
     def __str__(self):
-        return f"{self.name} ({self.char}) at ({self.x}, {self.y}) HP: {self.health}/{self.max_health}"
+        return f"[{self.color}]{self.name}[/{self.color}] ({self.char}) at ({self.x}, {self.y}) HP: {self.health}/{self.max_health}"
+
+def format_entity(entity: Entity) -> str:
+    """Helper to wrap an entity's name in rich markup based on its color."""
+    return f"[{entity.color}]{entity.name}[/{entity.color}]"
 
 @dataclass
 class GameState:
@@ -67,12 +80,12 @@ class GameState:
     player_index: int = 0
     game_log: List[str] = field(default_factory=list)
     max_log_length: int = 10
-    
+
     def add_to_log(self, message: str):
         self.game_log.append(message)
         if len(self.game_log) > self.max_log_length:
             self.game_log.pop(0)
-    
+
     @property
     def player(self) -> Entity:
         return self.entities[self.player_index]
@@ -81,12 +94,17 @@ class RoguelikeGame:
     def __init__(self, map_data=None, model=DEFAULT_MODEL):
         self.state = GameState(map_data or DEFAULT_MAP)
         self.flock = Flock(model=model)
+        self.console = Console()
+        # Cycle through a list of colors for NPCs.
+        self.npc_color_cycle = cycle([
+            "red", "green", "blue", "magenta", "cyan", "yellow",
+            "bright_green", "bright_blue", "bright_magenta", "bright_cyan"
+        ])
         self.initialize_map()
         self.setup_agents()
-        
+
     def initialize_map(self):
-        """Parse the map and create entities"""
-        # First, find the player starting position and create the player
+        """Parse the map and create entities."""
         player = None
         for y, row in enumerate(self.state.map_data):
             for x, cell in enumerate(row):
@@ -96,97 +114,85 @@ class RoguelikeGame:
                         type=EntityType.PLAYER,
                         x=x,
                         y=y,
-                        char="@"
+                        char="@",
+                        color="bright_white"  # Set player color
                     )
-                    # Replace player position with floor in the map
+                    # Replace the player starting position with floor.
                     self.state.map_data[y] = row[:x] + '.' + row[x+1:]
                     break
             if player:
                 break
-        
+
         if player:
             self.state.entities.append(player)
             self.state.player_index = 0
-        
-        # Now add some NPCs for testing
-        self.add_npc("Friendly Guard", 5, 3, "G", personality="Helpful and protective guard who patrols the area")
-        self.add_npc("Suspicious Merchant", 10, 5, "M", personality="Greedy merchant who is always looking for a good deal")
-        self.add_npc("Angry Orc", 15, 7, "O", personality="Aggressive orc warrior who hates humans")
-    
+
+        # Add NPCs with unique colors.
+        self.add_npc("Edgar, Friendly Guard", 5, 3, "G", personality="Helpful and protective guard who patrols the area")
+        self.add_npc("Malon, Suspicious Merchant", 10, 5, "M", personality="Greedy merchant who is always looking for a good deal")
+        self.add_npc("Oshram, Angry Orc", 15, 7, "O", personality="Aggressive orc warrior who hates humans, especially merchants")
+
     def add_npc(self, name, x, y, char, personality=""):
-        """Add an NPC to the game"""
+        """Add an NPC with a unique color."""
         npc = Entity(
             name=name,
             type=EntityType.NPC,
             x=x,
             y=y,
             char=char,
-            personality=personality
+            personality=personality,
+            color=next(self.npc_color_cycle)
         )
         self.state.entities.append(npc)
         return npc
-    
+
     def setup_agents(self):
-        """Create Flock agents for each NPC"""
+        """Create Flock agents for each NPC."""
         for entity in self.state.entities:
             if entity.type == EntityType.NPC:
-                # Create an agent for this NPC
                 agent = FlockFactory.create_default_agent(
                     name=f"agent_{entity.name.lower().replace(' ', '_')}",
-                    description=f"Agent controlling the actions of {entity.name}, a character in a roguelike game",
+                    description=f"You are {entity.name}, a character in a roguelike game. Never break character.",
                     input="""
-                        entity_info: dict | Information about the entity this agent controls
-                        entity_position: tuple | Current coordinates (x, y) of the entity
-                        nearby_entities: list | List of nearby entities including the player
-                        map_view: list | The portion of the map that this entity can see
+                        myself: Entity | Your own entity information,
+                        nearby_entities: list | List of nearby entities including the player,
+                        map_view: list | The portion of the map that this entity can see,
                         game_log: list | Recent game events
                     """,
                     output="""
-                        action: str | The action to take (move, attack, talk, wait)
-                        direction: str | Direction for movement (up, down, left, right) if action is move
-                        target: str | Target entity name if action is attack or talk
-                        message: str | Message to say if action is talk
-                        reasoning: str | Explanation of why this action was chosen
+                        action: Literal["move", "attack", "talk", "wait"] | The action to take. talk has a range of 2 tiles,
+                        direction: Literal["up", "down", "left", "right"] | Direction for movement if action is move,
+                        target: str | Target entity name if action is attack or talk,
+                        message: str | Message to say if action is talk,
+                        reasoning: str | Short explanation of why this action was chosen
                     """,
                     temperature=0.7,
                     enable_rich_tables=True,
                     output_theme=OutputTheme.dracula
                 )
-                
-                # Store the agent in the Flock system
                 self.flock.add_agent(agent)
-                
-                # Attach agent name to entity for reference
                 entity.agent_name = agent.name
-    
+
     def get_cell(self, x, y) -> str:
-        """Get the cell type at the given coordinates"""
         if 0 <= y < len(self.state.map_data) and 0 <= x < len(self.state.map_data[y]):
             return self.state.map_data[y][x]
-        return '#'  # Treat out of bounds as walls
-    
+        return '#'
+
     def is_walkable(self, x, y) -> bool:
-        """Check if a position is walkable (not a wall or occupied by another entity)"""
-        # Check if it's a wall
         if self.get_cell(x, y) == '#':
             return False
-        
-        # Check if there's an entity there
         for entity in self.state.entities:
             if entity.is_alive and entity.x == x and entity.y == y:
                 return False
-        
         return True
-    
+
     def get_entity_at(self, x, y) -> Optional[Entity]:
-        """Find an entity at the given position"""
         for entity in self.state.entities:
             if entity.is_alive and entity.x == x and entity.y == y:
                 return entity
         return None
-    
+
     def get_nearby_entities(self, entity: Entity, distance: int = 5) -> List[Entity]:
-        """Get entities within a certain distance of the given entity"""
         nearby = []
         for other in self.state.entities:
             if other != entity and other.is_alive:
@@ -195,14 +201,13 @@ class RoguelikeGame:
                 if dx <= distance and dy <= distance:
                     nearby.append(other)
         return nearby
-    
+
     def get_map_view(self, entity: Entity, vision_range: int = 5) -> List[str]:
-        """Get a portion of the map centered on the entity"""
+        """Get a portion of the map centered on the entity (plain view for LLM input)."""
         map_view = []
         for y in range(entity.y - vision_range, entity.y + vision_range + 1):
             row = ""
             for x in range(entity.x - vision_range, entity.x + vision_range + 1):
-                # Check if there's an entity here
                 entity_here = self.get_entity_at(x, y)
                 if entity_here:
                     row += entity_here.char
@@ -210,11 +215,9 @@ class RoguelikeGame:
                     row += self.get_cell(x, y)
             map_view.append(row)
         return map_view
-    
+
     def move_entity(self, entity: Entity, direction: Direction) -> bool:
-        """Move an entity in the given direction if possible"""
         new_x, new_y = entity.x, entity.y
-        
         if direction == Direction.UP:
             new_y -= 1
         elif direction == Direction.DOWN:
@@ -223,64 +226,53 @@ class RoguelikeGame:
             new_x -= 1
         elif direction == Direction.RIGHT:
             new_x += 1
-        
         if self.is_walkable(new_x, new_y):
             entity.x, entity.y = new_x, new_y
             return True
         return False
-    
+
     def entity_attack(self, attacker: Entity, defender: Entity) -> bool:
-        """Handle one entity attacking another"""
-        # Check if they're adjacent
         dx = abs(attacker.x - defender.x)
         dy = abs(attacker.y - defender.y)
-        
-        if dx <= 1 and dy <= 1:  # Adjacent (including diagonals)
+        if dx <= 1 and dy <= 1:
             damage = attacker.attack_power
             defender.health -= damage
-            self.state.add_to_log(f"{attacker.name} attacks {defender.name} for {damage} damage!")
-            
+            self.state.add_to_log(f"{format_entity(attacker)} attacks {format_entity(defender)} for {damage} damage!")
             if defender.health <= 0:
                 defender.health = 0
                 defender.is_alive = False
-                self.state.add_to_log(f"{defender.name} is defeated!")
+                self.state.add_to_log(f"{format_entity(defender)} is defeated!")
             return True
         else:
-            self.state.add_to_log(f"{attacker.name} can't reach {defender.name}!")
+            self.state.add_to_log(f"{format_entity(attacker)} can't reach {format_entity(defender)}!")
             return False
-    
+
     def entity_talk(self, speaker: Entity, listener: Entity, message: str) -> bool:
-        """Handle one entity talking to another"""
-        # Check if they're in hearing range (2 tiles)
         dx = abs(speaker.x - listener.x)
         dy = abs(speaker.y - listener.y)
-        
         if dx <= 2 and dy <= 2:
-            self.state.add_to_log(f"{speaker.name} to {listener.name}: {message}")
+            self.state.add_to_log(f"{format_entity(speaker)} to {format_entity(listener)}: {message}")
+            listener.chat_history.append(f"{format_entity(speaker)}: {message}")
             return True
         else:
-            self.state.add_to_log(f"{speaker.name} is too far to talk to {listener.name}!")
+            self.state.add_to_log(f"{format_entity(speaker)} is too far to talk to {format_entity(listener)}!")
             return False
-    
+
     async def process_player_action(self, action: Action, **kwargs) -> None:
-        """Process an action from the player"""
         player = self.state.player
-        
         if action == Action.MOVE:
             direction = kwargs.get('direction')
             success = self.move_entity(player, direction)
             if success:
-                self.state.add_to_log(f"Player moved {direction.name.lower()}")
+                self.state.add_to_log(f"{format_entity(player)} moved {direction.name.lower()}")
             else:
-                self.state.add_to_log("Player couldn't move that way")
-        
+                self.state.add_to_log(f"{format_entity(player)} couldn't move that way")
         elif action == Action.ATTACK:
             target = kwargs.get('target')
             if target:
                 self.entity_attack(player, target)
             else:
                 self.state.add_to_log("No target to attack")
-        
         elif action == Action.TALK:
             target = kwargs.get('target')
             message = kwargs.get('message', "Hello there!")
@@ -288,29 +280,22 @@ class RoguelikeGame:
                 self.entity_talk(player, target, message)
             else:
                 self.state.add_to_log("No one to talk to")
-        
         elif action == Action.WAIT:
-            self.state.add_to_log("Player waits...")
-    
+            self.state.add_to_log(f"{format_entity(player)} waits...")
+
     async def process_npc_turn(self, entity: Entity) -> None:
-        """Process a turn for an NPC using its Flock agent"""
         if not entity.is_alive:
             return
-        
-        # Skip if this entity doesn't have an agent
         if not hasattr(entity, 'agent_name'):
             return
-        
+
         agent = self.flock.registry.get_agent(entity.agent_name)
         if not agent:
-            self.state.add_to_log(f"Error: No agent found for {entity.name}")
+            self.state.add_to_log(f"Error: No agent found for {format_entity(entity)}")
             return
-        
-        # Prepare the input for the agent
+
         nearby_entities = self.get_nearby_entities(entity)
         map_view = self.get_map_view(entity)
-        
-        # Format nearby entities for the agent
         nearby_info = []
         for other in nearby_entities:
             nearby_info.append({
@@ -320,38 +305,29 @@ class RoguelikeGame:
                 "health": other.health,
                 "type": "Player" if other.type == EntityType.PLAYER else "NPC"
             })
-        
+
         input_data = {
-            "entity_info": {
-                "name": entity.name,
-                "health": entity.health,
-                "max_health": entity.max_health,
-                "personality": entity.personality
-            },
-            "entity_position": (entity.x, entity.y),
+            "myself": entity,
             "nearby_entities": nearby_info,
             "map_view": map_view,
             "game_log": self.state.game_log
         }
-        
-        # Run the agent to get the NPC's action
         try:
-            result = agent.run(input_data)
+            result = await agent.run_async(input_data)
             action_str = result.get("action", "wait").lower()
             direction_str = result.get("direction", "").lower()
             target_name = result.get("target", "")
             message = result.get("message", "")
             reasoning = result.get("reasoning", "")
-            
-            # Find the target entity if specified
+            self.state.add_to_log(f"{format_entity(entity)} thinks: {reasoning}")
+
             target = None
             if target_name:
                 for other in self.state.entities:
                     if other.name.lower() == target_name.lower() and other.is_alive:
                         target = other
                         break
-            
-            # Process the action
+
             if action_str == "move":
                 direction = None
                 if direction_str == "up":
@@ -362,97 +338,92 @@ class RoguelikeGame:
                     direction = Direction.LEFT
                 elif direction_str == "right":
                     direction = Direction.RIGHT
-                
+
                 if direction:
                     success = self.move_entity(entity, direction)
                     if success:
-                        self.state.add_to_log(f"{entity.name} moved {direction_str}")
+                        self.state.add_to_log(f"{format_entity(entity)} moved {direction_str}")
                 else:
-                    self.state.add_to_log(f"{entity.name} tries to move in an invalid direction")
-            
+                    self.state.add_to_log(f"{format_entity(entity)} tries to move in an invalid direction")
+
             elif action_str == "attack":
                 if target:
                     self.entity_attack(entity, target)
                 else:
-                    self.state.add_to_log(f"{entity.name} tries to attack but has no target")
-            
+                    self.state.add_to_log(f"{format_entity(entity)} tries to attack but has no target")
             elif action_str == "talk":
                 if target and message:
                     self.entity_talk(entity, target, message)
                 else:
-                    self.state.add_to_log(f"{entity.name} tries to talk but has no target or message")
-            
+                    self.state.add_to_log(f"{format_entity(entity)} tries to talk but has no target or message")
             elif action_str == "wait":
-                self.state.add_to_log(f"{entity.name} waits...")
-            
+                self.state.add_to_log(f"{format_entity(entity)} waits...")
             else:
-                self.state.add_to_log(f"{entity.name} does something unexpected")
-        
+                self.state.add_to_log(f"{format_entity(entity)} does something unexpected")
         except Exception as e:
-            self.state.add_to_log(f"Error processing {entity.name}'s turn: {str(e)}")
-    
+            self.state.add_to_log(f"Error processing {format_entity(entity)}'s turn: {str(e)}")
+
     async def process_game_turn(self) -> None:
-        """Process a complete game turn (all entities)"""
-        # First process all NPCs
         for entity in self.state.entities:
             if entity.type == EntityType.NPC:
                 await self.process_npc_turn(entity)
-        
-        # Increment the turn counter
         self.state.turn += 1
-    
-    def render(self) -> str:
-        """Render the game state as a string"""
-        # Create a copy of the map
+
+    def render(self):
+        """Render the game state using rich panels and tables with colored entities."""
+        # Create a copy of the map and place entities with colored characters.
         render_map = self.state.map_data.copy()
-        
-        # Place entities on the map
         for entity in self.state.entities:
             if entity.is_alive:
-                # Ensure we don't go out of bounds
                 if 0 <= entity.y < len(render_map) and 0 <= entity.x < len(render_map[entity.y]):
                     row = render_map[entity.y]
-                    render_map[entity.y] = row[:entity.x] + entity.char + row[entity.x+1:]
-        
-        # Combine the map and game log
-        output = []
-        output.append(f"Turn: {self.state.turn}")
-        output.append("Map:")
-        output.extend(render_map)
-        output.append("\nEntities:")
+                    colored_char = f"[{entity.color}]{entity.char}[/{entity.color}]"
+                    render_map[entity.y] = row[:entity.x] + colored_char + row[entity.x+1:]
+
+        header = Panel(f"[bold green]Turn: {self.state.turn}[/bold green]", title="Game Status")
+        map_str = "\n".join(render_map)
+        map_panel = Panel(map_str, title="Map", style="blue")
+
+        # Build the entities table with colored names and characters.
+        entity_table = Table(title="Entities", header_style="bold magenta")
+        entity_table.add_column("Name", justify="left")
+        entity_table.add_column("Char", justify="center")
+        entity_table.add_column("Position", justify="center")
+        entity_table.add_column("HP", justify="center")
         for entity in self.state.entities:
             if entity.is_alive:
-                output.append(f"  {entity}")
-        
-        output.append("\nGame Log:")
-        for log_entry in self.state.game_log:
-            output.append(f"  {log_entry}")
-        
-        return "\n".join(output)
+                entity_table.add_row(
+                    f"[{entity.color}]{entity.name}[/{entity.color}]",
+                    f"[{entity.color}]{entity.char}[/{entity.color}]",
+                    f"({entity.x}, {entity.y})",
+                    f"{entity.health}/{entity.max_health}"
+                )
 
-# Simple text-based interface for the game
+        log_text = "\n".join(self.state.game_log) if self.state.game_log else "No logs yet."
+        log_panel = Panel(log_text, title="Game Log", style="yellow")
+
+        return Group(header, map_panel, entity_table, log_panel)
+
+# Simple text-based interface using rich for beautiful output.
 async def main():
     game = RoguelikeGame()
     player = game.state.player
     running = True
-    
-    print("Welcome to the LLM-Powered Roguelike!")
-    print("Controls: w/a/s/d to move, t to talk, f to attack, q to quit")
+    game.console.print("[bold underline green]Welcome to the LLM-Powered Roguelike![/bold underline green]")
+    game.console.print("Controls: [bold]w/a/s/d[/bold] to move, [bold]t[/bold] to talk, [bold]f[/bold] to attack, [bold]q[/bold] to quit")
     
     while running:
-        # Render the game state
-        print("\n" + "="*40)
-        print(game.render())
-        print("="*40)
+        game.console.clear()
+        game.console.print("="*40)
+        game.console.print(game.render())
+        game.console.print("="*40)
         
-        # Get player input
-        action = input("\nEnter action (w/a/s/d=move, t=talk, f=attack, q=quit): ").lower()
+        action = Prompt.ask("\nEnter action (w/a/s/d=move, t=talk, f=attack, q=quit)").lower()
         
         if action == 'q':
             running = False
             continue
         
-        # Process player action
         if action in ('w', 'a', 's', 'd'):
             direction = None
             if action == 'w':
@@ -463,61 +434,53 @@ async def main():
                 direction = Direction.LEFT
             elif action == 'd':
                 direction = Direction.RIGHT
-                
             await game.process_player_action(Action.MOVE, direction=direction)
         
-        elif action == 't':  # Talk
-            # Find nearby entities to talk to
+        elif action == 't':
             nearby = game.get_nearby_entities(player, distance=2)
             if not nearby:
-                print("No one nearby to talk to.")
+                game.console.print("[red]No one nearby to talk to.[/red]")
+                await asyncio.sleep(1)
                 continue
-                
-            print("Nearby entities:")
+            game.console.print("Nearby entities:")
             for i, entity in enumerate(nearby):
-                print(f"{i+1}. {entity.name}")
-                
+                game.console.print(f"{i+1}. [{entity.color}]{entity.name}[/{entity.color}]")
             try:
-                target_idx = int(input("Who do you want to talk to? (number): ")) - 1
+                target_idx = int(Prompt.ask("Who do you want to talk to? (number)")) - 1
                 if 0 <= target_idx < len(nearby):
-                    message = input("What do you want to say? ")
+                    message = Prompt.ask("What do you want to say?")
                     await game.process_player_action(Action.TALK, target=nearby[target_idx], message=message)
             except ValueError:
-                print("Invalid input")
+                game.console.print("[red]Invalid input[/red]")
         
-        elif action == 'f':  # Attack
-            # Find nearby entities to attack
+        elif action == 'f':
             nearby = game.get_nearby_entities(player, distance=1)
             if not nearby:
-                print("No one nearby to attack.")
+                game.console.print("[red]No one nearby to attack.[/red]")
+                await asyncio.sleep(1)
                 continue
-                
-            print("Nearby entities:")
+            game.console.print("Nearby entities:")
             for i, entity in enumerate(nearby):
-                print(f"{i+1}. {entity.name}")
-                
+                game.console.print(f"{i+1}. [{entity.color}]{entity.name}[/{entity.color}]")
             try:
-                target_idx = int(input("Who do you want to attack? (number): ")) - 1
+                target_idx = int(Prompt.ask("Who do you want to attack? (number)")) - 1
                 if 0 <= target_idx < len(nearby):
                     await game.process_player_action(Action.ATTACK, target=nearby[target_idx])
             except ValueError:
-                print("Invalid input")
+                game.console.print("[red]Invalid input[/red]")
         
         else:
             await game.process_player_action(Action.WAIT)
         
-        # After player's turn, process NPCs
         await game.process_game_turn()
         
-        # Check game over conditions
         if not player.is_alive:
-            print("\nGame Over - You were defeated!")
+            game.console.print("\n[bold red]Game Over - You were defeated![/bold red]")
             running = False
         
-        # Check if all NPCs are defeated
         npcs_alive = any(e.is_alive and e.type == EntityType.NPC for e in game.state.entities)
         if not npcs_alive:
-            print("\nVictory! All enemies defeated!")
+            game.console.print("\n[bold green]Victory! All enemies defeated![/bold green]")
             running = False
 
 if __name__ == "__main__":
