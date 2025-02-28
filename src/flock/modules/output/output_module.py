@@ -54,6 +54,10 @@ class OutputModuleConfig(FlockModuleConfig):
         default_factory=dict,
         description="Custom formatters for specific output types",
     )
+    no_output: bool = Field(
+        default=False,
+        description="Whether to suppress output",
+    )
 
 
 class OutputModule(FlockModule):
@@ -159,6 +163,8 @@ class OutputModule(FlockModule):
     ) -> dict[str, Any]:
         """Format and display the output."""
         logger.debug("Formatting and displaying output")
+        if self.config.no_output:
+            return result
         # Display the result using the formatter
         self._formatter.display_result(result, agent.name)
 
