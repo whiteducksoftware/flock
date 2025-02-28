@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.3.11"
+version = "0.3.12"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -13,6 +13,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "chromadb>=0.6.3",
     "cloudpickle>=3.1.1",
     "devtools>=0.12.2",
     "dspy==2.5.42",
@@ -60,6 +61,8 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "ipywidgets>=8.1.5",
     "poethepoet>=0.30.0",
+    "ragas>=0.2.13",
+    "spacy>=3.8.4",
 ]
 docs = [
     "mkdocs>=1.6.1",

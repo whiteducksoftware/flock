@@ -42,7 +42,6 @@ async def main():
     from flock.routers.llm.llm_router import LLMRouter, LLMRouterConfig
     
     llm_router = LLMRouter(
-        registry=None,  # Will be set by the framework
         config=LLMRouterConfig(
             temperature=0.1,  # Lower temperature for more deterministic decisions
             confidence_threshold=0.7,  # Higher threshold for more confident decisions

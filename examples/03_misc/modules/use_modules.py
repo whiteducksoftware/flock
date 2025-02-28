@@ -25,6 +25,7 @@ from pprint import pprint
 from flock.core import Flock, FlockFactory
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.tools import basic_tools
+from flock.modules.memory.memory_module import MemoryModule, MemoryModuleConfig
 from flock.modules.zep.zep_module import ZepModule, ZepModuleConfig
 
 
@@ -48,7 +49,11 @@ agent = FlockFactory.create_default_agent(
 # Modules run at certain points in the agent's lifecycle and can manipulate the inputs and outputs and the agent itself.
 # In this case, we're adding the Zep module to the agent, 
 # which allows it to use Zep to store and retrieve information in Knowledge Graphs.
-zep = ZepModule(name="zep",config=ZepModuleConfig())
+# Currently there are two graph based modules: Zep and Memory.
+# Memory is more lightweight and easier to use, but Zep offers more features and is more powerful.
+
+# zep = ZepModule(name="zep",config=ZepModuleConfig())
+zep = MemoryModule(name="mem_split",config=MemoryModuleConfig(splitting_mode="characters"))
 agent.add_module(zep)
 
 
