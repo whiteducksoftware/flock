@@ -27,7 +27,7 @@ project_plan_agent = FlockFactory.create_default_agent(
 #idea_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=project_plan_agent.name))
 
 # Agent router = handoff to agent based on agent's output
-idea_agent.handoff_router = AgentRouter(config=AgentRouterConfig(with_output=True))
+idea_agent.handoff_router = LLMRouter(config=LLMRouterConfig(with_output=True))
 
 # LLM router = handoff to agent based on LLM's decision
 #idea_agent.handoff_router = LLMRouter(config=LLMRouterConfig())
