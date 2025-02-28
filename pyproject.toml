@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.3.12"
+version = "0.3.13"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -61,8 +61,6 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "ipywidgets>=8.1.5",
     "poethepoet>=0.30.0",
-    "ragas>=0.2.13",
-    "spacy>=3.8.4",
 ]
 docs = [
     "mkdocs>=1.6.1",
