@@ -48,10 +48,11 @@ def read_from_kg():
 def read_from_kg_and_evaluate():
   read_from_kg_and_evaluate_agent = FlockFactory.create_default_agent(model="openai/gpt-4o",name="read_from_kg_and_evaluate_agent", 
                                             input="query", 
-                                            output="short_answer",
-                                            output_theme=OutputTheme.aardvark_blue)
+                                            output="answer",
+                                            output_theme=OutputTheme.aardvark_blue,
+                                            enable_rich_tables=True)
   
-  read_from_kg_and_evaluate_agent.add_module(MemoryModule(name="mem_eval", config=MemoryModuleConfig(splitting_mode="characters")))
+  read_from_kg_and_evaluate_agent.add_module(MemoryModule(name="mem_eval", config=MemoryModuleConfig(splitting_mode="characters", enable_read_only_mode=True)))
 
 
 
@@ -69,9 +70,9 @@ def read_from_kg_and_evaluate():
 
 
 if __name__ == "__main__":
-  write_to_kg()
- #read_from_kg()
-  #read_from_kg_and_evaluate()
+  #write_to_kg()
+  #read_from_kg()
+  read_from_kg_and_evaluate()
   pass
 
 

@@ -53,7 +53,7 @@ agent = FlockFactory.create_default_agent(
 # Memory is more lightweight and easier to use, but Zep offers more features and is more powerful.
 
 # zep = ZepModule(name="zep",config=ZepModuleConfig())
-zep = MemoryModule(name="mem_split",config=MemoryModuleConfig(splitting_mode="characters"))
+zep = MemoryModule(name="mem_split",config=MemoryModuleConfig(splitting_mode="characters", number_of_concepts_to_extract=5))
 agent.add_module(zep)
 
 
