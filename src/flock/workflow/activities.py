@@ -50,7 +50,7 @@ async def run_agent(context: FlockContext) -> dict:
             # Create a nested span for this iteration.
             with tracer.start_as_current_span("agent_iteration") as iter_span:
                 iter_span.set_attribute("agent.name", agent.name)
-
+                agent.context = context
                 # Resolve inputs for the agent.
                 agent_inputs = resolve_inputs(
                     agent.input, context, previous_agent_name
@@ -160,7 +160,7 @@ async def run_agent(context: FlockContext) -> dict:
                     agent.name,
                     result,
                     timestamp=datetime.now().isoformat(),
-                    hand_off=handoff_data,
+                    hand_off=handoff_data.model_dump(),
                     called_from=previous_agent_name,
                 )
                 previous_agent_name = agent.name

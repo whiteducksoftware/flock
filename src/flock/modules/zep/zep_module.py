@@ -5,6 +5,7 @@ from pydantic import Field
 from zep_python.client import Zep
 from zep_python.types import Message as ZepMessage, SessionSearchResult
 
+from flock.core.context.context import FlockContext
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_module import FlockModule, FlockModuleConfig
 from flock.core.logging.logging import get_logger
@@ -139,7 +140,11 @@ class ZepModule(FlockModule):
         return response.results
 
     async def post_evaluate(
-        self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> dict[str, Any]:
         """Format and display the output."""
         if not self.config.enable_write:
@@ -152,7 +157,10 @@ class ZepModule(FlockModule):
         return result
 
     async def pre_evaluate(
-        self, agent: FlockAgent, inputs: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> dict[str, Any]:
         """Format and display the output."""
         if not self.config.enable_read:

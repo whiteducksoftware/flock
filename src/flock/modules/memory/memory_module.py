@@ -7,6 +7,7 @@ from pydantic import Field
 from tqdm import tqdm
 
 from flock.core import FlockAgent, FlockModule, FlockModuleConfig
+from flock.core.context.context import FlockContext
 from flock.core.logging.logging import get_logger
 from flock.modules.memory.memory_parser import MemoryMappingParser
 from flock.modules.memory.memory_storage import FlockMemoryStore, MemoryEntry
@@ -77,7 +78,10 @@ class MemoryModule(FlockModule):
         )
 
     async def initialize(
-        self, agent: FlockAgent, inputs: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> None:
         """Initialize memory store if needed."""
         if not self.memory_store:
@@ -92,7 +96,10 @@ class MemoryModule(FlockModule):
         logger.debug(f"Initialized memory module for agent {agent.name}")
 
     async def pre_evaluate(
-        self, agent: FlockAgent, inputs: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> dict[str, Any]:
         """Check memory before evaluation."""
         if not self.memory_store:
@@ -214,7 +221,11 @@ class MemoryModule(FlockModule):
             logger.warning(f"Memory storage failed: {e}", agent=agent.name)
 
     async def post_evaluate(
-        self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> dict[str, Any]:
         """Store results in memory after evaluation."""
         if not self.memory_store:
@@ -229,7 +240,11 @@ class MemoryModule(FlockModule):
         return result
 
     async def terminate(
-        self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: Any,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> None:
         """Save memory store if configured."""
         if self.config.save_after_update and self.memory_store:

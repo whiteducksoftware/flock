@@ -1,9 +1,10 @@
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Literal
 
 from opentelemetry import trace
+from pydantic import BaseModel, Field
 
 from flock.core.context.context_vars import FLOCK_LAST_AGENT, FLOCK_LAST_RESULT
 from flock.core.logging.logging import get_logger
@@ -13,34 +14,31 @@ logger = get_logger("context")
 tracer = trace.get_tracer(__name__)
 
 
-@dataclass
-class AgentRunRecord:
-    id: str = field(default="")
-    agent: str = field(default="")
-    data: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default="")
-    hand_off: dict = field(default_factory=dict)
-    called_from: str = field(default="")
+class AgentRunRecord(BaseModel):
+    id: str = Field(default="")
+    agent: str = Field(default="")
+    data: dict[str, Any] = Field(default_factory=dict)
+    timestamp: str = Field(default="")
+    hand_off: dict | None = Field(default_factory=dict)
+    called_from: str = Field(default="")
 
 
-@dataclass
-class AgentDefinition:
-    agent_type: str = field(default="")
-    agent_name: str = field(default="")
-    agent_data: dict = field(default_factory=dict)
-    serializer: Literal["json", "cloudpickle", "msgpack"] = field(
+class AgentDefinition(BaseModel):
+    agent_type: str = Field(default="")
+    agent_name: str = Field(default="")
+    agent_data: dict = Field(default_factory=dict)
+    serializer: Literal["json", "cloudpickle", "msgpack"] = Field(
         default="cloudpickle"
     )
 
 
-@dataclass
-class FlockContext(Serializable):
-    state: dict[str, Any] = field(default_factory=dict)
-    history: list[AgentRunRecord] = field(default_factory=list)
-    agent_definitions: dict[str, AgentDefinition] = field(default_factory=dict)
-    run_id: str = field(default="")
-    workflow_id: str = field(default="")
-    workflow_timestamp: str = field(default="")
+class FlockContext(Serializable, BaseModel):
+    state: dict[str, Any] = Field(default_factory=dict)
+    history: list[AgentRunRecord] = Field(default_factory=list)
+    agent_definitions: dict[str, AgentDefinition] = Field(default_factory=dict)
+    run_id: str = Field(default="")
+    workflow_id: str = Field(default="")
+    workflow_timestamp: str = Field(default="")
 
     def record(
         self,

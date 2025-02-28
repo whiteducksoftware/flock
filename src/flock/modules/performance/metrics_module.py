@@ -11,6 +11,7 @@ import numpy as np
 import psutil
 from pydantic import BaseModel, Field, validator
 
+from flock.core.context.context import FlockContext
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_module import FlockModule, FlockModuleConfig
 
@@ -222,7 +223,11 @@ class MetricsModule(FlockModule):
         return stats
 
     async def terminate(
-        self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> None:
         """Clean up and final metric recording."""
         if self.config.storage_type == "json":
@@ -370,7 +375,10 @@ class MetricsModule(FlockModule):
             return token_count, total_cost
 
     async def pre_evaluate(
-        self, agent: FlockAgent, inputs: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> dict[str, Any]:
         """Record pre-evaluation metrics."""
         if self.config.collect_token_usage:
@@ -408,7 +416,11 @@ class MetricsModule(FlockModule):
         return inputs
 
     async def post_evaluate(
-        self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> dict[str, Any]:
         """Record post-evaluation metrics."""
         if self.config.collect_timing and self._start_time:
@@ -463,7 +475,11 @@ class MetricsModule(FlockModule):
         return result
 
     async def on_error(
-        self, agent: FlockAgent, error: Exception, inputs: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        error: Exception,
+        inputs: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> None:
         """Record error metrics."""
         self._record_metric(
