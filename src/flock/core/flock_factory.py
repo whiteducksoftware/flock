@@ -34,6 +34,7 @@ class FlockFactory:
         temperature: float = 0.0,
         max_tokens: int = 4096,
         alert_latency_threshold_ms: int = 30000,
+        no_output: bool = False,
     ) -> FlockAgent:
         """Creates a default FlockAgent.
 
@@ -63,6 +64,7 @@ class FlockFactory:
             render_table=enable_rich_tables,
             theme=output_theme,
             wait_for_input=wait_for_input,
+            no_output=no_output,
         )
         output_module = OutputModule("output", config=output_config)
 

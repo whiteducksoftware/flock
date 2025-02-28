@@ -13,6 +13,7 @@ from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.prompt import Prompt
+from pydantic import BaseModel
 
 # Basic game constants
 MAP_WIDTH = 20
@@ -49,6 +50,16 @@ class Action(Enum):
     ATTACK = auto()
     TALK = auto()
     WAIT = auto()
+    
+
+
+    
+class Map(BaseModel):
+    width: int
+    height: int
+    data: List[str]
+    
+
 
 @dataclass
 class Entity:
@@ -71,6 +82,14 @@ class Entity:
 def format_entity(entity: Entity) -> str:
     """Helper to wrap an entity's name in rich markup based on its color."""
     return f"[{entity.color}]{entity.name}[/{entity.color}]"
+
+class Scene(BaseModel):
+    name: str
+    description: str
+    entities: List[Entity]
+    map_data: Map
+    turn: int
+    player_index: int
 
 @dataclass
 class GameState:
@@ -167,8 +186,7 @@ class RoguelikeGame:
                         reasoning: str | Short explanation of why this action was chosen
                     """,
                     temperature=0.7,
-                    enable_rich_tables=True,
-                    output_theme=OutputTheme.dracula
+                    no_output=True
                 )
                 self.flock.add_agent(agent)
                 entity.agent_name = agent.name
@@ -319,7 +337,7 @@ class RoguelikeGame:
             target_name = result.get("target", "")
             message = result.get("message", "")
             reasoning = result.get("reasoning", "")
-            self.state.add_to_log(f"{format_entity(entity)} thinks: {reasoning}")
+            #self.state.add_to_log(f"{format_entity(entity)} thinks: {reasoning}")
 
             target = None
             if target_name:

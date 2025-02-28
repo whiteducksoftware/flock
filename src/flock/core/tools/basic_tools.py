@@ -43,6 +43,30 @@ def web_search_duckduckgo(
         raise
 
 
+@traced_and_logged
+def web_search_bing(keywords: str):
+    try:
+        import httpx
+
+        subscription_key = os.environ["BING_SEARCH_V7_SUBSCRIPTION_KEY"]
+        endpoint = "https://api.bing.microsoft.com/v7.0/search"
+
+        # Query term(s) to search for.
+        query = keywords
+
+        # Construct a request
+        mkt = "en-US"
+        params = {"q": query, "mkt": mkt}
+        headers = {"Ocp-Apim-Subscription-Key": subscription_key}
+
+        response = httpx.get(endpoint, headers=headers, params=params)
+        response.raise_for_status()
+        search_results = response.json()
+        return search_results["webPages"]
+    except Exception:
+        raise
+
+
 def extract_links_from_markdown(markdown: str, url: str) -> list:
     # Regular expression to find all markdown links
     link_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")

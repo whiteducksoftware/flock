@@ -98,38 +98,14 @@ class MemoryModule(FlockModule):
         if not self.memory_store:
             return inputs
 
-        try:
-            input_text = json.dumps(inputs)
-            query_embedding = self.memory_store.compute_embedding(input_text)
-            concepts = await self._extract_concepts(
-                agent, input_text, self.config.number_of_concepts_to_extract
+        inputs = await self.search_memory(agent, inputs)
+
+        if "context" in inputs:
+            agent.input = (
+                agent.input + ", context: list | context with more information"
             )
 
-            memory_results = []
-            for op in self.memory_ops:
-                if op["type"] == "semantic":
-                    semantic_results = self.memory_store.retrieve(
-                        query_embedding,
-                        concepts,
-                        similarity_threshold=self.config.similarity_threshold,
-                    )
-                    memory_results.extend(semantic_results)
-                elif op["type"] == "exact":
-                    exact_results = self.memory_store.exact_match(inputs)
-                    memory_results.extend(exact_results)
-
-            if memory_results:
-                logger.debug(
-                    f"Found {len(memory_results)} relevant memories",
-                    agent=agent.name,
-                )
-                inputs["memory_results"] = memory_results
-
-            return inputs
-
-        except Exception as e:
-            logger.warning(f"Memory retrieval failed: {e}", agent=agent.name)
-            return inputs
+        return inputs
 
     def get_memory_filename(self, module_name: str) -> str:
         """Generate the full file path for the memory file."""
@@ -205,12 +181,18 @@ class MemoryModule(FlockModule):
                     exact_results = self.memory_store.exact_match(query)
                     memory_results.extend(exact_results)
 
+            context: list[dict[str, Any]] = []
             if memory_results:
+                for result in memory_results:
+                    context.append(
+                        {"content": result.content, "concepts": result.concepts}
+                    )
+
                 logger.debug(
                     f"Found {len(memory_results)} relevant memories",
                     agent=agent.name,
                 )
-                query["memory_results"] = memory_results
+                query["context"] = context
 
             return query
 

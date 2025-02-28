@@ -70,17 +70,3 @@ class CallbackModule(FlockModule):
         """Run error callback if configured."""
         if self.config.on_error_callback:
             await self.config.on_error_callback(agent, error, inputs)
-
-    # Other hooks just pass through
-    async def post_initialize(self, agent: Any, inputs: dict[str, Any]) -> None:
-        pass
-
-    async def post_evaluate(
-        self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> dict[str, Any]:
-        return result
-
-    async def post_terminate(
-        self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> None:
-        pass

@@ -6,19 +6,22 @@ This part of the repository tries to explain how to use Flock to.
 
 Basic usage of flock
 
-## 02 Cook Book
+## 02 Concepts
 
-Recipes to let Flock cook or cook with Flock!
+Recipes and samples to some of flock's concepts
 
-## 03 Misc
+## 03 Apps
 
-Additional Topics like modules and evaluators
+Full apps powered by flock
 
-## 04 Fake It Til You Make It
+## 04 Comparison
 
-We re-implement examples of other agent framework.
-For the migrating birds.
+We are comparing flock to other frameworks
 
-## notebooks
+## 05 Documentation
 
-Examples as jupyter notebooks
+Code Snippets out of the documentation
+
+## playground
+
+André's Playground - stay away!
