@@ -3,23 +3,21 @@
 import json
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
+# Import our new hierarchical components
 from pydantic import Field
 from tqdm import tqdm
 
 from flock.core import FlockAgent, FlockModule
 from flock.core.logging.logging import get_logger
-from flock.modules.memory.memory_parser import MemoryMappingParser
-from flock.modules.memory.memory_storage import FlockMemoryStore, MemoryEntry
-
-# Import our new hierarchical components
-from hierarchical_memory_implementation import (
+from flock.modules.hierarchical.memory import (
     ConceptRelationType,
-    HierarchicalFlockMemoryStore, 
-    HierarchicalMemoryGraph,
-    MemoryModuleConfig
+    HierarchicalFlockMemoryStore,
+    HierarchicalMemoryModuleConfig,
+    MemoryEntry,
 )
+from flock.modules.memory.memory_parser import MemoryMappingParser
 
 logger = get_logger("memory")
 
@@ -32,14 +30,14 @@ class HierarchicalMemoryModule(FlockModule):
     """
 
     name: str = "hierarchical_memory"
-    config: MemoryModuleConfig = Field(
-        default_factory=MemoryModuleConfig,
+    config: HierarchicalMemoryModuleConfig = Field(
+        default_factory=HierarchicalMemoryModuleConfig,
         description="Hierarchical memory module configuration",
     )
     memory_store: HierarchicalFlockMemoryStore | None = None
     memory_ops: list = []
 
-    def __init__(self, name, config: MemoryModuleConfig):
+    def __init__(self, name, config: HierarchicalMemoryModuleConfig):
         super().__init__(name=name, config=config)
         self.memory_store = HierarchicalFlockMemoryStore.load_from_file(
             self.get_memory_filename(name)
@@ -70,7 +68,9 @@ class HierarchicalMemoryModule(FlockModule):
                 self.config.memory_mapping
             )
 
-        logger.debug(f"Initialized hierarchical memory module for agent {agent.name}")
+        logger.debug(
+            f"Initialized hierarchical memory module for agent {agent.name}"
+        )
 
     async def pre_evaluate(
         self, agent: FlockAgent, inputs: dict[str, Any]
@@ -115,7 +115,9 @@ class HierarchicalMemoryModule(FlockModule):
             return inputs
 
         except Exception as e:
-            logger.warning(f"Hierarchical memory retrieval failed: {e!s}", agent=agent.name)
+            logger.warning(
+                f"Hierarchical memory retrieval failed: {e!s}", agent=agent.name
+            )
             return inputs
 
     def get_memory_filename(self, module_name: str) -> str:
@@ -168,16 +170,16 @@ class HierarchicalMemoryModule(FlockModule):
         return f"{folder}{module_name}_{base}_{timestamp}{ext}"
 
     async def add_hierarchical_relationship(
-        self, 
-        agent: FlockAgent, 
-        child_concept: str, 
+        self,
+        agent: FlockAgent,
+        child_concept: str,
         parent_concept: str,
         relation_type: ConceptRelationType = ConceptRelationType.IS_A,
         weight: float = 1.0,
-        metadata: Dict[str, Any] = None
+        metadata: dict[str, Any] = None,
     ) -> None:
         """Add a hierarchical relationship between concepts.
-        
+
         Args:
             agent: The FlockAgent using this memory module
             child_concept: The more specific concept (e.g., "cat")
@@ -187,46 +189,49 @@ class HierarchicalMemoryModule(FlockModule):
             metadata: Additional information about the relationship
         """
         if not self.memory_store:
-            logger.warning("Cannot add relationship - memory store not initialized")
+            logger.warning(
+                "Cannot add relationship - memory store not initialized"
+            )
             return
-            
+
         try:
             self.memory_store.add_hierarchical_concept(
                 child_concept=child_concept,
                 parent_concept=parent_concept,
                 relation_type=relation_type,
                 weight=weight,
-                metadata=metadata
+                metadata=metadata,
             )
-            
+
             logger.debug(
                 f"Added hierarchical relationship: {child_concept} -{relation_type}-> {parent_concept}",
-                agent=agent.name
+                agent=agent.name,
             )
-            
+
             if self.config.save_after_update:
                 self.save_memory()
-                
+
         except Exception as e:
-            logger.warning(f"Failed to add hierarchical relationship: {e}", agent=agent.name)
+            logger.warning(
+                f"Failed to add hierarchical relationship: {e}",
+                agent=agent.name,
+            )
 
     async def infer_hierarchical_relationships(
-        self, 
-        agent: FlockAgent, 
-        concepts: Set[str]
+        self, agent: FlockAgent, concepts: set[str]
     ) -> None:
         """Automatically infer possible hierarchical relationships among concepts.
-        
+
         This uses the agent's LLM capabilities to identify potential hierarchical
         relationships between concepts.
-        
+
         Args:
             agent: The FlockAgent to use for inference
             concepts: Set of concepts to analyze for relationships
         """
         if not self.memory_store or len(concepts) < 2:
             return
-            
+
         try:
             # Create signature for relationship extraction
             relation_signature = agent.create_dspy_signature_class(
@@ -237,41 +242,44 @@ class HierarchicalMemoryModule(FlockModule):
                 -> relationships: list[dict] | List of dictionaries with 'child', 'parent', and 'relation_type' keys
                 """,
             )
-            
+
             # Configure and run the predictor
             agent._configure_language_model(agent.model, True, 0.0, 8192)
             predictor = agent._select_task(relation_signature, "Completion")
-            
+
             # Run inference to extract potential relationships
             result = predictor(concepts=list(concepts))
-            
+
             if hasattr(result, "relationships") and result.relationships:
                 for rel in result.relationships:
                     if "child" in rel and "parent" in rel:
                         # Default to IS_A if no relation_type specified
                         rel_type = rel.get("relation_type", "IS_A").upper()
-                        
+
                         # Convert string relation type to enum
                         try:
                             relation_type = ConceptRelationType[rel_type]
                         except KeyError:
                             relation_type = ConceptRelationType.IS_A
-                            
+
                         # Add the inferred relationship
                         await self.add_hierarchical_relationship(
                             agent=agent,
                             child_concept=rel["child"],
                             parent_concept=rel["parent"],
-                            relation_type=relation_type
+                            relation_type=relation_type,
                         )
-                        
+
                 logger.debug(
                     f"Inferred {len(result.relationships)} hierarchical relationships",
-                    agent=agent.name
+                    agent=agent.name,
                 )
-                
+
         except Exception as e:
-            logger.warning(f"Failed to infer hierarchical relationships: {e}", agent=agent.name)
+            logger.warning(
+                f"Failed to infer hierarchical relationships: {e}",
+                agent=agent.name,
+            )
 
     async def search_memory(
         self, agent: FlockAgent, query: dict[str, Any]
@@ -313,7 +321,9 @@ class HierarchicalMemoryModule(FlockModule):
             return query
 
         except Exception as e:
-            logger.warning(f"Hierarchical memory search failed: {e!s}", agent=agent.name)
+            logger.warning(
+                f"Hierarchical memory search failed: {e!s}", agent=agent.name
+            )
             return query
 
     async def add_to_memory(
@@ -348,10 +358,15 @@ class HierarchicalMemoryModule(FlockModule):
 
                 # Add to memory store
                 self.memory_store.add_entry(entry)
-                
+
                 # If hierarchical concepts are enabled, try to infer relationships
-                if self.config.enable_hierarchical_concepts and len(chunk_concepts) > 1:
-                    await self.infer_hierarchical_relationships(agent, chunk_concepts)
+                if (
+                    self.config.enable_hierarchical_concepts
+                    and len(chunk_concepts) > 1
+                ):
+                    await self.infer_hierarchical_relationships(
+                        agent, chunk_concepts
+                    )
 
                 if self.config.save_after_update:
                     self.save_memory()
@@ -365,8 +380,10 @@ class HierarchicalMemoryModule(FlockModule):
 
             if isinstance(chunks, list):
                 all_concepts = set()
-                
-                for chunk in tqdm(chunks, desc="Storing chunks in hierarchical memory"):
+
+                for chunk in tqdm(
+                    chunks, desc="Storing chunks in hierarchical memory"
+                ):
                     chunk_concepts = await self._extract_concepts(agent, chunk)
                     all_concepts.update(chunk_concepts)
 
@@ -381,7 +398,7 @@ class HierarchicalMemoryModule(FlockModule):
                         timestamp=datetime.now(),
                     )
 
-                    self.memory_store.add_entry(entry)
+                    self.memory_store.add_hierarchical_concept
 
                     if self.config.save_after_update:
                         self.save_memory()
@@ -392,13 +409,20 @@ class HierarchicalMemoryModule(FlockModule):
                         entry_id=entry.id,
                         concepts=chunk_concepts,
                     )
-                
+
                 # Process all concepts together for better hierarchy inference
-                if self.config.enable_hierarchical_concepts and len(all_concepts) > 1:
-                    await self.infer_hierarchical_relationships(agent, all_concepts)
+                if (
+                    self.config.enable_hierarchical_concepts
+                    and len(all_concepts) > 1
+                ):
+                    await self.infer_hierarchical_relationships(
+                        agent, all_concepts
+                    )
 
         except Exception as e:
-            logger.warning(f"Hierarchical memory storage failed: {e!s}", agent=agent.name)
+            logger.warning(
+                f"Hierarchical memory storage failed: {e!s}", agent=agent.name
+            )
 
     async def post_evaluate(
         self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
@@ -436,10 +460,15 @@ class HierarchicalMemoryModule(FlockModule):
 
                 # Add to memory store
                 self.memory_store.add_entry(entry)
-                
+
                 # Try to infer hierarchical relationships
-                if self.config.enable_hierarchical_concepts and len(chunk_concepts) > 1:
-                    await self.infer_hierarchical_relationships(agent, chunk_concepts)
+                if (
+                    self.config.enable_hierarchical_concepts
+                    and len(chunk_concepts) > 1
+                ):
+                    await self.infer_hierarchical_relationships(
+                        agent, chunk_concepts
+                    )
 
                 if self.config.save_after_update:
                     self.save_memory()
@@ -453,8 +482,10 @@ class HierarchicalMemoryModule(FlockModule):
 
             if isinstance(chunks, list):
                 all_concepts = set()
-                
-                for chunk in tqdm(chunks, desc="Storing evaluation chunks in memory"):
+
+                for chunk in tqdm(
+                    chunks, desc="Storing evaluation chunks in memory"
+                ):
                     chunk_concepts = await self._extract_concepts(agent, chunk)
                     all_concepts.update(chunk_concepts)
 
@@ -480,13 +511,21 @@ class HierarchicalMemoryModule(FlockModule):
                         entry_id=entry.id,
                         concepts=chunk_concepts,
                     )
-                
+
                 # Process all concepts together for better hierarchy inference
-                if self.config.enable_hierarchical_concepts and len(all_concepts) > 1:
-                    await self.infer_hierarchical_relationships(agent, all_concepts)
+                if (
+                    self.config.enable_hierarchical_concepts
+                    and len(all_concepts) > 1
+                ):
+                    await self.infer_hierarchical_relationships(
+                        agent, all_concepts
+                    )
 
         except Exception as e:
-            logger.warning(f"Hierarchical memory evaluation storage failed: {e!s}", agent=agent.name)
+            logger.warning(
+                f"Hierarchical memory evaluation storage failed: {e!s}",
+                agent=agent.name,
+            )
 
         return result
 
@@ -500,7 +539,7 @@ class HierarchicalMemoryModule(FlockModule):
     async def _extract_concepts(self, agent: FlockAgent, text: str) -> set[str]:
         """Extract concepts using agent's LLM capabilities, with hierarchy awareness."""
         existing_concepts = None
-        if self.memory_store and hasattr(self.memory_store, 'concept_graph'):
+        if self.memory_store and hasattr(self.memory_store, "concept_graph"):
             existing_concepts = set(
                 self.memory_store.concept_graph.graph.nodes()
             )
@@ -562,18 +601,18 @@ class HierarchicalMemoryModule(FlockModule):
                 file.write(json_str)
 
             # Save the enhanced hierarchical concept graph
-            if hasattr(self.memory_store, 'concept_graph'):
+            if hasattr(self.memory_store, "concept_graph"):
                 self.memory_store.concept_graph.save_as_image(
                     self.get_concept_graph_filename(self.name)
                 )
-            
+
             logger.info(f"Saved hierarchical memory to {filename}")
 
     async def _semantic_splitter_mode(
         self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """Extract information chunks from interaction with hierarchical awareness.
-        
+
         This version tries to identify potential hierarchical relationships within the content.
         """
         # Create splitter signature using agent's capabilities
@@ -596,47 +635,51 @@ class HierarchicalMemoryModule(FlockModule):
             full_text = json.dumps(inputs) + json.dumps(result)
         else:
             full_text = json.dumps(inputs)
-        
+
         split_result = splitter(content=full_text)
-        
+
         # Process any extracted hierarchical relationships
-        if self.config.enable_hierarchical_concepts and hasattr(split_result, "potential_hierarchies"):
+        if self.config.enable_hierarchical_concepts and hasattr(
+            split_result, "potential_hierarchies"
+        ):
             hierarchies = split_result.potential_hierarchies
             for rel in hierarchies:
                 if "child" in rel and "parent" in rel:
                     # Default to IS_A if no relation_type specified
                     rel_type = rel.get("relation_type", "IS_A").upper()
-                    
+
                     # Convert string relation type to enum
                     try:
                         relation_type = ConceptRelationType[rel_type]
                     except KeyError:
                         relation_type = ConceptRelationType.IS_A
-                        
+
                     # Add the relationship to the memory store
                     if self.memory_store:
                         self.memory_store.add_hierarchical_concept(
                             child_concept=rel["child"].lower(),
                             parent_concept=rel["parent"].lower(),
                             relation_type=relation_type,
-                            weight=1.0
+                            weight=1.0,
                         )
-            
+
             if hierarchies:
-                logger.debug(f"Added {len(hierarchies)} hierarchical relationships from semantic splitter")
+                logger.debug(
+                    f"Added {len(hierarchies)} hierarchical relationships from semantic splitter"
+                )
 
         return split_result.chunks
 
     async def _character_splitter_mode(
         self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
-    ) -> List[str]:
+    ) -> list[str]:
         """Extract information chunks from interaction based on character count."""
         # Get the content to split
         if result:
             full_text = json.dumps(inputs) + json.dumps(result)
         else:
             full_text = json.dumps(inputs)
-            
+
         # Split full text by max_length characters
         chunks = [
             full_text[i : i + self.config.max_length]

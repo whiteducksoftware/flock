@@ -6,7 +6,9 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 from typing import Dict, List, Set, Tuple
 
-from hierarchical_memory_implementation import ConceptRelationType, HierarchicalMemoryGraph
+from flock.modules.hierarchical.memory import ConceptRelationType, HierarchicalMemoryGraph
+
+
 
 
 class MemoryVisualizer:
