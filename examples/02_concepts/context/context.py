@@ -23,7 +23,6 @@ flock_agent_1 = FlockFactory.create_default_agent(
     name="flock_agent1",
     input="",
     output="a_random_name: str",
-    wait_for_input=True,
 )
 
 
@@ -31,7 +30,6 @@ flock_agent_2 = FlockFactory.create_default_agent(
     name="flock_agent2",
     input="a_random_name",
     output="name_in_caps: str",
-    wait_for_input=True,
 )
 flock_agent_2.add_module(ContextModule(name="context_module", config= FlockModuleConfig()))
 
@@ -41,6 +39,7 @@ flock_agent_3 = FlockFactory.create_default_agent(
     input="flock_agent1.a_random_name",
     output="name_reversed: str",
     wait_for_input=True,
+    print_context=True,
 )
 
 

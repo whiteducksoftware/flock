@@ -336,7 +336,10 @@ class MetricsModule(FlockModule):
         return False
 
     async def initialize(
-        self, agent: FlockAgent, inputs: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> None:
         """Initialize metrics collection."""
         self._start_time = time.time()
