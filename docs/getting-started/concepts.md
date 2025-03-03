@@ -83,6 +83,8 @@ web_agent = FlockFactory.create_default_agent(
 )
 ```
 
+For more advanced capabilities, Flock provides specialized tools like [Azure Search integration](../core-concepts/tools/azure-tools.md) for powerful vector search and document retrieval. Check out the [Tools Overview](../core-concepts/tools/overview.md) for a comprehensive list of available tools.
+
 ### Modules
 
 Modules add capabilities to your agents through lifecycle hooks:

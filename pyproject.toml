@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.3.16"
+version = "0.3.17"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -13,6 +13,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "azure-search-documents>=11.5.2",
     "chromadb>=0.6.3",
     "cloudpickle>=3.1.1",
     "devtools>=0.12.2",
@@ -34,6 +35,7 @@ dependencies = [
     "pydantic>=2.10.5",
     "python-box>=7.3.2",
     "python-decouple>=3.8",
+    "python-dotenv>=1.0.1",
     "questionary>=2.1.0",
     "rich>=13.9.4",
     "sentence-transformers>=3.4.1",

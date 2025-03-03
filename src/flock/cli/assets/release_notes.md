@@ -69,6 +69,7 @@ Like a hummingbird, modules are small and nimble code packages. Put enough of th
 - **Output Module** – Advanced output formatting and storage  
 - **Metrics Module** – Detailed performance tracking  
 - **Zep Module** – Uses Zep for Knowledge Graphs
+- **Azure Search Tools** – Integration with Azure AI Search for vector search and document retrieval
 
 ---
 
