@@ -35,6 +35,7 @@ class FlockFactory:
         max_tokens: int = 4096,
         alert_latency_threshold_ms: int = 30000,
         no_output: bool = False,
+        print_context: bool = False,
     ) -> FlockAgent:
         """Creates a default FlockAgent.
 

@@ -59,6 +59,10 @@ class OutputModuleConfig(FlockModuleConfig):
         default=False,
         description="Whether to suppress output",
     )
+    print_context: bool = Field(
+        default=False,
+        description="Whether to print the context",
+    )
 
 
 class OutputModule(FlockModule):
@@ -171,6 +175,8 @@ class OutputModule(FlockModule):
         if self.config.no_output:
             return result
         # Display the result using the formatter
+        if self.config.print_context:
+            result["context"] = context
         self._formatter.display_result(result, agent.name)
 
         # Save to file if configured

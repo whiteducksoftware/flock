@@ -468,9 +468,17 @@ class Flock:
                 )
 
                 if not self.enable_temporal:
-                    return await run_local_workflow(self.context, box_result)
+                    return await run_local_workflow(
+                        self.context,
+                        box_result,
+                        print_context=self.print_context,
+                    )
                 else:
-                    return await run_temporal_workflow(self.context, box_result)
+                    return await run_temporal_workflow(
+                        self.context,
+                        box_result,
+                        print_context=self.print_context,
+                    )
             except Exception as e:
                 logger.exception("Execution failed", error=str(e))
                 raise

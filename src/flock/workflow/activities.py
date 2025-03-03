@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from devtools import debug
 from opentelemetry import trace
 from temporalio import activity
 
@@ -18,7 +19,7 @@ tracer = trace.get_tracer(__name__)
 
 
 @activity.defn
-async def run_agent(context: FlockContext) -> dict:
+async def run_agent(context: FlockContext, print_context: bool = False) -> dict:
     """Runs a chain of agents using the provided context.
 
     The context contains state, history, and agent definitions.
@@ -51,6 +52,8 @@ async def run_agent(context: FlockContext) -> dict:
             with tracer.start_as_current_span("agent_iteration") as iter_span:
                 iter_span.set_attribute("agent.name", agent.name)
                 agent.context = context
+                if print_context:
+                    debug(context)
                 # Resolve inputs for the agent.
                 agent_inputs = resolve_inputs(
                     agent.input, context, previous_agent_name

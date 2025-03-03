@@ -9,7 +9,7 @@ logger = get_logger("flock")
 
 
 async def run_local_workflow(
-    context: FlockContext, box_result: bool = True
+    context: FlockContext, box_result: bool = True, print_context: bool = False
 ) -> dict:
     """Execute the agent workflow locally (for debugging).
 

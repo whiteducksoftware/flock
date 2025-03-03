@@ -1,5 +1,7 @@
 # src/your_package/core/execution/temporal_executor.py
 
+from devtools import debug
+
 from flock.core.context.context import FlockContext
 from flock.core.context.context_vars import FLOCK_RUN_ID
 from flock.core.logging.logging import get_logger
@@ -15,6 +17,7 @@ logger = get_logger("flock")
 async def run_temporal_workflow(
     context: FlockContext,
     box_result: bool = True,
+    print_context: bool = False,
 ) -> dict:
     """Execute the agent workflow via Temporal for robust, distributed processing.
 
@@ -29,6 +32,7 @@ async def run_temporal_workflow(
     await setup_worker(workflow=FlockWorkflow, activity=run_agent)
     logger.debug("Creating Temporal client")
     flock_client = await create_temporal_client()
+    debug(context)
     workflow_id = context.get_variable(FLOCK_RUN_ID)
     logger.info("Executing Temporal workflow", workflow_id=workflow_id)
     result = await flock_client.execute_workflow(
