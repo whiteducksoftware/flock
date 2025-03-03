@@ -11,6 +11,7 @@ import cloudpickle
 from opentelemetry import trace
 from pydantic import BaseModel, Field
 
+from flock.core.context.context import FlockContext
 from flock.core.flock_evaluator import FlockEvaluator
 from flock.core.flock_module import FlockModule
 from flock.core.flock_router import FlockRouter
@@ -73,6 +74,11 @@ class FlockAgent(BaseModel, ABC, DSPyIntegrationMixin):
         description="FlockModules attached to this agent",
     )
 
+    context: FlockContext | None = Field(
+        default=None,
+        description="Context associated with flock",
+    )
+
     def add_module(self, module: FlockModule) -> None:
         """Add a module to this agent."""
         self.modules[module.name] = module
@@ -95,6 +101,13 @@ class FlockAgent(BaseModel, ABC, DSPyIntegrationMixin):
         with tracer.start_as_current_span("agent.initialize") as span:
             span.set_attribute("agent.name", self.name)
             span.set_attribute("inputs", str(inputs))
+            if not self.context:
+                self.context = FlockContext()
+
+            if self.name not in self.context.agent_definitions:
+                self.context.add_agent_definition(
+                    type(self), self.name, self.to_dict()
+                )
 
             try:
                 for module in self.get_enabled_modules():
@@ -102,7 +115,7 @@ class FlockAgent(BaseModel, ABC, DSPyIntegrationMixin):
                         f"agent.initialize - module {module.name}",
                         agent=self.name,
                     )
-                    await module.initialize(self, inputs)
+                    await module.initialize(self, inputs, self.context)
             except Exception as module_error:
                 logger.error(
                     "Error during initialize",
@@ -124,7 +137,7 @@ class FlockAgent(BaseModel, ABC, DSPyIntegrationMixin):
             )
             try:
                 for module in self.get_enabled_modules():
-                    await module.terminate(self, inputs, inputs)
+                    await module.terminate(self, inputs, inputs, self.context)
             except Exception as module_error:
                 logger.error(
                     "Error during terminate",
@@ -139,7 +152,7 @@ class FlockAgent(BaseModel, ABC, DSPyIntegrationMixin):
             span.set_attribute("inputs", str(inputs))
             try:
                 for module in self.get_enabled_modules():
-                    await module.on_error(self, error, inputs)
+                    await module.on_error(self, error, inputs, self.context)
             except Exception as module_error:
                 logger.error(
                     "Error during on_error",
@@ -154,13 +167,15 @@ class FlockAgent(BaseModel, ABC, DSPyIntegrationMixin):
             span.set_attribute("inputs", str(inputs))
 
             for module in self.get_enabled_modules():
-                inputs = await module.pre_evaluate(self, inputs)
+                inputs = await module.pre_evaluate(self, inputs, self.context)
 
             try:
                 result = await self.evaluator.evaluate(self, inputs, self.tools)
 
                 for module in self.get_enabled_modules():
-                    result = await module.post_evaluate(self, inputs, result)
+                    result = await module.post_evaluate(
+                        self, inputs, result, self.context
+                    )
 
                 span.set_attribute("result", str(result))
 

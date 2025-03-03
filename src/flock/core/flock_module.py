@@ -5,6 +5,8 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, create_model
 
+from flock.core.context.context import FlockContext
+
 T = TypeVar("T", bound="FlockModuleConfig")
 
 
@@ -50,30 +52,50 @@ class FlockModule(BaseModel, ABC):
         default_factory=FlockModuleConfig, description="Module configuration"
     )
 
-    async def initialize(self, agent: Any, inputs: dict[str, Any]) -> None:
+    async def initialize(
+        self,
+        agent: Any,
+        inputs: dict[str, Any],
+        context: FlockContext | None = None,
+    ) -> None:
         """Called when the agent starts running."""
         pass
 
     async def pre_evaluate(
-        self, agent: Any, inputs: dict[str, Any]
+        self,
+        agent: Any,
+        inputs: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> dict[str, Any]:
         """Called before agent evaluation, can modify inputs."""
         return inputs
 
     async def post_evaluate(
-        self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: Any,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> dict[str, Any]:
         """Called after agent evaluation, can modify results."""
         return result
 
     async def terminate(
-        self, agent: Any, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: Any,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> None:
         """Called when the agent finishes running."""
         pass
 
     async def on_error(
-        self, agent: Any, error: Exception, inputs: dict[str, Any]
+        self,
+        agent: Any,
+        error: Exception,
+        inputs: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> None:
         """Called when an error occurs during agent execution."""
         pass

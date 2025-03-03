@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import Field
 
 from flock.core import FlockAgent
+from flock.core.context.context import FlockContext
 from flock.core.flock_module import FlockModule, FlockModuleConfig
 from flock.core.logging.formatters.themed_formatter import (
     ThemedAgentResultFormatter,
@@ -57,6 +58,10 @@ class OutputModuleConfig(FlockModuleConfig):
     no_output: bool = Field(
         default=False,
         description="Whether to suppress output",
+    )
+    print_context: bool = Field(
+        default=False,
+        description="Whether to print the context",
     )
 
 
@@ -159,12 +164,18 @@ class OutputModule(FlockModule):
             json.dump(output_data, f, indent=2)
 
     async def post_evaluate(
-        self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
+        context: FlockContext | None = None,
     ) -> dict[str, Any]:
         """Format and display the output."""
         logger.debug("Formatting and displaying output")
         if self.config.no_output:
             return result
+        if self.config.print_context:
+            result["context"] = context
         # Display the result using the formatter
         self._formatter.display_result(result, agent.name)
 
