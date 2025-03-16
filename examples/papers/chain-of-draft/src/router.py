@@ -6,6 +6,7 @@ from flock.core.context.context import FlockContext
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_router import FlockRouter, FlockRouterConfig, HandOffRequest
 from flock.core.logging.logging import get_logger
+from pydantic import Field
 
 logger = get_logger("chain_of_draft.router")
 
@@ -16,6 +17,10 @@ class ChainOfDraftRouter(FlockRouter):
     This router manages the transitions between different reasoning steps in a Chain of Draft workflow,
     determining when to continue with another reasoning step or when to finalize the answer.
     """
+    
+    final_answer_agent: str | None = Field(default=None, description="Name of the final answer agent")
+    reasoning_step_agent: str | None = Field(default=None, description="Name of the reasoning step agent")
+    max_steps: int | None = Field(default=None, description="Maximum number of reasoning steps allowed")
     
     def __init__(
         self, 
@@ -43,6 +48,7 @@ class ChainOfDraftRouter(FlockRouter):
         self.final_answer_agent = final_answer_agent
         self.reasoning_step_agent = reasoning_step_agent
         self.max_steps = max_steps
+        logger.debug(f"Router initialized with final_answer_agent={final_answer_agent}, reasoning_step_agent={reasoning_step_agent}")
     
     async def route(
         self,
@@ -64,7 +70,8 @@ class ChainOfDraftRouter(FlockRouter):
         step_count = context.get_variable("cod.step_count", 0)
         context.set_variable("cod.step_count", step_count + 1)
         
-        logger.debug(f"Chain of Draft step {step_count + 1} completed")
+        logger.debug(f"Chain of Draft step {step_count + 1} completed by agent {current_agent.name}")
+        logger.debug(f"Current result keys: {list(result.keys())}")
         
         # If this is the problem analyzer, always go to the reasoning step
         if current_agent.name == "problem_analyzer":
@@ -72,7 +79,11 @@ class ChainOfDraftRouter(FlockRouter):
             if "initial_step" in result:
                 logger.debug(f"Initial step: {result['initial_step']}")
                 result["previous_steps"] = result["initial_step"]
+            else:
+                logger.warning(f"Expected 'initial_step' in problem_analyzer result, but got keys: {list(result.keys())}")
+                result["previous_steps"] = ""
             
+            logger.debug(f"Routing from problem_analyzer to {self.reasoning_step_agent}")
             return HandOffRequest(
                 next_agent=self.reasoning_step_agent,
                 hand_off_mode="add"
@@ -93,6 +104,7 @@ class ChainOfDraftRouter(FlockRouter):
             )
         
         # Continue with another reasoning step
+        logger.debug(f"Continuing with another reasoning step ({step_count + 1}/{self.max_steps})")
         return HandOffRequest(
             next_agent=self.reasoning_step_agent,
             hand_off_mode="add"
