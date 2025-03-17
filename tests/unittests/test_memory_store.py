@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from datetime import datetime
 
-from flock.core.memory.memory_storage import FlockMemoryStore, MemoryEntry, MemoryGraph
+from flock.modules.memory.memory_storage import FlockMemoryStore, MemoryEntry, MemoryGraph
 
 
 # Test that MemoryGraph correctly serializes and reconstructs the graph.

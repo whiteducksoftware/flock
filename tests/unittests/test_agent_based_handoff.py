@@ -4,10 +4,9 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from flock.core.context.context import FlockContext
-from flock.core.execution.agent_based_handoff_router import AgentBasedHandoffRouter
-from flock.core.execution.handoff_agent import AgentInfo, HandoffAgent, HandoffDecision
 from flock.core.flock_agent import FlockAgent, HandOffRequest
 from flock.core.registry.agent_registry import Registry
+from flock.routers.agent.handoff_agent import HandoffAgent, HandoffDecision
 
 
 class TestHandoffAgent(unittest.TestCase):

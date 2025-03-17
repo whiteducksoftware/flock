@@ -225,3 +225,5 @@ class TestFlock:
             with pytest.raises(Exception) as exc_info:
                 await flock_instance.run_async(dummy_agent)
             assert "Test error" in str(exc_info.value)
+
+

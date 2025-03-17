@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from flock.core.logging import logging
-from flock.core.memory.memory_storage import (
+from flock.modules.memory.memory_storage import (
     FlockMemoryStore, MemoryEntry, MemoryScope,
     SemanticOperation, ExactOperation, FilterOperation,
     SortOperation, EnrichOperation, CombineOperation
 )
-from flock.core.memory.memory_parser import MemoryMappingParser
+from flock.modules.memory.memory_parser import MemoryMappingParser
 
 logger = logging.get_logger("memory")
 logger.enable_logging = True
