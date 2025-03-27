@@ -1,1 +1,0 @@
-"""Example applications of Chain of Draft.""" 

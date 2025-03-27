@@ -74,8 +74,8 @@ class FlockContext(Serializable, BaseModel):
                 attributes={"agent": agent_name, "timestamp": timestamp},
             )
 
-    def get_variable(self, key: str) -> Any:
-        return self.state.get(key)
+    def get_variable(self, key: str, default: Any = None) -> Any:
+        return self.state.get(key, default)
 
     def set_variable(self, key: str, value: Any) -> None:
         old_value = self.state.get(key)
