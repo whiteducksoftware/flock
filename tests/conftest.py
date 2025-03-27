@@ -1,52 +1,77 @@
-import os
+# tests/conftest.py
 import pytest
-import dotenv
+import asyncio
+# Use AsyncMock for mocking async functions
+from unittest.mock import MagicMock, AsyncMock
 
-
-def pytest_configure(config):
-    """
-    Load environment variables from .env file if it exists.
-    This ensures any environment variables defined in .env are available for tests.
-    """
-    # Load from .env file if it exists
-    dotenv.load_dotenv()
-
-
-def pytest_addoption(parser):
-    """Add command-line options for pytest."""
-    parser.addoption(
-        "--run-integration",
-        action="store_true",
-        default=False,
-        help="Run integration tests that require Azure AI Search credentials",
-    )
-
-
-def pytest_collection_modifyitems(config, items):
-    """Skip integration tests unless explicitly requested."""
-    if not config.getoption("--run-integration"):
-        skip_integration = pytest.mark.skip(reason="Need --run-integration option to run")
-        for item in items:
-            if "integration" in item.keywords:
-                item.add_marker(skip_integration)
-
-
+# --- Event Loop Policy ---
+# Ensure the same event loop policy is used for all tests
+# Necessary for some environments or if tests interfere with loop policies
 @pytest.fixture(scope="session")
-def azure_credentials():
+def event_loop_policy():
+    # Use the default asyncio policy or uvloop if installed
+    try:
+        import uvloop
+        policy = uvloop.EventLoopPolicy()
+    except ImportError:
+        policy = asyncio.DefaultEventLoopPolicy()
+    return policy
+
+# --- Basic Flock Fixtures (Placeholders) ---
+@pytest.fixture
+def mock_flock_instance():
+    """Provides a basic, mocked Flock instance for unit tests."""
+    # You might want to use MagicMock or create a minimal non-functional subclass
+    mock_flock = MagicMock(name="MockFlock")
+    mock_flock.model = "mock-model/test-v1"
+    mock_flock.local_debug = True
+    mock_flock.agents = {}
+    mock_flock.registry = MagicMock(name="MockRegistry")
+    mock_flock.context = MagicMock(name="MockContext")
+    # Add mock methods as needed
+    mock_flock.add_agent = MagicMock()
+    mock_flock.add_tool = MagicMock()
+    # Use AsyncMock for async methods
+    mock_flock.run_async = AsyncMock(return_value={"result": "mocked"})
+    return mock_flock
+
+@pytest.fixture
+def mock_flock_agent():
+    """Provides a basic, mocked FlockAgent instance."""
+    mock_agent = MagicMock(name="MockAgent")
+    mock_agent.name = "mock_agent"
+    mock_agent.model = "mock-model/test-v1"
+    mock_agent.input = "query: str"
+    mock_agent.output = "response: str"
+    mock_agent.tools = []
+    # Use AsyncMock for async methods
+    mock_agent.evaluate = AsyncMock(return_value={"response": "mocked response"})
+    mock_agent.run_async = AsyncMock(return_value={"response": "mocked response"})
+    # Add other necessary attributes/methods
+    return mock_agent
+
+# --- Mocking Fixtures ---
+@pytest.fixture
+def mock_llm():
     """
-    Fixture to provide Azure Search credentials.
-    
-    This will check for the required environment variables and
-    skip tests that need them if they're not set.
+    Provides a basic mock for LLM interactions (e.g., litellm.completion).
+    Tests can configure its return value.
     """
-    required_vars = ["AZURE_SEARCH_ENDPOINT", "AZURE_SEARCH_API_KEY"]
-    missing = [var for var in required_vars if not os.environ.get(var)]
-    
-    if missing:
-        pytest.skip(f"Azure Search credentials missing: {', '.join(missing)}")
-    
-    return {
-        "endpoint": os.environ.get("AZURE_SEARCH_ENDPOINT"),
-        "api_key": os.environ.get("AZURE_SEARCH_API_KEY"),
-        "index_name": os.environ.get("AZURE_SEARCH_INDEX_NAME")
-    } 
+    # This is a simple placeholder. You might make it more sophisticated later,
+    # e.g., returning different responses based on the input prompt.
+    mock = MagicMock(name="MockLLM")
+    # This is the object that will be returned *after* awaiting the mock
+    mock_completion_result = MagicMock()
+    mock_completion_result.choices = [MagicMock(message=MagicMock(content='{"response": "mocked LLM output"}'))]
+
+    # Use AsyncMock for the methods that need to be awaited
+    mock.completion = AsyncMock(return_value=mock_completion_result)
+    mock.acompletion = AsyncMock(return_value=mock_completion_result)
+    return mock
+
+@pytest.fixture(autouse=True) # Apply this mock to all tests automatically
+def patch_litellm(mocker, mock_llm):
+    """Automatically patch litellm.completion and acompletion for most tests."""
+    # Use mocker fixture provided by pytest-mock
+    mocker.patch("litellm.completion", mock_llm.completion)
+    mocker.patch("litellm.acompletion", mock_llm.acompletion)
