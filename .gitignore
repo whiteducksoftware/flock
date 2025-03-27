@@ -32,6 +32,7 @@ concept_memory/
 news/
 .chroma/
 hierarchical_memory/
+.repomix-output.txt
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
