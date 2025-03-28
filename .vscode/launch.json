@@ -8,6 +8,16 @@
             "justMyCode": false,
             "program": "${file}",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Attach to debugpy",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "justMyCode": false
         }
     ]
 }
