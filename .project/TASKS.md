@@ -15,6 +15,7 @@ This feature adds support for serializing and deserializing agents and complete 
 | US007-T003 | [Flock TOML Serialization](tasks/US007-T003-Flock-TOML-Serialization.md) | Medium | Not Started | Implement TOML serialization for complete Flock systems |
 | US007-T004 | [Callable Reference System](tasks/US007-T004-Callable-Reference-System.md) | High | Not Started | Create a system to represent callable objects in TOML using human-readable references |
 | US007-T005 | [TOML Documentation and Examples](tasks/US007-T005-TOML-Documentation-and-Examples.md) | Medium | Not Started | Create comprehensive documentation and examples for TOML serialization |
+| US007-T006 | [TOML Editor CLI](tasks/US007-T006-TOML-Editor-CLI.md) | Medium | Not Started | Add a TOML editor to the CLI application for editing agent and system configurations |
 
 ---
 
