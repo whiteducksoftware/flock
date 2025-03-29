@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# ignore all .env* files except .env_template
+*.env*
+!*.env_template
+
 # Distribution / packaging
 .Python
 build/

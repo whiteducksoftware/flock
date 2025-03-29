@@ -8,12 +8,15 @@ import os
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import math
 
 import questionary
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+
+from flock.core.util.cli_helper import init_console
 
 # Constants
 ENV_FILE = ".env"
@@ -30,7 +33,7 @@ console = Console()
 def settings_editor():
     """Main entry point for the settings editor."""
     while True:
-        console.clear()
+        init_console()
         console.print(Panel("[bold green]Environment Settings Editor[/]"), justify="center")
         
         # Get current profile name
@@ -39,17 +42,23 @@ def settings_editor():
             console.print(f"Current Profile: [bold cyan]{current_profile}[/]")
         else:
             console.print("No profile detected")
+
+        console.line()
             
         choice = questionary.select(
             "What would you like to do?",
             choices=[
+                questionary.Separator(line=" "),
                 "View all environment variables",
                 "Edit an environment variable",
                 "Add a new environment variable",
                 "Delete an environment variable",
+                questionary.Separator(),
                 "Manage environment profiles",
+                questionary.Separator(),
                 "Toggle show secrets",
                 "Change variables per page",
+                questionary.Separator(),
                 "Back to main menu",
             ],
         ).ask()
@@ -79,22 +88,21 @@ def view_env_variables(page: int = 1, page_size: Optional[int] = None):
     """View all environment variables with pagination.
     
     Args:
-        page: The page number to display
-        page_size: Number of items per page (defaults to VARS_PER_PAGE setting)
+        page: Page number to display
+        page_size: Number of variables per page (if None, use the setting in .env)
     """
     env_vars = load_env_file()
-    if not env_vars:
-        console.print("[yellow]No environment variables found.[/]")
-        return
     
-    # Get page size from settings if not specified
+    # If page_size is not specified, get it from settings
     if page_size is None:
         page_size = get_vars_per_page_setting(env_vars)
     
     # Calculate pagination
     total_vars = len(env_vars)
-    total_pages = (total_vars + page_size - 1) // page_size
-    page = max(1, min(page, total_pages))
+    total_pages = math.ceil(total_vars / page_size) if total_vars > 0 else 1
+    
+    # Validate page number
+    page = min(max(1, page), total_pages)
     
     start_idx = (page - 1) * page_size
     end_idx = min(start_idx + page_size, total_vars)
@@ -112,7 +120,7 @@ def view_env_variables(page: int = 1, page_size: Optional[int] = None):
     
     # Show secrets status
     secrets_status = "[green]ON[/]" if show_secrets else "[red]OFF[/]"
-    console.clear()
+    init_console()
     console.print(f"Show Secrets: {secrets_status}")
     
     for key, value in current_page_vars:
@@ -305,23 +313,25 @@ def set_show_secrets_setting(show_secrets: bool):
 
 
 def edit_env_variable():
-    """Edit an existing environment variable."""
+    """Edit an environment variable."""
+    # Get list of variables
     env_vars = load_env_file()
+    
     if not env_vars:
-        console.print("[yellow]No environment variables found.[/]")
+        console.print("[yellow]No environment variables found to edit.[/]")
         return
     
-    # Create a list of valid environment variables (excluding comments and empty lines)
-    valid_vars = [key for key in env_vars.keys() if not key.startswith('#') and key]
+    # Filter out comments
+    variables = [k for k in env_vars.keys() if not k.startswith('#') and k]
     
-    if not valid_vars:
-        console.print("[yellow]No editable environment variables found.[/]")
-        return
+    # Display variables with selection
+    init_console()
+    console.print("Select a variable to edit:")
     
     # Let user select a variable to edit
     var_name = questionary.select(
         "Select a variable to edit:",
-        choices=valid_vars + ["Cancel"],
+        choices=variables + ["Cancel"],
     ).ask()
     
     if var_name == "Cancel":
@@ -403,24 +413,25 @@ def add_env_variable():
 
 
 def delete_env_variable():
-    """Delete an existing environment variable."""
+    """Delete an environment variable."""
+    # Get list of variables
     env_vars = load_env_file()
+    
     if not env_vars:
-        console.print("[yellow]No environment variables found.[/]")
+        console.print("[yellow]No environment variables found to delete.[/]")
         return
     
-    # Create a list of valid environment variables (excluding comments and empty lines)
-    valid_vars = [key for key in env_vars.keys() if not key.startswith('#') and key]
+    # Filter out comments
+    variables = [k for k in env_vars.keys() if not k.startswith('#') and k]
     
-    if not valid_vars:
-        console.print("[yellow]No deletable environment variables found.[/]")
-        return
+    # Display variables with selection
+    init_console()
+    console.print("Select a variable to delete:")
     
     # Let user select a variable to delete with hint
-    console.print("[italic]Select a variable to delete (or Cancel to go back)[/]")
     var_name = questionary.select(
         "Select a variable to delete:",
-        choices=valid_vars + ["Cancel"],
+        choices=variables + ["Cancel"],
     ).ask()
     
     if var_name == "Cancel":
@@ -440,7 +451,7 @@ def delete_env_variable():
 
 def manage_profiles():
     """Manage environment profiles."""
-    console.clear()
+    init_console()
     console.print(Panel("[bold green]Environment Profile Management[/]"), justify="center")
     
     # Get current profile and available profiles
@@ -459,11 +470,14 @@ def manage_profiles():
                 console.print(f"  [bold cyan]{profile} (active)[/]")
             else:
                 console.print(f"  {profile}")
+
+    console.line()
     
     # Profile management options
     choice = questionary.select(
         "What would you like to do?",
         choices=[
+            questionary.Separator(line=" "),
             "Switch to a different profile",
             "Create a new profile",
             "Rename a profile",

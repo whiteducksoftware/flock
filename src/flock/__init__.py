@@ -4,6 +4,7 @@ from flock.cli.constants import CLI_EXIT, CLI_NOTES, CLI_THEME_BUILDER
 from flock.cli.load_release_notes import load_release_notes
 from flock.core.logging.formatters.theme_builder import theme_builder
 from flock.cli.settings import settings_editor
+from rich.panel import Panel
 
 
 def main():
@@ -28,7 +29,9 @@ def main():
     while True:
         init_console()
 
-        console.print("Flock Management Console\n", style="bold green")
+        #console.print("Flock Management Console\n", style="bold green")
+        console.print(Panel("[bold green]Flock Management Console[/]"), justify="center")
+        console.line()
 
         result = questionary.select(
             "What do you want to do?",
