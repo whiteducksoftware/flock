@@ -50,17 +50,43 @@ class StoryBible(BaseModel):
     worldbuilding_notes: dict[str, str]  = Field(..., description="Worldbuilding notes of the story")
     consistency_rules: list[str]  = Field(..., description="Consistency rules of the story")
     writing_reference: Optional[str] = Field(default=None, description="Writing reference and/or style guidelines")
+
+########################################################
+
+class Prompt(BaseModel):
+    prompt: str = Field(..., description="Detailed Prompt for image generation")
+    title: str = Field(..., description="Title of the prompt")
     
-class ComicBook(BaseModel):
-    title: str = Field(..., description="Title of the comic book")
-    issue_title: str = Field(..., description="Title of the issue")
-    issue_number: int = Field(..., description="Issue number of the comic book")
-    number_of_issues: int = Field(..., description="Number of issues needed to complete the story")
-    issue_description: str = Field(..., description="Description of the issue")
-    issue_start_scene: Scene = Field(..., description="Start scene of the issue")
-    issue_end_scene: Scene = Field(..., description="End scene of the issue")
+# Define the whole comic book series as a whole
+    
+class Issue(BaseModel):
+    title: str = Field(..., description="Title of the issue")
+    issue_number: int = Field(..., description="Issue number of the issue")
+    issue_description: str = Field(..., description="Description/Summary of the issue")
+    issue_scenes: dict[int,str] = Field(..., description="Scenes of the story the issue visualizes. Key is the page number and value is the scene title as defined in the story chapters.")
     issue_cover_image_prompt: str = Field(..., description="Cover image prompt for the issue")
-    issue_pages: list[str] = Field(..., description="Description of the pages of the issue")
+    number_of_pages: int = Field(..., description="Number of pages in the issue")
+    number_of_panels: int = Field(..., description="Number of panels in the issue")
+    linked_concept_art_prompts: list[str] = Field(..., description="Concept art prompts that are linked to the issue. The prompts are linked to the issue by the title of the prompt.")
+    
+class ComicBookSeries(BaseModel):
+    title: str = Field(..., description="Title of the comic book series")
+    issues: list[Issue] = Field(..., description="Issues of the comic book series")
+    concept_art_prompts: list[Prompt] = Field(..., description="Concept art prompts for the comic book series. Includes character concept art, setting concept art, etc. Everything that needs consistency across the series.")
+    
+    
+########################################################
+    
+    
+class PageLayout(BaseModel):
+    page_number: int = Field(..., description="Page number of the page layout")
+    amount_of_panels: int = Field(..., description="Amount of panels on the page")
+    layout_description: str = Field(..., description="Description of the panel layout of the page")
+    panel_prompts: list[str] = Field(..., description="Panel prompts for the page")
+    story_scene_title: str = Field(..., description="Title of the story scene that is depicted in the page")
+    
+class IssueLayout(Issue):
+    page_layouts: list[PageLayout] = Field(..., description="Page layouts for the issue")
 
 MODEL = "gemini/gemini-2.5-pro-exp-03-25" #"groq/qwen-qwq-32b"    #"openai/gpt-4o" # 
 flock = Flock(model=MODEL)
@@ -78,15 +104,14 @@ result = flock.run(start_agent=story_agent, input={'story_idea': 'A story about 
 story_overview = result.story
 story_bible = result.story_bible
 
-comic_book_agent = FlockFactory.create_default_agent(name="comic_book_agent",
+comic_book_series_agent = FlockFactory.create_default_agent(name="comic_book_series_agent",
                                               description="An agent that is a master comic book writer." 
-                                              "Generates the next issue of the comic book based on the story and the past issues."
-                                              "If no past issues are provided, it will generate the first issue.",
-                                              input="story: Story, story_bible: StoryBible, past_issues: list[ComicBook]",
-                                              output="comic_book: ComicBook",
+                                              "Generates a comic book series based on a story and a story bible.",
+                                              input="story: Story, story_bible: StoryBible",
+                                              output="comic_book_series: ComicBookSeries",
                                               max_tokens=60000,
                                               write_to_file=True)
 
-flock.add_agent(comic_book_agent)
-result = flock.run(start_agent=comic_book_agent, input={'story': story_overview, 'story_bible': story_bible, 'past_issues': []}) 
-comic_book = result.comic_book
+flock.add_agent(comic_book_series_agent)
+result = flock.run(start_agent=comic_book_series_agent, input={'story': story_overview, 'story_bible': story_bible}) 
+comic_book_series = result.comic_book_series
