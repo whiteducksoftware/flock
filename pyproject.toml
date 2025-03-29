@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.3.22"
+version = "0.3.23"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -33,6 +33,7 @@ dependencies = [
     "opentelemetry-sdk>=1.30.0",
     "pillow>=10.4.0",
     "prometheus-client>=0.21.1",
+    "psutil>=6.1.1",
     "pydantic>=2.10.5",
     "python-box>=7.3.2",
     "python-decouple>=3.8",
@@ -133,12 +134,11 @@ python_functions = "test"
 verbosity_test_cases = 2
 
 
-
 [tool.poe.tasks]
 _sync = "uv sync --all-groups --all-extras"
 _build = "uv build"
 _install = "uv pip install -e ."
-build = ["_sync","_build", "_install"]
+build = ["_sync", "_build", "_install"]
 
 
 [tool.poe.tasks.collect-code]

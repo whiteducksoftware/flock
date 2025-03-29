@@ -1157,7 +1157,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.3.20"
+version = "0.3.22"
 source = { editable = "." }
 dependencies = [
     { name = "azure-search-documents" },
@@ -1180,6 +1180,7 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "pillow" },
     { name = "prometheus-client" },
+    { name = "psutil" },
     { name = "pydantic" },
     { name = "python-box" },
     { name = "python-decouple" },
@@ -1252,6 +1253,7 @@ requires-dist = [
     { name = "opentelemetry-sdk", specifier = ">=1.30.0" },
     { name = "pillow", specifier = ">=10.4.0" },
     { name = "prometheus-client", specifier = ">=0.21.1" },
+    { name = "psutil", specifier = ">=6.1.1" },
     { name = "pydantic", specifier = ">=2.10.5" },
     { name = "python-box", specifier = ">=7.3.2" },
     { name = "python-decouple", specifier = ">=3.8" },
