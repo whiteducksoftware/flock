@@ -129,18 +129,18 @@ def view_env_variables(page: int = 1, page_size: Optional[int] = None):
     
     console.print(table)
     
-    # Pagination controls
+    # Pagination controls with more intuitive shortcuts
     console.print("\nNavigation: ", end="")
     if page > 1:
-        console.print("[p] Previous | ", end="")
+        console.print("[bold]Previous (p)[/] | ", end="")
     if page < total_pages:
-        console.print("[n] Next | ", end="")
+        console.print("[bold]Next (n)[/] | ", end="")
     if show_secrets:
-        console.print("[h] Hide secrets | ", end="")
+        console.print("[bold]Hide secrets (h)[/] | ", end="")
     else:
-        console.print("[s] Show secrets | ", end="")
-    console.print("[v] Change variables per page | ", end="")
-    console.print("[b] Back")
+        console.print("[bold]Show secrets (s)[/] | ", end="")
+    console.print("[bold]Change variables per page (v)[/] | ", end="")
+    console.print("[bold]Back (b)[/]")
     
     # Handle navigation
     while True:
@@ -343,10 +343,22 @@ def edit_env_variable():
     else:
         console.print(f"Current value: {current_value}")
     
-    # Get new value
+    # Get new value with hint
+    console.print("[italic]Enter new value (or leave empty to cancel)[/]")
     new_value = questionary.text("Enter new value:", default=current_value).ask()
     
-    if new_value is None or new_value == current_value:
+    if new_value is None:
+        console.print("[yellow]Edit cancelled.[/]")
+        return
+    
+    if new_value == "":
+        # Confirm if user wants to set an empty value or cancel
+        confirm = questionary.confirm("Do you want to set an empty value? Select No to cancel.", default=False).ask()
+        if not confirm:
+            console.print("[yellow]Edit cancelled.[/]")
+            return
+    
+    if new_value == current_value:
         console.print("[yellow]No changes made.[/]")
         return
     
@@ -360,13 +372,20 @@ def add_env_variable():
     """Add a new environment variable."""
     env_vars = load_env_file()
     
+    console.print("[italic]Enter variable name (or leave empty to go back)[/]")
+    
     # Get variable name
     while True:
         var_name = questionary.text("Enter variable name:").ask()
         
         if not var_name:
-            console.print("[yellow]Variable name cannot be empty.[/]")
-            continue
+            # Ask if user wants to go back
+            go_back = questionary.confirm("Do you want to go back to the settings menu?", default=True).ask()
+            if go_back:
+                return
+            else:
+                console.print("[italic]Please enter a variable name (or leave empty to go back)[/]")
+                continue
             
         if var_name in env_vars and not var_name.startswith('#'):
             console.print(f"[yellow]Variable {var_name} already exists. Please use edit instead.[/]")
@@ -397,7 +416,8 @@ def delete_env_variable():
         console.print("[yellow]No deletable environment variables found.[/]")
         return
     
-    # Let user select a variable to delete
+    # Let user select a variable to delete with hint
+    console.print("[italic]Select a variable to delete (or Cancel to go back)[/]")
     var_name = questionary.select(
         "Select a variable to delete:",
         choices=valid_vars + ["Cancel"],
@@ -409,6 +429,7 @@ def delete_env_variable():
     # Confirm deletion
     confirm = questionary.confirm(f"Are you sure you want to delete {var_name}?").ask()
     if not confirm:
+        console.print("[yellow]Deletion cancelled.[/]")
         return
     
     # Delete the variable
