@@ -10,10 +10,11 @@ This feature adds support for serializing and deserializing agents and complete 
 
 | ID | Task | Priority | Status | Description |
 |----|------|----------|--------|-------------|
+| US007-T007 | [TOML Serialization Tests](tasks/US007-T007-TOML-Serialization-Tests.md) | Highest | Not Started | Create a comprehensive test suite for TOML serialization following TDD principles |
 | US007-T001 | [TOML Serializable Base](tasks/US007-T001-TOML-Serializable-Base.md) | High | Not Started | Extend the Serializable base class to support TOML serialization |
+| US007-T004 | [Callable Reference System](tasks/US007-T004-Callable-Reference-System.md) | High | Not Started | Create a system to represent callable objects in TOML using human-readable references |
 | US007-T002 | [FlockAgent TOML Serialization](tasks/US007-T002-FlockAgent-TOML-Serialization.md) | High | Not Started | Implement TOML serialization for FlockAgent classes |
 | US007-T003 | [Flock TOML Serialization](tasks/US007-T003-Flock-TOML-Serialization.md) | Medium | Not Started | Implement TOML serialization for complete Flock systems |
-| US007-T004 | [Callable Reference System](tasks/US007-T004-Callable-Reference-System.md) | High | Not Started | Create a system to represent callable objects in TOML using human-readable references |
 | US007-T005 | [TOML Documentation and Examples](tasks/US007-T005-TOML-Documentation-and-Examples.md) | Medium | Not Started | Create comprehensive documentation and examples for TOML serialization |
 | US007-T006 | [TOML Editor CLI](tasks/US007-T006-TOML-Editor-CLI.md) | Medium | Not Started | Add a TOML editor to the CLI application for editing agent and system configurations |
 
@@ -65,4 +66,4 @@ After completing the settings editor, potential future enhancements could includ
 - Import/export functionality for settings
 - Presets for common configurations
 - Integration with cloud-based secrets management
-- Command history and autocomplete features 
+- Command history and autocomplete features

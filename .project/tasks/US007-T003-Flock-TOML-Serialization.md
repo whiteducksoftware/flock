@@ -1,15 +1,19 @@
 # Implement TOML Serialization for Flock Systems
 
 ## Summary
+
 Add TOML serialization and deserialization support for complete Flock systems.
 
 ## Description
+
 This task involves extending the Flock class with methods to save and load entire agent systems in TOML format. A Flock system can contain multiple agents, routers, tools, and context data, making it more complex than individual agent serialization. This implementation will allow developers to create, share, and modify complete agent systems using a human-readable format.
 
 ## User Story
+
 [US007-TOML-Serialization](.project/userstories/US007-TOML-Serialization.md)
 
 ## Technical Requirements
+
 1. Add methods to the Flock class:
    - `save_to_toml_file()`: Save a complete Flock system to a TOML file
    - `load_from_toml_file()`: Load a complete Flock system from a TOML file
@@ -18,7 +22,59 @@ This task involves extending the Flock class with methods to save and load entir
 4. Manage serialization of global context
 5. Include helpful comments and documentation in the generated TOML
 
+## Test Requirements
+
+The following tests should be implemented to verify the Flock system TOML serialization functionality:
+
+1. **Basic Flock System Tests**:
+   - Test serializing a simple Flock with one agent
+   - Test round-trip serialization (save to TOML and load back)
+   - Verify all basic properties are preserved after serialization cycle
+
+2. **Multi-Agent System Tests**:
+   - Test serializing a Flock with multiple agents
+   - Verify all agents are correctly serialized and preserved
+   - Test that agent relationships and ordering are maintained
+
+3. **Workflow Tests**:
+   - Test serializing a Flock with handoff workflows between agents
+   - Verify that agent routing connections are preserved
+   - Test executing a complete workflow after deserialization
+
+4. **Context Serialization Tests**:
+   - Test serializing a Flock with custom context values
+   - Verify context data is correctly preserved
+   - Test how context references are maintained between agents
+
+5. **Tool Registry Tests**:
+   - Test serializing a Flock with registered tools
+   - Verify tools are correctly preserved and accessible to all agents
+   - Test for proper tool namespacing and reference resolution
+
+6. **System Configuration Tests**:
+   - Test serializing system-level configurations (model, logging settings)
+   - Verify configurations are correctly preserved
+   - Test loading configurations with overridden values
+
+7. **Format and Structure Tests**:
+   - Verify TOML file structure matches the specification
+   - Test that generated comments are informative and correctly placed
+   - Verify human-readability metrics (indentation, organization, naming)
+
+8. **Error Handling Tests**:
+   - Test loading malformed TOML systems
+   - Test handling missing or invalid agent references
+   - Test handling of conflicting agent names or definitions
+
+9. **Integration Tests**:
+   - Create a full system test with multiple agents, tools, and workflows
+   - Save, load, and execute the system
+   - Compare results with the original system
+
+All tests should use pytest fixtures and follow the project's testing conventions.
+
 ## Implementation Plan
+
 1. Extend the Flock class with TOML serialization methods:
    - Implement `save_to_toml_file(file_path: str, start_agent: str | None = None, input: dict | None = None)` method
    - Implement `load_from_toml_file(cls, file_path: str)` class method
@@ -39,6 +95,7 @@ This task involves extending the Flock class with methods to save and load entir
 7. Update documentation with examples
 
 ## Definition of Done
+
 1. Complete Flock systems can be saved to TOML files
 2. Flock systems can be loaded from TOML files with all functionality preserved
 3. Generated TOML files are human-readable and include helpful comments
@@ -48,21 +105,27 @@ This task involves extending the Flock class with methods to save and load entir
 7. Documentation is updated with TOML examples
 
 ## Dependencies
+
 - [US007-T001-TOML-Serializable-Base](.project/tasks/US007-T001-TOML-Serializable-Base.md)
 - [US007-T002-FlockAgent-TOML-Serialization](.project/tasks/US007-T002-FlockAgent-TOML-Serialization.md)
 
 ## Related Tasks
+
 - [US007-T004-Callable-Reference-System](.project/tasks/US007-T004-Callable-Reference-System.md)
 - [US007-T005-TOML-Documentation-and-Examples](.project/tasks/US007-T005-TOML-Documentation-and-Examples.md)
 
 ## Estimated Effort
+
 Medium-Large (4-6 hours)
 
 ## Priority
+
 Medium
 
 ## Assignee
+
 Unassigned
 
 ## Status
-Not Started 
+
+Not Started
