@@ -89,11 +89,11 @@ KEY2=value2
    - Provide clear indication of the active profile
 
 ## Related Tasks
-- [001-env-settings-editor.md](../tasks/done/001-env-settings-editor.md): Core settings editor implementation - COMPLETED
-- [002-env-settings-ui-components.md](../tasks/done/002-env-settings-ui-components.md): UI design and implementation - COMPLETED
-- [003-env-settings-file-operations.md](../tasks/done/003-env-settings-file-operations.md): File operations implementation - COMPLETED
-- [004-settings-security-features.md](../tasks/done/004-settings-security-features.md): Security features implementation - COMPLETED
-- [005-env-profile-switching.md](../tasks/done/005-env-profile-switching.md): Profile switching implementation - COMPLETED
+- [US001-001-env-settings-editor.md](../tasks/done/US001-001-env-settings-editor.md): Core settings editor implementation - COMPLETED
+- [US001-002-env-settings-ui-components.md](../tasks/done/US001-002-env-settings-ui-components.md): UI design and implementation - COMPLETED
+- [US001-003-env-settings-file-operations.md](../tasks/done/US001-003-env-settings-file-operations.md): File operations implementation - COMPLETED
+- [US001-004-settings-security-features.md](../tasks/done/US001-004-settings-security-features.md): Security features implementation - COMPLETED
+- [US001-005-env-profile-switching.md](../tasks/done/US001-005-env-profile-switching.md): Profile switching implementation - COMPLETED
 
 ## Acceptance Criteria
 1. ✅ The settings editor is accessible from the main CLI menu

@@ -14,7 +14,7 @@ The Flock CLI has a "Settings" menu item that needs to load a settings editor wh
 The implementation should provide a smooth and elegant user experience, leveraging the existing libraries used in the project (Rich and Questionary).
 
 ## User Story
-[US001 - Environment Settings Editor](../userstories/done/US001-Settings-Editor.md)
+[US001 - Environment Settings Editor](../../userstories/done/US001-Settings-Editor.md)
 
 ## Technical Requirements
 - Create a new module in `src/flock/cli/settings.py` that implements the settings editor
@@ -56,9 +56,9 @@ The implementation should provide a smooth and elegant user experience, leveragi
 - Python's os and dotenv modules
 
 ## Related Tasks
-- [002-env-settings-ui-components.md](002-env-settings-ui-components.md)
-- [003-env-settings-file-operations.md](003-env-settings-file-operations.md)
-- [005-env-profile-switching.md](005-env-profile-switching.md)
+- [US001-002-env-settings-ui-components.md](US001-002-env-settings-ui-components.md)
+- [US001-003-env-settings-file-operations.md](US001-003-env-settings-file-operations.md)
+- [US001-005-env-profile-switching.md](US001-005-env-profile-switching.md)
 
 ## Estimated Effort
 Medium - Approximately 4-6 hours of development time
