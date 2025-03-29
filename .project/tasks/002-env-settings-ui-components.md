@@ -6,6 +6,9 @@ Design and implement the user interface components for the environment settings 
 ## Description
 This task focuses on creating a well-designed, intuitive UI for the settings editor using Rich and Questionary. The UI should make it easy for users to navigate through settings, understand what they're editing, and get visual feedback on their actions.
 
+## User Story
+[US001 - Environment Settings Editor](../userstories/US001-Settings-Editor.md)
+
 ## Technical Requirements
 - Create a consistent visual layout for the settings editor
 - Implement color coding for different types of environment variables (secrets, URLs, paths, etc.)

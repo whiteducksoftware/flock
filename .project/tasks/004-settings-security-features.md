@@ -6,6 +6,9 @@ Implement security features for the settings editor to protect sensitive informa
 ## Description
 This task focuses on adding security features to the settings editor to protect API keys, tokens, and other sensitive information stored in the .env file.
 
+## User Story
+[US001 - Environment Settings Editor](../userstories/US001-Settings-Editor.md)
+
 ## Technical Requirements
 - Implement masking for sensitive values (API keys, tokens, passwords)
 - Add functionality to toggle visibility of masked values

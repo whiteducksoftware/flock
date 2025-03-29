@@ -6,6 +6,9 @@ Implement robust file operations for reading, parsing, and writing the .env file
 ## Description
 This task focuses on the backend functionality for safely manipulating the .env file, ensuring that changes are properly saved and the file format is preserved.
 
+## User Story
+[US001 - Environment Settings Editor](../userstories/US001-Settings-Editor.md)
+
 ## Technical Requirements
 - Create a parser for .env files that preserves comments and formatting
 - Implement a safe writing mechanism that prevents data loss

@@ -6,6 +6,9 @@ Implement a feature to create, manage, and switch between multiple environment p
 ## Description
 This task focuses on adding the ability to create and switch between different environment configurations (.env files) for different contexts (development, testing, production, etc.). The currently active profile will be the main .env file, while other profiles will be stored as separate files with naming convention .env_[profile_name].
 
+## User Story
+[US001 - Environment Settings Editor](../userstories/US001-Settings-Editor.md)
+
 ## Technical Requirements
 - Create a mechanism to detect and list available environment profiles
 - Implement functionality to switch between profiles (copying the selected profile to .env)
