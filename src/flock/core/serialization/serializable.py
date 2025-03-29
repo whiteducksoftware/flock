@@ -7,7 +7,6 @@ from typing import Any, TypeVar
 
 import cloudpickle
 import msgpack
-import toml
 
 T = TypeVar("T", bound="Serializable")
 
@@ -93,29 +92,6 @@ class Serializable(ABC):
         except Exception:
             raise
 
-    def to_toml(self) -> str:
-        """Serialize to TOML string.
-
-        Note that TOML doesn't support None/null values, so these will be filtered out.
-
-        Returns:
-            A TOML formatted string representation of the object.
-
-        Raises:
-            Exception: If serialization fails for any reason.
-        """
-        try:
-            # Get the dictionary representation
-            data_dict = self.to_dict()
-
-            # Filter out None values since TOML doesn't support them
-            filtered_dict = self._filter_none_values(data_dict)
-
-            # Serialize to TOML
-            return toml.dumps(filtered_dict)
-        except Exception:
-            raise
-
     @staticmethod
     def _filter_none_values(data: Any) -> Any:
         """Filter out None values from dictionaries.
@@ -141,65 +117,3 @@ class Serializable(ABC):
                 if item is not None
             ]
         return data
-
-    @classmethod
-    def from_toml(cls: type[T], toml_str: str) -> T:
-        """Create instance from TOML string.
-
-        Note that TOML doesn't support None/null values, so any None values in the original
-        data structure will not be present in the deserialized object.
-
-        Args:
-            toml_str: A TOML formatted string to deserialize.
-
-        Returns:
-            An instance of the class created from the TOML data.
-
-        Raises:
-            Exception: If deserialization fails for any reason.
-        """
-        try:
-            data = toml.loads(toml_str)
-            return cls.from_dict(data)
-        except Exception:
-            raise
-
-    def to_toml_file(self, path: Path) -> None:
-        """Save instance to a TOML file.
-
-        Args:
-            path: Path where the TOML file should be saved.
-
-        Raises:
-            Exception: If file operations or serialization fails.
-        """
-        try:
-            # Ensure parent directory exists
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Write TOML content to file
-            path.write_text(self.to_toml())
-        except Exception:
-            raise
-
-    @classmethod
-    def from_toml_file(cls: type[T], path: Path) -> T:
-        """Create instance from TOML file.
-
-        Args:
-            path: Path to the TOML file to load.
-
-        Returns:
-            An instance of the class created from the TOML file.
-
-        Raises:
-            FileNotFoundError: If the file doesn't exist.
-            Exception: If deserialization fails for any other reason.
-        """
-        try:
-            if not path.exists():
-                raise FileNotFoundError(f"TOML file not found: {path}")
-
-            return cls.from_toml(path.read_text())
-        except Exception:
-            raise
