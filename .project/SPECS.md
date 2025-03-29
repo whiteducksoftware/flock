@@ -53,6 +53,12 @@ Flock is a declarative agent framework that focuses on simplifying the creation 
    - Defines context propagation requirements
    - Specifies context access patterns
 
+9. [**CLI System**](specs/09_cli_system.md)
+   - Defines the command-line interface architecture
+   - Specifies modules like the Settings Editor and Theme Builder
+   - Documents environment profile management
+   - Outlines UI components and navigation patterns
+
 ## Design Principles
 
 These specifications reveal several core design principles that guided the development of Flock:
@@ -62,6 +68,7 @@ These specifications reveal several core design principles that guided the devel
 3. **Declarative Over Imperative** - Focus on what agents do, not how they do it
 4. **Production Readiness** - Support for distributed execution, observability, and error handling
 5. **Developer Experience** - Simplified API with sensible defaults and clear patterns
+6. **User-Friendly Interface** - Intuitive CLI with clear navigation and helpful feedback
 
 ## Implementation Status
 
@@ -75,4 +82,5 @@ Based on the specifications, potential future enhancements could include:
 2. Enhanced observability and debugging tools
 3. Additional module types for common agent patterns
 4. Expanded router capabilities for complex workflows
-5. Integration with additional execution engines beyond Temporal 
+5. Integration with additional execution engines beyond Temporal
+6. Extended CLI functionality for agent management and monitoring 

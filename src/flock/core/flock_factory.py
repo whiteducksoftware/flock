@@ -36,6 +36,7 @@ class FlockFactory:
         alert_latency_threshold_ms: int = 30000,
         no_output: bool = False,
         print_context: bool = False,
+        write_to_file: bool = False,
     ) -> FlockAgent:
         """Creates a default FlockAgent.
 
@@ -67,6 +68,7 @@ class FlockFactory:
             wait_for_input=wait_for_input,
             no_output=no_output,
             print_context=print_context,
+            write_to_file=write_to_file,
         )
         output_module = OutputModule("output", config=output_config)
 

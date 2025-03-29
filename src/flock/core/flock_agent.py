@@ -101,13 +101,6 @@ class FlockAgent(BaseModel, ABC, DSPyIntegrationMixin):
         with tracer.start_as_current_span("agent.initialize") as span:
             span.set_attribute("agent.name", self.name)
             span.set_attribute("inputs", str(inputs))
-            if not self.context:
-                self.context = FlockContext()
-
-            if self.name not in self.context.agent_definitions:
-                self.context.add_agent_definition(
-                    type(self), self.name, self.to_dict()
-                )
 
             try:
                 for module in self.get_enabled_modules():
@@ -137,7 +130,7 @@ class FlockAgent(BaseModel, ABC, DSPyIntegrationMixin):
             )
             try:
                 for module in self.get_enabled_modules():
-                    await module.terminate(self, inputs, inputs, self.context)
+                    await module.terminate(self, inputs, result, self.context)
             except Exception as module_error:
                 logger.error(
                     "Error during terminate",

@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# ignore all .env* files except .env_template
+*.env*
+!*.env_template
+
 # Distribution / packaging
 .Python
 build/
@@ -33,6 +37,8 @@ news/
 .chroma/
 hierarchical_memory/
 .repomix-output.txt
+output/
+.env.*
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

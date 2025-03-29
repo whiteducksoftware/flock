@@ -30,6 +30,7 @@ extra_css:
 nav:
   - Home: index.md
   - Release Notes: release-notes/release_notes.md
+  - Changelog: changelog.md
   
   - Getting Started:
     - Quick Start: getting-started/quickstart.md
@@ -66,6 +67,10 @@ nav:
     - DSPy: integrations/dspy.md
     - LiteLLM: integrations/litellm.md
     - Tavily: integrations/tavily.md
+    
+  - CLI:
+    - Overview: cli/index.md
+    - Settings Editor: cli/settings-editor.md
     
   - Advanced Usage:
     - Custom Agents: advanced/custom-agents.md

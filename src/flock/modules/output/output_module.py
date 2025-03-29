@@ -15,6 +15,7 @@ from flock.core.logging.formatters.themed_formatter import (
 )
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.logging.logging import get_logger
+from flock.core.serialization.json_encoder import FlockJSONEncoder
 
 logger = get_logger("module.output")
 
@@ -82,7 +83,6 @@ class OutputModule(FlockModule):
             max_length=self.config.max_length,
             render_table=self.config.render_table,
             wait_for_input=self.config.wait_for_input,
-            write_to_file=self.config.write_to_file,
         )
 
     def _format_value(self, value: Any, key: str) -> str:
@@ -150,7 +150,7 @@ class OutputModule(FlockModule):
         output_data = {
             "agent": agent_name,
             "timestamp": timestamp,
-            "result": result,
+            "output": result,
         }
 
         if self.config.show_metadata:
@@ -160,8 +160,11 @@ class OutputModule(FlockModule):
                 "max_length": self.config.max_length,
             }
 
-        with open(filepath, "w") as f:
-            json.dump(output_data, f, indent=2)
+        try:
+            with open(filepath, "w") as f:
+                json.dump(output_data, f, indent=2, cls=FlockJSONEncoder)
+        except Exception as e:
+            logger.warning(f"Failed to save output to file: {e}")
 
     async def post_evaluate(
         self,

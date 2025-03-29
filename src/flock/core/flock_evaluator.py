@@ -20,6 +20,10 @@ class FlockEvaluatorConfig(BaseModel):
             save_after_update: bool = Field(default=True)
     """
 
+    model: str = Field(
+        default="", description="The model to use for evaluation"
+    )
+
     @classmethod
     def with_fields(cls: type[T], **field_definitions) -> type[T]:
         """Create a new config class with additional fields."""

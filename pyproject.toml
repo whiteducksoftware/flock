@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.3.20"
+version = "0.3.21"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -131,3 +131,18 @@ python_files = "test_*.py"
 python_classes = "Test"
 python_functions = "test"
 verbosity_test_cases = 2
+
+
+
+[tool.poe.tasks]
+_sync = "uv sync --all-groups --all-extras"
+_build = "uv build"
+_install = "uv pip install -e ."
+build = ["_sync","_build", "_install"]
+
+
+[tool.poe.tasks.collect-code]
+script = "scripts.code_collector:main"
+
+[tool.poe.tasks.clean]
+script = "poethepoet.scripts:rm('.mypy_cache', '.pytest_cache', './**/__pycache__')"
