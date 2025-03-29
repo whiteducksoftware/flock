@@ -10,6 +10,7 @@ __pycache__/
 *.env*
 !*.env_template
 
+
 # Distribution / packaging
 .Python
 build/
@@ -38,6 +39,7 @@ news/
 hierarchical_memory/
 .repomix-output.txt
 output/
+!src/flock/modules/output/output_module.py
 .env.*
 
 # PyInstaller
