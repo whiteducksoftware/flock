@@ -1,24 +1,25 @@
-# Implement Callable Reference System for TOML Serialization
+# Implement Callable Reference System for YAML Serialization
 
 ## Summary
 
-Create a system to represent callable objects (functions, methods) in TOML format using human-readable references.
+Create a system to represent callable objects (functions, methods) in YAML format using human-readable references.
 
 ## Description
 
-One of the challenges with serializing agent systems to TOML is handling callable objects like tools, evaluators, and functions. Currently, these are serialized as hex-encoded pickle data in JSON, which is not human-readable or editable. This task involves creating a reference system that can represent callables in a human-readable way in TOML files, while still enabling full functionality when loaded back.
+One of the challenges with serializing agent systems to YAML is handling callable objects like tools, evaluators, and functions. Currently, these are serialized as hex-encoded pickle data in JSON, which is not human-readable or editable. This task involves creating a reference system that can represent callables in a human-readable way in YAML files, while still enabling full functionality when loaded back.
 
 ## User Story
 
-[US007-TOML-Serialization](.project/userstories/US007-TOML-Serialization.md)
+[US007-YAML-Serialization](.project/userstories/US007-YAML-Serialization.md)
 
 ## Technical Requirements
 
 1. Create a registry system for common tools and functions
-2. Implement a way to reference registered callables by name in TOML
+2. Implement a way to reference registered callables by name in YAML
 3. Create a path-based reference system for custom callables
 4. Implement fallback to pickle for callables that can't be referenced
 5. Ensure the system can serialize and deserialize all types of callables used in Flock
+6. Consider leveraging YAML anchors and references for complex relationships if appropriate
 
 ## Test Requirements
 
@@ -40,7 +41,7 @@ The following tests should be implemented to verify the Callable Reference Syste
    - Test fallback to pickle for non-referenceable callables
    - Test round-trip serialization via pickle
    - Test handling of unpicklable objects
-   - Verify pickle references are tagged appropriately in TOML
+   - Verify pickle references are tagged appropriately in YAML
 
 4. **Complex Callable Tests**:
    - Test handling of lambdas and anonymous functions
@@ -76,9 +77,9 @@ All tests should use pytest fixtures to set up test functions and registries. Mo
 2. Implement serialization helpers:
    - Create a function to convert a callable to a reference string
    - Create a function to resolve a reference string back to a callable
-3. Add TOML-specific serialization code:
-   - When serializing to TOML, convert callables to references
-   - When deserializing from TOML, resolve references to callables
+3. Add YAML-specific serialization code:
+   - When serializing to YAML, convert callables to references
+   - When deserializing from YAML, resolve references to callables
 4. Handle different reference types:
    - Registry references (e.g., `@registry:web_search`)
    - Import references (e.g., `@import:module.submodule:function_name`)
@@ -93,19 +94,19 @@ All tests should use pytest fixtures to set up test functions and registries. Mo
 
 1. CallableRegistry class is implemented and tested
 2. Reference conversion and resolution functions work correctly
-3. TOML serialization can represent all types of callables
+3. YAML serialization can represent all types of callables
 4. All common built-in tools are pre-registered
 5. Documentation explains how to use the reference system
 6. Unit tests verify the system works for all callable types
 
 ## Dependencies
 
-- [US007-T001-TOML-Serializable-Base](.project/tasks/US007-T001-TOML-Serializable-Base.md)
+- [US007-T001-YAML-Serializable-Base](.project/tasks/US007-T001-YAML-Serializable-Base.md)
 
 ## Related Tasks
 
-- [US007-T002-FlockAgent-TOML-Serialization](.project/tasks/US007-T002-FlockAgent-TOML-Serialization.md)
-- [US007-T003-Flock-TOML-Serialization](.project/tasks/US007-T003-Flock-TOML-Serialization.md)
+- [US007-T002-FlockAgent-YAML-Serialization](.project/tasks/US007-T002-FlockAgent-YAML-Serialization.md)
+- [US007-T003-Flock-YAML-Serialization](.project/tasks/US007-T003-Flock-YAML-Serialization.md)
 
 ## Estimated Effort
 

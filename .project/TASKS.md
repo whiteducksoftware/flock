@@ -2,21 +2,21 @@
 
 ## Open Tasks
 
-### TOML Serialization for Agents and Flock Systems
+### YAML Serialization for Agents and Flock Systems
 
-This feature adds support for serializing and deserializing agents and complete Flock systems to TOML format, providing a more human-readable alternative to the existing JSON serialization.
+This feature adds support for serializing and deserializing agents and complete Flock systems to YAML format, providing a more human-readable and flexible alternative to the existing JSON serialization.
 
 #### Implementation Tasks
 
 | ID | Task | Priority | Status | Description |
 |----|------|----------|--------|-------------|
-| US007-T007 | [TOML Serialization Tests](tasks/US007-T007-TOML-Serialization-Tests.md) | Highest | Not Started | Create a comprehensive test suite for TOML serialization following TDD principles |
-| US007-T001 | [TOML Serializable Base](tasks/US007-T001-TOML-Serializable-Base.md) | High | Not Started | Extend the Serializable base class to support TOML serialization |
-| US007-T004 | [Callable Reference System](tasks/US007-T004-Callable-Reference-System.md) | High | Not Started | Create a system to represent callable objects in TOML using human-readable references |
-| US007-T002 | [FlockAgent TOML Serialization](tasks/US007-T002-FlockAgent-TOML-Serialization.md) | High | Not Started | Implement TOML serialization for FlockAgent classes |
-| US007-T003 | [Flock TOML Serialization](tasks/US007-T003-Flock-TOML-Serialization.md) | Medium | Not Started | Implement TOML serialization for complete Flock systems |
-| US007-T005 | [TOML Documentation and Examples](tasks/US007-T005-TOML-Documentation-and-Examples.md) | Medium | Not Started | Create comprehensive documentation and examples for TOML serialization |
-| US007-T006 | [TOML Editor CLI](tasks/US007-T006-TOML-Editor-CLI.md) | Medium | Not Started | Add a TOML editor to the CLI application for editing agent and system configurations |
+| US007-T007 | [YAML Serialization Tests](tasks/US007-T007-YAML-Serialization-Tests.md) | Highest | Not Started | Create a comprehensive test suite for YAML serialization following TDD principles |
+| US007-T001 | [YAML Serializable Base](tasks/US007-T001-YAML-Serializable-Base.md) | High | Not Started | Extend the Serializable base class to support YAML serialization |
+| US007-T004 | [Callable Reference System](tasks/US007-T004-Callable-Reference-System.md) | High | Not Started | Create a system to represent callable objects in YAML using human-readable references |
+| US007-T002 | [FlockAgent YAML Serialization](tasks/US007-T002-FlockAgent-YAML-Serialization.md) | High | Not Started | Implement YAML serialization for FlockAgent classes |
+| US007-T003 | [Flock YAML Serialization](tasks/US007-T003-Flock-YAML-Serialization.md) | Medium | Not Started | Implement YAML serialization for complete Flock systems |
+| US007-T005 | [YAML Documentation and Examples](tasks/US007-T005-YAML-Documentation-and-Examples.md) | Medium | Not Started | Create comprehensive documentation and examples for YAML serialization |
+| US007-T006 | [YAML Editor CLI](tasks/US007-T006-YAML-Editor-CLI.md) | Medium | Not Started | Add a YAML editor to the CLI application for editing agent and system configurations |
 
 ---
 

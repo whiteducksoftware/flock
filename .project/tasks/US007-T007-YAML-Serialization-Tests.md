@@ -1,22 +1,22 @@
-# Implement TOML Serialization Test Suite
+# Implement YAML Serialization Test Suite
 
 ## Summary
 
-Create a comprehensive test suite for the TOML serialization functionality following test-driven development principles.
+Create a comprehensive test suite for the YAML serialization functionality following test-driven development principles.
 
 ## Description
 
-This task involves creating a robust test suite for the TOML serialization feature before the actual implementation begins. Following a test-driven development approach, these tests will define the expected behavior of the TOML serialization system and guide the implementation process. The tests will cover all aspects of TOML serialization, from basic serializable objects to complex agent systems.
+This task involves creating a robust test suite for the YAML serialization feature before the actual implementation begins. Following a test-driven development approach, these tests will define the expected behavior of the YAML serialization system and guide the implementation process. The tests will cover all aspects of YAML serialization, from basic serializable objects to complex agent systems.
 
 ## User Story
 
-[US007-TOML-Serialization](.project/userstories/US007-TOML-Serialization.md)
+[US007-YAML-Serialization](.project/userstories/US007-YAML-Serialization.md)
 
 ## Technical Requirements
 
-1. Create a comprehensive test suite for the Serializable base class TOML methods ✓
-2. Implement tests for FlockAgent TOML serialization ✓
-3. Create tests for Flock system TOML serialization ✓
+1. Create a comprehensive test suite for the Serializable base class YAML methods ✓
+2. Implement tests for FlockAgent YAML serialization ✓
+3. Create tests for Flock system YAML serialization ✓
 4. Implement tests for the callable reference system ✓
 5. Ensure all edge cases and error conditions are covered ✓
 6. Follow the project's testing conventions and patterns ✓
@@ -27,18 +27,18 @@ This task involves creating a robust test suite for the TOML serialization featu
 The test suite should be organized into the following test categories:
 
 1. **Serializable Base Tests**: ✓
-   - Tests for basic `to_toml()` and `from_toml()` methods
-   - Tests for file operations (`to_toml_file()` and `from_toml_file()`)
+   - Tests for basic `to_yaml()` and `from_yaml()` methods
+   - Tests for file operations (`to_yaml_file()` and `from_yaml_file()`)
    - Tests for various data types (string, int, bool, list, dict, nested structures)
    - Tests for error handling and edge cases
 
-2. **FlockAgent TOML Tests**: ✓
+2. **FlockAgent YAML Tests**: ✓
    - Tests for basic agent properties (name, description, model)
    - Tests for input/output field serialization
    - Tests for agent with evaluators, modules, and routers
    - Tests for agent with tools and tool references
 
-3. **Flock System TOML Tests**: ✓
+3. **Flock System YAML Tests**: ✓
    - Tests for Flock with single and multiple agents
    - Tests for system settings and configurations
    - Tests for agent relationships and handoffs
@@ -53,8 +53,8 @@ The test suite should be organized into the following test categories:
 5. **Integration Tests**: ✓
    - End-to-end tests for saving and loading agents
    - Tests for running agents after deserialization
-   - Tests for manual TOML editing and loading
-   - Tests for format conversion (JSON to TOML and back)
+   - Tests for manual YAML editing and loading
+   - Tests for format conversion (JSON to YAML and back)
 
 6. **Performance Tests**: ✓
    - Tests for serialization speed with various complexity levels
@@ -65,11 +65,11 @@ All tests are fully documented and include appropriate assertions to verify the 
 ## Implementation Plan
 
 1. Create test files corresponding to each component: ✓
-   - `test_serializable_toml.py`
-   - `test_flockagent_toml.py`
-   - `test_flock_toml.py`
+   - `test_serializable_yaml.py`
+   - `test_flockagent_yaml.py`
+   - `test_flock_yaml.py`
    - `test_callable_reference.py`
-   - `test_toml_integration.py`
+   - `test_yaml_integration.py`
 2. Implement mock classes and fixtures for testing ✓
 3. Implement test cases for each component ✓
 4. Add edge case and error condition tests ✓
@@ -79,7 +79,7 @@ All tests are fully documented and include appropriate assertions to verify the 
 ## Definition of Done
 
 1. All specified test categories are implemented ✓
-2. Tests clearly define the expected behavior of the TOML serialization feature ✓
+2. Tests clearly define the expected behavior of the YAML serialization feature ✓
 3. Tests cover all major functionalities and edge cases ✓
 4. Test fixtures are created for reusable test data ✓
 5. Tests follow project conventions and best practices ✓
@@ -92,9 +92,9 @@ None (this is the first task that should be completed for the TDD approach)
 
 ## Related Tasks
 
-- [US007-T001-TOML-Serializable-Base](.project/tasks/US007-T001-TOML-Serializable-Base.md)
-- [US007-T002-FlockAgent-TOML-Serialization](.project/tasks/US007-T002-FlockAgent-TOML-Serialization.md)
-- [US007-T003-Flock-TOML-Serialization](.project/tasks/US007-T003-Flock-TOML-Serialization.md)
+- [US007-T001-YAML-Serializable-Base](.project/tasks/US007-T001-YAML-Serializable-Base.md)
+- [US007-T002-FlockAgent-YAML-Serialization](.project/tasks/US007-T002-FlockAgent-YAML-Serialization.md)
+- [US007-T003-Flock-YAML-Serialization](.project/tasks/US007-T003-Flock-YAML-Serialization.md)
 - [US007-T004-Callable-Reference-System](.project/tasks/US007-T004-Callable-Reference-System.md)
 
 ## Estimated Effort

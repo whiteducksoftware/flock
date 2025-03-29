@@ -1157,7 +1157,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.3.22"
+version = "0.3.23"
 source = { editable = "." }
 dependencies = [
     { name = "azure-search-documents" },
