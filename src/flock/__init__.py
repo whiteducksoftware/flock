@@ -3,6 +3,7 @@
 from flock.cli.constants import CLI_EXIT, CLI_NOTES, CLI_THEME_BUILDER
 from flock.cli.load_release_notes import load_release_notes
 from flock.core.logging.formatters.theme_builder import theme_builder
+from flock.cli.settings import settings_editor
 
 
 def main():
@@ -54,6 +55,8 @@ def main():
             load_flock()
         if result == CLI_THEME_BUILDER:
             theme_builder()
+        if result == CLI_SETTINGS:
+            settings_editor()
         if result == CLI_NOTES:
             load_release_notes()
         if result == CLI_EXIT:
