@@ -4,9 +4,13 @@ This document provides an index of all user stories for the Flock project.
 
 ## Current User Stories
 
+No active user stories.
+
+## Completed User Stories
+
 | ID | Title | Priority | Status | Description |
 |----|-------|----------|--------|-------------|
-| [US001](userstories/US001-Settings-Editor.md) | Environment Settings Editor with Profile Management | High | Not Started | Implement a settings editor with profile switching capability |
+| [US001](userstories/done/US001-Settings-Editor.md) | Environment Settings Editor with Profile Management | High | Completed | Implement a settings editor with profile switching capability |
 
 ## User Story Status Explanation
 

@@ -14,7 +14,7 @@ The Flock CLI has a "Settings" menu item that needs to load a settings editor wh
 The implementation should provide a smooth and elegant user experience, leveraging the existing libraries used in the project (Rich and Questionary).
 
 ## User Story
-[US001 - Environment Settings Editor](../userstories/US001-Settings-Editor.md)
+[US001 - Environment Settings Editor](../userstories/done/US001-Settings-Editor.md)
 
 ## Technical Requirements
 - Create a new module in `src/flock/cli/settings.py` that implements the settings editor
@@ -70,4 +70,13 @@ High - This is a core functionality for the CLI
 TBD
 
 ## Status
-Not Started 
+Completed - May 21, 2024
+
+## Implementation Notes
+- Created settings_editor() function as the main entry point
+- Implemented view_env_variables() with pagination and masking of sensitive values
+- Added edit_env_variable(), add_env_variable(), and delete_env_variable() with proper validation
+- Implemented profile management (switch_profile, create_profile, rename_profile, delete_profile)
+- Added settings for show_secrets and vars_per_page control
+- Ensured proper error handling and backups before destructive operations
+- Connected the settings editor to the main CLI menu in src/flock/__init__.py 
