@@ -1,22 +1,35 @@
 # src/flock/core/flock_api.py
 """REST API server for Flock, with optional integrated UI."""
 
+import json
 import uuid
 from datetime import datetime
 from typing import Any
 
 import uvicorn
+
+# FastAPI related imports
 from fastapi import (
     BackgroundTasks,
     FastAPI,
+    Form,  # Needed for form data handling
     HTTPException,
+    Request as FastAPIRequest,
 )
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
+
+# Pydantic for models
 from pydantic import BaseModel, Field
 
+# Flock core imports
 from flock.core.flock import Flock
 from flock.core.logging.logging import get_logger
-from flock.core.util.input_resolver import split_top_level
+from flock.core.serialization.json_encoder import (
+    FlockJSONEncoder,  # For encoding results
+)
+from flock.core.util.input_resolver import (
+    split_top_level,  # Ensure this utility is correct
+)
 
 # --- Conditional FastHTML Imports ---
 try:
@@ -27,8 +40,7 @@ try:
 except ImportError:
     FASTHTML_AVAILABLE = False
 
-    # Define dummy classes/functions if FastHTML is not available,
-    # so the rest of the type hints don't break completely.
+    # Define dummy classes/functions if FastHTML is not available
     class Request:
         pass
 
@@ -44,6 +56,15 @@ except ImportError:
     class P:
         pass
 
+    class H2:
+        pass
+
+    class Pre:
+        pass
+
+    class Code:
+        pass
+
     class Label:
         pass
 
@@ -53,7 +74,11 @@ except ImportError:
     class Option:
         pass
 
+    # class Form as FHForm: pass # Alias to avoid clash with FastAPI's Form
     class Form:
+        pass  # Original Form class
+
+    class FHForm(Form):
         pass
 
     class Button:
@@ -90,13 +115,11 @@ logger = get_logger("api")
 
 
 class FlockAPIRequest(BaseModel):
-    """Request model for running an agent."""
+    """Request model for running an agent via JSON API."""
 
     agent_name: str = Field(..., description="Name of the agent to run")
-    # Changed inputs to Any to handle potential structure from HTML form
-    inputs: Any = Field(
-        default_factory=dict,
-        description="Input data for the agent (can be nested from UI)",
+    inputs: dict[str, Any] = Field(
+        default_factory=dict, description="Input data for the agent"
     )
     async_run: bool = Field(
         default=False, description="Whether to run asynchronously"
@@ -104,7 +127,7 @@ class FlockAPIRequest(BaseModel):
 
 
 class FlockAPIResponse(BaseModel):
-    """Response model for run requests."""
+    """Response model for API run requests."""
 
     run_id: str = Field(..., description="Unique ID for this run")
     status: str = Field(..., description="Status of the run")
@@ -128,16 +151,20 @@ class FlockAPI:
         self.flock = flock
         self.app = FastAPI(title="Flock API")
         self.runs: dict[str, FlockAPIResponse] = {}
-        self._setup_routes()  # Setup FastAPI routes first
+        self._setup_routes()  # Setup FastAPI routes
 
     def _setup_routes(self):
-        """Set up FastAPI API routes."""
+        """Set up FastAPI API and UI routes."""
+        # --- API Endpoints ---
 
-        @self.app.post("/run/flock", response_model=FlockAPIResponse)
-        async def run_flock(
+        @self.app.post(
+            "/run/flock", response_model=FlockAPIResponse, tags=["API"]
+        )
+        async def run_flock_json(
             request: FlockAPIRequest, background_tasks: BackgroundTasks
         ):
-            """Run a flock workflow starting with the specified agent."""
+            """Run a flock workflow starting with the specified agent (expects JSON)."""
+            run_id = None  # Define run_id here to be available in except block
             try:
                 run_id = str(uuid.uuid4())
                 response = FlockAPIResponse(
@@ -145,46 +172,30 @@ class FlockAPI:
                 )
                 self.runs[run_id] = response
 
-                # Process inputs from UI form (prefixed with 'inputs.')
-                processed_inputs = {}
-                if isinstance(request.inputs, dict):
-                    for key, value in request.inputs.items():
-                        if key.startswith("inputs."):
-                            processed_inputs[key[len("inputs.") :]] = value
-                        # Keep non-prefixed keys as well, if any
-                        elif (
-                            key != "agent_name"
-                        ):  # Don't pass agent_name as input
-                            processed_inputs[key] = value
-                else:
-                    # Handle case where inputs might not be a dict (though unlikely from UI form)
-                    processed_inputs = request.inputs if request.inputs else {}
+                processed_inputs = request.inputs if request.inputs else {}
 
                 if request.async_run:
                     background_tasks.add_task(
                         self._run_flock,
                         run_id,
                         request.agent_name,
-                        processed_inputs,  # Use processed inputs
+                        processed_inputs,
                     )
                     response.status = "running"
                 else:
                     await self._run_flock(
-                        run_id,
-                        request.agent_name,
-                        processed_inputs,  # Use processed inputs
+                        run_id, request.agent_name, processed_inputs
                     )
 
-                # Return potentially updated status
                 return self.runs.get(run_id, response)
-
             except ValueError as ve:
                 logger.error(f"Value error starting run: {ve}")
                 raise HTTPException(status_code=400, detail=str(ve))
             except Exception as e:
                 logger.error(f"Error starting run: {e!s}", exc_info=True)
-                # Update run status if possible
-                if run_id in self.runs:
+                if (
+                    run_id and run_id in self.runs
+                ):  # Check if run_id was assigned
                     self.runs[run_id].status = "failed"
                     self.runs[
                         run_id
@@ -195,17 +206,18 @@ class FlockAPI:
                     detail=f"Internal server error: {type(e).__name__}",
                 )
 
-        @self.app.get("/run/{run_id}", response_model=FlockAPIResponse)
+        @self.app.get(
+            "/run/{run_id}", response_model=FlockAPIResponse, tags=["API"]
+        )
         async def get_run_status(run_id: str):
             """Get the status of a specific run."""
             if run_id not in self.runs:
                 raise HTTPException(status_code=404, detail="Run not found")
             return self.runs[run_id]
 
-        @self.app.get("/agents")
+        @self.app.get("/agents", tags=["API"])
         async def list_agents():
             """List all available agents."""
-            # Return simplified agent info for UI dropdown
             return {
                 "agents": [
                     {
@@ -216,44 +228,138 @@ class FlockAPI:
                 ]
             }
 
-        # Note: _run_agent endpoint is kept but not used by the UI
-        @self.app.post("/run/agent", response_model=FlockAPIResponse)
-        async def run_agent(
-            request: FlockAPIRequest, background_tasks: BackgroundTasks
+        # --- UI Form Endpoint ---
+        @self.app.post(
+            "/ui/run-agent-form", response_class=HTMLResponse, tags=["UI"]
+        )
+        async def run_flock_form(
+            fastapi_req: FastAPIRequest,  # Use raw request to get form data
+            # background_tasks: BackgroundTasks # Not using async for UI simplicity now
         ):
-            """Run a single agent directly (not used by UI)."""
+            """Endpoint to handle form submissions from the UI."""
+            run_id = None  # Define run_id here
             try:
+                form_data = await fastapi_req.form()
+                agent_name = form_data.get("agent_name")
+                # async_run = False # UI doesn't support async toggle, default to False
+
+                if not agent_name:
+                    return HTMLResponse(
+                        '<div class="error-message">Error: Agent name not provided in form.</div>',
+                        status_code=400,
+                    )
+
+                logger.info(
+                    f"UI Form submission received for agent: {agent_name}"
+                )
+
+                # Reconstruct inputs dict from form data (removing 'inputs.' prefix)
+                form_inputs = {}
+                for key, value in form_data.items():
+                    if key.startswith("inputs."):
+                        # Handle checkboxes - unchecked boxes might not be sent by the browser
+                        # If a checkbox input field exists but isn't in form_data, treat it as false
+                        field_key = key[len("inputs.") :]
+                        # Simple check based on expected type hint (could be improved)
+                        agent_def = self.flock.agents.get(agent_name)
+                        parsed_fields = self._parse_input_spec(
+                            agent_def.input or ""
+                        )
+                        field_meta = next(
+                            (
+                                f
+                                for f in parsed_fields
+                                if f["name"] == field_key
+                            ),
+                            None,
+                        )
+                        if field_meta and field_meta["html_type"] == "checkbox":
+                            form_inputs[field_key] = (
+                                True  # Value is 'true' if sent
+                            )
+                        else:
+                            form_inputs[field_key] = value
+                # Add False for any defined boolean inputs that weren't submitted
+                agent_def = self.flock.agents.get(agent_name)
+                if agent_def and agent_def.input:
+                    parsed_fields = self._parse_input_spec(agent_def.input)
+                    for field in parsed_fields:
+                        if (
+                            field["html_type"] == "checkbox"
+                            and field["name"] not in form_inputs
+                        ):
+                            form_inputs[field["name"]] = False
+
+                logger.debug(f"Parsed form inputs: {form_inputs}")
+
                 run_id = str(uuid.uuid4())
-                response = FlockAPIResponse(
+                response_status = FlockAPIResponse(
                     run_id=run_id, status="starting", started_at=datetime.now()
                 )
-                self.runs[run_id] = response
+                self.runs[run_id] = response_status
 
-                if request.async_run:
-                    background_tasks.add_task(
-                        self._run_agent,
-                        run_id,
-                        request.agent_name,
-                        request.inputs,
+                # Run synchronously for UI
+                await self._run_flock(run_id, agent_name, form_inputs)
+
+                final_status = self.runs.get(run_id)
+
+                if final_status and final_status.status == "completed":
+                    result_json = json.dumps(
+                        final_status.result, indent=2, cls=FlockJSONEncoder
                     )
-                    response.status = "running"
+                    # Use class_ to avoid conflict with Python keyword
+                    return HTMLResponse(
+                        f"<pre><code id='result-content' class_='language-json'>{result_json}</code></pre>"
+                    )
+                elif final_status and final_status.status == "failed":
+                    logger.error(
+                        f"UI run failed (run_id: {run_id}): {final_status.error}"
+                    )
+                    return HTMLResponse(
+                        f"<div id='result-content' class='error-message'>Run Failed: {final_status.error or 'Unknown error'}</div>",
+                        status_code=500,
+                    )
                 else:
-                    await self._run_agent(
-                        run_id, request.agent_name, request.inputs
+                    status_str = (
+                        final_status.status if final_status else "Not Found"
                     )
-                return self.runs[run_id]
+                    logger.warning(
+                        f"UI run {run_id} ended in unexpected state: {status_str}"
+                    )
+                    return HTMLResponse(
+                        f"<div id='result-content' class='error-message'>Run ended unexpectedly. Status: {status_str}</div>",
+                        status_code=500,
+                    )
+
+            except ValueError as ve:
+                logger.error(f"Value error processing UI form run: {ve}")
+                return HTMLResponse(
+                    f"<div id='result-content' class='error-message'>Error: {ve}</div>",
+                    status_code=400,
+                )
             except Exception as e:
                 logger.error(
-                    f"Error starting single agent run: {e!s}", exc_info=True
+                    f"Error processing UI form run: {e!s}", exc_info=True
                 )
-                raise HTTPException(status_code=500, detail=str(e))
+                if (
+                    run_id and run_id in self.runs
+                ):  # Check if run_id was assigned
+                    self.runs[run_id].status = "failed"
+                    self.runs[
+                        run_id
+                    ].error = f"Internal server error: {type(e).__name__}"
+                    self.runs[run_id].completed_at = datetime.now()
+                return HTMLResponse(
+                    f"<div id='result-content' class='error-message'>Internal Server Error: {type(e).__name__}</div>",
+                    status_code=500,
+                )
 
     # --- Helper Methods ---
 
     async def _run_agent(
         self, run_id: str, agent_name: str, inputs: dict[str, Any]
     ):
-        """Execute a single agent run (internal helper)."""
+        """Executes a single agent run (internal helper)."""
         try:
             if agent_name not in self.flock.agents:
                 raise ValueError(f"Agent '{agent_name}' not found")
@@ -261,7 +367,9 @@ class FlockAPI:
             result = await agent.run_async(inputs)
 
             self.runs[run_id].status = "completed"
-            self.runs[run_id].result = result
+            self.runs[run_id].result = (
+                dict(result) if hasattr(result, "to_dict") else result
+            )
             self.runs[run_id].completed_at = datetime.now()
         except Exception as e:
             logger.error(
@@ -270,11 +378,13 @@ class FlockAPI:
             self.runs[run_id].status = "failed"
             self.runs[run_id].error = str(e)
             self.runs[run_id].completed_at = datetime.now()
+            # Re-raise for the main handler to catch and return HTTP error
+            raise
 
     async def _run_flock(
         self, run_id: str, agent_name: str, inputs: dict[str, Any]
     ):
-        """Execute a flock workflow run (internal helper)."""
+        """Executes a flock workflow run (internal helper)."""
         try:
             if agent_name not in self.flock.agents:
                 raise ValueError(f"Starting agent '{agent_name}' not found")
@@ -284,29 +394,28 @@ class FlockAPI:
             )
 
             self.runs[run_id].status = "completed"
-            # Result might be Box, convert to dict for JSON response
             self.runs[run_id].result = (
                 dict(result) if hasattr(result, "to_dict") else result
             )
             self.runs[run_id].completed_at = datetime.now()
-
         except Exception as e:
             logger.error(f"Error in flock run {run_id}: {e!s}", exc_info=True)
             self.runs[run_id].status = "failed"
             self.runs[run_id].error = str(e)
             self.runs[run_id].completed_at = datetime.now()
+            # Re-raise for the main handler to catch and return HTTP error
+            raise
 
     def _parse_input_spec(self, input_spec: str) -> list[dict[str, str]]:
         """Parses an agent input string into a list of field definitions."""
         fields = []
         if not input_spec:
             return fields
-        # Assuming split_top_level exists and works correctly
         try:
             parts = split_top_level(input_spec)
         except NameError:
             logger.error("split_top_level utility function not found!")
-            return fields  # Or raise?
+            return fields
 
         for part in parts:
             part = part.strip()
@@ -316,7 +425,8 @@ class FlockAPI:
                 "name": "",
                 "type": "str",
                 "desc": "",
-            }  # Default type str
+                "html_type": "text",
+            }
             name_type_part, *desc_part = part.split("|", 1)
             if desc_part:
                 field_info["desc"] = desc_part[0].strip()
@@ -327,20 +437,18 @@ class FlockAPI:
                 field_info["type"] = type_part[0].strip()
 
             # Basic type to HTML input type mapping
-            html_type = "text"
             step = None
             if field_info["type"].startswith("int"):
-                html_type = "number"
+                field_info["html_type"] = "number"
             elif field_info["type"].startswith("float"):
-                html_type = "number"
-                step = "any"  # Allow decimals for float
+                field_info["html_type"] = "number"
+                step = "any"
             elif field_info["type"].startswith("bool"):
-                html_type = "checkbox"
+                field_info["html_type"] = "checkbox"
             elif "list" in field_info["type"] or "dict" in field_info["type"]:
-                html_type = "textarea"
-                field_info["rows"] = 3  # Default rows for textarea
+                field_info["html_type"] = "textarea"
+                field_info["rows"] = 3
 
-            field_info["html_type"] = html_type
             if step:
                 field_info["step"] = step
             fields.append(field_info)
@@ -349,10 +457,9 @@ class FlockAPI:
     def _create_fasthtml_app(self, api_host: str, api_port: int) -> Any:
         """Creates and configures the FastHTML application."""
         if not FASTHTML_AVAILABLE:
-            raise ImportError("FastHTML is not installed. Cannot create UI.")
-
+            raise ImportError("FastHTML is not installed.")
         logger.debug("Creating FastHTML application instance")
-        # Note: fast_app might have its own default headers, adjust as needed
+
         fh_app, fh_rt = fast_app(
             hdrs=(
                 Script(
@@ -363,12 +470,14 @@ class FlockAPI:
                 body { padding: 20px; max-width: 800px; margin: auto; }
                 label { display: block; margin-top: 1rem; font-weight: bold;}
                 input, select, textarea { width: 100%; margin-top: 0.25rem; }
+                input[type=checkbox] { width: auto; margin-right: 0.5rem; vertical-align: middle; }
+                label[for^=inputs] { font-weight: normal; display: inline; } /* Style for checkbox labels */
                 button[type=submit] { margin-top: 1.5rem; }
                 #result-area { margin-top: 2rem; background-color: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; }
                 .htmx-indicator { display: none; margin-left: 10px; font-style: italic; color: #6c757d; }
                 .htmx-request .htmx-indicator { display: inline; }
                 .htmx-request.htmx-indicator { display: inline; }
-                .error-message { color: red; margin-top: 10px; }
+                .error-message { color: red; margin-top: 10px; font-weight: bold; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 5px;}
             """),
             )
         )
@@ -383,9 +492,7 @@ class FlockAPI:
 
             agent_def = self.flock.agents.get(agent_name)
             if not agent_def:
-                logger.warning(
-                    f"Agent '{agent_name}' not found for UI input generation."
-                )
+                logger.warning(f"Agent '{agent_name}' not found for UI.")
                 return Div(
                     f"Agent '{agent_name}' not found.", cls="error-message"
                 )
@@ -397,11 +504,12 @@ class FlockAPI:
 
             inputs_html = []
             for field in input_fields:
-                label = Label(
-                    f"{field['name']} ({field['type']})", fr=field["name"]
+                field_id = (
+                    f"input_{field['name']}"  # Ensure unique ID if name clashes
                 )
+                label = Label(f"{field['name']} ({field['type']})", fr=field_id)
                 input_attrs = dict(
-                    id=field["name"],
+                    id=field_id,
                     name=f"inputs.{field['name']}",
                     type=field["html_type"],
                 )
@@ -415,23 +523,16 @@ class FlockAPI:
                 if field["html_type"] == "textarea":
                     input_el = Textarea(**input_attrs)
                 elif field["html_type"] == "checkbox":
-                    # Checkboxes need careful value handling. Simple "true" for now.
                     input_el = Div(
-                        Input(
-                            **input_attrs, value="true"
-                        ),  # Send "true" if checked
-                        Label(
-                            f" Enable {field['name']}?",
-                            fr=field["name"],
-                            style="display: inline; margin-left: 5px; font-weight: normal;",
-                        ),
-                    )
+                        Input(**input_attrs, value="true"),
+                        Label(f" Enable?", fr=field_id),
+                    )  # Simplified label
                 else:
                     input_el = Input(**input_attrs)
 
                 inputs_html.append(Div(label, input_el))
 
-            # Include agent name as hidden input for the main form submission
+            # Add hidden input with agent name for the main form
             inputs_html.append(
                 Hidden(
                     id="selected_agent_name",
@@ -460,25 +561,14 @@ class FlockAPI:
                     response.raise_for_status()
                     agent_data = response.json()
                     agents_list = agent_data.get("agents", [])
-                    logger.debug(
-                        f"Successfully fetched {len(agents_list)} agents for UI"
-                    )
-            except httpx.RequestError as e:
-                error_msg = f"UI Error: Could not connect to API at {api_url}. Is the API running? Details: {e}"
-                logger.error(error_msg)
-            except httpx.HTTPStatusError as e:
-                error_msg = f"UI Error: API returned status {e.response.status_code}. Details: {e.response.text}"
-                logger.error(error_msg)
+                    logger.debug(f"Fetched {len(agents_list)} agents for UI")
             except Exception as e:
-                error_msg = f"UI Error: An unexpected error occurred while fetching agents: {e}"
+                error_msg = f"UI Error: Could not fetch agent list from API at {api_url}. Details: {e}"
                 logger.error(error_msg, exc_info=True)
 
             options = [
                 Option(
-                    "--- Select Agent ---",
-                    value="",
-                    selected=True,
-                    disabled=True,
+                    "-- Select Agent --", value="", selected=True, disabled=True
                 )
             ] + [
                 Option(
@@ -488,6 +578,7 @@ class FlockAPI:
                 for agent in agents_list
             ]
 
+            # Use FHForm alias for fasthtml.Form to avoid clash with FastAPI.Form
             content = Div(
                 H1("Flock Agent Runner UI"),
                 P(
@@ -498,34 +589,35 @@ class FlockAPI:
                     *options,
                     id="agent_select",
                     name="agent_name",
-                    hx_get="/ui/get-agent-inputs",  # Fetch inputs dynamically
+                    hx_get="/ui/get-agent-inputs",
                     hx_trigger="change",
-                    hx_target="#agent-inputs-container",  # Target the container
+                    hx_target="#agent-inputs-container",
                     hx_indicator="#loading-indicator",
                 ),
-                # Container for dynamic inputs
-                Form(  # Wrap inputs and button in a form
-                    Div(
-                        id="agent-inputs-container"
-                    ),  # Inputs will be loaded here
+                FHForm(  # Use FHForm alias here
+                    Div(id="agent-inputs-container"),  # Inputs loaded here
                     Button("Run Agent", type="submit"),
                     Span(
                         " Processing...",
                         id="loading-indicator",
                         cls="htmx-indicator",
                     ),
-                    hx_post="/run/flock",  # POST to the FastAPI endpoint
-                    hx_target="#result-area",  # Target the result area
-                    hx_swap="innerHTML",  # Replace its content
-                    hx_indicator="#loading-indicator",  # Show indicator during request
+                    hx_post="/ui/run-agent-form",  # Target the dedicated form endpoint
+                    hx_target="#result-area",
+                    hx_swap="innerHTML",
+                    hx_indicator="#loading-indicator",
                 ),
                 H2("Result"),
                 Div(
                     Pre(
-                        Code("Result will appear here...", id="result-content")
-                    ),  # Use Pre/Code for JSON
+                        Code(
+                            "Result will appear here...",
+                            id="result-content",
+                            class_="language-json",
+                        )
+                    ),  # Add class for potential JS syntax highlighting
                     id="result-area",
-                    style="min-height: 100px; border: 1px solid #ccc;",
+                    style="min-height: 100px;",
                 ),
             )
 
@@ -534,11 +626,11 @@ class FlockAPI:
                     H1("Flock UI - Error"), P(error_msg, cls="error-message")
                 )
 
-            return Titled(
-                "Flock UI", content
-            )  # Titled provides basic HTML structure
+            return Titled("Flock UI", content)
 
         return fh_app
+
+    # --- start() and stop() methods ---
 
     def start(
         self, host: str = "0.0.0.0", port: int = 8344, create_ui: bool = False
@@ -552,15 +644,12 @@ class FlockAPI:
             else:
                 logger.info("Attempting to create and mount FastHTML UI at /ui")
                 try:
-                    # Pass host/port so FastHTML routes can call back to the API
                     fh_app = self._create_fasthtml_app(
                         api_host=host, api_port=port
                     )
-                    # Mount the FastHTML app under the FastAPI app at /ui
                     self.app.mount("/ui", fh_app, name="ui")
                     logger.info("FastHTML UI mounted successfully.")
 
-                    # Add a root redirect to /ui for convenience
                     @self.app.get(
                         "/",
                         include_in_schema=False,
@@ -568,7 +657,7 @@ class FlockAPI:
                     )
                     async def root_redirect():
                         logger.debug("Redirecting / to /ui/")
-                        return "/ui/"  # FastAPI handles the redirect response generation
+                        return "/ui/"  # FastAPI handles RedirectResponse
 
                 except ImportError as e:
                     logger.error(
@@ -590,10 +679,9 @@ class FlockAPI:
         ):
             logger.info(f"UI available at http://{host}:{port}/ui/")
 
-        # Run the main FastAPI app (which now might include the mounted UI)
         uvicorn.run(self.app, host=host, port=port)
 
     async def stop(self):
         """Stop the API server."""
         logger.info("Stopping API server (cleanup if necessary)")
-        pass  # Add cleanup logic if needed
+        pass

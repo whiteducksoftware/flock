@@ -307,7 +307,8 @@ class Flock:
             host (str): The host to bind the server to. Defaults to "0.0.0.0".
             port (int): The port to bind the server to. Defaults to 8344.
         """
-        from flock.core.flock_api import FlockAPI
+        # from flock.core.flock_api import FlockAPI
+        from flock.core.api import FlockAPI
 
         logger.info(
             f"Preparing to start API server on {host}:{port} {'with UI' if create_ui else 'without UI'}"
