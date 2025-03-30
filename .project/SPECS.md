@@ -13,42 +13,42 @@ Flock is a declarative agent framework that focuses on simplifying the creation 
 
 ## Core Specifications
 
-1. [**Core Architecture**](.cursor/specs/01_core_architecture.md)
+1. [**Core Architecture**](specs/01_core_architecture.md)
    - Defines the primary components of the framework
    - Outlines the relationships between components
    - Documents the execution flow
 
-2. [**Agent Factory System**](.cursor/specs/02_agent_factory.md)
+2. [**Agent Factory System**](specs/02_agent_factory.md)
    - Specifies the factory pattern for agent creation
    - Defines default configurations and behaviors
    - Outlines extension points for custom factories
 
-3. [**Module System**](.cursor/specs/03_module_system.md)
+3. [**Module System**](specs/03_module_system.md)
    - Defines the module extension architecture
    - Specifies lifecycle hooks and integration points
    - Documents standard modules and their behaviors
 
-4. [**Evaluator System**](.cursor/specs/04_evaluator_system.md)
+4. [**Evaluator System**](specs/04_evaluator_system.md)
    - Outlines the evaluation strategy pattern
    - Defines how agents process inputs and generate outputs
    - Specifies model integration requirements
 
-5. [**Router System**](.cursor/specs/05_router_system.md)
+5. [**Router System**](specs/05_router_system.md)
    - Defines the agent workflow orchestration mechanism
    - Specifies how agents hand off control to other agents
    - Documents routing strategies and decision points
 
-6. [**Tool System**](.cursor/specs/06_tool_system.md)
+6. [**Tool System**](specs/06_tool_system.md)
    - Outlines how agents interact with external functions
    - Defines tool registration and discovery
    - Specifies tool execution flow
 
-7. [**Execution System**](.cursor/specs/07_execution_system.md)
+7. [**Execution System**](specs/07_execution_system.md)
    - Defines local and distributed execution options
    - Specifies serialization requirements
    - Documents error handling and recovery
 
-8. [**Context System**](.cursor/specs/08_context_system.md)
+8. [**Context System**](specs/08_context_system.md)
    - Outlines the shared state mechanism
    - Defines context propagation requirements
    - Specifies context access patterns
