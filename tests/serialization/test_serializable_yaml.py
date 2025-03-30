@@ -71,30 +71,61 @@ class TestSerializableYAML:
     """Tests for YAML serialization in Serializable."""
 
     def test_to_yaml_method_exists(self):
-        """Test that to_yaml method exists but raises NotImplementedError."""
+        """Test that to_yaml method exists and works."""
         obj = MockSerializable()
-        with pytest.raises(NotImplementedError):
-            obj.to_yaml()
+        yaml_str = obj.to_yaml()
+        assert isinstance(yaml_str, str)
+        assert "string_val: test" in yaml_str
 
     def test_from_yaml_method_exists(self):
-        """Test that from_yaml method exists but raises NotImplementedError."""
-        with pytest.raises(NotImplementedError):
-            MockSerializable.from_yaml("test")
+        """Test that from_yaml method exists and works."""
+        yaml_str = "string_val: test\nint_val: 42"
+        obj = MockSerializable.from_yaml(yaml_str)
+        assert isinstance(obj, MockSerializable)
+        assert obj.string_val == "test"
+        assert obj.int_val == 42
 
     def test_to_yaml_file_method_exists(self):
-        """Test that to_yaml_file method exists but raises NotImplementedError."""
+        """Test that to_yaml_file method exists and works."""
         obj = MockSerializable()
-        with pytest.raises(NotImplementedError):
-            obj.to_yaml_file(Path("test.yaml"))
+        
+        # Create a temporary file for testing
+        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        
+        try:
+            obj.to_yaml_file(tmp_path)
+            assert tmp_path.exists()
+            content = tmp_path.read_text()
+            assert "string_val: test" in content
+        finally:
+            # Clean up the temporary file
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
     def test_from_yaml_file_method_exists(self):
-        """Test that from_yaml_file method exists but raises NotImplementedError."""
-        with pytest.raises(NotImplementedError):
-            MockSerializable.from_yaml_file(Path("test.yaml"))
+        """Test that from_yaml_file method exists and works."""
+        # Create a temporary file for testing
+        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as tmp:
+            yaml_content = """
+string_val: from_file_test
+int_val: 99
+"""
+            tmp.write(yaml_content.encode())
+            tmp_path = Path(tmp.name)
+        
+        try:
+            obj = MockSerializable.from_yaml_file(tmp_path)
+            assert isinstance(obj, MockSerializable)
+            assert obj.string_val == "from_file_test"
+            assert obj.int_val == 99
+        finally:
+            # Clean up the temporary file
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
     def test_to_yaml_basic_types(self):
         """Test serializing objects with primitive types."""
-        # This test will initially fail until to_yaml is implemented
         obj = MockSerializable(
             string_val="test",
             int_val=42,
@@ -123,15 +154,12 @@ nested_val:
     - 3
 """
         
-        # This will raise NotImplementedError until to_yaml is implemented
-        with pytest.raises(NotImplementedError):
-            yaml_str = obj.to_yaml()
-            # After implementation, this should work:
-            # assert yaml.safe_load(yaml_str) == yaml.safe_load(expected_yaml)
+        yaml_str = obj.to_yaml()
+        # Compare the parsed YAML dictionaries to handle whitespace differences
+        assert yaml.safe_load(yaml_str) == yaml.safe_load(expected_yaml)
 
     def test_from_yaml_basic_types(self):
         """Test deserializing objects with primitive types."""
-        # This test will initially fail until from_yaml is implemented
         yaml_str = """string_val: test_from_yaml
 int_val: 100
 float_val: 6.28
@@ -147,19 +175,16 @@ nested_val:
     nested_key: nested_value
 """
         
-        # This will raise NotImplementedError until from_yaml is implemented
-        with pytest.raises(NotImplementedError):
-            obj = MockSerializable.from_yaml(yaml_str)
-            # After implementation, this should work:
-            # assert obj.string_val == "test_from_yaml"
-            # assert obj.int_val == 100
-            # assert obj.float_val == 6.28
-            # assert obj.bool_val is False
-            # assert obj.list_val == ["x", "y", "z"]
-            # assert obj.dict_val == {"custom_key": "custom_value"}
-            # assert obj.nested_val == {
-            #     "custom_nested": {"nested_key": "nested_value"}
-            # }
+        obj = MockSerializable.from_yaml(yaml_str)
+        assert obj.string_val == "test_from_yaml"
+        assert obj.int_val == 100
+        assert obj.float_val == 6.28
+        assert obj.bool_val is False
+        assert obj.list_val == ["x", "y", "z"]
+        assert obj.dict_val == {"custom_key": "custom_value"}
+        assert obj.nested_val == {
+            "custom_nested": {"nested_key": "nested_value"}
+        }
 
     def test_yaml_file_operations(self):
         """Test file operations with YAML serialization."""
@@ -170,13 +195,10 @@ nested_val:
             tmp_path = Path(tmp.name)
         
         try:
-            # This will raise NotImplementedError until to_yaml_file is implemented
-            with pytest.raises(NotImplementedError):
-                obj.to_yaml_file(tmp_path)
-                # After implementation, this should work:
-                # loaded_obj = MockSerializable.from_yaml_file(tmp_path)
-                # assert loaded_obj.string_val == "file_test"
-                # assert loaded_obj.int_val == 42
+            obj.to_yaml_file(tmp_path)
+            loaded_obj = MockSerializable.from_yaml_file(tmp_path)
+            assert loaded_obj.string_val == "file_test"
+            assert loaded_obj.int_val == 42
         finally:
             # Clean up the temporary file
             if os.path.exists(tmp_path):
@@ -189,13 +211,10 @@ nested_val:
             dict_val={"key:with:colons": "value with spaces"}
         )
         
-        # This will raise NotImplementedError until to_yaml is implemented
-        with pytest.raises(NotImplementedError):
-            yaml_str = obj.to_yaml()
-            # After implementation, this should work:
-            # loaded_obj = MockSerializable.from_yaml(yaml_str)
-            # assert loaded_obj.string_val == "Special chars: ñ, é, ü, ß, 你好"
-            # assert loaded_obj.dict_val == {"key:with:colons": "value with spaces"}
+        yaml_str = obj.to_yaml()
+        loaded_obj = MockSerializable.from_yaml(yaml_str)
+        assert loaded_obj.string_val == "Special chars: ñ, é, ü, ß, 你好"
+        assert loaded_obj.dict_val == {"key:with:colons": "value with spaces"}
 
     def test_yaml_error_handling(self):
         """Test error handling for malformed YAML."""
@@ -204,7 +223,5 @@ nested_val:
         int_val: 42
         """
         
-        # This will raise NotImplementedError until from_yaml is implemented
-        with pytest.raises(NotImplementedError):
-            # After implementation, this should raise yaml.YAMLError
+        with pytest.raises(yaml.YAMLError):
             MockSerializable.from_yaml(malformed_yaml) 

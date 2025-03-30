@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 
 import cloudpickle
 import msgpack
+import yaml
 
 T = TypeVar("T", bound="Serializable")
 
@@ -40,6 +41,80 @@ class Serializable(ABC):
         """Create instance from JSON string."""
         try:
             return cls.from_dict(json.loads(json_str))
+        except Exception:
+            raise
+
+    def to_yaml(self) -> str:
+        """Serialize to YAML string.
+
+        Returns:
+            str: YAML string representation of the object.
+
+        Raises:
+            Exception: If serialization fails.
+        """
+        try:
+            return yaml.dump(
+                self.to_dict(), sort_keys=False, default_flow_style=False
+            )
+        except Exception:
+            raise
+
+    @classmethod
+    def from_yaml(cls: type[T], yaml_str: str) -> T:
+        """Create instance from YAML string.
+
+        Args:
+            yaml_str: YAML string to deserialize.
+
+        Returns:
+            T: Instance of class created from YAML.
+
+        Raises:
+            yaml.YAMLError: If YAML parsing fails.
+            Exception: If deserialization fails.
+        """
+        try:
+            return cls.from_dict(yaml.safe_load(yaml_str))
+        except Exception:
+            raise
+
+    def to_yaml_file(self, path: Path) -> None:
+        """Serialize to YAML file.
+
+        Args:
+            path: Path where to save the YAML file.
+
+        Raises:
+            Exception: If serialization or file operation fails.
+        """
+        try:
+            # Create parent directories if they don't exist
+            if path.parent and not path.parent.exists():
+                path.parent.mkdir(parents=True, exist_ok=True)
+
+            yaml_str = self.to_yaml()
+            path.write_text(yaml_str)
+        except Exception:
+            raise
+
+    @classmethod
+    def from_yaml_file(cls: type[T], path: Path) -> T:
+        """Create instance from YAML file.
+
+        Args:
+            path: Path to YAML file.
+
+        Returns:
+            T: Instance of class created from YAML file.
+
+        Raises:
+            FileNotFoundError: If file doesn't exist.
+            yaml.YAMLError: If YAML parsing fails.
+            Exception: If deserialization fails.
+        """
+        try:
+            return cls.from_yaml(path.read_text())
         except Exception:
             raise
 
