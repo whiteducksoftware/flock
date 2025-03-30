@@ -132,6 +132,9 @@ python_files = "test_*.py"
 python_classes = "Test"
 python_functions = "test"
 verbosity_test_cases = 2
+testpaths = ["tests"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 
 
 [tool.poe.tasks]

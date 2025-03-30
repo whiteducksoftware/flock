@@ -75,6 +75,7 @@ All tests should use the pytest framework and follow the existing testing patter
 
 ## Related Tasks
 
+- [US007-T007-YAML-Serialization-Tests](.project/tasks/done/US007-T007-YAML-Serialization-Tests.md)
 - [US007-T002-FlockAgent-YAML-Serialization](.project/tasks/US007-T002-FlockAgent-YAML-Serialization.md)
 - [US007-T003-Flock-YAML-Serialization](.project/tasks/US007-T003-Flock-YAML-Serialization.md)
 

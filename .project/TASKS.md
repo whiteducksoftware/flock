@@ -10,7 +10,6 @@ This feature adds support for serializing and deserializing agents and complete 
 
 | ID | Task | Priority | Status | Description |
 |----|------|----------|--------|-------------|
-| US007-T007 | [YAML Serialization Tests](tasks/US007-T007-YAML-Serialization-Tests.md) | Highest | Not Started | Create a comprehensive test suite for YAML serialization following TDD principles |
 | US007-T001 | [YAML Serializable Base](tasks/US007-T001-YAML-Serializable-Base.md) | High | Not Started | Extend the Serializable base class to support YAML serialization |
 | US007-T004 | [Callable Reference System](tasks/US007-T004-Callable-Reference-System.md) | High | Not Started | Create a system to represent callable objects in YAML using human-readable references |
 | US007-T002 | [FlockAgent YAML Serialization](tasks/US007-T002-FlockAgent-YAML-Serialization.md) | High | Not Started | Implement YAML serialization for FlockAgent classes |
@@ -21,6 +20,14 @@ This feature adds support for serializing and deserializing agents and complete 
 ---
 
 ## Completed Tasks
+
+### YAML Serialization for Agents and Flock Systems
+
+#### Implementation Tasks
+
+| ID | Task | Priority | Status | Description |
+|----|------|----------|--------|-------------|
+| US007-T007 | [YAML Serialization Tests](tasks/done/US007-T007-YAML-Serialization-Tests.md) | Highest | Completed | Create a comprehensive test suite for YAML serialization following TDD principles |
 
 ### Environment Settings Editor
 
