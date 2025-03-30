@@ -10,7 +10,7 @@ This task involves extending the FlockAgent class with methods to save and load 
 
 ## User Story
 
-[US007-YAML-Serialization](.project/userstories/US007-YAML-Serialization.md)
+[US007-YAML-Serialization](../userstories/US007-YAML-Serialization.md)
 
 ## Technical Requirements
 

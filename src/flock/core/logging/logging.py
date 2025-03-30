@@ -89,6 +89,9 @@ def custom_format(record):
     # Get the formatted message (already includes args)
     message = record["message"]
 
+    # Replace { and } with {{ and }} to avoid them being interpreted as format specifiers
+    message = message.replace("{", "{{").replace("}", "}}")
+
     # Apply truncation to the full formatted message
     if len(message) > MAX_LENGTH:
         truncated_chars = len(message) - MAX_LENGTH

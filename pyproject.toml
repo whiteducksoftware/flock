@@ -38,6 +38,7 @@ dependencies = [
     "python-box>=7.3.2",
     "python-decouple>=3.8",
     "python-dotenv>=1.0.1",
+    "python-fasthtml>=0.12.6",
     "pyyaml>=6.0",
     "questionary>=2.1.0",
     "rich>=13.9.4",
