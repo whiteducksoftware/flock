@@ -66,7 +66,7 @@ def parse_input_spec(input_spec: str) -> list[dict[str, str]]:
 
 
 def format_result_to_html(
-    data: Any, level: int = 0, max_level: int = 5, max_str_len: int = 500
+    data: Any, level: int = 0, max_level: int = 5, max_str_len: int = 999999
 ) -> str:
     """Recursively formats a Python object (dict, list, Box, etc.) into an HTML string."""
     if hasattr(data, "to_dict") and callable(data.to_dict):

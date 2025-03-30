@@ -296,7 +296,7 @@ class Flock:
         return convert_callable(data)
 
     def start_api(
-        self, host: str = "0.0.0.0", port: int = 8344, create_ui: bool = False
+        self, host: str = "127.0.0.1", port: int = 8344, create_ui: bool = False
     ) -> None:
         """Start a REST API server for this Flock instance.
 
@@ -314,10 +314,7 @@ class Flock:
             f"Preparing to start API server on {host}:{port} {'with UI' if create_ui else 'without UI'}"
         )
         api = FlockAPI(self)
-        # Pass the create_ui parameter to the FlockAPI's start method
-        api.start(
-            host=host, port=port, create_ui=create_ui
-        )  # <-- Pass create_ui here
+        api.start(host=host, port=port, create_ui=create_ui)
 
     @classmethod
     def from_dict(cls: type[T], data: dict[str, Any]) -> T:
