@@ -4,7 +4,7 @@ from flock.core import Flock,FlockFactory
 
 MODEL = "openai/gpt-4o"
 
-flock = Flock(model=MODEL,enable_logging=False)
+flock = Flock(model=MODEL,enable_logging=True)
 
 bloggy = FlockFactory.create_default_agent(
     name="bloggy",

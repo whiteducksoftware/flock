@@ -91,7 +91,10 @@ logger = get_logger("api.ui")
 
 
 def create_ui_app(
-    flock_api_instance: "FlockAPI", api_host: str, api_port: int
+    flock_api_instance: "FlockAPI",
+    api_host: str,
+    api_port: int,
+    server_name: str,
 ) -> Any:
     """Creates and configures the FastHTML application and its routes."""
     if not FASTHTML_AVAILABLE:
@@ -217,11 +220,11 @@ def create_ui_app(
 
         # Use FHForm alias here
         content = Div(
-            H1("Flock Agent Runner UI"),
+            H2(f"Agent Runner"),
             P(
-                "Select an agent, provide the required inputs, and click 'Run Agent'."
+                "Select an agent, provide the required inputs, and click 'Run Flock'."
             ),
-            Label("Select Agent:", fr="agent_select"),
+            Label("Select Starting Agent:", fr="agent_select"),
             Select(
                 *options,
                 id="agent_select",
@@ -233,7 +236,7 @@ def create_ui_app(
             ),
             FHForm(
                 Div(id="agent-inputs-container", style="margin-top: 1rem;"),
-                Button("Run Agent", type="submit"),
+                Button("Run Flock", type="submit"),
                 Span(
                     " Processing...",
                     id="loading-indicator",
@@ -263,6 +266,6 @@ def create_ui_app(
                 H1("Flock UI - Error"), P(error_msg, cls="error-message")
             )
 
-        return Titled("Flock UI", content)
+        return Titled(f"{server_name}", content)
 
     return fh_app

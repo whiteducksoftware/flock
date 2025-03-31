@@ -1,6 +1,7 @@
 from typing import Optional
 from pydantic import BaseModel, Field
 from flock.core import FlockFactory, Flock
+from flock.routers.default.default_router import DefaultRouter, DefaultRouterConfig
 
 class Scene(BaseModel):
     title: str
@@ -77,12 +78,12 @@ class ComicBookSeries(BaseModel):
     
 ########################################################
     
-    
 class PageLayout(BaseModel):
+    issue_number: int = Field(..., description="Issue number of the page layout")
     page_number: int = Field(..., description="Page number of the page layout")
     amount_of_panels: int = Field(..., description="Amount of panels on the page")
     layout_description: str = Field(..., description="Description of the panel layout of the page")
-    panel_prompts: list[str] = Field(..., description="Panel prompts for the page")
+    page_prompt: str = Field(..., description="Prompt for the page")
     story_scene_title: str = Field(..., description="Title of the story scene that is depicted in the page")
     
 class IssueLayout(Issue):
@@ -98,12 +99,6 @@ story_agent = FlockFactory.create_default_agent(name="story_agent",
                                               max_tokens=60000,
                                               write_to_file=True)
 
-flock.add_agent(story_agent)
-
-result = flock.run(start_agent=story_agent, input={'story_idea': 'A story about a young woman who discovers she has the ability to time travel.'}) 
-story_overview = result.story
-story_bible = result.story_bible
-
 comic_book_series_agent = FlockFactory.create_default_agent(name="comic_book_series_agent",
                                               description="An agent that is a master comic book writer." 
                                               "Generates a comic book series based on a story and a story bible.",
@@ -111,6 +106,36 @@ comic_book_series_agent = FlockFactory.create_default_agent(name="comic_book_ser
                                               output="comic_book_series: ComicBookSeries",
                                               max_tokens=60000,
                                               write_to_file=True)
+
+comic_book_issue_agent = FlockFactory.create_default_agent(name="comic_book_issue_agent",
+                                              description="An agent that is a master comic book writer." 
+                                              "Generates details for each issue of the comic book series.",
+                                              input="comic_book_series: ComicBookSeries",
+                                              output="comic_book_pages: list[PageLayout]",
+                                              max_tokens=60000,
+                                              write_to_file=True)
+
+# comic_book_issue_agent = FlockFactory.create_default_agent(name="comic_book_issue_agent",
+#                                               description="An agent that is a master comic book writer." 
+#                                               "Generates comic_book_issue of comic_book_series with number issue_number based on a story, story_bible.",
+#                                               input="story: Story, story_bible: StoryBible, comic_book_series: ComicBookSeries, issue_number: int",
+#                                               output="comic_book_issue: ComicBookIssue",
+#                                               max_tokens=60000,
+#                                               write_to_file=True)
+
+story_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_series_agent.name))
+comic_book_series_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_issue_agent.name))
+
+flock.add_agent(story_agent)
+flock.add_agent(comic_book_series_agent)	
+flock.add_agent(comic_book_issue_agent)
+flock.start_api(server_name="Storyteller Agent", create_ui=True)
+
+result = flock.run(start_agent=story_agent, input={'story_idea': 'A story about a young woman who discovers she has the ability to time travel.'}) 
+story_overview = result.story
+story_bible = result.story_bible
+
+
 
 flock.add_agent(comic_book_series_agent)
 result = flock.run(start_agent=comic_book_series_agent, input={'story': story_overview, 'story_bible': story_bible}) 

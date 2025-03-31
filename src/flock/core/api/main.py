@@ -170,7 +170,11 @@ class FlockAPI:
     # --- Server Start/Stop ---
 
     def start(
-        self, host: str = "0.0.0.0", port: int = 8344, create_ui: bool = False
+        self,
+        host: str = "0.0.0.0",
+        port: int = 8344,
+        server_name: str = "Flock API",
+        create_ui: bool = False,
     ):
         """Start the API server, optionally creating and mounting a FastHTML UI."""
         if create_ui:
@@ -183,7 +187,12 @@ class FlockAPI:
                 try:
                     # Pass self (FlockAPI instance) to the UI creation function
                     # It needs access to self.flock and self._parse_input_spec
-                    fh_app = create_ui_app(self, api_host=host, api_port=port)
+                    fh_app = create_ui_app(
+                        self,
+                        api_host=host,
+                        api_port=port,
+                        server_name=server_name,
+                    )
                     self.app.mount("/ui", fh_app, name="ui")
                     logger.info("FastHTML UI mounted successfully.")
 
