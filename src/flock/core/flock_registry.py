@@ -289,7 +289,8 @@ class FlockRegistry:
 
     # --- Auto-Registration ---
     def register_module_components(self, module_or_path: Any) -> None:
-        """Scans a module (object or path string) and automatically registers:
+        """Scans a module (object or path string) and automatically registers.
+
         - Functions as callables.
         - Pydantic Models and Dataclasses as types.
         - Subclasses of FlockModule, FlockEvaluator, FlockRouter as components.
@@ -326,22 +327,26 @@ class FlockRegistry:
                 elif inspect.isclass(obj) and obj.__module__ == module.__name__:
                     is_component = False
                     # Register as Component if subclass of base types
-                    if COMPONENT_BASE_TYPES and issubclass(
-                        obj, COMPONENT_BASE_TYPES
+                    if (
+                        COMPONENT_BASE_TYPES
+                        and issubclass(obj, COMPONENT_BASE_TYPES)
+                        and self.register_component(obj)
                     ):
-                        if self.register_component(obj):
-                            registered_count["component"] += 1
-                            is_component = True  # Mark as component
+                        registered_count["component"] += 1
+                        is_component = True  # Mark as component
 
                     # Register as Type if Pydantic Model or Dataclass
                     # A component can also be a type used in signatures
-                    if isinstance(obj, type) and (
+                    base_model_or_dataclass = isinstance(obj, type) and (
                         issubclass(obj, BaseModel) or is_dataclass(obj)
+                    )
+                    if (
+                        base_model_or_dataclass
+                        and self.register_type(obj)
+                        and not is_component
                     ):
-                        if self.register_type(obj):
-                            # Only increment type count if it wasn't already counted as component
-                            if not is_component:
-                                registered_count["type"] += 1
+                        # Only increment type count if it wasn't already counted as component
+                        registered_count["type"] += 1
 
             logger.info(
                 f"Auto-registration summary for {module.__name__}: "
