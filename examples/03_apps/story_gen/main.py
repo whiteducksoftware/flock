@@ -1,7 +1,10 @@
 from typing import Optional
 from pydantic import BaseModel, Field
-from flock.core import FlockFactory, Flock
+from flock.core import FlockFactory, Flock, flock_registry
+from flock.core.flock_registry import flock_type
 from flock.routers.default.default_router import DefaultRouter, DefaultRouterConfig
+
+FlockRegistry = flock_registry.get_registry()
 
 class Scene(BaseModel):
     title: str
@@ -32,7 +35,7 @@ class Chapter(BaseModel):
     summary: str = Field(..., description="Key events or chapter summary")
     scenes: list[Scene] = Field(..., description="Scenes of the chapter")
     
-
+@flock_type 
 class Story(BaseModel):
     title: str
     status: str = Field(default="Idea", description="Idea, Drafting, Revising, Completed")
@@ -45,7 +48,7 @@ class Story(BaseModel):
     characters: list[Character] = Field(..., description="Important characters and/or entities of the story")
     chapters: list[Chapter] = Field(..., description="All chapters of the story. At least one chapter per act.")
     
-    
+@flock_type 
 class StoryBible(BaseModel):
     timeline: dict[str, str]  = Field(..., description="Timeline of the story")
     worldbuilding_notes: dict[str, str]  = Field(..., description="Worldbuilding notes of the story")
@@ -92,6 +95,7 @@ class IssueLayout(Issue):
 MODEL = "gemini/gemini-2.5-pro-exp-03-25" #"groq/qwen-qwq-32b"    #"openai/gpt-4o" # 
 flock = Flock(model=MODEL)
 
+
 story_agent = FlockFactory.create_default_agent(name="story_agent",
                                               description="An agent that is a master storyteller",
                                               input="story_idea: str",
@@ -122,21 +126,30 @@ comic_book_issue_agent = FlockFactory.create_default_agent(name="comic_book_issu
 #                                               output="comic_book_issue: ComicBookIssue",
 #                                               max_tokens=60000,
 #                                               write_to_file=True)
+# genre=[                                                                                                                                                           │
+# │              'Absurdist Fiction',                                                                                                                                          │
+# │              'Satire',                                                                                                                                                     │
+# │              'Technological Comedy',   
 
 story_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_series_agent.name))
 comic_book_series_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_issue_agent.name))
 
 flock.add_agent(story_agent)
-flock.add_agent(comic_book_series_agent)	
-flock.add_agent(comic_book_issue_agent)
-flock.start_api(server_name="Storyteller Agent", create_ui=True)
-
-result = flock.run(start_agent=story_agent, input={'story_idea': 'A story about a young woman who discovers she has the ability to time travel.'}) 
-story_overview = result.story
-story_bible = result.story_bible
+result = flock.run(start_agent=story_agent, input={'story_idea': 'In a world right at the cusp between LLMs and AGI some guy is experiencing the most peculiar story. Absurdist Fiction, Satire, Technological Comedy. As much content as possible. At least 10.000 words'}) 
 
 
 
-flock.add_agent(comic_book_series_agent)
-result = flock.run(start_agent=comic_book_series_agent, input={'story': story_overview, 'story_bible': story_bible}) 
-comic_book_series = result.comic_book_series
+
+# flock.add_agent(comic_book_series_agent)	
+# flock.add_agent(comic_book_issue_agent)
+# flock.start_api(server_name="Storyteller Agent", create_ui=True)
+
+# result = flock.run(start_agent=story_agent, input={'story_idea': 'A story about a young woman who discovers she has the ability to time travel.'}) 
+# story_overview = result.story
+# story_bible = result.story_bible
+
+
+
+# flock.add_agent(comic_book_series_agent)
+# result = flock.run(start_agent=comic_book_series_agent, input={'story': story_overview, 'story_bible': story_bible}) 
+# comic_book_series = result.comic_book_series

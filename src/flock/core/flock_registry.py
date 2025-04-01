@@ -17,6 +17,7 @@ from typing import (  # Add TYPE_CHECKING
     Optional,
     TypeVar,
     Union,
+    overload,
 )
 
 from pydantic import BaseModel
@@ -43,6 +44,8 @@ from flock.core.logging.logging import get_logger
 
 logger = get_logger("registry")
 T = TypeVar("T")
+ClassType = TypeVar("ClassType", bound=type)
+FuncType = TypeVar("FuncType", bound=Callable)
 
 
 class FlockRegistry:
@@ -356,6 +359,42 @@ class FlockRegistry:
 
 # --- Initialize Singleton ---
 _registry_instance = FlockRegistry()
+
+
+@overload
+def flock_type(cls: ClassType) -> ClassType: ...
+@overload
+def flock_type(
+    *, name: str | None = None
+) -> Callable[[ClassType], ClassType]: ...
+
+
+def flock_type(cls: ClassType | None = None, *, name: str | None = None) -> Any:
+    """Decorator to register a Type (Pydantic Model, Dataclass) used in signatures.
+
+    Usage:
+        @flock_type
+        class MyDataModel(BaseModel): ...
+
+        @flock_type(name="UserInput")
+        @dataclass
+        class UserQuery: ...
+    """
+    registry = get_registry()
+
+    def decorator(inner_cls: ClassType) -> ClassType:
+        if not inspect.isclass(inner_cls):
+            raise TypeError("@flock_type can only decorate classes.")
+        type_name = name or inner_cls.__name__
+        registry.register_type(inner_cls, name=type_name)
+        return inner_cls
+
+    if cls is None:
+        # Called as @flock_type(name="...")
+        return decorator
+    else:
+        # Called as @flock_type
+        return decorator(cls)
 
 
 # --- Auto-register known core components and tools ---

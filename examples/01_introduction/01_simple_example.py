@@ -8,7 +8,8 @@ from flock.core import Flock, FlockFactory
 # Flock uses litellm to talk to LLMs
 # Please consult the litellm documentation for valid IDs:
 # https://docs.litellm.ai/docs/providers
-MODEL = "openai/gpt-4o"
+#MODEL = "openai/gpt-4o"
+MODEL = "gemini/gemini-2.5-pro-exp-03-25" 
 
 
 # --------------------------------
@@ -28,6 +29,7 @@ bloggy = FlockFactory.create_default_agent(
     name="bloggy",
     input="blog_idea",
     output="funny_blog_title, blog_headers",
+    max_tokens=60000,
 )
 flock.add_agent(bloggy)
 
