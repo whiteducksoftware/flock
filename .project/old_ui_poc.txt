@@ -1,0 +1,608 @@
+# Code Repository Analysis
+
+Generated on 2025-04-01 12:39:18.320
+
+## Repository Summary
+
+- **Extensions analyzed**: `.py`
+- **Number of files analyzed**: 16
+- **Analysis Root (for display)**: `.`
+- **Total lines of code (approx)**: 1155
+
+## Project Structure (Relative View)
+
+```
+app/
+├── schwarm_app.py
+├── components/
+│   ├── __init__.py
+│   ├── history_grid.py
+│   ├── history_grid_alt.py
+│   ├── sidebar.py
+│   ├── theme.py
+│   ├── util.py
+│   └── charts/
+│       ├── agent_workflow.py
+│       ├── core_architecture.py
+│       └── tool_system.py
+└── modules/
+    ├── __init__.py
+    ├── about.py
+    ├── agent_detail.py
+    ├── agent_list.py
+    ├── playground.py
+    └── settings.py
+```
+
+## Key Files
+
+These files appear central based on dependencies, naming, and size:
+
+### schwarm_app.py
+
+- **Lines**: 118
+- **Size**: 2.57 KB
+- **Last modified**: 2025-02-11 22:25:43
+
+**Functions**:
+- `index(...)`
+- `get(...)`
+- `get(...)`
+- `get(...)`
+- `get(...)`
+- ... (and more)
+
+**Content**:
+```py
+from fasthtml.common import *
+from fasthtml.svg import *
+from monsterui.all import *
+
+from schwarm.app.components import HistoryGrid, Sidebar
+from schwarm.app.modules import AgentContent, AgentDetailView, Playground, Settings, agent_data
+from schwarm.app.modules.about import AboutPage
+
+hdrs = Theme.blue.headers()
+
+app, rt = fast_app(hdrs=hdrs, live=True)
+
+##############################
+# Sidebar
+##############################
+
+sidebar = (
+    ("layout-dashboard", "Dashboard", "/"),
+    ("---", "", ""),
+    ("bot", "Agents", "/agents"),
+    ("server", "Agent Systems", "/systems"),
+    ("scroll", "History", "/history"),
+    ("---", "", ""),
+    ("wrench", "Tools", "/tools"),
+    ("test-tube", "Playground", "/playground"),
+    ("---", "", ""),
+    ("settings", "Settings", "/settings"),
+    ("info", "About", "/about"),
+)
+
+
+##############################
+# MAIN
+##############################
+
+
+@rt
+def index():
+    return (
+        Title("Schwarm UI"),
+        Container(
+            Grid(
+                Div(Sidebar(sidebar), cls="col-span-1 w-48 flex"),
+                Grid(
+                    Div(AgentContent(), cls="col-span-2"),
+                    Div(AgentDetailView(agent_data[0]), cls="col-span-3"),
+                    cols=5,
+                    cls="col-span-5",
+                    id="main-grid",
+                ),
+                cols_sm=2,
+                cols_md=2,
+                cols_lg=6,
+                cols_xl=6,
+                gap=5,
+                cls="flex-1",
+            ),
+            cls=("flex", ContainerT.xl),
+        ),
+    )
+
+
+@rt("/history")
+def get():
+    return Grid(
+        Div(HistoryGrid(), cls="col-span-5"),
+        cols=5,
+        cls="col-span-5",
+        id="main-grid",
+    )
+
+
+@rt("/playground")
+def get():
+    return Grid(
+        Div(Playground(), cls="col-span-5"),  # noqa: F405
+        cols=5,
+        cls="col-span-5",
+        id="main-grid",
+    )
+
+
+@rt("/settings")
+def get():
+    return Grid(
+        Div(Settings(), cls="col-span-5"),
+        cols=5,
+        cls="col-span-5",
+        id="main-grid",
+    )
+
+
+@rt("/agents")
+def get():
+    return Grid(
+        Div(AgentContent(), cls="col-span-2"),
+        Div(AgentDetailView(agent=agent_data[0]), cls="col-span-3"),
+        cols=5,
+        cls="col-span-5",
+        id="main-grid",
+    )
+
+
+@rt("/about")
+def get():
+    return Grid(
+        Div(AboutPage(), cls="col-span-5"),
+        cols=5,
+        cls="col-span-5",
+        id="main-grid",
+    )
+
+
+serve()
+
+
+def main():
+    serve()
+```
+
+### components\charts\core_architecture.py
+
+- **Lines**: 14
+- **Size**: 10.63 KB
+- **Last modified**: 2025-02-11 22:25:43
+- **Used by**: 1 other analyzed Python file(s)
+
+**Functions**:
+- `CoreArchitectureChart(...)`
+
+**Content**:
+```py
+from fasthtml.common import *
+from fasthtml.svg import *
+from monsterui.all import *
+
+
+def CoreArchitectureChart():
+    return Div(
+        Div(
+            style="max-width:100%;border:1px solid transparent;",
+            data_mxgraph='{"highlight":"#0000ff","nav":true,"resize":true,"page":0,"toolbar":"pages zoom layers tags lightbox","edit":"_blank","xml":"<mxfile><diagram id=\\"l7_B5a2V6sOU66k4eApJ\\" name=\\"Core Architecture\\"><mxGraphModel dx=\\"1139\\" dy=\\"934\\" grid=\\"0\\" gridSize=\\"10\\" guides=\\"1\\" tooltips=\\"1\\" connect=\\"1\\" arrows=\\"1\\" fold=\\"1\\" page=\\"1\\" pageScale=\\"1\\" pageWidth=\\"850\\" pageHeight=\\"1100\\" background=\\"#FFFFFF\\" math=\\"0\\" shadow=\\"1\\"><root><mxCell id=\\"0\\"/><mxCell id=\\"1\\" parent=\\"0\\"/><mxCell id=\\"3\\" value=\\"graph TB&#10;    subgraph User Application&#10;        UA[User Code] --&gt; |Uses| SM[Schwarm Manager]&#10;    end&#10;&#10;    subgraph Schwarm Core&#10;        SM --&gt; |Manages| AR[Agent Registry]&#10;        SM --&gt; |Executes| WF[Workflow System]&#10;        &#10;        subgraph Agents&#10;            AR --&gt; |Registers| DA[Declarative Agent]&#10;            DA --&gt; |Uses| TS[Type System]&#10;            DA --&gt; |Uses| TM[Tool Manager]&#10;        end&#10;        &#10;        subgraph Workflow&#10;            WF --&gt; |Runs| AC[Activities]&#10;            WF --&gt; |Uses| TW[Temporal Worker]&#10;            AC --&gt; |Executes| DA&#10;        end&#10;    end&#10;&#10;    subgraph External Systems&#10;        TW --&gt; |Connects to| TS1[Temporal Server]&#10;        TM --&gt; |Integrates| T1[Web Search]&#10;        TM --&gt; |Integrates| T2[Code Eval]&#10;        TM --&gt; |Integrates| T3[Math Tools]&#10;        DA --&gt; |Uses| LLM[LLM Provider]&#10;    end&#10;&#10;    classDef core fill:#f9f,stroke:#333,stroke-width:2px&#10;    classDef external fill:#bbf,stroke:#333,stroke-width:2px&#10;    classDef user fill:#bfb,stroke:#333,stroke-width:2px&#10;    &#10;    class SM,AR,DA,WF,AC,TM,TS core&#10;    class TS1,T1,T2,T3,LLM external&#10;    class UA user&#10;&#10;\\" style=\\"shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;rounded=1;\\" parent=\\"1\\" vertex=\\"1\\"><mxGeometry x=\\"200\\" y=\\"310\\" width=\\"300\\" height=\\"300\\" as=\\"geometry\\"/></mxCell></root></mxGraphModel></diagram><diagram id=\\"m33Os__FMXyp1zJ4IDTH\\" name=\\"Agent Workflow\\"><mxGraphModel dx=\\"1139\\" dy=\\"934\\" grid=\\"0\\" gridSize=\\"10\\" guides=\\"1\\" tooltips=\\"1\\" connect=\\"1\\" arrows=\\"1\\" fold=\\"1\\" page=\\"1\\" pageScale=\\"1\\" pageWidth=\\"850\\" pageHeight=\\"1100\\" background=\\"#ffffff\\" math=\\"0\\" shadow=\\"1\\"><root><mxCell id=\\"0\\"/><mxCell id=\\"1\\" parent=\\"0\\"/><mxCell id=\\"Yf0mmGmI6B4_u023lZ5C-1\\" value=\\"sequenceDiagram&#10;    participant User&#10;    participant Schwarm&#10;    participant Agent&#10;    participant Tools&#10;    participant LLM&#10;    participant Temporal&#10;&#10;    User-&gt;&gt;Schwarm: Create Agent&#10;    Schwarm-&gt;&gt;Agent: Initialize&#10;    User-&gt;&gt;Schwarm: activate(agent, input)&#10;    &#10;    alt Local Debug Mode&#10;        Schwarm-&gt;&gt;Agent: Execute Directly&#10;    else Production Mode&#10;        Schwarm-&gt;&gt;Temporal: Start Workflow&#10;        Temporal-&gt;&gt;Agent: Execute via Activity&#10;    end&#10;&#10;    loop Agent Execution&#10;        Agent-&gt;&gt;LLM: Process Input&#10;        opt Tool Usage&#10;            Agent-&gt;&gt;Tools: Execute Tool&#10;            Tools--&gt;&gt;Agent: Tool Result&#10;        end&#10;        Agent-&gt;&gt;LLM: Generate Output&#10;    end&#10;&#10;    alt Has Hand-off&#10;        Agent-&gt;&gt;Schwarm: Hand off to Next Agent&#10;        Schwarm-&gt;&gt;Agent: Start Next Agent&#10;    else No Hand-off&#10;        Agent--&gt;&gt;Schwarm: Return Result&#10;    end&#10;&#10;    Schwarm--&gt;&gt;User: Return Final Result\\" style=\\"shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;\\" parent=\\"1\\" vertex=\\"1\\"><mxGeometry x=\\"275\\" y=\\"114\\" width=\\"300\\" height=\\"300\\" as=\\"geometry\\"/></mxCell></root></mxGraphModel></diagram><diagram id=\\"zsmzvY-bLYlccnSXdfzv\\" name=\\"Temporal Workflow\\">\\n        <mxGraphModel dx=\\"205\\" dy=\\"165\\" grid=\\"0\\" gridSize=\\"10\\" guides=\\"1\\" tooltips=\\"1\\" connect=\\"1\\" arrows=\\"1\\" fold=\\"1\\" page=\\"1\\" pageScale=\\"1\\" pageWidth=\\"850\\" pageHeight=\\"1100\\" background=\\"#ffffff\\" math=\\"0\\" shadow=\\"1\\">\\n            <root>\\n                <mxCell id=\\"0\\"/>\\n                <mxCell id=\\"1\\" parent=\\"0\\"/>\\n                <mxCell id=\\"LGo0nXY-PDX6Si-UCiUW-1\\" value=\\"graph TB&#10;    subgraph Temporal Integration&#10;        WF[Workflow System] --&gt; |Manages| TW[Temporal Worker]&#10;        TW --&gt; |Executes| AC[Activities]&#10;        TW --&gt; |Connects to| TS[Temporal Server]&#10;        &#10;        subgraph State Management&#10;            TS --&gt; |Manages| WS[Workflow State]&#10;            WS --&gt; |Tracks| AS[Agent State]&#10;            WS --&gt; |Tracks| TS1[Tool State]&#10;            WS --&gt; |Tracks| ES[Error State]&#10;        end&#10;&#10;        subgraph Reliability Features&#10;            TS --&gt; |Provides| R1[Automatic Retries]&#10;            TS --&gt; |Provides| R2[Error Recovery]&#10;            TS --&gt; |Provides| R3[State Persistence]&#10;            TS --&gt; |Provides| R4[Workflow History]&#10;        end&#10;&#10;        subgraph Monitoring&#10;            TS --&gt; |Enables| M1[Execution Metrics]&#10;            TS --&gt; |Enables| M2[Error Tracking]&#10;            TS --&gt; |Enables| M3[Performance Stats]&#10;            TS --&gt; |Enables| M4[Workflow Visualization]&#10;        end&#10;    end&#10;&#10;    classDef core fill:#f9f,stroke:#333,stroke-width:2px&#10;    classDef state fill:#bbf,stroke:#333,stroke-width:2px&#10;    classDef feature fill:#bfb,stroke:#333,stroke-width:2px&#10;    classDef monitor fill:#fbb,stroke:#333,stroke-width:2px&#10;&#10;    class WF,TW,AC,TS core&#10;    class WS,AS,TS1,ES state&#10;    class R1,R2,R3,R4 feature&#10;    class M1,M2,M3,M4 monitor&#10;&#10;\\" style=\\"shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;\\" vertex=\\"1\\" parent=\\"1\\">\\n                    <mxGeometry x=\\"242\\" y=\\"169\\" width=\\"300\\" height=\\"300\\" as=\\"geometry\\"/>\\n                </mxCell>\\n            </root>\\n        </mxGraphModel>\\n    </diagram><diagram id=\\"FU8wRJNSLGF58lYnAYQQ\\" name=\\"Tool System\\">\\n        <mxGraphModel dx=\\"307\\" dy=\\"248\\" grid=\\"0\\" gridSize=\\"10\\" guides=\\"1\\" tooltips=\\"1\\" connect=\\"1\\" arrows=\\"1\\" fold=\\"1\\" page=\\"1\\" pageScale=\\"1\\" pageWidth=\\"850\\" pageHeight=\\"1100\\" background=\\"#ffffff\\" math=\\"0\\" shadow=\\"1\\">\\n            <root>\\n                <mxCell id=\\"0\\"/>\\n                <mxCell id=\\"1\\" parent=\\"0\\"/>\\n                <mxCell id=\\"T-pgXY2fyKOihok5m5tA-1\\" value=\\"graph TB&#10;    subgraph Tool Management&#10;        TM[Tool Manager] --&gt; |Manages| TR[Tool Registry]&#10;        TR --&gt; |Registers| T1[Web Search Tool]&#10;        TR --&gt; |Registers| T2[Code Eval Tool]&#10;        TR --&gt; |Registers| T3[Math Tool]&#10;        &#10;        TM --&gt; |Provides| TI[Tool Interface]&#10;        TI --&gt; |Used by| DA[Declarative Agent]&#10;    end&#10;&#10;    subgraph Tool Execution&#10;        T1 --&gt; |Uses| WS[Web Search API]&#10;        T2 --&gt; |Uses| CE[Code Executor]&#10;        T3 --&gt; |Uses| ME[Math Engine]&#10;        &#10;        WS --&gt; |Returns| R1[Search Results]&#10;        CE --&gt; |Returns| R2[Execution Results]&#10;        ME --&gt; |Returns| R3[Math Results]&#10;    end&#10;&#10;    subgraph Error Handling&#10;        TM --&gt; |Manages| EH[Error Handler]&#10;        EH --&gt; |Handles| E1[API Errors]&#10;        EH --&gt; |Handles| E2[Execution Errors]&#10;        EH --&gt; |Handles| E3[Validation Errors]&#10;    end&#10;&#10;    classDef core fill:#f9f,stroke:#333,stroke-width:2px&#10;    classDef tool fill:#bbf,stroke:#333,stroke-width:2px&#10;    classDef handler fill:#bfb,stroke:#333,stroke-width:2px&#10;&#10;    class TM,TR,TI core&#10;    class T1,T2,T3,WS,CE,ME tool&#10;    class EH,E1,E2,E3 handler\\" style=\\"shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;\\" vertex=\\"1\\" parent=\\"1\\">\\n                    <mxGeometry x=\\"240\\" y=\\"170\\" width=\\"300\\" height=\\"300\\" as=\\"geometry\\"/>\\n                </mxCell>\\n            </root>\\n        </mxGraphModel>\\n    </diagram><diagram id=\\"44PLLl0pgulDx2n2xTWC\\" name=\\"Type System\\">\\n        <mxGraphModel dx=\\"767\\" dy=\\"620\\" grid=\\"0\\" gridSize=\\"10\\" guides=\\"1\\" tooltips=\\"1\\" connect=\\"1\\" arrows=\\"1\\" fold=\\"1\\" page=\\"1\\" pageScale=\\"1\\" pageWidth=\\"850\\" pageHeight=\\"1100\\" background=\\"#ffffff\\" math=\\"0\\" shadow=\\"1\\">\\n            <root>\\n                <mxCell id=\\"0\\"/>\\n                <mxCell id=\\"1\\" parent=\\"0\\"/>\\n                <mxCell id=\\"jTONh3Pudjw2xIwc2DDu-1\\" value=\\"classDiagram&#10;    class TypeSystem {&#10;        +register_type(name, validator, serializer)&#10;        +validate(value, type_def)&#10;        +parse_type_string(type_str)&#10;        -_validate_complex_type(value, type_def)&#10;    }&#10;&#10;    class TypeDefinition {&#10;        +name: str&#10;        +validators: List&#10;        +serializers: Optional&#10;        +validate(value)&#10;        +serialize(value)&#10;    }&#10;&#10;    class DeclarativeAgent {&#10;        +input: str&#10;        +output: str&#10;        +tools: List&#10;        +validate_input(value)&#10;        +validate_output(value)&#10;    }&#10;&#10;    class Validator {&#10;        +validate(value)&#10;        +coerce(value)&#10;    }&#10;&#10;    TypeSystem --&gt; TypeDefinition : manages&#10;    DeclarativeAgent --&gt; TypeSystem : uses&#10;    TypeDefinition --&gt; Validator : uses&#10;&#10;\\" style=\\"shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;\\" vertex=\\"1\\" parent=\\"1\\">\\n                    <mxGeometry x=\\"242\\" y=\\"169\\" width=\\"300\\" height=\\"300\\" as=\\"geometry\\"/>\\n                </mxCell>\\n            </root>\\n        </mxGraphModel>\\n    </diagram></mxfile>"}',
+            cls="mxgraph",
+        ),
+        Script(type="text/javascript", src="https://viewer.diagrams.net/js/viewer-static.min.js"),
+    )
+```
+
+### modules\playground.py
+
+- **Lines**: 322
+- **Size**: 9.75 KB
+- **Last modified**: 2025-02-11 22:25:43
+- **Used by**: 1 other analyzed Python file(s)
+
+**Functions**:
+- `get_playground(...)`
+- `get_playground2(...)`
+- `Playground(...)`
+
+**Content**:
+```py
+from fasthtml.common import *
+from fasthtml.svg import *
+from monsterui.all import *
+
+CODE = """
+var pixelSize = 16
+import 'https://cdn.interactjs.io/v1.9.20/auto-start/index.js'
+import 'https://cdn.interactjs.io/v1.9.20/actions/drag/index.js'
+import 'https://cdn.interactjs.io/v1.9.20/actions/resize/index.js'
+import 'https://cdn.interactjs.io/v1.9.20/modifiers/index.js'
+import 'https://cdn.interactjs.io/v1.9.20/dev-tools/index.js'
+import interact from 'https://cdn.interactjs.io/v1.9.20/interactjs/index.js'
+
+interact('.rainbow-pixel-canvas')
+  .draggable({
+    max: Infinity,
+    maxPerElement: Infinity,
+    origin: 'self',
+    modifiers: [
+      interact.modifiers.snap({
+        // snap to the corners of a grid
+        targets: [
+          interact.snappers.grid({ x: pixelSize, y: pixelSize })
+        ]
+      })
+    ],
+    listeners: {
+      // draw colored squares on move
+      move: function (event) {
+        var context = event.target.getContext('2d')
+        // calculate the angle of the drag direction
+        var dragAngle = 180 * Math.atan2(event.dx, event.dy) / Math.PI
+
+        // set color based on drag angle and speed
+        context.fillStyle =
+          'hsl(' +
+          dragAngle +
+          ', 86%, ' +
+          (30 + Math.min(event.speed / 1000, 1) * 50) +
+          '%)'
+
+        // draw squares
+        context.fillRect(
+          event.pageX - pixelSize / 2,
+          event.pageY - pixelSize / 2,
+          pixelSize,
+          pixelSize
+        )
+      }
+    }
+  })
+  // clear the canvas on doubletap
+  .on('doubletap', function (event) {
+    var context = event.target.getContext('2d')
+
+    context.clearRect(0, 0, context.canvas.width, context.canvas.height)
+    resizeCanvases()
+  })
+
+function resizeCanvases () {
+  [].forEach.call(document.querySelectorAll('.rainbow-pixel-canvas'), function (
+    canvas
+  ) {
+    delete canvas.width
+    delete canvas.height
+
+    var rect = canvas.getBoundingClientRect()
+
+    canvas.width = rect.width
+    canvas.height = rect.height
+  })
+}
+
+resizeCanvases()
+
+// interact.js can also add DOM event listeners
+interact(window).on('resize', resizeCanvases)
+"""
+
+CODE2 = """
+import 'https://cdn.interactjs.io/v1.9.20/auto-start/index.js'
+import 'https://cdn.interactjs.io/v1.9.20/actions/drag/index.js'
+import 'https://cdn.interactjs.io/v1.9.20/actions/resize/index.js'
+import 'https://cdn.interactjs.io/v1.9.20/modifiers/index.js'
+import 'https://cdn.interactjs.io/v1.9.20/dev-tools/index.js'
+import interact from 'https://cdn.interactjs.io/v1.9.20/interactjs/index.js'
+const svg = document.getElementById('connections');
+
+    // Function to draw an SVG line between two points
+    function createConnectionLine(x1, y1, x2, y2) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", x1);
+      line.setAttribute("y1", y1);
+      line.setAttribute("x2", x2);
+      line.setAttribute("y2", y2);
+      line.setAttribute("stroke", "red");
+      line.setAttribute("stroke-width", "1");
+      return line;
+    }
+
+    // Function to update connection lines
+    function updateConnections() {
+      // Clear existing connections
+      svg.innerHTML = '';
+
+      // Get the positions of the nodes
+      const node1 = document.getElementById('node1');
+      const node2 = document.getElementById('node2');
+      const rect1 = node1.getBoundingClientRect();
+      const rect2 = node2.getBoundingClientRect();
+
+      // Calculate the centers of the nodes
+      const x1 = rect1.left + rect1.width / 2;
+      const y1 = rect1.top + rect1.height / 2;
+      const x2 = rect2.left + rect2.width / 2;
+      const y2 = rect2.top + rect2.height / 2;
+
+      // Create and append a connection line
+      const line = createConnectionLine(x1, y1, x2, y2);
+      svg.appendChild(line);
+    }
+
+    // Initialize Interact.js
+    interact('.node').draggable({
+      listeners: {
+        move(event) {
+          // Move the dragged node
+          const target = event.target;
+          const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+          const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+          target.style.transform = `translate(${x}px, ${y}px)`;
+          target.setAttribute('data-x', x);
+          target.setAttribute('data-y', y);
+
+          // Update the connections
+          updateConnections();
+        }
+      }
+    });
+
+    // Draw initial connections
+    updateConnections();
+"""
+
+CODE3 = """
+// Initial data
+        let data = {
+            nodes: [
+                {id: 1, name: "Node 1"},
+                {id: 2, name: "Node 2"},
+                {id: 3, name: "Node 3"}
+            ],
+            links: [
+                {source: 0, target: 1},
+                {source: 1, target: 2}
+            ]
+        };
+
+        // Create SVG container
+        const svg = d3.select("svg");
+        const width = +svg.attr("width");
+        const height = +svg.attr("height");
+
+        // Create force simulation
+        const simulation = d3.forceSimulation(data.nodes)
+            .force("link", d3.forceLink(data.links).id(d => d.id))
+            .force("charge", d3.forceManyBody().strength(-300))
+            .force("center", d3.forceCenter(width / 2, height / 2));
+
+        // Create the links
+        const link = svg.append("g")
+            .selectAll("line")
+            .data(data.links)
+            .join("line")
+            .attr("class", "link");
+
+        // Create the nodes
+        const node = svg.append("g")
+            .selectAll("g")
+            .data(data.nodes)
+            .join("g")
+            .attr("class", "node");
+
+        // Add circles to nodes
+        node.append("circle")
+            .attr("r", 10)
+            .style("fill", (d, i) => d3.schemeCategory10[i % 10]);
+
+        // Add labels to nodes
+        node.append("text")
+            .attr("dx", 12)
+            .attr("dy", ".35em")
+            .text(d => d.name);
+
+        // Add drag behavior
+        node.call(d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended));
+
+        // Double click on background to add node
+        svg.on("dblclick", function(event) {
+            const coords = d3.pointer(event);
+            const newNode = {
+                id: data.nodes.length + 1,
+                name: `Node ${data.nodes.length + 1}`,
+                x: coords[0],
+                y: coords[1]
+            };
+            data.nodes.push(newNode);
+            
+            // Add link to nearest node
+            if (data.nodes.length > 1) {
+                const lastNode = data.nodes[data.nodes.length - 2];
+                data.links.push({
+                    source: lastNode,
+                    target: newNode
+                });
+            }
+            
+            updateGraph();
+        });
+
+        // Update function to refresh the graph
+        function updateGraph() {
+            // Update links
+            const link = svg.selectAll(".link")
+                .data(data.links)
+                .join("line")
+                .attr("class", "link");
+
+            // Update nodes
+            const node = svg.selectAll(".node")
+                .data(data.nodes)
+                .join(
+                    enter => {
+                        const nodeEnter = enter.append("g")
+                            .attr("class", "node")
+                            .call(d3.drag()
+                                .on("start", dragstarted)
+                                .on("drag", dragged)
+                                .on("end", dragended));
+
+                        nodeEnter.append("circle")
+                            .attr("r", 10)
+                            .style("fill", (d, i) => d3.schemeCategory10[i % 10]);
+
+                        nodeEnter.append("text")
+                            .attr("dx", 12)
+                            .attr("dy", ".35em")
+                            .text(d => d.name);
+
+                        return nodeEnter;
+                    }
+                );
+
+            // Update simulation
+            simulation.nodes(data.nodes);
+            simulation.force("link").links(data.links);
+            simulation.alpha(1).restart();
+        }
+
+        // Simulation tick function
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            node
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+"""
+
+
+def get_playground():
+    return Container(
+        Canvas(cls="rainbow-pixel-canvas w-full h-full"),
+        P("Drag to draw. Double tap to clear."),
+        Script(code=CODE, type="module"),
+        cls="w-full h-full",
+    )
+
+
+def get_playground2():
+    return Container(
+        Svg(
+            width="800",
+            height="600",
+        ),
+        Script(code=CODE3),
+    )
+
+
+def Playground():
+    return Div(cls="flex flex-col w-full")(
+        Div(cls="px-4 py-2 ")(
+            H3("interact.js demo"),
+            P("Rainbows!", cls=TextFont.muted_sm),
+        ),
+        get_playground2(),
+    )
+```
+
+## Python Dependencies
+
+This section shows Python modules and their dependencies within the project.
+
+### Internal Dependencies
+
+```mermaid
+graph TD;
+    F0["components\charts\tool_system.py"];
+    F1["components\charts\core_architecture.py"];
+    F2["components\theme.py"];
+    F3["components\util.py"];
+    F4["modules\agent_list.py"];
+    F5["modules\playground.py"];
+    F6["components\__init__.py"];
+    F7["components\history_grid_alt.py"];
+    F8["modules\__init__.py"];
+    F9["components\sidebar.py"];
+    F10["modules\agent_detail.py"];
+    F11["modules\settings.py"];
+    F12["components\charts\agent_workflow.py"];
+    F13["components\history_grid.py"];
+    F14["schwarm_app.py"];
+    F15["modules\about.py"];
+    F6 --> F1;
+    F6 --> F2;
+    F6 --> F9;
+    F6 --> F12;
+    F6 --> F13;
+    F8 --> F5;
+    F8 --> F11;
+    F8 --> F10;
+    F8 --> F4;
+```
+
+### Dependency List (Plain Text)
+
+- **components\__init__.py** depends on:
+  - components\charts\agent_workflow.py
+  - components\charts\core_architecture.py
+  - components\history_grid.py
+  - components\sidebar.py
+  - components\theme.py
+- **modules\__init__.py** depends on:
+  - modules\agent_detail.py
+  - modules\agent_list.py
+  - modules\playground.py
+  - modules\settings.py
+## Common Code Patterns
+
+### Python Patterns
+
+#### Common Imports
+
+- `from fasthtml.common import *` (14 files)
+- `from monsterui.all import *` (14 files)
+- `from fasthtml.svg import *` (12 files)
+- `import json` (3 files)
+- `from datetime import datetime` (3 files)
+- `from .charts.agent_workflow import AgentWorkflowChart` (1 files)
+- `from .charts.core_architecture import CoreArchitectureChart` (1 files)
+- `from .history_grid import HistoryGrid` (1 files)
+- `from .sidebar import Sidebar` (1 files)
+- `from .theme import Theme, ThemeDialog` (1 files)
+- *(and more...)*
+

@@ -1,13 +1,15 @@
 """Mixin class for integrating with the dspy library."""
 
 import inspect
-import sys
-from typing import Any, Literal
+import typing
+from typing import Any, Literal, Optional
 
+from flock.core.flock_registy import get_registry
 from flock.core.logging.logging import get_logger
 from flock.core.util.input_resolver import get_callable_members, split_top_level
 
-logger = get_logger("flock")
+logger = get_logger("mixin.dspy")
+FlockRegistry = get_registry()  # Get singleton instance
 
 AgentType = (
     Literal["ReAct"] | Literal["Completion"] | Literal["ChainOfThought"] | None
@@ -20,128 +22,146 @@ class DSPyIntegrationMixin:
     def create_dspy_signature_class(
         self, agent_name, description_spec, fields_spec
     ) -> Any:
-        """Trying to create a dynamic class using dspy library."""
-        # ---------------------------
-        # 1. Parse the class specification.
-        # ---------------------------
-        import dspy
+        """Creates a dynamic DSPy Signature class from string specifications."""
+        # ... (import dspy) ...
+        import dspy  # Import DSPy locally within the method
 
         base_class = dspy.Signature
-
-        # Start building the class dictionary with a docstring and annotations dict.
         class_dict = {"__doc__": description_spec, "__annotations__": {}}
 
-        # ---------------------------
-        # 2. Split the fields specification into inputs and outputs.
-        # ---------------------------
         if "->" in fields_spec:
             inputs_spec, outputs_spec = fields_spec.split("->", 1)
         else:
             inputs_spec, outputs_spec = fields_spec, ""
 
-        # ---------------------------
-        # 3. Draw the rest of the owl.
-        # ---------------------------
         def parse_field(field_str):
-            """Parser.
-
-            Parse a field of the form:
-                <name> [ : <type> ] [ | <desc> ]
-            Returns a tuple: (name, field_type, desc)
-            """
+            """Parses 'name: type_str | description'"""
             field_str = field_str.strip()
             if not field_str:
                 return None
 
             parts = field_str.split("|", 1)
-            main_part = parts[0].strip()  # contains name and (optionally) type
+            main_part = parts[0].strip()
             desc = parts[1].strip() if len(parts) > 1 else None
 
             if ":" in main_part:
                 name, type_str = [s.strip() for s in main_part.split(":", 1)]
             else:
                 name = main_part
-                type_str = "str"  # default type
+                type_str = "str"  # Default type
 
-            # Evaluate the type. Since type can be any valid expression (including custom types),
-            # we use eval. (Be cautious if using eval with untrusted input.)
-            try:
-                # TODO: We have to find a way to avoid using eval here.
-                # This is a security risk, as it allows arbitrary code execution.
-                # Figure out why the following code doesn't work as well as the eval.
+            # --- Type Resolution using FlockRegistry ---
+            field_type = None
+            # 1. Check built-ins
+            builtins_map = {
+                "str": str,
+                "int": int,
+                "float": float,
+                "bool": bool,
+                "list": list,
+                "dict": dict,
+                "Any": Any,
+            }
+            if type_str in builtins_map:
+                field_type = builtins_map[type_str]
+            else:
+                # 2. Check typing module for simple generics (List, Dict, Optional etc.) - Basic parsing
+                # More robust parsing needed for nested types like list[dict[str, int]]
+                typing_origin = None
+                typing_args = ()
+                origin_map = {
+                    "List": list,
+                    "Dict": dict,
+                    "Optional": Optional,
+                    "Literal": Literal,
+                }  # etc.
+                generic_match = (
+                    typing._GenericAlias
+                    if hasattr(typing, "_GenericAlias")
+                    else None
+                )  # Handle Python version differences
 
-                # import dspy
+                # Basic check for common patterns like List[str] or Optional[int]
+                if "[" in type_str and type_str.endswith("]"):
+                    try:
+                        base_type_str = type_str[: type_str.find("[")]
+                        inner_type_str = type_str[type_str.find("[") + 1 : -1]
 
-                # field_type = dspy.PythonInterpreter(
-                #     sys.modules[__name__].__dict__ | sys.modules["__main__"].__dict__
-                # ).execute(type_str)
+                        if base_type_str in origin_map:
+                            typing_origin = origin_map[base_type_str]
+                            # Try to resolve inner type (recursive call would be better)
+                            inner_type = parse_field(
+                                f"_{inner_type_str}"
+                            )  # Parse inner type string
+                            if inner_type:
+                                typing_args = (
+                                    inner_type[1],
+                                )  # Use the resolved type (index 1)
+                                field_type = typing_origin[typing_args]  # type: ignore
 
-                try:
-                    field_type = eval(type_str, sys.modules[__name__].__dict__)
-                except Exception as e:
-                    logger.warning(
-                        "Failed to evaluate type_str in __name__" + str(e)
-                    )
-                    field_type = eval(
-                        type_str, sys.modules["__main__"].__dict__
-                    )
+                        # Basic Literal parsing
+                        elif base_type_str == "Literal":
+                            literal_vals = [
+                                s.strip().strip("'\"")
+                                for s in inner_type_str.split(",")
+                            ]
+                            field_type = Literal[tuple(literal_vals)]  # type: ignore
 
-            except Exception as ex:
-                # AREPL fix - var
-                logger.warning(
-                    "Failed to evaluate type_str in __main__" + str(ex)
-                )
-                try:
-                    field_type = eval(
-                        f"exec_locals.get('{type_str}')",
-                        sys.modules["__main__"].__dict__,
-                    )
-                except Exception as ex_arepl:
-                    logger.warning(
-                        "Failed to evaluate type_str in exec_locals"
-                        + str(ex_arepl)
-                    )
-                    field_type = str
+                    except Exception as e:
+                        logger.warning(
+                            f"Could not parse complex type '{type_str}': {e}. Falling back."
+                        )
+
+                # 3. If not resolved yet, look up in FlockRegistry
+                if field_type is None:
+                    try:
+                        field_type = FlockRegistry.get_type(type_str)
+                        logger.debug(
+                            f"Resolved type '{type_str}' using FlockRegistry."
+                        )
+                    except KeyError:
+                        logger.warning(
+                            f"Type '{type_str}' not found in built-ins, basic typing, or FlockRegistry. Defaulting to 'str'."
+                        )
+                        field_type = str  # Fallback to string
 
             return name, field_type, desc
 
         def process_fields(fields_string, field_kind):
-            """Process a comma-separated list of field definitions.
-
-            field_kind: "input" or "output" determines which Field constructor to use.
-            """
+            # ... (rest of process_fields remains the same, using the parsed field_type) ...
             if not fields_string.strip():
                 return
 
-            # Split on commas.
             for field in split_top_level(fields_string):
                 if field.strip():
                     parsed = parse_field(field)
                     if not parsed:
                         continue
                     name, field_type, desc = parsed
-                    class_dict["__annotations__"][name] = field_type
+                    class_dict["__annotations__"][name] = (
+                        field_type  # Use resolved type
+                    )
 
-                    # Use the proper Field constructor.
-                    if field_kind == "input":
-                        if desc is not None:
-                            class_dict[name] = dspy.InputField(desc=desc)
-                        else:
-                            class_dict[name] = dspy.InputField()
-                    elif field_kind == "output":
-                        if desc is not None:
-                            class_dict[name] = dspy.OutputField(desc=desc)
-                        else:
-                            class_dict[name] = dspy.OutputField()
-                    else:
-                        raise ValueError("Unknown field kind: " + field_kind)
+                    FieldClass = (
+                        dspy.InputField
+                        if field_kind == "input"
+                        else dspy.OutputField
+                    )
+                    class_dict[name] = (
+                        FieldClass(desc=desc)
+                        if desc is not None
+                        else FieldClass()
+                    )
 
-        # Process input fields (to be used with my.InputField)
         process_fields(inputs_spec, "input")
-        # Process output fields (to be used with my.OutputField)
         process_fields(outputs_spec, "output")
 
-        return type("dspy_" + agent_name, (base_class,), class_dict)
+        # Create and return the dynamic class
+        DynamicSignature = type("dspy_" + agent_name, (base_class,), class_dict)
+        logger.debug(
+            f"Created DSPy Signature: {DynamicSignature.__name__} with fields: {DynamicSignature.__annotations__}"
+        )
+        return DynamicSignature
 
     def _configure_language_model(
         self, model, use_cache, temperature, max_tokens
