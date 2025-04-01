@@ -7,12 +7,13 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from flock.core.flock_registy import COMPONENT_BASE_TYPES
-from flock.core.logging.logging import get_logger
-
 # Import the registry
 # from .callable_registry import CallableRegistry # Old way
-from flock.core.registry.flock_registry import get_registry  # New way
+from flock.core.flock_registry import (
+    COMPONENT_BASE_TYPES,
+    get_registry,  # New way
+)
+from flock.core.logging.logging import get_logger
 
 logger = get_logger("serialization.utils")
 FlockRegistry = get_registry()  # Get singleton instance

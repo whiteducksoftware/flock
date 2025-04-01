@@ -4,7 +4,7 @@ import inspect
 import typing
 from typing import Any, Literal, Optional
 
-from flock.core.flock_registy import get_registry
+from flock.core.flock_registry import get_registry
 from flock.core.logging.logging import get_logger
 from flock.core.util.input_resolver import get_callable_members, split_top_level
 

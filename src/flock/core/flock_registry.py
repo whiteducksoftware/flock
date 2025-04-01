@@ -1,27 +1,43 @@
-# src/flock/core/registry/flock_registry.py
+# src/flock/core/flock_registry.py
 """Centralized registry for managing Agents, Callables, Types, and Component Classes
 within the Flock framework to support dynamic lookup and serialization.
 """
+
+from __future__ import annotations  # Add this at the very top
 
 import importlib
 import inspect
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import is_dataclass
-from typing import Any, Literal, Optional, TypeVar, Union
+from typing import (  # Add TYPE_CHECKING
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    Optional,
+    TypeVar,
+    Union,
+)
 
 from pydantic import BaseModel
 
-# Import base types for component checking (use try-except for robustness)
-try:
-    from flock.core.flock_agent import FlockAgent
+if TYPE_CHECKING:
+    from flock.core.flock_agent import (
+        FlockAgent,  # Import only for type checking
+    )
     from flock.core.flock_evaluator import FlockEvaluator
     from flock.core.flock_module import FlockModule
     from flock.core.flock_router import FlockRouter
 
     COMPONENT_BASE_TYPES = (FlockModule, FlockEvaluator, FlockRouter)
-except ImportError:
-    COMPONENT_BASE_TYPES = ()  # Fallback if core types aren't available during setup
+    IS_COMPONENT_CHECK_ENABLED = True
+else:
+    # Define dummy types or skip check if not type checking
+    FlockAgent = Any  # Or define a dummy class
+    COMPONENT_BASE_TYPES = ()
+    IS_COMPONENT_CHECK_ENABLED = False
+
+# Fallback if core types aren't available during setup
 
 from flock.core.logging.logging import get_logger
 
@@ -30,7 +46,8 @@ T = TypeVar("T")
 
 
 class FlockRegistry:
-    """Singleton registry for Agents, Callables (functions/methods),
+    """Singleton registry for Agents, Callables (functions/methods).
+
     Types (Pydantic/Dataclasses used in signatures), and Component Classes
     (Modules, Evaluators, Routers).
     """
@@ -408,13 +425,19 @@ def _auto_register_core():
 
     # Auto-register standard tools
     try:
-        from flock.core import tools
+        from flock.core.tools import (
+            azure_tools,
+            basic_tools,
+            dev_tools,
+            llm_tools,
+            markdown_tools,
+        )
 
-        _registry_instance.register_module_components(tools.basic_tools)
-        _registry_instance.register_module_components(tools.azure_tools)
-        _registry_instance.register_module_components(tools.dev_tools.github)
-        _registry_instance.register_module_components(tools.llm_tools)
-        _registry_instance.register_module_components(tools.markdown_tools)
+        _registry_instance.register_module_components(basic_tools)
+        _registry_instance.register_module_components(azure_tools)
+        _registry_instance.register_module_components(dev_tools)
+        _registry_instance.register_module_components(llm_tools)
+        _registry_instance.register_module_components(markdown_tools)
     except ImportError as e:
         logger.warning(f"Could not auto-register standard tools: {e}")
 
