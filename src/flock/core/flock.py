@@ -527,6 +527,45 @@ class Flock(BaseModel, Serializable):
             host=host, port=port, server_name=server_name, create_ui=create_ui
         )
 
+    # --- CLI Start Method ---
+    def start_cli(
+        self,
+        server_name: str = "Flock CLI",
+        show_results: bool = False,
+        edit_mode: bool = False,
+    ) -> None:
+        """Start a CLI interface for this Flock instance.
+
+        This method loads the CLI with the current Flock instance already available,
+        allowing users to execute, edit, or manage agents from the existing configuration.
+
+        Args:
+            server_name: Optional name for the CLI interface
+            show_results: Whether to initially show results of previous runs
+            edit_mode: Whether to open directly in edit mode
+        """
+        # Import locally to avoid circular imports
+        try:
+            from flock.cli.loaded_flock_cli import start_loaded_flock_cli
+        except ImportError:
+            logger.error(
+                "CLI components not found. Cannot start CLI. "
+                "Ensure the CLI modules are properly installed."
+            )
+            return
+
+        logger.info(
+            f"Starting CLI interface with loaded Flock instance ({len(self._agents)} agents)"
+        )
+
+        # Pass the current Flock instance to the CLI
+        start_loaded_flock_cli(
+            flock=self,
+            server_name=server_name,
+            show_results=show_results,
+            edit_mode=edit_mode,
+        )
+
     # --- Static Method Loaders (Keep for convenience) ---
     @staticmethod
     def load_from_file(file_path: str) -> Flock:
