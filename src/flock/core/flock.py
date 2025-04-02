@@ -73,6 +73,10 @@ class Flock(BaseModel, Serializable):
     It is serializable to various formats like YAML and JSON.
     """
 
+    name: str = Field(
+        default_factory=lambda: f"flock_{uuid.uuid4().hex[:8]}",
+        description="A unique identifier for this Flock instance.",
+    )
     model: str | None = Field(
         default="openai/gpt-4o",
         description="Default model identifier to be used for agents if not specified otherwise.",

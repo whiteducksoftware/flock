@@ -1,16 +1,16 @@
 import json
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from pydantic import Field
 from tqdm import tqdm
 
-if TYPE_CHECKING:
-    from flock.core import FlockAgent
-
-
 from flock.core.context.context import FlockContext
+
+# if TYPE_CHECKING:
+#     from flock.core import FlockAgent
+from flock.core.flock_agent import FlockAgent
 from flock.core.flock_module import FlockModule, FlockModuleConfig
 from flock.core.logging.logging import get_logger
 from flock.modules.memory.memory_parser import MemoryMappingParser
@@ -83,7 +83,7 @@ class MemoryModule(FlockModule):
 
     async def initialize(
         self,
-        agent: "FlockAgent",
+        agent: FlockAgent,
         inputs: dict[str, Any],
         context: FlockContext | None = None,
     ) -> None:
@@ -101,7 +101,7 @@ class MemoryModule(FlockModule):
 
     async def pre_evaluate(
         self,
-        agent: "FlockAgent",
+        agent: FlockAgent,
         inputs: dict[str, Any],
         context: FlockContext | None = None,
     ) -> dict[str, Any]:
@@ -166,7 +166,7 @@ class MemoryModule(FlockModule):
         return f"{folder}{module_name}_{base}_{timestamp}{ext}"
 
     async def search_memory(
-        self, agent: "FlockAgent", query: dict[str, Any]
+        self, agent: FlockAgent, query: dict[str, Any]
     ) -> list[str]:
         """Search memory for the query."""
         if not self.memory_store:
@@ -212,7 +212,7 @@ class MemoryModule(FlockModule):
             return query
 
     async def add_to_memory(
-        self, agent: "FlockAgent", data: dict[str, Any]
+        self, agent: FlockAgent, data: dict[str, Any]
     ) -> None:
         """Add data to memory."""
         if not self.memory_store:
@@ -226,7 +226,7 @@ class MemoryModule(FlockModule):
 
     async def post_evaluate(
         self,
-        agent: "FlockAgent",
+        agent: FlockAgent,
         inputs: dict[str, Any],
         result: dict[str, Any],
         context: FlockContext | None = None,
@@ -255,7 +255,7 @@ class MemoryModule(FlockModule):
             self.save_memory()
 
     async def _extract_concepts(
-        self, agent: "FlockAgent", text: str, number_of_concepts: int = 3
+        self, agent: FlockAgent, text: str, number_of_concepts: int = 3
     ) -> set[str]:
         """Extract concepts using the agent's LLM capabilities."""
         existing_concepts = set()
@@ -287,7 +287,7 @@ class MemoryModule(FlockModule):
 
     async def _summarize_mode(
         self,
-        agent: "FlockAgent",
+        agent: FlockAgent,
         inputs: dict[str, Any],
         result: dict[str, Any],
     ) -> str:
@@ -308,7 +308,7 @@ class MemoryModule(FlockModule):
 
     async def _semantic_splitter_mode(
         self,
-        agent: "FlockAgent",
+        agent: FlockAgent,
         inputs: dict[str, Any],
         result: dict[str, Any],
     ) -> str | list[dict[str, str]]:
@@ -329,7 +329,7 @@ class MemoryModule(FlockModule):
 
     async def _character_splitter_mode(
         self,
-        agent: "FlockAgent",
+        agent: FlockAgent,
         inputs: dict[str, Any],
         result: dict[str, Any],
     ) -> list[str]:
@@ -342,7 +342,7 @@ class MemoryModule(FlockModule):
 
     async def _get_chunks(
         self,
-        agent: "FlockAgent",
+        agent: FlockAgent,
         inputs: dict[str, Any],
         result: dict[str, Any] | None,
     ) -> str | list[str]:
@@ -363,7 +363,7 @@ class MemoryModule(FlockModule):
         else:
             raise ValueError(f"Unknown splitting mode: {mode}")
 
-    async def _store_chunk(self, agent: "FlockAgent", chunk: str) -> None:
+    async def _store_chunk(self, agent: FlockAgent, chunk: str) -> None:
         """Store a single chunk in memory."""
         chunk_concepts = await self._extract_concepts(
             agent, chunk, self.config.number_of_concepts_to_extract
@@ -386,7 +386,7 @@ class MemoryModule(FlockModule):
         )
 
     async def _store_chunks(
-        self, agent: "FlockAgent", chunks: str | list[str]
+        self, agent: FlockAgent, chunks: str | list[str]
     ) -> None:
         """Store chunks (single or multiple) in memory."""
         if isinstance(chunks, str):
