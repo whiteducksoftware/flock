@@ -6,8 +6,12 @@ from typing import Any, Literal
 from pydantic import Field
 from tqdm import tqdm
 
-from flock.core import FlockAgent, FlockModule, FlockModuleConfig
 from flock.core.context.context import FlockContext
+
+# if TYPE_CHECKING:
+#     from flock.core import FlockAgent
+from flock.core.flock_agent import FlockAgent
+from flock.core.flock_module import FlockModule, FlockModuleConfig
 from flock.core.logging.logging import get_logger
 from flock.modules.memory.memory_parser import MemoryMappingParser
 from flock.modules.memory.memory_storage import FlockMemoryStore, MemoryEntry
@@ -282,7 +286,10 @@ class MemoryModule(FlockModule):
         return set(concept_list)
 
     async def _summarize_mode(
-        self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
     ) -> str:
         """Extract information chunks using summary mode."""
         split_signature = agent.create_dspy_signature_class(
@@ -300,7 +307,10 @@ class MemoryModule(FlockModule):
         return "\n".join(split_result.chunks)
 
     async def _semantic_splitter_mode(
-        self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
     ) -> str | list[dict[str, str]]:
         """Extract information chunks using semantic mode."""
         split_signature = agent.create_dspy_signature_class(
@@ -318,7 +328,10 @@ class MemoryModule(FlockModule):
         return split_result.chunks
 
     async def _character_splitter_mode(
-        self, agent: FlockAgent, inputs: dict[str, Any], result: dict[str, Any]
+        self,
+        agent: FlockAgent,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
     ) -> list[str]:
         """Extract information chunks by splitting text into fixed character lengths."""
         full_text = json.dumps(inputs) + (json.dumps(result) if result else "")

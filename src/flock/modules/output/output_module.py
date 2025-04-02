@@ -3,11 +3,13 @@
 import json
 import os
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
 
-from flock.core import FlockAgent
+if TYPE_CHECKING:
+    from flock.core import FlockAgent
+
 from flock.core.context.context import FlockContext
 from flock.core.flock_module import FlockModule, FlockModuleConfig
 from flock.core.logging.formatters.themed_formatter import (
@@ -16,6 +18,10 @@ from flock.core.logging.formatters.themed_formatter import (
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.logging.logging import get_logger
 from flock.core.serialization.json_encoder import FlockJSONEncoder
+
+# from flock.core.logging.formatters.themes import OutputTheme
+# from flock.core.logging.logging import get_logger
+# from flock.core.serialization.json_encoder import FlockJSONEncoder
 
 logger = get_logger("module.output")
 
@@ -168,7 +174,7 @@ class OutputModule(FlockModule):
 
     async def post_evaluate(
         self,
-        agent: FlockAgent,
+        agent: "FlockAgent",
         inputs: dict[str, Any],
         result: dict[str, Any],
         context: FlockContext | None = None,

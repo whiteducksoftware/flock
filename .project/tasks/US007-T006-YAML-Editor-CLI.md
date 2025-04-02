@@ -1,147 +1,277 @@
-# Implement CLI YAML Editor for Agent Configurations
+# Task: YAML Editor CLI
 
-## Summary
+## ID
 
-Add a YAML editor to the CLI application that allows users to view, create, and edit agent and agent system configuration files.
+US007-T006
+
+## User Story Reference
+
+[US007-YAML-Serialization](../userstories/US007-YAML-Serialization.md)
 
 ## Description
 
-Now that agents and Flock systems can be serialized to and from YAML files, users need a convenient way to edit these files directly within the CLI application. This task involves creating a YAML editor similar to the existing settings editor, but specifically designed for agent configurations, with features tailored to the structure of agent and system YAML files.
+Add a YAML editor to the Flock CLI application that allows users to create, view, and edit agent and system configurations directly from the command line. This will provide a convenient way for users to work with YAML configurations without needing external tools.
 
-## User Story
-
-[US007-YAML-Serialization](.project/userstories/US007-YAML-Serialization.md)
-
-## Technical Requirements
-
-1. Add a "Agent Editor" option to the CLI main menu
-2. Implement a file browser to locate and select agent/system YAML files
-3. Create a YAML file viewer with syntax highlighting for agent configurations
-4. Implement an editor interface for modifying agent properties
-5. Add validation for agent configuration changes
-6. Implement file saving with automatic backup
-7. Add agent creation wizard for generating new agent configurations
-8. Provide templates for common agent types
-9. Support YAML-specific features like anchors and references
-
-## Test Requirements
-
-The following tests should be implemented to verify the YAML Editor CLI functionality:
-
-1. **CLI Integration Tests**:
-   - Test that the Agent Editor appears in the main CLI menu
-   - Verify navigation to and from the editor works correctly
-   - Test keyboard shortcuts and navigation within the editor
-   - Verify the editor respects CLI theme settings
-
-2. **File Browser Tests**:
-   - Test browsing through the file system to locate YAML files
-   - Verify file filtering shows only relevant files (.yaml, .yml)
-   - Test previewing agent YAML files before opening
-   - Verify handling of invalid or non-agent YAML files
-
-3. **Viewer Component Tests**:
-   - Test syntax highlighting for different YAML elements
-   - Verify all agent properties are displayed correctly
-   - Test rendering of comments and documentation
-   - Verify handling of large files and performance
-
-4. **Editor Interface Tests**:
-   - Test editing simple properties (strings, numbers, booleans)
-   - Verify editing complex properties (tools, evaluators, routers)
-   - Test validation feedback for invalid changes
-   - Verify UI responds appropriately to different input types
-
-5. **Wizard Tests**:
-   - Test agent creation wizard flow from start to finish
-   - Verify all agent templates can be created successfully
-   - Test each step of the wizard for correct validation
-   - Verify generated YAML files are valid and loadable
-
-6. **File Operation Tests**:
-   - Test saving edited files
-   - Verify backup files are created before overwriting
-   - Test handling of read-only files or permission issues
-   - Verify handling of concurrent file modifications
-
-7. **Validation Tests**:
-   - Test validation of agent properties (name, model, etc.)
-   - Verify validation of tool references
-   - Test validation of evaluator configurations
-   - Verify error messages are clear and helpful
-
-8. **Integration Tests with Flock**:
-   - Test creating an agent in the editor and loading it in Flock
-   - Verify editing an existing agent preserves functionality
-   - Test creating a complete system and running it
-   - Verify compatibility with all agent features
-
-9. **UI Usability Tests**:
-   - Verify clear feedback for user actions
-   - Test keyboard navigation throughout the editor
-   - Verify help text and documentation is accessible
-   - Test UI responsiveness and performance
-
-All tests should follow project testing conventions and focus on both functionality and usability.
-
-## Implementation Plan
-
-1. Extend the CLI menu to include an "Agent Editor" option
-2. Create a file browser component for navigating to agent YAML files
-   - Add support for listing files with `.yaml` and `.yml` extensions
-   - Display preview of agent configuration when selecting a file
-3. Implement a YAML viewer component:
-   - Add syntax highlighting for YAML structure
-   - Clearly display agent properties (name, model, tools, etc.)
-   - Show comments and documentation in the file
-4. Create an editor interface:
-   - Allow editing of simple properties (name, model, description)
-   - Provide special editors for complex properties (tools, evaluators)
-   - Implement validation for changes
-5. Add agent creation wizard:
-   - Create step-by-step wizard for defining new agents
-   - Provide templates for common agent types
-   - Generate valid YAML with helpful comments
-6. Implement saving with validation and backup:
-   - Validate changes before saving
-   - Create backups of existing files
-   - Provide error messages for invalid configurations
-
-## Definition of Done
-
-1. Users can access the Agent Editor from the CLI main menu
-2. Users can browse, select, and view agent YAML files
-3. The editor provides a clear view of agent configuration with syntax highlighting
-4. Users can edit agent properties with appropriate validation
-5. Changes can be saved to YAML files with automatic backups
-6. New agent configurations can be created from scratch or templates
-7. The editor works with both individual agent files and complete system files
-8. Changes made in the editor produce valid YAML files that can be loaded by Flock
-9. Editor properly handles YAML-specific features like anchors and references
-
-## Dependencies
-
-- [US007-T001-YAML-Serializable-Base](.project/tasks/US007-T001-YAML-Serializable-Base.md)
-- [US007-T002-FlockAgent-YAML-Serialization](.project/tasks/US007-T002-FlockAgent-YAML-Serialization.md)
-- [US007-T003-Flock-YAML-Serialization](.project/tasks/US007-T003-Flock-YAML-Serialization.md)
-
-## Related Tasks
-
-- [US007-T004-Callable-Reference-System](.project/tasks/US007-T004-Callable-Reference-System.md)
-- [US007-T005-YAML-Documentation-and-Examples](.project/tasks/US007-T005-YAML-Documentation-and-Examples.md)
-
-## Estimated Effort
-
-Medium-Large (5-7 hours)
-
-## Priority
-
-Medium
-
-## Assignee
-
-Unassigned
+The CLI should also be able to be started programmatically with an already loaded Flock system, enabling users to execute, edit, or manage agents from an existing configuration.
 
 ## Status
 
-Not Started
+In Progress
+
+## Required Changes
+
+1. **YAML File Browser**:
+   - Add a command to browse for YAML agent and system files
+   - Implement navigation through directories to locate YAML files
+   - Provide filtering and search capabilities for YAML files
+
+2. **YAML Viewer**:
+   - Create a command to preview YAML files in a formatted, readable way
+   - Implement syntax highlighting for different YAML elements
+   - Add collapsible sections for better navigation of complex files
+
+3. **YAML Editor**:
+   - Implement a command to edit YAML files with syntax validation
+   - Add auto-completion for common fields and values
+   - Provide templates for creating new agent configurations
+
+4. **Validation System**:
+   - Add real-time validation against expected schema
+   - Implement clear error messages for invalid configurations
+   - Provide suggestions to fix common errors
+
+5. **Conversion Utilities**:
+   - Add commands to convert between JSON and YAML formats
+   - Implement batch conversion for multiple files
+   - Provide options for different output formats and styles
+
+6. **Programmatic CLI Initialization**:
+   - Add a `start_cli()` method to the Flock class similar to the existing `start_api()` method
+   - Integrate with the existing CLI framework in `src/flock/cli`
+   - Support loading the CLI with a current Flock instance and its agents
+   - Add a new CLI mode for loaded Flock instances
+
+7. **Enhanced UI for Loaded Agents**:
+   - Display a summary of loaded agents in the Flock system
+   - Create an elegant visualization of agent components that abstracts the raw YAML
+   - Provide both a visual editor and raw YAML editor option for expert users
+
+8. **Flock Creation and Loading**:
+   - When no Flock is loaded, provide options to load a *.flock.yaml file or create a new basic Flock
+   - Add a new Flock creation wizard that guides users through the process of creating a basic Flock
+   - Seamlessly transition to agent management after Flock creation or loading
+
+## Main Menu Structure
+
+When starting without a loaded Flock instance:
+
+```
+=================================
+FLOCK CLI
+=================================
+
+1. Load Flock from YAML
+2. Create New Flock
+3. Theme Builder
+4. Settings
+5. Exit
+```
+
+When started with a loaded Flock instance:
+
+```
+=================================
+FLOCK CLI
+=================================
+Flock loaded with X agents: [agent1, agent2, ...]
+
+1. Execute Flock
+2. Start Web Server
+3. Start Web Server with UI
+4. Manage Agents
+5. View Results of Past Runs
+6. Edit YAML Configurations
+7. Settings
+8. Exit
+```
+
+### Execute Flock
+- Allow selection of a start agent
+- Input configuration
+- Execution options (logging, caching, etc.)
+- Execute and view results
+
+### Start Web Server / Start Web Server with UI
+- Configure host and port settings
+- Set server name
+- Launch web server with or without UI components
+- Display connection information
+
+### Manage Agents
+- List all agents in the system
+- Add/remove/edit agents
+- View agent details in an elegant visual format
+- Export/import agents
+
+### View Results of Past Runs
+- Show history of executions
+- Filter by agent, date, status
+- View detailed outputs
+- Export results
+
+## Acceptance Criteria
+
+1. Users can browse, view, and edit YAML files from the CLI
+2. Editor provides syntax highlighting and validation
+3. Users receive helpful error messages for invalid configurations
+4. Files can be converted between JSON and YAML formats
+5. Editor provides auto-completion and template support
+6. Changes are validated before saving to prevent corrupted files
+7. CLI can be started programmatically with a loaded Flock instance
+8. Loaded agents are displayed with summary information
+9. Users can execute the loaded Flock system directly from the CLI
+10. Agent components are visualized in an elegant, abstracted way
+11. Both visual editing and raw YAML editing are supported
+12. Users can create a new Flock from scratch using a guided wizard
+13. Users can choose between executing the Flock directly or via a web server
+
+## Testing
+
+1. Test browsing functionality with various directory structures
+2. Verify that syntax highlighting works correctly for all YAML elements
+3. Test validation with both valid and invalid configurations
+4. Verify that conversion between formats preserves all data
+5. Test editor with a range of file sizes and complexities
+6. Test programmatic CLI initialization with different Flock configurations
+7. Verify that all menu options work correctly with loaded agents
+8. Test visualization of agent components for clarity and usability
+9. Test Flock creation wizard with various configurations
+10. Test web server launch options with and without UI
+
+## Related Tasks
+
+- [US007-T001-YAML-Serializable-Base](done/US007-T001-YAML-Serializable-Base.md) (Completed)
+- [US007-T002.1-FlockAgent-YAML-Formatting](done/US007-T002.1-FlockAgent-YAML-Formatting.md) (Completed)
+- [US007-T003.2-YAML-Schema-Documentation](done/US007-T003.2-YAML-Schema-Documentation.md) (Completed)
+- [US007-T004-Callable-Reference-System](done/US007-T004-Callable-Reference-System.md) (Completed)
+
+## Implementation Details
+
+### Integration with Existing CLI
+
+The implementation should extend the current CLI framework in `src/flock/cli`:
+
+1. **Main Entry Point**:
+   - Update `src/flock/__init__.py` to recognize loaded Flock instances
+   - Remove the "Start advanced mode" menu item
+   - Add logic to display different menu options based on whether a Flock is loaded
+
+2. **New CLI Modules**:
+   - Create a `yaml_editor.py` module in `src/flock/cli` for YAML editing functionality
+   - Create a `manage_agents.py` module in `src/flock/cli` for managing loaded agents
+   - Create a `execute_flock.py` module in `src/flock/cli` for executing loaded Flock instances
+   - Create a `view_results.py` module in `src/flock/cli` for viewing execution history
+   - Create a `create_flock.py` module in `src/flock/cli` for the Flock creation wizard
+
+3. **Web Server Integration**:
+   - Update or create a `start_web_server.py` module in `src/flock/cli` that integrates with the loaded Flock
+   - Provide options for starting with or without UI components
+   - Leverage the existing `start_api()` method in the Flock class
+
+### Visualization of Agent Components
+
+For the elegant visualization of agent components, implement:
+
+1. **Component Diagram**: Visual representation of agent structure including:
+   - Input/output fields
+   - Tools and modules
+   - Evaluator configuration
+   - Router connections
+
+2. **Abstract Editor**: A form-based editor that abstracts the YAML structure:
+   - Field-by-field editing with validation
+   - Component addition/removal through UI controls
+   - Connection management for multi-agent systems
+   - Preview of changes before saving
+
+3. **Expert Mode**: Toggle between abstract view and raw YAML:
+   - Syntax highlighting
+   - Schema validation
+   - Auto-completion
+   - Side-by-side comparison of visual and YAML representations
+
+### Flock Creation Wizard
+
+Implement a guided wizard for creating a new Flock:
+
+1. **Basic Configuration**:
+   - Flock name and description
+   - Default model selection
+   - Logging configuration
+   - Execution options (local vs. Temporal)
+
+2. **Initial Agent Creation**:
+   - Quick creation of a simple agent with basic input/output
+   - Options to add tools and modules
+   - Templates for common agent patterns
+
+3. **Save Options**:
+   - Save to YAML file
+   - Continue editing in the CLI
+   - Immediately execute
+
+### Flock Class Integration
+
+Add the following method to the `Flock` class in `src/flock/core/flock.py`:
+
+```python
+def start_cli(
+    self,
+    server_name: str = "Flock CLI",
+    show_results: bool = False,
+    edit_mode: bool = False,
+) -> None:
+    """Start a CLI interface for this Flock instance.
+    
+    This method loads the CLI with the current Flock instance already available,
+    allowing users to execute, edit, or manage agents from the existing configuration.
+    
+    Args:
+        server_name: Optional name for the CLI interface
+        show_results: Whether to initially show results of previous runs
+        edit_mode: Whether to open directly in edit mode
+    """
+    # Import locally to avoid circular imports
+    from flock.cli.loaded_flock_cli import start_loaded_flock_cli
+    
+    logger.info(
+        f"Starting CLI interface with loaded Flock instance ({len(self._agents)} agents)"
+    )
+    
+    # Pass the current Flock instance to the CLI
+    start_loaded_flock_cli(
+        flock=self,
+        server_name=server_name,
+        show_results=show_results,
+        edit_mode=edit_mode
+    )
+```
+
+This method follows the same pattern as the existing `start_api()` method.
+
+### Use of Rich and Questionary
+
+The implementation should leverage the existing libraries used in the current CLI:
+
+1. **Rich**: Used for formatting, tables, panels, and other terminal UI elements
+2. **Questionary**: Used for interactive prompts, selections, and form inputs
+
+## Notes
+
+- Consider leveraging existing CLI libraries for text editing and highlighting
+- Ensure the editor is accessible on all supported platforms
+- Focus on discoverability and ease-of-use for new users
+- Provide keyboard shortcuts and help documentation within the editor
+- Use TUI (Text User Interface) libraries like Textual or Rich for creating elegant visualizations in the terminal
+- Consider using a state management pattern to handle transitions between different CLI views
+- Maintain consistency with the existing CLI style and navigation patterns

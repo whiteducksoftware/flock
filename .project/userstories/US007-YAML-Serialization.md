@@ -59,9 +59,11 @@ The implementation will build on the existing serialization framework in `src/fl
 |----|------|----------|--------|-------------|
 | US007-T007 | [YAML Serialization Tests](../tasks/done/US007-T007-YAML-Serialization-Tests.md) | Highest | Completed | Create a comprehensive test suite for YAML serialization following TDD principles |
 | US007-T001 | [YAML Serializable Base](../tasks/done/US007-T001-YAML-Serializable-Base.md) | High | Completed | Extend the Serializable base class to support YAML serialization |
-| US007-T004 | [Callable Reference System](../tasks/US007-T004-Callable-Reference-System.md) | High | Not Started | Create a system to represent callable objects in YAML using human-readable references |
-| US007-T002 | [FlockAgent YAML Serialization](../tasks/US007-T002-FlockAgent-YAML-Serialization.md) | High | Not Started | Implement YAML serialization for FlockAgent classes |
-| US007-T003 | [Flock YAML Serialization](../tasks/US007-T003-Flock-YAML-Serialization.md) | Medium | Not Started | Implement YAML serialization for complete Flock systems |
+| US007-T004 | [Callable Reference System](../tasks/done/US007-T004-Callable-Reference-System.md) | High | Completed | Create a system to represent callable objects in YAML using human-readable references |
+| US007-T002.1 | [FlockAgent YAML Formatting](../tasks/done/US007-T002.1-FlockAgent-YAML-Formatting.md) | High | Completed | Enhance FlockAgent YAML output with human-readable formatting and descriptive comments |
+| US007-T002.2 | [FlockAgent YAML Examples](../tasks/done/US007-T002.2-FlockAgent-YAML-Examples.md) | Medium | Completed | Create example YAML files for common FlockAgent configurations |
+| US007-T003.1 | [Flock System YAML Formatting](../tasks/done/US007-T003.1-Flock-System-YAML-Formatting.md) | Medium | Completed | Enhance Flock YAML output with human-readable formatting and descriptive comments |
+| US007-T003.2 | [YAML Schema Documentation](../tasks/done/US007-T003.2-YAML-Schema-Documentation.md) | Medium | Completed | Create schema documentation for YAML files |
 | US007-T005 | [YAML Documentation and Examples](../tasks/US007-T005-YAML-Documentation-and-Examples.md) | Medium | Not Started | Create comprehensive documentation and examples for YAML serialization |
 | US007-T006 | [YAML Editor CLI](../tasks/US007-T006-YAML-Editor-CLI.md) | Medium | Not Started | Add a YAML editor to the CLI application for editing agent and system configurations |
 
@@ -202,9 +204,12 @@ This section documents important lessons learned during the implementation of ea
 
 - **Implementation Phase**: In Progress
   - Serializable base class YAML methods: **Completed**
-  - Callable reference system: Not Started
-  - FlockAgent YAML serialization: Not Started
-  - Flock system YAML serialization: Not Started
+  - Callable reference system: **Completed**
+  - FlockAgent YAML serialization: **Completed**
+  - Flock system YAML serialization: **Completed**
+  - YAML Schema documentation: **Completed**
+  - Documentation and examples: **Not Started**
+  - YAML Editor CLI: **Not Started**
 
 ## Acceptance Criteria
 
