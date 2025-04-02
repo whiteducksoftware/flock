@@ -46,53 +46,110 @@ def get_current_trace_id() -> str:
     return "no-trace"
 
 
-# ---------------------------------------------------------------------
-# 2. A color map for different logger names
-#    You can add or change entries as you like.
-# ---------------------------------------------------------------------
 COLOR_MAP = {
-    "flock": "magenta",
-    "interpreter": "cyan",
-    "memory": "yellow",
-    "activities": "blue",
+    # Core & Orchestration
+    "flock": "magenta",  # Color only
+    "agent": "blue",  # Color only
+    "workflow": "cyan",  # Color only
+    "activities": "cyan",
     "context": "green",
-    "registry": "white",
+    # Components & Mechanisms
+    "registry": "yellow",  # Color only
+    "serialization": "yellow",
+    "serialization.utils": "light-yellow",
+    "evaluator": "light-blue",
+    "module": "light-green",
+    "router": "light-magenta",
+    "mixin.dspy": "yellow",
+    # Specific Modules (Examples)
+    "memory": "yellow",
+    "module.output": "green",
+    "module.metrics": "blue",
+    "module.zep": "red",
+    "module.hierarchical": "light-green",
+    # Tools & Execution
     "tools": "light-black",
-    "agent": "light-magenta",
+    "interpreter": "light-yellow",
+    # API Components
+    "api": "white",  # Color only
+    "api.main": "white",
+    "api.endpoints": "light-black",
+    "api.run_store": "light-black",
+    "api.ui": "light-blue",  # Color only
+    "api.ui.routes": "light-blue",
+    "api.ui.utils": "cyan",
+    # Default/Unknown
+    "unknown": "light-black",
 }
 
 LOGGERS = [
+    "flock",  # Core Flock orchestration
+    "agent",  # General agent operations
+    "context",  # Context management
+    "registry",  # Unified registry operations (new)
+    "serialization",  # General serialization (new - can be base for others)
+    "serialization.utils",  # Serialization helpers (new, more specific)
+    "evaluator",  # Base evaluator category (new/optional)
+    "module",  # Base module category (new/optional)
+    "router",  # Base router category (new/optional)
+    "mixin.dspy",  # DSPy integration specifics (new)
+    "memory",  # Memory module specifics
+    "module.output",  # Output module specifics (example specific module)
+    "module.metrics",  # Metrics module specifics (example specific module)
+    "module.zep",  # Zep module specifics (example specific module)
+    "module.hierarchical",  # Hierarchical memory specifics (example specific module)
+    "interpreter",  # Code interpreter (if still used)
+    "activities",  # Temporal activities
+    "workflow",  # Temporal workflow logic
+    "tools",  # Tool execution/registration
+    "api",  # General API server (new)
+    "api.main",  # API main setup (new)
+    "api.endpoints",  # API endpoints (new)
+    "api.run_store",  # API run state management (new)
+    "api.ui",  # UI general (new)
+    "api.ui.routes",  # UI routes (new)
+    "api.ui.utils",  # UI utils (new)
+]
+
+BOLD_CATEGORIES = [
     "flock",
-    "interpreter",
-    "memory",
-    "activities",
-    "context",
-    "registry",
-    "tools",
     "agent",
+    "workflow",
+    "registry",
+    "api",
+    "api.ui",
 ]
 
 
 def color_for_category(category: str) -> str:
-    """Return the ANSI color code name for the given category."""
-    return COLOR_MAP.get(category, "magenta")  # fallback color
+    """Return the Rich markup color code name for the given category."""
+    # Handle potentially nested names like 'serialization.utils'
+    # Try exact match first, then go up the hierarchy
+    if category in COLOR_MAP:
+        return COLOR_MAP[category]
+    parts = category.split(".")
+    for i in range(len(parts) - 1, 0, -1):
+        parent_category = ".".join(parts[:i])
+        if parent_category in COLOR_MAP:
+            return COLOR_MAP[parent_category]
+    # Fallback to default 'unknown' color
+    return COLOR_MAP.get("unknown", "light-black")  # Final fallback
 
 
 def custom_format(record):
-    """A formatter that applies truncation to the entire formatted message."""
+    """A formatter that applies truncation and sequential styling tags."""
     t = record["time"].strftime("%Y-%m-%d %H:%M:%S")
     level_name = record["level"].name
     category = record["extra"].get("category", "unknown")
     trace_id = record["extra"].get("trace_id", "no-trace")
-    color = color_for_category(category)
+    color_tag = color_for_category(
+        category
+    )  # Get the color tag name (e.g., "yellow")
 
-    # Get the formatted message (already includes args)
     message = record["message"]
-
-    # Replace { and } with {{ and }} to avoid them being interpreted as format specifiers
     message = message.replace("{", "{{").replace("}", "}}")
 
-    # Apply truncation to the full formatted message
+    # MAX_LENGTH = 500 # Example value
     if len(message) > MAX_LENGTH:
         truncated_chars = len(message) - MAX_LENGTH
         message = (
@@ -100,10 +157,24 @@ def custom_format(record):
             + f"<yellow>...+({truncated_chars} chars)</yellow>"
         )
 
+    # Determine if category needs bolding (can refine this logic)
+    needs_bold = category in BOLD_CATEGORIES
+
+    # Apply tags sequentially
+    category_styled = f"[{category}]"  # Start with the plain category name
+    category_styled = (
+        f"<{color_tag}>{category_styled}</{color_tag}>"  # Wrap with color
+    )
+    if needs_bold:
+        category_styled = (
+            f"<bold>{category_styled}</bold>"  # Wrap with bold if needed
+        )
+
+    # Final format string using sequential tags for category
     return (
         f"<green>{t}</green> | <level>{level_name: <8}</level> | "
         f"<cyan>[trace_id: {trace_id}]</cyan> | "
-        f"<{color}>[{category}]</{color}> | {message}\n"
+        f"{category_styled} | {message}\n"  # Apply the sequentially styled category
     )
 
 

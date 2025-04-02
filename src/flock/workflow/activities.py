@@ -8,9 +8,9 @@ from temporalio import activity
 from flock.core.context.context import FlockContext
 from flock.core.context.context_vars import FLOCK_CURRENT_AGENT, FLOCK_MODEL
 from flock.core.flock_agent import FlockAgent
+from flock.core.flock_registry import get_registry
 from flock.core.flock_router import HandOffRequest
 from flock.core.logging.logging import get_logger
-from flock.core.registry.agent_registry import Registry
 from flock.core.util.input_resolver import resolve_inputs
 
 logger = get_logger("activities")
@@ -26,7 +26,7 @@ async def run_agent(context: FlockContext) -> dict:
     """
     # Start a top-level span for the entire run_agent activity.
     with tracer.start_as_current_span("run_agent") as span:
-        registry = Registry()
+        registry = get_registry()
         previous_agent_name = ""
         if isinstance(context, dict):
             context = FlockContext.from_dict(context)

@@ -37,6 +37,7 @@ class MockEvalConfig(FlockEvaluatorConfig):
 
 @flock_component # Register this component class
 class MockEvaluator(FlockEvaluator, Serializable): # Inherit Serializable
+    name: str = "mock_evaluator"
     config: MockEvalConfig = MockEvalConfig()
 
     # Needed for serialization if not just using Pydantic dump
@@ -133,12 +134,12 @@ class TestFlockYAMLSerialization:
         assert loaded_agent.evaluator is None # Default should be None before factory
         assert loaded_agent.modules == {}
         assert loaded_agent.handoff_router is None
-        assert loaded_agent.tools is None
+        assert loaded_agent.tools == []
 
     def test_agent_serialization_with_components(self, tmp_path):
         """Test agent serialization with evaluator, module, and router."""
-        evaluator = MockEvaluator(config=MockEvalConfig(mock_eval_param="test_eval"))
-        router = MockRouter(config=MockRouterConfig(next_agent_name="agent_two"))
+        evaluator = MockEvaluator(name="mock_evaluator", config=MockEvalConfig(mock_eval_param="test_eval"))
+        router = MockRouter(name="mock_router", config=MockRouterConfig(next_agent_name="agent_two"))
         module = MockModule(name="extra_module", config=MockModuleConfig(mock_module_param=False))
 
         agent = FlockAgent(

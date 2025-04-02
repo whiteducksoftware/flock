@@ -4,7 +4,6 @@
 import asyncio
 from abc import ABC
 from collections.abc import Callable
-from pathlib import Path  # Import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
 if TYPE_CHECKING:
@@ -576,25 +575,6 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
         logger.info(f"Successfully deserialized agent: {agent.name}")
         return agent
-
-    # --- YAML specific methods (delegating to Serializable) ---
-    def to_yaml(self, **kwargs) -> str:
-        """Serialize to YAML string."""
-        return Serializable.to_yaml(self, **kwargs)
-
-    @classmethod
-    def from_yaml(cls: type[T], yaml_str: str) -> T:
-        """Create instance from YAML string."""
-        return Serializable.from_yaml(cls, yaml_str)
-
-    def to_yaml_file(self, path: Path | str, **kwargs) -> None:
-        """Serialize to YAML file."""
-        Serializable.to_yaml_file(self, path, **kwargs)
-
-    @classmethod
-    def from_yaml_file(cls: type[T], path: Path | str) -> T:
-        """Create instance from YAML file."""
-        return Serializable.from_yaml_file(cls, path)
 
     # --- Pydantic v2 Configuration ---
     class Config:
