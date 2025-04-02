@@ -1,476 +1,554 @@
+# src/flock/core/flock.py
 """High-level orchestrator for creating and executing agents."""
 
+from __future__ import annotations  # Ensure forward references work
+
 import asyncio
-import json
 import os
 import uuid
-from typing import Any, TypeVar
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, TypeVar
 
-import cloudpickle
 from opentelemetry import trace
 from opentelemetry.baggage import get_baggage, set_baggage
 
+# Pydantic and OpenTelemetry
+from pydantic import BaseModel, Field  # Using Pydantic directly now
+
+# Flock core components & utilities
 from flock.config import TELEMETRY
 from flock.core.context.context import FlockContext
 from flock.core.context.context_manager import initialize_context
 from flock.core.execution.local_executor import run_local_workflow
 from flock.core.execution.temporal_executor import run_temporal_workflow
-from flock.core.flock_agent import FlockAgent
 from flock.core.logging.logging import LOGGERS, get_logger, get_module_loggers
-from flock.core.registry.agent_registry import Registry
+
+# Import FlockAgent using TYPE_CHECKING to avoid circular import at runtime
+if TYPE_CHECKING:
+    from flock.core.flock_agent import FlockAgent
+else:
+    # Provide a forward reference string or Any for runtime if FlockAgent is used in hints here
+    FlockAgent = "FlockAgent"  # Forward reference string for Pydantic/runtime
+
+# Registry and Serialization
+from flock.core.flock_registry import (
+    get_registry,  # Use the unified registry
+)
+from flock.core.serialization.serializable import (
+    Serializable,  # Import Serializable base
+)
+
+# NOTE: Flock.to_dict/from_dict primarily orchestrates agent serialization.
+# It doesn't usually need serialize_item/deserialize_item directly,
+# relying on FlockAgent's implementation instead.
+# from flock.core.serialization.serialization_utils import serialize_item, deserialize_item
+# CLI Helper (if still used directly, otherwise can be removed)
 from flock.core.util.cli_helper import init_console
-from flock.core.util.input_resolver import top_level_to_keys
 
-T = TypeVar("T", bound=FlockAgent)
+# Cloudpickle for fallback/direct serialization if needed
+try:
+    import cloudpickle
+
+    PICKLE_AVAILABLE = True
+except ImportError:
+    PICKLE_AVAILABLE = False
+
+
 logger = get_logger("flock")
-TELEMETRY.setup_tracing()
+TELEMETRY.setup_tracing()  # Setup OpenTelemetry
 tracer = trace.get_tracer(__name__)
+FlockRegistry = get_registry()  # Get the registry instance
+
+# Define TypeVar for generic methods like from_dict
+T = TypeVar("T", bound="Flock")
 
 
-def init_loggers(enable_logging: bool | list[str] = False):
-    """Initialize the loggers for the Flock system.
+# Inherit from Serializable for YAML/JSON/etc. methods
+# Use BaseModel directly for Pydantic features
+class Flock(BaseModel, Serializable):
+    """High-level orchestrator for creating and executing agent systems.
 
-    Args:
-        enable_logging (bool): If True, enable verbose logging. Defaults to False.
+    Flock manages agent definitions, context, and execution flow, supporting
+    both local debugging and robust distributed execution via Temporal.
+    It is serializable to various formats like YAML and JSON.
     """
-    if isinstance(enable_logging, list):
-        for logger in LOGGERS:
-            if logger in enable_logging:
-                other_loggers = get_logger(logger)
-                other_loggers.enable_logging = True
-            else:
-                other_loggers = get_logger(logger)
-                other_loggers.enable_logging = False
-    else:
-        logger = get_logger("flock")
-        logger.enable_logging = enable_logging
-        other_loggers = get_logger("interpreter")
-        other_loggers.enable_logging = enable_logging
-        other_loggers = get_logger("memory")
-        other_loggers.enable_logging = enable_logging
-        other_loggers = get_logger("activities")
-        other_loggers.enable_logging = enable_logging
-        other_loggers = get_logger("context")
-        other_loggers.enable_logging = enable_logging
-        other_loggers = get_logger("registry")
-        other_loggers.enable_logging = enable_logging
-        other_loggers = get_logger("tools")
-        other_loggers.enable_logging = enable_logging
-        other_loggers = get_logger("agent")
-        other_loggers.enable_logging = enable_logging
 
-        module_loggers = get_module_loggers()
-        for module_logger in module_loggers:
-            module_logger.enable_logging = enable_logging
+    model: str | None = Field(
+        default="openai/gpt-4o",
+        description="Default model identifier to be used for agents if not specified otherwise.",
+    )
+    description: str | None = Field(
+        default=None,
+        description="A brief description of the purpose of this Flock configuration.",
+    )
+    enable_temporal: bool = Field(
+        default=False,
+        description="If True, execute workflows via Temporal; otherwise, run locally.",
+    )
+    # --- Runtime Attributes (Excluded from Serialization) ---
+    # Store agents internally but don't make it part of the Pydantic model definition
+    # Use a regular attribute, initialized in __init__
+    # Pydantic V2 handles __init__ and attributes not in Field correctly
+    _agents: dict[str, FlockAgent]
+    _start_agent_name: str | None
+    _start_input: dict
 
-
-class Flock:
-    """High-level orchestrator for creating and executing agents.
-
-    Flock manages the registration of agents and tools, sets up the global context, and runs the agent workflows.
-    It provides an easy-to-use API for both local (debug) and production (Temporal) execution.
-    """
+    # Pydantic v2 model config
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "ignored_types": (
+            type(FlockRegistry),
+        ),  # Prevent validation issues with registry
+        # No need to exclude fields here, handled in to_dict
+    }
 
     def __init__(
         self,
-        model: str = "openai/gpt-4o",
+        model: str | None = "openai/gpt-4o",
+        description: str | None = None,
         enable_temporal: bool = False,
-        enable_logging: bool | list[str] = False,
+        enable_logging: bool
+        | list[str] = False,  # Keep logging control at init
+        agents: list[FlockAgent] | None = None,  # Allow passing agents at init
+        **kwargs,  # Allow extra fields during init if needed, Pydantic handles it
     ):
-        """Initialize the Flock orchestrator.
+        """Initialize the Flock orchestrator."""
+        # Initialize Pydantic fields
+        super().__init__(
+            model=model,
+            description=description,
+            enable_temporal=enable_temporal,
+            **kwargs,  # Pass extra kwargs to Pydantic BaseModel
+        )
 
-        Args:
-            model (str): The default model identifier to be used for agents. Defaults to "openai/gpt-4o".
-            local_debug (bool): If True, run the agent workflow locally for debugging purposes. Defaults to False.
-            enable_logging (bool): If True, enable verbose logging. Defaults to False.
-            output_formatter (FormatterOptions): Options for formatting output results.
-        """
-        with tracer.start_as_current_span("flock_init") as span:
-            span.set_attribute("model", model)
-            span.set_attribute("enable_temporal", enable_temporal)
-            span.set_attribute("enable_logging", enable_logging)
+        # Initialize runtime attributes AFTER super().__init__()
+        self._agents = {}
+        self._start_agent_name = None
+        self._start_input = {}
 
-            init_loggers(enable_logging)
-            logger.info(
-                "Initializing Flock",
-                model=model,
-                enable_temporal=enable_temporal,
-                enable_logging=enable_logging,
-            )
-            session_id = get_baggage("session_id")
-            if not session_id:
-                session_id = str(uuid.uuid4())
-                set_baggage("session_id", session_id)
+        # Set up logging
+        self._configure_logging(enable_logging)
 
-            init_console()
+        # Register passed agents
+        if agents:
+            # Ensure FlockAgent type is available for isinstance check
+            # This import might need to be deferred or handled carefully if it causes issues
+            from flock.core.flock_agent import FlockAgent as ConcreteFlockAgent
 
-            self.agents: dict[str, FlockAgent] = {}
-            self.registry = Registry()
-            self.context = FlockContext()
-            self.model = model
-            self.enable_temporal = enable_temporal
-            self.start_agent: FlockAgent | str | None = None
-            self.input: dict = {}
+            for agent in agents:
+                if isinstance(agent, ConcreteFlockAgent):
+                    self.add_agent(agent)
+                else:
+                    logger.warning(
+                        f"Item provided in 'agents' list is not a FlockAgent: {type(agent)}"
+                    )
 
-            if not enable_temporal:
+        # Initialize console if needed
+        init_console()
+
+        # Set Temporal debug environment variable
+        self._set_temporal_debug_flag()
+
+        # Ensure session ID exists in baggage
+        self._ensure_session_id()
+
+        logger.info(
+            "Flock instance initialized",
+            model=self.model,
+            enable_temporal=self.enable_temporal,
+        )
+
+    # --- Keep _configure_logging, _set_temporal_debug_flag, _ensure_session_id ---
+    # ... (implementation as before) ...
+    def _configure_logging(self, enable_logging: bool | list[str]):
+        """Configure logging levels based on the enable_logging flag."""
+        logger.debug(f"Configuring logging, enable_logging={enable_logging}")
+        is_enabled_globally = False
+        enabled_loggers = []
+
+        if isinstance(enable_logging, bool):
+            is_enabled_globally = enable_logging
+        elif isinstance(enable_logging, list):
+            is_enabled_globally = bool(
+                enable_logging
+            )  # Enable if list is not empty
+            enabled_loggers = enable_logging
+
+        # Configure core loggers
+        for log_name in LOGGERS:
+            log_instance = get_logger(log_name)
+            if is_enabled_globally or log_name in enabled_loggers:
+                log_instance.enable_logging = True
+            else:
+                log_instance.enable_logging = False
+
+        # Configure module loggers (existing ones)
+        module_loggers = get_module_loggers()
+        for mod_log in module_loggers:
+            if is_enabled_globally or mod_log.name in enabled_loggers:
+                mod_log.enable_logging = True
+            else:
+                mod_log.enable_logging = False
+
+    def _set_temporal_debug_flag(self):
+        """Set or remove LOCAL_DEBUG env var based on enable_temporal."""
+        if not self.enable_temporal:
+            if "LOCAL_DEBUG" not in os.environ:
                 os.environ["LOCAL_DEBUG"] = "1"
-                logger.debug("Set LOCAL_DEBUG environment variable")
-            elif "LOCAL_DEBUG" in os.environ:
-                del os.environ["LOCAL_DEBUG"]
-                logger.debug("Removed LOCAL_DEBUG environment variable")
+                logger.debug(
+                    "Set LOCAL_DEBUG environment variable for local execution."
+                )
+        elif "LOCAL_DEBUG" in os.environ:
+            del os.environ["LOCAL_DEBUG"]
+            logger.debug(
+                "Removed LOCAL_DEBUG environment variable for Temporal execution."
+            )
 
-    def add_agent(self, agent: T) -> T:
-        """Add a new agent to the Flock system.
+    def _ensure_session_id(self):
+        """Ensure a session_id exists in the OpenTelemetry baggage."""
+        session_id = get_baggage("session_id")
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            set_baggage("session_id", session_id)
+            logger.debug(f"Generated new session_id: {session_id}")
 
-        This method registers the agent, updates the internal registry and global context, and
-        sets default values if needed. If an agent with the same name already exists, the existing
-        agent is returned.
+    # --- Keep add_agent, agents property, run, run_async ---
+    # ... (implementation as before, ensuring FlockAgent type hint is handled) ...
+    def add_agent(self, agent: FlockAgent) -> FlockAgent:
+        """Adds an agent instance to this Flock configuration."""
+        # Ensure FlockAgent type is available for isinstance check
+        from flock.core.flock_agent import FlockAgent as ConcreteFlockAgent
 
-        Args:
-            agent (FlockAgent): The agent instance to add.
+        if not isinstance(agent, ConcreteFlockAgent):
+            raise TypeError("Provided object is not a FlockAgent instance.")
+        if not agent.name:
+            raise ValueError("Agent must have a name.")
 
-        Returns:
-            FlockAgent: The registered agent instance.
-        """
-        with tracer.start_as_current_span("add_agent") as span:
-            span.set_attribute("agent_name", agent.name)
-            if not agent.model:
+        if agent.name in self._agents:
+            logger.warning(
+                f"Agent '{agent.name}' already exists in this Flock instance. Overwriting."
+            )
+        self._agents[agent.name] = agent
+        FlockRegistry.register_agent(agent)  # Also register globally
+
+        # Set default model if agent doesn't have one
+        if agent.model is None:
+            # agent.set_model(self.model) # Use Flock's default model
+            if self.model:  # Ensure Flock has a model defined
                 agent.set_model(self.model)
                 logger.debug(
-                    f"Using default model for agent {agent.name}",
-                    model=self.model,
+                    f"Agent '{agent.name}' using Flock default model: {self.model}"
                 )
-
-            if agent.name in self.agents:
+            else:
                 logger.warning(
-                    f"Agent {agent.name} already exists, returning existing instance"
+                    f"Agent '{agent.name}' has no model and Flock default model is not set."
                 )
-                return self.agents[agent.name]
-            logger.info(f"Adding new agent '{agent.name}'")
 
-            self.agents[agent.name] = agent
-            self.registry.register_agent(agent)
-            self.context.add_agent_definition(
-                type(agent), agent.name, agent.to_dict()
-            )
+        logger.info(f"Agent '{agent.name}' added to Flock.")
+        return agent
 
-            if hasattr(agent, "tools") and agent.tools:
-                for tool in agent.tools:
-                    self.registry.register_tool(tool.__name__, tool)
-                    logger.debug(
-                        f"Registered tool '{tool.__name__}'",
-                        tool_name=tool.__name__,
-                    )
-            logger.success(f"'{agent.name}' added successfully")
-            return agent
-
-    def add_tool(self, tool_name: str, tool: callable):
-        """Register a tool with the Flock system.
-
-        Args:
-            tool_name (str): The name under which the tool will be registered.
-            tool (callable): The tool function to register.
-        """
-        with tracer.start_as_current_span("add_tool") as span:
-            span.set_attribute("tool_name", tool_name)
-            span.set_attribute("tool", tool.__name__)
-            logger.info("Registering tool", tool_name=tool_name)
-            self.registry.register_tool(tool_name, tool)
-            logger.debug("Tool registered successfully")
+    @property
+    def agents(self) -> dict[str, FlockAgent]:
+        """Returns the dictionary of agents managed by this Flock instance."""
+        return self._agents
 
     def run(
         self,
         start_agent: FlockAgent | str | None = None,
         input: dict = {},
-        context: FlockContext = None,
+        context: FlockContext
+        | None = None,  # Allow passing initial context state
         run_id: str = "",
-        box_result: bool = True,
-        agents: list[FlockAgent] = [],
+        box_result: bool = False,  # Changed default to False for raw dict
+        agents: list[FlockAgent] | None = None,  # Allow adding agents via run
     ) -> dict:
         """Entry point for running an agent system synchronously."""
         return asyncio.run(
             self.run_async(
-                start_agent, input, context, run_id, box_result, agents
+                start_agent=start_agent,
+                input=input,
+                context=context,
+                run_id=run_id,
+                box_result=box_result,
+                agents=agents,
             )
         )
-
-    def save_to_file(
-        self,
-        file_path: str,
-        start_agent: str | None = None,
-        input: dict | None = None,
-    ) -> None:
-        """Save the Flock instance to a file.
-
-        This method serializes the Flock instance to a dictionary using the `to_dict()` method and saves it to a file.
-        The saved file can be reloaded later using the `from_file()` method.
-
-        Args:
-            file_path (str): The path to the file where the Flock instance should be saved.
-        """
-        hex_str = cloudpickle.dumps(self).hex()
-
-        result = {
-            "start_agent": start_agent,
-            "input": input,
-            "flock": hex_str,
-        }
-
-        path = os.path.dirname(file_path)
-        if path:
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-        with open(file_path, "w") as file:
-            file.write(json.dumps(result))
-
-    @staticmethod
-    def load_from_file(file_path: str) -> "Flock":
-        """Load a Flock instance from a file.
-
-        This class method deserializes a Flock instance from a file that was previously saved using the `save_to_file()`
-        method. It reads the file, converts the hexadecimal string back into a Flock instance, and returns it.
-
-        Args:
-            file_path (str): The path to the file containing the serialized Flock instance.
-
-        Returns:
-            Flock: A new Flock instance reconstructed from the saved file.
-        """
-        with open(file_path) as file:
-            json_flock = json.load(file)
-            hex_str = json_flock["flock"]
-            flock = cloudpickle.loads(bytes.fromhex(hex_str))
-            if json_flock["start_agent"]:
-                agent = flock.registry.get_agent(json_flock["start_agent"])
-                flock.start_agent = agent
-            if json_flock["input"]:
-                flock.input = json_flock["input"]
-            return flock
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize the FlockAgent instance to a dictionary.
-
-        This method converts the entire agent instance—including its configuration, state, and lifecycle hooks—
-        into a dictionary format. It uses cloudpickle to serialize any callable objects (such as functions or
-        methods), converting them into hexadecimal string representations. This ensures that the agent can be
-        easily persisted, transmitted, or logged as JSON.
-
-        The serialization process is recursive:
-        - If a field is a callable (and not a class), it is serialized using cloudpickle.
-        - Lists and dictionaries are processed recursively to ensure that all nested callables are properly handled.
-
-        **Returns:**
-            dict[str, Any]: A dictionary representing the FlockAgent, which includes all of its configuration data.
-            This dictionary is suitable for storage, debugging, or transmission over the network.
-
-        **Example:**
-            For an agent defined as:
-                name = "idea_agent",
-                model = "openai/gpt-4o",
-                input = "query: str | The search query, context: dict | The full conversation context",
-                output = "idea: str | The generated idea"
-            Calling `agent.to_dict()` might produce:
-                {
-                    "name": "idea_agent",
-                    "model": "openai/gpt-4o",
-                    "input": "query: str | The search query, context: dict | The full conversation context",
-                    "output": "idea: str | The generated idea",
-                    "tools": ["<serialized tool representation>"],
-                    "use_cache": False,
-                    "hand_off": None,
-                    "termination": None,
-                    ...
-                }
-        """
-
-        def convert_callable(obj: Any) -> Any:
-            if callable(obj) and not isinstance(obj, type):
-                return cloudpickle.dumps(obj).hex()
-            if isinstance(obj, list):
-                return [convert_callable(item) for item in obj]
-            if isinstance(obj, dict):
-                return {k: convert_callable(v) for k, v in obj.items()}
-            return obj
-
-        data = self.model_dump()
-        return convert_callable(data)
-
-    def start_api(self, host: str = "0.0.0.0", port: int = 8344) -> None:
-        """Start a REST API server for this Flock instance.
-
-        This method creates a FlockAPI instance for the current Flock and starts the API server.
-        It provides an easier alternative to manually creating and starting the API.
-
-        Args:
-            host (str): The host to bind the server to. Defaults to "0.0.0.0".
-            port (int): The port to bind the server to. Defaults to 8344.
-        """
-        from flock.core.flock_api import FlockAPI
-
-        api = FlockAPI(self)
-        api.start(host=host, port=port)
-
-    @classmethod
-    def from_dict(cls: type[T], data: dict[str, Any]) -> T:
-        """Deserialize a FlockAgent instance from a dictionary.
-
-        This class method reconstructs a FlockAgent from its serialized dictionary representation, as produced
-        by the `to_dict()` method. It recursively processes the dictionary to convert any serialized callables
-        (stored as hexadecimal strings via cloudpickle) back into executable callable objects.
-
-        **Arguments:**
-            data (dict[str, Any]): A dictionary representation of a FlockAgent, typically produced by `to_dict()`.
-                The dictionary should contain all configuration fields and state information necessary to fully
-                reconstruct the agent.
-
-        **Returns:**
-            FlockAgent: An instance of FlockAgent reconstructed from the provided dictionary. The deserialized agent
-            will have the same configuration, state, and behavior as the original instance.
-
-        **Example:**
-            Suppose you have the following dictionary:
-                {
-                    "name": "idea_agent",
-                    "model": "openai/gpt-4o",
-                    "input": "query: str | The search query, context: dict | The full conversation context",
-                    "output": "idea: str | The generated idea",
-                    "tools": ["<serialized tool representation>"],
-                    "use_cache": False,
-                    "hand_off": None,
-                    "termination": None,
-                    ...
-                }
-            Then, calling:
-                agent = FlockAgent.from_dict(data)
-            will return a FlockAgent instance with the same properties and behavior as when it was originally serialized.
-        """
-
-        def convert_callable(obj: Any) -> Any:
-            if isinstance(obj, str) and len(obj) > 2:
-                try:
-                    return cloudpickle.loads(bytes.fromhex(obj))
-                except Exception:
-                    return obj
-            if isinstance(obj, list):
-                return [convert_callable(item) for item in obj]
-            if isinstance(obj, dict):
-                return {k: convert_callable(v) for k, v in obj.items()}
-            return obj
-
-        converted = convert_callable(data)
-        return cls(**converted)
 
     async def run_async(
         self,
         start_agent: FlockAgent | str | None = None,
-        input: dict = {},
-        context: FlockContext = None,
+        input: dict | None = None,
+        context: FlockContext | None = None,
         run_id: str = "",
-        box_result: bool = True,
-        agents: list[FlockAgent] = [],
+        box_result: bool = False,  # Changed default
+        agents: list[FlockAgent] | None = None,  # Allow adding agents via run
     ) -> dict:
-        """Entry point for running an agent system asynchronously.
+        """Entry point for running an agent system asynchronously."""
+        # This import needs to be here or handled carefully due to potential cycles
+        from flock.core.flock_agent import FlockAgent as ConcreteFlockAgent
 
-        This method performs the following steps:
-          1. If a string is provided for start_agent, it looks up the agent in the registry.
-          2. Optionally uses a provided global context.
-          3. Generates a unique run ID if one is not provided.
-          4. Initializes the context with standard variables (like agent name, input data, run ID, and debug flag).
-          5. Executes the agent workflow either locally (for debugging) or via Temporal (for production).
-
-        Args:
-            start_agent (FlockAgent | str): The agent instance or the name of the agent to start the workflow.
-            input (dict): A dictionary of input values required by the agent.
-            context (FlockContext, optional): A FlockContext instance to use. If not provided, a default context is used.
-            run_id (str, optional): A unique identifier for this run. If empty, one is generated automatically.
-            box_result (bool, optional): If True, wraps the output in a Box for nicer formatting. Defaults to True.
-            agents (list, optional): additional way to add agents to flock instead of add_agent
-
-        Returns:
-            dict: A dictionary containing the result of the agent workflow execution.
-
-        Raises:
-            ValueError: If the specified agent is not found in the registry.
-            Exception: For any other errors encountered during execution.
-        """
-        with tracer.start_as_current_span("run_async") as span:
-            if isinstance(start_agent, str):
-                start_agent = self.registry.get_agent(start_agent)
-            span.set_attribute(
-                "start_agent",
-                start_agent.name
-                if hasattr(start_agent, "name")
-                else start_agent,
-            )
-            for agent in agents:
-                self.add_agent(agent)
-
-            if start_agent:
-                self.start_agent = start_agent
-            if input:
-                self.input = input
-
-            span.set_attribute("input", str(self.input))
-            span.set_attribute("context", str(context))
-            span.set_attribute("run_id", run_id)
-            span.set_attribute("box_result", box_result)
-
-            try:
-                if isinstance(self.start_agent, str):
-                    logger.debug(
-                        f"Looking up agent '{self.start_agent.name}' in registry",
-                        agent_name=self.start_agent,
-                    )
-                    self.start_agent = self.registry.get_agent(self.start_agent)
-                    if not self.start_agent:
-                        logger.error(
-                            "Agent not found", agent_name=self.start_agent
-                        )
-                        raise ValueError(
-                            f"Agent '{self.start_agent}' not found in registry"
-                        )
-                    self.start_agent.resolve_callables(context=self.context)
-                if context:
-                    logger.debug("Using provided context")
-                    self.context = context
-                if not run_id:
-                    run_id = f"flock_{uuid.uuid4().hex[:4]}"
-                    logger.debug(f"Generated run ID '{run_id}'", run_id=run_id)
-
-                set_baggage("run_id", run_id)
-
-                # TODO - Add a check for required input keys
-                input_keys = top_level_to_keys(self.start_agent.input)
-                for key in input_keys:
-                    if key.startswith("flock."):
-                        key = key[6:]  # Remove the "flock." prefix
-                    if key not in self.input:
-                        from rich.prompt import Prompt
-
-                        self.input[key] = Prompt.ask(
-                            f"Please enter {key} for {self.start_agent.name}"
+        with tracer.start_as_current_span("flock.run_async") as span:
+            # Add passed agents first
+            if agents:
+                for agent_obj in agents:
+                    if isinstance(agent_obj, ConcreteFlockAgent):
+                        self.add_agent(
+                            agent_obj
+                        )  # Adds to self._agents and registry
+                    else:
+                        logger.warning(
+                            f"Item in 'agents' list is not a FlockAgent: {type(agent_obj)}"
                         )
 
-                # Initialize the context with standardized variables
-                initialize_context(
-                    self.context,
-                    self.start_agent.name,
-                    self.input,
-                    run_id,
-                    not self.enable_temporal,
-                    self.model,
+            # Determine starting agent name
+            start_agent_name: str | None = None
+            if isinstance(start_agent, ConcreteFlockAgent):
+                start_agent_name = start_agent.name
+                if start_agent_name not in self._agents:
+                    self.add_agent(
+                        start_agent
+                    )  # Add if instance was passed but not added
+            elif isinstance(start_agent, str):
+                start_agent_name = start_agent
+            else:
+                start_agent_name = (
+                    self._start_agent_name
+                )  # Use pre-configured if any
+
+            # Default to first agent if only one exists and none specified
+            if not start_agent_name and len(self._agents) == 1:
+                start_agent_name = list(self._agents.keys())[0]
+            elif not start_agent_name:
+                raise ValueError(
+                    "No start_agent specified and multiple agents exist or none are added."
                 )
 
+            # Get starting input
+            run_input = input if input is not None else self._start_input
+
+            # Log and trace start info
+            span.set_attribute("start_agent", start_agent_name)
+            span.set_attribute("input", str(run_input))
+            span.set_attribute("run_id", run_id)
+            span.set_attribute("enable_temporal", self.enable_temporal)
+            logger.info(
+                f"Initiating Flock run. Start Agent: '{start_agent_name}'. Temporal: {self.enable_temporal}."
+            )
+
+            try:
+                # Resolve start agent instance from internal dict
+                resolved_start_agent = self._agents.get(start_agent_name)
+                if not resolved_start_agent:
+                    # Maybe it's only in the global registry? (Less common)
+                    resolved_start_agent = FlockRegistry.get_agent(
+                        start_agent_name
+                    )
+                    if not resolved_start_agent:
+                        raise ValueError(
+                            f"Start agent '{start_agent_name}' not found in Flock instance or registry."
+                        )
+                    else:
+                        # If found globally, add it to this instance for consistency during run
+                        self.add_agent(resolved_start_agent)
+
+                # Create or use provided context
+                run_context = context if context else FlockContext()
+                if not run_id:
+                    run_id = f"flockrun_{uuid.uuid4().hex[:8]}"
+                set_baggage("run_id", run_id)  # Ensure run_id is in baggage
+
+                # Initialize context
+                initialize_context(
+                    run_context,
+                    start_agent_name,
+                    run_input,
+                    run_id,
+                    not self.enable_temporal,
+                    self.model
+                    or resolved_start_agent.model
+                    or "default-model-missing",  # Pass effective model
+                )
+
+                # Execute workflow
                 logger.info(
                     "Starting agent execution",
-                    agent=self.start_agent.name,
+                    agent=start_agent_name,
                     enable_temporal=self.enable_temporal,
                 )
 
                 if not self.enable_temporal:
-                    return await run_local_workflow(self.context, box_result)
+                    result = await run_local_workflow(
+                        run_context, box_result=False
+                    )  # Get raw dict
                 else:
-                    return await run_temporal_workflow(self.context, box_result)
+                    result = await run_temporal_workflow(
+                        run_context, box_result=False
+                    )  # Get raw dict
+
+                span.set_attribute("result.type", str(type(result)))
+                # Avoid overly large results in trace attributes
+                result_str = str(result)
+                if len(result_str) > 1000:
+                    result_str = result_str[:1000] + "... (truncated)"
+                span.set_attribute("result.preview", result_str)
+
+                # Optionally box result before returning
+                if box_result:
+                    try:
+                        from box import Box
+
+                        logger.debug("Boxing final result.")
+                        return Box(result)
+                    except ImportError:
+                        logger.warning(
+                            "Box library not installed, returning raw dict. Install with 'pip install python-box'"
+                        )
+                        return result
+                else:
+                    return result
+
             except Exception as e:
-                logger.exception("Execution failed", error=str(e))
-                raise
+                logger.error(f"Flock run failed: {e}", exc_info=True)
+                span.record_exception(e)
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                # Depending on desired behavior, either raise or return an error dict
+                # raise # Option 1: Let the exception propagate
+                return {
+                    "error": str(e),
+                    "details": "Flock run failed.",
+                }  # Option 2: Return error dict
+
+    # --- ADDED Serialization Methods ---
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert Flock instance to dictionary representation."""
+        logger.debug("Serializing Flock instance to dict.")
+        # Use Pydantic's dump for base fields
+        data = self.model_dump(mode="json", exclude_none=True)
+
+        # Manually add serialized agents
+        data["agents"] = {}
+        for name, agent_instance in self._agents.items():
+            try:
+                # Agents handle their own serialization via their to_dict
+                data["agents"][name] = agent_instance.to_dict()
+            except Exception as e:
+                logger.error(
+                    f"Failed to serialize agent '{name}' within Flock: {e}"
+                )
+                # Optionally skip problematic agents or raise error
+                # data["agents"][name] = {"error": f"Serialization failed: {e}"}
+
+        # Exclude runtime fields that shouldn't be serialized
+        # These are not Pydantic fields, so they aren't dumped by model_dump
+        # No need to explicitly remove _start_agent_name, _start_input unless added manually
+
+        # Filter final dict (optional, Pydantic's exclude_none helps)
+        # return self._filter_none_values(data)
+        return data
+
+    @classmethod
+    def from_dict(cls: type[T], data: dict[str, Any]) -> T:
+        """Create Flock instance from dictionary representation."""
+        logger.debug(
+            f"Deserializing Flock from dict. Provided keys: {list(data.keys())}"
+        )
+
+        # Ensure FlockAgent is importable for type checking later
+        try:
+            from flock.core.flock_agent import FlockAgent as ConcreteFlockAgent
+        except ImportError:
+            logger.error(
+                "Cannot import FlockAgent, deserialization may fail for agents."
+            )
+            ConcreteFlockAgent = Any  # Fallback
+
+        # Extract agent data before initializing Flock base model
+        agents_data = data.pop("agents", {})
+
+        # Create Flock instance using Pydantic constructor for basic fields
+        try:
+            # Pass only fields defined in Flock's Pydantic model
+            init_data = {k: v for k, v in data.items() if k in cls.model_fields}
+            flock_instance = cls(**init_data)
+        except Exception as e:
+            logger.error(
+                f"Pydantic validation/init failed for Flock: {e}", exc_info=True
+            )
+            raise ValueError(
+                f"Failed to initialize Flock from dict: {e}"
+            ) from e
+
+        # Deserialize and add agents AFTER Flock instance exists
+        for name, agent_data in agents_data.items():
+            try:
+                # Ensure agent_data has the name, or add it from the key
+                agent_data.setdefault("name", name)
+                # Use FlockAgent's from_dict method
+                agent_instance = ConcreteFlockAgent.from_dict(agent_data)
+                flock_instance.add_agent(
+                    agent_instance
+                )  # Adds to _agents and registers
+            except Exception as e:
+                logger.error(
+                    f"Failed to deserialize or add agent '{name}' during Flock deserialization: {e}",
+                    exc_info=True,
+                )
+                # Decide: skip agent or raise error?
+
+        logger.info("Successfully deserialized Flock instance.")
+        return flock_instance
+
+    # --- API Start Method ---
+    def start_api(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8344,
+        server_name: str = "Flock API",
+        create_ui: bool = False,
+    ) -> None:
+        """Start a REST API server for this Flock instance."""
+        # Import locally to avoid making API components a hard dependency
+        try:
+            from flock.core.api import FlockAPI
+        except ImportError:
+            logger.error(
+                "API components not found. Cannot start API. "
+                "Ensure 'fastapi' and 'uvicorn' are installed."
+            )
+            return
+
+        logger.info(
+            f"Preparing to start API server on {host}:{port} {'with UI' if create_ui else 'without UI'}"
+        )
+        api_instance = FlockAPI(self)  # Pass the current Flock instance
+        # Use the start method of FlockAPI
+        api_instance.start(
+            host=host, port=port, server_name=server_name, create_ui=create_ui
+        )
+
+    # --- Static Method Loaders (Keep for convenience) ---
+    @staticmethod
+    def load_from_file(file_path: str) -> Flock:
+        """Load a Flock instance from various file formats (detects type)."""
+        p = Path(file_path)
+        if not p.exists():
+            raise FileNotFoundError(f"Flock file not found: {file_path}")
+
+        if p.suffix in [".yaml", ".yml"]:
+            return Flock.from_yaml_file(p)
+        elif p.suffix == ".json":
+            return Flock.from_json(p.read_text())
+        elif p.suffix == ".msgpack":
+            return Flock.from_msgpack_file(p)
+        elif p.suffix == ".pkl":
+            if PICKLE_AVAILABLE:
+                return Flock.from_pickle_file(p)
+            else:
+                raise RuntimeError(
+                    "Cannot load Pickle file: cloudpickle not installed."
+                )
+        else:
+            raise ValueError(
+                f"Unsupported file extension: {p.suffix}. Use .yaml, .json, .msgpack, or .pkl."
+            )

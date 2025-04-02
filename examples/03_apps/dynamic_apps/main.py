@@ -32,7 +32,7 @@ app_agent = FlockFactory.create_default_agent(name="app_agent",
 flock.add_agent(app_agent)
 
 requirements = "elegant, professional, color-coded, modern, dark mode"
-input_file = "output/story_agent_output_20250328_131020.json"
+input_file = "output/comic_book_series_agent_output_20250330_044131.json"
 output_dir = "output/apps/"
 
 # Load the input data as string 

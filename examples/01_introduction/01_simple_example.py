@@ -15,7 +15,7 @@ MODEL = "openai/gpt-4o"
 # Create the flock and context
 # --------------------------------
 # The flock is the place where all the agents are at home
-flock = Flock(model=MODEL)
+flock = Flock(model=MODEL, enable_logging=False)
 
 # --------------------------------
 # Create an agent
@@ -27,7 +27,7 @@ flock = Flock(model=MODEL)
 bloggy = FlockFactory.create_default_agent(
     name="bloggy",
     input="blog_idea",
-    output="funny_blog_title, blog_headers",
+    output="funny_blog_title, blog_headers"
 )
 flock.add_agent(bloggy)
 
@@ -35,7 +35,7 @@ flock.add_agent(bloggy)
 # --------------------------------
 # Run the flock
 # --------------------------------
-# Tell the flock who is the starting and what input to give it
+# Tell the flock who the starting agent is and what input to give it
 flock.run(
     start_agent=bloggy, 
     input={"blog_idea": "A blog about robot kittens"}

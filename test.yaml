@@ -1,0 +1,18 @@
+string_val: test
+int_val: 42
+float_val: 3.14
+bool_val: true
+list_val:
+- a
+- b
+- c
+dict_val:
+  key1: value1
+  key2: value2
+nested_val:
+  nested1:
+    key: value
+  nested2:
+  - 1
+  - 2
+  - 3

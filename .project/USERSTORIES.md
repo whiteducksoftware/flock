@@ -4,7 +4,9 @@ This document provides an index of all user stories for the Flock project.
 
 ## Current User Stories
 
-No active user stories.
+| ID | Title | Priority | Status | Description |
+|----|-------|----------|--------|-------------|
+| [US007](userstories/US007-YAML-Serialization.md) | YAML Serialization for Agents and Flock Systems | Medium | Not Started | Add support for saving and loading agents and Flock systems in YAML format |
 
 ## Completed User Stories
 

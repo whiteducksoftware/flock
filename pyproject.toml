@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.3.23"
+version = "0.3.30"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -17,10 +17,11 @@ dependencies = [
     "chromadb>=0.6.3",
     "cloudpickle>=3.1.1",
     "devtools>=0.12.2",
-    "dspy==2.5.42",
+    "dspy==2.6.16",
     "duckduckgo-search>=7.3.2",
     "fastapi>=0.115.8",
     "httpx>=0.28.1",
+    "litellm==1.63.7",
     "loguru>=0.7.3",
     "matplotlib>=3.10.0",
     "msgpack>=1.1.0",
@@ -38,6 +39,8 @@ dependencies = [
     "python-box>=7.3.2",
     "python-decouple>=3.8",
     "python-dotenv>=1.0.1",
+    "python-fasthtml>=0.12.6",
+    "pyyaml>=6.0",
     "questionary>=2.1.0",
     "rich>=13.9.4",
     "sentence-transformers>=3.4.1",
@@ -132,6 +135,9 @@ python_files = "test_*.py"
 python_classes = "Test"
 python_functions = "test"
 verbosity_test_cases = 2
+testpaths = ["tests"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 
 
 [tool.poe.tasks]
