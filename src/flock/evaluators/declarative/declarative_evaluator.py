@@ -9,6 +9,8 @@ from flock.core.mixin.prompt_parser import PromptParserMixin
 
 
 class DeclarativeEvaluatorConfig(FlockEvaluatorConfig):
+    """Configuration for the DeclarativeEvaluator."""
+
     agent_type_override: str | None = None
     model: str | None = "openai/gpt-4o"
     use_cache: bool = True
