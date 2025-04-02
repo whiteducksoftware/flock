@@ -35,25 +35,7 @@ class Chapter(BaseModel):
     summary: str = Field(..., description="Key events or chapter summary")
     scenes: list[Scene] = Field(..., description="Scenes of the chapter")
     
-@flock_type 
-class Story(BaseModel):
-    title: str
-    status: str = Field(default="Idea", description="Idea, Drafting, Revising, Completed")
-    genre: list[str] = Field(..., description="Genre(s) of the story")
-    tone: str = Field(..., description="Tone of the story") 
-    themes: list[str] = Field(..., description="Themes of the story")
-    central_conflict: str = Field(..., description="Central conflict of the story")
-    brief_summary: str = Field(..., description="Brief summary of the story")
-    long_summary: str = Field(..., description="Long-form summary of the story.")
-    characters: list[Character] = Field(..., description="Important characters and/or entities of the story")
-    chapters: list[Chapter] = Field(..., description="All chapters of the story. At least one chapter per act.")
-    
-@flock_type 
-class StoryBible(BaseModel):
-    timeline: dict[str, str]  = Field(..., description="Timeline of the story")
-    worldbuilding_notes: dict[str, str]  = Field(..., description="Worldbuilding notes of the story")
-    consistency_rules: list[str]  = Field(..., description="Consistency rules of the story")
-    writing_reference: Optional[str] = Field(default=None, description="Writing reference and/or style guidelines")
+
 
 ########################################################
 
@@ -91,6 +73,27 @@ class PageLayout(BaseModel):
     
 class IssueLayout(Issue):
     page_layouts: list[PageLayout] = Field(..., description="Page layouts for the issue")
+    
+    
+@flock_type 
+class Story(BaseModel):
+    title: str
+    status: str = Field(default="Idea", description="Idea, Drafting, Revising, Completed")
+    genre: list[str] = Field(..., description="Genre(s) of the story")
+    tone: str = Field(..., description="Tone of the story") 
+    themes: list[str] = Field(..., description="Themes of the story")
+    central_conflict: str = Field(..., description="Central conflict of the story")
+    brief_summary: str = Field(..., description="Brief summary of the story")
+    long_summary: str = Field(..., description="Long-form summary of the story.")
+    characters: list[Character] = Field(..., description="Important characters and/or entities of the story")
+    chapters: list[Chapter] = Field(..., description="All chapters of the story. At least one chapter per act.")
+    
+@flock_type 
+class StoryBible(BaseModel):
+    timeline: dict[str, str]  = Field(..., description="Timeline of the story")
+    worldbuilding_notes: dict[str, str]  = Field(..., description="Worldbuilding notes of the story")
+    consistency_rules: list[str]  = Field(..., description="Consistency rules of the story")
+    writing_reference: Optional[str] = Field(default=None, description="Writing reference and/or style guidelines")
 
 MODEL = "gemini/gemini-2.5-pro-exp-03-25" #"groq/qwen-qwq-32b"    #"openai/gpt-4o" # 
 flock = Flock(model=MODEL)
@@ -103,42 +106,41 @@ story_agent = FlockFactory.create_default_agent(name="story_agent",
                                               max_tokens=60000,
                                               write_to_file=True)
 
-comic_book_series_agent = FlockFactory.create_default_agent(name="comic_book_series_agent",
-                                              description="An agent that is a master comic book writer." 
-                                              "Generates a comic book series based on a story and a story bible.",
-                                              input="story: Story, story_bible: StoryBible",
-                                              output="comic_book_series: ComicBookSeries",
-                                              max_tokens=60000,
-                                              write_to_file=True)
 
-comic_book_issue_agent = FlockFactory.create_default_agent(name="comic_book_issue_agent",
-                                              description="An agent that is a master comic book writer." 
-                                              "Generates details for each issue of the comic book series.",
-                                              input="comic_book_series: ComicBookSeries",
-                                              output="comic_book_pages: list[PageLayout]",
-                                              max_tokens=60000,
-                                              write_to_file=True)
+flock.add_agent(story_agent)
+result = flock.run(start_agent=story_agent, 
+                   input={'story_idea': 
+                       'In a world right at the cusp between LLMs and AGI some guy is experiencing the most peculiar story.' 
+                       'Absurdist Fiction, Satire, Technological Comedy. As much content as possible. At least 10.000 words'}) 
+
+
+
+# story_agent = FlockFactory.create_default_agent(name="story_agent",
+#                                               description="An agent that is a master storyteller",
+#                                               input="story_idea: str",
+#                                               output="story: Story, story_bible: StoryBible",
+#                                               max_tokens=60000,
+#                                               write_to_file=True)
+
+# comic_book_series_agent = FlockFactory.create_default_agent(name="comic_book_series_agent",
+#                                               description="An agent that is a master comic book writer." 
+#                                               "Generates a comic book series based on a story and a story bible.",
+#                                               input="story: Story, story_bible: StoryBible",
+#                                               output="comic_book_series: ComicBookSeries",
+#                                               max_tokens=60000,
+#                                               write_to_file=True)
 
 # comic_book_issue_agent = FlockFactory.create_default_agent(name="comic_book_issue_agent",
 #                                               description="An agent that is a master comic book writer." 
-#                                               "Generates comic_book_issue of comic_book_series with number issue_number based on a story, story_bible.",
-#                                               input="story: Story, story_bible: StoryBible, comic_book_series: ComicBookSeries, issue_number: int",
-#                                               output="comic_book_issue: ComicBookIssue",
+#                                               "Generates details for each issue of the comic book series.",
+#                                               input="comic_book_series: ComicBookSeries",
+#                                               output="comic_book_pages: list[PageLayout]",
 #                                               max_tokens=60000,
 #                                               write_to_file=True)
-# genre=[                                                                                                                                                           │
-# │              'Absurdist Fiction',                                                                                                                                          │
-# │              'Satire',                                                                                                                                                     │
-# │              'Technological Comedy',   
-
-story_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_series_agent.name))
-comic_book_series_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_issue_agent.name))
-
-flock.add_agent(story_agent)
-result = flock.run(start_agent=story_agent, input={'story_idea': 'In a world right at the cusp between LLMs and AGI some guy is experiencing the most peculiar story. Absurdist Fiction, Satire, Technological Comedy. As much content as possible. At least 10.000 words'}) 
 
 
-
+# story_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_series_agent.name))
+# comic_book_series_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_issue_agent.name))
 
 # flock.add_agent(comic_book_series_agent)	
 # flock.add_agent(comic_book_issue_agent)

@@ -8,8 +8,7 @@ from flock.core import Flock, FlockFactory
 # Flock uses litellm to talk to LLMs
 # Please consult the litellm documentation for valid IDs:
 # https://docs.litellm.ai/docs/providers
-#MODEL = "openai/gpt-4o"
-MODEL = "gemini/gemini-2.5-pro-exp-03-25" 
+MODEL = "openai/gpt-4o"
 
 
 # --------------------------------
@@ -37,7 +36,7 @@ flock.add_agent(bloggy)
 # --------------------------------
 # Run the flock
 # --------------------------------
-# Tell the flock who is the starting and what input to give it
+# Tell the flock who the starting agent is and what input to give it
 flock.run(
     start_agent=bloggy, 
     input={"blog_idea": "A blog about robot kittens"}
