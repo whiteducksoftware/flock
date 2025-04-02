@@ -1,1 +1,1 @@
-"""Test package for YAML serialization.""" 
+"""Test package for Flock.""" 

@@ -27,8 +27,7 @@ flock = Flock(model=MODEL)
 bloggy = FlockFactory.create_default_agent(
     name="bloggy",
     input="blog_idea",
-    output="funny_blog_title, blog_headers",
-    max_tokens=60000,
+    output="funny_blog_title, blog_headers"
 )
 flock.add_agent(bloggy)
 

@@ -366,6 +366,91 @@ class FlockRegistry:
 _registry_instance = FlockRegistry()
 
 
+# --- Convenience Access ---
+# Provide a function to easily get the singleton instance
+def get_registry() -> FlockRegistry:
+    """Returns the singleton FlockRegistry instance."""
+    return _registry_instance
+
+
+# Type hinting for decorators to preserve signature
+@overload
+def flock_component(cls: ClassType) -> ClassType: ...
+@overload
+def flock_component(
+    *, name: str | None = None
+) -> Callable[[ClassType], ClassType]: ...
+
+
+def flock_component(
+    cls: ClassType | None = None, *, name: str | None = None
+) -> Any:
+    """Decorator to register a Flock Component class (Module, Evaluator, Router).
+
+    Usage:
+        @flock_component
+        class MyModule(FlockModule): ...
+
+        @flock_component(name="CustomRouterAlias")
+        class MyRouter(FlockRouter): ...
+    """
+    registry = get_registry()
+
+    def decorator(inner_cls: ClassType) -> ClassType:
+        if not inspect.isclass(inner_cls):
+            raise TypeError("@flock_component can only decorate classes.")
+        component_name = name or inner_cls.__name__
+        registry.register_component(inner_cls, name=component_name)
+        return inner_cls
+
+    if cls is None:
+        # Called as @flock_component(name="...")
+        return decorator
+    else:
+        # Called as @flock_component
+        return decorator(cls)
+
+
+# Type hinting for decorators
+@overload
+def flock_tool(func: FuncType) -> FuncType: ...
+@overload
+def flock_tool(
+    *, name: str | None = None
+) -> Callable[[FuncType], FuncType]: ...
+
+
+def flock_tool(func: FuncType | None = None, *, name: str | None = None) -> Any:
+    """Decorator to register a callable function/method as a Tool (or general callable).
+
+    Usage:
+        @flock_tool
+        def my_web_search(query: str): ...
+
+        @flock_tool(name="utils.calculate_pi")
+        def compute_pi(): ...
+    """
+    registry = get_registry()
+
+    def decorator(inner_func: FuncType) -> FuncType:
+        if not callable(inner_func):
+            raise TypeError("@flock_tool can only decorate callables.")
+        # Let registry handle default name generation if None
+        registry.register_callable(inner_func, name=name)
+        return inner_func
+
+    if func is None:
+        # Called as @flock_tool(name="...")
+        return decorator
+    else:
+        # Called as @flock_tool
+        return decorator(func)
+
+
+# Alias for clarity if desired
+# flock_callable = flock_tool
+
+
 @overload
 def flock_type(cls: ClassType) -> ClassType: ...
 @overload
@@ -403,6 +488,46 @@ def flock_type(cls: ClassType | None = None, *, name: str | None = None) -> Any:
 
 
 # --- Auto-register known core components and tools ---
+def _auto_register_by_path():
+    components_to_register = [
+        (
+            "flock.evaluators.declarative.declarative_evaluator",
+            "DeclarativeEvaluator",
+        ),
+        ("flock.evaluators.memory.memory_evaluator", "MemoryEvaluator"),
+        ("flock.modules.output.output_module", "OutputModule"),
+        ("flock.modules.performance.metrics_module", "MetricsModule"),
+        ("flock.modules.memory.memory_module", "MemoryModule"),
+        # ("flock.modules.hierarchical.module", "HierarchicalMemoryModule"), # Uncomment if exists
+        ("flock.routers.default.default_router", "DefaultRouter"),
+        ("flock.routers.llm.llm_router", "LLMRouter"),
+        ("flock.routers.agent.agent_router", "AgentRouter"),
+    ]
+    for module_path, class_name in components_to_register:
+        try:
+            module = importlib.import_module(module_path)
+            component_class = getattr(module, class_name)
+            _registry_instance.register_component(component_class)
+        except (ImportError, AttributeError) as e:
+            logger.warning(f"{class_name} not found for auto-registration: {e}")
+
+    # Auto-register standard tools by scanning modules
+    tool_modules = [
+        "flock.core.tools.basic_tools",
+        "flock.core.tools.azure_tools",
+        "flock.core.tools.dev_tools.github",
+        "flock.core.tools.llm_tools",
+        "flock.core.tools.markdown_tools",
+    ]
+    for module_path in tool_modules:
+        try:
+            _registry_instance.register_module_components(module_path)
+        except ImportError as e:
+            logger.warning(
+                f"Could not auto-register tools from {module_path}: {e}"
+            )
+
+
 def _auto_register_core():
     logger.debug("Auto-registering core Flock components and tools...")
     # Register base classes themselves if needed by name (e.g., for type checks)
@@ -472,14 +597,14 @@ def _auto_register_core():
         from flock.core.tools import (
             azure_tools,
             basic_tools,
-            dev_tools,
             llm_tools,
             markdown_tools,
         )
+        from flock.core.tools.dev_tools import github
 
         _registry_instance.register_module_components(basic_tools)
         _registry_instance.register_module_components(azure_tools)
-        _registry_instance.register_module_components(dev_tools)
+        _registry_instance.register_module_components(github)
         _registry_instance.register_module_components(llm_tools)
         _registry_instance.register_module_components(markdown_tools)
     except ImportError as e:
@@ -487,10 +612,3 @@ def _auto_register_core():
 
 
 _auto_register_core()
-
-
-# --- Convenience Access ---
-# Provide a function to easily get the singleton instance
-def get_registry() -> FlockRegistry:
-    """Returns the singleton FlockRegistry instance."""
-    return _registry_instance
