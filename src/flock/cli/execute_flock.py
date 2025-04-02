@@ -134,7 +134,7 @@ def execute_flock(flock: Flock):
         # Display result
         console.print("\n[bold green]Execution Complete![/]")
 
-        if result:
+        if result and enable_logging:
             console.print("\n[bold]Result:[/]")
             if isinstance(result, dict):
                 # Display as formatted JSON
