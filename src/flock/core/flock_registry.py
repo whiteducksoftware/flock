@@ -544,6 +544,7 @@ def _auto_register_core():
         _registry_instance.register_component(DeclarativeEvaluator)
     except ImportError:
         logger.warning("DeclarativeEvaluator not found for auto-registration.")
+        raise
     try:
         from flock.evaluators.memory.memory_evaluator import MemoryEvaluator
 
@@ -611,4 +612,4 @@ def _auto_register_core():
         logger.warning(f"Could not auto-register standard tools: {e}")
 
 
-_auto_register_core()
+_auto_register_by_path()

@@ -5,7 +5,6 @@ import re  # Import re for parsing
 import typing
 from typing import Any, Literal
 
-from flock.core.flock_registry import get_registry  # Use FlockRegistry
 from flock.core.logging.logging import get_logger
 
 # Import split_top_level (assuming it's moved or copied appropriately)
@@ -15,7 +14,6 @@ from flock.core.logging.logging import get_logger
 # Define split_top_level here or ensure it's imported
 
 logger = get_logger("mixin.dspy")
-FlockRegistry = get_registry()  # Get singleton instance
 
 # Type definition for agent type override
 AgentType = Literal["ReAct", "Completion", "ChainOfThought"] | None
@@ -69,6 +67,11 @@ def _resolve_type_string(type_str: str) -> type:
     Handles built-ins, registered types, and common typing generics like
     List, Dict, Optional, Union, Literal.
     """
+    # Import registry here to avoid circular imports
+    from flock.core.flock_registry import get_registry
+
+    FlockRegistry = get_registry()
+
     type_str = type_str.strip()
     logger.debug(f"Attempting to resolve type string: '{type_str}'")
 

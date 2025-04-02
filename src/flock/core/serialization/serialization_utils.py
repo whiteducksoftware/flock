@@ -3,20 +3,20 @@
 
 import importlib
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-# Import the registry
-# from .callable_registry import CallableRegistry # Old way
-from flock.core.flock_registry import (
-    COMPONENT_BASE_TYPES,
-    get_registry,  # New way
-)
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    pass
+
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("serialization.utils")
-FlockRegistry = get_registry()  # Get singleton instance
+
+# Remove this line to avoid circular import at module level
+# FlockRegistry = get_registry()  # Get singleton instance
 
 # --- Serialization Helper ---
 
@@ -26,6 +26,11 @@ def serialize_item(item: Any) -> Any:
     Converts known callables to their path strings using FlockRegistry.
     Converts Pydantic models using model_dump.
     """
+    # Import the registry lazily when needed
+    from flock.core.flock_registry import get_registry
+
+    FlockRegistry = get_registry()
+
     if isinstance(item, BaseModel):
         dumped = item.model_dump(mode="json", exclude_none=True)
         return serialize_item(dumped)
@@ -74,6 +79,11 @@ def deserialize_item(item: Any) -> Any:
     Converts reference dicts back to actual callables or types using FlockRegistry.
     Handles nested lists and dicts.
     """
+    # Import the registry lazily when needed
+    from flock.core.flock_registry import get_registry
+
+    FlockRegistry = get_registry()
+
     if isinstance(item, Mapping):
         if "__callable_ref__" in item and len(item) == 1:
             path_str = item["__callable_ref__"]
@@ -138,6 +148,11 @@ def deserialize_component(
     """Deserializes a component (Module, Evaluator, Router) from its dict representation.
     Uses the 'type' field to find the correct class via FlockRegistry.
     """
+    # Import the registry and COMPONENT_BASE_TYPES lazily when needed
+    from flock.core.flock_registry import COMPONENT_BASE_TYPES, get_registry
+
+    FlockRegistry = get_registry()
+
     if data is None:
         return None
     if not isinstance(data, dict):

@@ -1,0 +1,104 @@
+model: openai/gpt-4o
+enable_temporal: false
+agents:
+  idea_agent:
+    name: idea_agent
+    model: openai/gpt-4o
+    description: ''
+    input: query
+    output: a_fun_software_project_idea
+    use_cache: true
+    evaluator:
+      name: default
+      config:
+        model: openai/gpt-4o
+        use_cache: true
+        temperature: 0.0
+        max_tokens: 4096
+      type: DeclarativeEvaluator
+    handoff_router:
+      name: default_router
+      config:
+        enabled: true
+        hand_off: project_plan_agent
+      type: DefaultRouter
+    modules:
+      output:
+        name: output
+        config:
+          enabled: true
+          theme: abernathy
+          render_table: true
+          max_length: 1000
+          wait_for_input: true
+          write_to_file: false
+          output_dir: output/
+          truncate_long_values: true
+          show_metadata: true
+          format_code_blocks: true
+          custom_formatters: {}
+          no_output: false
+          print_context: false
+        type: OutputModule
+      metrics:
+        name: metrics
+        config:
+          enabled: true
+          collect_timing: true
+          collect_memory: true
+          collect_token_usage: true
+          collect_cpu: true
+          storage_type: json
+          metrics_dir: metrics/
+          aggregation_interval: 1h
+          retention_days: 30
+          alert_on_high_latency: true
+          latency_threshold_ms: 30000
+        type: MetricsModule
+  project_plan_agent:
+    name: project_plan_agent
+    model: openai/gpt-4o
+    input: a_fun_software_project_idea
+    output: catchy_project_name, project_pitch, techstack, project_implementation_plan
+    use_cache: true
+    evaluator:
+      name: default
+      config:
+        model: openai/gpt-4o
+        use_cache: true
+        temperature: 0.0
+        max_tokens: 4096
+      type: DeclarativeEvaluator
+    modules:
+      output:
+        name: output
+        config:
+          enabled: true
+          theme: abernathy
+          render_table: true
+          max_length: 1000
+          wait_for_input: true
+          write_to_file: false
+          output_dir: output/
+          truncate_long_values: true
+          show_metadata: true
+          format_code_blocks: true
+          custom_formatters: {}
+          no_output: false
+          print_context: false
+        type: OutputModule
+      metrics:
+        name: metrics
+        config:
+          enabled: true
+          collect_timing: true
+          collect_memory: true
+          collect_token_usage: true
+          collect_cpu: true
+          storage_type: json
+          metrics_dir: metrics/
+          aggregation_interval: 1h
+          retention_days: 30
+          alert_on_high_latency: true
+          latency_threshold_ms: 30000
+        type: MetricsModule
