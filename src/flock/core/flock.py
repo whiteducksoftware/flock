@@ -108,6 +108,7 @@ class Flock(BaseModel, Serializable):
 
     def __init__(
         self,
+        name: str | None = None,
         model: str | None = "openai/gpt-4o",
         description: str | None = None,
         enable_temporal: bool = False,
