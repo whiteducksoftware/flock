@@ -2,7 +2,12 @@
 
 from rich.panel import Panel
 
-from flock.cli.constants import CLI_EXIT, CLI_NOTES, CLI_THEME_BUILDER
+from flock.cli.constants import (
+    CLI_EXIT,
+    CLI_NOTES,
+    CLI_REGISTRY_MANAGEMENT,
+    CLI_THEME_BUILDER,
+)
 from flock.cli.load_release_notes import load_release_notes
 from flock.cli.settings import settings_editor
 from flock.core.logging.formatters.theme_builder import theme_builder
@@ -46,6 +51,7 @@ def main():
                 # CLI_LOAD_EXAMPLE,
                 questionary.Separator(),
                 CLI_THEME_BUILDER,
+                CLI_REGISTRY_MANAGEMENT,
                 CLI_SETTINGS,
                 questionary.Separator(),
                 CLI_START_WEB_SERVER,
@@ -64,6 +70,11 @@ def main():
             create_flock()
         elif result == CLI_THEME_BUILDER:
             theme_builder()
+        elif result == CLI_REGISTRY_MANAGEMENT:
+            # Import registry management when needed
+            from flock.cli.registry_management import manage_registry
+
+            manage_registry()
         elif result == CLI_SETTINGS:
             settings_editor()
         elif result == CLI_START_WEB_SERVER:
