@@ -61,6 +61,18 @@ In Progress
    - Add a new Flock creation wizard that guides users through the process of creating a basic Flock
    - Seamlessly transition to agent management after Flock creation or loading
 
+9. **Registry Management**:
+   - Add functionality to view all registered items in the Flock Registry (agents, callables, types, components)
+   - Implement filtering and search capabilities for registry items by category, name, or path
+   - Create commands to manually add items to the registry with proper validation
+   - Add commands to remove items from the registry with appropriate warnings
+   - Implement an auto-registration scanner that:
+     - Scans a file, directory, or directory tree for registry-eligible items
+     - Identifies classes with @flock_component, @flock_tool, and @flock_type decorators
+     - Detects potential registry candidates that lack decorators
+     - Allows batch registration with confirmation
+     - Generates reports of newly registered items
+
 ## Main Menu Structure
 
 When starting without a loaded Flock instance:
@@ -74,7 +86,8 @@ FLOCK CLI
 2. Create New Flock
 3. Theme Builder
 4. Settings
-5. Exit
+5. Registry Management
+6. Exit
 ```
 
 When started with a loaded Flock instance:
@@ -91,8 +104,9 @@ Flock loaded with X agents: [agent1, agent2, ...]
 4. Manage Agents
 5. View Results of Past Runs
 6. Edit YAML Configurations
-7. Settings
-8. Exit
+7. Registry Management
+8. Settings
+9. Exit
 ```
 
 ### Execute Flock
@@ -119,6 +133,25 @@ Flock loaded with X agents: [agent1, agent2, ...]
 - View detailed outputs
 - Export results
 
+### Registry Management
+- View Registry Contents
+  - Browse by category (Agents, Callables, Types, Components) 
+  - Search by name or path
+  - View detailed information about items
+- Add to Registry
+  - Manually add items with full path specification
+  - Import from Python modules
+- Remove from Registry
+  - Select and remove items with confirmation
+  - Batch removal with filtering
+- Auto-Registration Scanner
+  - Scan file/directory for registry decorators
+  - Preview potential registrations
+  - Execute batch registration
+  - Generate registration report
+- Export Registry
+  - Export current registry state to YAML/JSON
+
 ## Acceptance Criteria
 
 1. Users can browse, view, and edit YAML files from the CLI
@@ -134,6 +167,11 @@ Flock loaded with X agents: [agent1, agent2, ...]
 11. Both visual editing and raw YAML editing are supported
 12. Users can create a new Flock from scratch using a guided wizard
 13. Users can choose between executing the Flock directly or via a web server
+14. Users can view all registered items in the Flock Registry by category
+15. Users can search and filter registry items by name, type, or path
+16. Users can manually add and remove items from the registry
+17. An auto-registration scanner can detect and register items from files and directories
+18. The registry management system provides clear feedback about registration operations
 
 ## Testing
 
@@ -172,6 +210,7 @@ The implementation should extend the current CLI framework in `src/flock/cli`:
    - Create a `execute_flock.py` module in `src/flock/cli` for executing loaded Flock instances
    - Create a `view_results.py` module in `src/flock/cli` for viewing execution history
    - Create a `create_flock.py` module in `src/flock/cli` for the Flock creation wizard
+   - Create a `registry_management.py` module in `src/flock/cli` for managing the Flock Registry
 
 3. **Web Server Integration**:
    - Update or create a `start_web_server.py` module in `src/flock/cli` that integrates with the loaded Flock
@@ -265,6 +304,70 @@ The implementation should leverage the existing libraries used in the current CL
 
 1. **Rich**: Used for formatting, tables, panels, and other terminal UI elements
 2. **Questionary**: Used for interactive prompts, selections, and form inputs
+
+### Registry Management Implementation
+
+Implement registry management with the following components:
+
+1. **Registry Viewer**:
+   - Interactive table-based view of registry contents
+   - Filtering by category, name pattern, and path
+   - Detailed view for individual items showing metadata
+   - Color-coding to distinguish different registry categories
+
+2. **Registry Editor**:
+   - Form-based interface for adding new items to the registry
+   - Path validation and suggestion
+   - Dynamic loading of modules for registration
+   - Confirmation system for removal operations
+
+3. **Auto-Registration Scanner**:
+   - Directory browser for selecting scan targets
+   - Progress indicator for scanning operations
+   - Preview system showing detected items
+   - Confirmation workflow for batch operations
+   - Report generation for completed scans
+
+4. **Implementation Interfaces**:
+   ```python
+   # In registry_management.py
+   
+   def view_registry_contents(
+       category: Optional[str] = None,
+       search_pattern: Optional[str] = None
+   ) -> None:
+       """Display registry contents with filtering options."""
+       # Implementation...
+   
+   def add_to_registry(
+       item_type: Literal["agent", "callable", "type", "component"],
+       module_path: str,
+       item_name: str,
+       alias: Optional[str] = None
+   ) -> bool:
+       """Add an item to the registry manually."""
+       # Implementation...
+   
+   def remove_from_registry(
+       item_type: Literal["agent", "callable", "type", "component"],
+       item_name_or_path: str
+   ) -> bool:
+       """Remove an item from the registry."""
+       # Implementation...
+   
+   def scan_for_registry_items(
+       target_path: str,
+       recursive: bool = True,
+       auto_register: bool = False
+   ) -> dict[str, list[str]]:
+       """Scan directory for potential registry items and optionally register them."""
+       # Implementation...
+   ```
+
+5. **Registry Storage and Persistence**:
+   - Option to save current registry state to a file
+   - Load registry state from previous sessions
+   - Track registration sources for traceability
 
 ## Notes
 
