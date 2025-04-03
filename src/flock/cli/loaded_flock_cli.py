@@ -8,6 +8,10 @@ import questionary
 from rich.console import Console
 from rich.panel import Panel
 
+from flock.cli.constants import (
+    CLI_REGISTRY_MANAGEMENT,
+    CLI_SETTINGS,
+)
 from flock.core.flock import Flock
 from flock.core.util.cli_helper import init_console
 
@@ -101,7 +105,15 @@ def start_loaded_flock_cli(
             choices.append("Edit YAML Configurations")
 
         # Add remaining options
-        choices.extend([questionary.Separator(), "Settings", "Exit"])
+        choices.extend([questionary.Separator(), CLI_REGISTRY_MANAGEMENT])
+        choices.extend(
+            [
+                questionary.Separator(),
+                CLI_SETTINGS,
+                questionary.Separator(),
+                "Exit",
+            ]
+        )
 
         # Display menu and get choice
         choice = questionary.select(
@@ -143,10 +155,15 @@ def start_loaded_flock_cli(
                 )
                 input("\nPress Enter to continue...")
 
+        elif choice == CLI_REGISTRY_MANAGEMENT:
+            from flock.cli.registry_management import manage_registry
+
+            manage_registry()
+
         elif choice == "Edit YAML Configurations" and yaml_editor_available:
             yaml_editor(flock)
 
-        elif choice == "Settings":
+        elif choice == CLI_SETTINGS:
             from flock.cli.settings import settings_editor
 
             settings_editor()
