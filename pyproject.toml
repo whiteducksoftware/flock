@@ -25,6 +25,7 @@ dependencies = [
     "loguru>=0.7.3",
     "matplotlib>=3.10.0",
     "msgpack>=1.1.0",
+    "nltk>=3.9.1",
     "notion-client>=2.3.0",
     "opentelemetry-api>=1.30.0",
     "opentelemetry-exporter-jaeger>=1.21.0",

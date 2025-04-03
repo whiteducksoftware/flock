@@ -1,119 +1,121 @@
 # Flock Context System Specification
 
 ## Overview
-The context system provides a shared state mechanism for agents, modules, and tools to exchange information during workflow execution. It maintains state across agent executions and supports both local and distributed execution environments.
+The context system provides shared state management across agent executions within a Flock workflow. It enables agents to access shared data, store intermediate results, and communicate with each other beyond direct input/output mapping. This specification defines the requirements and behavior of the context system.
 
-## Core Context Components
+**Core Implementation:** `src/flock/core/context/`
+
+## Core Components
 
 ### 1. FlockContext
 
+**Implementation:** `src/flock/core/context/context.py`
+
 **Purpose:**
-Provide a central state repository for workflow execution.
+Provides a centralized state container for sharing data across agent executions.
 
-**Requirements:**
-- Must be serializable for distributed execution
-- Must provide access to agent definitions
-- Must support dynamic addition of values
-- Must be thread-safe for concurrent access
+**Key Features:**
+- State storage for variables
+- Agent execution history tracking
+- Agent definition registry
+- Run/workflow identification
+- Variable access via key-value or dictionary-style access
+- Serialization support
 
-**Key Components:**
-- `agent_definitions`: Registry of agent types and configurations
-- `agent_states`: Current state of agents in the workflow
-- `shared_state`: Generic key-value store for cross-agent data
-- Methods for accessing and modifying context data
+**API:**
+- `get_variable(key, default=None)`: Retrieve a value by key
+- `set_variable(key, value)`: Store a value by key
+- `__getitem__`/`__setitem__`: Dictionary-style access
+- `record(agent_name, data, timestamp, hand_off, called_from)`: Record agent execution
+- `get_agent_history(agent_name)`: Get execution history for an agent
+- `next_input_for(agent)`: Determine the next input for an agent
+- `get_most_recent_value(variable_name)`: Get most recent value from history
+- `get_agent_definition(agent_name)`: Get agent definition
+- `add_agent_definition(agent_type, agent_name, agent_data)`: Register agent definition
 
 ### 2. Context Manager
 
+**Implementation:** `src/flock/core/context/context_manager.py`
+
 **Purpose:**
-Initialize and manage context lifecycle.
+Initializes and manages context instances for workflows.
 
-**Responsibilities:**
-- Set up initial context with required values
-- Ensure context is properly propagated between agents
-- Handle context serialization when needed
-- Manage context cleanup
+**API:**
+- `initialize_context(flock_args)`: Create and initialize a new context
 
-## Context Interaction Points
+## Supporting Models
 
-### 1. Agent Initialization
-- Context is passed to agent during initialization
-- Agent registers itself in the context if not already present
-- Agent modules access context during initialization
+### 1. AgentRunRecord
 
-### 2. Agent Evaluation
-- Evaluator has access to context during evaluation
-- Tools can access and modify context during execution
-- Modules can access context in pre/post evaluation hooks
+**Implementation:** `src/flock/core/context/context.py`
 
-### 3. Agent Termination
-- Context is updated with final agent state
-- Modules can update context during termination
+**Purpose:**
+Records the details of each agent execution for history tracking.
 
-### 4. Router Execution
-- Router uses context to make routing decisions
-- Router can modify context for the next agent
+**Fields:**
+- `id`: Unique identifier for the run
+- `agent`: Name of the agent
+- `data`: Input/output data associated with the run 
+- `timestamp`: When the execution occurred
+- `hand_off`: Routing information
+- `called_from`: Origin of the execution request
 
-## Context Propagation
+### 2. AgentDefinition
 
-### Local Execution
-- Single context instance shared across all agents
-- Direct in-memory references
-- Thread safety considerations for concurrent access
+**Implementation:** `src/flock/core/context/context.py`
 
-### Distributed Execution
-- Context must be serialized between activities
-- Context changes tracked and propagated
-- Consistency guarantees for distributed state
+**Purpose:**
+Stores information about registered agents.
+
+**Fields:**
+- `agent_type`: Type of the agent
+- `agent_name`: Name identifier
+- `agent_data`: Agent configuration
+- `serializer`: Serialization method
+
+## Context Integration
+
+### Flock Integration
+- Flock creates and initializes the global context
+- Flock passes context to each agent during execution
+- Flock ensures context consistency across agents
+
+### Agent Integration
+- Agents receive context during initialization and evaluation
+- Agents can read from and write to context
+- Context determines appropriate inputs for agents based on their input schema
+
+### Module Integration
+- Modules receive context in all lifecycle methods
+- Modules can use context to store and retrieve state
+- Modules can communicate with each other via context
 
 ## Design Principles
 
-1. **State Sharing**:
-   - Common mechanism for sharing data between components
-   - Structured approach to state management
-   - Prevention of global variables
+1. **Shared State Management**:
+   - Consistent state across agent executions
+   - History tracking for debugging and analysis
+   - Dictionary-like access patterns
 
-2. **Access Control**:
-   - Explicit methods for accessing data
-   - Namespaced values to prevent collisions
-   - Type-safe access patterns
+2. **Flexibility**:
+   - Support for various data types
+   - Both key-value and path-based access
+   - Robust serialization for distribution
 
-3. **Transparency**:
-   - Clear visibility of available context
-   - Traceable state changes
-   - Debuggable state transitions
+3. **Serialization Support**:
+   - Full serialization for distributed execution
+   - Support for complex object types
+   - Proper handling of datetime objects
 
-4. **Efficiency**:
-   - Lightweight implementation
-   - Minimal serialization overhead
-   - Efficient storage and retrieval
+4. **Observability**:
+   - Tracing integration
+   - Logging of state changes
+   - History recording for execution flow
 
 ## Implementation Requirements
 
-1. Context must be a Pydantic model for serialization
-2. Context must support dictionary-like access patterns
-3. Context should handle missing values gracefully
-4. Context should provide type hints for accessed values
-5. Context should be observable for debugging purposes
-
-## Usage Patterns
-
-### 1. Agent Definition Registry
-The context maintains a registry of agent definitions:
-```python
-context.add_agent_definition(agent_type, agent_name, agent_config)
-agent_def = context.get_agent_definition(agent_name)
-```
-
-### 2. Shared State Access
-Components can access shared state through the context:
-```python
-context.set_shared_value("key", value)
-value = context.get_shared_value("key")
-```
-
-### 3. Agent State Tracking
-The context tracks the state of agents in the workflow:
-```python
-context.set_agent_state(agent_name, state)
-state = context.get_agent_state(agent_name)
-``` 
+1. Context must be serializable for Temporal workflows
+2. Context operations must be thread-safe
+3. Context should handle large data volumes efficiently
+4. Context should support common data operations (get, set, delete)
+5. Context should provide clear error messages for invalid operations 

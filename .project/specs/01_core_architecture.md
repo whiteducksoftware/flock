@@ -9,6 +9,8 @@ Flock is a framework for building, orchestrating, and running AI agent systems. 
 
 The central orchestrator that manages agents, tools, and execution flow.
 
+**Implementation:** `src/flock/core/flock.py`
+
 **Responsibilities:**
 - Managing agent registration and retrieval
 - Orchestrating workflow execution
@@ -26,6 +28,8 @@ The central orchestrator that manages agents, tools, and execution flow.
 ### 2. FlockAgent
 
 The core agent class that defines a single AI agent's capabilities.
+
+**Implementation:** `src/flock/core/flock_agent.py`
 
 **Responsibilities:**
 - Defining agent inputs and outputs
@@ -49,6 +53,8 @@ The core agent class that defines a single AI agent's capabilities.
 
 Extension system for agents to modify behavior through lifecycle hooks.
 
+**Implementation:** `src/flock/core/flock_module.py`
+
 **Responsibilities:**
 - Hooking into agent lifecycle events
 - Modifying inputs or outputs
@@ -66,6 +72,8 @@ Extension system for agents to modify behavior through lifecycle hooks.
 
 Strategy for evaluating agent requests and generating outputs.
 
+**Implementation:** `src/flock/core/flock_evaluator.py`
+
 **Responsibilities:**
 - Processing agent inputs
 - Formulating appropriate prompts
@@ -76,6 +84,8 @@ Strategy for evaluating agent requests and generating outputs.
 ### 5. FlockRouter
 
 Mechanism for directing workflow between agents.
+
+**Implementation:** `src/flock/core/flock_router.py`
 
 **Responsibilities:**
 - Determining the next agent in a workflow
@@ -88,6 +98,8 @@ Mechanism for directing workflow between agents.
 ### 6. FlockContext
 
 Shared execution context for agents and modules.
+
+**Implementation:** `src/flock/core/context/context.py`
 
 **Responsibilities:**
 - Storing global state across agents

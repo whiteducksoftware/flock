@@ -5,6 +5,8 @@ The Factory design pattern is implemented in Flock to simplify agent creation wi
 
 ## FlockFactory
 
+**Implementation:** `src/flock/core/flock_factory.py`
+
 ### Purpose
 Provide a simplified interface for creating pre-configured agents without requiring manual setup of all components.
 
@@ -17,6 +19,8 @@ Provide a simplified interface for creating pre-configured agents without requir
 ## Default Agent Creation
 
 ### Method: `create_default_agent`
+
+**Implementation:** `src/flock/core/flock_factory.py:create_default_agent`
 
 **Parameters:**
 - `name`: Required unique agent identifier

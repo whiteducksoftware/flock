@@ -3,6 +3,8 @@
 ## Overview
 The tool system provides agents with capabilities to perform actions beyond generating text. Tools can retrieve information, perform calculations, interact with external systems, or execute code. This specification defines how tools are integrated and used within the Flock framework.
 
+**Core Implementation:** `src/flock/core/tools/`
+
 ## Tool Definition
 
 ### Requirements
@@ -35,16 +37,45 @@ The evaluator is responsible for:
 ## Standard Tool Categories
 
 ### 1. Basic Tools
-- Web search tools
-- Code evaluation tools
-- System information tools
-- File manipulation tools
 
-### 2. Specialized Tools
-- Data analysis tools
-- API interaction tools
-- Database tools
-- Visualization tools
+**Implementation:** `src/flock/core/tools/basic_tools.py`
+
+- Web search tools (Tavily, DuckDuckGo, Bing)
+- Web content extraction and parsing
+- Code evaluation (via PythonInterpreter)
+- Math evaluation
+- Time and date functions
+- Text parsing and extraction (URLs, numbers)
+- File operations (read/write)
+- JSON processing
+
+### 2. LLM-specific Tools
+
+**Implementation:** `src/flock/core/tools/llm_tools.py`
+
+- Text chunking and splitting (multiple strategies)
+- Token counting and management
+- Keyword extraction
+- Text cleaning and formatting
+- Chat history formatting
+- Language detection
+- JSON extraction from text
+- Table formatting
+- Text hashing
+
+### 3. Azure Tools
+
+**Implementation:** `src/flock/core/tools/azure_tools.py`
+
+- Azure-specific functionality
+- Cloud resource management
+
+### 4. Markdown Tools
+
+**Implementation:** `src/flock/core/tools/markdown_tools.py`
+
+- Markdown processing and generation
+- Documentation creation helpers
 
 ## Tool Execution Flow
 

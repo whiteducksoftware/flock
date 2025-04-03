@@ -21,21 +21,30 @@ The execution system defines how agent workflows are executed, with support for 
 
 ### 1. Local Executor
 
+**Implementation:** `src/flock/core/execution/local_executor.py`
+
 **Responsibilities:**
 - Execute agent workflows synchronously
-- Manage agent context and state
-- Handle agent initialization and termination
-- Process routing between agents
-- Collect and return final results
+- Process context through workflow
+- Return formatted results
+- Support debugging workflows
+
+**Key Function:**
+- `run_local_workflow(context, box_result)`: Executes the workflow locally
 
 ### 2. Temporal Executor
 
+**Implementation:** `src/flock/core/execution/temporal_executor.py`
+
 **Responsibilities:**
-- Set up Temporal workflow definitions
-- Convert agents to Temporal activities
-- Manage serialization/deserialization for distributed execution
-- Handle workflow state persistence
-- Provide reliability features like retries and timeouts
+- Set up Temporal workflow and worker
+- Create Temporal client
+- Execute workflow through Temporal
+- Maintain workflow ID management
+- Return formatted results
+
+**Key Function:**
+- `run_temporal_workflow(context, box_result)`: Executes the workflow via Temporal
 
 ## Execution Flow
 
@@ -44,7 +53,7 @@ The execution system defines how agent workflows are executed, with support for 
 2. Flock resolves the start agent (by name or reference)
 3. Flock initializes the context
 4. Flock calls `run_local_workflow()` to execute the workflow
-5. Local executor calls `agent.run_async()` on the start agent
+5. Local executor calls `run_agent()` to process the workflow
 6. If agent has a router, determine next agent and continue execution
 7. Continue until no next agent is specified
 8. Return final result to the user
@@ -52,19 +61,19 @@ The execution system defines how agent workflows are executed, with support for 
 ### Temporal Execution Flow
 1. User calls `flock.run()` with start agent and input
 2. Flock checks `enable_temporal` flag and identifies Temporal execution
-3. Flock serializes the necessary components
-4. Flock calls `run_temporal_workflow()` with serialized components
-5. Temporal workflow executes agent activities asynchronously
-6. Workflow handles routing between agents
-7. Workflow returns final result to the user
+3. Flock initializes context with run ID
+4. Flock calls `run_temporal_workflow()`
+5. Temporal executor sets up worker and client
+6. Workflow is executed through Temporal infrastructure
+7. Results are returned to the user
 
 ## Serialization Requirements
 
 For Temporal execution, components must be serializable:
-1. Agents must be convertible to/from dictionaries
-2. Tools must be properly serialized/deserialized
-3. Context must maintain state across activities
-4. All inputs and outputs must be JSON-serializable
+1. Context is serialized to/from dictionary
+2. Agents must be accessible through registry
+3. Tools must be properly registered
+4. All inputs and outputs must be serializable
 
 ## Error Handling
 
@@ -94,12 +103,12 @@ For Temporal execution, components must be serializable:
 3. **Observability**:
    - Tracing through all execution steps
    - Logging at key points
-   - Metrics for performance analysis
+   - Consistent workflow IDs for tracking
 
 4. **Flexibility**:
    - Support for synchronous and asynchronous APIs
    - Compatible with different execution environments
-   - Extensible to other execution engines
+   - Result formatting options
 
 ## Implementation Requirements
 

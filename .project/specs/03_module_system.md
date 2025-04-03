@@ -3,9 +3,13 @@
 ## Overview
 The module system provides a way to extend agent functionality through lifecycle hooks. Modules can modify agent behavior, add new capabilities, or provide cross-cutting concerns like logging or metrics without changing the core agent implementation.
 
+**Core Implementation:** `src/flock/core/flock_module.py`
+
 ## Core Module Components
 
 ### 1. FlockModuleConfig
+
+**Implementation:** `src/flock/core/flock_module.py:FlockModuleConfig`
 
 **Purpose:**
 Base configuration class for all module configurations.
@@ -19,6 +23,8 @@ Base configuration class for all module configurations.
 - `with_fields(**field_definitions)`: Factory method to create derived config classes with additional fields
 
 ### 2. FlockModule
+
+**Implementation:** `src/flock/core/flock_module.py:FlockModule`
 
 **Purpose:**
 Base abstract class for all modules that can be attached to agents.
@@ -40,10 +46,10 @@ Base abstract class for all modules that can be attached to agents.
 
 ### Agent Module Management
 The FlockAgent must provide methods to:
-- Add modules via `add_module(module)`
-- Remove modules via `remove_module(module_name)`
-- Retrieve modules via `get_module(module_name)`
-- Get all enabled modules via `get_enabled_modules()`
+- Add modules via `add_module(module)` - **Implementation:** `src/flock/core/flock_agent.py:add_module`
+- Remove modules via `remove_module(module_name)` - **Implementation:** `src/flock/core/flock_agent.py:remove_module`
+- Retrieve modules via `get_module(module_name)` - **Implementation:** `src/flock/core/flock_agent.py:get_module`
+- Get all enabled modules via `get_enabled_modules()` - **Implementation:** `src/flock/core/flock_agent.py:get_enabled_modules`
 
 ### Module Execution
 During agent execution, the agent must:
@@ -57,6 +63,8 @@ During agent execution, the agent must:
 
 ### 1. OutputModule
 
+**Implementation:** `src/flock/modules/output/output_module.py`
+
 **Purpose:**
 Handle formatting and displaying agent outputs.
 
@@ -68,6 +76,8 @@ Handle formatting and displaying agent outputs.
 - `print_context`: Whether to print context along with output
 
 ### 2. MetricsModule
+
+**Implementation:** `src/flock/modules/metrics/metrics_module.py`
 
 **Purpose:**
 Track and report agent performance metrics.

@@ -1,119 +1,117 @@
-# CLI System Specification
+# Flock CLI System Specification
 
 ## Overview
+The Command Line Interface (CLI) system provides a user-friendly way to interact with Flock agents, create workflows, and manage agent configurations. This specification defines the requirements and behavior of the CLI subsystem.
 
-The Command Line Interface (CLI) system provides an interactive terminal-based user interface for the Flock framework. It allows users to manage agents, flocks, settings, and other aspects of the framework through a console application.
+**Core Implementation:** `src/flock/cli/`
 
-## Components
+## Core Components
 
-### 1. Main CLI Application
+### 1. Flock CLI
 
-- **Entry Point**: `src/flock/__init__.py`
-- **Purpose**: Provides the main menu and dispatches to specific CLI modules
-- **Implementation**: Uses Rich for formatting and Questionary for interactive prompts
-- **Main Menu Options**:
-  - Load a flock file
-  - Theme builder
-  - Settings editor
-  - Advanced mode (future)
-  - Web server (future)
-  - Release notes
-  - Exit
+**Implementation:** `src/flock/cli/loaded_flock_cli.py`
 
-### 2. Settings Editor
+**Purpose:**
+Provide an interactive interface for managing and executing Flock workflows.
 
-- **Module**: `src/flock/cli/settings.py`
-- **Purpose**: View, edit, add, and delete environment variables in the `.env` file
-- **Features**:
-  - Pagination of environment variables
-  - Masking of sensitive values (API keys, tokens, etc.)
-  - Environment profile management (dev, test, prod, etc.)
-  - Configurable variables per page
+**Key Features:**
+- Execute Flock workflows
+- Start web server (with or without UI)
+- Manage agents
+- Registry management
+- Settings management
+- YAML configuration editing
 
-#### 2.1 Environment Variables Management
+### 2. YAML Editor
 
-- View all environment variables with pagination
-- Edit existing variables with proper validation
-- Add new variables
-- Delete existing variables
-- Masking sensitive values (API keys, passwords, tokens)
-- Toggle visibility of sensitive values
+**Implementation:** `src/flock/cli/yaml_editor.py`
 
-#### 2.2 Environment Profile System
+**Purpose:**
+Edit Flock configuration files in YAML format.
 
-- Multiple environment profiles (.env_dev, .env_prod, etc.)
-- Active profile stored as .env
-- Profile name stored as comment in first line: `# Profile: name`
-- Profile operations:
-  - Switch between profiles
-  - Create new profiles
-  - Rename existing profiles
-  - Delete profiles
-  - Safe backup system before profile operations
+### 3. Settings Manager
 
-#### 2.3 Settings Configuration
+**Implementation:** `src/flock/cli/settings.py`
 
-- Configurable settings stored in the .env file:
-  - `SHOW_SECRETS`: Controls visibility of sensitive values
-  - `VARS_PER_PAGE`: Controls pagination size (5-100 variables)
+**Purpose:**
+Manage user preferences, environment profiles, and global settings.
 
-### 3. Theme Builder
+**Key Features:**
+- Environment variable management
+- Environment profile management (dev, prod, etc.)
 
-- **Module**: `flock/core/logging/formatters/theme_builder`
-- **Purpose**: Customize the visual appearance of the CLI
-- **Features**: [To be expanded]
+## CLI Modules
 
-### 4. Flock Loader
+### 1. Agent Management
 
-- **Module**: `src/flock/cli/load_flock.py`
-- **Purpose**: Load and execute .flock files
-- **Features**: [To be expanded]
+**Implementation:** `src/flock/cli/manage_agents.py`
+
+**Features:**
+- Create, edit, and delete agents
+
+### 2. Flock Management
+
+**Implementation:** `src/flock/cli/create_flock.py`, `src/flock/cli/load_flock.py`
+
+**Features:**
+- Create new Flock workflows
+- Load existing workflows
+
+### 3. Execution Engine
+
+**Implementation:** `src/flock/cli/execute_flock.py`
+
+**Features:**
+- Select agent to run
+- Configure input values
+- Enable/disable logging
+- Run Flock workflows
+
+### 4. Registry Management
+
+**Implementation:** `src/flock/cli/registry_management.py`
+
+**Features:**
+- Manage agent and tool registrations
+
+## User Interface Components
+
+### 1. Navigation System
+- Menu-based navigation with questionary
+- Rich UI formatting
+
+### 2. Input Components
+- Text input fields
+- Selection lists
+- Confirmations
+
+### 3. Output Components
+- Rich text display
+- Panels and formatting
+- Error messages
 
 ## Design Principles
 
-1. **User-Friendly Interface**: Clear navigation, intuitive controls, and helpful feedback
-2. **Data Safety**: Backup operations before destructive actions, confirmation prompts
-3. **Efficient Workflow**: Keyboard shortcuts, pagination, customizable settings
-4. **Security Conscious**: Masking of sensitive values, confirmation for showing secrets
-5. **Consistent UI**: Using Rich for formatted output, Questionary for inputs
+1. **User-Centric Design**:
+   - Clear navigation menus
+   - Consistent interface
+   - Step-by-step process flows
+   - Helpful error messages
 
-## UI Components
+2. **Efficiency**:
+   - Streamlined workflows
+   - Default values for common options
+   - Structured navigation
 
-### Panels and Tables
+3. **Flexibility**:
+   - Support for different workflow patterns
+   - Configuration options
+   - Multiple execution modes
 
-- **Rich Panels**: Used for section headers and menus
-- **Rich Tables**: Used for displaying structured data
-- **Color Coding**: Green for success, yellow for warnings, red for errors
+## Implementation Requirements
 
-### Interactive Elements
-
-- **Selection Menus**: Using Questionary.select for menu navigation
-- **Text Inputs**: Using Questionary.text for data entry
-- **Confirmations**: Using Questionary.confirm for destructive actions
-
-## Navigation System
-
-- **Main Menu**: Select from multiple modules
-- **Module Menus**: Select operations within a module
-- **Keyboard Shortcuts**: Single-key commands for common operations
-- **Back Button**: Return to previous screen
-- **Cancel Option**: Abort current operation
-
-## File Operations
-
-- **Load Operations**: Reading from the .env file and profile files
-- **Save Operations**: Writing to the .env file with proper backup
-- **Backup System**: Creating .env.bak before destructive operations
-- **Profile Files**: Managing .env_[profile_name] files
-
-## Future Enhancements
-
-1. **Command History**: Remember previous commands and inputs
-2. **Autocomplete**: Tab completion for variable names and commands
-3. **Search/Filter**: Find specific variables by name or value
-4. **Import/Export**: Support for importing/exporting profiles
-5. **Template System**: Pre-defined templates for common setups
-
-## Implementation Status
-
-The CLI system is currently being implemented with the Settings Editor being the first major component completed. Additional components will be developed according to the project roadmap. 
+1. CLI must work in standard terminal environments
+2. Should provide robust error handling
+3. Must support configuration management
+4. Should be consistent across different parts of the system
+5. Should provide appropriate feedback to users 

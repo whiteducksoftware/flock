@@ -1,100 +1,103 @@
 # Flock Evaluator System Specification
 
 ## Overview
-The evaluator system provides the core evaluation mechanism for agents, defining how inputs are processed and outputs are generated. It abstracts the interaction with language models and provides a standardized interface for agent evaluation.
+The evaluator system is responsible for processing agent inputs and generating outputs. It defines how agents interact with language models, including prompt formulation, model configuration, and output processing. This specification outlines the requirements and architecture of the evaluator system.
 
-## Core Evaluator Components
+## Core Components
 
-### 1. FlockEvaluatorConfig
+### 1. FlockEvaluator
+
+**Implementation:** `src/flock/core/flock_evaluator.py`
 
 **Purpose:**
-Base configuration class for all evaluator configurations.
+Abstract base class defining the interface for all evaluators.
 
 **Requirements:**
-- Must extend Pydantic's BaseModel
-- Must include common configuration options for model interaction
+- Must define an `evaluate(agent, inputs, context)` method
+- Must handle varied input and output formats
+- Must integrate with tools if provided
+- Should support caching when enabled
 
-**Standard Fields:**
-- Model identifier
-- Caching preferences
-- Temperature settings
-- Token limits
+### 2. DeclarativeEvaluator
 
-### 2. FlockEvaluator
+**Implementation:** `src/flock/evaluators/declarative/declarative_evaluator.py`
 
 **Purpose:**
-Base abstract class for all evaluators.
-
-**Requirements:**
-- Must implement an `evaluate` method that processes agent inputs
-- Must handle tool execution when applicable
-- Must properly format inputs based on agent definitions
-- Must process and structure outputs according to agent output definitions
-
-**API:**
-- `evaluate(agent, inputs, tools)`: Asynchronous method to evaluate inputs and produce structured outputs
-
-## Standard Evaluators
-
-### 1. DeclarativeEvaluator
-
-**Purpose:**
-Default evaluator that uses a declarative approach, focusing on input/output mapping.
-
-**Functionality:**
-- Creates DSPy signatures from agent definitions
-- Configures language models appropriately
-- Selects appropriate agent tasks based on tool requirements
-- Processes model results into structured outputs
+Standard evaluator that generates outputs based on agent's declared inputs and outputs.
 
 **Configuration:**
 - `agent_type_override`: Optional override for agent type
-- `model`: Model identifier (default: 'openai/gpt-4o')
-- `use_cache`: Whether to cache results (default: True)
-- `temperature`: Model temperature (default: 0.0)
-- `max_tokens`: Maximum token generation (default: 4096)
+- `model`: The LLM to use for evaluation (default: openai/gpt-4o)
+- `use_cache`: Whether to cache evaluation results (default: True)
+- `temperature`: Sampling temperature (default: 0.0)
+- `max_tokens`: Maximum generated tokens (default: 4096)
 
-## Integration Points
+**Behavior:**
+1. Creates a DSPy signature from agent input/output declarations
+2. Configures the language model with appropriate settings
+3. Selects the task type based on tool requirements
+4. Executes the task with provided inputs
+5. Processes and returns the structured results
 
-### DSPy Integration
+**Mixins:**
+- `DSPyIntegrationMixin`: Provides DSPy framework integration
+- `PromptParserMixin`: Handles prompt parsing and formatting
 
-**Requirements:**
-- Must support DSPy for language model interactions
-- Must properly convert agent definitions to DSPy signatures
-- Must support DSPy caching when enabled
+## Evaluator Integration
 
-### Tool Execution
+### Agent Integration
+The FlockAgent must:
+- Store the evaluator in its `evaluator` attribute
+- Call `evaluator.evaluate()` during its own `evaluate()` method
+- Pass the appropriate context and inputs to the evaluator
 
-**Requirements:**
-- Must properly format tools for model access
-- Must handle tool execution when requested by the model
-- Must support synchronous and asynchronous tools
-- Must properly format tool results for the model
+### Factory Integration
+The FlockFactory must:
+- Create and configure the appropriate evaluator based on agent parameters
+- Attach the evaluator to the agent during creation
+
+## Specializations
+
+### 1. Natural Language Evaluators
+
+**Implementation:** `src/flock/evaluators/natural_language/`
+
+**Purpose:**
+Evaluators that use natural language processing techniques.
+
+### 2. Memory-Enhanced Evaluators 
+
+**Implementation:** `src/flock/evaluators/memory/`
+
+**Purpose:**
+Evaluators that incorporate memory capabilities for stateful conversations and reasoning.
 
 ## Design Principles
 
-1. **Modularity**:
-   - Evaluators should be interchangeable
-   - Different evaluation strategies possible with same agent definition
+1. **Separation of Concerns**:
+   - Evaluators handle prompt creation and model interaction
+   - Agents define inputs and outputs
+   - Clear division of responsibilities
 
-2. **Abstraction**:
-   - Hide complexity of model interactions
-   - Provide a consistent interface regardless of underlying model
+2. **Flexibility**:
+   - Support for different model providers via LiteLLM
+   - Configurable parameters for each evaluation
+   - Extensible through specializations
 
-3. **Flexibility**:
-   - Support different model providers
-   - Support different evaluation strategies
-   - Allow configuration of evaluation parameters
+3. **Consistency**:
+   - Standard interface for all evaluators
+   - Predictable input and output processing
+   - Common error handling patterns
 
 4. **Performance**:
-   - Support caching of results
-   - Optimize token usage
-   - Handle rate limiting appropriately
+   - Built-in caching support
+   - Efficient DSPy integration
+   - Optimized model calls
 
 ## Implementation Requirements
 
 1. Evaluators must be serializable
-2. Evaluators must handle exceptions gracefully
-3. Evaluators should provide appropriate debugging information
-4. Evaluators should support observability through tracing
-5. Evaluators should maintain compatibility with multiple model providers 
+2. Evaluators should have minimal dependencies on specific model providers
+3. Error handling should be graceful and informative
+4. Caching should be configurable and efficient
+5. Tool integration should be seamless and standardized 
