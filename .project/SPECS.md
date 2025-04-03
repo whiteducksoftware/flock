@@ -55,9 +55,39 @@ Flock is a declarative agent framework that focuses on simplifying the creation 
 
 9. [**CLI System**](specs/09_cli_system.md)
    - Defines the command-line interface architecture
-   - Specifies modules like the Settings Editor and Theme Builder
+   - Specifies modules like the Settings Editor
    - Documents environment profile management
    - Outlines UI components and navigation patterns
+
+10. [**Workflow System**](specs/10_workflow_system.md)
+    - Defines Temporal workflow integration
+    - Specifies activity implementation for agent chains
+    - Documents workflow execution flow
+    - Outlines tracing and observability features
+
+11. [**Memory System**](specs/11_memory_system.md)
+    - Defines agent memory capabilities
+    - Specifies storage and retrieval mechanisms
+    - Documents concept extraction and memory operations
+    - Outlines memory integration with agent lifecycle
+
+12. [**Platform System**](specs/12_platform_system.md)
+    - Defines infrastructure management utilities
+    - Specifies Docker and Jaeger integration
+    - Documents observability infrastructure setup
+    - Outlines containerization support
+
+13. [**Registry System**](specs/13_registry_system.md)
+    - Defines centralized component management
+    - Specifies registration of agents, callables, types, and components
+    - Documents decorator system for easy registration
+    - Outlines dynamic import capabilities
+
+14. [**Serialization System**](specs/14_serialization_system.md)
+    - Defines conversion of components to various formats
+    - Specifies serialization interfaces and utilities
+    - Documents support for multiple serialization formats
+    - Outlines secure serialization capabilities
 
 ## Design Principles
 
@@ -69,6 +99,8 @@ These specifications reveal several core design principles that guided the devel
 4. **Production Readiness** - Support for distributed execution, observability, and error handling
 5. **Developer Experience** - Simplified API with sensible defaults and clear patterns
 6. **User-Friendly Interface** - Intuitive CLI with clear navigation and helpful feedback
+7. **Centralized Registry** - Single source of truth for component registration and lookup
+8. **Serialization Support** - Comprehensive support for storing and sharing components
 
 ## Implementation Status
 
@@ -83,4 +115,6 @@ Based on the specifications, potential future enhancements could include:
 3. Additional module types for common agent patterns
 4. Expanded router capabilities for complex workflows
 5. Integration with additional execution engines beyond Temporal
-6. Extended CLI functionality for agent management and monitoring 
+6. Extended CLI functionality for agent management and monitoring
+7. Advanced memory capabilities for improved agent reasoning
+8. Enhanced serialization for cross-platform compatibility 
