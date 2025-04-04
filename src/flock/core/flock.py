@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from box import Box
 from opentelemetry import trace
 from opentelemetry.baggage import get_baggage, set_baggage
 
@@ -73,7 +74,7 @@ class Flock(BaseModel, Serializable):
     It is serializable to various formats like YAML and JSON.
     """
 
-    name: str = Field(
+    name: str | None = Field(
         default_factory=lambda: f"flock_{uuid.uuid4().hex[:8]}",
         description="A unique identifier for this Flock instance.",
     )
@@ -111,6 +112,7 @@ class Flock(BaseModel, Serializable):
         name: str | None = None,
         model: str | None = "openai/gpt-4o",
         description: str | None = None,
+        show_flock_banner: bool = True,
         enable_temporal: bool = False,
         enable_logging: bool
         | list[str] = False,  # Keep logging control at init
@@ -120,6 +122,7 @@ class Flock(BaseModel, Serializable):
         """Initialize the Flock orchestrator."""
         # Initialize Pydantic fields
         super().__init__(
+            name=name,
             model=model,
             description=description,
             enable_temporal=enable_temporal,
@@ -149,7 +152,8 @@ class Flock(BaseModel, Serializable):
                     )
 
         # Initialize console if needed
-        init_console()
+        if show_flock_banner:
+            init_console()
 
         # Set Temporal debug environment variable
         self._set_temporal_debug_flag()
@@ -167,7 +171,7 @@ class Flock(BaseModel, Serializable):
     # ... (implementation as before) ...
     def _configure_logging(self, enable_logging: bool | list[str]):
         """Configure logging levels based on the enable_logging flag."""
-        logger.debug(f"Configuring logging, enable_logging={enable_logging}")
+        # logger.debug(f"Configuring logging, enable_logging={enable_logging}")
         is_enabled_globally = False
         enabled_loggers = []
 
@@ -264,9 +268,9 @@ class Flock(BaseModel, Serializable):
         context: FlockContext
         | None = None,  # Allow passing initial context state
         run_id: str = "",
-        box_result: bool = False,  # Changed default to False for raw dict
+        box_result: bool = True,  # Changed default to False for raw dict
         agents: list[FlockAgent] | None = None,  # Allow adding agents via run
-    ) -> dict:
+    ) -> Box:
         """Entry point for running an agent system synchronously."""
         return asyncio.run(
             self.run_async(
@@ -285,9 +289,9 @@ class Flock(BaseModel, Serializable):
         input: dict | None = None,
         context: FlockContext | None = None,
         run_id: str = "",
-        box_result: bool = False,  # Changed default
+        box_result: bool = True,  # Changed default
         agents: list[FlockAgent] | None = None,  # Allow adding agents via run
-    ) -> dict:
+    ) -> Box:
         """Entry point for running an agent system asynchronously."""
         # This import needs to be here or handled carefully due to potential cycles
         from flock.core.flock_agent import FlockAgent as ConcreteFlockAgent

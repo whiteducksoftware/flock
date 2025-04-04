@@ -66,7 +66,7 @@ class FlockRegistry:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialize()
-            logger.info("FlockRegistry instance created.")
+            # logger.info("FlockRegistry instance created.")
         return cls._instance
 
     def _initialize(self):
@@ -75,7 +75,7 @@ class FlockRegistry:
         self._callables = {}
         self._types = {}
         self._components = {}
-        logger.debug("FlockRegistry initialized internal stores.")
+        # logger.debug("FlockRegistry initialized internal stores.")
         # Auto-register core Python types
         self._register_core_types()
 
@@ -227,7 +227,7 @@ class FlockRegistry:
                     f"Type '{type_name}' already registered. Overwriting."
                 )
             self._types[type_name] = type_obj
-            logger.debug(f"Registered type: {type_name}")
+            # logger.debug(f"Registered type: {type_name}")
             return type_name
         return None
 
@@ -529,4 +529,4 @@ def _auto_register_by_path():
 
 
 # Bootstrapping the registry
-_auto_register_by_path()
+# _auto_register_by_path()
