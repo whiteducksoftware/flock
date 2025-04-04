@@ -272,16 +272,33 @@ class Flock(BaseModel, Serializable):
         agents: list[FlockAgent] | None = None,  # Allow adding agents via run
     ) -> Box:
         """Entry point for running an agent system synchronously."""
-        return asyncio.run(
-            self.run_async(
-                start_agent=start_agent,
-                input=input,
-                context=context,
-                run_id=run_id,
-                box_result=box_result,
-                agents=agents,
+        # Check if an event loop is already running
+        try:
+            loop = asyncio.get_running_loop()
+            # If we get here, an event loop is already running
+            # Run directly in this loop using run_until_complete
+            return loop.run_until_complete(
+                self.run_async(
+                    start_agent=start_agent,
+                    input=input,
+                    context=context,
+                    run_id=run_id,
+                    box_result=box_result,
+                    agents=agents,
+                )
             )
-        )
+        except RuntimeError:
+            # No running event loop, create a new one with asyncio.run
+            return asyncio.run(
+                self.run_async(
+                    start_agent=start_agent,
+                    input=input,
+                    context=context,
+                    run_id=run_id,
+                    box_result=box_result,
+                    agents=agents,
+                )
+            )
 
     async def run_async(
         self,

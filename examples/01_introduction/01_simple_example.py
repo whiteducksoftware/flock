@@ -46,4 +46,4 @@ flock.run(
 # Start the CLI with the loaded Flock
 # --------------------------------
 # Uncomment the line below to start the CLI:
-flock.start_cli()
+#flock.start_cli()
