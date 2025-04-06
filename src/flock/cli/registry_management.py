@@ -3,10 +3,12 @@
 import importlib
 import inspect
 import os
+from dataclasses import is_dataclass
 from pathlib import Path
 from typing import Any
 
 import questionary
+from pydantic import BaseModel
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
@@ -137,9 +139,21 @@ def display_registry_section(
     table.add_column("Name/Path", style="cyan")
     table.add_column("Type", style="green")
 
+    # Add file path column for components
+    if title == "Components":
+        table.add_column("File Path", style="yellow")
+
     for name, item in filtered_items.items():
         item_type = type(item).__name__
-        table.add_row(name, item_type)
+
+        if title == "Components":
+            # Try to get the file path for component classes
+            file_path = (
+                inspect.getfile(item) if inspect.isclass(item) else "N/A"
+            )
+            table.add_row(name, item_type, file_path)
+        else:
+            table.add_row(name, item_type)
 
     console.print(table)
     console.print(f"Total: {len(filtered_items)} {title.lower()}")
@@ -154,11 +168,72 @@ def add_item_to_registry() -> None:
         choices=["agent", "callable", "type", "component"],
     ).ask()
 
-    module_path = questionary.text(
-        "Enter the module path (e.g., 'your_module.submodule'):"
-    ).ask()
+    # For component types, offer file path option
+    use_file_path = False
+    if item_type == "component":
+        path_type = questionary.select(
+            "How do you want to specify the component?",
+            choices=["Module Path", "File Path"],
+        ).ask()
+        use_file_path = path_type == "File Path"
 
-    item_name = questionary.text("Enter the item name within the module:").ask()
+    if use_file_path:
+        file_path = questionary.path(
+            "Enter the file path to the component:", only_directories=False
+        ).ask()
+
+        if not file_path or not os.path.exists(file_path):
+            console.print(f"[red]Error: File {file_path} does not exist[/]")
+            return False
+
+        module_name = questionary.text(
+            "Enter the component class name in the file:"
+        ).ask()
+
+        try:
+            # Use dynamic import to load the module from file path
+            import importlib.util
+
+            spec = importlib.util.spec_from_file_location(
+                "temp_module", file_path
+            )
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            if not hasattr(module, module_name):
+                console.print(
+                    f"[red]Error: {module_name} not found in {file_path}[/]"
+                )
+                return False
+
+            item = getattr(module, module_name)
+        except Exception as e:
+            console.print(f"[red]Error importing from file: {e!s}[/]")
+            return False
+    else:
+        module_path = questionary.text(
+            "Enter the module path (e.g., 'your_module.submodule'):"
+        ).ask()
+
+        item_name = questionary.text(
+            "Enter the item name within the module:"
+        ).ask()
+
+        try:
+            # Attempt to import the module
+            module = importlib.import_module(module_path)
+
+            # Get the item from the module
+            if not hasattr(module, item_name):
+                console.print(
+                    f"[red]Error: {item_name} not found in {module_path}[/]"
+                )
+                return False
+
+            item = getattr(module, item_name)
+        except Exception as e:
+            console.print(f"[red]Error importing module: {e!s}[/]")
+            return False
 
     alias = questionary.text(
         "Enter an alias (optional, press Enter to skip):"
@@ -167,20 +242,8 @@ def add_item_to_registry() -> None:
     if not alias:
         alias = None
 
+    # Register the item based on its type
     try:
-        # Attempt to import the module
-        module = importlib.import_module(module_path)
-
-        # Get the item from the module
-        if not hasattr(module, item_name):
-            console.print(
-                f"[red]Error: {item_name} not found in {module_path}[/]"
-            )
-            return False
-
-        item = getattr(module, item_name)
-
-        # Register the item based on its type
         if item_type == "agent":
             registry.register_agent(item)
             console.print(
@@ -196,18 +259,19 @@ def add_item_to_registry() -> None:
             console.print(f"[green]Successfully registered type: {result}[/]")
         elif item_type == "component":
             result = registry.register_component(item, alias)
+            # Store the file path information if we loaded from a file
+            if use_file_path and hasattr(registry, "_component_file_paths"):
+                # Check if the registry has component file paths attribute
+                # This will be added to registry in our update
+                registry._component_file_paths[result] = file_path
             console.print(
                 f"[green]Successfully registered component: {result}[/]"
             )
-
-        return True
-
-    except ImportError:
-        console.print(f"[red]Error: Could not import module {module_path}[/]")
     except Exception as e:
-        console.print(f"[red]Error: {e!s}[/]")
+        console.print(f"[red]Error registering item: {e!s}[/]")
+        return False
 
-    return False
+    return True
 
 
 def remove_item_from_registry() -> None:
@@ -275,56 +339,170 @@ def remove_item_from_registry() -> None:
 
 
 def auto_registration_scanner() -> None:
-    """Scan directory for potential registry items and optionally register them."""
-    # Ask for the target path
-    target_path = questionary.text(
-        "Enter the path to scan (file or directory):",
-        default=os.getcwd(),
-    ).ask()
-
-    # Ask if we should recursively scan directories
-    recursive = True
-    if os.path.isdir(target_path):
-        recursive = questionary.confirm(
-            "Scan recursively through subdirectories?",
-            default=True,
-        ).ask()
-
-    # Ask if we should auto-register or just preview
-    auto_register = questionary.confirm(
-        "Auto-register discovered items? (No for preview only)",
-        default=False,
-    ).ask()
-
-    # Perform the scan
-    scan_results = scan_for_registry_items(
-        target_path, recursive, auto_register
+    """Scan directories for components that can be auto-registered."""
+    console.clear()
+    console.print(
+        Panel("[bold blue]Auto-Registration Scanner[/]"), justify="center"
     )
+    console.line()
 
-    # Display results
-    console.print(Panel("[bold green]Scan Results[/]"), justify="center")
+    # Get directory to scan
+    scan_dir = questionary.path(
+        "Select directory to scan for auto-registration:",
+        only_directories=True,
+    ).ask()
 
-    for category, items in scan_results.items():
-        if items:
-            console.print(f"\n[cyan]{category}:[/] {len(items)} items")
-            for item in items:
-                console.print(f"  - {item}")
+    if not scan_dir or not os.path.isdir(scan_dir):
+        console.print("[red]Invalid directory selected.[/]")
+        return
 
-    if auto_register:
-        console.print("\n[green]Items have been registered to the registry.[/]")
-    else:
-        # Ask if we want to register the detected items
-        register_now = questionary.confirm(
-            "Register these items now?",
-            default=False,
-        ).ask()
+    # Configure scan options
+    scan_types = questionary.checkbox(
+        "Select types to scan for:",
+        choices=[
+            questionary.Choice("Agents", checked=True),
+            questionary.Choice("Callables (Functions)", checked=True),
+            questionary.Choice("Types (Pydantic/Dataclasses)", checked=True),
+            questionary.Choice("Components", checked=True),
+        ],
+    ).ask()
 
-        if register_now:
-            # Re-scan with auto-register=True
-            scan_for_registry_items(target_path, recursive, True)
-            console.print(
-                "\n[green]Items have been registered to the registry.[/]"
-            )
+    if not scan_types:
+        console.print("[yellow]No types selected for scanning.[/]")
+        return
+
+    # Start scanning with progress indicator
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+    ) as progress:
+        task = progress.add_task("Scanning files...", total=None)
+
+        # Track successful registrations
+        registered_items = {
+            "Agents": 0,
+            "Callables": 0,
+            "Types": 0,
+            "Components": 0,
+        }
+
+        # Create sets to store paths
+        component_file_paths = {}
+
+        # Get registry
+        registry = get_registry()
+
+        # Initialize component_file_paths if not present
+        if not hasattr(registry, "_component_file_paths"):
+            registry._component_file_paths = {}
+
+        # Walk through directory and scan files
+        for root, _, files in os.walk(scan_dir):
+            for file in files:
+                if file.endswith(".py"):
+                    file_path = os.path.join(root, file)
+                    progress.update(task, description=f"Scanning {file}")
+
+                    # Attempt to import module from file path
+                    try:
+                        # Convert file path to module name for standard imports
+                        rel_path = os.path.relpath(
+                            file_path, os.path.dirname(scan_dir)
+                        )
+                        module_name = os.path.splitext(rel_path)[0].replace(
+                            os.sep, "."
+                        )
+
+                        # Try standard import first
+                        try:
+                            module = importlib.import_module(module_name)
+                        except (ImportError, ValueError):
+                            # If standard import fails, use file-based import
+                            spec = importlib.util.spec_from_file_location(
+                                f"scan_module_{id(file_path)}", file_path
+                            )
+                            if not spec or not spec.loader:
+                                continue
+
+                            module = importlib.util.module_from_spec(spec)
+                            spec.loader.exec_module(module)
+
+                        # Scan module for each selected type
+                        for attr_name in dir(module):
+                            if attr_name.startswith("_"):
+                                continue
+
+                            try:
+                                attr = getattr(module, attr_name)
+
+                                # Check for agents
+                                if "Agents" in scan_types:
+                                    # Simplified check - would need to be adapted to your actual code
+                                    if hasattr(attr, "name") and hasattr(
+                                        attr, "run"
+                                    ):
+                                        registry.register_agent(attr)
+                                        registered_items["Agents"] += 1
+
+                                # Check for callables
+                                if (
+                                    "Callables (Functions)" in scan_types
+                                    and callable(attr)
+                                ):
+                                    if registry.register_callable(attr):
+                                        registered_items["Callables"] += 1
+
+                                # Check for types
+                                if "Types (Pydantic/Dataclasses)" in scan_types:
+                                    if isinstance(attr, type) and (
+                                        issubclass(attr, BaseModel)
+                                        or is_dataclass(attr)
+                                    ):
+                                        if registry.register_type(attr):
+                                            registered_items["Types"] += 1
+
+                                # Check for components
+                                if (
+                                    "Components" in scan_types
+                                    and inspect.isclass(attr)
+                                ):
+                                    # This checks if it's a potential component class
+                                    # Add your specific criteria if needed
+                                    component_name = (
+                                        registry.register_component(attr)
+                                    )
+                                    if component_name:
+                                        registered_items["Components"] += 1
+                                        # Store the file path for this component
+                                        registry._component_file_paths[
+                                            component_name
+                                        ] = file_path
+
+                            except Exception as e:
+                                logger.debug(
+                                    f"Error processing {attr_name}: {e}"
+                                )
+                                continue
+                    except Exception as e:
+                        logger.debug(f"Error importing {file_path}: {e}")
+                        continue
+
+        # Complete the progress bar
+        progress.update(task, completed=100)
+
+    # Show results
+    console.print("\n[bold green]Scan Complete![/]")
+
+    table = Table(title="Registration Results")
+    table.add_column("Type", style="cyan")
+    table.add_column("Count", style="green")
+
+    for item_type, count in registered_items.items():
+        table.add_row(item_type, str(count))
+
+    console.print(table)
 
 
 def scan_for_registry_items(
@@ -517,8 +695,6 @@ def has_component_base(cls: type) -> bool:
 def is_potential_type(cls: type) -> bool:
     """Check if a class is a Pydantic model or dataclass."""
     try:
-        from dataclasses import is_dataclass
-
         from pydantic import BaseModel
 
         return issubclass(cls, BaseModel) or is_dataclass(cls)
@@ -559,56 +735,139 @@ def is_potential_registry_candidate(obj: Any) -> bool:
 
 
 def export_registry() -> None:
-    """Export the current registry state to a file."""
+    """Export registry contents to a file."""
     registry = get_registry()
 
-    # Choose export format
-    export_format = questionary.select(
-        "Select export format:",
-        choices=["YAML", "JSON", "Text Report"],
+    # Select what to export
+    export_items = questionary.checkbox(
+        "Select what to export:",
+        choices=[
+            questionary.Choice("Agents", checked=True),
+            questionary.Choice("Callables", checked=True),
+            questionary.Choice("Types", checked=True),
+            questionary.Choice("Components", checked=True),
+            questionary.Choice("File Paths", checked=True),
+        ],
     ).ask()
 
-    # Choose export path
-    export_path = questionary.text(
-        "Enter export file path:",
+    if not export_items:
+        console.print("[yellow]No items selected for export.[/]")
+        return
+
+    # Select export format
+    export_format = questionary.select(
+        "Select export format:",
+        choices=["YAML", "JSON", "Python"],
+    ).ask()
+
+    # Get file path for export
+    file_path = questionary.path(
+        "Enter file path for export:",
         default=f"flock_registry_export.{export_format.lower()}",
     ).ask()
 
-    try:
-        export_data = {
-            "agents": list(registry._agents.keys()),
-            "callables": list(registry._callables.keys()),
-            "types": list(registry._types.keys()),
-            "components": list(registry._components.keys()),
-        }
+    if not file_path:
+        return
 
+    # Prepare export data
+    export_data = {}
+
+    if "Agents" in export_items:
+        export_data["agents"] = list(registry._agents.keys())
+
+    if "Callables" in export_items:
+        export_data["callables"] = list(registry._callables.keys())
+
+    if "Types" in export_items:
+        export_data["types"] = list(registry._types.keys())
+
+    if "Components" in export_items:
+        export_data["components"] = list(registry._components.keys())
+
+        # Include file paths if selected
+        if "File Paths" in export_items and hasattr(
+            registry, "_component_file_paths"
+        ):
+            export_data["component_file_paths"] = {}
+            for component_name in registry._components.keys():
+                # Get the file path if available
+                if component_name in registry._component_file_paths:
+                    export_data["component_file_paths"][component_name] = (
+                        registry._component_file_paths[component_name]
+                    )
+                else:
+                    # Try to infer the file path using inspect
+                    try:
+                        component_class = registry._components[component_name]
+                        if inspect.isclass(component_class):
+                            file_path = inspect.getfile(component_class)
+                            export_data["component_file_paths"][
+                                component_name
+                            ] = file_path
+                    except Exception:
+                        # Skip if we can't get the file path
+                        pass
+
+    # Export based on format
+    try:
         if export_format == "YAML":
             import yaml
 
-            with open(export_path, "w") as f:
-                yaml.dump(export_data, f, sort_keys=False, indent=2)
+            # Use a safe dumper to avoid serialization issues
+            with open(file_path, "w") as f:
+                yaml.safe_dump(export_data, f, default_flow_style=False)
 
         elif export_format == "JSON":
             import json
 
-            with open(export_path, "w") as f:
+            with open(file_path, "w") as f:
                 json.dump(export_data, f, indent=2)
 
-        elif export_format == "Text Report":
-            with open(export_path, "w") as f:
-                f.write("FLOCK REGISTRY EXPORT\n")
-                f.write("====================\n\n")
+        elif export_format == "Python":
+            with open(file_path, "w") as f:
+                f.write("# Flock Registry Export\n\n")
 
-                for category, items in export_data.items():
-                    f.write(f"{category.upper()} ({len(items)})\n")
-                    f.write(
-                        "-" * (len(category) + 2 + len(str(len(items)))) + "\n"
-                    )
-                    for item in sorted(items):
-                        f.write(f"  - {item}\n")
-                    f.write("\n")
+                if "Agents" in export_items and export_data["agents"]:
+                    f.write("# Agents\n")
+                    f.write("agents = [\n")
+                    for agent in export_data["agents"]:
+                        f.write(f"    '{agent}',\n")
+                    f.write("]\n\n")
 
-        console.print(f"[green]Registry exported to {export_path}[/]")
+                if "Callables" in export_items and export_data["callables"]:
+                    f.write("# Callables\n")
+                    f.write("callables = [\n")
+                    for callable_name in export_data["callables"]:
+                        f.write(f"    '{callable_name}',\n")
+                    f.write("]\n\n")
+
+                if "Types" in export_items and export_data["types"]:
+                    f.write("# Types\n")
+                    f.write("types = [\n")
+                    for type_name in export_data["types"]:
+                        f.write(f"    '{type_name}',\n")
+                    f.write("]\n\n")
+
+                if "Components" in export_items and export_data["components"]:
+                    f.write("# Components\n")
+                    f.write("components = [\n")
+                    for component_name in export_data["components"]:
+                        f.write(f"    '{component_name}',\n")
+                    f.write("]\n\n")
+
+                if (
+                    "File Paths" in export_items
+                    and "component_file_paths" in export_data
+                ):
+                    f.write("# Component File Paths\n")
+                    f.write("component_file_paths = {\n")
+                    for component_name, file_path in export_data[
+                        "component_file_paths"
+                    ].items():
+                        f.write(f"    '{component_name}': '{file_path}',\n")
+                    f.write("}\n")
+
+        console.print(f"[green]Registry exported to {file_path}[/]")
 
     except Exception as e:
         console.print(f"[red]Error exporting registry: {e!s}[/]")
