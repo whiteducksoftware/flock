@@ -61,7 +61,7 @@ agents:
   person_creator:
     name: person_creator
     model: openai/gpt-4o
-    input: 'name: str, age: int, languages: List[str]'
+    input: 'name: str, age: int, languages: list[str]'
     output: 'person: Person'
     use_cache: true
     evaluator:

@@ -46,7 +46,7 @@ class GreetingModuleConfig(FlockModuleConfig):
 class GreetingModule(FlockModule):
     """A simple module that generates greetings."""
     config: GreetingModuleConfig = Field(default_factory=GreetingModuleConfig)
-    greetings: Dict[str, str] = Field(default_factory=dict)
+    greetings: dict[str, str] = Field(default_factory=dict)
 
     async def initialize(self, agent: FlockAgent, inputs: Dict, context: FlockContext) -> None:
         """Initialize the module."""
@@ -74,7 +74,7 @@ class Person(BaseModel):
     """A simple person model."""
     name: str = Field(description="The name of the person IN ALL CAPS")
     age: int
-    languages: List[str] = Field(default_factory=list)
+    languages: list[str] = Field(default_factory=list)
 
 
 @flock_tool
@@ -110,7 +110,7 @@ def demo_file_path_support():
     # Create another agent with a custom type
     person_agent = FlockFactory.create_default_agent(
         name="person_creator",
-        input="name: str, age: int, languages: List[str]",
+        input="name: str, age: int, languages: list[str]",
         output="person: Person"
     )
     flock.add_agent(person_agent)
