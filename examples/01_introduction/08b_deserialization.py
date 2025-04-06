@@ -25,7 +25,7 @@ def deserialization():
   
     try:
         # Attempt to load the Flock
-        loaded_flock = Flock.load_from_file("file_path_demo.flock.yaml")
+        loaded_flock = Flock.load_from_file("examples/01_introduction/data/file_path_demo.flock.yaml")
         
         # Test the loaded Flock
         print("\nTesting loaded Flock:")

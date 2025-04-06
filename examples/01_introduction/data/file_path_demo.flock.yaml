@@ -136,27 +136,27 @@ components:
   DeclarativeEvaluator:
     type: flock_component
     module_path: flock.evaluators.declarative.declarative_evaluator
-    file_path: src\flock\evaluators\declarative\declarative_evaluator.py
+    file_path: src/flock/evaluators/declarative/declarative_evaluator.py
     description: Evaluator that uses DSPy for generation.
   OutputModule:
     type: flock_component
     module_path: flock.modules.output.output_module
-    file_path: src\flock\modules\output\output_module.py
+    file_path: src/flock/modules/output/output_module.py
     description: Module that handles output formatting and display.
   MetricsModule:
     type: flock_component
     module_path: flock.modules.performance.metrics_module
-    file_path: src\flock\modules\performance\metrics_module.py
+    file_path: src/flock/modules/performance/metrics_module.py
     description: Module for collecting and analyzing agent performance metrics.
   GreetingModule:
     type: flock_component
     module_path: __main__
-    file_path: examples\01_introduction\08_serialization.py
+    file_path: examples/01_introduction/08a_serialization.py
     description: A simple module that generates greetings.
   get_mobile_number:
     type: flock_callable
     module_path: __main__
-    file_path: examples\01_introduction\08_serialization.py
+    file_path: examples/01_introduction/08a_serialization.py
     description: A tool that returns a mobile number to a name.
 dependencies:
 - pydantic>=2.0.0

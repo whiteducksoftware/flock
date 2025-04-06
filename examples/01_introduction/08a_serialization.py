@@ -113,11 +113,11 @@ def serialization():
     flock.add_agent(person_agent)
 
     print(f"\nSerializing Flock to: file_path_demo.flock.yaml")
-    flock.to_yaml_file("file_path_demo.flock.yaml", path_type="relative")
+    flock.to_yaml_file("examples/01_introduction/data/file_path_demo.flock.yaml", path_type="relative")
 
     # Display the YAML content
     print("\nYAML Content:")
-    with open("file_path_demo.flock.yaml", "r") as f:
+    with open("examples/01_introduction/data/file_path_demo.flock.yaml", "r") as f:
         yaml_content = f.read()
         print(yaml_content)
 
