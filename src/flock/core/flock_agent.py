@@ -440,7 +440,11 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                 if callable(tool) and not isinstance(tool, type):
                     path_str = FlockRegistry.get_callable_path_string(tool)
                     if path_str:
-                        serialized_tools.append({"__callable_ref__": path_str})
+                        # Get just the function name from the path string
+                        # If it's a namespaced path like module.submodule.function_name
+                        # Just use the function_name part
+                        func_name = path_str.split(".")[-1]
+                        serialized_tools.append(func_name)
                     else:
                         logger.warning(
                             f"Could not get path string for tool {tool} in agent '{self.name}'. Skipping."
@@ -555,22 +559,45 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         # --- Deserialize Tools ---
         agent.tools = []  # Initialize tools list
         if tools_data:
-            for tool_ref in tools_data:
-                if (
-                    isinstance(tool_ref, dict)
-                    and "__callable_ref__" in tool_ref
-                ):
-                    path_str = tool_ref["__callable_ref__"]
-                    try:
-                        tool_func = FlockRegistry.get_callable(path_str)
-                        agent.tools.append(tool_func)
-                    except KeyError:
-                        logger.error(
-                            f"Tool callable '{path_str}' not found in registry for agent '{agent_name}'. Skipping."
+            # Get component registry to look up function imports
+            registry = get_registry()
+            components = getattr(registry, "_callables", {})
+
+            for tool_name in tools_data:
+                try:
+                    # First try to lookup by simple name in the registry's callables
+                    found = False
+                    for path_str, func in components.items():
+                        if (
+                            path_str.endswith("." + tool_name)
+                            or path_str == tool_name
+                        ):
+                            agent.tools.append(func)
+                            found = True
+                            logger.debug(
+                                f"Found tool '{tool_name}' via path '{path_str}'"
+                            )
+                            break
+
+                    # If not found by simple name, try manual import
+                    if not found:
+                        logger.debug(
+                            f"Attempting to import tool '{tool_name}' from modules"
                         )
-                else:
-                    logger.warning(
-                        f"Invalid tool format found during deserialization for agent '{agent_name}': {tool_ref}. Skipping."
+                        # Check in relevant modules (could be customized based on project structure)
+                        import __main__
+
+                        if hasattr(__main__, tool_name):
+                            agent.tools.append(getattr(__main__, tool_name))
+                            found = True
+
+                    if not found:
+                        logger.warning(
+                            f"Could not find tool '{tool_name}' for agent '{agent_name}'"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Error adding tool '{tool_name}' to agent '{agent_name}': {e}"
                     )
 
         logger.info(f"Successfully deserialized agent: {agent.name}")

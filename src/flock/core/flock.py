@@ -496,6 +496,30 @@ class Flock(BaseModel, Serializable):
                                 self._get_component_definition(component_type)
                             )
 
+                # Extract tool (callable) information
+                if agent_data.get("tools"):
+                    # Get references to the actual tool objects
+                    tool_objs = (
+                        agent_instance.tools if agent_instance.tools else []
+                    )
+                    for i, tool_name in enumerate(agent_data["tools"]):
+                        if i < len(tool_objs):
+                            tool = tool_objs[i]
+                            if callable(tool) and not isinstance(tool, type):
+                                # Get the fully qualified name for registry lookup
+                                path_str = (
+                                    get_registry().get_callable_path_string(
+                                        tool
+                                    )
+                                )
+                                if path_str:
+                                    # Add definition using just the function name as the key
+                                    components[tool_name] = (
+                                        self._get_callable_definition(
+                                            path_str, tool_name
+                                        )
+                                    )
+
             except Exception as e:
                 logger.error(
                     f"Failed to serialize agent '{name}' within Flock: {e}"
@@ -683,6 +707,69 @@ class Flock(BaseModel, Serializable):
             }
 
         return component_def
+
+    def _get_callable_definition(
+        self, callable_ref: str, func_name: str
+    ) -> dict[str, Any]:
+        """Get definition for a callable reference.
+
+        Args:
+            callable_ref: The fully qualified path to the callable
+            func_name: The simple function name (for display purposes)
+        """
+        import inspect
+        import os
+        import sys
+
+        from flock.core.flock_registry import get_registry
+
+        registry = get_registry()
+        callable_def = {}
+
+        try:
+            # Try to get the callable from registry
+            func = registry.get_callable(callable_ref)
+            if func:
+                # Get the standard module path
+                module_path = func.__module__
+
+                # Get the actual file system path if possible
+                file_path = None
+                try:
+                    if func.__module__ and func.__module__ != "builtins":
+                        module = sys.modules.get(func.__module__)
+                        if module and hasattr(module, "__file__"):
+                            file_path = os.path.abspath(module.__file__)
+                except Exception:
+                    # If we can't get the file path, just use the module path
+                    pass
+
+                # Get the docstring for description
+                docstring = (
+                    inspect.getdoc(func) or f"Callable function {func_name}"
+                )
+
+                callable_def = {
+                    "type": "flock_callable",
+                    "module_path": module_path,
+                    "file_path": file_path,
+                    "description": docstring.strip(),
+                }
+        except Exception as e:
+            logger.warning(
+                f"Could not extract definition for callable {callable_ref}: {e}"
+            )
+            # Provide minimal information
+            callable_def = {
+                "type": "flock_callable",
+                "module_path": callable_ref.split(".")[0]
+                if "." in callable_ref
+                else "unknown",
+                "file_path": None,
+                "description": f"Callable {func_name} (definition incomplete)",
+            }
+
+        return callable_def
 
     def _get_dependencies(self) -> list[str]:
         """Get list of dependencies required by this Flock."""
@@ -922,80 +1009,152 @@ class Flock(BaseModel, Serializable):
 
         for component_name, component_def in component_defs.items():
             logger.debug(f"Registering component: {component_name}")
+            component_type = component_def.get("type", "flock_component")
 
             try:
-                # First try using the module path (Python import)
-                module_path = component_def.get("module_path")
-                if module_path and module_path != "unknown":
-                    try:
-                        module = importlib.import_module(module_path)
-                        # Find the component class in the module
-                        for attr_name in dir(module):
-                            if attr_name == component_name:
-                                component_class = getattr(module, attr_name)
-                                registry.register_component(
-                                    component_class, component_name
-                                )
-                                logger.info(
-                                    f"Registered component {component_name} from {module_path}"
-                                )
-                                break
-                        else:
-                            logger.warning(
-                                f"Component {component_name} not found in module {module_path}"
-                            )
-                            # If we didn't find the component, try using file_path next
-                            raise ImportError(
-                                f"Component {component_name} not found in module {module_path}"
-                            )
-                    except ImportError:
-                        # If module import fails, try file_path approach
-                        file_path = component_def.get("file_path")
-                        if file_path and os.path.exists(file_path):
-                            logger.debug(
-                                f"Attempting to load {component_name} from file: {file_path}"
-                            )
-                            try:
-                                # Load the module from file path
-                                spec = importlib.util.spec_from_file_location(
-                                    f"{component_name}_module", file_path
-                                )
-                                if spec and spec.loader:
-                                    module = importlib.util.module_from_spec(
-                                        spec
-                                    )
-                                    sys.modules[spec.name] = module
-                                    spec.loader.exec_module(module)
+                # Handle callables differently than components
+                if component_type == "flock_callable":
+                    # For callables, component_name is just the function name
+                    func_name = component_name
+                    module_path = component_def.get("module_path")
+                    file_path = component_def.get("file_path")
 
-                                    # Find the component class in the loaded module
-                                    for attr_name in dir(module):
-                                        if attr_name == component_name:
-                                            component_class = getattr(
-                                                module, attr_name
-                                            )
-                                            registry.register_component(
-                                                component_class, component_name
-                                            )
-                                            logger.info(
-                                                f"Registered component {component_name} from file {file_path}"
-                                            )
-                                            break
-                                    else:
-                                        logger.warning(
-                                            f"Component {component_name} not found in file {file_path}"
-                                        )
-                            except Exception as e:
-                                logger.error(
-                                    f"Error loading component {component_name} from file {file_path}: {e}"
+                    # Try direct import first
+                    if module_path:
+                        try:
+                            module = importlib.import_module(module_path)
+                            if hasattr(module, func_name):
+                                callable_obj = getattr(module, func_name)
+                                # Register with just the name for easier lookup
+                                registry.register_callable(
+                                    callable_obj, func_name
                                 )
-                        else:
-                            logger.warning(
-                                f"No valid file path found for component {component_name}"
+                                # Also register with fully qualified path for compatibility
+                                if module_path != "__main__":
+                                    full_path = f"{module_path}.{func_name}"
+                                    registry.register_callable(
+                                        callable_obj, full_path
+                                    )
+                                logger.info(
+                                    f"Registered callable {func_name} from module {module_path}"
+                                )
+                                continue
+                        except ImportError:
+                            logger.debug(
+                                f"Could not import module {module_path}, trying file path"
                             )
+
+                    # Try file path if module import fails
+                    if file_path and os.path.exists(file_path):
+                        try:
+                            # Create a module name from file path
+                            mod_name = f"{func_name}_module"
+                            spec = importlib.util.spec_from_file_location(
+                                mod_name, file_path
+                            )
+                            if spec and spec.loader:
+                                module = importlib.util.module_from_spec(spec)
+                                sys.modules[spec.name] = module
+                                spec.loader.exec_module(module)
+
+                                # Look for the function in the loaded module
+                                if hasattr(module, func_name):
+                                    callable_obj = getattr(module, func_name)
+                                    registry.register_callable(
+                                        callable_obj, func_name
+                                    )
+                                    logger.info(
+                                        f"Registered callable {func_name} from file {file_path}"
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"Function {func_name} not found in file {file_path}"
+                                    )
+                        except Exception as e:
+                            logger.error(
+                                f"Error loading callable {func_name} from file {file_path}: {e}"
+                            )
+
+                # Handle regular components (existing code)
                 else:
-                    logger.warning(
-                        f"Missing or unknown module path for component {component_name}"
-                    )
+                    # First try using the module path (Python import)
+                    module_path = component_def.get("module_path")
+                    if module_path and module_path != "unknown":
+                        try:
+                            module = importlib.import_module(module_path)
+                            # Find the component class in the module
+                            for attr_name in dir(module):
+                                if attr_name == component_name:
+                                    component_class = getattr(module, attr_name)
+                                    registry.register_component(
+                                        component_class, component_name
+                                    )
+                                    logger.info(
+                                        f"Registered component {component_name} from {module_path}"
+                                    )
+                                    break
+                            else:
+                                logger.warning(
+                                    f"Component {component_name} not found in module {module_path}"
+                                )
+                                # If we didn't find the component, try using file_path next
+                                raise ImportError(
+                                    f"Component {component_name} not found in module {module_path}"
+                                )
+                        except ImportError:
+                            # If module import fails, try file_path approach
+                            file_path = component_def.get("file_path")
+                            if file_path and os.path.exists(file_path):
+                                logger.debug(
+                                    f"Attempting to load {component_name} from file: {file_path}"
+                                )
+                                try:
+                                    # Load the module from file path
+                                    spec = (
+                                        importlib.util.spec_from_file_location(
+                                            f"{component_name}_module",
+                                            file_path,
+                                        )
+                                    )
+                                    if spec and spec.loader:
+                                        module = (
+                                            importlib.util.module_from_spec(
+                                                spec
+                                            )
+                                        )
+                                        sys.modules[spec.name] = module
+                                        spec.loader.exec_module(module)
+
+                                        # Find the component class in the loaded module
+                                        for attr_name in dir(module):
+                                            if attr_name == component_name:
+                                                component_class = getattr(
+                                                    module, attr_name
+                                                )
+                                                registry.register_component(
+                                                    component_class,
+                                                    component_name,
+                                                )
+                                                logger.info(
+                                                    f"Registered component {component_name} from file {file_path}"
+                                                )
+                                                break
+                                        else:
+                                            logger.warning(
+                                                f"Component {component_name} not found in file {file_path}"
+                                            )
+                                except Exception as e:
+                                    logger.error(
+                                        f"Error loading component {component_name} from file {file_path}: {e}"
+                                    )
+                            else:
+                                logger.warning(
+                                    f"No valid file path found for component {component_name}"
+                                )
+                    else:
+                        logger.warning(
+                            f"Missing or unknown module path for component {component_name}"
+                        )
             except Exception as e:
                 logger.error(
                     f"Failed to register component {component_name}: {e}"

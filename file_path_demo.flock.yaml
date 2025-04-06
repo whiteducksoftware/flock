@@ -5,8 +5,8 @@ agents:
   greeter:
     name: greeter
     model: openai/gpt-4o
-    input: 'name: str'
-    output: 'greeting: str, mobile_number: str'
+    input: "name: str"
+    output: "greeting: str, mobile_number: str"
     use_cache: true
     evaluator:
       name: default
@@ -57,12 +57,12 @@ agents:
         greetings: {}
         type: GreetingModule
     tools:
-    - __callable_ref__: __main__.get_mobile_number
+      - get_mobile_number
   person_creator:
     name: person_creator
     model: openai/gpt-4o
-    input: 'name: str, age: int, languages: list[str]'
-    output: 'person: Person'
+    input: "name: str, age: int, languages: list[str]"
+    output: "person: Person"
     use_cache: true
     evaluator:
       name: default
@@ -125,11 +125,11 @@ types:
           title: Languages
           type: array
       required:
-      - name
-      - age
+        - name
+        - age
       type: object
     imports:
-    - from __main__ import Person
+      - from __main__ import Person
 components:
   DeclarativeEvaluator:
     type: flock_component
@@ -151,6 +151,11 @@ components:
     module_path: __main__
     file_path: /Users/ara/Projects/flock/examples/01_introduction/08_serialization.py
     description: A simple module that generates greetings.
+  get_mobile_number:
+    type: flock_callable
+    module_path: __main__
+    file_path: /Users/ara/Projects/flock/examples/01_introduction/08_serialization.py
+    description: A tool that returns a mobile number to a name.
 dependencies:
-- pydantic>=2.0.0
-- flock>=0.3.41
+  - pydantic>=2.0.0
+  - flock>=0.3.41
