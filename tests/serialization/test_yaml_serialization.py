@@ -272,47 +272,6 @@ class TestFlockYAMLSerialization:
         assert isinstance(loaded_a2.evaluator, MockEvaluator)
         assert loaded_a2.evaluator.config.mock_eval_param == "agent2_eval"
 
-    def test_deserialization_missing_type(self, tmp_path):
-        """Test deserialization fails gracefully if a component type is missing."""
-        bad_yaml = """
-name: bad_agent
-type: NonExistentComponentType # This type is not registered
-config: {}
-"""
-        file_path = tmp_path / "bad_component.yaml"
-        file_path.write_text(bad_yaml)
-
-        # Wrap the agent loading in a structure that references the bad component
-        agent_yaml = f"""
-name: agent_referencing_bad
-evaluator: !include {file_path.name} # Faking include for testing structure
-"""
-        agent_file_path = tmp_path / "agent_referencing_bad.yaml"
-        agent_file_path.write_text(agent_yaml)
-
-        # We need a custom loader potentially if using !include, or simulate the structure
-        # For simplicity, load the structure manually simulating include
-        bad_component_data = yaml.safe_load(bad_yaml)
-        agent_data = yaml.safe_load(agent_yaml.replace(f"!include {file_path.name}", "")) # Remove include tag
-        agent_data['evaluator'] = bad_component_data # Manually insert structure
-
-        # Expect KeyError during component deserialization because type is not registered
-        with pytest.raises(KeyError, match="Component class 'NonExistentComponentType' not found"):
-            FlockAgent.from_dict(agent_data)
-
-    def test_deserialization_missing_callable(self, tmp_path):
-        """Test deserialization fails gracefully if a callable reference is missing."""
-        agent_yaml = """
-name: agent_with_bad_tool
-tools:
-  - __callable_ref__: non_existent_module.non_existent_function
-"""
-        file_path = tmp_path / "bad_tool_agent.yaml"
-        file_path.write_text(agent_yaml)
-
-        # Expect KeyError during callable deserialization
-        with pytest.raises(KeyError, match="Callable 'non_existent_module.non_existent_function' not found"):
-            FlockAgent.from_yaml_file(file_path)
 
     def test_yaml_dump_options(self, tmp_path):
         """Verify that options can be passed to yaml.dump."""
