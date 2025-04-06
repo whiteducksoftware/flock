@@ -454,10 +454,48 @@ class Flock(BaseModel, Serializable):
 
         # Manually add serialized agents
         data["agents"] = {}
+
+        # Track custom types used across all agents
+        custom_types = {}
+        # Track components used across all agents
+        components = {}
+
         for name, agent_instance in self._agents.items():
             try:
                 # Agents handle their own serialization via their to_dict
-                data["agents"][name] = agent_instance.to_dict()
+                agent_data = agent_instance.to_dict()
+                data["agents"][name] = agent_data
+
+                # Extract type information from agent outputs
+                if agent_instance.output:
+                    output_types = self._extract_types_from_signature(
+                        agent_instance.output
+                    )
+                    custom_types.update(
+                        self._get_type_definitions(output_types)
+                    )
+
+                # Extract component information
+                if (
+                    "evaluator" in agent_data
+                    and "type" in agent_data["evaluator"]
+                ):
+                    component_type = agent_data["evaluator"]["type"]
+                    components[component_type] = self._get_component_definition(
+                        component_type
+                    )
+
+                # Extract module component information
+                if "modules" in agent_data:
+                    for module_name, module_data in agent_data[
+                        "modules"
+                    ].items():
+                        if "type" in module_data:
+                            component_type = module_data["type"]
+                            components[component_type] = (
+                                self._get_component_definition(component_type)
+                            )
+
             except Exception as e:
                 logger.error(
                     f"Failed to serialize agent '{name}' within Flock: {e}"
@@ -465,13 +503,173 @@ class Flock(BaseModel, Serializable):
                 # Optionally skip problematic agents or raise error
                 # data["agents"][name] = {"error": f"Serialization failed: {e}"}
 
-        # Exclude runtime fields that shouldn't be serialized
-        # These are not Pydantic fields, so they aren't dumped by model_dump
-        # No need to explicitly remove _start_agent_name, _start_input unless added manually
+        # Add type definitions to the serialized output if any were found
+        if custom_types:
+            data["types"] = custom_types
 
-        # Filter final dict (optional, Pydantic's exclude_none helps)
-        # return self._filter_none_values(data)
+        # Add component definitions to the serialized output if any were found
+        if components:
+            data["components"] = components
+
+        # Add dependencies section
+        data["dependencies"] = self._get_dependencies()
+
         return data
+
+    def _extract_types_from_signature(self, signature: str) -> list[str]:
+        """Extract type names from an input/output signature string."""
+        if not signature:
+            return []
+
+        # Basic type extraction - handles simple cases like "result: TypeName" or "list[TypeName]"
+        custom_types = []
+
+        # Look for type annotations (everything after ":")
+        parts = signature.split(":")
+        if len(parts) > 1:
+            type_part = parts[1].strip()
+
+            # Extract from list[Type]
+            if "list[" in type_part:
+                inner_type = type_part.split("list[")[1].split("]")[0].strip()
+                if inner_type and inner_type.lower() not in [
+                    "str",
+                    "int",
+                    "float",
+                    "bool",
+                    "dict",
+                    "list",
+                ]:
+                    custom_types.append(inner_type)
+
+            # Extract direct type references
+            elif type_part and type_part.lower() not in [
+                "str",
+                "int",
+                "float",
+                "bool",
+                "dict",
+                "list",
+            ]:
+                custom_types.append(
+                    type_part.split()[0]
+                )  # Take the first word in case there's a description
+
+        return custom_types
+
+    def _get_type_definitions(self, type_names: list[str]) -> dict[str, Any]:
+        """Get definitions for the specified custom types."""
+        from flock.core.flock_registry import get_registry
+
+        type_definitions = {}
+        registry = get_registry()
+
+        for type_name in type_names:
+            try:
+                # Try to get the type from registry
+                type_obj = registry._types.get(type_name)
+                if type_obj:
+                    type_def = self._extract_type_definition(
+                        type_name, type_obj
+                    )
+                    if type_def:
+                        type_definitions[type_name] = type_def
+            except Exception as e:
+                logger.warning(
+                    f"Could not extract definition for type {type_name}: {e}"
+                )
+
+        return type_definitions
+
+    def _extract_type_definition(
+        self, type_name: str, type_obj: type
+    ) -> dict[str, Any]:
+        """Extract a definition for a custom type."""
+        import inspect
+        from dataclasses import is_dataclass
+
+        type_def = {
+            "module_path": type_obj.__module__,
+        }
+
+        # Handle Pydantic models
+        if hasattr(type_obj, "model_json_schema") and callable(
+            getattr(type_obj, "model_json_schema")
+        ):
+            type_def["type"] = "pydantic.BaseModel"
+            try:
+                schema = type_obj.model_json_schema()
+                # Clean up schema to remove unnecessary fields
+                if "title" in schema and schema["title"] == type_name:
+                    del schema["title"]
+                type_def["schema"] = schema
+            except Exception as e:
+                logger.warning(
+                    f"Could not extract schema for Pydantic model {type_name}: {e}"
+                )
+
+        # Handle dataclasses
+        elif is_dataclass(type_obj):
+            type_def["type"] = "dataclass"
+            fields = {}
+            for field_name, field in type_obj.__dataclass_fields__.items():
+                fields[field_name] = {
+                    "type": str(field.type),
+                    "default": str(field.default)
+                    if field.default is not inspect.Parameter.empty
+                    else None,
+                }
+            type_def["fields"] = fields
+
+        # Handle other types - just store basic information
+        else:
+            type_def["type"] = "custom"
+
+        # Extract import statement (simplified version)
+        type_def["imports"] = [f"from {type_obj.__module__} import {type_name}"]
+
+        return type_def
+
+    def _get_component_definition(self, component_type: str) -> dict[str, Any]:
+        """Get definition for a component type."""
+        from flock.core.flock_registry import get_registry
+
+        registry = get_registry()
+        component_def = {}
+
+        try:
+            # Try to get the component class from registry
+            component_class = registry._components.get(component_type)
+            if component_class:
+                component_def = {
+                    "type": "flock_component",
+                    "module_path": component_class.__module__,
+                    "description": getattr(
+                        component_class, "__doc__", ""
+                    ).strip()
+                    or f"{component_type} component",
+                }
+        except Exception as e:
+            logger.warning(
+                f"Could not extract definition for component {component_type}: {e}"
+            )
+            # Provide minimal information if we can't extract details
+            component_def = {
+                "type": "flock_component",
+                "module_path": "unknown",
+                "description": f"{component_type} component (definition incomplete)",
+            }
+
+        return component_def
+
+    def _get_dependencies(self) -> list[str]:
+        """Get list of dependencies required by this Flock."""
+        # This is a simplified version - in production, you might want to detect
+        # actual versions of installed packages
+        return [
+            "pydantic>=2.0.0",
+            "flock-framework>=1.0.0",  # Assuming this is the package name
+        ]
 
     @classmethod
     def from_dict(cls: type[T], data: dict[str, Any]) -> T:
@@ -479,6 +677,18 @@ class Flock(BaseModel, Serializable):
         logger.debug(
             f"Deserializing Flock from dict. Provided keys: {list(data.keys())}"
         )
+
+        # First, handle type definitions if present
+        if "types" in data:
+            cls._register_type_definitions(data["types"])
+
+        # Then, handle component definitions if present
+        if "components" in data:
+            cls._register_component_definitions(data["components"])
+
+        # Check dependencies if present
+        if "dependencies" in data:
+            cls._check_dependencies(data["dependencies"])
 
         # Ensure FlockAgent is importable for type checking later
         try:
@@ -491,6 +701,11 @@ class Flock(BaseModel, Serializable):
 
         # Extract agent data before initializing Flock base model
         agents_data = data.pop("agents", {})
+
+        # Remove types, components, and dependencies sections as they're not part of Flock fields
+        data.pop("types", None)
+        data.pop("components", None)
+        data.pop("dependencies", None)
 
         # Create Flock instance using Pydantic constructor for basic fields
         try:
@@ -524,6 +739,213 @@ class Flock(BaseModel, Serializable):
 
         logger.info("Successfully deserialized Flock instance.")
         return flock_instance
+
+    @classmethod
+    def _register_type_definitions(cls, type_defs: dict[str, Any]) -> None:
+        """Register type definitions from serialized data."""
+        import importlib
+
+        from flock.core.flock_registry import get_registry
+
+        registry = get_registry()
+
+        for type_name, type_def in type_defs.items():
+            logger.debug(f"Registering type: {type_name}")
+
+            try:
+                # First try to import the type directly
+                module_path = type_def.get("module_path")
+                if module_path:
+                    try:
+                        module = importlib.import_module(module_path)
+                        if hasattr(module, type_name):
+                            type_obj = getattr(module, type_name)
+                            registry.register_type(type_obj, type_name)
+                            logger.info(
+                                f"Registered type {type_name} from module {module_path}"
+                            )
+                            continue
+                    except ImportError:
+                        logger.debug(
+                            f"Could not import {module_path}, trying dynamic type creation"
+                        )
+
+                # If direct import fails, try to create the type dynamically
+                if (
+                    type_def.get("type") == "pydantic.BaseModel"
+                    and "schema" in type_def
+                ):
+                    cls._create_pydantic_model(type_name, type_def)
+                elif (
+                    type_def.get("type") == "dataclass" and "fields" in type_def
+                ):
+                    cls._create_dataclass(type_name, type_def)
+                else:
+                    logger.warning(
+                        f"Unsupported type definition for {type_name}, type: {type_def.get('type')}"
+                    )
+
+            except Exception as e:
+                logger.error(f"Failed to register type {type_name}: {e}")
+
+    @classmethod
+    def _create_pydantic_model(
+        cls, type_name: str, type_def: dict[str, Any]
+    ) -> None:
+        """Dynamically create a Pydantic model from a schema definition."""
+        from pydantic import create_model
+
+        from flock.core.flock_registry import get_registry
+
+        registry = get_registry()
+        schema = type_def.get("schema", {})
+
+        try:
+            # Extract field definitions from schema
+            fields = {}
+            properties = schema.get("properties", {})
+            required = schema.get("required", [])
+
+            for field_name, field_schema in properties.items():
+                # Determine the field type based on schema
+                field_type = cls._get_type_from_schema(field_schema)
+
+                # Determine if field is required
+                default = ... if field_name in required else None
+
+                # Add to fields dict
+                fields[field_name] = (field_type, default)
+
+            # Create the model
+            DynamicModel = create_model(type_name, **fields)
+
+            # Register it
+            registry.register_type(DynamicModel, type_name)
+            logger.info(f"Created and registered Pydantic model: {type_name}")
+
+        except Exception as e:
+            logger.error(f"Failed to create Pydantic model {type_name}: {e}")
+
+    @classmethod
+    def _get_type_from_schema(cls, field_schema: dict[str, Any]) -> Any:
+        """Convert JSON schema type to Python type."""
+        schema_type = field_schema.get("type")
+
+        # Basic type mapping
+        type_mapping = {
+            "string": str,
+            "integer": int,
+            "number": float,
+            "boolean": bool,
+            "array": list,
+            "object": dict,
+        }
+
+        # Handle basic types
+        if schema_type in type_mapping:
+            return type_mapping[schema_type]
+
+        # Handle enums
+        if "enum" in field_schema:
+            from typing import Literal
+
+            return Literal[tuple(field_schema["enum"])]
+
+        # Default
+        return Any
+
+    @classmethod
+    def _create_dataclass(
+        cls, type_name: str, type_def: dict[str, Any]
+    ) -> None:
+        """Dynamically create a dataclass from a field definition."""
+        from dataclasses import make_dataclass
+
+        from flock.core.flock_registry import get_registry
+
+        registry = get_registry()
+        fields_def = type_def.get("fields", {})
+
+        try:
+            fields = []
+            for field_name, field_props in fields_def.items():
+                field_type = eval(
+                    field_props.get("type", "str")
+                )  # Note: eval is used here for simplicity
+                fields.append((field_name, field_type))
+
+            # Create the dataclass
+            DynamicDataclass = make_dataclass(type_name, fields)
+
+            # Register it
+            registry.register_type(DynamicDataclass, type_name)
+            logger.info(f"Created and registered dataclass: {type_name}")
+
+        except Exception as e:
+            logger.error(f"Failed to create dataclass {type_name}: {e}")
+
+    @classmethod
+    def _register_component_definitions(
+        cls, component_defs: dict[str, Any]
+    ) -> None:
+        """Register component definitions from serialized data."""
+        import importlib
+
+        from flock.core.flock_registry import get_registry
+
+        registry = get_registry()
+
+        for component_name, component_def in component_defs.items():
+            logger.debug(f"Registering component: {component_name}")
+
+            try:
+                module_path = component_def.get("module_path")
+                if module_path and module_path != "unknown":
+                    module = importlib.import_module(module_path)
+                    # Find the component class in the module
+                    for attr_name in dir(module):
+                        if attr_name == component_name:
+                            component_class = getattr(module, attr_name)
+                            registry.register_component(
+                                component_class, component_name
+                            )
+                            logger.info(
+                                f"Registered component {component_name} from {module_path}"
+                            )
+                            break
+                    else:
+                        logger.warning(
+                            f"Component {component_name} not found in module {module_path}"
+                        )
+                else:
+                    logger.warning(
+                        f"Missing or unknown module path for component {component_name}"
+                    )
+            except ImportError:
+                logger.error(
+                    f"Could not import module {module_path} for component {component_name}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to register component {component_name}: {e}"
+                )
+
+    @classmethod
+    def _check_dependencies(cls, dependencies: list[str]) -> None:
+        """Check if required dependencies are available."""
+        import importlib
+        import re
+
+        for dependency in dependencies:
+            # Extract package name and version
+            match = re.match(r"([^>=<]+)([>=<].+)?", dependency)
+            if match:
+                package_name = match.group(1)
+                try:
+                    importlib.import_module(package_name.replace("-", "_"))
+                    logger.debug(f"Dependency {package_name} is available")
+                except ImportError:
+                    logger.warning(f"Dependency {dependency} is not installed")
 
     # --- API Start Method ---
     def start_api(
@@ -600,20 +1022,31 @@ class Flock(BaseModel, Serializable):
         if not p.exists():
             raise FileNotFoundError(f"Flock file not found: {file_path}")
 
-        if p.suffix in [".yaml", ".yml"]:
-            return Flock.from_yaml_file(p)
-        elif p.suffix == ".json":
-            return Flock.from_json(p.read_text())
-        elif p.suffix == ".msgpack":
-            return Flock.from_msgpack_file(p)
-        elif p.suffix == ".pkl":
-            if PICKLE_AVAILABLE:
-                return Flock.from_pickle_file(p)
+        try:
+            if p.suffix in [".yaml", ".yml"]:
+                return Flock.from_yaml_file(p)
+            elif p.suffix == ".json":
+                return Flock.from_json(p.read_text())
+            elif p.suffix == ".msgpack":
+                return Flock.from_msgpack_file(p)
+            elif p.suffix == ".pkl":
+                if PICKLE_AVAILABLE:
+                    return Flock.from_pickle_file(p)
+                else:
+                    raise RuntimeError(
+                        "Cannot load Pickle file: cloudpickle not installed."
+                    )
             else:
-                raise RuntimeError(
-                    "Cannot load Pickle file: cloudpickle not installed."
+                raise ValueError(
+                    f"Unsupported file extension: {p.suffix}. Use .yaml, .json, .msgpack, or .pkl."
                 )
-        else:
-            raise ValueError(
-                f"Unsupported file extension: {p.suffix}. Use .yaml, .json, .msgpack, or .pkl."
-            )
+        except Exception as e:
+            # Check if it's an exception about missing types
+            if "Could not get registered type name" in str(e):
+                logger.error(
+                    f"Failed to load Flock from {file_path}: Missing type definition. "
+                    "This may happen if the YAML was created on a system with different types registered. "
+                    "Check if the file includes 'types' section with necessary type definitions."
+                )
+            logger.error(f"Error loading Flock from {file_path}: {e}")
+            raise

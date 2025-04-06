@@ -11,6 +11,7 @@ from pydantic import BaseModel
 # --------------------------------
 @flock_type
 class RandomPerson(BaseModel):
+    """Data model for random person information."""
     name: str
     age: int
     gender: Literal["female", "male"]
@@ -19,7 +20,9 @@ class RandomPerson(BaseModel):
     short_bio: str
 
 
-   
+# --------------------------------   
+# Create a new Flock instance
+# --------------------------------
 flock = Flock()
 
 # --------------------------------
@@ -27,8 +30,7 @@ flock = Flock()
 # --------------------------------
 # This agent ("people_agent") is responsible for generating a list of random users.
 # It requires the input "amount_of_people" and produces an output "random_user_list" 
-# which is a RandomUserList object.
-# Internally all dataclass, pydantic basemodels and alias are supported
+# which is a list of RandomPerson objects.
 people_agent = FlockFactory.create_default_agent(
     name="people_agent",
     input="amount_of_people",
@@ -37,19 +39,46 @@ people_agent = FlockFactory.create_default_agent(
 flock.add_agent(people_agent)
 
 # --------------------------------
-# Run the agent to generate random users
+# Save the Flock to YAML
 # --------------------------------
-# We execute the agent asynchronously, passing in the desired amount of people.
-# The result is a namespace containing the generated random user list.
-result =  flock.run(
-    start_agent=people_agent,
-    input={"amount_of_people": "10"},
+# This saves the entire Flock configuration, including:
+# - Agent definitions
+# - Type definitions (RandomPerson model schema)
+# - Component definitions
+flock.to_yaml_file("people_agent.flock.yaml")
+print(f"Saved Flock configuration to people_agent.flock.yaml")
+
+# --------------------------------
+# Load the Flock from YAML
+# --------------------------------
+# This loads the entire Flock configuration, including:
+# - Recreating the RandomPerson type from the schema
+# - Registering all components needed
+loaded_flock = Flock.load_from_file("people_agent.flock.yaml")
+print(f"Successfully loaded Flock from YAML with {len(loaded_flock.agents)} agent(s)")
+
+# --------------------------------
+# Run the loaded Flock
+# --------------------------------
+# We can now run the loaded Flock, which uses the dynamically recreated RandomPerson type
+result = loaded_flock.run(
+    start_agent="people_agent",
+    input={"amount_of_people": "3"},  # Generating just 3 for brevity
 )
 
 # --------------------------------
-# Process and display the result
+# Display the results
 # --------------------------------
-# Here we print the number of users generated to verify our agent's output.
-pprint(len(result.random_user_list))
+print(f"\nGenerated {len(result.random_user_list)} random people:")
+for person in result.random_user_list[:2]:  # Show just the first 2 for brevity
+    print(f"\nName: {person.name}")
+    print(f"Age: {person.age}")
+    print(f"Gender: {person.gender}")
+    print(f"Job: {person.job}")
+    print(f"Favorite Movie: {person.favorite_movie}")
+    print(f"Bio: {person.short_bio[:50]}..." if len(person.short_bio) > 50 else f"Bio: {person.short_bio}")
+
+print("\nThe Flock YAML file contains both the agent definitions and the RandomPerson type definition,")
+print("making it self-contained and portable across different systems.")
 
 
