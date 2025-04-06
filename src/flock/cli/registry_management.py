@@ -1,5 +1,6 @@
 """Registry Management Module for the Flock CLI."""
 
+import datetime
 import importlib
 import inspect
 import os
@@ -8,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 import questionary
-from pydantic import BaseModel
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
@@ -339,170 +339,123 @@ def remove_item_from_registry() -> None:
 
 
 def auto_registration_scanner() -> None:
-    """Scan directories for components that can be auto-registered."""
+    """Launch the auto-registration scanner interface."""
     console.clear()
     console.print(
         Panel("[bold blue]Auto-Registration Scanner[/]"), justify="center"
     )
     console.line()
 
-    # Get directory to scan
-    scan_dir = questionary.path(
-        "Select directory to scan for auto-registration:",
-        only_directories=True,
+    console.print(
+        "This utility will scan Python files for components, types, callables (tools), and agents that can be registered."
+    )
+    console.print(
+        "[yellow]Note: Registration is required for proper serialization and deserialization of your Flock.[/]"
+    )
+    console.line()
+
+    # Target directory selection
+    def path_filter(path):
+        """Filter paths for selection."""
+        if os.path.isdir(path):
+            return True
+        return path.endswith(".py")
+
+    target_path = questionary.path(
+        "Select directory to scan:", file_filter=path_filter
     ).ask()
 
-    if not scan_dir or not os.path.isdir(scan_dir):
-        console.print("[red]Invalid directory selected.[/]")
+    if not target_path or not os.path.exists(target_path):
+        console.print("[red]Invalid path selected. Aborting.[/]")
         return
 
-    # Configure scan options
-    scan_types = questionary.checkbox(
-        "Select types to scan for:",
-        choices=[
-            questionary.Choice("Agents", checked=True),
-            questionary.Choice("Callables (Functions)", checked=True),
-            questionary.Choice("Types (Pydantic/Dataclasses)", checked=True),
-            questionary.Choice("Components", checked=True),
-        ],
+    is_recursive = questionary.confirm(
+        "Scan recursively (include subdirectories)?", default=True
     ).ask()
 
-    if not scan_types:
-        console.print("[yellow]No types selected for scanning.[/]")
-        return
+    auto_register = questionary.confirm(
+        "Automatically register items found during scan?", default=True
+    ).ask()
 
-    # Start scanning with progress indicator
+    # Special callout for tools/callables
+    console.print(
+        "[bold blue]Tool Registration:[/] This scanner will look for functions that can be used as tools."
+    )
+    console.print(
+        "These will be registered as callables and can be properly serialized in your Flock YAML."
+    )
+    console.line()
+
     with Progress(
         SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
+        TextColumn("[bold blue]{task.description}"),
         BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TextColumn("[bold green]{task.completed}/{task.total}"),
+        console=console,
     ) as progress:
-        task = progress.add_task("Scanning files...", total=None)
+        task_id = progress.add_task(
+            "Scanning for registry items...", total=None
+        )
 
-        # Track successful registrations
-        registered_items = {
-            "Agents": 0,
-            "Callables": 0,
-            "Types": 0,
-            "Components": 0,
-        }
+        # Perform the scan
+        results = scan_for_registry_items(
+            target_path, recursive=is_recursive, auto_register=auto_register
+        )
 
-        # Create sets to store paths
-        component_file_paths = {}
+        # Mark task as complete
+        progress.update(task_id, completed=1, total=1)
+        console.line()
 
-        # Get registry
-        registry = get_registry()
+    # Display results
+    console.print("[bold green]Scan Complete![/]")
+    console.line()
 
-        # Initialize component_file_paths if not present
-        if not hasattr(registry, "_component_file_paths"):
-            registry._component_file_paths = {}
+    total_found = sum(len(items) for items in results.values())
+    total_categories = sum(1 for items in results.values() if items)
 
-        # Walk through directory and scan files
-        for root, _, files in os.walk(scan_dir):
-            for file in files:
-                if file.endswith(".py"):
-                    file_path = os.path.join(root, file)
-                    progress.update(task, description=f"Scanning {file}")
+    console.print(
+        f"Found {total_found} items across {total_categories} categories."
+    )
 
-                    # Attempt to import module from file path
-                    try:
-                        # Convert file path to module name for standard imports
-                        rel_path = os.path.relpath(
-                            file_path, os.path.dirname(scan_dir)
-                        )
-                        module_name = os.path.splitext(rel_path)[0].replace(
-                            os.sep, "."
-                        )
-
-                        # Try standard import first
-                        try:
-                            module = importlib.import_module(module_name)
-                        except (ImportError, ValueError):
-                            # If standard import fails, use file-based import
-                            spec = importlib.util.spec_from_file_location(
-                                f"scan_module_{id(file_path)}", file_path
-                            )
-                            if not spec or not spec.loader:
-                                continue
-
-                            module = importlib.util.module_from_spec(spec)
-                            spec.loader.exec_module(module)
-
-                        # Scan module for each selected type
-                        for attr_name in dir(module):
-                            if attr_name.startswith("_"):
-                                continue
-
-                            try:
-                                attr = getattr(module, attr_name)
-
-                                # Check for agents
-                                if "Agents" in scan_types:
-                                    # Simplified check - would need to be adapted to your actual code
-                                    if hasattr(attr, "name") and hasattr(
-                                        attr, "run"
-                                    ):
-                                        registry.register_agent(attr)
-                                        registered_items["Agents"] += 1
-
-                                # Check for callables
-                                if (
-                                    "Callables (Functions)" in scan_types
-                                    and callable(attr)
-                                ):
-                                    if registry.register_callable(attr):
-                                        registered_items["Callables"] += 1
-
-                                # Check for types
-                                if "Types (Pydantic/Dataclasses)" in scan_types:
-                                    if isinstance(attr, type) and (
-                                        issubclass(attr, BaseModel)
-                                        or is_dataclass(attr)
-                                    ):
-                                        if registry.register_type(attr):
-                                            registered_items["Types"] += 1
-
-                                # Check for components
-                                if (
-                                    "Components" in scan_types
-                                    and inspect.isclass(attr)
-                                ):
-                                    # This checks if it's a potential component class
-                                    # Add your specific criteria if needed
-                                    component_name = (
-                                        registry.register_component(attr)
-                                    )
-                                    if component_name:
-                                        registered_items["Components"] += 1
-                                        # Store the file path for this component
-                                        registry._component_file_paths[
-                                            component_name
-                                        ] = file_path
-
-                            except Exception as e:
-                                logger.debug(
-                                    f"Error processing {attr_name}: {e}"
-                                )
-                                continue
-                    except Exception as e:
-                        logger.debug(f"Error importing {file_path}: {e}")
-                        continue
-
-        # Complete the progress bar
-        progress.update(task, completed=100)
-
-    # Show results
-    console.print("\n[bold green]Scan Complete![/]")
-
-    table = Table(title="Registration Results")
-    table.add_column("Type", style="cyan")
+    # Enhanced report section
+    table = Table(title="Scan Results")
+    table.add_column("Category", style="cyan")
     table.add_column("Count", style="green")
+    table.add_column("Example Items", style="blue")
 
-    for item_type, count in registered_items.items():
-        table.add_row(item_type, str(count))
+    for category, items in results.items():
+        if items:
+            examples = ", ".join(items[:3])
+            if len(items) > 3:
+                examples += ", ..."
+            table.add_row(category, str(len(items)), examples)
+        else:
+            table.add_row(category, "0", "")
 
     console.print(table)
+    console.line()
+
+    # Callout for tools and future serialization
+    if results.get("callables"):
+        console.print(
+            "[bold green]Note:[/] Found callable functions that can be used as tools."
+        )
+        console.print(
+            "These functions will now be properly serialized as callable references in your Flock YAML."
+        )
+        console.print(
+            "When sharing Flocks, ensure these callables are registered on the target system."
+        )
+        console.line()
+
+    # Show details options
+    if total_found > 0:
+        view_details = questionary.confirm(
+            "Would you like to view detailed results?", default=True
+        ).ask()
+
+        if view_details:
+            view_registry_contents()  # Show the registry contents after scan
 
 
 def scan_for_registry_items(
@@ -743,7 +696,7 @@ def export_registry() -> None:
         "Select what to export:",
         choices=[
             questionary.Choice("Agents", checked=True),
-            questionary.Choice("Callables", checked=True),
+            questionary.Choice("Callables (Tools)", checked=True),
             questionary.Choice("Types", checked=True),
             questionary.Choice("Components", checked=True),
             questionary.Choice("File Paths", checked=True),
@@ -775,8 +728,23 @@ def export_registry() -> None:
     if "Agents" in export_items:
         export_data["agents"] = list(registry._agents.keys())
 
-    if "Callables" in export_items:
+    if "Callables (Tools)" in export_items:
         export_data["callables"] = list(registry._callables.keys())
+
+        # Add serialization format information for tools
+        callable_details = {}
+        for callable_name in registry._callables.keys():
+            callable_obj = registry._callables[callable_name]
+            callable_details[callable_name] = {
+                "module": callable_obj.__module__,
+                "file": inspect.getfile(callable_obj)
+                if callable_obj and inspect.isfunction(callable_obj)
+                else "Unknown",
+                "type": "function"
+                if inspect.isfunction(callable_obj)
+                else "other_callable",
+            }
+        export_data["callable_details"] = callable_details
 
     if "Types" in export_items:
         export_data["types"] = list(registry._types.keys())
@@ -795,82 +763,69 @@ def export_registry() -> None:
                     export_data["component_file_paths"][component_name] = (
                         registry._component_file_paths[component_name]
                     )
-                else:
-                    # Try to infer the file path using inspect
-                    try:
-                        component_class = registry._components[component_name]
-                        if inspect.isclass(component_class):
-                            file_path = inspect.getfile(component_class)
-                            export_data["component_file_paths"][
-                                component_name
-                            ] = file_path
-                    except Exception:
-                        # Skip if we can't get the file path
-                        pass
 
-    # Export based on format
+    # Add metadata about serialization format
+    export_data["metadata"] = {
+        "export_date": datetime.datetime.now().isoformat(),
+        "flock_version": "0.3.41",  # Update with actual version
+        "serialization_format": {
+            "tools": "Callable reference names",
+            "components": "Module and class names",
+            "types": "Module and class names",
+        },
+    }
+
     try:
+        # Export the data
         if export_format == "YAML":
             import yaml
 
-            # Use a safe dumper to avoid serialization issues
             with open(file_path, "w") as f:
-                yaml.safe_dump(export_data, f, default_flow_style=False)
-
+                yaml.dump(export_data, f, default_flow_style=False)
         elif export_format == "JSON":
             import json
 
             with open(file_path, "w") as f:
                 json.dump(export_data, f, indent=2)
-
         elif export_format == "Python":
             with open(file_path, "w") as f:
-                f.write("# Flock Registry Export\n\n")
-
-                if "Agents" in export_items and export_data["agents"]:
-                    f.write("# Agents\n")
-                    f.write("agents = [\n")
-                    for agent in export_data["agents"]:
-                        f.write(f"    '{agent}',\n")
-                    f.write("]\n\n")
-
-                if "Callables" in export_items and export_data["callables"]:
-                    f.write("# Callables\n")
-                    f.write("callables = [\n")
-                    for callable_name in export_data["callables"]:
-                        f.write(f"    '{callable_name}',\n")
-                    f.write("]\n\n")
-
-                if "Types" in export_items and export_data["types"]:
-                    f.write("# Types\n")
-                    f.write("types = [\n")
-                    for type_name in export_data["types"]:
-                        f.write(f"    '{type_name}',\n")
-                    f.write("]\n\n")
-
-                if "Components" in export_items and export_data["components"]:
-                    f.write("# Components\n")
-                    f.write("components = [\n")
-                    for component_name in export_data["components"]:
-                        f.write(f"    '{component_name}',\n")
-                    f.write("]\n\n")
-
-                if (
-                    "File Paths" in export_items
-                    and "component_file_paths" in export_data
-                ):
-                    f.write("# Component File Paths\n")
-                    f.write("component_file_paths = {\n")
-                    for component_name, file_path in export_data[
-                        "component_file_paths"
-                    ].items():
-                        f.write(f"    '{component_name}': '{file_path}',\n")
-                    f.write("}\n")
+                f.write("# Flock Registry Export\n")
+                f.write(f"# Generated on {datetime.datetime.now()}\n\n")
+                f.write("registry_data = ")
+                f.write(repr(export_data))
+                f.write("\n")
 
         console.print(f"[green]Registry exported to {file_path}[/]")
 
+        # Print information about tool serialization if tools were exported
+        if "Callables (Tools)" in export_items and registry._callables:
+            console.print("\n[bold blue]Tool Serialization Information:[/]")
+            console.print(
+                "Tools in Flock are now serialized as callable references rather than dictionaries."
+            )
+            console.print(
+                "This makes YAML files more readable and simplifies tool management."
+            )
+            console.print("When loading a Flock with tools:")
+            console.print("  1. Tools must be registered in the registry")
+            console.print("  2. The tools' modules must be importable")
+            console.print(
+                "  3. Tool functions have the same signature across systems"
+            )
+
+            # Show example of how a tool would appear in YAML
+            if registry._callables:
+                console.print("\n[bold green]Example tool in YAML:[/]")
+                example_callable = next(iter(registry._callables.keys()))
+                console.print(
+                    f"  - {example_callable}  # Function name reference"
+                )
+                console.print("instead of the old format:")
+                console.print(f"  - __callable_ref__: {example_callable}")
+
     except Exception as e:
-        console.print(f"[red]Error exporting registry: {e!s}[/]")
+        console.print(f"[red]Error exporting registry: {e}[/]")
+        logger.error(f"Failed to export registry: {e}", exc_info=True)
 
 
 if __name__ == "__main__":

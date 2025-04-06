@@ -52,7 +52,7 @@ def init_console(clear_screen: bool = True):
 │ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
 │ ▒█▀▀▀ █░░ █░░█ █░░ █▀▄ │
 │ ▒█░░░ ▀▀▀ ▀▀▀▀ ▀▀▀ ▀░▀ │
-╰━━━━━━━━━v{__version__}━━━━━━━━╯
+╰━━━━━━━━v{__version__}━━━━━━━━╯
 🦆     🐤    🐧     🐓
 """,
         justify="center",
@@ -62,7 +62,7 @@ def init_console(clear_screen: bool = True):
         console.clear()
     console.print(banner_text)
     console.print(
-        f"[italic]'Hummingbird'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
+        f"[italic]'Magpie'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
     )
 
 

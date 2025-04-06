@@ -40,10 +40,15 @@ Our solution enhances the serialization process to create self-contained configu
    - Nested type structures via schema references
    - Generic types like List and Dict
 
-4. **File Path Support** (NEW):
+4. **File Path Support**:
    - Storing both module paths and file system paths for components
    - Fallback mechanism that tries module import first, then file path loading
    - Flexibility for CLI and non-package environments
+
+5. **Improved Tool Serialization** (NEW):
+   - Tools are now serialized as simple function names in agent's tools list
+   - Tools are included in the components section with type "flock_callable"
+   - Better integrated with the component-based architecture
 
 ## Implementation Details
 
@@ -115,7 +120,7 @@ def _extract_type_definition(self, type_name: str, type_obj: type) -> dict[str, 
     return type_def
 ```
 
-### Component Definition with File Paths (NEW)
+### Component Definition with File Paths
 
 ```python
 def _get_component_definition(self, component_type: str) -> dict[str, Any]:
@@ -165,7 +170,114 @@ def _get_component_definition(self, component_type: str) -> dict[str, Any]:
     return component_def
 ```
 
-### Component Loading with File Path Fallback (NEW)
+### Tool Callable Definition (NEW)
+
+```python
+def _get_callable_definition(self, callable_ref: str, func_name: str) -> dict[str, Any]:
+    """Get definition for a callable reference.
+    
+    Args:
+        callable_ref: The fully qualified path to the callable
+        func_name: The simple function name (for display purposes)
+    """
+    import os
+    import sys
+    import inspect
+    from flock.core.flock_registry import get_registry
+
+    registry = get_registry()
+    callable_def = {}
+
+    try:
+        # Try to get the callable from registry
+        func = registry.get_callable(callable_ref)
+        if func:
+            # Get the standard module path
+            module_path = func.__module__
+
+            # Get the actual file system path if possible
+            file_path = None
+            try:
+                if func.__module__ and func.__module__ != "builtins":
+                    module = sys.modules.get(func.__module__)
+                    if module and hasattr(module, "__file__"):
+                        file_path = os.path.abspath(module.__file__)
+            except Exception:
+                # If we can't get the file path, just use the module path
+                pass
+
+            # Get the docstring for description
+            docstring = inspect.getdoc(func) or f"Callable function {func_name}"
+            
+            callable_def = {
+                "type": "flock_callable",
+                "module_path": module_path,
+                "file_path": file_path,
+                "description": docstring.strip(),
+            }
+    except Exception as e:
+        logger.warning(
+            f"Could not extract definition for callable {callable_ref}: {e}"
+        )
+        # Provide minimal information
+        callable_def = {
+            "type": "flock_callable",
+            "module_path": callable_ref.split(".")[0] if "." in callable_ref else "unknown",
+            "file_path": None,
+            "description": f"Callable {func_name} (definition incomplete)",
+        }
+
+    return callable_def
+```
+
+### Tool Serialization for Agents (NEW)
+
+```python
+# --- Serialize Tools (Callables) ---
+if self.tools:
+    logger.debug(f"Serializing {len(self.tools)} tools for agent '{self.name}'")
+    serialized_tools = []
+    for tool in self.tools:
+        if callable(tool) and not isinstance(tool, type):
+            path_str = FlockRegistry.get_callable_path_string(tool)
+            if path_str:
+                # Get just the function name from the path string
+                # If it's a namespaced path like module.submodule.function_name
+                # Just use the function_name part
+                func_name = path_str.split(".")[-1]  
+                serialized_tools.append(func_name)
+                logger.debug(f"Added tool '{func_name}' to agent '{self.name}'")
+            else:
+                logger.warning(
+                    f"Could not get path string for tool {tool} in agent '{self.name}'. Skipping."
+                )
+        else:
+            logger.warning(f"Non-callable item found in tools list for agent '{self.name}': {tool}. Skipping.")
+    if serialized_tools:
+        data["tools"] = serialized_tools
+```
+
+### Extracting Tools for Component Registration (NEW)
+
+```python
+# Extract tool (callable) information from agent data
+if "tools" in agent_data and agent_data["tools"]:
+    logger.debug(f"Extracting tool information from agent '{name}': {agent_data['tools']}")
+    # Get references to the actual tool objects
+    tool_objs = agent_instance.tools if agent_instance.tools else []
+    for i, tool_name in enumerate(agent_data["tools"]):
+        if i < len(tool_objs):
+            tool = tool_objs[i]
+            if callable(tool) and not isinstance(tool, type):
+                # Get the fully qualified name for registry lookup
+                path_str = get_registry().get_callable_path_string(tool)
+                if path_str:
+                    logger.debug(f"Adding tool '{tool_name}' to components")
+                    # Add definition using just the function name as the key
+                    components[tool_name] = self._get_callable_definition(path_str, tool_name)
+```
+
+### Component Loading with File Path Fallback
 
 ```python
 @classmethod
@@ -181,56 +293,67 @@ def _register_component_definitions(cls, component_defs: dict[str, Any]) -> None
     
     for component_name, component_def in component_defs.items():
         logger.debug(f"Registering component: {component_name}")
+        component_type = component_def.get("type", "flock_component")
         
         try:
-            # First try using the module path (Python import)
-            module_path = component_def.get("module_path")
-            if module_path and module_path != "unknown":
-                try:
-                    module = importlib.import_module(module_path)
-                    # Find the component class in the module
-                    for attr_name in dir(module):
-                        if attr_name == component_name:
-                            component_class = getattr(module, attr_name)
-                            registry.register_component(component_class, component_name)
-                            logger.info(f"Registered component {component_name} from {module_path}")
-                            break
-                    else:
-                        logger.warning(f"Component {component_name} not found in module {module_path}")
-                        # If we didn't find the component, try using file_path next
-                        raise ImportError(f"Component {component_name} not found in module {module_path}")
-                except ImportError:
-                    # If module import fails, try file_path approach
-                    file_path = component_def.get("file_path")
-                    if file_path and os.path.exists(file_path):
-                        logger.debug(f"Attempting to load {component_name} from file: {file_path}")
-                        try:
-                            # Load the module from file path
-                            spec = importlib.util.spec_from_file_location(
-                                f"{component_name}_module", file_path
-                            )
-                            if spec and spec.loader:
-                                module = importlib.util.module_from_spec(spec)
-                                sys.modules[spec.name] = module
-                                spec.loader.exec_module(module)
-                                
-                                # Find the component class in the loaded module
-                                for attr_name in dir(module):
-                                    if attr_name == component_name:
-                                        component_class = getattr(module, attr_name)
-                                        registry.register_component(component_class, component_name)
-                                        logger.info(f"Registered component {component_name} from file {file_path}")
-                                        break
-                                else:
-                                    logger.warning(f"Component {component_name} not found in file {file_path}")
-                        except Exception as e:
-                            logger.error(f"Error loading component {component_name} from file {file_path}: {e}")
-                    else:
-                        logger.warning(f"No valid file path found for component {component_name}")
+            # Handle callables differently than components
+            if component_type == "flock_callable":
+                # For callables, component_name is just the function name
+                func_name = component_name
+                module_path = component_def.get("module_path")
+                file_path = component_def.get("file_path")
+                logger.debug(f"Processing callable '{func_name}' from module '{module_path}', file: {file_path}")
+
+                # Try direct import first
+                if module_path:
+                    try:
+                        logger.debug(f"Attempting to import module: {module_path}")
+                        module = importlib.import_module(module_path)
+                        if hasattr(module, func_name):
+                            callable_obj = getattr(module, func_name)
+                            # Register with just the name for easier lookup
+                            registry.register_callable(callable_obj, func_name)
+                            logger.info(f"Registered callable with name: {func_name}")
+                            # Also register with fully qualified path for compatibility
+                            if module_path != "__main__":
+                                full_path = f"{module_path}.{func_name}"
+                                registry.register_callable(callable_obj, full_path)
+                                logger.info(f"Also registered callable with full path: {full_path}")
+                            logger.info(f"Successfully registered callable {func_name} from module {module_path}")
+                            continue
+                        else:
+                            logger.warning(f"Function '{func_name}' not found in module {module_path}")
+                    except ImportError:
+                        logger.debug(f"Could not import module {module_path}, trying file path")
+                
+                # Try file path if module import fails
+                if file_path and os.path.exists(file_path):
+                    try:
+                        logger.debug(f"Attempting to load file: {file_path}")
+                        # Create a module name from file path
+                        mod_name = f"{func_name}_module" 
+                        spec = importlib.util.spec_from_file_location(mod_name, file_path)
+                        if spec and spec.loader:
+                            module = importlib.util.module_from_spec(spec)
+                            sys.modules[spec.name] = module
+                            spec.loader.exec_module(module)
+                            logger.debug(f"Successfully loaded module from file, searching for function '{func_name}'")
+                            
+                            # Look for the function in the loaded module
+                            if hasattr(module, func_name):
+                                callable_obj = getattr(module, func_name)
+                                registry.register_callable(callable_obj, func_name)
+                                logger.info(f"Successfully registered callable {func_name} from file {file_path}")
+                            else:
+                                logger.warning(f"Function {func_name} not found in file {file_path}")
+                        else:
+                            logger.warning(f"Could not create import spec for {file_path}")
+                    except Exception as e:
+                        logger.error(f"Error loading callable {func_name} from file {file_path}: {e}")
+                
+            # Handle regular components (existing code)
             else:
-                logger.warning(f"Missing or unknown module path for component {component_name}")
-        except Exception as e:
-            logger.error(f"Failed to register component {component_name}: {e}")
+                # ... existing component loading code ...
 ```
 
 ### Dynamic Type Recreation
@@ -338,13 +461,20 @@ types:
     imports:
       - from examples.01_introduction.05_typed_output2 import RandomPerson
 
-# Component definitions with module paths AND file paths (NEW)
+# Component definitions with module paths AND file paths
 components:
   DeclarativeEvaluator:
     type: flock_component
     module_path: flock.evaluators.declarative.declarative_evaluator
     file_path: /path/to/flock/evaluators/declarative/declarative_evaluator.py
     description: Standard evaluator for declarative agent definitions
+  
+  # Tool definition with flock_callable type (NEW)
+  get_mobile_number:
+    type: flock_callable
+    module_path: __main__
+    file_path: /path/to/file.py
+    description: A tool that returns a mobile number to a name.
   
 # Dependencies section
 dependencies:
@@ -353,7 +483,12 @@ dependencies:
 
 # Agents section
 agents:
-  # ... agent definitions
+  greeter:
+    name: greeter
+    # ... agent definition ...
+    # Simple function names in tools list (NEW)
+    tools:
+    - get_mobile_number
 ```
 
 ## Advantages of This Approach
@@ -363,7 +498,8 @@ agents:
 3. **Dynamic Recreation**: Types can be recreated dynamically even if not available in the target system
 4. **Complex Type Support**: Works with nested structures, generics, and complex types
 5. **Extensibility**: Architecture allows for additional type support in the future
-6. **File Path Support** (NEW): Enables CLI use and non-package environments
+6. **File Path Support**: Enables CLI use and non-package environments
+7. **Tool Integration**: Tools are now properly integrated in the component system (NEW)
 
 ## Limitations and Future Work
 
@@ -392,6 +528,11 @@ To improve portability and usability in CLI and non-package environments, the im
    - Auto-registration scanner captures file paths during component discovery
    - YAML editor preserves file paths during editing
    - Load mechanism includes fallback for loading from file paths
+
+4. **Callable/Tool Improvements** (NEW):
+   - Tools are now registered as components with type "flock_callable"
+   - Tools are listed by their simple function name in agent tool lists
+   - The same file path support applies to callables as to other components
 
 ### Implementation Details
 
@@ -480,6 +621,7 @@ def load_class_from_file(file_path: str, class_name: str) -> Optional[Type]:
 2. **Development Flexibility**: Easier development workflow using local files and paths
 3. **Improved Portability**: Flock configurations can be shared with both module paths and file paths, improving compatibility across environments
 4. **Graceful Fallbacks**: When module imports fail, the system attempts to load from file paths
+5. **Consistent Treatment of Tools**: Tools/callables now follow the same component-based pattern (NEW)
 
 ### Example Use Case
 
@@ -494,4 +636,4 @@ This enhancement significantly improves the portability and usability of Flock c
 
 ## Conclusion
 
-The enhanced serialization system significantly improves the portability and usability of Flock configurations by making them self-contained. The addition of file path support further enhances flexibility, allowing for CLI usage and operation in non-package environments. This enables easier sharing of agent systems across environments and simplifies deployment. 
+The enhanced serialization system significantly improves the portability and usability of Flock configurations by making them self-contained. The addition of file path support further enhances flexibility, allowing for CLI usage and operation in non-package environments. The improved tool serialization integrates callable functions more seamlessly into the component architecture. These changes enable easier sharing of agent systems across environments and simplify deployment. 

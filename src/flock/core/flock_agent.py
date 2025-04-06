@@ -374,10 +374,12 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             mode="json",  # Use json mode for better handling of standard types by Pydantic
             exclude_none=True,  # Exclude None values for cleaner output
         )
+        logger.debug(f"Base agent data for '{self.name}': {list(data.keys())}")
 
         # --- Serialize Components using Registry Type Names ---
         # Evaluator
         if self.evaluator:
+            logger.debug(f"Serializing evaluator for agent '{self.name}'")
             evaluator_type_name = FlockRegistry.get_component_type_name(
                 type(self.evaluator)
             )
@@ -388,6 +390,9 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                 )
                 evaluator_dict["type"] = evaluator_type_name  # Add type marker
                 data["evaluator"] = evaluator_dict
+                logger.debug(
+                    f"Added evaluator of type '{evaluator_type_name}' to agent '{self.name}'"
+                )
             else:
                 logger.warning(
                     f"Could not get registered type name for evaluator {type(self.evaluator).__name__} in agent '{self.name}'. Skipping serialization."
@@ -395,6 +400,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
         # Router
         if self.handoff_router:
+            logger.debug(f"Serializing router for agent '{self.name}'")
             router_type_name = FlockRegistry.get_component_type_name(
                 type(self.handoff_router)
             )
@@ -406,6 +412,9 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                 )
                 router_dict["type"] = router_type_name
                 data["handoff_router"] = router_dict
+                logger.debug(
+                    f"Added router of type '{router_type_name}' to agent '{self.name}'"
+                )
             else:
                 logger.warning(
                     f"Could not get registered type name for router {type(self.handoff_router).__name__} in agent '{self.name}'. Skipping serialization."
@@ -413,6 +422,9 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
         # Modules
         if self.modules:
+            logger.debug(
+                f"Serializing {len(self.modules)} modules for agent '{self.name}'"
+            )
             serialized_modules = {}
             for name, module_instance in self.modules.items():
                 module_type_name = FlockRegistry.get_component_type_name(
@@ -426,15 +438,24 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                     )
                     module_dict["type"] = module_type_name
                     serialized_modules[name] = module_dict
+                    logger.debug(
+                        f"Added module '{name}' of type '{module_type_name}' to agent '{self.name}'"
+                    )
                 else:
                     logger.warning(
                         f"Could not get registered type name for module {type(module_instance).__name__} ('{name}') in agent '{self.name}'. Skipping."
                     )
             if serialized_modules:
                 data["modules"] = serialized_modules
+                logger.debug(
+                    f"Added {len(serialized_modules)} modules to agent '{self.name}'"
+                )
 
         # --- Serialize Tools (Callables) ---
         if self.tools:
+            logger.debug(
+                f"Serializing {len(self.tools)} tools for agent '{self.name}'"
+            )
             serialized_tools = []
             for tool in self.tools:
                 if callable(tool) and not isinstance(tool, type):
@@ -445,17 +466,27 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                         # Just use the function_name part
                         func_name = path_str.split(".")[-1]
                         serialized_tools.append(func_name)
+                        logger.debug(
+                            f"Added tool '{func_name}' (from path '{path_str}') to agent '{self.name}'"
+                        )
                     else:
                         logger.warning(
                             f"Could not get path string for tool {tool} in agent '{self.name}'. Skipping."
                         )
-                # Silently skip non-callable items or log warning
-                # else:
-                #      logger.warning(f"Non-callable item found in tools list for agent '{self.name}': {tool}. Skipping.")
+                else:
+                    logger.warning(
+                        f"Non-callable item found in tools list for agent '{self.name}': {tool}. Skipping."
+                    )
             if serialized_tools:
                 data["tools"] = serialized_tools
+                logger.debug(
+                    f"Added {len(serialized_tools)} tools to agent '{self.name}'"
+                )
 
         # No need to call _filter_none_values here as model_dump(exclude_none=True) handles it
+        logger.info(
+            f"Serialization of agent '{self.name}' complete with {len(data)} fields"
+        )
         return data
 
     @classmethod
@@ -470,12 +501,17 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             raise ValueError("Agent data must include a 'name' field.")
         FlockRegistry = get_registry()
         agent_name = data["name"]  # For logging context
+        logger.info(f"Deserializing agent '{agent_name}'")
 
         # Pop complex components to handle them after basic agent instantiation
         evaluator_data = data.pop("evaluator", None)
         router_data = data.pop("handoff_router", None)
         modules_data = data.pop("modules", {})
         tools_data = data.pop("tools", [])
+
+        logger.debug(
+            f"Agent '{agent_name}' has {len(modules_data)} modules and {len(tools_data)} tools"
+        )
 
         # Deserialize remaining data recursively (handles nested basic types/callables)
         # Note: Pydantic v2 handles most basic deserialization well if types match.
@@ -485,6 +521,9 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
         try:
             # Create the agent instance using Pydantic's constructor
+            logger.debug(
+                f"Creating agent instance with fields: {list(deserialized_basic_data.keys())}"
+            )
             agent = cls(**deserialized_basic_data)
         except Exception as e:
             logger.error(
@@ -499,13 +538,16 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         # Evaluator
         if evaluator_data:
             try:
+                logger.debug(
+                    f"Deserializing evaluator for agent '{agent_name}'"
+                )
                 agent.evaluator = deserialize_component(
                     evaluator_data, FlockEvaluator
                 )
                 if agent.evaluator is None:
                     raise ValueError("deserialize_component returned None")
                 logger.debug(
-                    f"Deserialized evaluator '{agent.evaluator.name}' for agent '{agent_name}'"
+                    f"Deserialized evaluator '{agent.evaluator.name}' of type '{evaluator_data.get('type')}' for agent '{agent_name}'"
                 )
             except Exception as e:
                 logger.error(
@@ -518,13 +560,14 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         # Router
         if router_data:
             try:
+                logger.debug(f"Deserializing router for agent '{agent_name}'")
                 agent.handoff_router = deserialize_component(
                     router_data, FlockRouter
                 )
                 if agent.handoff_router is None:
                     raise ValueError("deserialize_component returned None")
                 logger.debug(
-                    f"Deserialized router '{agent.handoff_router.name}' for agent '{agent_name}'"
+                    f"Deserialized router '{agent.handoff_router.name}' of type '{router_data.get('type')}' for agent '{agent_name}'"
                 )
             except Exception as e:
                 logger.error(
@@ -536,8 +579,14 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         # Modules
         if modules_data:
             agent.modules = {}  # Ensure it's initialized
+            logger.debug(
+                f"Deserializing {len(modules_data)} modules for agent '{agent_name}'"
+            )
             for name, module_data in modules_data.items():
                 try:
+                    logger.debug(
+                        f"Deserializing module '{name}' of type '{module_data.get('type')}' for agent '{agent_name}'"
+                    )
                     module_instance = deserialize_component(
                         module_data, FlockModule
                     )
@@ -547,6 +596,9 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                         agent.add_module(
                             module_instance
                         )  # Use add_module for consistency
+                        logger.debug(
+                            f"Successfully added module '{name}' to agent '{agent_name}'"
+                        )
                     else:
                         raise ValueError("deserialize_component returned None")
                 except Exception as e:
@@ -562,9 +614,16 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             # Get component registry to look up function imports
             registry = get_registry()
             components = getattr(registry, "_callables", {})
+            logger.debug(
+                f"Deserializing {len(tools_data)} tools for agent '{agent_name}'"
+            )
+            logger.debug(
+                f"Available callables in registry: {list(components.keys())}"
+            )
 
             for tool_name in tools_data:
                 try:
+                    logger.debug(f"Looking for tool '{tool_name}' in registry")
                     # First try to lookup by simple name in the registry's callables
                     found = False
                     for path_str, func in components.items():
@@ -574,8 +633,8 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                         ):
                             agent.tools.append(func)
                             found = True
-                            logger.debug(
-                                f"Found tool '{tool_name}' via path '{path_str}'"
+                            logger.info(
+                                f"Found tool '{tool_name}' via path '{path_str}' for agent '{agent_name}'"
                             )
                             break
 
@@ -590,6 +649,9 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                         if hasattr(__main__, tool_name):
                             agent.tools.append(getattr(__main__, tool_name))
                             found = True
+                            logger.info(
+                                f"Found tool '{tool_name}' in __main__ module for agent '{agent_name}'"
+                            )
 
                     if not found:
                         logger.warning(
@@ -597,10 +659,13 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                         )
                 except Exception as e:
                     logger.error(
-                        f"Error adding tool '{tool_name}' to agent '{agent_name}': {e}"
+                        f"Error adding tool '{tool_name}' to agent '{agent_name}': {e}",
+                        exc_info=True,
                     )
 
-        logger.info(f"Successfully deserialized agent: {agent.name}")
+        logger.info(
+            f"Successfully deserialized agent '{agent_name}' with {len(agent.modules)} modules and {len(agent.tools)} tools"
+        )
         return agent
 
     # --- Pydantic v2 Configuration ---

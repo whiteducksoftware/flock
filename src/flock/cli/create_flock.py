@@ -13,10 +13,12 @@ from rich.panel import Panel
 from flock.cli.loaded_flock_cli import start_loaded_flock_cli
 from flock.core.flock import Flock
 from flock.core.flock_factory import FlockFactory
+from flock.core.logging.logging import get_logger
 from flock.core.util.cli_helper import init_console
 
 # Create console instance
 console = Console()
+logger = get_logger("cli.create_flock")
 
 
 def create_flock():
@@ -213,8 +215,42 @@ def _save_flock_to_yaml(flock):
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        # Save the Flock to YAML
+        # Check if the flock has tools to provide a helpful message
+        has_tools = False
+        for agent in flock.agents.values():
+            if agent.tools and len(agent.tools) > 0:
+                has_tools = True
+                break
+
+        # Save the Flock to YAML with proper tool serialization
+        logger.info(f"Saving Flock to {file_path}")
         flock.to_yaml_file(file_path)
         console.print(f"\n[green]✓[/] Flock saved to {file_path}")
+
+        # Provide helpful information about tool serialization
+        if has_tools:
+            console.print("\n[bold blue]Tools Information:[/]")
+            console.print(
+                "This Flock contains tools that have been serialized as callable references."
+            )
+            console.print(
+                "When loading this Flock on another system, ensure that:"
+            )
+            console.print(
+                "  - The tools/functions are registered in the Flock registry"
+            )
+            console.print(
+                "  - The containing modules are available in the Python path"
+            )
     except Exception as e:
+        logger.error(f"Error saving Flock: {e}", exc_info=True)
         console.print(f"\n[bold red]Error saving Flock:[/] {e!s}")
+
+        # Provide guidance on potential issues with tool serialization
+        if "callable" in str(e).lower() or "registry" in str(e).lower():
+            console.print(
+                "\n[yellow]This error might be related to tool serialization.[/]"
+            )
+            console.print(
+                "[yellow]Check if all tools are properly registered in the Flock registry.[/]"
+            )

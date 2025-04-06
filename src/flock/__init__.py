@@ -31,6 +31,37 @@ def main():
     from flock.core.util.cli_helper import init_console
 
     console = Console()
+
+    # Show a welcome message on first run with the new tool serialization format
+    import os
+
+    feature_flag_file = os.path.expanduser("~/.flock/tool_serialization_notice")
+    if not os.path.exists(feature_flag_file):
+        # Create the directory if it doesn't exist
+        os.makedirs(os.path.dirname(feature_flag_file), exist_ok=True)
+
+        # Show the notice about the new tool serialization
+        console.print(
+            Panel(
+                "[bold green]Flock 0.4.0b 'Magpie'- Flock CLI Management Console BETA[/]\n\n"
+                "Flock now offers a tool for managing your flock:\n"
+                "- Serialization and deserialization of Flock instances\n"
+                "- Execution of Flock instances\n"
+                "- Managing components, types, and agents via the registry management\n"
+                "- Starting a web server to interact with your flock\n"
+                "plannes featues: deployment on docker, kubernetes, and more!"
+            ),
+            justify="center",
+        )
+        console.line()
+
+        # Create the flag file to prevent showing this notice again
+        with open(feature_flag_file, "w") as f:
+            f.write("Tool serialization notice shown")
+
+        input("Press Enter to continue to the main menu...")
+        console.clear()
+
     while True:
         init_console()
 

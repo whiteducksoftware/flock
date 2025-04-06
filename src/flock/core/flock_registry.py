@@ -162,16 +162,20 @@ class FlockRegistry:
                 and self._callables[path_str] != func
             ):
                 logger.warning(
-                    f"Callable '{path_str}' already registered. Overwriting."
+                    f"Callable '{path_str}' already registered with a different function. Overwriting."
                 )
             self._callables[path_str] = func
-            logger.debug(f"Registered callable: {path_str}")
+            logger.debug(f"Registered callable: '{path_str}' ({func.__name__})")
             return path_str
+        logger.warning(
+            f"Could not register callable {func.__name__}: Unable to determine path string"
+        )
         return None
 
     def get_callable(self, path_str: str) -> Callable:
         """Retrieves a callable by its path string, attempting dynamic import if not found."""
         if path_str in self._callables:
+            logger.debug(f"Found callable '{path_str}' in registry")
             return self._callables[path_str]
 
         logger.debug(
@@ -179,14 +183,20 @@ class FlockRegistry:
         )
         try:
             if "." not in path_str:  # Built-ins
+                logger.debug(f"Trying to import built-in callable '{path_str}'")
                 builtins_module = importlib.import_module("builtins")
                 if hasattr(builtins_module, path_str):
                     func = getattr(builtins_module, path_str)
                     if callable(func):
                         self.register_callable(func, path_str)  # Cache it
+                        logger.info(
+                            f"Successfully imported built-in callable '{path_str}'"
+                        )
                         return func
+                logger.error(f"Built-in callable '{path_str}' not found.")
                 raise KeyError(f"Built-in callable '{path_str}' not found.")
 
+            logger.debug(f"Trying to import module callable '{path_str}'")
             module_name, func_name = path_str.rsplit(".", 1)
             module = importlib.import_module(module_name)
             func = getattr(module, func_name)
@@ -194,14 +204,21 @@ class FlockRegistry:
                 self.register_callable(
                     func, path_str
                 )  # Cache dynamically imported
+                logger.info(
+                    f"Successfully imported module callable '{path_str}'"
+                )
                 return func
             else:
+                logger.error(
+                    f"Dynamically imported object '{path_str}' is not callable."
+                )
                 raise TypeError(
                     f"Dynamically imported object '{path_str}' is not callable."
                 )
         except (ImportError, AttributeError, KeyError, TypeError) as e:
             logger.error(
-                f"Failed to dynamically load/find callable '{path_str}': {e}"
+                f"Failed to dynamically load/find callable '{path_str}': {e}",
+                exc_info=True,
             )
             raise KeyError(
                 f"Callable '{path_str}' not found or failed to load: {e}"
@@ -209,11 +226,26 @@ class FlockRegistry:
 
     def get_callable_path_string(self, func: Callable) -> str | None:
         """Gets the path string for a callable, registering it if necessary."""
+        # First try to find by direct identity
         for path_str, registered_func in self._callables.items():
             if func == registered_func:
+                logger.debug(
+                    f"Found existing path string for callable: '{path_str}'"
+                )
                 return path_str
+
         # If not found by identity, generate path, register, and return
-        return self.register_callable(func)
+        path_str = self.register_callable(func)
+        if path_str:
+            logger.debug(
+                f"Generated and registered new path string for callable: '{path_str}'"
+            )
+        else:
+            logger.warning(
+                f"Failed to generate path string for callable {func.__name__}"
+            )
+
+        return path_str
 
     # --- Type Registration ---
     def register_type(

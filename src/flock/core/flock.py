@@ -451,6 +451,9 @@ class Flock(BaseModel, Serializable):
         logger.debug("Serializing Flock instance to dict.")
         # Use Pydantic's dump for base fields
         data = self.model_dump(mode="json", exclude_none=True)
+        logger.info(
+            f"Serializing Flock '{self.name}' with {len(self._agents)} agents"
+        )
 
         # Manually add serialized agents
         data["agents"] = {}
@@ -462,18 +465,26 @@ class Flock(BaseModel, Serializable):
 
         for name, agent_instance in self._agents.items():
             try:
+                logger.debug(f"Serializing agent '{name}'")
                 # Agents handle their own serialization via their to_dict
                 agent_data = agent_instance.to_dict()
                 data["agents"][name] = agent_data
 
                 # Extract type information from agent outputs
                 if agent_instance.output:
+                    logger.debug(
+                        f"Extracting type information from agent '{name}' output: {agent_instance.output}"
+                    )
                     output_types = self._extract_types_from_signature(
                         agent_instance.output
                     )
-                    custom_types.update(
-                        self._get_type_definitions(output_types)
-                    )
+                    if output_types:
+                        logger.debug(
+                            f"Found output types in agent '{name}': {output_types}"
+                        )
+                        custom_types.update(
+                            self._get_type_definitions(output_types)
+                        )
 
                 # Extract component information
                 if (
@@ -481,6 +492,9 @@ class Flock(BaseModel, Serializable):
                     and "type" in agent_data["evaluator"]
                 ):
                     component_type = agent_data["evaluator"]["type"]
+                    logger.debug(
+                        f"Adding evaluator component '{component_type}' from agent '{name}'"
+                    )
                     components[component_type] = self._get_component_definition(
                         component_type
                     )
@@ -492,12 +506,18 @@ class Flock(BaseModel, Serializable):
                     ].items():
                         if "type" in module_data:
                             component_type = module_data["type"]
+                            logger.debug(
+                                f"Adding module component '{component_type}' from module '{module_name}' in agent '{name}'"
+                            )
                             components[component_type] = (
                                 self._get_component_definition(component_type)
                             )
 
                 # Extract tool (callable) information
                 if agent_data.get("tools"):
+                    logger.debug(
+                        f"Extracting tool information from agent '{name}': {agent_data['tools']}"
+                    )
                     # Get references to the actual tool objects
                     tool_objs = (
                         agent_instance.tools if agent_instance.tools else []
@@ -513,6 +533,9 @@ class Flock(BaseModel, Serializable):
                                     )
                                 )
                                 if path_str:
+                                    logger.debug(
+                                        f"Adding tool '{tool_name}' (from path '{path_str}') to components"
+                                    )
                                     # Add definition using just the function name as the key
                                     components[tool_name] = (
                                         self._get_callable_definition(
@@ -522,21 +545,31 @@ class Flock(BaseModel, Serializable):
 
             except Exception as e:
                 logger.error(
-                    f"Failed to serialize agent '{name}' within Flock: {e}"
+                    f"Failed to serialize agent '{name}' within Flock: {e}",
+                    exc_info=True,
                 )
                 # Optionally skip problematic agents or raise error
                 # data["agents"][name] = {"error": f"Serialization failed: {e}"}
 
         # Add type definitions to the serialized output if any were found
         if custom_types:
+            logger.info(
+                f"Adding {len(custom_types)} custom type definitions to serialized output"
+            )
             data["types"] = custom_types
 
         # Add component definitions to the serialized output if any were found
         if components:
+            logger.info(
+                f"Adding {len(components)} component definitions to serialized output"
+            )
             data["components"] = components
 
         # Add dependencies section
         data["dependencies"] = self._get_dependencies()
+        logger.debug(
+            f"Flock serialization complete with {len(data['agents'])} agents, {len(custom_types)} types, {len(components)} components"
+        )
 
         return data
 
@@ -728,6 +761,9 @@ class Flock(BaseModel, Serializable):
 
         try:
             # Try to get the callable from registry
+            logger.debug(
+                f"Getting callable definition for '{callable_ref}' (display name: '{func_name}')"
+            )
             func = registry.get_callable(callable_ref)
             if func:
                 # Get the standard module path
@@ -755,6 +791,9 @@ class Flock(BaseModel, Serializable):
                     "file_path": file_path,
                     "description": docstring.strip(),
                 }
+                logger.debug(
+                    f"Created callable definition for '{func_name}': module={module_path}, file={file_path}"
+                )
         except Exception as e:
             logger.warning(
                 f"Could not extract definition for callable {callable_ref}: {e}"
@@ -789,14 +828,19 @@ class Flock(BaseModel, Serializable):
 
         # First, handle type definitions if present
         if "types" in data:
+            logger.info(f"Processing {len(data['types'])} type definitions")
             cls._register_type_definitions(data["types"])
 
         # Then, handle component definitions if present
         if "components" in data:
+            logger.info(
+                f"Processing {len(data['components'])} component definitions"
+            )
             cls._register_component_definitions(data["components"])
 
         # Check dependencies if present
         if "dependencies" in data:
+            logger.debug(f"Checking {len(data['dependencies'])} dependencies")
             cls._check_dependencies(data["dependencies"])
 
         # Ensure FlockAgent is importable for type checking later
@@ -810,6 +854,7 @@ class Flock(BaseModel, Serializable):
 
         # Extract agent data before initializing Flock base model
         agents_data = data.pop("agents", {})
+        logger.info(f"Found {len(agents_data)} agents to deserialize")
 
         # Remove types, components, and dependencies sections as they're not part of Flock fields
         data.pop("types", None)
@@ -820,6 +865,9 @@ class Flock(BaseModel, Serializable):
         try:
             # Pass only fields defined in Flock's Pydantic model
             init_data = {k: v for k, v in data.items() if k in cls.model_fields}
+            logger.debug(
+                f"Creating Flock instance with fields: {list(init_data.keys())}"
+            )
             flock_instance = cls(**init_data)
         except Exception as e:
             logger.error(
@@ -832,6 +880,7 @@ class Flock(BaseModel, Serializable):
         # Deserialize and add agents AFTER Flock instance exists
         for name, agent_data in agents_data.items():
             try:
+                logger.debug(f"Deserializing agent '{name}'")
                 # Ensure agent_data has the name, or add it from the key
                 agent_data.setdefault("name", name)
                 # Use FlockAgent's from_dict method
@@ -839,6 +888,7 @@ class Flock(BaseModel, Serializable):
                 flock_instance.add_agent(
                     agent_instance
                 )  # Adds to _agents and registers
+                logger.debug(f"Successfully added agent '{name}' to Flock")
             except Exception as e:
                 logger.error(
                     f"Failed to deserialize or add agent '{name}' during Flock deserialization: {e}",
@@ -846,7 +896,9 @@ class Flock(BaseModel, Serializable):
                 )
                 # Decide: skip agent or raise error?
 
-        logger.info("Successfully deserialized Flock instance.")
+        logger.info(
+            f"Successfully deserialized Flock instance '{flock_instance.name}' with {len(flock_instance._agents)} agents"
+        )
         return flock_instance
 
     @classmethod
@@ -1018,10 +1070,16 @@ class Flock(BaseModel, Serializable):
                     func_name = component_name
                     module_path = component_def.get("module_path")
                     file_path = component_def.get("file_path")
+                    logger.debug(
+                        f"Processing callable '{func_name}' from module '{module_path}', file: {file_path}"
+                    )
 
                     # Try direct import first
                     if module_path:
                         try:
+                            logger.debug(
+                                f"Attempting to import module: {module_path}"
+                            )
                             module = importlib.import_module(module_path)
                             if hasattr(module, func_name):
                                 callable_obj = getattr(module, func_name)
@@ -1029,16 +1087,26 @@ class Flock(BaseModel, Serializable):
                                 registry.register_callable(
                                     callable_obj, func_name
                                 )
+                                logger.info(
+                                    f"Registered callable with name: {func_name}"
+                                )
                                 # Also register with fully qualified path for compatibility
                                 if module_path != "__main__":
                                     full_path = f"{module_path}.{func_name}"
                                     registry.register_callable(
                                         callable_obj, full_path
                                     )
+                                    logger.info(
+                                        f"Also registered callable with full path: {full_path}"
+                                    )
                                 logger.info(
-                                    f"Registered callable {func_name} from module {module_path}"
+                                    f"Successfully registered callable {func_name} from module {module_path}"
                                 )
                                 continue
+                            else:
+                                logger.warning(
+                                    f"Function '{func_name}' not found in module {module_path}"
+                                )
                         except ImportError:
                             logger.debug(
                                 f"Could not import module {module_path}, trying file path"
@@ -1047,6 +1115,9 @@ class Flock(BaseModel, Serializable):
                     # Try file path if module import fails
                     if file_path and os.path.exists(file_path):
                         try:
+                            logger.debug(
+                                f"Attempting to load file: {file_path}"
+                            )
                             # Create a module name from file path
                             mod_name = f"{func_name}_module"
                             spec = importlib.util.spec_from_file_location(
@@ -1056,6 +1127,9 @@ class Flock(BaseModel, Serializable):
                                 module = importlib.util.module_from_spec(spec)
                                 sys.modules[spec.name] = module
                                 spec.loader.exec_module(module)
+                                logger.debug(
+                                    f"Successfully loaded module from file, searching for function '{func_name}'"
+                                )
 
                                 # Look for the function in the loaded module
                                 if hasattr(module, func_name):
@@ -1064,15 +1138,20 @@ class Flock(BaseModel, Serializable):
                                         callable_obj, func_name
                                     )
                                     logger.info(
-                                        f"Registered callable {func_name} from file {file_path}"
+                                        f"Successfully registered callable {func_name} from file {file_path}"
                                     )
                                 else:
                                     logger.warning(
                                         f"Function {func_name} not found in file {file_path}"
                                     )
+                            else:
+                                logger.warning(
+                                    f"Could not create import spec for {file_path}"
+                                )
                         except Exception as e:
                             logger.error(
-                                f"Error loading callable {func_name} from file {file_path}: {e}"
+                                f"Error loading callable {func_name} from file {file_path}: {e}",
+                                exc_info=True,
                             )
 
                 # Handle regular components (existing code)
@@ -1081,6 +1160,9 @@ class Flock(BaseModel, Serializable):
                     module_path = component_def.get("module_path")
                     if module_path and module_path != "unknown":
                         try:
+                            logger.debug(
+                                f"Attempting to import module '{module_path}' for component '{component_name}'"
+                            )
                             module = importlib.import_module(module_path)
                             # Find the component class in the module
                             for attr_name in dir(module):
@@ -1124,6 +1206,9 @@ class Flock(BaseModel, Serializable):
                                         )
                                         sys.modules[spec.name] = module
                                         spec.loader.exec_module(module)
+                                        logger.debug(
+                                            f"Successfully loaded module from file, searching for component class '{component_name}'"
+                                        )
 
                                         # Find the component class in the loaded module
                                         for attr_name in dir(module):
@@ -1145,7 +1230,8 @@ class Flock(BaseModel, Serializable):
                                             )
                                 except Exception as e:
                                     logger.error(
-                                        f"Error loading component {component_name} from file {file_path}: {e}"
+                                        f"Error loading component {component_name} from file {file_path}: {e}",
+                                        exc_info=True,
                                     )
                             else:
                                 logger.warning(
@@ -1157,7 +1243,8 @@ class Flock(BaseModel, Serializable):
                         )
             except Exception as e:
                 logger.error(
-                    f"Failed to register component {component_name}: {e}"
+                    f"Failed to register component {component_name}: {e}",
+                    exc_info=True,
                 )
 
     @classmethod
