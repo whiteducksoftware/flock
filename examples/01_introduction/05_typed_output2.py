@@ -3,22 +3,20 @@ from pprint import pprint
 from typing import Literal
 
 from flock.core import Flock, FlockFactory
-
+from flock.core.flock_registry import flock_type
+from pydantic import BaseModel
 
 # --------------------------------
 # Define the data model for a random person
 # --------------------------------
-@dataclass
-class RandomPerson:
+@flock_type
+class RandomPerson(BaseModel):
     name: str
     age: int
     gender: Literal["female", "male"]
     job: str
     favorite_movie: str  
     short_bio: str
-
-# And 'hide' it in a alias
-RandomUserList = list[RandomPerson]
 
 
    
@@ -34,7 +32,7 @@ flock = Flock()
 people_agent = FlockFactory.create_default_agent(
     name="people_agent",
     input="amount_of_people",
-    output="random_user_list: RandomUserList",
+    output="random_user_list: list[RandomPerson]",
 )
 flock.add_agent(people_agent)
 
