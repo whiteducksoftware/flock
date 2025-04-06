@@ -133,6 +133,14 @@ def _view_yaml(obj: Flock | FlockAgent):
     """
     yaml_str = obj.to_yaml()
 
+    # Add file path information header if it's a Flock with component file paths
+    if isinstance(obj, Flock) and hasattr(obj, "_component_file_paths"):
+        has_file_paths = bool(getattr(obj, "_component_file_paths", {}))
+        if has_file_paths:
+            console.print(
+                "[bold yellow]Note: This Flock contains components with file paths[/]"
+            )
+
     # Display with syntax highlighting
     syntax = Syntax(
         yaml_str,
@@ -147,6 +155,50 @@ def _view_yaml(obj: Flock | FlockAgent):
     console.print(Panel("[bold green]YAML View[/]"), justify="center")
     console.print(syntax)
 
+    # Show file path information if available
+    if isinstance(obj, Flock):
+        # Get registry for checking file paths
+        try:
+            from flock.core.flock_registry import get_registry
+
+            registry = get_registry()
+
+            if (
+                hasattr(registry, "_component_file_paths")
+                and registry._component_file_paths
+            ):
+                # Get component names in this Flock
+                components = set()
+                for agent in obj._agents.values():
+                    if hasattr(agent, "module") and agent.module:
+                        module_path = getattr(agent.module, "module_path", None)
+                        if module_path:
+                            components.add(module_path)
+
+                # Show file paths for components in this Flock
+                file_paths = []
+                for component_name in components:
+                    if component_name in registry._component_file_paths:
+                        file_paths.append(
+                            (
+                                component_name,
+                                registry._component_file_paths[component_name],
+                            )
+                        )
+
+                if file_paths:
+                    console.print("\n[bold cyan]Component File Paths:[/]")
+                    table = Table()
+                    table.add_column("Component", style="green")
+                    table.add_column("File Path", style="yellow")
+
+                    for component_name, file_path in file_paths:
+                        table.add_row(component_name, file_path)
+
+                    console.print(table)
+        except ImportError:
+            pass  # Skip if registry is not available
+
 
 def _edit_yaml_directly(obj: Flock | FlockAgent) -> Flock | FlockAgent:
     """Edit the YAML representation directly using an external editor.
@@ -159,6 +211,20 @@ def _edit_yaml_directly(obj: Flock | FlockAgent) -> Flock | FlockAgent:
     """
     # Convert to YAML
     yaml_str = obj.to_yaml()
+
+    # Get file path information if it's a Flock
+    component_file_paths = {}
+    if isinstance(obj, Flock):
+        try:
+            from flock.core.flock_registry import get_registry
+
+            registry = get_registry()
+
+            if hasattr(registry, "_component_file_paths"):
+                # Save the file paths to restore later
+                component_file_paths = registry._component_file_paths.copy()
+        except ImportError:
+            pass
 
     # Create a temporary file
     with tempfile.NamedTemporaryFile(
@@ -187,6 +253,26 @@ def _edit_yaml_directly(obj: Flock | FlockAgent) -> Flock | FlockAgent:
         try:
             if isinstance(obj, Flock):
                 updated_obj = Flock.from_yaml(updated_yaml)
+
+                # Restore file path information
+                if component_file_paths:
+                    from flock.core.flock_registry import get_registry
+
+                    registry = get_registry()
+
+                    if not hasattr(registry, "_component_file_paths"):
+                        registry._component_file_paths = {}
+
+                    # Merge the updated registry with the saved file paths
+                    for (
+                        component_name,
+                        file_path,
+                    ) in component_file_paths.items():
+                        if component_name in registry._components:
+                            registry._component_file_paths[component_name] = (
+                                file_path
+                            )
+
                 console.print("\n[green]✓[/] YAML parsed successfully!")
                 return updated_obj
             elif isinstance(obj, FlockAgent):
@@ -202,8 +288,10 @@ def _edit_yaml_directly(obj: Flock | FlockAgent) -> Flock | FlockAgent:
         # Clean up the temporary file
         try:
             os.unlink(tmp_path)
-        except:
+        except Exception:
             pass
+
+    return obj
 
 
 def _abstract_editor(obj: Flock | FlockAgent) -> Flock | FlockAgent:
@@ -273,11 +361,36 @@ def _save_to_file(obj: Flock | FlockAgent):
     save_path = Path(file_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    try:
-        # Save to file
-        with open(file_path, "w") as f:
-            f.write(obj.to_yaml())
+    # For Flock instances, ask about path_type
+    path_type = "absolute"  # Default
+    if isinstance(obj, Flock):
+        path_type_choice = questionary.select(
+            "How should file paths be formatted?",
+            choices=[
+                "absolute (full paths, best for local use)",
+                "relative (relative paths, better for sharing)",
+            ],
+            default="absolute (full paths, best for local use)",
+        ).ask()
 
-        console.print(f"\n[green]✓[/] Saved to {file_path}")
+        # Extract just the first word
+        path_type = path_type_choice.split()[0]
+
+        console.print(
+            f"[bold]Path type selected: [green]{path_type}[/green][/bold]"
+        )
+
+    try:
+        # Save to file with path_type for Flock instances
+        if isinstance(obj, Flock):
+            obj.to_yaml_file(file_path, path_type=path_type)
+            console.print(
+                f"\n[green]✓[/] Saved to {file_path} with {path_type} paths"
+            )
+        else:
+            # For FlockAgent or other types, use the original method
+            with open(file_path, "w") as f:
+                f.write(obj.to_yaml())
+            console.print(f"\n[green]✓[/] Saved to {file_path}")
     except Exception as e:
         console.print(f"\n[bold red]Error saving file:[/] {e!s}")

@@ -1,8 +1,10 @@
 """Registry Management Module for the Flock CLI."""
 
+import datetime
 import importlib
 import inspect
 import os
+from dataclasses import is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -137,9 +139,21 @@ def display_registry_section(
     table.add_column("Name/Path", style="cyan")
     table.add_column("Type", style="green")
 
+    # Add file path column for components
+    if title == "Components":
+        table.add_column("File Path", style="yellow")
+
     for name, item in filtered_items.items():
         item_type = type(item).__name__
-        table.add_row(name, item_type)
+
+        if title == "Components":
+            # Try to get the file path for component classes
+            file_path = (
+                inspect.getfile(item) if inspect.isclass(item) else "N/A"
+            )
+            table.add_row(name, item_type, file_path)
+        else:
+            table.add_row(name, item_type)
 
     console.print(table)
     console.print(f"Total: {len(filtered_items)} {title.lower()}")
@@ -154,11 +168,72 @@ def add_item_to_registry() -> None:
         choices=["agent", "callable", "type", "component"],
     ).ask()
 
-    module_path = questionary.text(
-        "Enter the module path (e.g., 'your_module.submodule'):"
-    ).ask()
+    # For component types, offer file path option
+    use_file_path = False
+    if item_type == "component":
+        path_type = questionary.select(
+            "How do you want to specify the component?",
+            choices=["Module Path", "File Path"],
+        ).ask()
+        use_file_path = path_type == "File Path"
 
-    item_name = questionary.text("Enter the item name within the module:").ask()
+    if use_file_path:
+        file_path = questionary.path(
+            "Enter the file path to the component:", only_directories=False
+        ).ask()
+
+        if not file_path or not os.path.exists(file_path):
+            console.print(f"[red]Error: File {file_path} does not exist[/]")
+            return False
+
+        module_name = questionary.text(
+            "Enter the component class name in the file:"
+        ).ask()
+
+        try:
+            # Use dynamic import to load the module from file path
+            import importlib.util
+
+            spec = importlib.util.spec_from_file_location(
+                "temp_module", file_path
+            )
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            if not hasattr(module, module_name):
+                console.print(
+                    f"[red]Error: {module_name} not found in {file_path}[/]"
+                )
+                return False
+
+            item = getattr(module, module_name)
+        except Exception as e:
+            console.print(f"[red]Error importing from file: {e!s}[/]")
+            return False
+    else:
+        module_path = questionary.text(
+            "Enter the module path (e.g., 'your_module.submodule'):"
+        ).ask()
+
+        item_name = questionary.text(
+            "Enter the item name within the module:"
+        ).ask()
+
+        try:
+            # Attempt to import the module
+            module = importlib.import_module(module_path)
+
+            # Get the item from the module
+            if not hasattr(module, item_name):
+                console.print(
+                    f"[red]Error: {item_name} not found in {module_path}[/]"
+                )
+                return False
+
+            item = getattr(module, item_name)
+        except Exception as e:
+            console.print(f"[red]Error importing module: {e!s}[/]")
+            return False
 
     alias = questionary.text(
         "Enter an alias (optional, press Enter to skip):"
@@ -167,20 +242,8 @@ def add_item_to_registry() -> None:
     if not alias:
         alias = None
 
+    # Register the item based on its type
     try:
-        # Attempt to import the module
-        module = importlib.import_module(module_path)
-
-        # Get the item from the module
-        if not hasattr(module, item_name):
-            console.print(
-                f"[red]Error: {item_name} not found in {module_path}[/]"
-            )
-            return False
-
-        item = getattr(module, item_name)
-
-        # Register the item based on its type
         if item_type == "agent":
             registry.register_agent(item)
             console.print(
@@ -196,18 +259,19 @@ def add_item_to_registry() -> None:
             console.print(f"[green]Successfully registered type: {result}[/]")
         elif item_type == "component":
             result = registry.register_component(item, alias)
+            # Store the file path information if we loaded from a file
+            if use_file_path and hasattr(registry, "_component_file_paths"):
+                # Check if the registry has component file paths attribute
+                # This will be added to registry in our update
+                registry._component_file_paths[result] = file_path
             console.print(
                 f"[green]Successfully registered component: {result}[/]"
             )
-
-        return True
-
-    except ImportError:
-        console.print(f"[red]Error: Could not import module {module_path}[/]")
     except Exception as e:
-        console.print(f"[red]Error: {e!s}[/]")
+        console.print(f"[red]Error registering item: {e!s}[/]")
+        return False
 
-    return False
+    return True
 
 
 def remove_item_from_registry() -> None:
@@ -275,56 +339,123 @@ def remove_item_from_registry() -> None:
 
 
 def auto_registration_scanner() -> None:
-    """Scan directory for potential registry items and optionally register them."""
-    # Ask for the target path
-    target_path = questionary.text(
-        "Enter the path to scan (file or directory):",
-        default=os.getcwd(),
-    ).ask()
-
-    # Ask if we should recursively scan directories
-    recursive = True
-    if os.path.isdir(target_path):
-        recursive = questionary.confirm(
-            "Scan recursively through subdirectories?",
-            default=True,
-        ).ask()
-
-    # Ask if we should auto-register or just preview
-    auto_register = questionary.confirm(
-        "Auto-register discovered items? (No for preview only)",
-        default=False,
-    ).ask()
-
-    # Perform the scan
-    scan_results = scan_for_registry_items(
-        target_path, recursive, auto_register
+    """Launch the auto-registration scanner interface."""
+    console.clear()
+    console.print(
+        Panel("[bold blue]Auto-Registration Scanner[/]"), justify="center"
     )
+    console.line()
+
+    console.print(
+        "This utility will scan Python files for components, types, callables (tools), and agents that can be registered."
+    )
+    console.print(
+        "[yellow]Note: Registration is required for proper serialization and deserialization of your Flock.[/]"
+    )
+    console.line()
+
+    # Target directory selection
+    def path_filter(path):
+        """Filter paths for selection."""
+        if os.path.isdir(path):
+            return True
+        return path.endswith(".py")
+
+    target_path = questionary.path(
+        "Select directory to scan:", file_filter=path_filter
+    ).ask()
+
+    if not target_path or not os.path.exists(target_path):
+        console.print("[red]Invalid path selected. Aborting.[/]")
+        return
+
+    is_recursive = questionary.confirm(
+        "Scan recursively (include subdirectories)?", default=True
+    ).ask()
+
+    auto_register = questionary.confirm(
+        "Automatically register items found during scan?", default=True
+    ).ask()
+
+    # Special callout for tools/callables
+    console.print(
+        "[bold blue]Tool Registration:[/] This scanner will look for functions that can be used as tools."
+    )
+    console.print(
+        "These will be registered as callables and can be properly serialized in your Flock YAML."
+    )
+    console.line()
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TextColumn("[bold green]{task.completed}/{task.total}"),
+        console=console,
+    ) as progress:
+        task_id = progress.add_task(
+            "Scanning for registry items...", total=None
+        )
+
+        # Perform the scan
+        results = scan_for_registry_items(
+            target_path, recursive=is_recursive, auto_register=auto_register
+        )
+
+        # Mark task as complete
+        progress.update(task_id, completed=1, total=1)
+        console.line()
 
     # Display results
-    console.print(Panel("[bold green]Scan Results[/]"), justify="center")
+    console.print("[bold green]Scan Complete![/]")
+    console.line()
 
-    for category, items in scan_results.items():
+    total_found = sum(len(items) for items in results.values())
+    total_categories = sum(1 for items in results.values() if items)
+
+    console.print(
+        f"Found {total_found} items across {total_categories} categories."
+    )
+
+    # Enhanced report section
+    table = Table(title="Scan Results")
+    table.add_column("Category", style="cyan")
+    table.add_column("Count", style="green")
+    table.add_column("Example Items", style="blue")
+
+    for category, items in results.items():
         if items:
-            console.print(f"\n[cyan]{category}:[/] {len(items)} items")
-            for item in items:
-                console.print(f"  - {item}")
+            examples = ", ".join(items[:3])
+            if len(items) > 3:
+                examples += ", ..."
+            table.add_row(category, str(len(items)), examples)
+        else:
+            table.add_row(category, "0", "")
 
-    if auto_register:
-        console.print("\n[green]Items have been registered to the registry.[/]")
-    else:
-        # Ask if we want to register the detected items
-        register_now = questionary.confirm(
-            "Register these items now?",
-            default=False,
+    console.print(table)
+    console.line()
+
+    # Callout for tools and future serialization
+    if results.get("callables"):
+        console.print(
+            "[bold green]Note:[/] Found callable functions that can be used as tools."
+        )
+        console.print(
+            "These functions will now be properly serialized as callable references in your Flock YAML."
+        )
+        console.print(
+            "When sharing Flocks, ensure these callables are registered on the target system."
+        )
+        console.line()
+
+    # Show details options
+    if total_found > 0:
+        view_details = questionary.confirm(
+            "Would you like to view detailed results?", default=True
         ).ask()
 
-        if register_now:
-            # Re-scan with auto-register=True
-            scan_for_registry_items(target_path, recursive, True)
-            console.print(
-                "\n[green]Items have been registered to the registry.[/]"
-            )
+        if view_details:
+            view_registry_contents()  # Show the registry contents after scan
 
 
 def scan_for_registry_items(
@@ -517,8 +648,6 @@ def has_component_base(cls: type) -> bool:
 def is_potential_type(cls: type) -> bool:
     """Check if a class is a Pydantic model or dataclass."""
     try:
-        from dataclasses import is_dataclass
-
         from pydantic import BaseModel
 
         return issubclass(cls, BaseModel) or is_dataclass(cls)
@@ -559,59 +688,201 @@ def is_potential_registry_candidate(obj: Any) -> bool:
 
 
 def export_registry() -> None:
-    """Export the current registry state to a file."""
+    """Export registry contents to a file."""
     registry = get_registry()
 
-    # Choose export format
-    export_format = questionary.select(
-        "Select export format:",
-        choices=["YAML", "JSON", "Text Report"],
+    # Select what to export
+    export_items = questionary.checkbox(
+        "Select what to export:",
+        choices=[
+            questionary.Choice("Agents", checked=True),
+            questionary.Choice("Callables (Tools)", checked=True),
+            questionary.Choice("Types", checked=True),
+            questionary.Choice("Components", checked=True),
+            questionary.Choice("File Paths", checked=True),
+        ],
     ).ask()
 
-    # Choose export path
-    export_path = questionary.text(
-        "Enter export file path:",
+    if not export_items:
+        console.print("[yellow]No items selected for export.[/]")
+        return
+
+    # Select export format
+    export_format = questionary.select(
+        "Select export format:",
+        choices=["YAML", "JSON", "Python"],
+    ).ask()
+
+    # Select path type for serialization
+    path_type = questionary.select(
+        "How should file paths be formatted?",
+        choices=[
+            "absolute (full paths, best for local use)",
+            "relative (relative paths, better for sharing)",
+        ],
+        default="absolute (full paths, best for local use)",
+    ).ask()
+
+    # Extract just the first word
+    path_type = path_type.split()[0]
+
+    console.print(
+        f"\n[bold]Path type selected: [green]{path_type}[/green][/bold]"
+    )
+    if path_type == "relative":
+        console.print(
+            "Relative paths are recommended when sharing Flocks between systems.\n"
+            "They'll be converted to paths relative to the current directory."
+        )
+    else:
+        console.print(
+            "Absolute paths work best for local usage but may not work correctly\n"
+            "when sharing with others or moving files."
+        )
+    console.line()
+
+    # Get file path for export
+    file_path = questionary.path(
+        "Enter file path for export:",
         default=f"flock_registry_export.{export_format.lower()}",
     ).ask()
 
-    try:
-        export_data = {
-            "agents": list(registry._agents.keys()),
-            "callables": list(registry._callables.keys()),
-            "types": list(registry._types.keys()),
-            "components": list(registry._components.keys()),
-        }
+    if not file_path:
+        return
 
+    # Prepare export data
+    export_data = {}
+
+    if "Agents" in export_items:
+        export_data["agents"] = list(registry._agents.keys())
+
+    if "Callables (Tools)" in export_items:
+        export_data["callables"] = list(registry._callables.keys())
+
+        # Add serialization format information for tools
+        callable_details = {}
+        for callable_name in registry._callables.keys():
+            callable_obj = registry._callables[callable_name]
+            file_path_value = (
+                inspect.getfile(callable_obj)
+                if callable_obj and inspect.isfunction(callable_obj)
+                else "Unknown"
+            )
+
+            # Convert to relative path if needed
+            if path_type == "relative" and file_path_value != "Unknown":
+                try:
+                    file_path_value = os.path.relpath(file_path_value)
+                except ValueError:
+                    # Keep as absolute if can't make relative
+                    pass
+
+            callable_details[callable_name] = {
+                "module": callable_obj.__module__,
+                "file": file_path_value,
+                "type": "function"
+                if inspect.isfunction(callable_obj)
+                else "other_callable",
+            }
+        export_data["callable_details"] = callable_details
+
+    if "Types" in export_items:
+        export_data["types"] = list(registry._types.keys())
+
+    if "Components" in export_items:
+        export_data["components"] = list(registry._components.keys())
+
+        # Include file paths if selected
+        if "File Paths" in export_items and hasattr(
+            registry, "_component_file_paths"
+        ):
+            export_data["component_file_paths"] = {}
+            for component_name in registry._components.keys():
+                # Get the file path if available
+                if component_name in registry._component_file_paths:
+                    file_path_value = registry._component_file_paths[
+                        component_name
+                    ]
+
+                    # Convert to relative path if needed
+                    if path_type == "relative" and file_path_value:
+                        try:
+                            file_path_value = os.path.relpath(file_path_value)
+                        except ValueError:
+                            # Keep as absolute if can't make relative
+                            pass
+
+                    export_data["component_file_paths"][component_name] = (
+                        file_path_value
+                    )
+
+    # Add metadata about serialization format
+    export_data["metadata"] = {
+        "export_date": datetime.datetime.now().isoformat(),
+        "flock_version": "0.3.41",  # Update with actual version
+        "serialization_format": {
+            "tools": "Callable reference names",
+            "components": "Module and class names",
+            "types": "Module and class names",
+        },
+        "path_type": path_type,
+    }
+
+    # Add serialization settings as a top-level element
+    export_data["serialization_settings"] = {"path_type": path_type}
+
+    try:
+        # Export the data
         if export_format == "YAML":
             import yaml
 
-            with open(export_path, "w") as f:
-                yaml.dump(export_data, f, sort_keys=False, indent=2)
-
+            with open(file_path, "w") as f:
+                yaml.dump(export_data, f, default_flow_style=False)
         elif export_format == "JSON":
             import json
 
-            with open(export_path, "w") as f:
+            with open(file_path, "w") as f:
                 json.dump(export_data, f, indent=2)
+        elif export_format == "Python":
+            with open(file_path, "w") as f:
+                f.write("# Flock Registry Export\n")
+                f.write(f"# Generated on {datetime.datetime.now()}\n\n")
+                f.write("registry_data = ")
+                f.write(repr(export_data))
+                f.write("\n")
 
-        elif export_format == "Text Report":
-            with open(export_path, "w") as f:
-                f.write("FLOCK REGISTRY EXPORT\n")
-                f.write("====================\n\n")
+        console.print(f"[green]Registry exported to {file_path}[/]")
+        console.print(f"[green]Paths formatted as: {path_type}[/]")
 
-                for category, items in export_data.items():
-                    f.write(f"{category.upper()} ({len(items)})\n")
-                    f.write(
-                        "-" * (len(category) + 2 + len(str(len(items)))) + "\n"
-                    )
-                    for item in sorted(items):
-                        f.write(f"  - {item}\n")
-                    f.write("\n")
+        # Print information about tool serialization if tools were exported
+        if "Callables (Tools)" in export_items and registry._callables:
+            console.print("\n[bold blue]Tool Serialization Information:[/]")
+            console.print(
+                "Tools in Flock are now serialized as callable references rather than dictionaries."
+            )
+            console.print(
+                "This makes YAML files more readable and simplifies tool management."
+            )
+            console.print("When loading a Flock with tools:")
+            console.print("  1. Tools must be registered in the registry")
+            console.print("  2. The tools' modules must be importable")
+            console.print(
+                "  3. Tool functions have the same signature across systems"
+            )
 
-        console.print(f"[green]Registry exported to {export_path}[/]")
+            # Show example of how a tool would appear in YAML
+            if registry._callables:
+                console.print("\n[bold green]Example tool in YAML:[/]")
+                example_callable = next(iter(registry._callables.keys()))
+                console.print(
+                    f"  - {example_callable}  # Function name reference"
+                )
+                console.print("instead of the old format:")
+                console.print(f"  - __callable_ref__: {example_callable}")
 
     except Exception as e:
-        console.print(f"[red]Error exporting registry: {e!s}[/]")
+        console.print(f"[red]Error exporting registry: {e}[/]")
+        logger.error(f"Failed to export registry: {e}", exc_info=True)
 
 
 if __name__ == "__main__":

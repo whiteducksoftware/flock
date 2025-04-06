@@ -2,7 +2,7 @@
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 # Use yaml if available, otherwise skip yaml methods
 try:
@@ -85,16 +85,32 @@ class Serializable(ABC):
             ) from e
 
     # --- YAML Methods ---
-    def to_yaml(self, sort_keys=False, default_flow_style=False) -> str:
-        """Serialize to YAML string."""
+    def to_yaml(
+        self,
+        path_type: Literal["absolute", "relative"],
+        sort_keys=False,
+        default_flow_style=False,
+    ) -> str:
+        """Serialize to YAML string.
+
+        Args:
+            path_type: How file paths should be formatted ('absolute' or 'relative')
+            sort_keys: Whether to sort dictionary keys
+            default_flow_style: YAML flow style setting
+        """
         if not YAML_AVAILABLE:
             raise NotImplementedError(
                 "YAML support requires PyYAML: pip install pyyaml"
             )
         try:
-            # to_dict should prepare a structure suitable for YAML dumping
+            # If to_dict supports path_type, pass it; otherwise use standard to_dict
+            if "path_type" in self.to_dict.__code__.co_varnames:
+                dict_data = self.to_dict(path_type=path_type)
+            else:
+                dict_data = self.to_dict()
+
             return yaml.dump(
-                self.to_dict(),
+                dict_data,
                 sort_keys=sort_keys,
                 default_flow_style=default_flow_style,
                 allow_unicode=True,
@@ -125,8 +141,19 @@ class Serializable(ABC):
                 f"Failed to deserialize {cls.__name__} from YAML: {e}"
             ) from e
 
-    def to_yaml_file(self, path: Path | str, **yaml_dump_kwargs) -> None:
-        """Serialize to YAML file."""
+    def to_yaml_file(
+        self,
+        path: Path | str,
+        path_type: Literal["absolute", "relative"] = "absolute",
+        **yaml_dump_kwargs,
+    ) -> None:
+        """Serialize to YAML file.
+
+        Args:
+            path: File path to write to
+            path_type: How file paths should be formatted ('absolute' or 'relative')
+            **yaml_dump_kwargs: Additional arguments to pass to yaml.dump
+        """
         if not YAML_AVAILABLE:
             raise NotImplementedError(
                 "YAML support requires PyYAML: pip install pyyaml"
@@ -134,7 +161,7 @@ class Serializable(ABC):
         path = Path(path)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            yaml_str = self.to_yaml(**yaml_dump_kwargs)
+            yaml_str = self.to_yaml(path_type=path_type, **yaml_dump_kwargs)
             path.write_text(yaml_str, encoding="utf-8")
         except Exception as e:
             raise RuntimeError(
