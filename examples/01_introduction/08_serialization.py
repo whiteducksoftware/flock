@@ -26,6 +26,9 @@ from flock.core import (
     FlockContext,
     FlockModuleConfig,
     flock_type,
+    flock_component,
+    get_registry,
+    flock_tool,
 )
 from rich.console import Console
 from rich.table import Table
@@ -39,7 +42,7 @@ class GreetingModuleConfig(FlockModuleConfig):
 
 # The module has a greeting dictionary
 # and will replace the result["greeting"] with the appropriate greeting
-
+@flock_component
 class GreetingModule(FlockModule):
     """A simple module that generates greetings."""
     config: GreetingModuleConfig = Field(default_factory=GreetingModuleConfig)
@@ -74,11 +77,18 @@ class Person(BaseModel):
     languages: List[str] = Field(default_factory=list)
 
 
+@flock_tool
+def get_mobile_number(name: str) -> str:
+    """A tool that returns a mobile number to a name."""
+    return f"1234567890"
+
+
 def demo_file_path_support():
     """Run the file path support demo."""
     # Get the current file path to simulate loading from file path
     current_file_path = os.path.abspath(__file__)
     print(f"Current file path: {current_file_path}")
+    registry = get_registry()
     
     # Create a Flock instance
     flock = Flock(name="file_path_demo")
@@ -89,7 +99,8 @@ def demo_file_path_support():
     agent = FlockFactory.create_default_agent(
         name="greeter",
         input="name: str", 
-        output="greeting: str",
+        output="greeting: str, mobile_number: str",
+        tools=[get_mobile_number]
     )
     
     agent.add_module(greeting_module)

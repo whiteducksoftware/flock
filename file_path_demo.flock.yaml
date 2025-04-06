@@ -6,7 +6,7 @@ agents:
     name: greeter
     model: openai/gpt-4o
     input: 'name: str'
-    output: 'greeting: str'
+    output: 'greeting: str, mobile_number: str'
     use_cache: true
     evaluator:
       name: default
@@ -56,6 +56,8 @@ agents:
           language: es
         greetings: {}
         type: GreetingModule
+    tools:
+    - __callable_ref__: __main__.get_mobile_number
   person_creator:
     name: person_creator
     model: openai/gpt-4o
@@ -147,7 +149,7 @@ components:
   GreetingModule:
     type: flock_component
     module_path: __main__
-    file_path: /Users/ara/Projects/flock/examples/file_path_demo.py
+    file_path: /Users/ara/Projects/flock/examples/01_introduction/08_serialization.py
     description: A simple module that generates greetings.
 dependencies:
 - pydantic>=2.0.0

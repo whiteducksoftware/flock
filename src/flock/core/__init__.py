@@ -11,6 +11,7 @@ from flock.core.flock_registry import (
     flock_component,
     flock_tool,
     flock_type,
+    get_registry,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "flock_component",
     "flock_tool",
     "flock_type",
+    "get_registry",
 ]
