@@ -87,7 +87,7 @@ class Serializable(ABC):
     # --- YAML Methods ---
     def to_yaml(
         self,
-        path_type: Literal["absolute", "relative"],
+        path_type: Literal["absolute", "relative"] = "relative",
         sort_keys=False,
         default_flow_style=False,
     ) -> str:
@@ -144,7 +144,7 @@ class Serializable(ABC):
     def to_yaml_file(
         self,
         path: Path | str,
-        path_type: Literal["absolute", "relative"] = "absolute",
+        path_type: Literal["absolute", "relative"] = "relative",
         **yaml_dump_kwargs,
     ) -> None:
         """Serialize to YAML file.

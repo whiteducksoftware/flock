@@ -11,10 +11,7 @@ Usage:
     python file_path_demo.py
 """
 
-import os
-import tempfile
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 
 from pydantic import BaseModel, Field
 
@@ -27,11 +24,8 @@ from flock.core import (
     FlockModuleConfig,
     flock_type,
     flock_component,
-    get_registry,
     flock_tool,
 )
-from rich.console import Console
-from rich.table import Table
 
 
 
@@ -42,12 +36,14 @@ class GreetingModuleConfig(FlockModuleConfig):
 
 # The module has a greeting dictionary
 # and will replace the result["greeting"] with the appropriate greeting
+# decoraters add the decorated entity to the registry
 @flock_component
 class GreetingModule(FlockModule):
     """A simple module that generates greetings."""
     config: GreetingModuleConfig = Field(default_factory=GreetingModuleConfig)
     greetings: dict[str, str] = Field(default_factory=dict)
 
+    # The initialize method is called when the agent is initialized
     async def initialize(self, agent: FlockAgent, inputs: Dict, context: FlockContext) -> None:
         """Initialize the module."""
         self.greetings = {
@@ -57,6 +53,8 @@ class GreetingModule(FlockModule):
             "de": "Guten Tag",
         }
 
+    # The post_evaluate method is called after the agent has evaluated
+    # we modify the result before it is returned
     async def post_evaluate(self, agent: FlockAgent, inputs: Dict, result: Dict, context: FlockContext) -> Dict:
         """Post-evaluate the module."""
         name = inputs.get("name", "World")
@@ -69,6 +67,7 @@ class GreetingModule(FlockModule):
     
 
 # Define a custom type
+# The type is added to the registry
 @flock_type
 class Person(BaseModel):
     """A simple person model."""
@@ -77,21 +76,19 @@ class Person(BaseModel):
     languages: list[str] = Field(default_factory=list)
 
 
+# Define a tool
+# The tool is added to the registry
 @flock_tool
 def get_mobile_number(name: str) -> str:
     """A tool that returns a mobile number to a name."""
     return f"1234567890"
 
 
-def demo_file_path_support():
-    """Run the file path support demo."""
-    # Get the current file path to simulate loading from file path
-    current_file_path = os.path.abspath(__file__)
-    print(f"Current file path: {current_file_path}")
-    registry = get_registry()
+def serialization():
+    """Run the serialization demo."""
     
     # Create a Flock instance
-    flock = Flock(name="file_path_demo")
+    flock = Flock(name="file_path_demo", enable_logging=True)
 
     greeting_module = GreetingModule(name="greeting_module", config=GreetingModuleConfig(language="es"))
     
@@ -124,36 +121,8 @@ def demo_file_path_support():
         yaml_content = f.read()
         print(yaml_content)
 
-
-    try:
-        # Attempt to load the Flock
-        loaded_flock = Flock.load_from_file("file_path_demo.flock.yaml")
-        
-        # Test the loaded Flock
-        print("\nTesting loaded Flock:")
-        result = loaded_flock.run(
-            start_agent="greeter",
-            input={"name": "File Path User"}
-        )
-        print(f"Greeting result by the greeting module: {result}")
-        
-        # Test the person agent
-        person_result = loaded_flock.run(
-            start_agent="person_creator",
-            input={
-                "name": "File Path Person",
-                "age": 30,
-                "languages": ["en", "es"]
-            }
-        )
-        print(f"Person result as Person type: {person_result.person}")
-        
-        print("\nSuccessfully loaded and executed Flock using file path fallback!")
-        
-    except Exception as e:
-        print(f"Error loading Flock: {e}")
     
 
 
 if __name__ == "__main__":
-    demo_file_path_support() 
+    serialization() 

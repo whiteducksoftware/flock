@@ -1,0 +1,310 @@
+model: gemini/gemini-2.5-pro-exp-03-25
+enable_temporal: false
+agents:
+  story_agent:
+    name: story_agent
+    model: gemini/gemini-2.5-pro-exp-03-25
+    description: An agent that is a master storyteller
+    input: 'story_idea: str'
+    output: 'story: Story, story_bible: StoryBible'
+    use_cache: true
+    evaluator:
+      name: default
+      config:
+        model: gemini/gemini-2.5-pro-exp-03-25
+        use_cache: true
+        temperature: 0.0
+        max_tokens: 60000
+      type: DeclarativeEvaluator
+    modules:
+      output:
+        name: output
+        config:
+          enabled: true
+          theme: abernathy
+          render_table: false
+          max_length: 1000
+          wait_for_input: false
+          write_to_file: true
+          output_dir: output/
+          truncate_long_values: true
+          show_metadata: true
+          format_code_blocks: true
+          custom_formatters: {}
+          no_output: false
+          print_context: false
+        type: OutputModule
+      metrics:
+        name: metrics
+        config:
+          enabled: true
+          collect_timing: true
+          collect_memory: true
+          collect_token_usage: true
+          collect_cpu: true
+          storage_type: json
+          metrics_dir: metrics/
+          aggregation_interval: 1h
+          retention_days: 30
+          alert_on_high_latency: true
+          latency_threshold_ms: 30000
+        type: MetricsModule
+types:
+  Story:
+    module_path: __main__
+    type: pydantic.BaseModel
+    schema:
+      $defs:
+        Chapter:
+          properties:
+            title:
+              description: Title of the chapter
+              title: Title
+              type: string
+            chapter_number:
+              description: Chapter number of the chapter
+              title: Chapter Number
+              type: integer
+            purpose:
+              description: Purpose of the chapter
+              title: Purpose
+              type: string
+            summary:
+              description: Key events or chapter summary
+              title: Summary
+              type: string
+            scenes:
+              description: Scenes of the chapter
+              items:
+                $ref: '#/$defs/Scene'
+              title: Scenes
+              type: array
+          required:
+          - title
+          - chapter_number
+          - purpose
+          - summary
+          - scenes
+          title: Chapter
+          type: object
+        Character:
+          properties:
+            name:
+              description: Name of the character
+              title: Name
+              type: string
+            role:
+              description: Role of the character
+              title: Role
+              type: string
+            age:
+              description: Age of the character
+              title: Age
+              type: string
+            appearance:
+              description: Appearance of the character
+              title: Appearance
+              type: string
+            image_prompt:
+              description: Very detailed image prompt for image generation to represent
+                the character
+              title: Image Prompt
+              type: string
+            personality_traits:
+              description: Personality traits of the character
+              items:
+                type: string
+              title: Personality Traits
+              type: array
+            backstory:
+              description: Backstory of the character
+              title: Backstory
+              type: string
+            motivations:
+              description: Motivations of the character
+              title: Motivations
+              type: string
+            weaknesses:
+              description: Weaknesses of the character
+              title: Weaknesses
+              type: string
+            character_arc:
+              description: How the character evolves throughout the story
+              title: Character Arc
+              type: string
+          required:
+          - name
+          - role
+          - age
+          - appearance
+          - image_prompt
+          - personality_traits
+          - backstory
+          - motivations
+          - weaknesses
+          - character_arc
+          title: Character
+          type: object
+        Scene:
+          properties:
+            title:
+              title: Title
+              type: string
+            setting:
+              description: Setting of the scene
+              title: Setting
+              type: string
+            goal:
+              description: Goal of the scene
+              title: Goal
+              type: string
+            conflict:
+              description: Conflict of the scene
+              title: Conflict
+              type: string
+            outcome:
+              description: Outcome of the scene
+              title: Outcome
+              type: string
+            characters_involved:
+              description: Name of characters/entities involved in the scene
+              items:
+                type: string
+              title: Characters Involved
+              type: array
+            story_beats:
+              description: Story beats of the scene
+              items:
+                type: string
+              title: Story Beats
+              type: array
+          required:
+          - title
+          - setting
+          - goal
+          - conflict
+          - outcome
+          - characters_involved
+          - story_beats
+          title: Scene
+          type: object
+      properties:
+        title:
+          title: Title
+          type: string
+        status:
+          default: Idea
+          description: Idea, Drafting, Revising, Completed
+          title: Status
+          type: string
+        genre:
+          description: Genre(s) of the story
+          items:
+            type: string
+          title: Genre
+          type: array
+        tone:
+          description: Tone of the story
+          title: Tone
+          type: string
+        themes:
+          description: Themes of the story
+          items:
+            type: string
+          title: Themes
+          type: array
+        central_conflict:
+          description: Central conflict of the story
+          title: Central Conflict
+          type: string
+        brief_summary:
+          description: Brief summary of the story
+          title: Brief Summary
+          type: string
+        long_summary:
+          description: Long-form summary of the story.
+          title: Long Summary
+          type: string
+        characters:
+          description: Important characters and/or entities of the story
+          items:
+            $ref: '#/$defs/Character'
+          title: Characters
+          type: array
+        chapters:
+          description: All chapters of the story. At least one chapter per act.
+          items:
+            $ref: '#/$defs/Chapter'
+          title: Chapters
+          type: array
+      required:
+      - title
+      - genre
+      - tone
+      - themes
+      - central_conflict
+      - brief_summary
+      - long_summary
+      - characters
+      - chapters
+      type: object
+    imports:
+    - from __main__ import Story
+  StoryBible:
+    module_path: __main__
+    type: pydantic.BaseModel
+    schema:
+      properties:
+        timeline:
+          additionalProperties:
+            type: string
+          description: Timeline of the story
+          title: Timeline
+          type: object
+        worldbuilding_notes:
+          additionalProperties:
+            type: string
+          description: Worldbuilding notes of the story
+          title: Worldbuilding Notes
+          type: object
+        consistency_rules:
+          description: Consistency rules of the story
+          items:
+            type: string
+          title: Consistency Rules
+          type: array
+        writing_reference:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: Writing reference and/or style guidelines
+          title: Writing Reference
+      required:
+      - timeline
+      - worldbuilding_notes
+      - consistency_rules
+      type: object
+    imports:
+    - from __main__ import StoryBible
+components:
+  DeclarativeEvaluator:
+    type: flock_component
+    module_path: flock.evaluators.declarative.declarative_evaluator
+    file_path: src\flock\evaluators\declarative\declarative_evaluator.py
+    description: Evaluator that uses DSPy for generation.
+  OutputModule:
+    type: flock_component
+    module_path: flock.modules.output.output_module
+    file_path: src\flock\modules\output\output_module.py
+    description: Module that handles output formatting and display.
+  MetricsModule:
+    type: flock_component
+    module_path: flock.modules.performance.metrics_module
+    file_path: src\flock\modules\performance\metrics_module.py
+    description: Module for collecting and analyzing agent performance metrics.
+dependencies:
+- pydantic>=2.0.0
+- flock>=0.3.41
+metadata:
+  path_type: relative

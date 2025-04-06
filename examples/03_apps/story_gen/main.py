@@ -108,10 +108,11 @@ story_agent = FlockFactory.create_default_agent(name="story_agent",
 
 
 flock.add_agent(story_agent)
-result = flock.run(start_agent=story_agent, 
-                   input={'story_idea': 
-                       'In a world right at the cusp between LLMs and AGI some guy is experiencing the most peculiar story.' 
-                       'Absurdist Fiction, Satire, Technological Comedy. As much content as possible. At least 10.000 words'}) 
+flock.to_yaml_file("story_agent.flock.yaml")
+# result = flock.run(start_agent=story_agent, 
+#                    input={'story_idea': 
+#                        'In a world right at the cusp between LLMs and AGI some guy is experiencing the most peculiar story.' 
+#                        'Absurdist Fiction, Satire, Technological Comedy. As much content as possible. At least 10.000 words'}) 
 
 
 

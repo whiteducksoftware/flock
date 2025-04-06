@@ -23,6 +23,10 @@ from flock.core.context.context_manager import initialize_context
 from flock.core.execution.local_executor import run_local_workflow
 from flock.core.execution.temporal_executor import run_temporal_workflow
 from flock.core.logging.logging import LOGGERS, get_logger, get_module_loggers
+from flock.core.serialization.serialization_utils import (
+    extract_pydantic_models_from_type_string,
+)
+from flock.core.util.input_resolver import split_top_level
 
 # Import FlockAgent using TYPE_CHECKING to avoid circular import at runtime
 if TYPE_CHECKING:
@@ -90,6 +94,14 @@ class Flock(BaseModel, Serializable):
         default=False,
         description="If True, execute workflows via Temporal; otherwise, run locally.",
     )
+    enable_logging: bool = Field(
+        default=False,
+        description="If True, enable logging for the Flock instance.",
+    )
+    show_flock_banner: bool = Field(
+        default=True,
+        description="If True, show the Flock banner.",
+    )
     # --- Runtime Attributes (Excluded from Serialization) ---
     # Store agents internally but don't make it part of the Pydantic model definition
     # Use a regular attribute, initialized in __init__
@@ -126,6 +138,8 @@ class Flock(BaseModel, Serializable):
             model=model,
             description=description,
             enable_temporal=enable_temporal,
+            enable_logging=enable_logging,
+            show_flock_banner=show_flock_banner,
             **kwargs,  # Pass extra kwargs to Pydantic BaseModel
         )
 
@@ -275,30 +289,21 @@ class Flock(BaseModel, Serializable):
         # Check if an event loop is already running
         try:
             loop = asyncio.get_running_loop()
-            # If we get here, an event loop is already running
-            # Run directly in this loop using run_until_complete
-            return loop.run_until_complete(
-                self.run_async(
-                    start_agent=start_agent,
-                    input=input,
-                    context=context,
-                    run_id=run_id,
-                    box_result=box_result,
-                    agents=agents,
-                )
+        except (
+            RuntimeError
+        ):  # 'RuntimeError: There is no current event loop...'
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(
+            self.run_async(
+                start_agent=start_agent,
+                input=input,
+                context=context,
+                run_id=run_id,
+                box_result=box_result,
+                agents=agents,
             )
-        except RuntimeError:
-            # No running event loop, create a new one with asyncio.run
-            return asyncio.run(
-                self.run_async(
-                    start_agent=start_agent,
-                    input=input,
-                    context=context,
-                    run_id=run_id,
-                    box_result=box_result,
-                    agents=agents,
-                )
-            )
+        )
 
     async def run_async(
         self,
@@ -476,6 +481,21 @@ class Flock(BaseModel, Serializable):
                 agent_data = agent_instance.to_dict()
                 data["agents"][name] = agent_data
 
+                if agent_instance.input:
+                    logger.debug(
+                        f"Extracting type information from agent '{name}' input: {agent_instance.input}"
+                    )
+                    input_types = self._extract_types_from_signature(
+                        agent_instance.input
+                    )
+                    if input_types:
+                        logger.debug(
+                            f"Found input types in agent '{name}': {input_types}"
+                        )
+                        custom_types.update(
+                            self._get_type_definitions(input_types)
+                        )
+
                 # Extract type information from agent outputs
                 if agent_instance.output:
                     logger.debug(
@@ -590,39 +610,49 @@ class Flock(BaseModel, Serializable):
         if not signature:
             return []
 
+        signature_parts = split_top_level(signature)
+
         # Basic type extraction - handles simple cases like "result: TypeName" or "list[TypeName]"
         custom_types = []
 
         # Look for type annotations (everything after ":")
-        parts = signature.split(":")
-        if len(parts) > 1:
-            type_part = parts[1].strip()
+        for part in signature_parts:
+            parts = part.split(":")
+            if len(parts) > 1:
+                type_part = parts[1].strip()
 
-            # Extract from list[Type]
-            if "list[" in type_part:
-                inner_type = type_part.split("list[")[1].split("]")[0].strip()
-                if inner_type and inner_type.lower() not in [
-                    "str",
-                    "int",
-                    "float",
-                    "bool",
-                    "dict",
-                    "list",
-                ]:
-                    custom_types.append(inner_type)
+            pydantic_models = extract_pydantic_models_from_type_string(
+                type_part
+            )
+            if pydantic_models:
+                for model in pydantic_models:
+                    custom_types.append(model.__name__)
 
-            # Extract direct type references
-            elif type_part and type_part.lower() not in [
-                "str",
-                "int",
-                "float",
-                "bool",
-                "dict",
-                "list",
-            ]:
-                custom_types.append(
-                    type_part.split()[0]
-                )  # Take the first word in case there's a description
+            # # Extract from list[Type]
+            # if "list[" in type_part:
+            #     inner_type = type_part.split("list[")[1].split("]")[0].strip()
+            #     if inner_type and inner_type.lower() not in [
+            #         "str",
+            #         "int",
+            #         "float",
+            #         "bool",
+            #         "dict",
+            #         "list",
+            #     ]:
+            #         custom_types.append(inner_type)
+
+            # # Extract direct type references
+            # elif type_part and type_part.lower() not in [
+            #     "str",
+            #     "int",
+            #     "float",
+            #     "bool",
+            #     "dict",
+            #     "list",
+            # ]:
+            #     custom_types.append(
+            #         type_part.split()[0]
+            #     )  # Take the first word in case there's a description
 
         return custom_types
 

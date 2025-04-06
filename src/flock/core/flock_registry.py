@@ -259,7 +259,7 @@ class FlockRegistry:
                     f"Type '{type_name}' already registered. Overwriting."
                 )
             self._types[type_name] = type_obj
-            # logger.debug(f"Registered type: {type_name}")
+            logger.debug(f"Registered type: {type_name}")
             return type_name
         return None
 

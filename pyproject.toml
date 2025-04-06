@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.4.0b-1"
+version = "0.4.0b-2"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [

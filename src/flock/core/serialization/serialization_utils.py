@@ -1,9 +1,12 @@
 # src/flock/core/serialization/serialization_utils.py
 """Utilities for recursive serialization/deserialization with callable handling."""
 
+import ast
+import builtins
 import importlib
+import sys
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from pydantic import BaseModel
 
@@ -19,6 +22,98 @@ logger = get_logger("serialization.utils")
 # FlockRegistry = get_registry()  # Get singleton instance
 
 # --- Serialization Helper ---
+
+
+def extract_identifiers_from_type_str(type_str: str) -> set[str]:
+    """Extract all identifiers from a type annotation string using the AST."""
+    tree = ast.parse(type_str, mode="eval")
+    identifiers = set()
+
+    class IdentifierVisitor(ast.NodeVisitor):
+        def visit_Name(self, node):
+            identifiers.add(node.id)
+
+        def visit_Attribute(self, node):
+            # Optionally support dotted names like mymodule.MyModel
+            full_name = []
+            while isinstance(node, ast.Attribute):
+                full_name.append(node.attr)
+                node = node.value
+            if isinstance(node, ast.Name):
+                full_name.append(node.id)
+                identifiers.add(".".join(reversed(full_name)))
+
+    IdentifierVisitor().visit(tree)
+    return identifiers
+
+
+def resolve_name(name: str):
+    """Resolve a name to a Python object from loaded modules."""
+    # Try dotted names first
+    parts = name.split(".")
+    obj = None
+
+    if len(parts) == 1:
+        # Search globals and builtins
+        if parts[0] in globals():
+            return globals()[parts[0]]
+        if parts[0] in builtins.__dict__:
+            return builtins.__dict__[parts[0]]
+    else:
+        try:
+            obj = sys.modules[parts[0]]
+            for part in parts[1:]:
+                obj = getattr(obj, part)
+            return obj
+        except Exception:
+            return None
+
+    # Try all loaded modules' symbols
+    for module in list(sys.modules.values()):
+        if module is None or not hasattr(module, "__dict__"):
+            continue
+        if parts[0] in module.__dict__:
+            return module.__dict__[parts[0]]
+
+    return None
+
+
+def extract_pydantic_models_from_type_string(
+    type_str: str,
+) -> list[type[BaseModel]]:
+    identifiers = extract_identifiers_from_type_str(type_str)
+    models = []
+    for name in identifiers:
+        resolved = resolve_name(name)
+        if (
+            isinstance(resolved, type)
+            and issubclass(resolved, BaseModel)
+            and resolved is not BaseModel
+        ):
+            models.append(resolved)
+    return models
+
+
+def collect_pydantic_models(
+    type_hint, seen: set[type[BaseModel]] | None = None
+) -> set[type[BaseModel]]:
+    if seen is None:
+        seen = set()
+
+    origin = get_origin(type_hint)
+    args = get_args(type_hint)
+
+    # Direct BaseModel
+    if isinstance(type_hint, type) and issubclass(type_hint, BaseModel):
+        seen.add(type_hint)
+        return seen
+
+    # For Unions, Lists, Dicts, Tuples, etc.
+    if origin is not None:
+        for arg in args:
+            collect_pydantic_models(arg, seen)
+
+    return seen
 
 
 def serialize_item(item: Any) -> Any:
