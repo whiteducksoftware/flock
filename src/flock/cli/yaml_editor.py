@@ -361,11 +361,36 @@ def _save_to_file(obj: Flock | FlockAgent):
     save_path = Path(file_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    try:
-        # Save to file
-        with open(file_path, "w") as f:
-            f.write(obj.to_yaml())
+    # For Flock instances, ask about path_type
+    path_type = "absolute"  # Default
+    if isinstance(obj, Flock):
+        path_type_choice = questionary.select(
+            "How should file paths be formatted?",
+            choices=[
+                "absolute (full paths, best for local use)",
+                "relative (relative paths, better for sharing)",
+            ],
+            default="absolute (full paths, best for local use)",
+        ).ask()
 
-        console.print(f"\n[green]✓[/] Saved to {file_path}")
+        # Extract just the first word
+        path_type = path_type_choice.split()[0]
+
+        console.print(
+            f"[bold]Path type selected: [green]{path_type}[/green][/bold]"
+        )
+
+    try:
+        # Save to file with path_type for Flock instances
+        if isinstance(obj, Flock):
+            obj.to_yaml_file(file_path, path_type=path_type)
+            console.print(
+                f"\n[green]✓[/] Saved to {file_path} with {path_type} paths"
+            )
+        else:
+            # For FlockAgent or other types, use the original method
+            with open(file_path, "w") as f:
+                f.write(obj.to_yaml())
+            console.print(f"\n[green]✓[/] Saved to {file_path}")
     except Exception as e:
         console.print(f"\n[bold red]Error saving file:[/] {e!s}")

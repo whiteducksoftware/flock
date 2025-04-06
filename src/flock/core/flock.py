@@ -7,7 +7,7 @@ import asyncio
 import os
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 from box import Box
 from opentelemetry import trace
@@ -446,8 +446,14 @@ class Flock(BaseModel, Serializable):
 
     # --- ADDED Serialization Methods ---
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert Flock instance to dictionary representation."""
+    def to_dict(
+        self, path_type: Literal["absolute", "relative"] = "absolute"
+    ) -> dict[str, Any]:
+        """Convert Flock instance to dictionary representation.
+
+        Args:
+            path_type: How file paths should be formatted ('absolute' or 'relative')
+        """
         logger.debug("Serializing Flock instance to dict.")
         # Use Pydantic's dump for base fields
         data = self.model_dump(mode="json", exclude_none=True)
@@ -496,7 +502,7 @@ class Flock(BaseModel, Serializable):
                         f"Adding evaluator component '{component_type}' from agent '{name}'"
                     )
                     components[component_type] = self._get_component_definition(
-                        component_type
+                        component_type, path_type
                     )
 
                 # Extract module component information
@@ -510,7 +516,9 @@ class Flock(BaseModel, Serializable):
                                 f"Adding module component '{component_type}' from module '{module_name}' in agent '{name}'"
                             )
                             components[component_type] = (
-                                self._get_component_definition(component_type)
+                                self._get_component_definition(
+                                    component_type, path_type
+                                )
                             )
 
                 # Extract tool (callable) information
@@ -539,7 +547,7 @@ class Flock(BaseModel, Serializable):
                                     # Add definition using just the function name as the key
                                     components[tool_name] = (
                                         self._get_callable_definition(
-                                            path_str, tool_name
+                                            path_str, tool_name, path_type
                                         )
                                     )
 
@@ -567,6 +575,10 @@ class Flock(BaseModel, Serializable):
 
         # Add dependencies section
         data["dependencies"] = self._get_dependencies()
+
+        # Add serialization settings
+        data["metadata"] = {"path_type": path_type}
+
         logger.debug(
             f"Flock serialization complete with {len(data['agents'])} agents, {len(custom_types)} types, {len(components)} components"
         )
@@ -687,7 +699,9 @@ class Flock(BaseModel, Serializable):
 
         return type_def
 
-    def _get_component_definition(self, component_type: str) -> dict[str, Any]:
+    def _get_component_definition(
+        self, component_type: str, path_type: Literal["absolute", "relative"]
+    ) -> dict[str, Any]:
         """Get definition for a component type."""
         import os
         import sys
@@ -714,8 +728,20 @@ class Flock(BaseModel, Serializable):
                         module = sys.modules.get(component_class.__module__)
                         if module and hasattr(module, "__file__"):
                             file_path = os.path.abspath(module.__file__)
-                except Exception:
+                            # Convert to relative path if needed
+                            if path_type == "relative" and file_path:
+                                try:
+                                    file_path = os.path.relpath(file_path)
+                                except ValueError:
+                                    # Keep as absolute if can't make relative
+                                    logger.warning(
+                                        f"Could not convert path to relative: {file_path}"
+                                    )
+                except Exception as e:
                     # If we can't get the file path, we'll just use the module path
+                    logger.warning(
+                        f"Error getting file path for component {component_type}: {e}"
+                    )
                     pass
 
                 component_def = {
@@ -742,13 +768,17 @@ class Flock(BaseModel, Serializable):
         return component_def
 
     def _get_callable_definition(
-        self, callable_ref: str, func_name: str
+        self,
+        callable_ref: str,
+        func_name: str,
+        path_type: Literal["absolute", "relative"],
     ) -> dict[str, Any]:
         """Get definition for a callable reference.
 
         Args:
             callable_ref: The fully qualified path to the callable
             func_name: The simple function name (for display purposes)
+            path_type: How file paths should be formatted ('absolute' or 'relative')
         """
         import inspect
         import os
@@ -776,8 +806,20 @@ class Flock(BaseModel, Serializable):
                         module = sys.modules.get(func.__module__)
                         if module and hasattr(module, "__file__"):
                             file_path = os.path.abspath(module.__file__)
-                except Exception:
+                            # Convert to relative path if needed
+                            if path_type == "relative" and file_path:
+                                try:
+                                    file_path = os.path.relpath(file_path)
+                                except ValueError:
+                                    # Keep as absolute if can't make relative
+                                    logger.warning(
+                                        f"Could not convert path to relative: {file_path}"
+                                    )
+                except Exception as e:
                     # If we can't get the file path, just use the module path
+                    logger.warning(
+                        f"Error getting file path for callable {callable_ref}: {e}"
+                    )
                     pass
 
                 # Get the docstring for description
@@ -826,6 +868,13 @@ class Flock(BaseModel, Serializable):
             f"Deserializing Flock from dict. Provided keys: {list(data.keys())}"
         )
 
+        # Check for serialization settings
+        serialization_settings = data.pop("serialization_settings", {})
+        path_type = serialization_settings.get("path_type", "absolute")
+        logger.debug(
+            f"Using path_type '{path_type}' from serialization settings"
+        )
+
         # First, handle type definitions if present
         if "types" in data:
             logger.info(f"Processing {len(data['types'])} type definitions")
@@ -836,7 +885,7 @@ class Flock(BaseModel, Serializable):
             logger.info(
                 f"Processing {len(data['components'])} component definitions"
             )
-            cls._register_component_definitions(data["components"])
+            cls._register_component_definitions(data["components"], path_type)
 
         # Check dependencies if present
         if "dependencies" in data:
@@ -860,6 +909,8 @@ class Flock(BaseModel, Serializable):
         data.pop("types", None)
         data.pop("components", None)
         data.pop("dependencies", None)
+        # Remove metadata if present
+        data.pop("metadata", None)
 
         # Create Flock instance using Pydantic constructor for basic fields
         try:
@@ -1047,7 +1098,9 @@ class Flock(BaseModel, Serializable):
 
     @classmethod
     def _register_component_definitions(
-        cls, component_defs: dict[str, Any]
+        cls,
+        component_defs: dict[str, Any],
+        path_type: Literal["absolute", "relative"],
     ) -> None:
         """Register component definitions from serialized data."""
         import importlib
@@ -1070,6 +1123,24 @@ class Flock(BaseModel, Serializable):
                     func_name = component_name
                     module_path = component_def.get("module_path")
                     file_path = component_def.get("file_path")
+
+                    # Convert relative path to absolute if needed
+                    if (
+                        path_type == "relative"
+                        and file_path
+                        and not os.path.isabs(file_path)
+                    ):
+                        try:
+                            # Make absolute based on current directory
+                            file_path = os.path.abspath(file_path)
+                            logger.debug(
+                                f"Converted relative path '{component_def.get('file_path')}' to absolute: '{file_path}'"
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"Could not convert relative path to absolute: {e}"
+                            )
+
                     logger.debug(
                         f"Processing callable '{func_name}' from module '{module_path}', file: {file_path}"
                     )
@@ -1186,6 +1257,24 @@ class Flock(BaseModel, Serializable):
                         except ImportError:
                             # If module import fails, try file_path approach
                             file_path = component_def.get("file_path")
+
+                            # Convert relative path to absolute if needed
+                            if (
+                                path_type == "relative"
+                                and file_path
+                                and not os.path.isabs(file_path)
+                            ):
+                                try:
+                                    # Make absolute based on current directory
+                                    file_path = os.path.abspath(file_path)
+                                    logger.debug(
+                                        f"Converted relative path '{component_def.get('file_path')}' to absolute: '{file_path}'"
+                                    )
+                                except Exception as e:
+                                    logger.warning(
+                                        f"Could not convert relative path to absolute: {e}"
+                                    )
+
                             if file_path and os.path.exists(file_path):
                                 logger.debug(
                                     f"Attempting to load {component_name} from file: {file_path}"

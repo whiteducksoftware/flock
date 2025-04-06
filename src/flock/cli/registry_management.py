@@ -713,6 +713,34 @@ def export_registry() -> None:
         choices=["YAML", "JSON", "Python"],
     ).ask()
 
+    # Select path type for serialization
+    path_type = questionary.select(
+        "How should file paths be formatted?",
+        choices=[
+            "absolute (full paths, best for local use)",
+            "relative (relative paths, better for sharing)",
+        ],
+        default="absolute (full paths, best for local use)",
+    ).ask()
+
+    # Extract just the first word
+    path_type = path_type.split()[0]
+
+    console.print(
+        f"\n[bold]Path type selected: [green]{path_type}[/green][/bold]"
+    )
+    if path_type == "relative":
+        console.print(
+            "Relative paths are recommended when sharing Flocks between systems.\n"
+            "They'll be converted to paths relative to the current directory."
+        )
+    else:
+        console.print(
+            "Absolute paths work best for local usage but may not work correctly\n"
+            "when sharing with others or moving files."
+        )
+    console.line()
+
     # Get file path for export
     file_path = questionary.path(
         "Enter file path for export:",
@@ -735,11 +763,23 @@ def export_registry() -> None:
         callable_details = {}
         for callable_name in registry._callables.keys():
             callable_obj = registry._callables[callable_name]
+            file_path_value = (
+                inspect.getfile(callable_obj)
+                if callable_obj and inspect.isfunction(callable_obj)
+                else "Unknown"
+            )
+
+            # Convert to relative path if needed
+            if path_type == "relative" and file_path_value != "Unknown":
+                try:
+                    file_path_value = os.path.relpath(file_path_value)
+                except ValueError:
+                    # Keep as absolute if can't make relative
+                    pass
+
             callable_details[callable_name] = {
                 "module": callable_obj.__module__,
-                "file": inspect.getfile(callable_obj)
-                if callable_obj and inspect.isfunction(callable_obj)
-                else "Unknown",
+                "file": file_path_value,
                 "type": "function"
                 if inspect.isfunction(callable_obj)
                 else "other_callable",
@@ -760,8 +800,20 @@ def export_registry() -> None:
             for component_name in registry._components.keys():
                 # Get the file path if available
                 if component_name in registry._component_file_paths:
+                    file_path_value = registry._component_file_paths[
+                        component_name
+                    ]
+
+                    # Convert to relative path if needed
+                    if path_type == "relative" and file_path_value:
+                        try:
+                            file_path_value = os.path.relpath(file_path_value)
+                        except ValueError:
+                            # Keep as absolute if can't make relative
+                            pass
+
                     export_data["component_file_paths"][component_name] = (
-                        registry._component_file_paths[component_name]
+                        file_path_value
                     )
 
     # Add metadata about serialization format
@@ -773,7 +825,11 @@ def export_registry() -> None:
             "components": "Module and class names",
             "types": "Module and class names",
         },
+        "path_type": path_type,
     }
+
+    # Add serialization settings as a top-level element
+    export_data["serialization_settings"] = {"path_type": path_type}
 
     try:
         # Export the data
@@ -796,6 +852,7 @@ def export_registry() -> None:
                 f.write("\n")
 
         console.print(f"[green]Registry exported to {file_path}[/]")
+        console.print(f"[green]Paths formatted as: {path_type}[/]")
 
         # Print information about tool serialization if tools were exported
         if "Callables (Tools)" in export_items and registry._callables:

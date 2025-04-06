@@ -116,7 +116,7 @@ def demo_file_path_support():
     flock.add_agent(person_agent)
 
     print(f"\nSerializing Flock to: file_path_demo.flock.yaml")
-    flock.to_yaml_file("file_path_demo.flock.yaml")
+    flock.to_yaml_file("file_path_demo.flock.yaml", path_type="relative")
 
     # Display the YAML content
     print("\nYAML Content:")

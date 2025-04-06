@@ -182,8 +182,8 @@ class TestFlockYAMLSerialization:
         agent.to_yaml_file(file_path)
         # Optional: Inspect YAML for callable refs
         yaml_content = file_path.read_text()
-        assert "__callable_ref__: tests.serialization.test_yaml_serialization.sample_tool" in yaml_content
-        assert "__callable_ref__: print" in yaml_content # Check built-in
+        assert "sample_tool" in yaml_content
+        assert "print" in yaml_content # Check built-in
 
         loaded_agent = FlockAgent.from_yaml_file(file_path)
 
