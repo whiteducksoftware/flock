@@ -617,16 +617,22 @@ class Flock(BaseModel, Serializable):
 
         # Look for type annotations (everything after ":")
         for part in signature_parts:
-            parts = part.split(":")
-            if len(parts) > 1:
-                type_part = parts[1].strip()
+            try:
+                parts = part.split(":")
+                if len(parts) > 1:
+                    type_part = parts[1].strip()
 
-            pydantic_models = extract_pydantic_models_from_type_string(
-                type_part
-            )
-            if pydantic_models:
-                for model in pydantic_models:
-                    custom_types.append(model.__name__)
+                pydantic_models = extract_pydantic_models_from_type_string(
+                    type_part
+                )
+                if pydantic_models:
+                    for model in pydantic_models:
+                        custom_types.append(model.__name__)
+            except Exception:
+                logger.warning(
+                    f"Could not extract types from signature '{signature}' (probably no type defined?)"
+                )
+                return []
 
             # # Extract from list[Type]
             # if "list[" in type_part:

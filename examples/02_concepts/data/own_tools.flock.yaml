@@ -1,0 +1,90 @@
+name: Own Tools Demo
+model: openai/gpt-4o
+enable_temporal: false
+enable_logging: false
+show_flock_banner: true
+agents:
+  Menu Assistant:
+    name: Menu Assistant
+    model: openai/gpt-4o
+    description: You are a helpful assistant
+    input: query
+    output: answer
+    use_cache: true
+    evaluator:
+      name: default
+      config:
+        model: openai/gpt-4o
+        use_cache: true
+        temperature: 0.0
+        max_tokens: 4096
+      type: DeclarativeEvaluator
+    modules:
+      output:
+        name: output
+        config:
+          enabled: true
+          theme: abernathy
+          render_table: true
+          max_length: 1000
+          wait_for_input: false
+          write_to_file: false
+          output_dir: output/
+          truncate_long_values: true
+          show_metadata: true
+          format_code_blocks: true
+          custom_formatters: {}
+          no_output: false
+          print_context: false
+        type: OutputModule
+      metrics:
+        name: metrics
+        config:
+          enabled: true
+          collect_timing: true
+          collect_memory: true
+          collect_token_usage: true
+          collect_cpu: true
+          storage_type: json
+          metrics_dir: metrics/
+          aggregation_interval: 1h
+          retention_days: 30
+          alert_on_high_latency: true
+          latency_threshold_ms: 30000
+        type: MetricsModule
+    tools:
+      - get_specials
+      - get_price
+components:
+  DeclarativeEvaluator:
+    type: flock_component
+    module_path: flock.evaluators.declarative.declarative_evaluator
+    file_path: src/flock/evaluators/declarative/declarative_evaluator.py
+    description: Evaluator that uses DSPy for generation.
+  OutputModule:
+    type: flock_component
+    module_path: flock.modules.output.output_module
+    file_path: src/flock/modules/output/output_module.py
+    description: Module that handles output formatting and display.
+  MetricsModule:
+    type: flock_component
+    module_path: flock.modules.performance.metrics_module
+    file_path: src/flock/modules/performance/metrics_module.py
+    description: Module for collecting and analyzing agent performance metrics.
+  get_specials:
+    type: flock_callable
+    module_path: tools.get_specials
+    file_path: examples/02_concepts/data/tools/tools.py
+    description: Provides a list of specials from the menu.
+  get_price:
+    type: flock_callable
+    module_path: tools.get_price
+    file_path: examples/02_concepts/data/tools/tools.py
+    description:
+      "Provides the price of the requested menu item.\n\nArgs:\n  item:\
+      \ The name of the menu item."
+dependencies:
+  - pydantic>=2.0.0
+  - flock>=0.3.41
+metadata:
+  path_type: relative

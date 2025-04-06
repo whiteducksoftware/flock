@@ -21,7 +21,7 @@ def get_price(item: str):
   # random price between 5 and 15
   return f"${random.randint(5, 15)}"
 
-flock = Flock()
+flock = Flock(name="Own Tools Demo",enable_logging=True)
 
 agent = FlockFactory.create_default_agent(
   name="Menu Assistant",
@@ -32,6 +32,7 @@ agent = FlockFactory.create_default_agent(
 )
 flock.add_agent(agent)
 flock.run(agent, input={"query": "What is the price of the soup special?"})
+flock.to_yaml_file("examples/02_concepts/data/own_tools.flock.yaml", path_type="relative")
 
 
 
