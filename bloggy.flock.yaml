@@ -1,11 +1,12 @@
+name: Example 01
 model: openai/gpt-4o
 enable_temporal: false
 agents:
-  people_agent:
-    name: people_agent
+  bloggy:
+    name: bloggy
     model: openai/gpt-4o
-    input: amount_of_people
-    output: 'random_user_list: list[RandomPerson]'
+    input: blog_idea
+    output: funny_blog_title, blog_headers
     use_cache: true
     evaluator:
       name: default
@@ -48,44 +49,6 @@ agents:
           alert_on_high_latency: true
           latency_threshold_ms: 30000
         type: MetricsModule
-types:
-  RandomPerson:
-    module_path: __main__
-    type: pydantic.BaseModel
-    schema:
-      description: Data model for random person information.
-      properties:
-        name:
-          title: Name
-          type: string
-        age:
-          title: Age
-          type: integer
-        gender:
-          enum:
-          - female
-          - male
-          title: Gender
-          type: string
-        job:
-          title: Job
-          type: string
-        favorite_movie:
-          title: Favorite Movie
-          type: string
-        short_bio:
-          title: Short Bio
-          type: string
-      required:
-      - name
-      - age
-      - gender
-      - job
-      - favorite_movie
-      - short_bio
-      type: object
-    imports:
-    - from __main__ import RandomPerson
 components:
   DeclarativeEvaluator:
     type: flock_component

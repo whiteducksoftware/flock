@@ -632,6 +632,9 @@ class Flock(BaseModel, Serializable):
 
     def _get_component_definition(self, component_type: str) -> dict[str, Any]:
         """Get definition for a component type."""
+        import os
+        import sys
+
         from flock.core.flock_registry import get_registry
 
         registry = get_registry()
@@ -641,9 +644,27 @@ class Flock(BaseModel, Serializable):
             # Try to get the component class from registry
             component_class = registry._components.get(component_type)
             if component_class:
+                # Get the standard module path
+                module_path = component_class.__module__
+
+                # Get the actual file system path if possible
+                file_path = None
+                try:
+                    if (
+                        hasattr(component_class, "__module__")
+                        and component_class.__module__
+                    ):
+                        module = sys.modules.get(component_class.__module__)
+                        if module and hasattr(module, "__file__"):
+                            file_path = os.path.abspath(module.__file__)
+                except Exception:
+                    # If we can't get the file path, we'll just use the module path
+                    pass
+
                 component_def = {
                     "type": "flock_component",
-                    "module_path": component_class.__module__,
+                    "module_path": module_path,
+                    "file_path": file_path,  # Include actual file system path
                     "description": getattr(
                         component_class, "__doc__", ""
                     ).strip()
@@ -657,6 +678,7 @@ class Flock(BaseModel, Serializable):
             component_def = {
                 "type": "flock_component",
                 "module_path": "unknown",
+                "file_path": None,
                 "description": f"{component_type} component (definition incomplete)",
             }
 
@@ -890,6 +912,9 @@ class Flock(BaseModel, Serializable):
     ) -> None:
         """Register component definitions from serialized data."""
         import importlib
+        import importlib.util
+        import os
+        import sys
 
         from flock.core.flock_registry import get_registry
 
@@ -899,32 +924,78 @@ class Flock(BaseModel, Serializable):
             logger.debug(f"Registering component: {component_name}")
 
             try:
+                # First try using the module path (Python import)
                 module_path = component_def.get("module_path")
                 if module_path and module_path != "unknown":
-                    module = importlib.import_module(module_path)
-                    # Find the component class in the module
-                    for attr_name in dir(module):
-                        if attr_name == component_name:
-                            component_class = getattr(module, attr_name)
-                            registry.register_component(
-                                component_class, component_name
+                    try:
+                        module = importlib.import_module(module_path)
+                        # Find the component class in the module
+                        for attr_name in dir(module):
+                            if attr_name == component_name:
+                                component_class = getattr(module, attr_name)
+                                registry.register_component(
+                                    component_class, component_name
+                                )
+                                logger.info(
+                                    f"Registered component {component_name} from {module_path}"
+                                )
+                                break
+                        else:
+                            logger.warning(
+                                f"Component {component_name} not found in module {module_path}"
                             )
-                            logger.info(
-                                f"Registered component {component_name} from {module_path}"
+                            # If we didn't find the component, try using file_path next
+                            raise ImportError(
+                                f"Component {component_name} not found in module {module_path}"
                             )
-                            break
-                    else:
-                        logger.warning(
-                            f"Component {component_name} not found in module {module_path}"
-                        )
+                    except ImportError:
+                        # If module import fails, try file_path approach
+                        file_path = component_def.get("file_path")
+                        if file_path and os.path.exists(file_path):
+                            logger.debug(
+                                f"Attempting to load {component_name} from file: {file_path}"
+                            )
+                            try:
+                                # Load the module from file path
+                                spec = importlib.util.spec_from_file_location(
+                                    f"{component_name}_module", file_path
+                                )
+                                if spec and spec.loader:
+                                    module = importlib.util.module_from_spec(
+                                        spec
+                                    )
+                                    sys.modules[spec.name] = module
+                                    spec.loader.exec_module(module)
+
+                                    # Find the component class in the loaded module
+                                    for attr_name in dir(module):
+                                        if attr_name == component_name:
+                                            component_class = getattr(
+                                                module, attr_name
+                                            )
+                                            registry.register_component(
+                                                component_class, component_name
+                                            )
+                                            logger.info(
+                                                f"Registered component {component_name} from file {file_path}"
+                                            )
+                                            break
+                                    else:
+                                        logger.warning(
+                                            f"Component {component_name} not found in file {file_path}"
+                                        )
+                            except Exception as e:
+                                logger.error(
+                                    f"Error loading component {component_name} from file {file_path}: {e}"
+                                )
+                        else:
+                            logger.warning(
+                                f"No valid file path found for component {component_name}"
+                            )
                 else:
                     logger.warning(
                         f"Missing or unknown module path for component {component_name}"
                     )
-            except ImportError:
-                logger.error(
-                    f"Could not import module {module_path} for component {component_name}"
-                )
             except Exception as e:
                 logger.error(
                     f"Failed to register component {component_name}: {e}"

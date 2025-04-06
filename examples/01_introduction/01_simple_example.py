@@ -40,7 +40,7 @@ flock.run(
     start_agent=bloggy, 
     input={"blog_idea": "A blog about robot kittens"}
 )
-#flock.to_yaml_file("bloggy.flock.yaml")
+flock.to_yaml_file("bloggy.flock.yaml")
 
 # --------------------------------
 # Start the CLI with the loaded Flock

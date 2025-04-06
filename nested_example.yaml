@@ -1,11 +1,12 @@
+name: test_flock
 model: openai/gpt-4o
 enable_temporal: false
 agents:
-  people_agent:
-    name: people_agent
+  company_agent:
+    name: company_agent
     model: openai/gpt-4o
-    input: amount_of_people
-    output: 'random_user_list: list[RandomPerson]'
+    input: 'query: str'
+    output: 'result: Company'
     use_cache: true
     evaluator:
       name: default
@@ -49,58 +50,89 @@ agents:
           latency_threshold_ms: 30000
         type: MetricsModule
 types:
-  RandomPerson:
-    module_path: __main__
+  Company:
+    module_path: tests.test_nested_serialization
     type: pydantic.BaseModel
     schema:
-      description: Data model for random person information.
+      $defs:
+        Address:
+          description: Address model for nested serialization test.
+          properties:
+            street:
+              title: Street
+              type: string
+            city:
+              title: City
+              type: string
+            zip_code:
+              title: Zip Code
+              type: string
+          required:
+          - street
+          - city
+          - zip_code
+          title: Address
+          type: object
+        Contact:
+          description: Contact information for nested serialization test.
+          properties:
+            email:
+              title: Email
+              type: string
+            phone:
+              title: Phone
+              type: string
+            address:
+              $ref: '#/$defs/Address'
+          required:
+          - email
+          - phone
+          - address
+          title: Contact
+          type: object
+      description: Company model with nested types for serialization test.
       properties:
         name:
           title: Name
           type: string
-        age:
-          title: Age
-          type: integer
-        gender:
-          enum:
-          - female
-          - male
-          title: Gender
+        industry:
+          title: Industry
           type: string
-        job:
-          title: Job
-          type: string
-        favorite_movie:
-          title: Favorite Movie
-          type: string
-        short_bio:
-          title: Short Bio
-          type: string
+        headquarters:
+          $ref: '#/$defs/Address'
+        contacts:
+          items:
+            $ref: '#/$defs/Contact'
+          title: Contacts
+          type: array
+        departments:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          title: Departments
+          type: object
       required:
       - name
-      - age
-      - gender
-      - job
-      - favorite_movie
-      - short_bio
+      - industry
+      - headquarters
+      - contacts
+      - departments
       type: object
     imports:
-    - from __main__ import RandomPerson
+    - from tests.test_nested_serialization import Company
 components:
   DeclarativeEvaluator:
     type: flock_component
     module_path: flock.evaluators.declarative.declarative_evaluator
-    file_path: /Users/ara/Projects/flock/src/flock/evaluators/declarative/declarative_evaluator.py
     description: Evaluator that uses DSPy for generation.
   OutputModule:
     type: flock_component
     module_path: flock.modules.output.output_module
-    file_path: /Users/ara/Projects/flock/src/flock/modules/output/output_module.py
     description: Module that handles output formatting and display.
   MetricsModule:
     type: flock_component
     module_path: flock.modules.performance.metrics_module
-    file_path: /Users/ara/Projects/flock/src/flock/modules/performance/metrics_module.py
     description: Module for collecting and analyzing agent performance metrics.
 dependencies:
 - pydantic>=2.0.0
