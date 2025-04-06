@@ -690,7 +690,7 @@ class Flock(BaseModel, Serializable):
         # actual versions of installed packages
         return [
             "pydantic>=2.0.0",
-            "flock-framework>=1.0.0",  # Assuming this is the package name
+            "flock>=0.3.41",  # Assuming this is the package name
         ]
 
     @classmethod
