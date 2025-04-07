@@ -84,3 +84,14 @@ class FlockBatchResponse(BaseModel):
         None, description="When the batch run completed"
     )
     error: str | None = Field(None, description="Error message if failed")
+
+    # Additional fields for batch progress tracking
+    total_items: int = Field(
+        0, description="Total number of items in the batch"
+    )
+    completed_items: int = Field(
+        0, description="Number of completed items in the batch"
+    )
+    progress_percentage: float = Field(
+        0.0, description="Percentage of completion (0-100)"
+    )

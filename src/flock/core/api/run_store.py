@@ -86,6 +86,9 @@ class RunStore:
                 status="starting",
                 results=[],
                 started_at=datetime.now(),
+                total_items=0,
+                completed_items=0,
+                progress_percentage=0.0,
             )
             self._batches[batch_id] = response
             logger.debug(f"Created batch record for batch_id: {batch_id}")
@@ -107,6 +110,15 @@ class RunStore:
                     self._batches[batch_id].error = error
                 if status in ["completed", "failed"]:
                     self._batches[batch_id].completed_at = datetime.now()
+                    # When completed, ensure progress is 100%
+                    if (
+                        status == "completed"
+                        and self._batches[batch_id].total_items > 0
+                    ):
+                        self._batches[batch_id].completed_items = self._batches[
+                            batch_id
+                        ].total_items
+                        self._batches[batch_id].progress_percentage = 100.0
                 logger.debug(
                     f"Updated status for batch_id {batch_id} to {status}"
                 )
@@ -126,6 +138,12 @@ class RunStore:
                 self._batches[batch_id].results = final_results
                 self._batches[batch_id].status = "completed"
                 self._batches[batch_id].completed_at = datetime.now()
+
+                # Update progress tracking
+                self._batches[batch_id].completed_items = len(final_results)
+                self._batches[batch_id].total_items = len(final_results)
+                self._batches[batch_id].progress_percentage = 100.0
+
                 logger.debug(
                     f"Updated results for completed batch_id: {batch_id}"
                 )
@@ -133,5 +151,74 @@ class RunStore:
                 logger.warning(
                     f"Attempted to update results for non-existent batch_id: {batch_id}"
                 )
+
+    def set_batch_total_items(self, batch_id: str, total_items: int):
+        """Sets the total number of items in a batch."""
+        try:
+            with self._lock:
+                if batch_id in self._batches:
+                    self._batches[batch_id].total_items = total_items
+                    # Recalculate percentage
+                    if total_items > 0:
+                        self._batches[batch_id].progress_percentage = (
+                            self._batches[batch_id].completed_items
+                            / total_items
+                            * 100.0
+                        )
+                    logger.debug(
+                        f"Set total_items for batch_id {batch_id} to {total_items}"
+                    )
+                else:
+                    logger.warning(
+                        f"Attempted to set total_items for non-existent batch_id: {batch_id}"
+                    )
+        except Exception as e:
+            logger.error(f"Error setting batch total items: {e}", exc_info=True)
+
+    def update_batch_progress(
+        self,
+        batch_id: str,
+        completed_items: int,
+        partial_results: list[Any] = None,
+    ):
+        """Updates the progress of a batch run and optionally adds partial results.
+
+        Args:
+            batch_id: The ID of the batch to update
+            completed_items: The number of items that have been completed
+            partial_results: Optional list of results for completed items to add to the batch
+        """
+        try:
+            with self._lock:
+                if batch_id in self._batches:
+                    self._batches[batch_id].completed_items = completed_items
+
+                    # Calculate percentage if we have a total
+                    if self._batches[batch_id].total_items > 0:
+                        self._batches[batch_id].progress_percentage = (
+                            completed_items
+                            / self._batches[batch_id].total_items
+                            * 100.0
+                        )
+
+                    # Add partial results if provided
+                    if partial_results:
+                        # Ensure results are serializable
+                        final_results = [
+                            dict(r) if hasattr(r, "to_dict") else r
+                            for r in partial_results
+                        ]
+                        self._batches[batch_id].results = final_results
+
+                    logger.debug(
+                        f"Updated progress for batch_id {batch_id}: {completed_items}/{self._batches[batch_id].total_items} "
+                        f"({self._batches[batch_id].progress_percentage:.1f}%)"
+                    )
+                else:
+                    logger.warning(
+                        f"Attempted to update progress for non-existent batch_id: {batch_id}"
+                    )
+        except Exception as e:
+            logger.error(f"Error updating batch progress: {e}", exc_info=True)
 
     # Add methods for cleanup, persistence, etc. later

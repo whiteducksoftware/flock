@@ -11,9 +11,9 @@ POST http://127.0.0.1:8344/run/batch
 }
 
 HTTP/1.1 200  - OK
-date: Mon, 07 Apr 2025 16:22:25 GMT
+date: Mon, 07 Apr 2025 16:35:39 GMT
 server: uvicorn
-content-length: 211
+content-length: 220
 content-type: application/json
 connection: close
 ###
@@ -25,8 +25,8 @@ connection: close
 GET http://127.0.0.1:8344/batch/{{$global.batch_id}}
 
 HTTP/1.1 200  - OK
-date: Mon, 07 Apr 2025 16:22:44 GMT
+date: Mon, 07 Apr 2025 16:36:04 GMT
 server: uvicorn
-content-length: 4777
+content-length: 4151
 content-type: application/json
 connection: close
