@@ -8,7 +8,7 @@ MODEL = "openai/gpt-4o"
 
 flock = Flock(name="example_09", description="This is a batch processing example", model=MODEL)
 
-
+# we add some more input fields to the agent
 presentation_agent = FlockFactory.create_default_agent(
     name="my_presentation_agent",
     input="topic, audience, number_of_slides",
@@ -16,6 +16,7 @@ presentation_agent = FlockFactory.create_default_agent(
 )
 flock.add_agent(presentation_agent)
 
+# define the batch data with a list of inputs for the fields you want to change
 batch_data = [
     {"topic": "Robot Kittens", "audience": "Tech Enthusiasts"},
     {"topic": "AI in Gardening", "audience": "Homeowners"},
@@ -34,18 +35,21 @@ batch_data = [
     {"topic": "Musical Vegetables", "audience": "Orchestra Conductors"}
 ]
 
+# define the static data for the batch run
 static_data = {"number_of_slides": 6}
 
+# instead of flock.run() we use flock.run_batch()
 silent_results = flock.run_batch( 
     start_agent=presentation_agent,
     batch_inputs=batch_data,
     static_inputs=static_data,
     parallel=True,
     max_workers=2,
-    silent_mode=False,
-    return_errors=True
+    silent_mode=True,
+    return_errors=True,
+    write_to_csv=".flock/batch_results.csv"
 )
 
-print("\nBatch finished. Results (or errors):")
-for res in silent_results:
-    print(res)
+# print("\nBatch finished. Results (or errors):")
+# for res in silent_results:
+#     print(res)

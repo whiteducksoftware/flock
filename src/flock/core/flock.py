@@ -433,36 +433,37 @@ class Flock(BaseModel, Serializable):
                     "details": f"Flock run '{self.name}' failed.",
                 }
 
-    async def run_batch_async(  # Renamed for clarity
+    async def run_batch_async(
         self,
         start_agent: FlockAgent | str,
-        batch_inputs: list[dict[str, Any]] | None = None,
-        input_dataframe: DataFrame | None = None,
+        batch_inputs: list[dict[str, Any]] | DataFrame | str,
         input_mapping: dict[str, str] | None = None,
-        static_inputs: dict[str, Any] | None = None,  # Added
+        static_inputs: dict[str, Any] | None = None,
         parallel: bool = True,
-        max_workers: int = 5,  # Adjusted default concurrency
+        max_workers: int = 5,
         use_temporal: bool | None = None,
-        box_results: bool = True,  # Renamed from box_result
-        return_errors: bool = False,  # Added
+        box_results: bool = True,
+        return_errors: bool = False,
         silent_mode: bool = False,
-    ) -> list[Box | dict | None | Exception]:  # Updated return type
+        write_to_csv: str | None = None,
+    ) -> list[Box | dict | None | Exception]:
         """Runs the specified agent/workflow for each item in a batch asynchronously.
 
         Args:
             start_agent: Agent instance or name to start each run.
-            batch_inputs: List of dictionaries, each representing inputs for one run.
-                          Mutually exclusive with input_dataframe.
-            input_dataframe: Pandas DataFrame where each row is inputs for one run.
-                             Mutually exclusive with batch_inputs. Requires 'pandas'.
-            input_mapping: Maps DataFrame column names to agent input keys (required with DataFrame).
+            batch_inputs: Input data in one of these forms:
+                - List of dictionaries, each representing inputs for one run
+                - Pandas DataFrame where each row is inputs for one run
+                - String path to a CSV file to load as DataFrame
+            input_mapping: Maps DataFrame/CSV column names to agent input keys (required for DataFrame/CSV).
             static_inputs: Dictionary of inputs constant across all batch runs.
             parallel: Whether to run local jobs in parallel (ignored if use_temporal=True).
             max_workers: Max concurrent local workers (used if parallel=True and use_temporal=False).
             use_temporal: Override Flock's 'enable_temporal' setting for this batch.
-                          None uses the instance setting.
             box_results: Wrap successful dictionary results in Box objects.
             return_errors: If True, return Exception objects for failed runs instead of raising.
+            silent_mode: If True, suppress output and show progress bar instead.
+            write_to_csv: Path to save results as CSV file.
 
         Returns:
             List containing results (Box/dict), None (if error and not return_errors),
@@ -470,7 +471,7 @@ class Flock(BaseModel, Serializable):
 
         Raises:
             ValueError: For invalid input combinations.
-            ImportError: If DataFrame used without pandas.
+            ImportError: If DataFrame/CSV used without pandas.
             Exception: First exception from a run if return_errors is False.
         """
         effective_use_temporal = (
@@ -486,35 +487,57 @@ class Flock(BaseModel, Serializable):
         )
 
         # --- Input Preparation ---
-        if batch_inputs is not None and input_dataframe is not None:
-            raise ValueError(
-                "Provide 'batch_inputs' or 'input_dataframe', not both."
-            )
-        if batch_inputs is None and input_dataframe is None:
-            raise ValueError(
-                "Must provide 'batch_inputs' or 'input_dataframe'."
-            )
-
         prepared_batch_inputs: list[dict[str, Any]] = []
-        if input_dataframe is not None:
-            if not PANDAS_AVAILABLE:
-                raise ImportError("pandas required for input_dataframe.")
-            if input_mapping is None:
-                raise ValueError(
-                    "'input_mapping' required with 'input_dataframe'."
+
+        if isinstance(batch_inputs, str):
+            # Handle CSV file input
+            try:
+                df = pd.read_csv(batch_inputs)
+                logger.debug(
+                    f"Loaded CSV file with {len(df)} rows: {batch_inputs}"
                 )
+                batch_inputs = df  # Convert to DataFrame for unified handling
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to load CSV file '{batch_inputs}': {e}"
+                )
+
+        if isinstance(batch_inputs, DataFrame):
+            # Handle DataFrame input
             logger.debug(
-                f"Converting DataFrame ({len(input_dataframe)} rows) to batch inputs."
+                f"Converting DataFrame ({len(batch_inputs)} rows) to batch inputs."
             )
-            for _, row in input_dataframe.iterrows():
+            for _, row in batch_inputs.iterrows():
                 item_input = {
                     agent_key: row[df_col]
                     for df_col, agent_key in input_mapping.items()
                     if df_col in row
                 }
                 prepared_batch_inputs.append(item_input)
-        else:  # batch_inputs must be provided
-            prepared_batch_inputs = batch_inputs
+        else:
+            # Handle list of dictionaries
+            if not isinstance(batch_inputs, list):
+                raise ValueError(
+                    "batch_inputs must be a list of dictionaries, DataFrame, or CSV file path"
+                )
+
+            if input_mapping:
+                # Apply mapping to dictionary inputs
+                logger.debug("Applying input mapping to dictionary inputs")
+                for item in batch_inputs:
+                    mapped_input = {}
+                    for df_col, agent_key in input_mapping.items():
+                        if df_col in item:
+                            mapped_input[agent_key] = item[df_col]
+                        else:
+                            logger.warning(
+                                f"Input mapping key '{df_col}' not found in input dictionary"
+                            )
+                    prepared_batch_inputs.append(mapped_input)
+            else:
+                # Use dictionaries as-is if no mapping provided
+                prepared_batch_inputs = batch_inputs
+
             logger.debug(
                 f"Using provided list of {len(prepared_batch_inputs)} batch inputs."
             )
@@ -628,13 +651,22 @@ class Flock(BaseModel, Serializable):
             if progress_context:
                 progress.stop()
 
+        if write_to_csv:
+            try:
+                df = pd.DataFrame(results)
+                # create write_to_csv directory if it doesn't exist
+                os.makedirs(os.path.dirname(write_to_csv), exist_ok=True)
+                df.to_csv(write_to_csv, index=False)
+                logger.info(f"Results written to CSV file: {write_to_csv}")
+            except Exception as e:
+                logger.error(f"Failed to write results to CSV: {e}")
+
         return results
 
     def run_batch(  # Synchronous wrapper
         self,
         start_agent: FlockAgent | str,
-        batch_inputs: list[dict[str, Any]] | None = None,
-        input_dataframe: DataFrame | None = None,
+        batch_inputs: list[dict[str, Any]] | DataFrame | str,
         input_mapping: dict[str, str] | None = None,
         static_inputs: dict[str, Any] | None = None,
         parallel: bool = True,
@@ -643,6 +675,7 @@ class Flock(BaseModel, Serializable):
         box_results: bool = True,
         return_errors: bool = False,
         silent_mode: bool = False,
+        write_to_csv: str | None = None,
     ) -> list[Box | dict | None | Exception]:
         """Synchronous wrapper for run_batch_async."""
         # (Standard asyncio run wrapper - same as in previous suggestion)
@@ -657,7 +690,6 @@ class Flock(BaseModel, Serializable):
         coro = self.run_batch_async(
             start_agent=start_agent,
             batch_inputs=batch_inputs,
-            input_dataframe=input_dataframe,
             input_mapping=input_mapping,
             static_inputs=static_inputs,
             parallel=parallel,
@@ -666,6 +698,7 @@ class Flock(BaseModel, Serializable):
             box_results=box_results,
             return_errors=return_errors,
             silent_mode=silent_mode,
+            write_to_csv=write_to_csv,
         )
 
         if asyncio.get_event_loop() is loop and not loop.is_running():
