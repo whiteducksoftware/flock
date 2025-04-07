@@ -151,4 +151,4 @@ collect-code = "python scripts/code_collector.py"
 
 
 [tool.poe.tasks.clean]
-script = "poethepoet.scripts:rm('.mypy_cache', '.pytest_cache', './**/__pycache__')"
+script = "poethepoet.scripts:rm('dist', 'htmlcov', 'logs','metrics','.mypy_cache', '.pytest_cache', './**/__pycache__')"
