@@ -1,4 +1,4 @@
-# Multi-language RAG - No problem with flock
+# Multi-language RAG in 40 lines of code
 
 from flock.core import Flock, FlockFactory, flock_type
 from flock.core.tools.azure_tools import (
@@ -14,14 +14,19 @@ from pydantic import BaseModel, Field
 #
 # Let's take a look at the RAGResponse model:
 # answer - The final answer to the user query.
-# max_queries - Flock will retry failed tool calls quite a bit, so the max_queries is a way to limit the number of retries semantically.
-# queries - Flock should log the queries used to answer the question.
+# max_queries - Flock will retry failed tool calls quite a bit (10 times), so the max_queries is a way to limit the number of retries semantically.
+# queries - Flock should log the queries it used to answer the question.
 # error - In case no answer is found after max_queries are used, an error should be returned.
 # source_documents - Flock should log the source documents used to answer the question.
 # quotes - Flock should log the quotes from the source documents to support the answer.
 # 
 # As you can see just by simply defining declarative rules for each field,
 # we implicitly created a quite complex logical flow that is quite hard to get right with plain prompting.
+#
+# This way it is not necessary to write a behemoth of a prompt to get the desired behavior.
+# It gives the developer the ability to pin-point exactly what should happen on an elementary field-by-field basis.
+#
+# Better results with less time wasted on writing complex prompts.
 @flock_type
 class RAGResponse(BaseModel):
     answer: str = Field(description="The answer to the user query. Must be concise and to the point.")
@@ -43,10 +48,9 @@ flock = Flock(name="azure_search_query", model=MODEL)
 # Let's take a look at those fields:
 #
 # Description - Not only useful for documentation, but also useful to tell Flock what to do.
-# 
 # Input - We define the 'question' and 'max_queries' as input and some rules for max_queries.
-#
 # Output - We define the 'answer' to be of type RAGResponse, which makes all the rules we defined above come into play.
+#
 # Also we wrap all those rules into another rule that the answer should be in the same language as the question.
 #
 # Tools - We define the tools that Flock should use to answer the question.
