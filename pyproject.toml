@@ -33,6 +33,7 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.30.0",
     "opentelemetry-instrumentation-logging>=0.51b0",
     "opentelemetry-sdk>=1.30.0",
+    "pandas>=2.2.3",
     "pillow>=10.4.0",
     "prometheus-client>=0.21.1",
     "psutil>=6.1.1",

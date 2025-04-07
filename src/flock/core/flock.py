@@ -12,12 +12,21 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from box import Box
 from opentelemetry import trace
 from opentelemetry.baggage import get_baggage, set_baggage
+from pandas import DataFrame
 from pydantic import BaseModel, Field
+from rich.progress import (  # Import Rich Progress
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 # Flock core components & utilities
 from flock.config import DEFAULT_MODEL, TELEMETRY
 from flock.core.context.context import FlockContext
 from flock.core.context.context_manager import initialize_context
+from flock.core.context.context_vars import FLOCK_BATCH_SILENT_MODE
 from flock.core.execution.local_executor import run_local_workflow
 from flock.core.execution.temporal_executor import run_temporal_workflow
 from flock.core.logging.logging import LOGGERS, get_logger, get_module_loggers
@@ -32,6 +41,14 @@ if TYPE_CHECKING:
 
 # Registry
 from flock.core.flock_registry import get_registry
+
+try:
+    import pandas as pd
+
+    PANDAS_AVAILABLE = True
+except ImportError:
+    pd = None
+    PANDAS_AVAILABLE = False
 
 logger = get_logger("flock")
 TELEMETRY.setup_tracing()  # Setup OpenTelemetry
@@ -415,6 +432,250 @@ class Flock(BaseModel, Serializable):
                     "error": str(e),
                     "details": f"Flock run '{self.name}' failed.",
                 }
+
+    async def run_batch_async(  # Renamed for clarity
+        self,
+        start_agent: FlockAgent | str,
+        batch_inputs: list[dict[str, Any]] | None = None,
+        input_dataframe: DataFrame | None = None,
+        input_mapping: dict[str, str] | None = None,
+        static_inputs: dict[str, Any] | None = None,  # Added
+        parallel: bool = True,
+        max_workers: int = 5,  # Adjusted default concurrency
+        use_temporal: bool | None = None,
+        box_results: bool = True,  # Renamed from box_result
+        return_errors: bool = False,  # Added
+        silent_mode: bool = False,
+    ) -> list[Box | dict | None | Exception]:  # Updated return type
+        """Runs the specified agent/workflow for each item in a batch asynchronously.
+
+        Args:
+            start_agent: Agent instance or name to start each run.
+            batch_inputs: List of dictionaries, each representing inputs for one run.
+                          Mutually exclusive with input_dataframe.
+            input_dataframe: Pandas DataFrame where each row is inputs for one run.
+                             Mutually exclusive with batch_inputs. Requires 'pandas'.
+            input_mapping: Maps DataFrame column names to agent input keys (required with DataFrame).
+            static_inputs: Dictionary of inputs constant across all batch runs.
+            parallel: Whether to run local jobs in parallel (ignored if use_temporal=True).
+            max_workers: Max concurrent local workers (used if parallel=True and use_temporal=False).
+            use_temporal: Override Flock's 'enable_temporal' setting for this batch.
+                          None uses the instance setting.
+            box_results: Wrap successful dictionary results in Box objects.
+            return_errors: If True, return Exception objects for failed runs instead of raising.
+
+        Returns:
+            List containing results (Box/dict), None (if error and not return_errors),
+            or Exception objects (if error and return_errors). Order matches input.
+
+        Raises:
+            ValueError: For invalid input combinations.
+            ImportError: If DataFrame used without pandas.
+            Exception: First exception from a run if return_errors is False.
+        """
+        effective_use_temporal = (
+            use_temporal if use_temporal is not None else self.enable_temporal
+        )
+        exec_mode = (
+            "Temporal"
+            if effective_use_temporal
+            else ("Parallel Local" if parallel else "Sequential Local")
+        )
+        logger.info(
+            f"Starting batch run for agent '{start_agent}'. Execution: {exec_mode}, Silent: {silent_mode}"
+        )
+
+        # --- Input Preparation ---
+        if batch_inputs is not None and input_dataframe is not None:
+            raise ValueError(
+                "Provide 'batch_inputs' or 'input_dataframe', not both."
+            )
+        if batch_inputs is None and input_dataframe is None:
+            raise ValueError(
+                "Must provide 'batch_inputs' or 'input_dataframe'."
+            )
+
+        prepared_batch_inputs: list[dict[str, Any]] = []
+        if input_dataframe is not None:
+            if not PANDAS_AVAILABLE:
+                raise ImportError("pandas required for input_dataframe.")
+            if input_mapping is None:
+                raise ValueError(
+                    "'input_mapping' required with 'input_dataframe'."
+                )
+            logger.debug(
+                f"Converting DataFrame ({len(input_dataframe)} rows) to batch inputs."
+            )
+            for _, row in input_dataframe.iterrows():
+                item_input = {
+                    agent_key: row[df_col]
+                    for df_col, agent_key in input_mapping.items()
+                    if df_col in row
+                }
+                prepared_batch_inputs.append(item_input)
+        else:  # batch_inputs must be provided
+            prepared_batch_inputs = batch_inputs
+            logger.debug(
+                f"Using provided list of {len(prepared_batch_inputs)} batch inputs."
+            )
+
+        if not prepared_batch_inputs:
+            return []
+
+        # --- Setup Progress Bar if Silent ---
+        progress_context = None
+        progress_task_id = None
+        if silent_mode:
+            progress = Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TextColumn("({task.completed}/{task.total})"),
+                TimeElapsedColumn(),
+                # transient=True # Optionally remove progress bar when done
+            )
+            progress_context = progress  # Use as context manager
+            progress_task_id = progress.add_task(
+                f"Processing Batch ({exec_mode})",
+                total=len(prepared_batch_inputs),
+            )
+            progress.start()
+
+        results = [None] * len(
+            prepared_batch_inputs
+        )  # Pre-allocate results list
+        tasks = []
+        semaphore = asyncio.Semaphore(
+            max_workers if parallel and not effective_use_temporal else 1
+        )  # Semaphore for parallel local
+
+        async def worker(index, item_inputs):
+            async with semaphore:
+                full_input = {**(static_inputs or {}), **item_inputs}
+                context = FlockContext()
+                context.set_variable(FLOCK_BATCH_SILENT_MODE, silent_mode)
+
+                run_desc = f"Batch item {index + 1}"
+                logger.debug(f"{run_desc} started.")
+                try:
+                    result = await self.run_async(
+                        start_agent,
+                        full_input,
+                        box_result=box_results,
+                        context=context,
+                    )
+                    results[index] = result
+                    logger.debug(f"{run_desc} finished successfully.")
+                except Exception as e:
+                    logger.error(
+                        f"{run_desc} failed: {e}", exc_info=not return_errors
+                    )
+                    if return_errors:
+                        results[index] = e
+                    else:
+                        # If not returning errors, ensure the exception propagates
+                        # to stop asyncio.gather if running in parallel.
+                        if parallel and not effective_use_temporal:
+                            raise  # Re-raise to stop gather
+                        else:
+                            # For sequential, we just store None or the exception if return_errors=True
+                            # For Temporal, error handling happens within the workflow/activity usually
+                            results[index] = e if return_errors else None
+                finally:
+                    if progress_context:
+                        progress.update(
+                            progress_task_id, advance=1
+                        )  # Update progress
+
+        try:
+            if effective_use_temporal:
+                # Temporal Batching (Simplified: sequential execution for this example)
+                # A real implementation might use start_workflow or signals
+                logger.info(
+                    "Running batch using Temporal (executing sequentially for now)..."
+                )
+                for i, item_data in enumerate(prepared_batch_inputs):
+                    await worker(i, item_data)  # Run sequentially for demo
+                # TODO: Implement true parallel Temporal workflow execution if needed
+
+            elif parallel:
+                logger.info(
+                    f"Running batch in parallel with max_workers={max_workers}..."
+                )
+                for i, item_data in enumerate(prepared_batch_inputs):
+                    tasks.append(asyncio.create_task(worker(i, item_data)))
+                await asyncio.gather(
+                    *tasks
+                )  # gather handles exceptions based on return_errors logic in worker
+
+            else:  # Sequential Local
+                logger.info("Running batch sequentially...")
+                for i, item_data in enumerate(prepared_batch_inputs):
+                    await worker(
+                        i, item_data
+                    )  # Already handles errors internally based on return_errors
+
+            logger.info("Batch execution finished.")
+
+        except Exception as batch_error:
+            # This catch handles errors re-raised from workers when return_errors=False
+            logger.error(f"Batch execution stopped due to error: {batch_error}")
+            # No need to cancel tasks here as gather would have stopped
+            if not return_errors:
+                raise  # Re-raise the first error encountered if not returning errors
+        finally:
+            if progress_context:
+                progress.stop()
+
+        return results
+
+    def run_batch(  # Synchronous wrapper
+        self,
+        start_agent: FlockAgent | str,
+        batch_inputs: list[dict[str, Any]] | None = None,
+        input_dataframe: DataFrame | None = None,
+        input_mapping: dict[str, str] | None = None,
+        static_inputs: dict[str, Any] | None = None,
+        parallel: bool = True,
+        max_workers: int = 5,
+        use_temporal: bool | None = None,
+        box_results: bool = True,
+        return_errors: bool = False,
+        silent_mode: bool = False,
+    ) -> list[Box | dict | None | Exception]:
+        """Synchronous wrapper for run_batch_async."""
+        # (Standard asyncio run wrapper - same as in previous suggestion)
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_closed():
+                raise RuntimeError("Event loop is closed")
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        coro = self.run_batch_async(
+            start_agent=start_agent,
+            batch_inputs=batch_inputs,
+            input_dataframe=input_dataframe,
+            input_mapping=input_mapping,
+            static_inputs=static_inputs,
+            parallel=parallel,
+            max_workers=max_workers,
+            use_temporal=use_temporal,
+            box_results=box_results,
+            return_errors=return_errors,
+            silent_mode=silent_mode,
+        )
+
+        if asyncio.get_event_loop() is loop and not loop.is_running():
+            results = loop.run_until_complete(coro)
+            # loop.close() # Avoid closing potentially shared loop
+            return results
+        else:
+            # Run within an existing loop
+            future = asyncio.ensure_future(coro)
+            return loop.run_until_complete(future)
 
     # --- Serialization Delegation Methods ---
     def to_dict(self, path_type: str = "relative") -> dict[str, Any]:

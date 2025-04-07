@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
 
+from flock.core.context.context_vars import FLOCK_BATCH_SILENT_MODE
+
 if TYPE_CHECKING:
     from flock.core import FlockAgent
 
@@ -181,17 +183,50 @@ class OutputModule(FlockModule):
     ) -> dict[str, Any]:
         """Format and display the output."""
         logger.debug("Formatting and displaying output")
-        if self.config.no_output:
-            return result
-        if self.config.print_context:
-            result["context"] = context
-        # Display the result using the formatter
-        self._formatter.display_result(result, agent.name)
+
+        # Determine if output should be suppressed
+        is_silent = self.config.no_output or (
+            context and context.get_variable(FLOCK_BATCH_SILENT_MODE, False)
+        )
+
+        if is_silent:
+            logger.debug("Output suppressed (config or batch silent mode).")
+            # Still save to file if configured, even in silent mode
+            self._save_output(agent.name, result)
+            return result  # Skip console output
+
+        logger.debug("Formatting and displaying output to console.")
+
+        if self.config.print_context and context:
+            # Add context snapshot if requested (be careful with large contexts)
+            try:
+                # Create a copy or select relevant parts to avoid modifying original result dict directly
+                display_result = result.copy()
+                display_result["context_snapshot"] = (
+                    context.to_dict()
+                )  # Potential performance hit
+            except Exception:
+                display_result = result.copy()
+                display_result["context_snapshot"] = (
+                    "[Error serializing context]"
+                )
+            result_to_display = display_result
+        else:
+            result_to_display = result
+
+        if not hasattr(self, "_formatter") or self._formatter is None:
+            self._formatter = ThemedAgentResultFormatter(
+                theme=self.config.theme,
+                max_length=self.config.max_length,
+                render_table=self.config.render_table,
+                wait_for_input=self.config.wait_for_input,
+            )
+        self._formatter.display_result(result_to_display, agent.name)
 
         # Save to file if configured
-        self._save_output(agent.name, result)
+        self._save_output(agent.name, result)  # Save the original result
 
-        return result
+        return result  # Return the original, unmodified result
 
     def update_theme(self, new_theme: OutputTheme) -> None:
         """Update the output theme."""
