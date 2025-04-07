@@ -128,32 +128,60 @@ class FlockAPI:
                 else "CSV",
             )
 
-            # Run the batch processing
-            results = await self.flock.run_batch_async(
-                start_agent=request.agent_name,
-                batch_inputs=request.batch_inputs,
-                input_mapping=request.input_mapping,
-                static_inputs=request.static_inputs,
-                parallel=request.parallel,
-                max_workers=request.max_workers,
-                use_temporal=request.use_temporal,
-                box_results=request.box_results,
-                return_errors=request.return_errors,
-                silent_mode=request.silent_mode,
-                write_to_csv=request.write_to_csv,
-            )
+            # Import the thread pool executor here to avoid circular imports
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
 
-            # Update store with results
-            self.run_store.update_batch_result(batch_id, results)
+            # Define a synchronous function to run the batch processing
+            def run_batch_sync():
+                # Use a new event loop for the batch processing
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    # Run the batch processing in the new loop
+                    results = loop.run_until_complete(
+                        self.flock.run_batch_async(
+                            start_agent=request.agent_name,
+                            batch_inputs=request.batch_inputs,
+                            input_mapping=request.input_mapping,
+                            static_inputs=request.static_inputs,
+                            parallel=request.parallel,
+                            max_workers=request.max_workers,
+                            use_temporal=request.use_temporal,
+                            box_results=request.box_results,
+                            return_errors=request.return_errors,
+                            silent_mode=request.silent_mode,
+                            write_to_csv=request.write_to_csv,
+                        )
+                    )
+                    # Update store with results from this thread
+                    self.run_store.update_batch_result(batch_id, results)
+                    logger.info(
+                        f"Batch run completed (batch_id: {batch_id})",
+                        num_results=len(results),
+                    )
+                    return results
+                except Exception as e:
+                    logger.error(
+                        f"Error in batch run {batch_id} (started with '{request.agent_name}'): {e!s}",
+                        exc_info=True,
+                    )
+                    # Update store status
+                    self.run_store.update_batch_status(
+                        batch_id, "failed", str(e)
+                    )
+                    return None
+                finally:
+                    loop.close()
 
-            logger.info(
-                f"Batch run completed (batch_id: {batch_id})",
-                num_results=len(results),
-            )
+            # Run the batch processing in a thread pool
+            loop = asyncio.get_running_loop()
+            with ThreadPoolExecutor() as pool:
+                await loop.run_in_executor(pool, run_batch_sync)
 
         except Exception as e:
             logger.error(
-                f"Error in batch run {batch_id} (started with '{request.agent_name}'): {e!s}",
+                f"Error setting up batch run {batch_id} (started with '{request.agent_name}'): {e!s}",
                 exc_info=True,
             )
             # Update store status
