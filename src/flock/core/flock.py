@@ -6,6 +6,7 @@ from __future__ import annotations  # Ensure forward references work
 import asyncio
 import os
 import uuid
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
 # Third-party imports
@@ -663,7 +664,7 @@ class Flock(BaseModel, Serializable):
             try:
                 df = pd.DataFrame(results)
                 # create write_to_csv directory if it doesn't exist
-                os.makedirs(os.path.dirname(write_to_csv), exist_ok=True)
+                Path(write_to_csv).parent.mkdir(parents=True, exist_ok=True)
                 df.to_csv(write_to_csv, index=False)
                 logger.info(f"Results written to CSV file: {write_to_csv}")
             except Exception as e:
