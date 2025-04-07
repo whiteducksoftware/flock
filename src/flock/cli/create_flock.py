@@ -4,12 +4,14 @@ This module provides a wizard-like interface for creating new Flock instances,
 with options for basic configuration and initial agent creation.
 """
 
+from datetime import datetime
 from pathlib import Path
 
 import questionary
 from rich.console import Console
 from rich.panel import Panel
 
+from flock.cli.constants import CLI_DEFAULT_FOLDER
 from flock.cli.loaded_flock_cli import start_loaded_flock_cli
 from flock.core.flock import Flock
 from flock.core.flock_factory import FlockFactory
@@ -30,6 +32,11 @@ def create_flock():
     # Step 1: Basic Flock Configuration
     console.print("[bold]Step 1: Basic Flock Configuration[/]")
     console.line()
+
+    flock_name = questionary.text(
+        "Enter a name for this Flock:",
+        default="",
+    ).ask()
 
     # Get description
     description = questionary.text(
@@ -61,10 +68,11 @@ def create_flock():
         model = model_choice
 
     # Execution options
-    enable_temporal = questionary.confirm(
-        "Enable Temporal for distributed execution?",
-        default=False,
-    ).ask()
+    # enable_temporal = questionary.confirm(
+    #     "Enable Temporal for distributed execution?",
+    #     default=False,
+    # ).ask()
+    enable_temporal = False
 
     # Logging configuration
     enable_logging = questionary.confirm(
@@ -74,6 +82,7 @@ def create_flock():
 
     # Create the Flock instance
     flock = Flock(
+        name=flock_name,
         model=model,
         description=description,
         enable_temporal=enable_temporal,
@@ -200,7 +209,8 @@ def _save_flock_to_yaml(flock):
         flock: The Flock instance to save
     """
     # Get file path
-    default_name = "my_flock.flock.yaml"
+    # default = flock.name + current date in 04_04_2025 format
+    default_name = f"{flock.name}_{datetime.now().strftime('%m_%d_%Y')}"
     file_path = questionary.text(
         "Enter file path to save Flock:",
         default=default_name,
@@ -208,7 +218,9 @@ def _save_flock_to_yaml(flock):
 
     # Ensure the file has the correct extension
     if not file_path.endswith((".yaml", ".yml")):
-        file_path += ".yaml"
+        file_path += ".flock.yaml"
+
+    file_path = CLI_DEFAULT_FOLDER + "/" + file_path
 
     # Create directory if it doesn't exist
     save_path = Path(file_path)

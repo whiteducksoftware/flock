@@ -9,6 +9,7 @@ CLI_DEFAULT_ENV_VARS = {
     "FLICK_API_URL": "https://api.flock.com",
     "FLICK_API_VERSION": "v1",
 }
+CLI_DEFAULT_FOLDER = ".flock"
 
 CLI_CREATE_AGENT = "Create an agent"
 CLI_CREATE_FLOCK = "Create a new Flock"

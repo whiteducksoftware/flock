@@ -12,7 +12,7 @@ logger = get_logger("api.runner")
 
 
 def start_flock_api(
-    flock: Flock,
+    flock: "Flock",
     host: str = "127.0.0.1",
     port: int = 8344,
     server_name: str = "Flock API",

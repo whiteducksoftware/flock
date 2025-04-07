@@ -12,6 +12,7 @@ from flock.cli.constants import (
     CLI_REGISTRY_MANAGEMENT,
     CLI_SETTINGS,
 )
+from flock.core.api import runner
 from flock.core.flock import Flock
 from flock.core.util.cli_helper import init_console
 
@@ -203,7 +204,7 @@ def _start_web_server(flock: Flock, create_ui: bool = False) -> None:
         port = int(port_input)
 
     server_name_input = questionary.text(
-        "Server name (default: Flock API):", default=server_name
+        "Server name (default: FlockName API):", default=flock.name + " API"
     ).ask()
     if server_name_input:
         server_name = server_name_input
@@ -214,6 +215,10 @@ def _start_web_server(flock: Flock, create_ui: bool = False) -> None:
     )
 
     # Use the Flock's start_api method
-    flock.start_api(
-        host=host, port=port, server_name=server_name, create_ui=create_ui
+    runner.start_flock_api(
+        flock=flock,
+        host=host,
+        port=port,
+        server_name=server_name,
+        create_ui=create_ui,
     )

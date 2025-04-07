@@ -15,7 +15,7 @@ MODEL = "openai/gpt-4o"
 # Create the flock and context
 # --------------------------------
 # The flock is the place where all the agents are at home
-flock = Flock(name="Example 01", model=MODEL, enable_logging=True)
+flock = Flock(name="Example 01", description="This is an example flock", model=MODEL)
 
 # --------------------------------
 # Create an agent
