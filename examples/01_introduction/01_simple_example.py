@@ -38,9 +38,8 @@ flock.add_agent(presentation_agent)
 # Tell the flock who the starting agent is and what input to give it
 flock.run(
     start_agent=presentation_agent, 
-    input={"topic": ""}
+    input={"topic": "A presentation about robot kittens"}
 )
 
 # YOUR TURN!
-# Try deleting the input (line 41) and see what happens
 # Try changing the output definition (line 30) by replacing "fun" with "boring" (boring_title, boring_slide_headers, boring_slide_summaries)
