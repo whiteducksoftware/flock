@@ -1245,12 +1245,13 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.4.0b3"
+version = "0.4.0b5"
 source = { editable = "." }
 dependencies = [
     { name = "azure-search-documents" },
     { name = "chromadb" },
     { name = "cloudpickle" },
+    { name = "datasets" },
     { name = "devtools" },
     { name = "dspy" },
     { name = "duckduckgo-search" },
@@ -1268,10 +1269,12 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-instrumentation-logging" },
     { name = "opentelemetry-sdk" },
+    { name = "pandas" },
     { name = "pillow" },
     { name = "prometheus-client" },
     { name = "psutil" },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
     { name = "python-box" },
     { name = "python-decouple" },
     { name = "python-dotenv" },
@@ -1325,6 +1328,7 @@ requires-dist = [
     { name = "azure-search-documents", specifier = ">=11.5.2" },
     { name = "chromadb", specifier = ">=0.6.3" },
     { name = "cloudpickle", specifier = ">=3.1.1" },
+    { name = "datasets", specifier = ">=3.2.0" },
     { name = "devtools", specifier = ">=0.12.2" },
     { name = "docling", marker = "extra == 'all'", specifier = ">=2.18.0" },
     { name = "dspy", specifier = "==2.6.16" },
@@ -1345,10 +1349,12 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.30.0" },
     { name = "opentelemetry-instrumentation-logging", specifier = ">=0.51b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.30.0" },
+    { name = "pandas", specifier = ">=2.2.3" },
     { name = "pillow", specifier = ">=10.4.0" },
     { name = "prometheus-client", specifier = ">=0.21.1" },
     { name = "psutil", specifier = ">=6.1.1" },
     { name = "pydantic", specifier = ">=2.10.5" },
+    { name = "pydantic-settings", specifier = ">=2.7.1" },
     { name = "python-box", specifier = ">=7.3.2" },
     { name = "python-decouple", specifier = ">=3.8" },
     { name = "python-dotenv", specifier = ">=1.0.1" },

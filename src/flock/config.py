@@ -1,7 +1,12 @@
 # flock/config.py
+import os
+
 from decouple import config
 
 from flock.core.logging.telemetry import TelemetryConfig
+
+cfg_file = os.path.expanduser(f"~/.flock/flock.cfg")
+
 
 # -- Connection and External Service Configurations --
 TEMPORAL_SERVER_URL = config("TEMPORAL_SERVER_URL", "localhost:7233")

@@ -41,6 +41,7 @@ hierarchical_memory/
 output/
 !src/flock/modules/output/output_module.py
 .env.*
+.flock/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

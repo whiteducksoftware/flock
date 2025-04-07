@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
 # Flock core imports
+from flock.core.api.models import FlockBatchRequest
 from flock.core.flock import Flock
 from flock.core.logging.logging import get_logger
 
@@ -112,6 +113,219 @@ class FlockAPI:
             )
             # Update store status
             self.run_store.update_run_status(run_id, "failed", str(e))
+            raise  # Re-raise for the endpoint handler
+
+    async def _run_batch(self, batch_id: str, request: "FlockBatchRequest"):
+        """Executes a batch of runs (internal helper)."""
+        try:
+            if request.agent_name not in self.flock.agents:
+                raise ValueError(f"Agent '{request.agent_name}' not found")
+
+            logger.debug(
+                f"Executing batch run starting with '{request.agent_name}' (batch_id: {batch_id})",
+                batch_size=len(request.batch_inputs)
+                if isinstance(request.batch_inputs, list)
+                else "CSV",
+            )
+
+            # Import the thread pool executor here to avoid circular imports
+            import asyncio
+            import threading
+            from concurrent.futures import ThreadPoolExecutor
+
+            # Define a synchronous function to run the batch processing
+            def run_batch_sync():
+                # Use a new event loop for the batch processing
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    # Set the total number of batch items if possible
+                    batch_size = (
+                        len(request.batch_inputs)
+                        if isinstance(request.batch_inputs, list)
+                        else 0
+                    )
+                    if batch_size > 0:
+                        # Directly call the store method - no need for asyncio here
+                        # since we're already in a separate thread
+                        self.run_store.set_batch_total_items(
+                            batch_id, batch_size
+                        )
+
+                    # Custom progress tracking wrapper
+                    class ProgressTracker:
+                        def __init__(self, store, batch_id, total_size):
+                            self.store = store
+                            self.batch_id = batch_id
+                            self.current_count = 0
+                            self.total_size = total_size
+                            self._lock = threading.Lock()
+                            self.partial_results = []
+
+                        def increment(self, result=None):
+                            with self._lock:
+                                self.current_count += 1
+                                if result is not None:
+                                    # Store partial result
+                                    self.partial_results.append(result)
+
+                                # Directly call the store method - no need for asyncio here
+                                # since we're already in a separate thread
+                                try:
+                                    self.store.update_batch_progress(
+                                        self.batch_id,
+                                        self.current_count,
+                                        self.partial_results,
+                                    )
+                                except Exception as e:
+                                    logger.error(
+                                        f"Error updating progress: {e}"
+                                    )
+                                return self.current_count
+
+                    # Create a progress tracker
+                    progress_tracker = ProgressTracker(
+                        self.run_store, batch_id, batch_size
+                    )
+
+                    # Define a custom worker that reports progress
+                    async def progress_aware_worker(index, item_inputs):
+                        try:
+                            result = await self.flock.run_async(
+                                start_agent=request.agent_name,
+                                input=item_inputs,
+                                box_result=request.box_results,
+                            )
+                            # Report progress after each item
+                            progress_tracker.increment(result)
+                            return result
+                        except Exception as e:
+                            logger.error(
+                                f"Error processing batch item {index}: {e}"
+                            )
+                            progress_tracker.increment(
+                                e if request.return_errors else None
+                            )
+                            if request.return_errors:
+                                return e
+                            return None
+
+                    # Process the batch items with progress tracking
+                    batch_inputs = request.batch_inputs
+                    if isinstance(batch_inputs, list):
+                        # Process list of inputs with progress tracking
+                        tasks = []
+                        for i, item_inputs in enumerate(batch_inputs):
+                            # Combine with static inputs if provided
+                            full_inputs = {
+                                **(request.static_inputs or {}),
+                                **item_inputs,
+                            }
+                            tasks.append(progress_aware_worker(i, full_inputs))
+
+                        # Run all tasks
+                        if request.parallel and request.max_workers > 1:
+                            # Run in parallel with semaphore for max_workers
+                            semaphore = asyncio.Semaphore(request.max_workers)
+
+                            async def bounded_worker(i, inputs):
+                                async with semaphore:
+                                    return await progress_aware_worker(
+                                        i, inputs
+                                    )
+
+                            bounded_tasks = []
+                            for i, item_inputs in enumerate(batch_inputs):
+                                full_inputs = {
+                                    **(request.static_inputs or {}),
+                                    **item_inputs,
+                                }
+                                bounded_tasks.append(
+                                    bounded_worker(i, full_inputs)
+                                )
+
+                            results = loop.run_until_complete(
+                                asyncio.gather(*bounded_tasks)
+                            )
+                        else:
+                            # Run sequentially
+                            results = []
+                            for i, item_inputs in enumerate(batch_inputs):
+                                full_inputs = {
+                                    **(request.static_inputs or {}),
+                                    **item_inputs,
+                                }
+                                result = loop.run_until_complete(
+                                    progress_aware_worker(i, full_inputs)
+                                )
+                                results.append(result)
+                    else:
+                        # Let the original run_batch_async handle DataFrame or CSV
+                        results = loop.run_until_complete(
+                            self.flock.run_batch_async(
+                                start_agent=request.agent_name,
+                                batch_inputs=request.batch_inputs,
+                                input_mapping=request.input_mapping,
+                                static_inputs=request.static_inputs,
+                                parallel=request.parallel,
+                                max_workers=request.max_workers,
+                                use_temporal=request.use_temporal,
+                                box_results=request.box_results,
+                                return_errors=request.return_errors,
+                                silent_mode=request.silent_mode,
+                                write_to_csv=request.write_to_csv,
+                            )
+                        )
+
+                    # Update progress one last time with final count
+                    if results:
+                        progress_tracker.current_count = len(results)
+                        self.run_store.update_batch_progress(
+                            batch_id,
+                            len(results),
+                            results,  # Include all results as partial results
+                        )
+
+                    # Update store with results from this thread
+                    self.run_store.update_batch_result(batch_id, results)
+
+                    logger.info(
+                        f"Batch run completed (batch_id: {batch_id})",
+                        num_results=len(results),
+                    )
+                    return results
+                except Exception as e:
+                    logger.error(
+                        f"Error in batch run {batch_id} (started with '{request.agent_name}'): {e!s}",
+                        exc_info=True,
+                    )
+                    # Update store status
+                    self.run_store.update_batch_status(
+                        batch_id, "failed", str(e)
+                    )
+                    return None
+                finally:
+                    loop.close()
+
+            # Run the batch processing in a thread pool
+            try:
+                loop = asyncio.get_running_loop()
+                with ThreadPoolExecutor() as pool:
+                    await loop.run_in_executor(pool, run_batch_sync)
+            except Exception as e:
+                error_msg = f"Error running batch in thread pool: {e!s}"
+                logger.error(error_msg, exc_info=True)
+                self.run_store.update_batch_status(
+                    batch_id, "failed", error_msg
+                )
+
+        except Exception as e:
+            logger.error(
+                f"Error setting up batch run {batch_id} (started with '{request.agent_name}'): {e!s}",
+                exc_info=True,
+            )
+            # Update store status
+            self.run_store.update_batch_status(batch_id, "failed", str(e))
             raise  # Re-raise for the endpoint handler
 
     # --- UI Helper Methods (kept here as they are called by endpoints via self) ---

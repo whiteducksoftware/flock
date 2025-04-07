@@ -12,6 +12,7 @@ from flock.cli.constants import (
     CLI_REGISTRY_MANAGEMENT,
     CLI_SETTINGS,
 )
+from flock.core.api import runner
 from flock.core.flock import Flock
 from flock.core.util.cli_helper import init_console
 
@@ -32,7 +33,7 @@ except ImportError:
     manage_agents_available = False
 
 try:
-    from flock.cli.execute_flock import execute_flock
+    from flock.cli.execute_flock import execute_flock, execute_flock_batch
 
     execute_flock_available = True
 except ImportError:
@@ -94,6 +95,7 @@ def start_loaded_flock_cli(
         choices = [
             questionary.Separator(line=" "),
             "Execute Flock",
+            "Execute Flock - Batch Mode",
             "Start Web Server",
             "Start Web Server with UI",
             "Manage Agents",
@@ -128,6 +130,15 @@ def start_loaded_flock_cli(
             else:
                 console.print(
                     "[yellow]Execute Flock functionality not yet implemented.[/]"
+                )
+                input("\nPress Enter to continue...")
+
+        elif choice == "Execute Flock - Batch Mode":
+            if execute_flock_available:
+                execute_flock_batch(flock)
+            else:
+                console.print(
+                    "[yellow]Batch execution functionality not yet implemented.[/]"
                 )
                 input("\nPress Enter to continue...")
 
@@ -203,7 +214,7 @@ def _start_web_server(flock: Flock, create_ui: bool = False) -> None:
         port = int(port_input)
 
     server_name_input = questionary.text(
-        "Server name (default: Flock API):", default=server_name
+        "Server name (default: FlockName API):", default=flock.name + " API"
     ).ask()
     if server_name_input:
         server_name = server_name_input
@@ -214,6 +225,10 @@ def _start_web_server(flock: Flock, create_ui: bool = False) -> None:
     )
 
     # Use the Flock's start_api method
-    flock.start_api(
-        host=host, port=port, server_name=server_name, create_ui=create_ui
+    runner.start_flock_api(
+        flock=flock,
+        host=host,
+        port=port,
+        server_name=server_name,
+        create_ui=create_ui,
     )

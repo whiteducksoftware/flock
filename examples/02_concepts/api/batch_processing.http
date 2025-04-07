@@ -1,0 +1,32 @@
+POST http://127.0.0.1:8344/run/batch
+{
+    "agent_name": "my_presentation_agent",
+    "batch_inputs": [
+        {"topic": "Robot Kittens", "audience": "Tech Enthusiasts", "number_of_slides": 3},
+        {"topic": "AI in Gardening", "audience": "Homeowners", "number_of_slides": 5},
+        {"topic": "The Future of Coffee", "audience": "Foodies", "number_of_slides": 10}
+    ],
+    "parallel": true,
+    "max_workers": 5
+}
+
+HTTP/1.1 200  - OK
+date: Mon, 07 Apr 2025 16:35:39 GMT
+server: uvicorn
+content-length: 220
+content-type: application/json
+connection: close
+###
+{{
+  $global.batch_id=response.parsedBody.batch_id;
+}}
+
+
+GET http://127.0.0.1:8344/batch/{{$global.batch_id}}
+
+HTTP/1.1 200  - OK
+date: Mon, 07 Apr 2025 16:36:04 GMT
+server: uvicorn
+content-length: 4151
+content-type: application/json
+connection: close

@@ -231,7 +231,8 @@ def azure_search_query(
     )
 
     # Convert results to list of dictionaries
-    result_list = [dict(result) for result in results]
+    # filter out the text_vector field
+    result_list = [{**dict(result), "text_vector": ""} for result in results]
 
     return result_list
 
