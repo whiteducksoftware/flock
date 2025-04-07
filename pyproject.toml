@@ -16,6 +16,7 @@ dependencies = [
     "azure-search-documents>=11.5.2",
     "chromadb>=0.6.3",
     "cloudpickle>=3.1.1",
+    "datasets>=3.2.0",
     "devtools>=0.12.2",
     "dspy==2.6.16",
     "duckduckgo-search>=7.3.2",

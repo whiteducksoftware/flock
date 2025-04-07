@@ -76,7 +76,7 @@ def extract_links_from_markdown(markdown: str, url: str) -> list:
 
 
 @traced_and_logged
-def get_web_content_as_markdown(url: str):
+def get_web_content_as_markdown(url: str) -> str:
     if (
         importlib.util.find_spec("httpx") is not None
         and importlib.util.find_spec("markdownify") is not None

@@ -42,4 +42,5 @@ flock.run(
 )
 
 # YOUR TURN!
-# Try changing the output definition (line 30) by replacing "fun" with "boring" (boring_title, boring_slide_headers, boring_slide_summaries)
+# Try changing the output definition (line 30) by replacing "fun" with "boring" 
+# (boring_title, boring_slide_headers, boring_slide_summaries)
