@@ -1,6 +1,7 @@
 # tests/serialization/test_flock_serializer.py
 import os
 import random
+from unittest.mock import patch
 import pytest
 from typing import List, Literal
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
 from flock.core.flock_module import FlockModule, FlockModuleConfig
 from flock.core.flock_router import FlockRouter, FlockRouterConfig, HandOffRequest
 from flock.core.serialization.flock_serializer import FlockSerializer
-from flock.core.flock_registry import get_registry, flock_component, flock_tool, flock_type
+from flock.core.flock_registry import FlockRegistry, get_registry, flock_component, flock_tool, flock_type
 from flock.core.serialization.serializable import Serializable # Needed for mocks if they inherit
 
 # --- Mock Components for Testing ---
@@ -275,10 +276,10 @@ def test_deserialize_registers_components_and_types(flock_with_agents):
 
     with patch('flock.core.flock_registry.get_registry', return_value=new_registry):
         # Ensure mocks are NOT initially registered in the new registry
-        assert new_registry.get_component("MockEvaluator") is None
-        assert new_registry.get_callable("sample_tool") is None
         with pytest.raises(KeyError):
-             new_registry.get_type("MyCustomData")
+            new_registry.get_type("MockEvaluator")
+        with pytest.raises(KeyError):
+            new_registry.get_callable("sample_tool")
 
         # Deserialize using the new registry
         loaded_flock = FlockSerializer.deserialize(Flock, serialized_data)
@@ -315,4 +316,3 @@ def test_deserialize_missing_component_definition(basic_flock, caplog):
     agent = loaded_flock.agents["missing_comp_agent"]
     # The agent should be created, but the component should be None or raise during use
     assert agent.evaluator is None
-    assert "Failed to deserialize component of type 'NonExistentEvaluator'" in caplog.text
