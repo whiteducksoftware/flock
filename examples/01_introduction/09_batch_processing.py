@@ -1,5 +1,6 @@
 import os
-from flock.core import Flock, FlockFactory 
+from flock.core import Flock, FlockFactory
+from flock.core.api import runner 
 
 
 # Let's revisit the presentation agent but this time with batch processing!
@@ -38,17 +39,19 @@ batch_data = [
 # define the static data for the batch run
 static_data = {"number_of_slides": 6}
 
-# instead of flock.run() we use flock.run_batch()
-silent_results = flock.run_batch( 
-    start_agent=presentation_agent,
-    batch_inputs=batch_data,
-    static_inputs=static_data,
-    parallel=True,
-    max_workers=2,
-    silent_mode=True,
-    return_errors=True,
-    write_to_csv=".flock/batch_results.csv"
-)
+runner.start_flock_api(flock)
+
+# # instead of flock.run() we use flock.run_batch()
+# silent_results = flock.run_batch( 
+#     start_agent=presentation_agent,
+#     batch_inputs=batch_data,
+#     static_inputs=static_data,
+#     parallel=True,
+#     max_workers=2,
+#     silent_mode=True,
+#     return_errors=True,
+#     write_to_csv=".flock/batch_results.csv"
+# )
 
 # print("\nBatch finished. Results (or errors):")
 # for res in silent_results:

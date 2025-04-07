@@ -18,7 +18,12 @@ from fastapi.responses import HTMLResponse
 from flock.core.logging.logging import get_logger
 
 # Import models and UI utils
-from .models import FlockAPIRequest, FlockAPIResponse
+from .models import (
+    FlockAPIRequest,
+    FlockAPIResponse,
+    FlockBatchRequest,
+    FlockBatchResponse,
+)
 
 # Import UI utils - assuming they are now in ui/utils.py
 
@@ -98,6 +103,52 @@ def create_api_router(flock_api: "FlockAPI") -> APIRouter:
                 run_store.update_run_status(run_id, "failed", error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
+    @router.post("/run/batch", response_model=FlockBatchResponse, tags=["API"])
+    async def run_batch_json(
+        request: FlockBatchRequest, background_tasks: BackgroundTasks
+    ):
+        """Run a batch of inputs through the flock workflow (expects JSON)."""
+        batch_id = None
+        try:
+            batch_id = str(uuid.uuid4())
+            run_store.create_batch(batch_id)  # Use RunStore
+            response = run_store.get_batch(
+                batch_id
+            )  # Get initial response from store
+
+            logger.info(
+                f"API request: run batch with '{request.agent_name}' (batch_id: {batch_id})",
+                batch_size=len(request.batch_inputs)
+                if isinstance(request.batch_inputs, list)
+                else "CSV",
+            )
+
+            # Always run batch processing asynchronously
+            logger.debug(
+                f"Running batch with '{request.agent_name}' asynchronously (batch_id: {batch_id})"
+            )
+            # Call the helper method on the passed FlockAPI instance
+            background_tasks.add_task(
+                flock_api._run_batch,
+                batch_id,
+                request,
+            )
+            run_store.update_batch_status(batch_id, "running")
+            response.status = "running"  # Update local response copy too
+
+            return response
+        except ValueError as ve:
+            logger.error(f"Value error starting batch: {ve}")
+            if batch_id:
+                run_store.update_batch_status(batch_id, "failed", str(ve))
+            raise HTTPException(status_code=400, detail=str(ve))
+        except Exception as e:
+            error_msg = f"Internal server error: {type(e).__name__}"
+            logger.error(f"Error starting batch: {e!s}", exc_info=True)
+            if batch_id:
+                run_store.update_batch_status(batch_id, "failed", error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
+
     @router.get("/run/{run_id}", response_model=FlockAPIResponse, tags=["API"])
     async def get_run_status(run_id: str):
         """Get the status of a specific run."""
@@ -107,6 +158,18 @@ def create_api_router(flock_api: "FlockAPI") -> APIRouter:
             logger.warning(f"Run ID not found: {run_id}")
             raise HTTPException(status_code=404, detail="Run not found")
         return run_data
+
+    @router.get(
+        "/batch/{batch_id}", response_model=FlockBatchResponse, tags=["API"]
+    )
+    async def get_batch_status(batch_id: str):
+        """Get the status of a specific batch run."""
+        logger.debug(f"API request: get status for batch_id: {batch_id}")
+        batch_data = run_store.get_batch(batch_id)
+        if not batch_data:
+            logger.warning(f"Batch ID not found: {batch_id}")
+            raise HTTPException(status_code=404, detail="Batch not found")
+        return batch_data
 
     @router.get("/agents", tags=["API"])
     async def list_agents():
@@ -162,7 +225,7 @@ def create_api_router(flock_api: "FlockAPI") -> APIRouter:
 
             logger.debug(f"Parsed form inputs for UI run: {form_inputs}")
             run_id = str(uuid.uuid4())
-            run_store.create_run(run_id)  # Use RunStore
+            run_store.create_run(run_id)
             logger.debug(
                 f"Running flock '{agent_name}' synchronously from UI (run_id: {run_id})"
             )

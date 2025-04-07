@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
 # Flock core imports
+from flock.core.api.models import FlockBatchRequest
 from flock.core.flock import Flock
 from flock.core.logging.logging import get_logger
 
@@ -112,6 +113,51 @@ class FlockAPI:
             )
             # Update store status
             self.run_store.update_run_status(run_id, "failed", str(e))
+            raise  # Re-raise for the endpoint handler
+
+    async def _run_batch(self, batch_id: str, request: "FlockBatchRequest"):
+        """Executes a batch of runs (internal helper)."""
+        try:
+            if request.agent_name not in self.flock.agents:
+                raise ValueError(f"Agent '{request.agent_name}' not found")
+
+            logger.debug(
+                f"Executing batch run starting with '{request.agent_name}' (batch_id: {batch_id})",
+                batch_size=len(request.batch_inputs)
+                if isinstance(request.batch_inputs, list)
+                else "CSV",
+            )
+
+            # Run the batch processing
+            results = await self.flock.run_batch_async(
+                start_agent=request.agent_name,
+                batch_inputs=request.batch_inputs,
+                input_mapping=request.input_mapping,
+                static_inputs=request.static_inputs,
+                parallel=request.parallel,
+                max_workers=request.max_workers,
+                use_temporal=request.use_temporal,
+                box_results=request.box_results,
+                return_errors=request.return_errors,
+                silent_mode=request.silent_mode,
+                write_to_csv=request.write_to_csv,
+            )
+
+            # Update store with results
+            self.run_store.update_batch_result(batch_id, results)
+
+            logger.info(
+                f"Batch run completed (batch_id: {batch_id})",
+                num_results=len(results),
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error in batch run {batch_id} (started with '{request.agent_name}'): {e!s}",
+                exc_info=True,
+            )
+            # Update store status
+            self.run_store.update_batch_status(batch_id, "failed", str(e))
             raise  # Re-raise for the endpoint handler
 
     # --- UI Helper Methods (kept here as they are called by endpoints via self) ---
