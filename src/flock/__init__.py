@@ -2,7 +2,9 @@
 
 from rich.panel import Panel
 
+from flock.cli.config import init_config_file, load_config_file
 from flock.cli.constants import (
+    CLI_CFG_FILE,
     CLI_EXIT,
     CLI_NOTES,
     CLI_REGISTRY_MANAGEMENT,
@@ -34,6 +36,16 @@ def main():
 
     # Show a welcome message on first run with the new tool serialization format
     import os
+
+    cfg_file = os.path.expanduser(f"~/.flock/{CLI_CFG_FILE}")
+    if not os.path.exists(cfg_file):
+        # Create the directory if it doesn't exist
+        os.makedirs(os.path.dirname(cfg_file), exist_ok=True)
+
+        init_config_file()
+    else:
+        # Load the config file
+        load_config_file()
 
     feature_flag_file = os.path.expanduser("~/.flock/tool_serialization_notice")
     if not os.path.exists(feature_flag_file):

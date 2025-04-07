@@ -1,5 +1,15 @@
 """Constants for the CLI module."""
 
+CLI_CFG_FILE = ".env"
+CLI_DEFAULT_ENV_VARS = {
+    "FLICK_API_KEY": "flock-api-key",
+    "FLICK_API_URL": "https://api.flock.com",
+    "FLICK_API_VERSION": "v1",
+    "FLICK_API_KEY": "flock-api-key",
+    "FLICK_API_URL": "https://api.flock.com",
+    "FLICK_API_VERSION": "v1",
+}
+
 CLI_CREATE_AGENT = "Create an agent"
 CLI_CREATE_FLOCK = "Create a new Flock"
 CLI_LOAD_AGENT = "Load an agent"
