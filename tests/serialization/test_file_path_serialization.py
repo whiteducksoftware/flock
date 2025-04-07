@@ -80,7 +80,7 @@ def test_loading_component_from_file_path():
     
     try:
         # Serialize the Flock to YAML
-        flock.to_yaml_file(yaml_path)
+        flock.to_yaml_file(yaml_path, path_type="absolute")
         
         # Read the YAML to extract a component's file path
         yaml_content = Path(yaml_path).read_text()

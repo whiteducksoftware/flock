@@ -130,8 +130,6 @@ types:
       - name
       - age
       type: object
-    imports:
-    - from __main__ import Person
 components:
   DeclarativeEvaluator:
     type: flock_component
@@ -160,6 +158,7 @@ components:
     description: A tool that returns a mobile number to a name.
 dependencies:
 - pydantic>=2.0.0
-- flock>=0.3.41
+- flock-core>=0.4.0
 metadata:
   path_type: relative
+  flock_version: 0.4.0

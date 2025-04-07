@@ -19,6 +19,13 @@ class TestPerson(BaseModel):
     role: Literal["admin", "user", "guest"]
     bio: str = ""
 
+@flock_type
+class TestCompany(BaseModel):
+    """Test company model for serialization tests."""
+    name: str
+    industry: str
+    employees: int
+
 
 def test_serialization_with_custom_type():
     """Test serialization with custom type definitions."""
@@ -79,12 +86,7 @@ def test_serialization_with_custom_type():
 def test_serialization_with_multiple_types():
     """Test serialization with multiple custom types."""
     # Define another custom type for testing
-    @flock_type
-    class TestCompany(BaseModel):
-        """Test company model for serialization tests."""
-        name: str
-        industry: str
-        employees: int
+    
         
     # Create a test Flock with agents using both custom types
     flock = Flock(name="multi_type_flock")
@@ -114,6 +116,7 @@ def test_serialization_with_multiple_types():
         
         # Read the YAML to verify it includes both type definitions
         yaml_content = Path(yaml_path).read_text()
+        print(yaml_content)
         
         # Check that both type definitions are included
         assert "TestPerson:" in yaml_content
