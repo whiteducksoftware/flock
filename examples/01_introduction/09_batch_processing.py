@@ -39,8 +39,7 @@ batch_data = [
 # define the static data for the batch run
 static_data = {"number_of_slides": 6}
 
-runner.start_flock_api(flock)
-
+flock.to_yaml_file(".flock/batch_processing.flock.yaml")
 # # instead of flock.run() we use flock.run_batch()
 # silent_results = flock.run_batch( 
 #     start_agent=presentation_agent,

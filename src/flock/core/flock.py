@@ -489,6 +489,11 @@ class Flock(BaseModel, Serializable):
         # --- Input Preparation ---
         prepared_batch_inputs: list[dict[str, Any]] = []
 
+        if input_mapping == {}:
+            input_mapping = None
+        if static_inputs == {}:
+            static_inputs = None
+
         if isinstance(batch_inputs, str):
             # Handle CSV file input
             try:
@@ -508,11 +513,14 @@ class Flock(BaseModel, Serializable):
                 f"Converting DataFrame ({len(batch_inputs)} rows) to batch inputs."
             )
             for _, row in batch_inputs.iterrows():
-                item_input = {
-                    agent_key: row[df_col]
-                    for df_col, agent_key in input_mapping.items()
-                    if df_col in row
-                }
+                if input_mapping:
+                    item_input = {
+                        agent_key: row[df_col]
+                        for df_col, agent_key in input_mapping.items()
+                        if df_col in row
+                    }
+                else:
+                    item_input = row.to_dict()
                 prepared_batch_inputs.append(item_input)
         else:
             # Handle list of dictionaries

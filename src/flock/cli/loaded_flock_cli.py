@@ -33,7 +33,7 @@ except ImportError:
     manage_agents_available = False
 
 try:
-    from flock.cli.execute_flock import execute_flock
+    from flock.cli.execute_flock import execute_flock, execute_flock_batch
 
     execute_flock_available = True
 except ImportError:
@@ -95,6 +95,7 @@ def start_loaded_flock_cli(
         choices = [
             questionary.Separator(line=" "),
             "Execute Flock",
+            "Execute Flock - Batch Mode",
             "Start Web Server",
             "Start Web Server with UI",
             "Manage Agents",
@@ -129,6 +130,15 @@ def start_loaded_flock_cli(
             else:
                 console.print(
                     "[yellow]Execute Flock functionality not yet implemented.[/]"
+                )
+                input("\nPress Enter to continue...")
+
+        elif choice == "Execute Flock - Batch Mode":
+            if execute_flock_available:
+                execute_flock_batch(flock)
+            else:
+                console.print(
+                    "[yellow]Batch execution functionality not yet implemented.[/]"
                 )
                 input("\nPress Enter to continue...")
 
