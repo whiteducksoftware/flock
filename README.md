@@ -5,8 +5,11 @@
 <a href="https://bsky.app/profile/whiteduck-gmbh.bsky.social" target="_blank"><img alt="Bluesky" src="https://img.shields.io/badge/bluesky-Follow-blue?style=for-the-badge&logo=bluesky&logoColor=%23fff&color=%23333&labelColor=%230285FF&label=whiteduck-gmbh"></a>
 
 🐤 Flock 0.4.0 currently in beta - use `pip install flock-core==0.4.0b5` 🐤
+
 🐤 `pip install flock-core` will install the latest non-beta version 🐤
+
 🐤  Expected Release for 0.4.0 `Magpie`: End of April 2025 🐤
+
 
 
 ## Overview
