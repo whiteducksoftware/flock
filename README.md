@@ -4,6 +4,11 @@
 <a href="https://www.linkedin.com/company/whiteduck" target="_blank"><img alt="LinkedIn" src="https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white&label=whiteduck"></a>
 <a href="https://bsky.app/profile/whiteduck-gmbh.bsky.social" target="_blank"><img alt="Bluesky" src="https://img.shields.io/badge/bluesky-Follow-blue?style=for-the-badge&logo=bluesky&logoColor=%23fff&color=%23333&labelColor=%230285FF&label=whiteduck-gmbh"></a>
 
+🐤 Flock 0.4.0 currently in beta - use `pip install flock-core==0.4.0b5` 🐤
+🐤 `pip install flock-core` will install the latest non-beta version 🐤
+🐤  Expected Release for 0.4.0 `Magpie`: End of April 2025 🐤
+
+
 ## Overview
 
 Flock is a framework for orchestrating LLM-powered agents. It leverages a **declarative approach** where you simply specify what each agent needs as input and what it produces as output, without having to write lengthy, brittle prompts. Under the hood, Flock transforms these declarations into robust workflows, using cutting-edge components such as Temporal and DSPy to handle fault tolerance, state management, and error recovery.
