@@ -1,3 +1,0 @@
-# Blog Generator
-
-Documentation in progress...

@@ -1,3 +1,0 @@
-# Types
-
-Documentation in progress...

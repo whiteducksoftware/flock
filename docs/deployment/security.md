@@ -1,3 +1,0 @@
-# Security
-
-Documentation in progress...

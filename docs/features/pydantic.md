@@ -1,3 +1,0 @@
-# Pydantic
-
-Documentation in progress...

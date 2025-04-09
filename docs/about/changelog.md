@@ -3,6 +3,6 @@ hide: # Optional: Hide table of contents on simple pages
   - toc
 ---
 
-# Workflows
+# Changelog
 
 *Documentation in progress...*

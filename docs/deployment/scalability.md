@@ -1,3 +1,0 @@
-# Scalability
-
-Documentation in progress...

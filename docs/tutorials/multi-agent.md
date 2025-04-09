@@ -1,3 +1,0 @@
-# Multi Agent
-
-Documentation in progress...

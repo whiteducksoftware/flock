@@ -1,208 +1,124 @@
-# Quick Start Guide
+---
+hide:
+  - toc
+---
 
-Ready to join the Flock? Let's get you flying! 🐤
+# Quick Start: Your First Agent in 5 Minutes! ⏱️
 
-## 🚀 Before We Take Off 
+Ready for liftoff? This guide will get you running your first Flock agent faster than a hummingbird's wings! We'll create a simple agent that takes a topic and generates a fun presentation title and some slide headers.
 
-Here's what you'll need for your journey:
+## Prerequisites
 
-- Python 3.10+ 
-- An OpenAI API key (or any other LLM provider - we're not picky!)
-- pip (or your favorite Python package manager)
+Make sure you've completed the **[Installation](installation.md)** steps, especially setting up your LLM API keys in your environment (e.g., in a `.env` file).
 
-## 🛬 Landing the Basics 
+## The "Hello Flock!" Code
 
-First things first, let's get Flock installed:
-
-```bash
-pip install flock-core
-```
-
-Want some extra tools in your toolkit? We've got you covered:
-
-```bash
-# For the core tools
-pip install flock-core[tools]
-
-# For ALL the tools (document processing included! Will download pytorch!)
-pip install flock-core[all-tools]
-```
-
-## 🪹 Setting Up Your Nest 
-
-Time to set up your environment! You've got two ways to do this:
-
-Either tell your terminal about your API key:
-```bash
-# linux + mac
-export OPENAI_API_KEY=your-super-secret-key
-
-# windows terminal
-set OPENAI_API_KEY=your-super-secret-key
-# or powershell
-$env:OPENAI_API_KEY = "your-super-secret-key"
-
-```
-
-Or create a cozy `.env` file:
-```plaintext
-OPENAI_API_KEY=your-super-secret-key
-```
-
-Or suprise 3rd way:
-
-Ignore the api key and use your favorite local model! See next section on how easy it is!
-
-## 🐥 Your First Flock Friend 
-
-Let's create your first agent! Make a new file called `first_agent.py` and let's get coding:
+Create a new Python file (e.g., `hello_flock.py`) and paste the following code:
 
 ```python
-from flock.core import Flock, FlockAgent
+# hello_flock.py
+from flock.core import Flock, FlockFactory
 
-# Get your flock ready for action!
+# --------------------------------
+# 1. Choose Your LLM
+# --------------------------------
+# Flock uses litellm, so you can specify many different providers.
+# Make sure the corresponding API key is set in your environment!
+# Examples: "openai/gpt-4o", "anthropic/claude-3-sonnet-20240229", "gemini/gemini-1.5-pro"
+MODEL = "openai/gpt-4o" # <-- Replace with your preferred model if needed
+
+# --------------------------------
+# 2. Create Your Flock
+# --------------------------------
+# The Flock is the main orchestrator.
 flock = Flock(
-    model="openai/gpt-4",  # Pick your favorite model
-    # model="ollama_chat/qwen2.5-coder:14b" or use your favorite local model!
-    local_debug=True       # See what's happening behind the scenes
+    name="presentation_helper",
+    description="My first Flock!",
+    model=MODEL # Set the default model for agents in this Flock
 )
 
-# Meet your new AI friend
-bloggy = FlockFactory.create_default_agent(
-    name="bloggy",
-    input="topic",
-    output="catchy_title, blog_headers"
+# --------------------------------
+# 3. Define Your Agent Declaratively
+# --------------------------------
+# No complex prompts needed! Just declare what goes in and what comes out.
+# We'll use FlockFactory for a quick setup.
+presentation_agent = FlockFactory.create_default_agent(
+    name="my_presentation_agent",
+    description="Creates a fun presentation outline about a given topic",
+    input="topic: str", # The agent expects a string named 'topic'
+    output="fun_title: str, fun_slide_headers: list[str]" # It will output a string 'fun_title' and a list of strings 'fun_slide_headers'
 )
 
-# Add your friend to the flock
-flock.add_agent(bloggy)
+# --------------------------------
+# 4. Add the Agent to the Flock
+# --------------------------------
+flock.add_agent(presentation_agent)
 
-# Let's see what they can do!
+# --------------------------------
+# 5. Run the Flock!
+# --------------------------------
+# Tell the Flock which agent to start with and provide the input.
+print(f"Running agent '{presentation_agent.name}'...")
 result = flock.run(
-    start_agent=bloggy,
-    input={"topic": "Why robots make great pets"}
+    start_agent=presentation_agent, # Or use the name: "my_presentation_agent"
+    input={"topic": "Why Llamas Make Great Urban Pets"} # The input data
 )
 
-# Check out their work
-print("✨ Title:", result.catchy_title)
-print("\n📝 Headers:", result.blog_headers)
+# --------------------------------
+# 6. Admire the Results!
+# --------------------------------
+# The result is a clean Python object (a Box object, behaves like a dict/object)
+print("\n--- Agent Output ---")
+print(f"✨ Title: {result.fun_title}")
+print(f"📊 Headers: {result.fun_slide_headers}")
+print("--------------------")
 ```
 
-Which will result in something similar to this:
+## Running the Code
 
-![Result](./../assets/images/getting-started/first_agent_00.png){ width="600" }
+Save the file and run it from your terminal:
+
+`python hello_flock.py`
 
 
+You should see output similar to this (the exact content will vary based on the LLM's response):
 
-## 🤔 What Just Happened? 
+```bash
+Running agent 'my_presentation_agent'...
+
+--- Agent Output ---
+✨ Title: Concrete Jungles & Camelids: Why Your Next Roommate Should Be A Llama
+📊 Headers: ['Llamas: Nature's Low-Maintenance Loft-Dwellers', "Traffic Jam? No Prob-llama!", 'The Ultimate Urban Eco-Warrior (They Mow with Their Mouths!)', 'Spit Happens: Debunking Llama Myths', 'From Andes to Apartments: Integrating Your Llama Lifestyle']
+--------------------
+```
+
+## What Just Happened?
 
 Let's break down the magic:
 
-1. **Getting the Flock Together**:
-   ```python
-   flock = Flock(model="openai/gpt-4", local_debug=True)
-   ```
-   This is like creating a cozy home for your AI agents!
+**Choose Your LLM**: You specified which LLM to use via MODEL. litellm handles the connection using the API key from your environment.
 
-2. **Creating Your First Agent**:
-   ```python
-   bloggy = FlockFactory.create_default_agent(
-        name="bloggy",
-        input="topic",
-        output="catchy_title, blog_headers"
-    )
-   ```
-   The FlockFactory is churning out your agents.
-   Think of this as defining your agent's job description - what they need and what they'll create.
+**Create Your Flock**: The Flock object acts as the container and orchestrator for your agents.
 
-3. **Action Time!**:
-   ```python
-   result = flock.run(start_agent=bloggy, input={"topic": "Why robots make great pets"})
-   ```
-   This is where the magic happens! Your agent gets to work creating awesome content.
+**Define Your Agent Declaratively**: This is the core of Flock! Instead of writing a long prompt, you used FlockFactory.create_default_agent and simply declared:
 
-4. **Results**:
-    ```python
-    print("✨ Title:", result.catchy_title)
-    print("\n📝 Headers:", result.blog_headers)
+input="topic: str": The agent needs one input called topic, which should be a string.
 
-    ✨ Title: "Robo-Pets: The Future of Companionship"
+output="fun_title: str, fun_slide_headers: list[str]": The agent should produce two outputs: fun_title (a string) and fun_slide_headers (a list of strings).
+Flock's default evaluator takes care of constructing the necessary instructions for the LLM based on these declarations and the agent's description.
 
-    📝 Headers: 1. "Introduction to Robo-Pets"
-    2. "Why Robots Make Great Pets: The Benefits"
-    3. "Understanding the Technology Behind Robo-Pets"
-    4. "How Robo-Pets Can Improve Your Lifestyle"
-    5. "The Environmental Impact of Robo-Pets"
-    6. "Choosing the Right Robo-Pet for You"
-    7. "The Future of Robo-Pets: What to Expect"
-    ```
+**Add the Agent**: You registered your presentation_agent with the flock.
 
-As you can see, you wouldn't even need to print out the results yourself. Each agent can present its output itself.
-This should highlight how you can use the resulting object like a real Python object!
+**Run the Flock**: flock.run() kicked off the process, starting with your specified agent and input.
 
-## 🎮 Leveling Up with Type Hints 
+**Admire the Results**: Flock executed the agent (calling the LLM behind the scenes) and returned the output as a convenient Box object, allowing you to access the results using dot notation (like result.fun_title).
 
-Want to make your agent even smarter? Let's add some type hints and descriptions!
+Congratulations! You've successfully run your first Flock agent without writing a single complex prompt.
 
-In Flock, the syntax is as follows: `field_name : type | description`
+## Next Steps
 
-Also the agent itself offers a description field.
+Explore adding Tools to give your agents superpowers (like web search or code execution).
 
-```python
-# Your agent just got an upgrade!
-bloggy = FlockFactory.create_default_agent(
-            name="bloggy",
-            input="topic",
-            description="Bloggy creates fun blog outlines for any given topic",
-            output="""
-                catchy_title: str | In all caps, 
-                blog_headers: list[str] | Catchy sub-headers
-            """
-        )
-```
+Learn how to Chain Agents together for more complex workflows.
 
-And you'll get:
-
-```
-✨ Title: "WHY ROBOTS ARE THE FUTURE OF PET OWNERSHIP"
-
-📝 Headers: ['1. The Rise of Robotic Pets', '2. The Benefits of Owning a Robot Pet', '3. How Robots Can Be Better Than Traditional Pets', '4. The Future of Pets: A Robotic Revolution', '5. The Emotional Connection: Can We Bond with Robot Pets?', '6. The Environmental Impact of Robot Pets', '7. The Cost of Owning a Robot Pet: Is It Worth It?', '8. The Best Robot Pets Available Today']
-```
-
-Amazing!
-
-Want to make your agent even smarter? Then check out:
-
-## 🎯 What's Next? 
-
-Now that you've got your first agent up and running, here are some fun things to try:
-
-1. Play with the [Type System](../core-concepts/type-system.md) - it's like LEGO for your agents!
-2. Try [Agent Chaining](../features/agent-chaining.md) - make your agents work together like a well-oiled machine
-3. Add some [Error Handling](../core-concepts/error-handling.md) - because even agents need a safety net
-4. Explore [Lifecycle Hooks](../features/lifecycle-hooks.md) - for when you want to be extra fancy
-5. Implant some [Memory](../core-concepts/memory.md) - Make your agents remember what you did last summer
-
-## 🔧 Help, My Agent Is Acting Weird!
-
-- **API Key Issues**: Double-check that secret key - typos are sneaky!
-- **Model Confusion**: Make sure your model name is right (e.g., "openai/gpt-4")
-- **Type Troubles**: Your inputs should match what your agent expects
-
-## 🌟 Pro Tips 
-
-- Start with `local_debug=True` - This runs your agent straightforwardly as 'normal' local code. Setting it to False will run the agents with Temporal, a bullet-proof workflow engine we'll take a look at later!
-- Give your agents clear, fun names - they deserve it, and we'll need to remember them for agent chaining!
-- Use type hints and descriptions - tackle edge cases and the fine details of your agent
-- Test different inputs - agents love variety!
-
-## 📚 Want to Learn More? 
-
-Check out these pages (they're more fun than they sound, we promise!):
-
-- [Core Concepts](../core-concepts/agents.md)
-- [Type System](../core-concepts/type-system.md)
-- [Pydantic Integration](../features/pydantic.md)
-- [Agent Chaining](../features/agent-chaining.md)
-
-Remember: Flock is all about making agent development fun and easy. Just tell your agents what you want, not how to do it - Flock will figure out the rest! 🚀
+Dive deeper into the Core Concepts that make Flock tick.

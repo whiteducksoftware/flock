@@ -1,3 +1,0 @@
-# Dspy
-
-Documentation in progress...

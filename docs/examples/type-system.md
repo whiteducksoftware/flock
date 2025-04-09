@@ -1,3 +1,0 @@
-# Type System
-
-Documentation in progress...
