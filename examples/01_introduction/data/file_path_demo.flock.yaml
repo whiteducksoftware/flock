@@ -60,6 +60,7 @@ agents:
         type: GreetingModule
     tools:
     - get_mobile_number
+    description_callable: generate_description
   person_creator:
     name: person_creator
     model: openai/gpt-4o
@@ -151,6 +152,11 @@ components:
     module_path: __main__
     file_path: examples/01_introduction/08a_serialization.py
     description: A simple module that generates greetings.
+  generate_description:
+    type: flock_callable
+    module_path: __main__
+    file_path: examples/01_introduction/08a_serialization.py
+    description: Callable function generate_description
   get_mobile_number:
     type: flock_callable
     module_path: __main__

@@ -37,6 +37,7 @@ class FlockFactory:
         no_output: bool = False,
         print_context: bool = False,
         write_to_file: bool = False,
+        stream: bool = False,
     ) -> FlockAgent:
         """Creates a default FlockAgent.
 
@@ -50,6 +51,7 @@ class FlockFactory:
             use_cache=use_cache,
             max_tokens=max_tokens,
             temperature=temperature,
+            stream=stream,
         )
 
         evaluator = DeclarativeEvaluator(name="default", config=eval_config)

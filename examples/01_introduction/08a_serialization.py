@@ -25,6 +25,7 @@ from flock.core import (
     flock_type,
     flock_component,
     flock_tool,
+    flock_callable,
 )
 
 
@@ -64,6 +65,10 @@ class GreetingModule(FlockModule):
             "greeting": f"{greeting}, {name}!"
         }
     
+@flock_callable
+def generate_description(context):
+    return "A greeting agent."
+    
     
 
 # Define a custom type
@@ -95,6 +100,7 @@ def serialization():
     # Create an agent using our GreetingModule
     agent = FlockFactory.create_default_agent(
         name="greeter",
+        description=generate_description,
         input="name: str", 
         output="greeting: str, mobile_number: str",
         tools=[get_mobile_number]

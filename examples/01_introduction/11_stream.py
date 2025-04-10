@@ -110,7 +110,7 @@ story_agent = FlockFactory.create_default_agent(name="story_agent",
 
 
 flock.add_agent(story_agent)
-flock.to_yaml_file("story_agent.flock.yaml")
+flock.to_yaml_file(".flock/story_agent.flock.yaml")
 result = flock.run(start_agent=story_agent, 
                    input={'story_idea': 
                        'In a world right at the cusp between LLMs and AGI some guy is experiencing the most peculiar story.' 
@@ -118,43 +118,3 @@ result = flock.run(start_agent=story_agent,
 
 
 
-# story_agent = FlockFactory.create_default_agent(name="story_agent",
-#                                               description="An agent that is a master storyteller",
-#                                               input="story_idea: str",
-#                                               output="story: Story, story_bible: StoryBible",
-#                                               max_tokens=60000,
-#                                               write_to_file=True)
-
-# comic_book_series_agent = FlockFactory.create_default_agent(name="comic_book_series_agent",
-#                                               description="An agent that is a master comic book writer." 
-#                                               "Generates a comic book series based on a story and a story bible.",
-#                                               input="story: Story, story_bible: StoryBible",
-#                                               output="comic_book_series: ComicBookSeries",
-#                                               max_tokens=60000,
-#                                               write_to_file=True)
-
-# comic_book_issue_agent = FlockFactory.create_default_agent(name="comic_book_issue_agent",
-#                                               description="An agent that is a master comic book writer." 
-#                                               "Generates details for each issue of the comic book series.",
-#                                               input="comic_book_series: ComicBookSeries",
-#                                               output="comic_book_pages: list[PageLayout]",
-#                                               max_tokens=60000,
-#                                               write_to_file=True)
-
-
-# story_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_series_agent.name))
-# comic_book_series_agent.handoff_router = DefaultRouter(config=DefaultRouterConfig(hand_off=comic_book_issue_agent.name))
-
-# flock.add_agent(comic_book_series_agent)	
-# flock.add_agent(comic_book_issue_agent)
-# flock.start_api(server_name="Storyteller Agent", create_ui=True)
-
-# result = flock.run(start_agent=story_agent, input={'story_idea': 'A story about a young woman who discovers she has the ability to time travel.'}) 
-# story_overview = result.story
-# story_bible = result.story_bible
-
-
-
-# flock.add_agent(comic_book_series_agent)
-# result = flock.run(start_agent=comic_book_series_agent, input={'story': story_overview, 'story_bible': story_bible}) 
-# comic_book_series = result.comic_book_series
