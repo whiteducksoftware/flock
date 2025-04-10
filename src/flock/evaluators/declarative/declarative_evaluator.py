@@ -117,7 +117,7 @@ class DeclarativeEvaluator(
             logger.info(f"Evaluating agent '{agent.name}' without streaming.")
             try:
                 # Ensure the call is awaited if the underlying task is async
-                result_obj = await agent_task(**inputs)
+                result_obj = agent_task(**inputs)
                 result_dict = self._process_result(result_obj, inputs)
                 return result_dict
             except Exception as e:
