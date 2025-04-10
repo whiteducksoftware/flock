@@ -196,7 +196,7 @@ class BatchProcessor:
                 run_desc = f"Batch item {index + 1}"
                 logger.debug(f"{run_desc} started.")
                 try:
-                    result = await self.run_async(
+                    result = await self.flock.run_async(
                         start_agent,
                         full_input,
                         box_result=box_results,
