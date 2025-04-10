@@ -361,16 +361,30 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         from flock.core.flock_registry import get_registry
 
         FlockRegistry = get_registry()
+
+        exclude = ["context", "evaluator", "modules", "handoff_router", "tools"]
+
+        is_descrition_callable = False
+        is_input_callable = False
+        is_output_callable = False
+
+        # if self.description is a callable, exclude it
+        if callable(self.description):
+            is_descrition_callable = True
+            exclude.append("description")
+        # if self.input is a callable, exclude it
+        if callable(self.input):
+            is_input_callable = True
+            exclude.append("input")
+        # if self.output is a callable, exclude it
+        if callable(self.output):
+            is_output_callable = True
+            exclude.append("output")
+
         logger.debug(f"Serializing agent '{self.name}' to dict.")
         # Use Pydantic's dump, exclude manually handled fields and runtime context
         data = self.model_dump(
-            exclude={
-                "context",
-                "evaluator",
-                "modules",
-                "handoff_router",
-                "tools",
-            },
+            exclude=exclude,
             mode="json",  # Use json mode for better handling of standard types by Pydantic
             exclude_none=True,  # Exclude None values for cleaner output
         )
@@ -483,6 +497,45 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                     f"Added {len(serialized_tools)} tools to agent '{self.name}'"
                 )
 
+        if is_descrition_callable:
+            path_str = FlockRegistry.get_callable_path_string(self.description)
+            if path_str:
+                func_name = path_str.split(".")[-1]
+                data["description_callable"] = func_name
+                logger.debug(
+                    f"Added description '{func_name}' (from path '{path_str}') to agent '{self.name}'"
+                )
+            else:
+                logger.warning(
+                    f"Could not get path string for description {self.description} in agent '{self.name}'. Skipping."
+                )
+
+        if is_input_callable:
+            path_str = FlockRegistry.get_callable_path_string(self.input)
+            if path_str:
+                func_name = path_str.split(".")[-1]
+                data["input_callable"] = func_name
+                logger.debug(
+                    f"Added input '{func_name}' (from path '{path_str}') to agent '{self.name}'"
+                )
+            else:
+                logger.warning(
+                    f"Could not get path string for input {self.input} in agent '{self.name}'. Skipping."
+                )
+
+        if is_output_callable:
+            path_str = FlockRegistry.get_callable_path_string(self.output)
+            if path_str:
+                func_name = path_str.split(".")[-1]
+                data["output_callable"] = func_name
+                logger.debug(
+                    f"Added output '{func_name}' (from path '{path_str}') to agent '{self.name}'"
+                )
+            else:
+                logger.warning(
+                    f"Could not get path string for output {self.output} in agent '{self.name}'. Skipping."
+                )
+
         # No need to call _filter_none_values here as model_dump(exclude_none=True) handles it
         logger.info(
             f"Serialization of agent '{self.name}' complete with {len(data)} fields"
@@ -508,6 +561,9 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         router_data = data.pop("handoff_router", None)
         modules_data = data.pop("modules", {})
         tools_data = data.pop("tools", [])
+        description_callable = data.pop("description_callable", None)
+        input_callable = data.pop("input_callable", None)
+        output_callable = data.pop("output_callable", None)
 
         logger.debug(
             f"Agent '{agent_name}' has {len(modules_data)} modules and {len(tools_data)} tools"
@@ -662,6 +718,24 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                         f"Error adding tool '{tool_name}' to agent '{agent_name}': {e}",
                         exc_info=True,
                     )
+
+        if description_callable:
+            logger.debug(
+                f"Deserializing description callable '{description_callable}' for agent '{agent_name}'"
+            )
+            agent.description = components[description_callable]
+
+        if input_callable:
+            logger.debug(
+                f"Deserializing input callable '{input_callable}' for agent '{agent_name}'"
+            )
+            agent.input = components[input_callable]
+
+        if output_callable:
+            logger.debug(
+                f"Deserializing output callable '{output_callable}' for agent '{agent_name}'"
+            )
+            agent.output = components[output_callable]
 
         logger.info(
             f"Successfully deserialized agent '{agent_name}' with {len(agent.modules)} modules and {len(agent.tools)} tools"

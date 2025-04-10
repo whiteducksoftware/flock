@@ -480,7 +480,7 @@ def flock_tool(func: FuncType | None = None, *, name: str | None = None) -> Any:
 
 
 # Alias for clarity if desired
-# flock_callable = flock_tool
+flock_callable = flock_tool
 
 
 @overload

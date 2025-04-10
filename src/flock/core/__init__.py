@@ -8,6 +8,7 @@ from flock.core.flock_factory import FlockFactory
 from flock.core.flock_module import FlockModule, FlockModuleConfig
 from flock.core.flock_registry import (
     FlockRegistry,
+    flock_callable,
     flock_component,
     flock_tool,
     flock_type,
@@ -24,6 +25,7 @@ __all__ = [
     "FlockModule",
     "FlockModuleConfig",
     "FlockRegistry",
+    "flock_callable",
     "flock_component",
     "flock_tool",
     "flock_type",
