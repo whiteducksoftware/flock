@@ -1,8 +1,6 @@
 """Output formatting and display functionality for agents."""
 
-import json
 import os
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
@@ -19,7 +17,6 @@ from flock.core.logging.formatters.themed_formatter import (
 )
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.logging.logging import get_logger
-from flock.core.serialization.json_encoder import FlockJSONEncoder
 
 # from flock.core.logging.formatters.themes import OutputTheme
 # from flock.core.logging.logging import get_logger
@@ -39,13 +36,6 @@ class OutputModuleConfig(FlockModuleConfig):
     )
     max_length: int = Field(
         default=1000, description="Maximum length for displayed output"
-    )
-    wait_for_input: bool = Field(
-        default=False,
-        description="Whether to wait for user input after display",
-    )
-    write_to_file: bool = Field(
-        default=False, description="Whether to save output to file"
     )
     output_dir: str = Field(
         default="output/", description="Directory for saving output files"
@@ -84,13 +74,10 @@ class OutputModule(FlockModule):
 
     def __init__(self, name: str, config: OutputModuleConfig):
         super().__init__(name=name, config=config)
-        if self.config.write_to_file:
-            os.makedirs(self.config.output_dir, exist_ok=True)
         self._formatter = ThemedAgentResultFormatter(
             theme=self.config.theme,
             max_length=self.config.max_length,
             render_table=self.config.render_table,
-            wait_for_input=self.config.wait_for_input,
         )
 
     def _format_value(self, value: Any, key: str) -> str:
@@ -146,34 +133,6 @@ class OutputModule(FlockModule):
         )
         return text
 
-    def _save_output(self, agent_name: str, result: dict[str, Any]) -> None:
-        """Save output to file if configured."""
-        if not self.config.write_to_file:
-            return
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{agent_name}_output_{timestamp}.json"
-        filepath = os.path.join(self.config.output_dir, filename)
-
-        output_data = {
-            "agent": agent_name,
-            "timestamp": timestamp,
-            "output": result,
-        }
-
-        if self.config.show_metadata:
-            output_data["metadata"] = {
-                "formatted_at": datetime.now().isoformat(),
-                "theme": self.config.theme.value,
-                "max_length": self.config.max_length,
-            }
-
-        try:
-            with open(filepath, "w") as f:
-                json.dump(output_data, f, indent=2, cls=FlockJSONEncoder)
-        except Exception as e:
-            logger.warning(f"Failed to save output to file: {e}")
-
     async def post_evaluate(
         self,
         agent: "FlockAgent",
@@ -191,8 +150,6 @@ class OutputModule(FlockModule):
 
         if is_silent:
             logger.debug("Output suppressed (config or batch silent mode).")
-            # Still save to file if configured, even in silent mode
-            self._save_output(agent.name, result)
             return result  # Skip console output
 
         logger.debug("Formatting and displaying output to console.")
@@ -222,9 +179,6 @@ class OutputModule(FlockModule):
                 wait_for_input=self.config.wait_for_input,
             )
         self._formatter.display_result(result_to_display, agent.name)
-
-        # Save to file if configured
-        self._save_output(agent.name, result)  # Save the original result
 
         return result  # Return the original, unmodified result
 

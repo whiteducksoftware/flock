@@ -130,7 +130,6 @@ class TestFlockYAMLSerialization:
         assert loaded_agent.description == agent.description
         assert loaded_agent.input == agent.input
         assert loaded_agent.output == agent.output
-        assert loaded_agent.use_cache == agent.use_cache # Check defaults
         assert loaded_agent.evaluator is None # Default should be None before factory
         assert loaded_agent.modules == {}
         assert loaded_agent.handoff_router is None

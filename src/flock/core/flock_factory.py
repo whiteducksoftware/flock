@@ -63,14 +63,14 @@ class FlockFactory:
             model=model,
             description=description,
             evaluator=evaluator,
+            write_to_file=write_to_file,
+            wait_for_input=wait_for_input,
         )
         output_config = OutputModuleConfig(
             render_table=enable_rich_tables,
             theme=output_theme,
-            wait_for_input=wait_for_input,
             no_output=no_output,
             print_context=print_context,
-            write_to_file=write_to_file,
         )
         output_module = OutputModule("output", config=output_config)
 

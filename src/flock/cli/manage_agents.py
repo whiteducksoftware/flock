@@ -165,7 +165,8 @@ def _view_agent_details(agent: FlockAgent):
     basic_info.add_row("Description", str(agent.description))
     basic_info.add_row("Input", str(agent.input))
     basic_info.add_row("Output", str(agent.output))
-    basic_info.add_row("Use Cache", str(agent.use_cache))
+    basic_info.add_row("Write to File", str(agent.write_to_file))
+    basic_info.add_row("Wait for input", str(agent.wait_for_input))
 
     console.print(Panel(basic_info, title="Basic Information"))
 

@@ -415,14 +415,12 @@ class ThemedAgentResultFormatter:
         theme: OutputTheme = OutputTheme.afterglow,
         max_length: int = -1,
         render_table: bool = True,
-        wait_for_input: bool = False,
     ):
         """Initialize the formatter with a theme and optional max length."""
         self.theme = theme
         self.styles = None
         self.max_length = max_length
         self.render_table = render_table
-        self.wait_for_input = wait_for_input
 
     def format_result(
         self,
@@ -546,5 +544,3 @@ class ThemedAgentResultFormatter:
             styles=styles,
         )
         console.print(panel)
-        if self.wait_for_input:
-            console.input(prompt="Press Enter to continue...")

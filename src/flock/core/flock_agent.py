@@ -2,9 +2,14 @@
 """FlockAgent is the core, declarative base class for all agents in the Flock framework."""
 
 import asyncio
+import json
+import os
 from abc import ABC
 from collections.abc import Callable
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypeVar
+
+from flock.core.serialization.json_encoder import FlockJSONEncoder
 
 if TYPE_CHECKING:
     from flock.core.context.context import FlockContext
@@ -14,6 +19,7 @@ if TYPE_CHECKING:
 
 from opentelemetry import trace
 from pydantic import BaseModel, Field
+from rich.console import Console
 
 # Core Flock components (ensure these are importable)
 from flock.core.context.context import FlockContext
@@ -31,6 +37,8 @@ from flock.core.serialization.serialization_utils import (
     deserialize_component,
     serialize_item,
 )
+
+console = Console()
 
 logger = get_logger("agent")
 tracer = trace.get_tracer(__name__)
@@ -73,9 +81,13 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             description="List of callable tools the agent can use. These must be registered.",
         )
     )
-    use_cache: bool = Field(
-        default=True,
-        description="Enable caching for the agent's evaluator (if supported).",
+    write_to_file: bool = Field(
+        default=False,
+        description="Write the agent's output to a file.",
+    )
+    wait_for_input: bool = Field(
+        default=False,
+        description="Wait for user input after the agent's output is displayed.",
     )
 
     # --- Components ---
@@ -169,6 +181,11 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             try:
                 for module in self.get_enabled_modules():
                     await module.terminate(self, inputs, result, self.context)
+
+                if self.write_to_file:
+                    self._save_output(self.name, result)
+                if self.wait_for_input:
+                    console.input(prompt="Press Enter to continue...")
             except Exception as module_error:
                 logger.error(
                     "Error during terminate",
@@ -355,6 +372,28 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             self.output = self.output(context)
 
     # --- Serialization Implementation ---
+
+    def _save_output(self, agent_name: str, result: dict[str, Any]) -> None:
+        """Save output to file if configured."""
+        if not self.write_to_file:
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{agent_name}_output_{timestamp}.json"
+        filepath = os.path.join("output/", filename)
+        os.makedirs("output/", exist_ok=True)
+
+        output_data = {
+            "agent": agent_name,
+            "timestamp": timestamp,
+            "output": result,
+        }
+
+        try:
+            with open(filepath, "w") as f:
+                json.dump(output_data, f, indent=2, cls=FlockJSONEncoder)
+        except Exception as e:
+            logger.warning(f"Failed to save output to file: {e}")
 
     def to_dict(self) -> dict[str, Any]:
         """Convert instance to dictionary representation suitable for serialization."""
