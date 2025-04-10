@@ -1,0 +1,44 @@
+<mxfile host="65bd71144e">
+    <diagram id="iQ7YuHOuaVDECIdskFDT" name="Page-1">
+        <mxGraphModel dx="88" dy="620" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="light-dark(#FFFFFF, #d8cfb1)" math="0" shadow="1">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="2" value="sequenceDiagram&#xa;    participant Client&#xa;    participant Flock&#xa;    participant FlockAgent&#xa;    participant Registry&#xa;    participant Context&#xa;    participant LLM&#xa;    &#xa;    Client-&gt;&gt;Flock: run_async(agent, input)&#xa;    Flock-&gt;&gt;Registry: get_agent(name)&#xa;    Registry--&gt;&gt;Flock: agent instance&#xa;    &#xa;    Flock-&gt;&gt;Context: initialize_context(agent, input)&#xa;    &#xa;    Flock-&gt;&gt;FlockAgent: run(inputs)&#xa;    activate FlockAgent&#xa;    &#xa;    FlockAgent-&gt;&gt;FlockAgent: initialize(inputs)&#xa;    FlockAgent-&gt;&gt;FlockAgent: _evaluate(inputs)&#xa;    &#xa;    FlockAgent-&gt;&gt;LLM: process with tools/prompts&#xa;    LLM--&gt;&gt;FlockAgent: response&#xa;    &#xa;    FlockAgent-&gt;&gt;FlockAgent: terminate(inputs, result)&#xa;    FlockAgent--&gt;&gt;Flock: result&#xa;    deactivate FlockAgent&#xa;    &#xa;    Flock--&gt;&gt;Client: final result" style="shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;" parent="1" vertex="1">
+                    <mxGeometry x="271" y="360" width="300" height="300" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="mQwFuZfSuTjpqv4SXbYC" name="Page-2">
+        <mxGraphModel dx="354" dy="259" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="light-dark(#FFFFFF, #ffffde)" math="0" shadow="1">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="gh-ZxXSGDDD0mwRwWCxR-1" value="graph TD&#xa;    subgraph Client Application&#xa;        client[Client Code]&#xa;    end&#xa;&#xa;    subgraph Flock Framework&#xa;        orchestrator[Flock Orchestrator]&#xa;        registry[Agent Registry]&#xa;        context[Context Manager]&#xa;        &#xa;        subgraph Agents&#xa;            base[FlockAgent Base]&#xa;&#xa;        end&#xa;        &#xa;        subgraph Execution&#xa;            local[Local Executor]&#xa;            temporal[Temporal Executor]&#xa;        end&#xa;        &#xa;        subgraph Core Services&#xa;            logging[Logging System]&#xa;            tools[Tool Registry]&#xa;            formatter[Output Formatters]&#xa;        end&#xa;    end&#xa;&#xa;    subgraph External Services&#xa;        llm[Language Models]&#xa;        temporal_server[Temporal Server]&#xa;    end&#xa;&#xa;    %% Client interactions&#xa;    client --&gt; orchestrator&#xa;    &#xa;    %% Orchestrator relations&#xa;    orchestrator --&gt; registry&#xa;    orchestrator --&gt; context&#xa;    orchestrator --&gt; local&#xa;    orchestrator --&gt; temporal&#xa;    &#xa;    %% Agent relations&#xa;    base --&gt; tools&#xa;    base --&gt; logging&#xa;    base --&gt; formatter&#xa;&#xa;    &#xa;    %% Execution relations&#xa;    local --&gt; llm&#xa;    temporal --&gt; temporal_server&#xa;    temporal_server --&gt; llm&#xa;    &#xa;    %% Registry relations&#xa;    registry --&gt; base&#xa;    registry --&gt; tools&#xa;&#xa;    %% Style&#xa;    classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;&#xa;    classDef external fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;&#xa;    classDef core fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;&#xa;    &#xa;    class llm,temporal_server external;&#xa;    class orchestrator,registry,context,base,local,temporal core;" style="shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;" vertex="1" parent="1">
+                    <mxGeometry x="274" y="325" width="300" height="300" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="sh9ImpPZNdK_Mo0HMCRx" name="Page-3">
+        <mxGraphModel dx="1237" dy="800" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" background="light-dark(#FFFFFF,#E8E8E8)" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="84CqISvRR4rrSDVKXhkM-1" value="graph TD&#xa;    subgraph Memory Storage&#xa;        A[New Input/Output] --&gt; B[Create Embedding]&#xa;        B --&gt; C[Extract Concepts]&#xa;        C --&gt; D[Create Memory Entry]&#xa;        D --&gt; E{Store Memory}&#xa;        E --&gt;|Recent| F[Short Term Memory]&#xa;        E --&gt;|Frequent Use| G[Long Term Memory]&#xa;        D --&gt; H[Update Concept Graph]&#xa;    end&#xa;&#xa;classDef process fill:#73B7E7,stroke:#333,stroke-width:2px;&#xa;classDef storage fill:#90EE90,stroke:#333,stroke-width:2px;&#xa;class A,B,C,D process;&#xa;class F,G,H storage;" style="shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;" parent="1" vertex="1">
+                    <mxGeometry x="-20" y="10" width="300" height="300" as="geometry"/>
+                </mxCell>
+                <mxCell id="84CqISvRR4rrSDVKXhkM-2" value="graph TD&#xa;    subgraph Memory Retrieval&#xa;        A1[Query] --&gt; B1[Create Query Embedding]&#xa;        A1 --&gt; C1[Extract Query Concepts]&#xa;        B1 --&gt; D1{Similarity Search}&#xa;        C1 --&gt; E1{Concept Spreading}&#xa;        D1 --&gt; F1[Find Similar Memories]&#xa;        E1 --&gt; G1[Find Related Concepts]&#xa;        F1 --&gt; H1[Score &amp; Rank Results]&#xa;        G1 --&gt; H1&#xa;        H1 --&gt; I1[Return Best Matches]&#xa;    end&#xa;&#xa;classDef query fill:#FFB6C1,stroke:#333,stroke-width:2px;&#xa;classDef process fill:#73B7E7,stroke:#333,stroke-width:2px;&#xa;classDef result fill:#90EE90,stroke:#333,stroke-width:2px;&#xa;class A1,B1,C1 query;&#xa;class D1,E1,F1,G1 process;&#xa;class H1,I1 result;&#xa;" style="shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;" parent="1" vertex="1">
+                    <mxGeometry x="240" y="10" width="300" height="300" as="geometry"/>
+                </mxCell>
+                <mxCell id="84CqISvRR4rrSDVKXhkM-3" value="graph LR&#xa;    subgraph Concept Graph&#xa;        A2[Space] --&gt; B2[Rockets]&#xa;        B2 --&gt; C2[Physics]&#xa;        C2 --&gt; D2[Energy]&#xa;        B2 --&gt; E2[Engineering]&#xa;        A2 --&gt; F2[Astronomy]&#xa;        F2 --&gt; G2[Planets]&#xa;    end&#xa;&#xa;classDef concept fill:#FFE4B5,stroke:#333,stroke-width:2px;&#xa;class A2,B2,C2,D2,E2,F2,G2 concept;" style="shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="-60" width="300" height="300" as="geometry"/>
+                </mxCell>
+                <mxCell id="84CqISvRR4rrSDVKXhkM-4" value="sequenceDiagram&#xa;    participant Q as Query&#xa;    participant M as Memory System&#xa;    participant ST as Short Term&#xa;    participant LT as Long Term&#xa;    participant CG as Concept Graph&#xa;&#xa;    Q-&gt;&gt;M: Search Request&#xa;    activate M&#xa;    M-&gt;&gt;ST: Check Recent Memories&#xa;    M-&gt;&gt;LT: Check Important Memories&#xa;    M-&gt;&gt;CG: Spread Activation&#xa;    CG--&gt;&gt;M: Related Concepts&#xa;    ST--&gt;&gt;M: Similar Recent Memories&#xa;    LT--&gt;&gt;M: Similar Important Memories&#xa;    M-&gt;&gt;M: Score &amp; Rank Results&#xa;    M--&gt;&gt;Q: Return Best Matches&#xa;    deactivate M" style="shadow=0;dashed=0;align=left;strokeWidth=1;shape=mxgraph.mermaid.abstract.mermaid;labelBackgroundColor=#ffffff;noLabel=1;theme=default;" parent="1" vertex="1">
+                    <mxGeometry y="290" width="820" height="650" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
