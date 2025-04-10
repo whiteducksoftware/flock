@@ -495,6 +495,13 @@ def execute_flock_batch(flock: Flock):
             default="batch_results.csv",
         ).ask()
 
+        hide_columns = questionary.text(
+            "Hide columns (comma-separated - leave blank for hiding no columns):",
+            default="",
+        ).ask()
+
+        hide_columns = hide_columns.split(",") if hide_columns else []
+
     # Logging options
     enable_logging = questionary.confirm(
         "Enable detailed logging?",
@@ -559,6 +566,7 @@ def execute_flock_batch(flock: Flock):
             return_errors=True,
             silent_mode=silent_mode,
             write_to_csv=write_to_csv,
+            hide_columns=hide_columns,
         )
 
         # Display results summary

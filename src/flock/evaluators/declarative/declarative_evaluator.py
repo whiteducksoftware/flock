@@ -93,6 +93,7 @@ class DeclarativeEvaluator(
 
             streaming_task = dspy.streamify(agent_task)
             stream_generator: Generator = streaming_task(**inputs)
+            delta_content = ""
 
             console.print("\n")
             async for chunk in stream_generator:

@@ -442,6 +442,8 @@ class Flock(BaseModel, Serializable):
         return_errors: bool = False,
         silent_mode: bool = False,
         write_to_csv: str | None = None,
+        hide_columns: list[str] | None = None,
+        delimiter: str = ",",
     ) -> list[Box | dict | None | Exception]:
         """Runs the specified agent/workflow for each item in a batch asynchronously (delegated)."""
         # Import processor locally
@@ -460,6 +462,8 @@ class Flock(BaseModel, Serializable):
             return_errors=return_errors,
             silent_mode=silent_mode,
             write_to_csv=write_to_csv,
+            hide_columns=hide_columns,
+            delimiter=delimiter,
         )
 
     def run_batch(
@@ -475,6 +479,8 @@ class Flock(BaseModel, Serializable):
         return_errors: bool = False,
         silent_mode: bool = False,
         write_to_csv: str | None = None,
+        hide_columns: list[str] | None = None,
+        delimiter: str = ",",
     ) -> list[Box | dict | None | Exception]:
         """Synchronous wrapper for run_batch_async."""
         # (Standard asyncio run wrapper logic)
@@ -498,6 +504,8 @@ class Flock(BaseModel, Serializable):
             return_errors=return_errors,
             silent_mode=silent_mode,
             write_to_csv=write_to_csv,
+            hide_columns=hide_columns,
+            delimiter=delimiter,
         )
 
         if asyncio.get_event_loop() is loop and not loop.is_running():
