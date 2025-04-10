@@ -65,3 +65,35 @@ def get_article_by_id(article_id: str) -> dict:
         response = client.get(url)
         response.raise_for_status()
         return response.json()["article"]
+
+
+def get_articles() -> list[dict]:
+    """Get all articles."""
+    ZENDESK_LOCALE = os.getenv("ZENDESK_ARTICLE_LOCALE")
+    ZENDESK_SUBDOMAIN = os.getenv("ZENDESK_SUBDOMAIN_ARTICLE")
+    BASE_URL = f"https://{ZENDESK_SUBDOMAIN}.zendesk.com"
+    url = f"{BASE_URL}/api/v2/help_center/{ZENDESK_LOCALE}/articles.json"
+    with httpx.Client(headers=HEADERS, timeout=30.0) as client:
+        response = client.get(url)
+        response.raise_for_status()
+        return response.json()["articles"]
+
+
+def search_articles(query: str) -> list[dict]:
+    """Search Zendesk Help Center articles using a query string."""
+    ZENDESK_LOCALE = os.getenv("ZENDESK_ARTICLE_LOCALE")  # e.g., "en-us"
+    ZENDESK_SUBDOMAIN = os.getenv("ZENDESK_SUBDOMAIN_ARTICLE")
+    BASE_URL = f"https://{ZENDESK_SUBDOMAIN}.zendesk.com"
+    url = f"{BASE_URL}/api/v2/help_center/articles/search.json"
+
+    params = {
+        "query": query,
+        "locale": ZENDESK_LOCALE,
+        "sort_by": "updated_at",
+        "sort_order": "desc",
+    }
+
+    with httpx.Client(headers=HEADERS, timeout=30.0) as client:
+        response = client.get(url, params=params)
+        response.raise_for_status()
+        return response.json().get("results", [])
