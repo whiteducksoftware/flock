@@ -1,371 +1,113 @@
-# Configuration
+---
+hide:
+  - toc
+---
 
-This guide explains how to configure Flock for your specific needs. Flock provides a flexible configuration system that allows you to customize various aspects of its behavior.
+# Configuration ⚙️
 
-## Flock Configuration
+Flock offers several ways to configure its behavior, from setting up LLM providers to controlling logging and execution modes.
 
-When creating a Flock instance, you can provide various configuration options:
+## Environment Variables (.env file)
 
+The primary and recommended way to configure Flock and its integrations is through **environment variables**. Flock uses the `python-decouple` library to read these variables, prioritizing:
+
+1.  Environment variables set directly in your system.
+2.  Values defined in a `.env` file located in your project's root directory.
+
+**Create a `.env` file in your project root:**
+
+```dotenv
+# .env - Example Configuration
+
+# --- LLM Provider API Keys (Required) ---
+# Add keys for the providers you use (OpenAI, Anthropic, Gemini, Azure, etc.)
+# Refer to litellm documentation for specific variable names
+OPENAI_API_KEY="your-openai-api-key"
+# ANTHROPIC_API_KEY="your-anthropic-api-key"
+# GOOGLE_API_KEY="your-google-api-key" # For Gemini
+
+# --- Default Flock Settings ---
+DEFAULT_MODEL="openai/gpt-4o" # Default LLM used if not specified by Agent/Flock
+
+# --- Tool-Specific Keys (Optional) ---
+TAVILY_API_KEY="your-tavily-search-key"
+GITHUB_PAT="your-github-personal-access-token" # For GitHub tools
+GITHUB_REPO="your-username/your-repo-name"      # For GitHub tools
+GITHUB_USERNAME="your-github-username"        # For GitHub tools
+AZURE_SEARCH_ENDPOINT="your-azure-search-url"   # For Azure Search tools
+AZURE_SEARCH_API_KEY="your-azure-search-key"    # For Azure Search tools
+# AZURE_SEARCH_INDEX_NAME="your-default-index"  # For Azure Search tools
+
+# --- Temporal Integration (Optional) ---
+# TEMPORAL_SERVER_URL="localhost:7233" # Default if Temporal is enabled
+
+# --- Logging & Debugging ---
+# LOCAL_DEBUG="True" # Set to True to force local execution even if enable_temporal=True in code (DEPRECATED - use enable_temporal=False instead)
+LOG_LEVEL="INFO" # Logging level (DEBUG, INFO, WARNING, ERROR)
+LOGGING_DIR="logs" # Directory to store log files
+
+# --- Telemetry (OpenTelemetry/Jaeger - Optional) ---
+# OTEL_SERVICE_NAME="flock-service"
+# JAEGER_ENDPOINT="http://localhost:14268/api/traces" # Thrift HTTP endpoint
+# JAEGER_TRANSPORT="http" # Or "grpc" (e.g., "localhost:14250")
+# OTEL_SQL_DATABASE_NAME="flock_events.db"
+# OTEL_FILE_NAME="flock_events.jsonl"
+# OTEL_ENABLE_SQL="True"
+# OTEL_ENABLE_FILE="True"
+# OTEL_ENABLE_JAEGER="False" # Set to True to enable Jaeger exporting
+
+# --- CLI Settings (Managed by `flock settings`) ---
+# SHOW_SECRETS="False"
+# VARS_PER_PAGE="20"
+```
+
+
+**LLM Keys**: Essential for your agents to function. Use the variable names specified by litellm.
+
+**Tool Keys**: Required only if you use specific tools (Tavily, GitHub, Azure Search).
+
+**DEFAULT_MODEL**: Sets the fallback LLM identifier if an agent doesn't specify its own.
+
+**TEMPORAL_SERVER_URL**: Needed if you enable Temporal for distributed execution.
+
+**Logging/Telemetry**: Control log verbosity, output directories, and OpenTelemetry settings.
+
+## Instance Configuration (Code)
+
+You can also override or set configurations directly when creating Flock or FlockAgent instances in your Python code:
+
+
+### Configure Flock instance
 ```python
-from flock.core import Flock
+from flock.core import Flock, FlockAgent, FlockFactory
 
-flock = Flock(
-    model="openai/gpt-4o",           # The default model to use
-    local_debug=True,                # Whether to run in local debug mode
-    enable_logging=True,             # Enable logging
-    enable_telemetry=False,          # Disable telemetry
-    temporal_executor_config=None,   # Temporal executor configuration
-    telemetry_config=None,           # Telemetry configuration
-    logger=None                      # Custom logger
+my_flock = Flock(
+    name="ConfiguredFlock",
+    model="anthropic/claude-3-sonnet-20240229", # Override default model
+    enable_temporal=False, # Force local execution
+    enable_logging=True    # Enable logging for this flock instance
 )
 ```
 
-### Model Configuration
-
-The `model` parameter specifies the default model to use for agents that don't specify their own model:
-
+### Configure Agent instance
 ```python
-# Using OpenAI's GPT-4o model
-flock = Flock(model="openai/gpt-4o")
+specific_agent = FlockFactory.create_default_agent(
+    name="SpecificAgent",
+    model="openai/gpt-3.5-turbo", # Use a different model for this agent
+    use_cache=False,              # Disable caching for this agent
+    temperature=0.7,              # Set LLM temperature
+    # ... other agent-specific configs
+)
 
-# Using Anthropic's Claude model
-flock = Flock(model="anthropic/claude-3-opus-20240229")
-
-# Using a local model
-flock = Flock(model="local/llama-3-70b")
+my_flock.add_agent(specific_agent)
 ```
 
-### Execution Mode
 
-The `local_debug` parameter determines whether to run in local debug mode or production mode:
+Settings provided during instantiation take precedence over environment variables for that specific instance.
 
-```python
-# Run in local debug mode (default)
-flock = Flock(local_debug=True)
+## CLI Settings
 
-# Run in production mode (uses Temporal)
-flock = Flock(local_debug=False)
-```
+When starting Flock as CLI-Tool (typing `flock` in your terminal) it offers a Settings editor.
+These settings are typically stored in ~/.flock/.env. If this file exists flock will ignore local .env files and only use the global .env.
 
-### Logging Configuration
-
-The `enable_logging` parameter enables or disables logging:
-
-```python
-# Enable all logging
-flock = Flock(enable_logging=True)
-
-# Enable specific loggers
-flock = Flock(enable_logging=["flock", "agent", "memory"])
-
-# Disable logging
-flock = Flock(enable_logging=False)
-```
-
-You can also provide a custom logger:
-
-```python
-import logging
-
-# Configure your logger
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler("flock.log"),
-        logging.StreamHandler()
-    ]
-)
-
-# Create a Flock instance with your logger
-flock = Flock(logger=logging.getLogger("my_flock"))
-```
-
-### Telemetry Configuration
-
-The `enable_telemetry` parameter enables or disables telemetry:
-
-```python
-# Enable telemetry
-flock = Flock(enable_telemetry=True)
-
-# Disable telemetry
-flock = Flock(enable_telemetry=False)
-```
-
-You can also provide a custom telemetry configuration:
-
-```python
-from flock.core.telemetry.telemetry_config import TelemetryConfig
-
-# Configure telemetry
-telemetry_config = TelemetryConfig(
-    service_name="my-flock-service",
-    exporter_type="otlp",
-    exporter_endpoint="http://localhost:4317",
-    resource_attributes={
-        "deployment.environment": "production"
-    }
-)
-
-# Create a Flock instance with telemetry
-flock = Flock(
-    enable_telemetry=True,
-    telemetry_config=telemetry_config
-)
-```
-
-### Temporal Configuration
-
-If you're running in production mode (`local_debug=False`), you can provide a Temporal executor configuration:
-
-```python
-from flock.core.execution.temporal_executor import TemporalExecutorConfig
-
-# Configure Temporal
-temporal_config = TemporalExecutorConfig(
-    retry_attempts=3,           # Maximum number of retry attempts
-    retry_interval=5,           # Initial interval between retries (seconds)
-    retry_max_interval=60,      # Maximum interval between retries (seconds)
-    retry_coefficient=2.0,      # Coefficient to multiply the interval by after each retry
-    task_queue="flock-queue",   # Temporal task queue name
-    namespace="default",        # Temporal namespace
-    server_url="localhost:7233" # Temporal server URL
-)
-
-# Create a Flock instance with Temporal
-flock = Flock(
-    local_debug=False,
-    temporal_executor_config=temporal_config
-)
-```
-
-## Agent Configuration
-
-When creating a FlockAgent, you can provide various configuration options:
-
-```python
-from flock.core import FlockAgent
-
-agent = FlockAgent(
-    name="my_agent",                 # Agent name
-    input="query: str",              # Input schema
-    output="result: str",            # Output schema
-    description="My agent",          # Agent description
-    model="openai/gpt-4o",           # Model to use
-    tools=[some_tool_function],      # Tools to use
-    hand_off=next_agent,             # Next agent in the workflow
-    evaluator=my_evaluator,          # Custom evaluator
-    memory_mapping="...",            # Memory mapping
-    modules=[my_module]              # Modules to attach
-)
-```
-
-### Input and Output Schema
-
-The `input` and `output` parameters define the input and output schema for the agent:
-
-```python
-# Simple schema
-agent = FlockAgent(
-    input="query",
-    output="result"
-)
-
-# Schema with type hints
-agent = FlockAgent(
-    input="query: str",
-    output="result: str"
-)
-
-# Schema with type hints and descriptions
-agent = FlockAgent(
-    input="query: str | The query to process",
-    output="result: str | The processed result"
-)
-
-# Multiple inputs/outputs
-agent = FlockAgent(
-    input="query: str, context: str",
-    output="result: str, confidence: float"
-)
-```
-
-### Tools Configuration
-
-The `tools` parameter specifies the tools that the agent can use:
-
-```python
-from flock.core.tools import basic_tools
-
-# Single tool
-agent = FlockAgent(
-    tools=[basic_tools.web_search_duckduckgo]
-)
-
-# Multiple tools
-agent = FlockAgent(
-    tools=[
-        basic_tools.web_search_duckduckgo,
-        basic_tools.code_eval,
-        basic_tools.get_current_time
-    ]
-)
-```
-
-### Handoff Configuration
-
-The `hand_off` parameter specifies the next agent in the workflow:
-
-```python
-# Direct handoff to another agent
-agent1.hand_off = agent2
-
-# Handoff with additional input
-from flock.core import HandOff
-agent1.hand_off = HandOff(
-    next_agent=agent2,
-    input={"additional_data": "some value"}
-)
-
-# Dynamic handoff based on a function
-def determine_next_agent(result):
-    if result["confidence"] > 0.8:
-        return agent2
-    else:
-        return agent3
-
-agent1.hand_off = determine_next_agent
-
-# Auto handoff (let the LLM decide)
-agent1.hand_off = "auto_handoff"
-```
-
-### Evaluator Configuration
-
-The `evaluator` parameter specifies the evaluator to use:
-
-```python
-from flock.evaluators.declarative import DeclarativeEvaluator
-from flock.evaluators.natural_language import NaturalLanguageEvaluator
-
-# Declarative evaluator (default)
-agent = FlockAgent(
-    evaluator=DeclarativeEvaluator(name="declarative")
-)
-
-# Natural language evaluator
-agent = FlockAgent(
-    evaluator=NaturalLanguageEvaluator(name="natural_language")
-)
-```
-
-### Memory Configuration
-
-The `memory_mapping` parameter specifies how memory should be used:
-
-```python
-# Simple memory mapping
-agent = FlockAgent(
-    memory_mapping="""
-        query -> memory.semantic(threshold=0.9) -> result
-    """
-)
-
-# Complex memory mapping
-agent = FlockAgent(
-    memory_mapping="""
-        query -> memory.semantic(threshold=0.9, scope='global') |
-        memory.filter(recency='7d') |
-        memory.sort(by='relevance') |
-        memory.combine
-        -> findings
-    """
-)
-```
-
-### Module Configuration
-
-The `modules` parameter specifies the modules to attach to the agent:
-
-```python
-from flock.modules.memory import MemoryModule, MemoryModuleConfig
-from flock.modules.metrics import MetricsModule, MetricsModuleConfig
-
-# Memory module
-memory_module = MemoryModule(
-    name="memory",
-    config=MemoryModuleConfig(
-        file_path="memory.json",
-        save_after_update=True
-    )
-)
-
-# Metrics module
-metrics_module = MetricsModule(
-    name="metrics",
-    config=MetricsModuleConfig(
-        metrics_dir="metrics",
-        track_execution_time=True,
-        track_token_usage=True
-    )
-)
-
-# Attach modules to agent
-agent = FlockAgent(
-    modules=[memory_module, metrics_module]
-)
-
-# Or add modules after creation
-agent.add_module(memory_module)
-agent.add_module(metrics_module)
-```
-
-## Environment Variables
-
-Flock also supports configuration via environment variables:
-
-- `OPENAI_API_KEY`: OpenAI API key
-- `ANTHROPIC_API_KEY`: Anthropic API key
-- `TAVILY_API_KEY`: Tavily API key
-- `FLOCK_MODEL`: Default model to use
-- `FLOCK_LOCAL_DEBUG`: Whether to run in local debug mode
-- `FLOCK_ENABLE_LOGGING`: Whether to enable logging
-- `FLOCK_ENABLE_TELEMETRY`: Whether to enable telemetry
-- `FLOCK_TEMPORAL_SERVER_URL`: Temporal server URL
-- `FLOCK_TEMPORAL_NAMESPACE`: Temporal namespace
-
-## Configuration File
-
-You can also create a configuration file to store your settings:
-
-```python
-# config.py
-OPENAI_API_KEY = "your-api-key"
-DEFAULT_MODEL = "openai/gpt-4o"
-LOCAL_DEBUG = True
-ENABLE_LOGGING = True
-ENABLE_TELEMETRY = False
-```
-
-Then import it in your code:
-
-```python
-import config
-from flock.core import Flock
-
-flock = Flock(
-    model=config.DEFAULT_MODEL,
-    local_debug=config.LOCAL_DEBUG,
-    enable_logging=config.ENABLE_LOGGING,
-    enable_telemetry=config.ENABLE_TELEMETRY
-)
-```
-
-## Next Steps
-
-Now that you understand how to configure Flock, you can:
-
-- Learn about [Agents](../core-concepts/agents.md) in Flock
-- Explore the [Type System](../core-concepts/type-system.md)
-- Understand [Workflows](../core-concepts/workflows.md)
+This behavior can be changed by the `LOCAL_ENV_OVERWRITES_GLOBAL_ENV` flag.

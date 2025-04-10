@@ -1,3 +1,0 @@
-# Flock Core
-
-Documentation in progress...

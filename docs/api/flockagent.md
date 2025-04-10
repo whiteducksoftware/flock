@@ -1,3 +1,0 @@
-# Flockagent
-
-Documentation in progress...

@@ -1,3 +1,0 @@
-# Utilities
-
-Documentation in progress...

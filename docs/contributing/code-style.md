@@ -1,3 +1,0 @@
-# Code Style
-
-Documentation in progress...

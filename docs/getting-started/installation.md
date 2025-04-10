@@ -1,129 +1,103 @@
-# Installation
+---
+hide:
+  - toc
+---
 
-This guide will walk you through the process of installing Flock and setting up your development environment.
+# Installation 🐣
 
-## Prerequisites
+Getting Flock onto your system is easy using modern Python package managers like `uv` or the standard `pip`. We recommend using `uv` for faster installations.
 
-Before installing Flock, ensure you have the following prerequisites:
+## Using `uv` (Recommended)
 
-- Python 3.9 or higher
-- pip (Python package installer)
-- A virtual environment tool (optional but recommended)
+`uv` is a fast Python package installer and resolver.
 
-## Installation Options
+1.  **Install `uv`** (if you haven't already):
+    ```bash
+    # On macOS and Linux
+    curl -LsSf https://astral.sh/uv/install.sh | sh
 
-### Basic Installation
+    # On Windows
+    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-To install the core Flock package:
+    # Or via pip
+    pip install uv
+    ```
 
-```bash
-pip install flock-core
-```
+2.  **Install Flock Core:**
+    ```bash
+    uv pip install flock-core
+    ```
+    This installs the essential `flock-core` package.
 
-### Installation with Tools Support
+3.  **Install with Extras (Optional):**
+    If you need additional tools or features:
+    ```bash
+    # For common tools (web search, markdownify, etc.)
+    uv pip install flock-core[tools]
 
-To install Flock with tools support:
+    # To install everything, including tools and future extras
+    uv pip install flock-core[all]
+    ```
 
-```bash
-pip install flock-core[tools]
-```
+## Using `pip`
 
-### Installation with All Tools
+If you prefer using `pip`:
 
-To install Flock with all tools including docling:
+1.  **Install Flock Core:**
+    ```bash
+    pip install flock-core
+    ```
 
-```bash
-pip install flock-core[all-tools]
-```
+2.  **Install with Extras (Optional):**
+    ```bash
+    # For common tools
+    pip install flock-core[tools]
 
-### Installation from Source
+    # To install everything
+    pip install flock-core[all]
+    ```
 
-To install Flock from source:
+!!! note "Available Extras"
+    *   `tools`: Installs `tavily-python` and `markdownify`.
+    *   `all`: Installs all optional dependencies defined in `tools`, plus `docling`.
 
-```bash
-git clone https://github.com/flock-ai/flock.git
-cd flock
-pip install -e .
-```
+## Setting Up Your Environment (API Keys)
 
-## Setting Up a Virtual Environment
+Flock agents typically interact with Large Language Models (LLMs). You'll need to configure API keys for the services you intend to use. Flock uses `litellm` under the hood, which supports numerous providers (OpenAI, Anthropic, Gemini, Azure, etc.).
 
-It's recommended to use a virtual environment to avoid conflicts with other Python packages.
+The recommended way to manage your API keys is through **environment variables**. You can set them directly in your shell, or use a `.env` file in your project's root directory.
 
-### Using venv
+1.  **Create a `.env` file:** In the main folder of your project, create a file named `.env`.
+2.  **Add your keys:** Add the necessary API keys for your chosen LLM provider(s). Refer to the `litellm` documentation for the correct environment variable names.
 
-```bash
-# Create a virtual environment
-python -m venv flock-env
+    Example `.env` file:
+    ```dotenv
+    # .env
+    OPENAI_API_KEY="your-openai-api-key"
+    ANTHROPIC_API_KEY="your-anthropic-api-key"
+    TAVILY_API_KEY="your-tavily-api-key" # For Tavily search tool
+    # Add Azure, GitHub, etc., keys if needed by specific tools
+    # AZURE_SEARCH_ENDPOINT="your-azure-search-endpoint"
+    # AZURE_SEARCH_API_KEY="your-azure-search-api-key"
+    # GITHUB_PAT="your-github-pat"
+    ```
 
-# Activate the virtual environment (Windows)
-flock-env\Scripts\activate
+Flock (via `litellm` and `python-decouple`) will automatically load these variables when needed.
 
-# Activate the virtual environment (macOS/Linux)
-source flock-env/bin/activate
-
-# Install Flock
-pip install flock-core
-```
-
-### Using conda
-
-```bash
-# Create a conda environment
-conda create -n flock-env python=3.9
-
-# Activate the conda environment
-conda activate flock-env
-
-# Install Flock
-pip install flock-core
-```
+!!! warning "Security"
+    Never commit your `.env` file containing secret keys to version control (like Git). Add `.env` to your `.gitignore` file.
 
 ## Verifying Installation
 
-To verify that Flock is installed correctly, run the following command:
-
-```bash
-python -c "import flock; print(flock.__version__)"
-```
-
-This should print the version of Flock that you installed.
-
-## Setting Up API Keys
-
-Flock uses various APIs for its tools. To use these tools, you'll need to set up the appropriate API keys.
-
-### OpenAI API Key
-
-To use OpenAI models, you'll need an OpenAI API key. You can set it as an environment variable:
-
-```bash
-# Windows
-set OPENAI_API_KEY=your-api-key
-
-# macOS/Linux
-export OPENAI_API_KEY=your-api-key
-```
-
-Or you can set it in your Python code:
+You can quickly verify that Flock is installed by opening a Python interpreter and importing it:
 
 ```python
-import os
-os.environ["OPENAI_API_KEY"] = "your-api-key"
+import flock.core
+print("Flock imported successfully!")
 ```
 
-### Other API Keys
+If this runs without errors, you're all set!
 
-Depending on the tools you're using, you may need to set up other API keys:
+Next Steps
 
-- **Tavily API Key**: For web search using Tavily
-- **DuckDuckGo API Key**: For web search using DuckDuckGo
-- **Temporal API Key**: For Temporal integration
-
-## Next Steps
-
-Now that you have Flock installed, you can:
-
-- Follow the [Quick Start](quickstart.md) guide to create your first agent
-- Learn about [Basic Concepts](concepts.md) in Flock
-- Configure Flock with [Configuration](configuration.md) options
+With Flock installed, you're ready for the Quick Start guide to build and run your first agent!

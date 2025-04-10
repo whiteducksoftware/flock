@@ -1,144 +1,50 @@
-site_name: Flock
+# mkdocs.yml
+site_name: Flock Agent Framework
+site_url: https://your-flock-docs-url.com/ # Replace with actual URL later
+repo_url: https://github.com/whiteducksoftware/flock # Replace with your repo URL
+repo_name: whiteducksoftware/flock
+edit_uri: "" # Optional: Link to edit pages in repo
+
+# Theme Configuration
 theme:
-  logo: assets/images/icon.png
-  features:
-    - content.code.copy
-    - content.code.select
-    - content.code.annotate
   name: material
+  # logo: assets/images/flock_logo_small.png # Removed logo for now
+  favicon: assets/images/favicon.png # Optional: Add a favicon
+  features:
+    - navigation.tabs
+    # - navigation.tabs.sticky # Optional
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes # Allows section index pages
+    - toc.integrate # Show TOC on the right
+    - search.suggest
+    - search.highlight
+    - content.code.annotate
+    - content.code.copy
+    # - content.tabs.link # If using code tabs
   palette:
-    - media: (prefers-color-scheme)
-      toggle:
-        icon: material/brightness-auto
-        name: Switch to light mode
+    # Palette toggle for light/dark mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: orange
-      accent: amber
+      primary: orange # Set primary color for light mode
+      accent: deep orange # Set accent color for light mode (optional, can adjust)
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: orange
-      accent: amber
+      primary: orange # Set primary color for dark mode
+      accent: deep orange # Set accent color for dark mode (optional, can adjust)
       toggle:
         icon: material/brightness-4
-        name: Switch to system preference
-extra_css:
-  - stylesheets/extra.css
-nav:
-  - Home: index.md
-  - Release Notes: release-notes/release_notes.md
-  - Changelog: changelog.md
-  
-  - Getting Started:
-    - Quick Start: getting-started/quickstart.md
-    - Installation: getting-started/installation.md
-    - Basic Concepts: getting-started/concepts.md
-    - Configuration: getting-started/configuration.md
-    
-  - Core Concepts:
-    - Agents: core-concepts/agents.md
-    - Type System: core-concepts/type-system.md
-    - Workflows: core-concepts/workflows.md
-    - Evaluators: core-concepts/evaluators.md
-    - Modules:
-      - Overview: core-concepts/modules.md
-      - Memory Module: core-concepts/modules/memory.md
-      - Metrics Module: core-concepts/modules/metrics.md
-      - Output Module: core-concepts/modules/output.md
-    - Tools:
-      - Overview: core-concepts/tools/overview.md
-      - Azure Search: core-concepts/tools/azure-tools.md
-    - Routers:
-      - Overview: core-concepts/routers.md
-      - Default Router: core-concepts/routers/default.md
-      - LLM Router: core-concepts/routers/llm.md
-      - Agent Router: core-concepts/routers/agent.md
-    - Declarative Programming: core-concepts/declarative.md
-    - Error Handling: core-concepts/error-handling.md
-    
-  # Features section removed as it's covered in core concepts
-    
-  - Integrations:
-    - Temporal: integrations/temporal.md
-    - REST API: integrations/rest-api.md
-    - DSPy: integrations/dspy.md
-    - LiteLLM: integrations/litellm.md
-    - Tavily: integrations/tavily.md
-    
-  - CLI:
-    - Overview: cli/index.md
-    - Settings Editor: cli/settings-editor.md
-    
-  - Advanced Usage:
-    - Custom Agents: advanced/custom-agents.md
-    - Complex Workflows: advanced/complex-workflows.md
-    - Testing: advanced/testing.md
-    - Performance Optimization: advanced/performance.md
-    
-  - Deployment:
-    - Production Setup: deployment/production-setup.md
-    - Monitoring: deployment/monitoring.md
-    - Scalability: deployment/scalability.md
-    - Security: deployment/security.md
-    
-  - Tutorials:
-    - Basic Blog Generator: tutorials/blog-generator.md
-    - Multi-Agent Systems: tutorials/multi-agent.md
-    - Custom Tool Integration: tutorials/custom-tools.md
-    - Error Recovery: tutorials/error-recovery.md
-    
-  - API Reference:
-    - FlockAgent: api/flockagent.md
-    - Flock Core: api/flock-core.md
-    - Types: api/types.md
-    - Utilities: api/utilities.md
-    
-  - Contributing:
-    - Development Setup: contributing/development.md
-    - Code Style: contributing/code-style.md
-    - Testing Guide: contributing/testing.md
-    - Documentation Guide: contributing/documentation.md
-    
-  - Architecture:
-    - Overview: architecture/overview.md
-    - Components: architecture/components.md
-    - Design Decisions: architecture/design-decisions.md
-    
-  - Examples:
-    - Hello Flock: examples/hello-flock.md
-    - Chain Gang: examples/chain-gang.md
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    repo: fontawesome/brands/github
 
-  - Development:
-    - Roadmap: development/dev.md
-    - Topics: development/topics.md
-    - Contribution Guidelines: development/contribution.md
-    - Code of Conduct: development/code-of-conduct.md
-    - License: development/license.md
-
-plugins:
-  # - termage:
-  #     write_files: false
-  #     inline_styles: true
-  #     name_template: termage_{count}.svg
-  #     path: assets
-  #     background: "#212121"
-  #     foreground: "#ffffff"
-  #     tabs:
-  #       - Python
-  #       - Output
-  #     chrome: true
-  #     width: 100
-  #     height: 200
-  - search
-  - mkdocstrings:
-      handlers:
-        python:
-          options:
-            show_root_heading: false
-            separate_signature: true
+# Extensions
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
@@ -146,15 +52,71 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.details
-  - attr_list
-  - admonition
-  - codehilite:
-      guess_lang: false
+  - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+  - admonition
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+# Copyright
+copyright: Copyright © 2024 White Duck GmbH
+
+# Navigation Structure
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Overview: getting-started/index.md
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+      - Configuration: getting-started/configuration.md
+  - Interacting with Flock:
+      - Overview: interacting-with-flock/index.md
+      - CLI: interacting-with-flock/cli.md
+      - API: interacting-with-flock/api.md
+      - Web UI: interacting-with-flock/web-ui.md
+  - Core Concepts:
+      - Overview: core-concepts/index.md
+      - Agents: core-concepts/agents.md
+      - Declarative Approach: core-concepts/declarative.md
+      - Workflows: core-concepts/workflows.md
+    # Add later: Type System, Error Handling
+  - Key Components:
+      - Overview: components/index.md
+      - Evaluators: components/evaluators.md
+      - Modules: components/modules.md
+      - Tools: components/tools.md
+    # Add later: Routers, Memory, Context, Registry
+  - Guides:
+      - Overview: guides/index.md
+      - Chaining Agents: guides/chaining-agents.md
+    # Add later: Custom Tools, Using Memory, Advanced Workflows
+  - Deployment:
+      - Overview: deployment/index.md
+      - Temporal Integration: deployment/temporal.md
+    # Add later: Production Setup, Monitoring, Security
+  - API Reference:
+      - Overview: reference/index.md
+      - FlockAgent: reference/flock_agent.md
+    # Add later: Flock Class, Core Modules, etc.
+  - v0.4.0 Magpie - Release Notes:
+      - Overview: release-notes/magpie.md
+  - About:
+      - Contributing: about/contributing.md
+      - Changelog: about/changelog.md
+
+# Optional Plugins (Install them: pip install mkdocs-material-extensions mkdocs-macros-plugin)
+# plugins:
+#   - search
+#   - macros: # Example for using variables
+#       module_name: flock
+#   - material/extensions
+
+extra_css:
+  - stylesheets/extra.css # Optional custom CSS

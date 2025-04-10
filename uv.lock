@@ -1245,7 +1245,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.4.0b5"
+version = "0.4.0b6"
 source = { editable = "." }
 dependencies = [
     { name = "azure-search-documents" },
@@ -1307,6 +1307,9 @@ dev = [
     { name = "httpx" },
     { name = "ipykernel" },
     { name = "ipywidgets" },
+    { name = "mkdocs" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
     { name = "poethepoet" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1316,11 +1319,6 @@ dev = [
     { name = "pytest-sugar" },
     { name = "respx" },
     { name = "ruff" },
-]
-docs = [
-    { name = "mkdocs" },
-    { name = "mkdocs-material" },
-    { name = "mkdocstrings", extra = ["python"] },
 ]
 
 [package.metadata]
@@ -1379,6 +1377,9 @@ dev = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "ipywidgets", specifier = ">=8.1.5" },
+    { name = "mkdocs", specifier = ">=1.6.1" },
+    { name = "mkdocs-material", specifier = ">=9.6.3" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.28.0" },
     { name = "poethepoet", specifier = ">=0.30.0" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
@@ -1388,11 +1389,6 @@ dev = [
     { name = "pytest-sugar", specifier = ">=1.0.0" },
     { name = "respx", specifier = ">=0.22.0" },
     { name = "ruff", specifier = ">=0.7.2" },
-]
-docs = [
-    { name = "mkdocs", specifier = ">=1.6.1" },
-    { name = "mkdocs-material", specifier = ">=9.6.3" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.28.0" },
 ]
 
 [[package]]
