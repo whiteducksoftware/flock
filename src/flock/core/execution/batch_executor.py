@@ -84,7 +84,9 @@ class BatchProcessor:
             Exception: First exception from a run if return_errors is False.
         """
         effective_use_temporal = (
-            use_temporal if use_temporal is not None else self.enable_temporal
+            use_temporal
+            if use_temporal is not None
+            else self.flock.enable_temporal
         )
         exec_mode = (
             "Temporal"

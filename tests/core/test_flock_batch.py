@@ -1,10 +1,10 @@
 
 
+import os
 import pytest
 import pandas as pd
 from flock.core import Flock, FlockAgent, FlockFactory
 from flock.core.flock_registry import get_registry
-from tests.core.test_flock_core import SimpleAgent
 from flock.evaluators.test.test_case_evaluator import TestCaseEvaluator, TestCaseEvaluatorConfig
 
 
@@ -32,7 +32,7 @@ def clear_registry():
 
 
 @pytest.mark.asyncio
-async def test_batch_execution_with_csv_input(basic_flock: Flock, simple_agent: FlockAgent):
+async def test_batch_execution_with_dataframe_input(basic_flock: Flock, simple_agent: FlockAgent):
     """Test batch execution with CSV input."""
     batch_inputs = pd.DataFrame({
         "query": ["test1", "test2", "test3"],
@@ -48,3 +48,28 @@ async def test_batch_execution_with_csv_input(basic_flock: Flock, simple_agent: 
     assert results[1]["col2"] == "Test Result"
     assert results[2]["col3"] == "Test Result"
     assert results[2]["col4"] == "Test Result"
+    
+    
+@pytest.mark.asyncio
+async def test_batch_execution_with_dataframe_input_and_csv_output(basic_flock: Flock, simple_agent: FlockAgent):
+    """Test batch execution with CSV input."""
+    batch_inputs = pd.DataFrame({
+        "query": ["test1", "test2", "test3"],
+    })
+    results = await basic_flock.run_batch_async(
+        start_agent=simple_agent,
+        batch_inputs=batch_inputs,
+        input_mapping={"query": "query"},
+        parallel=True,
+        write_to_csv="test_output.csv",
+        hide_columns=["col1", "col2"],
+        delimiter="-",
+    )
+    assert os.path.exists("test_output.csv")
+    df = pd.read_csv("test_output.csv", delimiter="-")
+    assert len(df) == 3
+    assert df.columns.tolist() == ["col3", "col4"]
+    assert df["col3"][0] == "Test Result"
+    assert df["col4"][1] == "Test Result"
+    os.remove("test_output.csv")
+

@@ -1,5 +1,7 @@
 from typing import Any
 
+from pydantic import Field
+
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
 from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
@@ -14,11 +16,13 @@ class TestCaseEvaluatorConfig(FlockEvaluatorConfig):
 class TestCaseEvaluator(FlockEvaluator, DSPyIntegrationMixin):
     """Evaluator for test cases."""
 
-    def __init__(self, config: TestCaseEvaluatorConfig):
-        super().__init__(config)
+    config: TestCaseEvaluatorConfig = Field(
+        default_factory=TestCaseEvaluatorConfig,
+        description="Evaluator configuration",
+    )
 
     async def evaluate(
-        self, agent: FlockAgent, inputs: dict[str, Any]
+        self, agent: FlockAgent, inputs: dict[str, Any], tools: list[Any]
     ) -> dict[str, Any]:
         _dspy_signature = self.create_dspy_signature_class(
             agent.name,
