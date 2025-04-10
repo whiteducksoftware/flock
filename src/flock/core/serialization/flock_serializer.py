@@ -145,6 +145,66 @@ class FlockSerializer:
                             )
                         )
 
+                # Description (Callables)
+                if agent_data.get("description_callable"):
+                    logger.debug(
+                        f"Adding description callable '{agent_data['description_callable']}' from agent '{name}'"
+                    )
+                    description_callable_name = agent_data[
+                        "description_callable"
+                    ]
+                    description_callable = agent_instance.description
+                    path_str = FlockRegistry.get_callable_path_string(
+                        description_callable
+                    )
+                    if path_str:
+                        logger.debug(
+                            f"Adding description callable '{description_callable_name}' (from path '{path_str}') to components"
+                        )
+                        components[description_callable_name] = (
+                            FlockSerializer._get_callable_definition(
+                                path_str, description_callable_name, path_type
+                            )
+                        )
+
+                if agent_data.get("input_callable"):
+                    logger.debug(
+                        f"Adding input callable '{agent_data['input_callable']}' from agent '{name}'"
+                    )
+                    input_callable_name = agent_data["input_callable"]
+                    input_callable = agent_instance.input
+                    path_str = FlockRegistry.get_callable_path_string(
+                        input_callable
+                    )
+                    if path_str:
+                        logger.debug(
+                            f"Adding input callable '{input_callable_name}' (from path '{path_str}') to components"
+                        )
+                        components[input_callable_name] = (
+                            FlockSerializer._get_callable_definition(
+                                path_str, input_callable_name, path_type
+                            )
+                        )
+
+                if agent_data.get("output_callable"):
+                    logger.debug(
+                        f"Adding output callable '{agent_data['output_callable']}' from agent '{name}'"
+                    )
+                    output_callable_name = agent_data["output_callable"]
+                    output_callable = agent_instance.output
+                    path_str = FlockRegistry.get_callable_path_string(
+                        output_callable
+                    )
+                    if path_str:
+                        logger.debug(
+                            f"Adding output callable '{output_callable_name}' (from path '{path_str}') to components"
+                        )
+                        components[output_callable_name] = (
+                            FlockSerializer._get_callable_definition(
+                                path_str, output_callable_name, path_type
+                            )
+                        )
+
                 # Tools (Callables)
                 if agent_data.get("tools"):
                     logger.debug(
