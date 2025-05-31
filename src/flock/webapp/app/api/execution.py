@@ -12,6 +12,7 @@ from fastapi import (  # Ensure Form and HTTPException are imported
 )
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from flock.core.flock import Flock
@@ -151,7 +152,10 @@ async def htmx_run_flock(
             return HTMLResponse(f"<p class='error'>Error processing inputs for {start_agent_name}: {e_parse}</p>")
 
     result_data = await run_current_flock_service(start_agent_name, inputs, request.app.state)
-    raw_json_for_template = json.dumps(result_data, indent=2)
+    if isinstance(result_data, BaseModel):
+        raw_json_for_template = result_data.model_dump_json(indent=2, ensure_ascii=False)
+    else:
+        raw_json_for_template = json.dumps(result_data, indent=2, ensure_ascii=False)
     # Unescape newlines for proper display in HTML <pre> tag
     result_data_raw_json_str = raw_json_for_template.replace('\\n', '\n')
     root_path = request.scope.get("root_path", "")
@@ -215,7 +219,10 @@ async def htmx_run_shared_flock(
 
         shared_logger.info(f"HTMX Run Shared: Executing agent '{start_agent_name}' in pre-loaded Flock '{temp_flock.name}'. Inputs: {list(inputs.keys())}")
         result_data = await temp_flock.run_async(start_agent=start_agent_name, input=inputs, box_result=False)
-        raw_json_for_template = json.dumps(result_data, indent=2)
+        if isinstance(result_data, BaseModel):
+            raw_json_for_template = result_data.model_dump_json(indent=2, ensure_ascii=False)
+        else:
+            raw_json_for_template = json.dumps(result_data, indent=2, ensure_ascii=False)
         # Unescape newlines for proper display in HTML <pre> tag
         result_data_raw_json_str = raw_json_for_template.replace('\\n', '\n')
         shared_logger.info(f"HTMX Run Shared: Agent '{start_agent_name}' executed. Result keys: {list(result_data.keys()) if isinstance(result_data, dict) else 'N/A'}")
