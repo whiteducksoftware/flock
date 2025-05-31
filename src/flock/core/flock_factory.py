@@ -413,6 +413,7 @@ class FlockFactory:
         write_to_file: bool = False,
         stream: bool = False,
         include_thought_process: bool = False,
+        include_reasoning: bool = False,
         temporal_activity_config: TemporalActivityConfig | None = None,
     ) -> FlockAgent:
         """Creates a default FlockAgent.
@@ -433,6 +434,7 @@ class FlockFactory:
             max_retries=max_retries,
             stream=stream,
             include_thought_process=include_thought_process,
+            include_reasoning=include_reasoning,
         )
 
         evaluator = DeclarativeEvaluator(name="default", config=eval_config)
