@@ -227,136 +227,155 @@ class SQLiteSharedLinkStore(SharedLinkStoreInterface):
         except sqlite3.Error as e:
             logger.error(f"SQLite error saving feedback {record.feedback_id}: {e}", exc_info=True)
             raise
+# flock/webapp/app/services/sharing_store.py  ← replace only this class
+
+# ---------------------------------------------------------------------------
+# Azure Table + Blob implementation
+# ---------------------------------------------------------------------------
+
+try:
+    from azure.storage.blob.aio import BlobServiceClient
+    AZURE_BLOB_AVAILABLE = True
+except ImportError:  # blob SDK not installed
+    AZURE_BLOB_AVAILABLE = False
+    BlobServiceClient = None
 
 class AzureTableSharedLinkStore(SharedLinkStoreInterface):
-    """Azure Table Storage implementation for storing and retrieving shared link configurations."""
+    """Store configs in Azure Table; store large flock YAML in Blob Storage."""
+
+    _TABLE_NAME        = "flocksharedlinks"
+    _FEEDBACK_TBL_NAME = "flockfeedback"
+    _CONTAINER_NAME    = "flocksharedlinkdefs"          # blobs live here
+    _PARTITION_KEY     = "shared_links"
 
     def __init__(self, connection_string: str):
-        """Initialize Azure Table Storage store with connection string."""
         if not AZURE_AVAILABLE:
-            raise ImportError("Azure Table Storage dependencies not available. Install with: pip install azure-data-tables")
+            raise ImportError("pip install azure-data-tables")
+        if not AZURE_BLOB_AVAILABLE:
+            raise ImportError("pip install azure-storage-blob")
 
         self.connection_string = connection_string
-        self.table_service_client = TableServiceClient.from_connection_string(connection_string)
-        self.shared_links_table_name = "flocksharedlinks"
-        self.feedback_table_name = "flockfeedback"
-        logger.info("AzureTableSharedLinkStore initialized")
+        self.table_svc = TableServiceClient.from_connection_string(connection_string)
+        self.blob_svc  = BlobServiceClient.from_connection_string(connection_string)
 
+    # ------------------------------------------------------------------ init
     async def initialize(self) -> None:
-        """Initializes the Azure Tables (creates them if they don't exist)."""
+        # 1. Azure Tables ----------------------------------------------------
         try:
-            # Create shared_links table
-            try:
-                await self.table_service_client.create_table(self.shared_links_table_name)
-                logger.info(f"Created Azure Table: {self.shared_links_table_name}")
-            except ResourceExistsError:
-                logger.debug(f"Azure Table already exists: {self.shared_links_table_name}")
+            await self.table_svc.create_table(self._TABLE_NAME)
+            logger.info("Created Azure Table '%s'", self._TABLE_NAME)
+        except ResourceExistsError:
+            logger.debug("Azure Table '%s' already exists", self._TABLE_NAME)
 
-            # Create feedback table
-            try:
-                await self.table_service_client.create_table(self.feedback_table_name)
-                logger.info(f"Created Azure Table: {self.feedback_table_name}")
-            except ResourceExistsError:
-                logger.debug(f"Azure Table already exists: {self.feedback_table_name}")
+        try:
+            await self.table_svc.create_table(self._FEEDBACK_TBL_NAME)
+            logger.info("Created Azure Table '%s'", self._FEEDBACK_TBL_NAME)
+        except ResourceExistsError:
+            logger.debug("Azure Table '%s' already exists", self._FEEDBACK_TBL_NAME)
 
-            logger.info("Azure Table Storage initialized successfully")
-        except Exception as e:
-            logger.error(f"Error initializing Azure Table Storage: {e}", exc_info=True)
-            raise
+        # 2. Blob container --------------------------------------------------
+        try:
+            await self.blob_svc.create_container(self._CONTAINER_NAME)
+            logger.info("Created Blob container '%s'", self._CONTAINER_NAME)
+        except ResourceExistsError:
+            logger.debug("Blob container '%s' already exists", self._CONTAINER_NAME)
 
+    # ------------------------------------------------------------- save_config
     async def save_config(self, config: SharedLinkConfig) -> SharedLinkConfig:
-        """Saves a shared link configuration to Azure Table Storage."""
-        try:
-            table_client = self.table_service_client.get_table_client(self.shared_links_table_name)
+        """Upload YAML to Blob, then upsert table row containing the blob name."""
+        blob_name   = f"{config.share_id}.yaml"
+        blob_client = self.blob_svc.get_blob_client(self._CONTAINER_NAME, blob_name)
 
-            entity = {
-                "PartitionKey": "shared_links",  # Use a fixed partition key for simplicity
-                "RowKey": config.share_id,
-                "share_id": config.share_id,
-                "agent_name": config.agent_name,
-                "flock_definition": config.flock_definition,
-                "created_at": config.created_at.isoformat(),
-                "share_type": config.share_type,
-                "chat_message_key": config.chat_message_key,
-                "chat_history_key": config.chat_history_key,
-                "chat_response_key": config.chat_response_key,
-            }
+        # 1. Upload flock_definition (overwrite in case of retry)
+        await blob_client.upload_blob(config.flock_definition,
+                                      overwrite=True,
+                                      content_type="text/yaml")
+        logger.debug("Uploaded blob '%s' (%d bytes)",
+                     blob_name, len(config.flock_definition.encode()))
 
-            await table_client.upsert_entity(entity)
-            logger.info(f"Saved shared link config to Azure Table Storage for ID: {config.share_id} with type: {config.share_type}")
-            return config
-        except Exception as e:
-            logger.error(f"Error saving config to Azure Table Storage for ID {config.share_id}: {e}", exc_info=True)
-            raise
+        # 2. Persist lightweight record in the table
+        tbl_client = self.table_svc.get_table_client(self._TABLE_NAME)
+        entity = {
+            "PartitionKey": self._PARTITION_KEY,
+            "RowKey":       config.share_id,
+            "agent_name":   config.agent_name,
+            "created_at":   config.created_at.isoformat(),
+            "share_type":   config.share_type,
+            "chat_message_key":  config.chat_message_key,
+            "chat_history_key":  config.chat_history_key,
+            "chat_response_key": config.chat_response_key,
+            # NEW – just a few bytes, well under 64 KiB
+            "flock_blob_name": blob_name,
+        }
+        await tbl_client.upsert_entity(entity)
+        logger.info("Saved shared link %s → blob '%s'", config.share_id, blob_name)
+        return config
 
+    # -------------------------------------------------------------- get_config
     async def get_config(self, share_id: str) -> SharedLinkConfig | None:
-        """Retrieves a shared link configuration from Azure Table Storage by its ID."""
+        tbl_client = self.table_svc.get_table_client(self._TABLE_NAME)
         try:
-            table_client = self.table_service_client.get_table_client(self.shared_links_table_name)
-
-            entity = await table_client.get_entity(partition_key="shared_links", row_key=share_id)
-
-            logger.debug(f"Retrieved shared link config from Azure Table Storage for ID: {share_id}")
-            return SharedLinkConfig(
-                share_id=entity["share_id"],
-                agent_name=entity["agent_name"],
-                created_at=entity["created_at"],  # Pydantic will parse from ISO format
-                flock_definition=entity["flock_definition"],
-                share_type=entity.get("share_type", "agent_run"),
-                chat_message_key=entity.get("chat_message_key"),
-                chat_history_key=entity.get("chat_history_key"),
-                chat_response_key=entity.get("chat_response_key"),
-            )
+            entity = await tbl_client.get_entity(self._PARTITION_KEY, share_id)
         except ResourceNotFoundError:
-            logger.debug(f"No shared link config found in Azure Table Storage for ID: {share_id}")
-            return None
-        except Exception as e:
-            logger.error(f"Error retrieving config from Azure Table Storage for ID {share_id}: {e}", exc_info=True)
+            logger.debug("No config entity for id '%s'", share_id)
             return None
 
-    async def delete_config(self, share_id: str) -> bool:
-        """Deletes a shared link configuration from Azure Table Storage by its ID."""
+        blob_name   = entity["flock_blob_name"]
+        blob_client = self.blob_svc.get_blob_client(self._CONTAINER_NAME, blob_name)
         try:
-            table_client = self.table_service_client.get_table_client(self.shared_links_table_name)
-
-            await table_client.delete_entity(partition_key="shared_links", row_key=share_id)
-            logger.info(f"Deleted shared link config from Azure Table Storage for ID: {share_id}")
-            return True
-        except ResourceNotFoundError:
-            logger.info(f"Attempted to delete non-existent shared link config from Azure Table Storage for ID: {share_id}")
-            return False
+            blob_bytes = await (await blob_client.download_blob()).readall()
+            flock_yaml = blob_bytes.decode()
         except Exception as e:
-            logger.error(f"Error deleting config from Azure Table Storage for ID {share_id}: {e}", exc_info=True)
-            return False
-
-    # ----------------------- Feedback methods -----------------------
-
-    async def save_feedback(self, record: FeedbackRecord) -> FeedbackRecord:
-        """Persist a feedback record to Azure Table Storage."""
-        try:
-            table_client = self.table_service_client.get_table_client(self.feedback_table_name)
-
-            entity = {
-                "PartitionKey": "feedback",  # Use a fixed partition key for simplicity
-                "RowKey": record.feedback_id,
-                "feedback_id": record.feedback_id,
-                "share_id": record.share_id,
-                "context_type": record.context_type,
-                "reason": record.reason,
-                "expected_response": record.expected_response,
-                "actual_response": record.actual_response,
-                "flock_name": record.flock_name,
-                "agent_name": record.agent_name,
-                "flock_definition": record.flock_definition,
-                "created_at": record.created_at.isoformat(),
-            }
-
-            await table_client.upsert_entity(entity)
-            logger.info(f"Saved feedback to Azure Table Storage: {record.feedback_id} (share={record.share_id})")
-            return record
-        except Exception as e:
-            logger.error(f"Error saving feedback to Azure Table Storage {record.feedback_id}: {e}", exc_info=True)
+            logger.error("Cannot download blob '%s' for share_id=%s: %s",
+                         blob_name, share_id, e, exc_info=True)
             raise
+
+        return SharedLinkConfig(
+            share_id          = share_id,
+            agent_name        = entity["agent_name"],
+            created_at        = entity["created_at"],
+            flock_definition  = flock_yaml,
+            share_type        = entity.get("share_type", "agent_run"),
+            chat_message_key  = entity.get("chat_message_key"),
+            chat_history_key  = entity.get("chat_history_key"),
+            chat_response_key = entity.get("chat_response_key"),
+        )
+
+    # ----------------------------------------------------------- delete_config
+    async def delete_config(self, share_id: str) -> bool:
+        tbl_client = self.table_svc.get_table_client(self._TABLE_NAME)
+        try:
+            entity = await tbl_client.get_entity(self._PARTITION_KEY, share_id)
+        except ResourceNotFoundError:
+            logger.info("Delete: entity %s not found", share_id)
+            return False
+
+        # 1. Remove blob (ignore missing blob)
+        blob_name   = entity["flock_blob_name"]
+        blob_client = self.blob_svc.get_blob_client(self._CONTAINER_NAME, blob_name)
+        try:
+            await blob_client.delete_blob(delete_snapshots="include")
+            logger.debug("Deleted blob '%s'", blob_name)
+        except ResourceNotFoundError:
+            logger.warning("Blob '%s' already gone", blob_name)
+
+        # 2. Remove table row
+        await tbl_client.delete_entity(self._PARTITION_KEY, share_id)
+        logger.info("Deleted shared link %s and its blob", share_id)
+        return True
+
+    # -------------------------------------------------------- save_feedback --
+    async def save_feedback(self, record: FeedbackRecord) -> FeedbackRecord:
+        tbl_client = self.table_svc.get_table_client(self._FEEDBACK_TBL_NAME)
+        entity = {
+            "PartitionKey": "feedback",
+            "RowKey":       record.feedback_id,
+            **record.model_dump(exclude={"feedback_id"})  # all other fields
+        }
+        await tbl_client.upsert_entity(entity)
+        logger.info("Saved feedback %s", record.feedback_id)
+        return record
+
 
 
 # ----------------------- Factory Function -----------------------
