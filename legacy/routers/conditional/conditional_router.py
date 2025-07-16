@@ -115,6 +115,10 @@ class ConditionalRouterConfig(FlockRouterConfig):
         default="flock.assertion_feedback",  # Useful if paired with AssertionCheckerModule
         description="Optional context key containing feedback message to potentially include when retrying.",
     )
+    feedback_on_failure: str | None = Field(
+        default=None,
+        description="Default feedback message to use when condition evaluation fails.",
+    )
     retry_count_context_key_prefix: str = Field(
         default="flock.conditional_retry_count_",
         description="Internal prefix for context key storing retry attempts per agent.",

@@ -4,6 +4,7 @@ import logging
 import sqlite3
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any
 
 import aiosqlite
 
@@ -227,7 +228,7 @@ class SQLiteSharedLinkStore(SharedLinkStoreInterface):
         except sqlite3.Error as e:
             logger.error(f"SQLite error saving feedback {record.feedback_id}: {e}", exc_info=True)
             raise
-# flock/webapp/app/services/sharing_store.py  ← replace only this class
+
 
 # ---------------------------------------------------------------------------
 # Azure Table + Blob implementation
@@ -366,14 +367,42 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
 
     # -------------------------------------------------------- save_feedback --
     async def save_feedback(self, record: FeedbackRecord) -> FeedbackRecord:
+        """Persist a feedback record. If a flock_definition is present, upload it as a blob and
+        store only a reference in the table row to avoid oversized entities (64 KiB limit).
+        """
         tbl_client = self.table_svc.get_table_client(self._FEEDBACK_TBL_NAME)
-        entity = {
+
+        # Core entity fields (avoid dumping the full Pydantic model – too many columns / large value)
+        entity: dict[str, Any] = {
             "PartitionKey": "feedback",
             "RowKey":       record.feedback_id,
-            **record.model_dump(exclude={"feedback_id"})  # all other fields
+            "share_id":     record.share_id,
+            "context_type": record.context_type,
+            "reason":       record.reason,
+            "expected_response": record.expected_response,
+            "actual_response":   record.actual_response,
+            "created_at":   record.created_at.isoformat(),
         }
+        if record.flock_name is not None:
+            entity["flock_name"] = record.flock_name
+        if record.agent_name is not None:
+            entity["agent_name"] = record.agent_name
+
+        # ------------------------------------------------------------------ YAML → Blob
+        if record.flock_definition:
+            blob_name   = f"{record.feedback_id}.yaml"
+            blob_client = self.blob_svc.get_blob_client(self._CONTAINER_NAME, blob_name)
+            # Overwrite=true so repeated feedback_id uploads (shouldn't happen) won't error
+            await blob_client.upload_blob(record.flock_definition,
+                                          overwrite=True,
+                                          content_type="text/yaml")
+            entity["flock_blob_name"] = blob_name  # lightweight reference only
+
+        # ------------------------------------------------------------------ Table upsert
         await tbl_client.upsert_entity(entity)
-        logger.info("Saved feedback %s", record.feedback_id)
+        logger.info("Saved feedback %s%s",
+                    record.feedback_id,
+                    f" → blob '{entity['flock_blob_name']}'" if "flock_blob_name" in entity else "")
         return record
 
 
