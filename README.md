@@ -56,7 +56,7 @@ No brittle prompts. No guesswork. Just reliable, testable AI agents.
 from flock.core import Flock, FlockFactory
 
 # 1. Create the main orchestrator
-my_flock = Flock(model="openai/gpt-4o")
+my_flock = Flock(model="openai/gpt-4.1")
 
 # 2. Declaratively define an agent
 brainstorm_agent = FlockFactory.create_default_agent(
