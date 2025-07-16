@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, Field, create_model
 
 from flock.core.context.context import FlockContext
+
 # HandOffRequest removed - using agent.next_agent directly
 
 T = TypeVar("T", bound="AgentComponentConfig")
@@ -58,7 +59,7 @@ class AgentComponent(BaseModel, ABC):
     Components can specialize by:
     - EvaluationComponentBase: Implements evaluate_core() for agent intelligence
     - RoutingComponentBase: Implements determine_next_step() for workflow routing  
-- UtilityComponentBase: Uses standard lifecycle hooks for cross-cutting concerns
+    - UtilityComponentBase: Uses standard lifecycle hooks for cross-cutting concerns
     """
 
     name: str = Field(

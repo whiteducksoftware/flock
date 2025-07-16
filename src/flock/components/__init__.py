@@ -2,7 +2,9 @@
 """Unified component implementations for Flock agents."""
 
 # Evaluation components
-from .evaluation.declarative_evaluation_component import DeclarativeEvaluationComponent
+from .evaluation.declarative_evaluation_component import (
+    DeclarativeEvaluationComponent,
+)
 
 # Routing components
 from .routing.conditional_routing_component import ConditionalRoutingComponent
@@ -15,10 +17,10 @@ from .utility.metrics_utility_component import MetricsUtilityComponent
 from .utility.output_utility_component import OutputUtilityComponent
 
 __all__ = [
-    # Evaluation
-    "DeclarativeEvaluationComponent",
     # Routing
     "ConditionalRoutingComponent",
+    # Evaluation
+    "DeclarativeEvaluationComponent",
     "DefaultRoutingComponent",
     "LLMRoutingComponent",
     # Utility
