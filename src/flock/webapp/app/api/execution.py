@@ -1,5 +1,6 @@
 # src/flock/webapp/app/api/execution.py
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -11,7 +12,7 @@ from fastapi import (  # Ensure Form and HTTPException are imported
     Request,
 )
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 if TYPE_CHECKING:
@@ -309,3 +310,59 @@ async def htmx_submit_feedback_shared(
     )
     await store.save_feedback(record)
     return HTMLResponse("<p>🙏 Feedback received for shared run – thank you!</p>")
+
+@router.get("/htmx/feedback-download", response_class=FileResponse)
+async def chat_feedback_download(
+    request: Request,
+    store: SharedLinkStoreInterface = Depends(get_shared_link_store)
+):
+    import csv
+    import tempfile
+    from pathlib import Path
+
+    records = await store.get_all_feedback_records()
+
+    # Create a temporary CSV file
+    temp_dir = tempfile.gettempdir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_filename = f"flock_feedback_{timestamp}.csv"
+    csv_path = Path(temp_dir) / csv_filename
+
+    # Define CSV headers based on FeedbackRecord fields
+    headers = [
+        "feedback_id",
+        "share_id",
+        "context_type",
+        "reason",
+        "expected_response",
+        "actual_response",
+        "created_at",
+        "flock_name",
+        "agent_name",
+        "flock_definition"
+    ]
+
+    # Write records to CSV
+    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=headers)
+        writer.writeheader()
+
+        for record in records:
+            # Convert the Pydantic model to dict and ensure all fields are present
+            row_data = {}
+            for header in headers:
+                value = getattr(record, header, None)
+                # Convert datetime to ISO string for CSV
+                if header == "created_at" and value:
+                    row_data[header] = value.isoformat() if isinstance(value, datetime) else str(value)
+                else:
+                    row_data[header] = str(value) if value is not None else ""
+            writer.writerow(row_data)
+
+    # Return FileResponse with the CSV file
+    return FileResponse(
+        path=str(csv_path),
+        filename=csv_filename,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={csv_filename}"}
+    )
