@@ -71,6 +71,16 @@ window.agentInputFormUrlTemplate = '{{ url_for("htmx_get_agent_input_form", agen
             </span>
         </div>
 
+        <div id="feedback-download-container-all" style="margin-top: 0.5rem;">
+            <a href="{{ url_for('chat_feedback_download_all')}}"
+               id="downloadFeedbackLinkAll"
+               style="text-decoration: underline; cursor: pointer; color: var(--pico-primary);"
+               >Download feedback for all agents...</a>
+            <span id="download-feedback-loading-indicator-all" class="htmx-indicator">
+                <progress indeterminate></progress> Preparing file...
+            </span>
+        </div>
+
         <span id="run-loading-indicator" class="htmx-indicator">
             <progress indeterminate></progress> Running...
         </span>
