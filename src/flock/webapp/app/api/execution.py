@@ -184,7 +184,7 @@ async def htmx_run_flock(
                 exc_info=True,
             )
             return HTMLResponse(
-                f"<p class='error'>Invalid input format: {ve!s}</p>"
+                "<p class='error'>Invalid input format. Please check your input and try again.</p>"
             )
         except Exception as e_parse:
             logger.error(
