@@ -62,11 +62,6 @@ class SharedLinkStoreInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_all_feedback_records() -> list[FeedbackRecord]:
-        """Get all feedback records for all agents."""
-        pass
-
-    @abstractmethod
     async def get_all_feedback_records_for_agent(self, agent_name: str) -> list[FeedbackRecord]:
         """Get all feedback records for a given agent."""
         pass
@@ -214,50 +209,6 @@ class SQLiteSharedLinkStore(SharedLinkStoreInterface):
             return False # Or raise
 
     # ----------------------- Feedback methods -----------------------
-    async def get_all_feedback_records():
-        """Get all feedback records for all agents."""
-        try:
-            async with aiosqlite.connect(self.db_path) as db, db.execute(
-                """
-                SELECT
-                    feedback_id, share_id, context_type, reason,
-                    expected_response, actual_response, flock_name,
-                    agent_name, flock_definition, created_at,
-                    FROM feedback
-                """
-            ) as cursor:
-                rows = await cursor.fetchall()
-
-                if rows:
-                    logger.debug(f"Retrieved feedback records for all agents: size {len(rows)}")
-                    results = []
-                    for entry in rows:
-                        results.append(
-                            FeedbackRecord(
-                                feedback_id=entry[0],
-                                share_id=entry[1],
-                                context_type=entry[2],
-                                reason=entry[3],
-                                expected_response=entry[4],
-                                actual_response=entry[5],
-                                flock_name=entry[6],
-                                agent_name=entry[7],
-                                flock_definition=entry[8],
-                                created_at=entry[9],
-                            )
-                        )
-                        return results
-                else:
-                    logger.debug(
-                        "No feedback records stored!"
-                    )
-                    return []
-        except sqlite3.Error as e:
-            logger.error(
-                f"SQLite error retrieving all records for all agents: {e}"
-            )
-            return []
-
     async def get_feedback(self, id: str) -> FeedbackRecord | None:
         """Retrieve a single feedback record from SQLite."""
         try:
@@ -561,6 +512,7 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
             flock_definition=flock_definition,
             created_at=entity["created_at"],
         )
+
 
     # ------------------------------------------------ get_all_feedback_records --
     async def get_all_feedback_records_for_agent(self, agent_name: str) -> list[FeedbackRecord]:

@@ -602,6 +602,89 @@ async def chat_feedback_shared(request: Request,
     headers = {"HX-Trigger": json.dumps(toast_event)}
     return Response(status_code=204, headers=headers)
 
+@router.get("/chat/htmx/feedback-download/", response_class=FileResponse, include_in_schema=False)
+async def chat_feedback_download_all(
+    request: Request,
+    store: SharedLinkStoreInterface = Depends(get_shared_link_store)
+):
+    """Download all feedback records for all agents."""
+    import csv
+    import tempfile
+    from pathlib import Path
+
+
+    current_flock_instance: Flock | None = getattr(
+        request.app.state, "flock_instance", None
+    )
+
+    if not current_flock_instance:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=400, detail="No Flock loaded to download feedback for"
+        )
+
+    all_agent_names = list(current_flock_instance.agents.keys)
+
+    if not all_agent_names:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=400,
+            detail="No agents found in the current Flock"
+        )
+
+    all_records = []
+
+    for agent_name in all_agent_names:
+        records = await store.get_all_feedback_records_for_agent(
+            agent_name=agent_name
+        )
+
+        all_records.extend(records)
+
+    temp_dir = tempfile.gettempdir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_filename = f"flock_feedback_all_agents_{timestamp}.csv"
+    csv_path = Path(temp_dir) / csv_filename
+
+    headers = [
+        "feedback_id",
+        "share_id",
+        "context_type",
+        "reason",
+        "excpected_response",
+        "actual_response",
+        "created_at",
+        "flock_name",
+        "agent_name",
+        "flock_definition"
+    ]
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=headers)
+        writer.writeheader()
+
+        for record in all_records:
+            row_data = {}
+            for header in headers:
+                value = getattr(record, header, None)
+                if header == "created_at" and value:
+                    row_data[header] = (
+                        value.isoformat()
+                        if isinstance(value, datetime)
+                        else str(value)
+                    )
+                else:
+                    row_data[header] = str(value) if value is not None else ""
+            writer.writerow(row_data)
+
+    return FileResponse(
+        path=str(csv_path),
+        filename=csv_filename,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={csv_filename}"}
+    )
 
 @router.get("/chat/htmx/feedback-download/{agent_name}", response_class=FileResponse, include_in_schema=False)
 async def chat_feedback_download(
