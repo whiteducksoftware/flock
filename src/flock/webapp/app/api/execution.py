@@ -532,6 +532,7 @@ async def chat_feedback_download(
     import csv
     import tempfile
     from pathlib import Path
+    from werkzeug.utils import secure_filename
 
     records = await store.get_all_feedback_records_for_agent(
         agent_name=agent_name
@@ -540,7 +541,8 @@ async def chat_feedback_download(
     # Create a temporary CSV file
     temp_dir = tempfile.gettempdir()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_filename = f"flock_feedback_{agent_name}_{timestamp}.csv"
+    safe_agent_name = secure_filename(agent_name)
+    csv_filename = f"flock_feedback_{safe_agent_name}_{timestamp}.csv"
     csv_path = Path(temp_dir) / csv_filename
 
     # Define CSV headers based on FeedbackRecord fields
