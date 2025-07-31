@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import html
 import markdown2  # Import markdown2
 from fastapi import (  # Ensure Form and HTTPException are imported
     APIRouter,
@@ -192,7 +193,7 @@ async def htmx_run_flock(
                 exc_info=True,
             )
             return HTMLResponse(
-                f"<p class='error'>Error processing inputs for {start_agent_name}: {e_parse}</p>"
+                f"<p class='error'>Error processing inputs for {html.escape(str(start_agent_name))}: {html.escape(str(e_parse))}</p>"
             )
 
     result_data = await run_current_flock_service(
