@@ -515,11 +515,14 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
 
     # ------------------------------------------------ get_all_feedback_records --
     async def get_all_feedback_records_for_agent(self, agent_name: str) -> list[FeedbackRecord]:
-        """Retrieve all feedback records from Azure Table Storage."""
+        """Retrieve all feedback records from Azure Table Storage for a specific agent."""
         tbl_client = self.table_svc.get_table_client(self._FEEDBACK_TBL_NAME)
 
+        # Use Azure Table Storage filtering to only get records for the specified agent
+        filter_query = f"agent_name eq '{agent_name}'"
+
         records = []
-        async for entity in tbl_client.list_entities():
+        async for entity in tbl_client.query_entities(filter_query):
             # Get flock_definition from blob if it exists
             flock_definition = None
             if "flock_blob_name" in entity:
@@ -546,7 +549,7 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
                 created_at=entity["created_at"],
             ))
 
-        logger.debug("Retrieved %d feedback records", len(records))
+        logger.debug("Retrieved %d feedback records for agent %s", len(records), agent_name)
         return records
 
 
