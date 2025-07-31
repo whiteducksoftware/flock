@@ -56,6 +56,16 @@ class SharedLinkStoreInterface(ABC):
         """Persist a feedback record."""
         pass
 
+    @abstractmethod
+    async def get_feedback(self, id: str) -> FeedbackRecord | None:
+        """Get a single feedback record."""
+        pass
+
+    @abstractmethod
+    async def get_all_feedback_records(self) -> list[FeedbackRecord]:
+        """Get all feedback records."""
+        pass
+
 class SQLiteSharedLinkStore(SharedLinkStoreInterface):
     """SQLite implementation for storing and retrieving shared link configurations."""
 
@@ -199,6 +209,70 @@ class SQLiteSharedLinkStore(SharedLinkStoreInterface):
             return False # Or raise
 
     # ----------------------- Feedback methods -----------------------
+    async def get_feedback(self, id: str) -> FeedbackRecord | None:
+        """Retrieve a single feedback record from SQLite."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db, db.execute(
+                """SELECT
+                    feedback_id, share_id, context_type, reason,
+                    expected_response, actual_response, flock_name, agent_name, flock_definition, created_at
+                FROM feedback WHERE feedback_id = ?""",
+                (id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+
+            if row:
+                logger.debug(f"Retrieved feedback record for ID: {id}")
+                return FeedbackRecord(
+                    feedback_id=row[0],
+                    share_id=row[1],
+                    context_type=row[2],
+                    reason=row[3],
+                    expected_response=row[4],
+                    actual_response=row[5],
+                    flock_name=row[6],
+                    agent_name=row[7],
+                    flock_definition=row[8],
+                    created_at=row[9],  # SQLite stores as TEXT, Pydantic will parse from ISO format
+                )
+
+            logger.debug(f"No feedback record found for ID: {id}")
+            return None
+        except sqlite3.Error as e:
+            logger.error(f"SQLite error retrieving feedback for ID {id}: {e}", exc_info=True)
+            return None  # Or raise, depending on desired error handling
+
+    async def get_all_feedback_records(self) -> list[FeedbackRecord]:
+        """Retrieve all feedback records from SQLite."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db, db.execute(
+                """SELECT
+                    feedback_id, share_id, context_type, reason,
+                    expected_response, actual_response, flock_name, agent_name, flock_definition, created_at
+                FROM feedback ORDER BY created_at DESC"""
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+            records = []
+            for row in rows:
+                records.append(FeedbackRecord(
+                    feedback_id=row[0],
+                    share_id=row[1],
+                    context_type=row[2],
+                    reason=row[3],
+                    expected_response=row[4],
+                    actual_response=row[5],
+                    flock_name=row[6],
+                    agent_name=row[7],
+                    flock_definition=row[8],
+                    created_at=row[9],  # SQLite stores as TEXT, Pydantic will parse from ISO format
+                ))
+
+            logger.debug(f"Retrieved {len(records)} feedback records")
+            return records
+        except sqlite3.Error as e:
+            logger.error(f"SQLite error retrieving all feedback records: {e}", exc_info=True)
+            return []  # Return empty list on error
 
     async def save_feedback(self, record: FeedbackRecord) -> FeedbackRecord:
         """Persist a feedback record to SQLite."""
@@ -366,9 +440,7 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
 
     # -------------------------------------------------------- save_feedback --
     async def save_feedback(self, record: FeedbackRecord) -> FeedbackRecord:
-        """Persist a feedback record. If a flock_definition is present, upload it as a blob and
-        store only a reference in the table row to avoid oversized entities (64 KiB limit).
-        """
+        """Persist a feedback record. If a flock_definition is present, upload it as a blob and store only a reference in the table row to avoid oversized entities (64 KiB limit)."""
         tbl_client = self.table_svc.get_table_client(self._FEEDBACK_TBL_NAME)
 
         # Core entity fields (avoid dumping the full Pydantic model – too many columns / large value)
@@ -404,17 +476,88 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
                     f" → blob '{entity['flock_blob_name']}'" if "flock_blob_name" in entity else "")
         return record
 
+    # -------------------------------------------------------- get_feedback --
+    async def get_feedback(self, id: str) -> FeedbackRecord | None:
+        """Retrieve a single feedback record from Azure Table Storage."""
+        tbl_client = self.table_svc.get_table_client(self._FEEDBACK_TBL_NAME)
+        try:
+            entity = await tbl_client.get_entity("feedback", id)
+        except ResourceNotFoundError:
+            logger.debug("No feedback record found for ID: %s", id)
+            return None
+
+        # Get flock_definition from blob if it exists
+        flock_definition = None
+        if "flock_blob_name" in entity:
+            blob_name = entity["flock_blob_name"]
+            blob_client = self.blob_svc.get_blob_client(self._CONTAINER_NAME, blob_name)
+            try:
+                blob_bytes = await (await blob_client.download_blob()).readall()
+                flock_definition = blob_bytes.decode()
+            except Exception as e:
+                logger.error("Cannot download blob '%s' for feedback_id=%s: %s",
+                           blob_name, id, e, exc_info=True)
+                # Continue without flock_definition rather than failing
+
+        return FeedbackRecord(
+            feedback_id=id,
+            share_id=entity.get("share_id"),
+            context_type=entity["context_type"],
+            reason=entity["reason"],
+            expected_response=entity.get("expected_response"),
+            actual_response=entity.get("actual_response"),
+            flock_name=entity.get("flock_name"),
+            agent_name=entity.get("agent_name"),
+            flock_definition=flock_definition,
+            created_at=entity["created_at"],
+        )
+
+    # ------------------------------------------------ get_all_feedback_records --
+    async def get_all_feedback_records(self) -> list[FeedbackRecord]:
+        """Retrieve all feedback records from Azure Table Storage."""
+        tbl_client = self.table_svc.get_table_client(self._FEEDBACK_TBL_NAME)
+
+        records = []
+        async for entity in tbl_client.list_entities():
+            # Get flock_definition from blob if it exists
+            flock_definition = None
+            if "flock_blob_name" in entity:
+                blob_name = entity["flock_blob_name"]
+                blob_client = self.blob_svc.get_blob_client(self._CONTAINER_NAME, blob_name)
+                try:
+                    blob_bytes = await (await blob_client.download_blob()).readall()
+                    flock_definition = blob_bytes.decode()
+                except Exception as e:
+                    logger.error("Cannot download blob '%s' for feedback_id=%s: %s",
+                               blob_name, entity["RowKey"], e, exc_info=True)
+                    # Continue without flock_definition rather than failing
+
+            records.append(FeedbackRecord(
+                feedback_id=entity["RowKey"],
+                share_id=entity.get("share_id"),
+                context_type=entity["context_type"],
+                reason=entity["reason"],
+                expected_response=entity.get("expected_response"),
+                actual_response=entity.get("actual_response"),
+                flock_name=entity.get("flock_name"),
+                agent_name=entity.get("agent_name"),
+                flock_definition=flock_definition,
+                created_at=entity["created_at"],
+            ))
+
+        logger.debug("Retrieved %d feedback records", len(records))
+        return records
 
 
 # ----------------------- Factory Function -----------------------
 
 def create_shared_link_store(store_type: str | None = None, connection_string: str | None = None) -> SharedLinkStoreInterface:
     """Factory function to create the appropriate shared link store based on configuration.
-    
+
     Args:
         store_type: Type of store to create ("local" for SQLite, "azure-storage" for Azure Table Storage)
         connection_string: Connection string for the store (file path for SQLite, connection string for Azure)
-    
+
     Returns:
         Configured SharedLinkStoreInterface implementation
     """

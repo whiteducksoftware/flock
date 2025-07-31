@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import markdown2  # Added for Markdown to HTML conversion
 from fastapi import APIRouter, Depends, Form, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from flock.core.flock import Flock
@@ -572,7 +572,6 @@ async def chat_feedback(request: Request,
     headers = {"HX-Trigger": json.dumps(toast_event)}
     return Response(status_code=204, headers=headers)
 
-
 @router.post("/chat/htmx/feedback-shared", response_class=HTMLResponse, include_in_schema=False)
 async def chat_feedback_shared(request: Request,
     share_id: str = Form(...),
@@ -602,3 +601,11 @@ async def chat_feedback_shared(request: Request,
     }
     headers = {"HX-Trigger": json.dumps(toast_event)}
     return Response(status_code=204, headers=headers)
+
+
+@router.get("/chat/htmx/feedback-download", response_class=FileResponse, include_in_schema=False)
+async def chat_feedback_download(
+    request: Request,
+    store: SharedLinkStoreInterface = Depends(get_shared_link_store)
+):
+    pass
