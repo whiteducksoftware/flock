@@ -603,16 +603,17 @@ async def chat_feedback_shared(request: Request,
     return Response(status_code=204, headers=headers)
 
 
-@router.get("/chat/htmx/feedback-download", response_class=FileResponse, include_in_schema=False)
+@router.get("/chat/htmx/feedback-download/{agent_name}", response_class=FileResponse, include_in_schema=False)
 async def chat_feedback_download(
     request: Request,
+    agent_name: str,
     store: SharedLinkStoreInterface = Depends(get_shared_link_store)
 ):
     import csv
     import tempfile
     from pathlib import Path
 
-    records = await store.get_all_feedback_records()
+    records = await store.get_all_feedback_records_for_agent(agent_name=agent_name)
 
     # Create a temporary CSV file
     temp_dir = tempfile.gettempdir()

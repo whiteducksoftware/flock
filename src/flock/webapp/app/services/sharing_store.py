@@ -62,7 +62,7 @@ class SharedLinkStoreInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_all_feedback_records(self) -> list[FeedbackRecord]:
+    async def get_all_feedback_records_for_agent(self, agent_name: str) -> list[FeedbackRecord]:
         """Get all feedback records."""
         pass
 
@@ -242,14 +242,15 @@ class SQLiteSharedLinkStore(SharedLinkStoreInterface):
             logger.error(f"SQLite error retrieving feedback for ID {id}: {e}", exc_info=True)
             return None  # Or raise, depending on desired error handling
 
-    async def get_all_feedback_records(self) -> list[FeedbackRecord]:
+    async def get_all_feedback_records_for_agent(self, agent_name: str) -> list[FeedbackRecord]:
         """Retrieve all feedback records from SQLite."""
         try:
             async with aiosqlite.connect(self.db_path) as db, db.execute(
                 """SELECT
                     feedback_id, share_id, context_type, reason,
                     expected_response, actual_response, flock_name, agent_name, flock_definition, created_at
-                FROM feedback ORDER BY created_at DESC"""
+                FROM feedback WHERE agent_name = ? ORDER BY created_at DESC""",
+                (agent_name,)
             ) as cursor:
                 rows = await cursor.fetchall()
 
@@ -513,7 +514,7 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
         )
 
     # ------------------------------------------------ get_all_feedback_records --
-    async def get_all_feedback_records(self) -> list[FeedbackRecord]:
+    async def get_all_feedback_records_for_agent(self, agent_name: str) -> list[FeedbackRecord]:
         """Retrieve all feedback records from Azure Table Storage."""
         tbl_client = self.table_svc.get_table_client(self._FEEDBACK_TBL_NAME)
 

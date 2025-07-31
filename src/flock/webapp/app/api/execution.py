@@ -311,16 +311,17 @@ async def htmx_submit_feedback_shared(
     await store.save_feedback(record)
     return HTMLResponse("<p>🙏 Feedback received for shared run – thank you!</p>")
 
-@router.get("/htmx/feedback-download", response_class=FileResponse)
+@router.get("/htmx/feedback-download/{agent_name}", response_class=FileResponse)
 async def chat_feedback_download(
     request: Request,
+    agent_name: str,
     store: SharedLinkStoreInterface = Depends(get_shared_link_store)
 ):
     import csv
     import tempfile
     from pathlib import Path
 
-    records = await store.get_all_feedback_records()
+    records = await store.get_all_feedback_records_for_agent(agent_name=agent_name)
 
     # Create a temporary CSV file
     temp_dir = tempfile.gettempdir()
