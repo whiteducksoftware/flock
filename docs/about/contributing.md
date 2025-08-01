@@ -23,7 +23,7 @@ First off, thanks for taking the time to contribute!  Flock is still early but w
 
 
 ## 2. Reporting Issues:
-* Before submitting a new issue, pleas check [existing issues](https://github.com/whiteducksoftware/flock/issues) if it has already been reported.
+* Before submitting a new issue, please check [existing issues](https://github.com/whiteducksoftware/flock/issues) if it has already been reported.
 * To submit a new issue, please use the provided **Issue Templates** and provide a clear and descriptive title along with a detailed description of the problem or feature request, including steps to reproduce if it's a bug.
 
 ---
@@ -83,9 +83,5 @@ mkdocs serve  # live-reload at http://localhost:8000
 5. GitHub Action publishes to PyPI.
 
 --- 
-
-
-
-
 
 Happy hacking! 🐦
