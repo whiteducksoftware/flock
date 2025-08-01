@@ -5,20 +5,35 @@
     </header>
 
     <nav>
-        <ul role="group">            <li>
-                <button role="button" class="outline" hx-get="{{ url_for('htmx_get_registry_table', item_type='type') }}" hx-target="#registry-table-container" hx-indicator="#registry-loading" hx-on:click="setActiveButton(this)">
+        <ul role="group">
+            <li>
+                <button role="button" class="outline"
+                    hx-get="{{ url_for('htmx_get_registry_table', item_type='type') }}"
+                    hx-target="#registry-table-container" hx-indicator="#registry-loading"
+                    hx-on:click="setActiveButton(this)">
                     View Types
                 </button>
             </li>
             <li>
-                <button role="button" class="outline" hx-get="{{ url_for('htmx_get_registry_table', item_type='tool') }}" hx-target="#registry-table-container" hx-indicator="#registry-loading" hx-on:click="setActiveButton(this)">
+                <button role="button" class="outline"
+                    hx-get="{{ url_for('htmx_get_registry_table', item_type='tool') }}"
+                    hx-target="#registry-table-container" hx-indicator="#registry-loading"
+                    hx-on:click="setActiveButton(this)">
                     View Tools/Callables
                 </button>
             </li>
             <li>
-                <button role="button" class="outline" hx-get="{{ url_for('htmx_get_registry_table', item_type='component') }}" hx-target="#registry-table-container" hx-indicator="#registry-loading" hx-on:click="setActiveButton(this)">
+                <button role="button" class="outline"
+                    hx-get="{{ url_for('htmx_get_registry_table', item_type='component') }}"
+                    hx-target="#registry-table-container" hx-indicator="#registry-loading"
+                    hx-on:click="setActiveButton(this)">
                     View Components
                 </button>
+            </li>
+            <li>
+                <a role="button" class="outline" href="{{ url_for('chat_feedback_download_all')}}" download>
+                    Feedback-Files
+                </a>
             </li>
         </ul>
     </nav>
@@ -37,10 +52,10 @@
     function setActiveButton(clickedButton) {
         const buttons = clickedButton.closest('ul[role="group"]').querySelectorAll('button');
         buttons.forEach(button => {
-            button.classList.remove('primary'); 
+            button.classList.remove('primary');
             button.classList.add('outline');
         });
         clickedButton.classList.remove('outline');
-        clickedButton.classList.add('primary'); 
+        clickedButton.classList.add('primary');
     }
 </script>

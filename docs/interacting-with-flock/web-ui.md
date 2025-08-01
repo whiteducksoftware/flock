@@ -73,3 +73,17 @@ The Web UI is excellent for:
 - Demonstrating Flock capabilities without writing client code.
 - Simple internal tools where a basic web interface is sufficient.
 
+
+## Collecting Feedback
+
+Sometimes, you might need to collect feedback on the
+performance of your agents from your users as you iteratively refine your application.
+
+The WebUI offers a simple feedback-mechanism, allowing
+you to collect feedback from your users or team as you 
+iteratively refine your application.
+
+You can retrieve a CSV-File with the collected
+feedbacks for a specific agent by selecting 
+the `Download feedback for the selected agent...`
+option below the `Run Flock`-Button.
