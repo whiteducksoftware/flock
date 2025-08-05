@@ -12,30 +12,32 @@
     <nav>
         <ul role="group">
             <li>
-                <button role="button" 
-                        class="outline"                        hx-get="{{ url_for('htmx_get_registry_table', item_type='type') }}" 
-                        hx-target="#registry-table-container"
-                        hx-indicator="#registry-loading"
-                        hx-on:click="setActiveButton(this)">
+                <button role="button" class="outline"
+                    hx-get="{{ url_for('htmx_get_registry_table', item_type='type') }}"
+                    hx-target="#registry-table-container" hx-indicator="#registry-loading"
+                    hx-on:click="setActiveButton(this)">
                     View Types
                 </button>
             </li>
             <li>
-                <button role="button" 
-                        class="outline"                        hx-get="{{ url_for('htmx_get_registry_table', item_type='tool') }}" 
-                        hx-target="#registry-table-container"
-                        hx-indicator="#registry-loading"
-                        hx-on:click="setActiveButton(this)">
-                    View Tools/Callables
+                <button role="button" class="outline"
+                    hx-get="{{ url_for('htmx_get_registry_table', item_type='component') }}"
+                    hx-target="#registry-table-container" hx-indicator="#registry-loading"
+                    hx-on:click="setActiveButton(this)">
+                    View Components
                 </button>
             </li>
             <li>
-                <button role="button" 
-                        class="outline"                        hx-get="{{ url_for('htmx_get_registry_table', item_type='component') }}" 
-                        hx-target="#registry-table-container"
-                        hx-indicator="#registry-loading"
-                        hx-on:click="setActiveButton(this)">
+                <button role="button" class="outline"
+                    hx-get="{{ url_for('htmx_get_registry_table', item_type='component') }}"
+                    hx-target="#registry-table-container" hx-indicator="#registry-loading"
+                    hx-on:click="setActiveButton(this)">
                     View Components
+                </button>
+            </li>
+            <li>
+                <button role="button" class="secondary" hx-get="{{ url_for('chat_feedback_download_all')}}" download>
+                    Download Feedback-Files for Agents
                 </button>
             </li>
         </ul>
@@ -50,7 +52,8 @@
     </div>
 
     <footer style="margin-top: 2rem;">
-        <a href="{{ url_for('page_editor_section', section='execute') }}" role="button" class="secondary contrast">Back to Editor</a>
+        <a href="{{ url_for('page_editor_section', section='execute') }}" role="button" class="secondary contrast">Back
+            to Editor</a>
     </footer>
 </article>
 
@@ -70,7 +73,7 @@
 
     // Optional: Set the first button as active on initial load,
     // or if you want to default to loading "Types"
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         const firstButton = document.querySelector('nav ul[role="group"] button');
         if (firstButton) {
             // setActiveButton(firstButton); // Uncomment if you want a default active button
