@@ -98,6 +98,6 @@ print("Flock imported successfully!")
 
 If this runs without errors, you're all set!
 
-Next Steps
+## Next Steps
 
 With Flock installed, you're ready for the Quick Start guide to build and run your first agent!

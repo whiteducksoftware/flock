@@ -15,7 +15,7 @@ and actively encourage our community-members to report
 any issues with the Flock framework as soon as possible
 in order to mitigate any potential risks.
 
-To report a vulnerability, you have serveral options available:
+To report a vulnerability, you have several options  available:
 
 ### 1. Creating a Vulnerability Report (preferred):
 

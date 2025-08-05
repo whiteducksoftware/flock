@@ -102,14 +102,14 @@ Let's break down the magic:
 
 **Define Your Agent Declaratively**: This is the core of Flock! Instead of writing a long prompt, you used FlockFactory.create_default_agent and simply declared:
 
-input="topic: str": The agent needs one input called topic, which should be a string.
+`input="topic: str"`: The agent needs one input called topic, which should be a string.
 
-output="fun_title: str, fun_slide_headers: list[str]": The agent should produce two outputs: fun_title (a string) and fun_slide_headers (a list of strings).
+`output="fun_title: str, fun_slide_headers: list[str]"`: The agent should produce two outputs: fun_title (a string) and fun_slide_headers (a list of strings).
 Flock's default evaluator takes care of constructing the necessary instructions for the LLM based on these declarations and the agent's description.
 
 **Add the Agent**: You registered your presentation_agent with the flock.
 
-**Run the Flock**: flock.run() kicked off the process, starting with your specified agent and input.
+**Run the Flock**: `flock.run()` kicked off the process, starting with your specified agent and input.
 
 **Admire the Results**: Flock executed the agent (calling the LLM behind the scenes) and returned the output as a convenient Box object, allowing you to access the results using dot notation (like result.fun_title).
 
