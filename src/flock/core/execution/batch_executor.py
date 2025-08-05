@@ -228,7 +228,7 @@ class BatchProcessor:
             try:
                 # Use the synchronous wrapper to avoid nested event-loop issues inside threads
                 result = self.flock.run(
-                    start_agent=start_agent,
+                    agent=start_agent,
                     input=full_input,
                     box_result=box_results,
                 )

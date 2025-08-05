@@ -13,22 +13,22 @@ from pydantic import (
 )
 
 from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_tool_base import FlockMCPToolBase
+from flock.core.mcp.flock_mcp_tool import FlockMCPTool
 from flock.core.mcp.mcp_client import (
-    FlockMCPClientBase,
+    FlockMCPClient,
 )
-from flock.core.mcp.mcp_config import FlockMCPConfigurationBase
+from flock.core.mcp.mcp_config import FlockMCPConfiguration
 
 logger = get_logger("mcp.client_manager")
 tracer = trace.get_tracer(__name__)
 
-TClient = TypeVar("TClient", bound="FlockMCPClientBase")
+TClient = TypeVar("TClient", bound="FlockMCPClient")
 
 
-class FlockMCPClientManagerBase(BaseModel, ABC, Generic[TClient]):
+class FlockMCPClientManager(BaseModel, ABC, Generic[TClient]):
     """Handles a Pool of MCPClients of type TClient."""
 
-    client_config: FlockMCPConfigurationBase = Field(
+    client_config: FlockMCPConfiguration = Field(
         ..., description="Configuration for clients."
     )
 
@@ -38,7 +38,7 @@ class FlockMCPClientManagerBase(BaseModel, ABC, Generic[TClient]):
         exclude=True,
     )
 
-    clients: dict[str, dict[str, FlockMCPClientBase]] = Field(
+    clients: dict[str, dict[str, FlockMCPClient]] = Field(
         default_factory=dict,
         exclude=True,
         description="Internal Store for the clients.",
@@ -154,7 +154,7 @@ class FlockMCPClientManagerBase(BaseModel, ABC, Generic[TClient]):
         agent_id: str,
         run_id: str,
         additional_params: dict[str, Any] | None = None,
-    ) -> list[FlockMCPToolBase]:
+    ) -> list[FlockMCPTool]:
         """Retrieves a list of tools for the agents to act on."""
         with tracer.start_as_current_span("client_manager.get_tools") as span:
             span.set_attribute("agent_id", agent_id)
@@ -165,7 +165,7 @@ class FlockMCPClientManagerBase(BaseModel, ABC, Generic[TClient]):
                     run_id=run_id,
                     additional_params=additional_params,
                 )
-                tools: list[FlockMCPToolBase] = await client.get_tools(
+                tools: list[FlockMCPTool] = await client.get_tools(
                     agent_id=agent_id, run_id=run_id
                 )
                 return tools

@@ -28,7 +28,7 @@ from flock.core.flock_registry import (
 )
 
 # Get registry instance
-FlockRegistry = get_registry()
+registry = get_registry()
 
 # --- Mock Components for Testing ---
 

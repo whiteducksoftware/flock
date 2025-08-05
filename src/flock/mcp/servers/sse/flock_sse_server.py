@@ -15,12 +15,12 @@ from opentelemetry import trace
 from pydantic import Field
 
 from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_server import FlockMCPServerBase
-from flock.core.mcp.mcp_client import FlockMCPClientBase
-from flock.core.mcp.mcp_client_manager import FlockMCPClientManagerBase
+from flock.core.mcp.flock_mcp_server import FlockMCPServer
+from flock.core.mcp.mcp_client import FlockMCPClient
+from flock.core.mcp.mcp_client_manager import FlockMCPClientManager
 from flock.core.mcp.mcp_config import (
-    FlockMCPConfigurationBase,
-    FlockMCPConnectionConfigurationBase,
+    FlockMCPConfiguration,
+    FlockMCPConnectionConfiguration,
 )
 from flock.core.mcp.types.types import SseServerParameters
 
@@ -28,7 +28,7 @@ logger = get_logger("mcp.sse.server")
 tracer = trace.get_tracer(__name__)
 
 
-class FlockSSEConnectionConfig(FlockMCPConnectionConfigurationBase):
+class FlockSSEConnectionConfig(FlockMCPConnectionConfiguration):
     """Concrete ConnectionConfig for an SSEClient."""
 
     # Only thing we need to override here is the concrete transport_type
@@ -42,7 +42,7 @@ class FlockSSEConnectionConfig(FlockMCPConnectionConfigurationBase):
     )
 
 
-class FlockSSEConfig(FlockMCPConfigurationBase):
+class FlockSSEConfig(FlockMCPConfiguration):
     """Configuration for SSE Clients."""
 
     # The only thing we need to override here is the concrete
@@ -53,7 +53,7 @@ class FlockSSEConfig(FlockMCPConfigurationBase):
     )
 
 
-class FlockSSEClient(FlockMCPClientBase):
+class FlockSSEClient(FlockMCPClient):
     """Client for SSE Servers."""
 
     config: FlockSSEConfig = Field(..., description="Client configuration.")
@@ -115,7 +115,7 @@ class FlockSSEClient(FlockMCPClientBase):
         )
 
 
-class FlockSSEClientManager(FlockMCPClientManagerBase):
+class FlockSSEClientManager(FlockMCPClientManager):
     """Manager for handling SSE Clients."""
 
     client_config: FlockSSEConfig = Field(
@@ -132,7 +132,7 @@ class FlockSSEClientManager(FlockMCPClientManagerBase):
         return new_client
 
 
-class FlockSSEServer(FlockMCPServerBase):
+class FlockSSEServer(FlockMCPServer):
     """Class which represents a MCP Server using the SSE Transport type."""
 
     config: FlockSSEConfig = Field(..., description="Config for the server.")

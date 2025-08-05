@@ -17,12 +17,12 @@ from opentelemetry import trace
 from pydantic import Field
 
 from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_server import FlockMCPServerBase
-from flock.core.mcp.mcp_client import FlockMCPClientBase
-from flock.core.mcp.mcp_client_manager import FlockMCPClientManagerBase
+from flock.core.mcp.flock_mcp_server import FlockMCPServer
+from flock.core.mcp.mcp_client import FlockMCPClient
+from flock.core.mcp.mcp_client_manager import FlockMCPClientManager
 from flock.core.mcp.mcp_config import (
-    FlockMCPConfigurationBase,
-    FlockMCPConnectionConfigurationBase,
+    FlockMCPConfiguration,
+    FlockMCPConnectionConfiguration,
 )
 from flock.core.mcp.types.types import (
     StreamableHttpServerParameters,
@@ -34,7 +34,7 @@ tracer = trace.get_tracer(__name__)
 GetSessionIdCallback = Callable[[], str | None]
 
 
-class FlockStreamableHttpConnectionConfig(FlockMCPConnectionConfigurationBase):
+class FlockStreamableHttpConnectionConfig(FlockMCPConnectionConfiguration):
     """Concrete ConnectionConfig for a StreamableHttpClient."""
 
     # Only thing we need to override here is the concrete transport_type
@@ -49,7 +49,7 @@ class FlockStreamableHttpConnectionConfig(FlockMCPConnectionConfigurationBase):
     )
 
 
-class FlockStreamableHttpConfig(FlockMCPConfigurationBase):
+class FlockStreamableHttpConfig(FlockMCPConfiguration):
     """Configuration for Streamable HTTP Clients."""
 
     # The only thing we need to override here is the
@@ -60,7 +60,7 @@ class FlockStreamableHttpConfig(FlockMCPConfigurationBase):
     )
 
 
-class FlockStreamableHttpClient(FlockMCPClientBase):
+class FlockStreamableHttpClient(FlockMCPClient):
     """Client for StreamableHttpServers."""
 
     config: FlockStreamableHttpConfig = Field(
@@ -135,7 +135,7 @@ class FlockStreamableHttpClient(FlockMCPClientBase):
         )
 
 
-class FlockStreamableHttpClientManager(FlockMCPClientManagerBase):
+class FlockStreamableHttpClientManager(FlockMCPClientManager):
     """Manager for handling StreamableHttpClients."""
 
     client_config: FlockStreamableHttpConfig = Field(
@@ -153,7 +153,7 @@ class FlockStreamableHttpClientManager(FlockMCPClientManagerBase):
         return new_client
 
 
-class FlockStreamableHttpServer(FlockMCPServerBase):
+class FlockStreamableHttpServer(FlockMCPServer):
     """Class which represents a MCP Server using the streamable Http Transport type."""
 
     config: FlockStreamableHttpConfig = Field(

@@ -75,7 +75,7 @@ def test_nested_type_serialization():
         
         # Try running the loaded Flock (this will validate all nested types are available)
         result = loaded_flock.run(
-            start_agent="company_agent",
+            agent="company_agent",
             input={"query": "Get a test company"},
         )
         

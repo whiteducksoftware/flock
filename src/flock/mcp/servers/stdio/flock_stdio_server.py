@@ -14,12 +14,12 @@ from opentelemetry import trace
 from pydantic import Field
 
 from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_server import FlockMCPServerBase
-from flock.core.mcp.mcp_client import FlockMCPClientBase
-from flock.core.mcp.mcp_client_manager import FlockMCPClientManagerBase
+from flock.core.mcp.flock_mcp_server import FlockMCPServer
+from flock.core.mcp.mcp_client import FlockMCPClient
+from flock.core.mcp.mcp_client_manager import FlockMCPClientManager
 from flock.core.mcp.mcp_config import (
-    FlockMCPConfigurationBase,
-    FlockMCPConnectionConfigurationBase,
+    FlockMCPConfiguration,
+    FlockMCPConnectionConfiguration,
 )
 from flock.core.mcp.types.types import StdioServerParameters
 
@@ -27,7 +27,7 @@ logger = get_logger("mcp.stdio.server")
 tracer = trace.get_tracer(__name__)
 
 
-class FlockStdioConnectionConfig(FlockMCPConnectionConfigurationBase):
+class FlockStdioConnectionConfig(FlockMCPConnectionConfiguration):
     """Concrete ConnectionConfig for an StdioClient."""
 
     # Only thing we need to override here is the concrete transport_type
@@ -42,7 +42,7 @@ class FlockStdioConnectionConfig(FlockMCPConnectionConfigurationBase):
     )
 
 
-class FlockStdioConfig(FlockMCPConfigurationBase):
+class FlockStdioConfig(FlockMCPConfiguration):
     """Configuration for Stdio Clients."""
 
     # The only thing we need to override here is the
@@ -53,7 +53,7 @@ class FlockStdioConfig(FlockMCPConfigurationBase):
     )
 
 
-class FlockStdioClient(FlockMCPClientBase):
+class FlockStdioClient(FlockMCPClient):
     """Client for Stdio Servers."""
 
     config: FlockStdioConfig = Field(..., description="Client Configuration.")
@@ -104,7 +104,7 @@ class FlockStdioClient(FlockMCPClientBase):
 
 
 # Not really needed but kept here as an example.
-class FlockStdioClientManager(FlockMCPClientManagerBase):
+class FlockStdioClientManager(FlockMCPClientManager):
     """Manager for handling Stdio Clients."""
 
     client_config: FlockStdioConfig = Field(
@@ -122,7 +122,7 @@ class FlockStdioClientManager(FlockMCPClientManagerBase):
         return new_client
 
 
-class FlockMCPStdioServer(FlockMCPServerBase):
+class FlockMCPStdioServer(FlockMCPServer):
     """Class which represents a MCP Server using the Stdio Transport type.
 
     This means (most likely) that the server is a locally

@@ -473,7 +473,7 @@ async def chat_send_shared(
         if frozen_chat_cfg.history_key: run_input[frozen_chat_cfg.history_key] = [h["text"] for h in history if h.get("role") == "user" or h.get("role") == "bot"]
 
         try:
-            result_dict = await flock_inst.run_async(start_agent=bot_agent, input=run_input, box_result=False)
+            result_dict = await flock_inst.run_async(agent=bot_agent, input=run_input, box_result=False)
             if frozen_chat_cfg.response_key:
                 bot_text = str(result_dict.get(frozen_chat_cfg.response_key, result_dict))
             else:

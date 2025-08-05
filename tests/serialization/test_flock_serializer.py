@@ -15,7 +15,7 @@ from flock.core.flock_evaluator import FlockEvaluator, FlockEvaluatorConfig
 from flock.core.flock_module import FlockModule, FlockModuleConfig
 from flock.core.flock_router import FlockRouter, FlockRouterConfig, HandOffRequest
 from flock.core.serialization.flock_serializer import FlockSerializer
-from flock.core.flock_registry import FlockRegistry, get_registry, flock_component, flock_tool, flock_type
+from flock.core.registry import RegistryHub as FlockRegistry, get_registry, flock_component, flock_tool, flock_type
 from flock.core.serialization.serializable import Serializable # Needed for mocks if they inherit
 
 # Import Temporal config models
@@ -32,7 +32,7 @@ from flock.workflow.temporal_config import (
 def setup_registry():
     """Fixture to ensure mocks are registered before each test."""
     registry = get_registry()
-    registry._initialize() # Start fresh
+    registry.clear_all() # Start fresh
 
     # Register Mocks
     registry.register_component(MockEvaluator)
@@ -44,7 +44,7 @@ def setup_registry():
 
     yield # Run test
 
-    registry._initialize() # Clean up
+    registry.clear_all() # Clean up
 
 
 class MockEvalConfig(FlockEvaluatorConfig):
@@ -326,12 +326,12 @@ def test_deserialize_registers_components_and_types(flock_with_agents):
 
     # Create a new clean registry to simulate loading in a fresh environment
     new_registry = FlockRegistry()
-    new_registry._initialize()
+    new_registry.clear_all()
 
-    with patch('flock.core.flock_registry.get_registry', return_value=new_registry):
+    with patch('flock.core.registry.get_registry', return_value=new_registry):
         # Ensure mocks are NOT initially registered in the new registry
         with pytest.raises(KeyError):
-            new_registry.get_type("MockEvaluator")
+            new_registry.get_component("MockEvaluator")
         with pytest.raises(KeyError):
             new_registry.get_callable("sample_tool")
 

@@ -70,7 +70,7 @@ def test_serialization_with_custom_type():
         # Try running the loaded Flock (this will validate the TestPerson type is available)
         # Just a basic smoke test - not testing actual output
         result = loaded_flock.run(
-            start_agent="person_agent",
+            agent="person_agent",
             input={"query": "Get a test person"},
         )
         

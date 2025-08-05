@@ -15,11 +15,11 @@ from pydantic import (
     Field,
 )
 
-from flock.core.flock_module import FlockModule
+from flock.core.component.agent_component_base import AgentComponent
 from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_tool_base import FlockMCPToolBase
-from flock.core.mcp.mcp_client_manager import FlockMCPClientManagerBase
-from flock.core.mcp.mcp_config import FlockMCPConfigurationBase
+from flock.core.mcp.flock_mcp_tool import FlockMCPTool
+from flock.core.mcp.mcp_client_manager import FlockMCPClientManager
+from flock.core.mcp.mcp_config import FlockMCPConfiguration
 from flock.core.serialization.serializable import Serializable
 from flock.core.serialization.serialization_utils import (
     deserialize_component,
@@ -28,7 +28,7 @@ from flock.core.serialization.serialization_utils import (
 
 logger = get_logger("mcp.server")
 tracer = trace.get_tracer(__name__)
-T = TypeVar("T", bound="FlockMCPServerBase")
+T = TypeVar("T", bound="FlockMCPServer")
 
 LoggingLevel = Literal[
     "debug",
@@ -42,7 +42,7 @@ LoggingLevel = Literal[
 ]
 
 
-class FlockMCPServerBase(BaseModel, Serializable, ABC):
+class FlockMCPServer(BaseModel, Serializable, ABC):
     """Base class for all Flock MCP Server Types.
 
     Servers serve as an abstraction-layer between the underlying MCPClientSession
@@ -64,7 +64,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
     2. Using FlockMCPServerConfig.with_fields() to create a config class.
     """
 
-    config: FlockMCPConfigurationBase = Field(
+    config: FlockMCPConfiguration = Field(
         ..., description="Config for clients connecting to the server."
     )
 
@@ -74,15 +74,15 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         description="Whether or not this Server has already initialized.",
     )
 
-    modules: dict[str, FlockModule] = Field(
+    components: dict[str, AgentComponent] = Field(
         default={},
-        description="Dictionary of FlockModules attached to this Server.",
+        description="Dictionary of unified agent components attached to this Server.",
     )
 
     # --- Underlying ConnectionManager ---
     # (Manages a pool of ClientConnections and does the actual talking to the MCP Server)
     # (Excluded from Serialization)
-    client_manager: FlockMCPClientManagerBase | None = Field(
+    client_manager: FlockMCPClientManager | None = Field(
         default=None,
         exclude=True,
         description="Underlying Connection Manager. Handles the actual underlying connections to the server.",
@@ -98,43 +98,43 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         arbitrary_types_allowed=True,
     )
 
-    def add_module(self, module: FlockModule) -> None:
-        """Add a module to this server."""
-        if not module.name:
-            logger.error("Module must have a name to be added.")
+    def add_component(self, component: AgentComponent) -> None:
+        """Add a unified component to this server."""
+        if not component.name:
+            logger.error("Component must have a name to be added.")
             return
-        if self.modules and module.name in self.modules:
-            logger.warning(f"Overwriting existing module: {module.name}")
+        if self.components and component.name in self.components:
+            logger.warning(f"Overwriting existing component: {component.name}")
 
-        self.modules[module.name] = module
+        self.components[component.name] = component
         logger.debug(
-            f"Added module '{module.name}' to server {self.config.name}"
+            f"Added component '{component.name}' to server {self.config.name}"
         )
         return
 
-    def remove_module(self, module_name: str) -> None:
-        """Remove a module from this server."""
-        if module_name in self.modules:
-            del self.modules[module_name]
+    def remove_component(self, component_name: str) -> None:
+        """Remove a component from this server."""
+        if component_name in self.components:
+            del self.components[component_name]
             logger.debug(
-                f"Removed module '{module_name}' from server '{self.config.name}'"
+                f"Removed component '{component_name}' from server '{self.config.name}'"
             )
         else:
             logger.warning(
-                f"Module '{module_name}' not found on server '{self.config.name}'"
+                f"Component '{component_name}' not found on server '{self.config.name}'"
             )
         return
 
-    def get_module(self, module_name: str) -> FlockModule | None:
-        """Get a module by name."""
-        return self.modules.get(module_name)
+    def get_component(self, component_name: str) -> AgentComponent | None:
+        """Get a component by name."""
+        return self.components.get(component_name)
 
-    def get_enabled_modules(self) -> list[FlockModule]:
-        """Get a list of currently enabled modules attached to this server."""
-        return [m for m in self.modules.values() if m.config.enabled]
+    def get_enabled_components(self) -> list[AgentComponent]:
+        """Get a list of currently enabled components attached to this server."""
+        return [c for c in self.components.values() if c.config.enabled]
 
     @abstractmethod
-    async def initialize(self) -> FlockMCPClientManagerBase:
+    async def initialize(self) -> FlockMCPClientManager:
         """Called when initializing the server."""
         pass
 
@@ -211,7 +211,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
                         additional_params=additional_params
                     )
                     result: list[
-                        FlockMCPToolBase
+                        FlockMCPTool
                     ] = await self.client_manager.get_tools(
                         agent_id=agent_id,
                         run_id=run_id,
@@ -244,7 +244,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
             try:
                 if not additional_params:
                     additional_params = {}
-                for module in self.get_enabled_modules():
+                for module in self.get_enabled_components():
                     additional_params = await module.on_connect(
                         server=self, additional_params=additional_params
                     )
@@ -264,7 +264,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         with tracer.start_as_current_span("server.pre_init") as span:
             span.set_attribute("server.name", self.config.name)
             try:
-                for module in self.get_enabled_modules():
+                for module in self.get_enabled_components():
                     await module.on_pre_server_init(self)
             except Exception as module_error:
                 logger.error(
@@ -282,7 +282,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         with tracer.start_as_current_span("server.post_init") as span:
             span.set_attribute("server.name", self.config.name)
             try:
-                for module in self.get_enabled_modules():
+                for module in self.get_enabled_components():
                     await module.on_post_server_init(self)
             except Exception as module_error:
                 logger.error(
@@ -300,7 +300,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         with tracer.start_as_current_span("server.pre_terminate") as span:
             span.set_attribute("server.name", self.config.name)
             try:
-                for module in self.get_enabled_modules():
+                for module in self.get_enabled_components():
                     await module.on_pre_server_terminate(self)
             except Exception as module_error:
                 logger.error(
@@ -318,7 +318,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         with tracer.start_as_current_span("server.post_terminate") as span:
             span.set_attribute("server.name", self.config.name)
             try:
-                for module in self.get_enabled_modules():
+                for module in self.get_enabled_components():
                     await module.on_post_server_terminate(server=self)
             except Exception as module_error:
                 logger.error(
@@ -336,7 +336,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         with tracer.start_as_current_span("server.on_error") as span:
             span.set_attribute("server.name", self.config.name)
             try:
-                for module in self.get_enabled_modules():
+                for module in self.get_enabled_components():
                     await module.on_server_error(server=self, error=error)
             except Exception as module_error:
                 logger.error(
@@ -354,7 +354,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         with tracer.start_as_current_span("server.pre_mcp_call") as span:
             span.set_attribute("server.name", self.config.name)
             try:
-                for module in self.get_enabled_modules():
+                for module in self.get_enabled_components():
                     await module.on_pre_mcp_call(
                         server=self, arguments=arguments
                     )
@@ -374,7 +374,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         with tracer.start_as_current_span("server.post_mcp_call") as span:
             span.set_attribute("server.name", self.config.name)
             try:
-                for module in self.get_enabled_modules():
+                for module in self.get_enabled_components():
                     await module.on_post_mcp_call(server=self, result=result)
             except Exception as module_error:
                 logger.error(
@@ -385,7 +385,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
                 span.record_exception(module_error)
 
     # --- Async Methods ---
-    async def __aenter__(self) -> "FlockMCPServerBase":
+    async def __aenter__(self) -> "FlockMCPServer":
         """Enter the asynchronous context for the server."""
         # Spin up the client-manager
         with tracer.start_as_current_span("server.__aenter__") as span:
@@ -432,9 +432,9 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
     # --- Serialization Implementation ---
     def to_dict(self, path_type: str = "relative") -> dict[str, Any]:
         """Convert instance to dictionary representation suitable for serialization."""
-        from flock.core.flock_registry import get_registry
+        from flock.core.registry import get_registry
 
-        FlockRegistry = get_registry()
+        registry = get_registry()
 
         exclude = ["modules", "config"]
 
@@ -498,7 +498,7 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
         def add_serialized_component(component: Any, field_name: str):
             if component:
                 comp_type = type(component)
-                type_name = FlockRegistry.get_component_type_name(
+                type_name = registry.get_component_type_name(
                     comp_type
                 )  # Get registered name
 
@@ -614,16 +614,21 @@ class FlockMCPServerBase(BaseModel, Serializable, ABC):
                 config_cls = config_field.annotation
             except (AttributeError, KeyError):
                 # fallback if Pydantic v1 or missing
-                config_cls = FlockMCPConfigurationBase
+                config_cls = FlockMCPConfiguration
             config_object = config_cls.from_dict(config_data)
             data["config"] = config_object
 
         # now construct
-        server = real_cls(**{k: v for k, v in data.items() if k != "modules"})
+        server = real_cls(**{k: v for k, v in data.items() if k not in ["modules", "components"]})
 
-        # re-hydrate modules
+        # re-hydrate components (both legacy modules and new components)
+        for cname, cdata in data.get("components", {}).items():
+            server.add_component(deserialize_component(cdata, AgentComponent))
+
+        # Handle legacy modules for backward compatibility during transition
         for mname, mdata in data.get("modules", {}).items():
-            server.add_module(deserialize_component(mdata, FlockModule))
+            logger.warning(f"Legacy module '{mname}' found during deserialization - consider migrating to unified components")
+            # Skip legacy modules during migration
 
         # --- Separate Data ---
         component_configs = {}

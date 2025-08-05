@@ -71,6 +71,7 @@ copyright: Copyright © 2024 White Duck GmbH
 # Navigation Structure
 nav:
   - Home: index.md
+  - Architecture: architecture_report.md
   - Getting Started:
       - Overview: getting-started/index.md
       - Installation: getting-started/installation.md

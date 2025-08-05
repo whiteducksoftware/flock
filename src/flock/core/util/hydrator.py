@@ -259,7 +259,7 @@ async def _run_hydration_agent(
 
         # Run agent
         result = await temp_flock.run_async(
-            start_agent=agent_name,
+            agent=agent_name,
             input=agent_input_data,
             box_result=False,
         )

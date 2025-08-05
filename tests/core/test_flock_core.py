@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
 from flock.core.context.context import FlockContext
-from flock.core.flock_registry import get_registry, FlockRegistry
+from flock.core.registry import get_registry, RegistryHub as FlockRegistry
 from flock.workflow.temporal_config import TemporalRetryPolicyConfig, TemporalWorkflowConfig
 
 # Import Temporal Config models
@@ -25,9 +25,9 @@ class SimpleAgent(FlockAgent):
 def clear_registry():
     """Fixture to ensure a clean registry for each test."""
     registry = get_registry()
-    registry._initialize()  # Reset internal dictionaries
+    registry.clear_all()  # Reset internal registries
     yield  # Run the test
-    registry._initialize()  # Clean up after test
+    registry.clear_all()  # Clean up after test
 
 
 @pytest.fixture
@@ -213,7 +213,8 @@ async def test_run_async_no_start_agent_multiple_agents(basic_flock, simple_agen
 @pytest.mark.asyncio
 async def test_run_async_agent_not_found_in_registry(basic_flock, mocker):
     """Test run_async raises error if start agent not found locally or in registry."""
-    mocker.patch.object(FlockRegistry, 'get_agent', return_value=None)
+    registry = get_registry()
+    mocker.patch.object(registry, 'get_agent', return_value=None)
     with pytest.raises(ValueError, match="Start agent 'non_existent_agent' not found locally or in registry"):
         await basic_flock.run_async(start_agent="non_existent_agent", input={"query": "test"})
 
@@ -355,7 +356,7 @@ async def test_run_async_temporal_uses_workflow_config(simple_agent, mocker):
 
     input_data = {"query": "test"}
     # 3. Run the flock
-    await flock_with_config.run_async(start_agent="agent1", input=input_data, box_result=False)
+    await flock_with_config.run_async(agent="agent1", input=input_data, box_result=False)
 
     # 4. Assert run_temporal_workflow was called correctly
     mock_temporal_exec.assert_awaited_once()
@@ -458,7 +459,7 @@ async def test_run_async_temporal_no_in_process_worker(basic_flock, simple_agent
     )
 
     # Run
-    await flock_no_worker.run_async(start_agent="agent1", input={"query": "test"}, box_result=False)
+    await flock_no_worker.run_async(agent="agent1", input={"query": "test"}, box_result=False)
 
     # Assert: setup_worker should NOT have been called
     mock_setup_worker.assert_not_awaited()

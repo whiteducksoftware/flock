@@ -44,7 +44,7 @@ def test_component_file_path_serialization():
         
         # Basic smoke test - can we run the agent?
         result = loaded_flock.run(
-            start_agent="test_agent",
+            agent="test_agent",
             input={"query": "Test query"},
         )
         

@@ -76,7 +76,7 @@ class FlockScheduler:
         logger.info(f"Triggering scheduled agent '{agent.name}' at {trigger_time.isoformat()}")
         try:
             # Input for a scheduled agent could include the trigger time
-            await self.flock.run_async(start_agent=agent.name, input={"trigger_time": trigger_time})
+            await self.flock.run_async(agent=agent.name, input={"trigger_time": trigger_time})
             logger.info(f"Scheduled agent '{agent.name}' finished successfully.")
         except Exception as e:
             logger.error(f"Error running scheduled agent '{agent.name}': {e}\n{traceback.format_exc()}")

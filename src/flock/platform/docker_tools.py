@@ -1,5 +1,5 @@
+import asyncio
 import subprocess
-import time
 
 
 def _check_docker_running():
@@ -16,7 +16,7 @@ def _check_docker_running():
         return False
 
 
-def _start_docker():
+async def _start_docker():
     """Attempt to start Docker.
     This example first tries 'systemctl start docker' and then 'service docker start'.
     Adjust as needed for your environment.
@@ -37,7 +37,7 @@ def _start_docker():
                 text=True,
             )
         # Give Docker a moment to start.
-        time.sleep(3)
+        await asyncio.sleep(3)
         if _check_docker_running():
             print("Docker is now running.")
             return True

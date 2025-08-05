@@ -154,6 +154,7 @@ def color_for_category(category: str) -> str:
     if category in COLOR_MAP:
         return COLOR_MAP[category]
     parts = category.split(".")
+    # Try progressively shorter parent categories
     for i in range(len(parts) - 1, 0, -1):
         parent_category = ".".join(parts[:i])
         if parent_category in COLOR_MAP:

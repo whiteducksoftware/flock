@@ -64,7 +64,7 @@ class OpikExecutor:
 
         # Evaluation task
         def evaluation_task(dataset_item):
-          flock_result = self.flock.run(start_agent=start_agent, input=dataset_item, box_result=False)
+          flock_result = self.flock.run(agent=start_agent, input=dataset_item, box_result=False)
 
           result = {
               "input": dataset_item.get("test"),

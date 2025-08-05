@@ -30,9 +30,9 @@ def _resolve_type_string(type_str: str) -> type:
     List, Dict, Optional, Union, Literal.
     """
     # Import registry here to avoid circular imports
-    from flock.core.flock_registry import get_registry
+    from flock.core.registry import get_registry
 
-    FlockRegistry = get_registry()
+    registry = get_registry()
 
     type_str = type_str.strip()
     logger.debug(f"Attempting to resolve type string: '{type_str}'")
@@ -40,7 +40,7 @@ def _resolve_type_string(type_str: str) -> type:
     # 1. Check built-ins and registered types directly
     try:
         # This covers str, int, bool, Any, and types registered by name
-        resolved_type = FlockRegistry.get_type(type_str)
+        resolved_type = registry.get_type(type_str)
         logger.debug(f"Resolved '{type_str}' via registry to: {resolved_type}")
         return resolved_type
     except KeyError:
@@ -61,7 +61,7 @@ def _resolve_type_string(type_str: str) -> type:
 
         try:
             # Get the base generic type (e.g., list, dict, Optional) from registry/builtins
-            BaseType = FlockRegistry.get_type(
+            BaseType = registry.get_type(
                 base_name
             )  # Expects List, Dict etc. to be registered
             logger.debug(
@@ -149,7 +149,7 @@ class DSPyIntegrationMixin:
         self, agent_name, description_spec, fields_spec
     ) -> Any:
         """Creates a dynamic DSPy Signature class from string specifications,
-        resolving types using the FlockRegistry.
+        resolving types using the registry.
         """
         try:
             import dspy

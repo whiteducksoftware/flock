@@ -281,7 +281,7 @@ async def run_current_flock_service(
         logger.info(f"Executing agent '{start_agent_name}' from flock '{current_flock.name}' using app_state.")
         # Direct execution using the flock from app_state
         result = await current_flock.run_async(
-            start_agent=start_agent_name, input=inputs, box_result=False
+            agent=start_agent_name, input=inputs, box_result=False
         )
         # Store run details using the run_store from app_state
         if hasattr(run_store, "add_run_details"): # Check if RunStore has this method

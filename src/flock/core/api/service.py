@@ -33,7 +33,7 @@ class FlockApiService:
             )
             # Flock.run_async now handles context creation and execution
             result = await self.flock.run_async(
-                start_agent=agent_name, input=typed_inputs
+                agent=agent_name, input=typed_inputs
             )
             self.run_store.update_run_result(run_id, result)
 
@@ -100,7 +100,7 @@ class FlockApiService:
                         try:
                             # Call Flock's run_async for a single item
                             item_result = await self.flock.run_async(
-                                start_agent=request.agent_name,
+                                agent=request.agent_name,
                                 input=item_inputs,
                                 box_result=request.box_results,
                             )

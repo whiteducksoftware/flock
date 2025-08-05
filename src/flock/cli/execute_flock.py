@@ -142,7 +142,7 @@ def execute_flock(flock: Flock):
 
         # Run the Flock
         result = flock.run(
-            start_agent=start_agent_name,
+            agent=start_agent_name,
             input=input_data,
         )
 

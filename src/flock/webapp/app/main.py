@@ -124,6 +124,10 @@ def mask_sensitive_value_web(value: str) -> str:
     if len(value) <= 4: return "••••"
     return value[:2] + "•" * (len(value) - 4) + value[-2:]
 
+def create_hx_trigger_header(triggers: dict[str, Any]) -> str:
+    """Helper function to create HX-Trigger header with JSON serialization."""
+    return json.dumps(triggers)
+
 def get_show_secrets_setting_web(env_vars: dict[str, str]) -> bool:
     return env_vars.get(SHOW_SECRETS_KEY, "false").lower() == "true"
 
@@ -843,12 +847,12 @@ async def ui_load_flock_by_name_action(request: Request, selected_flock_filename
     if loaded_flock:
         success_message_text = f"Flock '{loaded_flock.name}' loaded from '{selected_flock_filename}'."
         response_headers["HX-Push-Url"] = "/ui/editor/execute?ui_mode=" + ui_mode_query
-        response_headers["HX-Trigger"] = json.dumps({"flockLoaded": None, "notify": {"type": "success", "message": success_message_text}})
+        response_headers["HX-Trigger"] = create_hx_trigger_header({"flockLoaded": None, "notify": {"type": "success", "message": success_message_text}})
         context = get_base_context_web(request, success=success_message_text, ui_mode=ui_mode_query)
         return templates.TemplateResponse("partials/_execution_view_container.html", context, headers=response_headers)
     else:
         error_message_text = f"Failed to load flock file '{selected_flock_filename}'."
-        response_headers["HX-Trigger"] = json.dumps({"notify": {"type": "error", "message": error_message_text}})
+        response_headers["HX-Trigger"] = create_hx_trigger_header({"notify": {"type": "error", "message": error_message_text}})
         context = get_base_context_web(request, error=error_message_text, ui_mode=ui_mode_query)
         context["error_message_inline"] = error_message_text # For direct display in partial
         return templates.TemplateResponse("partials/_load_manager_view.html", context, headers=response_headers)
@@ -874,13 +878,13 @@ async def ui_load_flock_by_upload_action(request: Request, flock_file_upload: Up
         if loaded_flock:
             success_message_text = f"Flock '{loaded_flock.name}' loaded from '{filename_to_load}'."
             response_headers["HX-Push-Url"] = f"/ui/editor/execute?ui_mode={ui_mode_query}"
-            response_headers["HX-Trigger"] = json.dumps({"flockLoaded": None, "flockFileListChanged": None, "notify": {"type": "success", "message": success_message_text}})
+            response_headers["HX-Trigger"] = create_hx_trigger_header({"flockLoaded": None, "flockFileListChanged": None, "notify": {"type": "success", "message": success_message_text}})
             context = get_base_context_web(request, success=success_message_text, ui_mode=ui_mode_query)
             return templates.TemplateResponse("partials/_execution_view_container.html", context, headers=response_headers)
         else: error_message_text = f"Failed to process uploaded '{filename_to_load}'."
 
     final_error_msg = error_message_text or "Upload failed."
-    response_headers["HX-Trigger"] = json.dumps({"notify": {"type": "error", "message": final_error_msg}})
+    response_headers["HX-Trigger"] = create_hx_trigger_header({"notify": {"type": "error", "message": final_error_msg}})
     context = get_base_context_web(request, error=final_error_msg, ui_mode=ui_mode_query)
     return templates.TemplateResponse("partials/_create_flock_form.html", context, headers=response_headers)
 
@@ -893,7 +897,7 @@ async def ui_create_flock_action(request: Request, flock_name: str = Form(...), 
 
     new_flock = create_new_flock_service(flock_name, default_model, description, request.app.state)
     success_msg_text = f"New flock '{new_flock.name}' created. Navigating to Execute page. Configure properties and agents as needed."
-    response_headers = {"HX-Push-Url": f"/ui/editor/execute?ui_mode={ui_mode_query}", "HX-Trigger": json.dumps({"flockLoaded": None, "notify": {"type": "success", "message": success_msg_text}})}
+    response_headers = {"HX-Push-Url": f"/ui/editor/execute?ui_mode={ui_mode_query}", "HX-Trigger": create_hx_trigger_header({"flockLoaded": None, "notify": {"type": "success", "message": success_msg_text}})}
     context = get_base_context_web(request, success=success_msg_text, ui_mode=ui_mode_query)
     return templates.TemplateResponse("partials/_execution_view_container.html", context, headers=response_headers)
 

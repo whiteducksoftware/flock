@@ -37,8 +37,8 @@ from pydantic import (
 )
 
 from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_tool_base import FlockMCPToolBase
-from flock.core.mcp.mcp_config import FlockMCPConfigurationBase
+from flock.core.mcp.flock_mcp_tool import FlockMCPTool
+from flock.core.mcp.mcp_config import FlockMCPConfiguration
 from flock.core.mcp.types.factories import (
     default_flock_mcp_list_roots_callback_factory,
     default_flock_mcp_logging_callback_factory,
@@ -61,7 +61,7 @@ tracer = trace.get_tracer(__name__)
 GetSessionIdCallback = Callable[[], str | None]
 
 
-class FlockMCPClientBase(BaseModel, ABC):
+class FlockMCPClient(BaseModel, ABC):
     """Wrapper for mcp ClientSession.
 
     Class will attempt to re-establish connection if possible.
@@ -71,7 +71,7 @@ class FlockMCPClientBase(BaseModel, ABC):
     """
 
     # --- Properties ---
-    config: FlockMCPConfigurationBase = Field(
+    config: FlockMCPConfiguration = Field(
         ..., description="The config for this client instance."
     )
 
@@ -225,7 +225,7 @@ class FlockMCPClientBase(BaseModel, ABC):
 
     def __init__(
         self,
-        config: FlockMCPConfigurationBase,
+        config: FlockMCPConfiguration,
         lock: Lock | None = None,
         tool_cache: TTLCache | None = None,
         tool_result_cache: TTLCache | None = None,
@@ -374,24 +374,24 @@ class FlockMCPClientBase(BaseModel, ABC):
         self,
         agent_id: str,
         run_id: str,
-    ) -> list[FlockMCPToolBase]:
+    ) -> list[FlockMCPTool]:
         """Gets a list of available tools from the server."""
 
         @cached(cache=self.tool_cache, key=cache_key_generator)
         async def _get_tools_cached(
             agent_id: str,
             run_id: str,
-        ) -> list[FlockMCPToolBase]:
+        ) -> list[FlockMCPTool]:
             if not self.config.feature_config.tools_enabled:
                 return []
 
-            async def _get_tools_internal() -> list[FlockMCPToolBase]:
+            async def _get_tools_internal() -> list[FlockMCPTool]:
                 # TODO: Crash
                 response: ListToolsResult = await self.session.list_tools()
                 flock_tools = []
 
                 for tool in response.tools:
-                    converted_tool = FlockMCPToolBase.from_mcp_tool(
+                    converted_tool = FlockMCPTool.from_mcp_tool(
                         tool,
                         agent_id=agent_id,
                         run_id=run_id,

@@ -7,7 +7,7 @@ from temporalio import workflow
 with workflow.unsafe.imports_passed_through():
     from flock.core.context.context import AgentDefinition, FlockContext
     from flock.core.context.context_vars import FLOCK_CURRENT_AGENT
-    from flock.core.flock_router import HandOffRequest
+    # HandOffRequest removed - using agent.next_agent directly
     from flock.core.logging.logging import get_logger
     from flock.workflow.agent_execution_activity import (
         determine_next_agent,

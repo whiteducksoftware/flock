@@ -8,14 +8,21 @@ from typing import Any, Literal
 import httpx
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, FileUrl
 
+from flock.components.utility.metrics_utility_component import (
+    MetricsUtilityComponent,
+    MetricsUtilityConfig,
+)
+
+# New unified components imported locally to avoid circular imports
+from flock.core.config.flock_agent_config import FlockAgentConfig
 from flock.core.config.scheduled_agent_config import ScheduledAgentConfig
-from flock.core.flock_agent import FlockAgent, SignatureType
+from flock.core.flock_agent import DynamicStr, FlockAgent
 from flock.core.logging.formatters.themes import OutputTheme
-from flock.core.mcp.flock_mcp_server import FlockMCPServerBase
+from flock.core.mcp.flock_mcp_server import FlockMCPServer
 from flock.core.mcp.mcp_config import (
-    FlockMCPCachingConfigurationBase,
-    FlockMCPCallbackConfigurationBase,
-    FlockMCPFeatureConfigurationBase,
+    FlockMCPCachingConfiguration,
+    FlockMCPCallbackConfiguration,
+    FlockMCPFeatureConfiguration,
 )
 from flock.core.mcp.types.types import (
     FlockListRootsMCPCallback,
@@ -27,10 +34,6 @@ from flock.core.mcp.types.types import (
     StdioServerParameters,
     StreamableHttpServerParameters,
     WebsocketServerParameters,
-)
-from flock.evaluators.declarative.declarative_evaluator import (
-    DeclarativeEvaluator,
-    DeclarativeEvaluatorConfig,
 )
 from flock.mcp.servers.sse.flock_sse_server import (
     FlockSSEConfig,
@@ -51,11 +54,6 @@ from flock.mcp.servers.websockets.flock_websocket_server import (
     FlockWSConfig,
     FlockWSConnectionConfig,
     FlockWSServer,
-)
-from flock.modules.output.output_module import OutputModule, OutputModuleConfig
-from flock.modules.performance.metrics_module import (
-    MetricsModule,
-    MetricsModuleConfig,
 )
 from flock.workflow.temporal_config import TemporalActivityConfig
 
@@ -111,34 +109,29 @@ class FlockFactory:
     class StreamableHttpParams(BaseModel):
         """Factory-Params for Streamable Http Servers."""
 
-        url: str | AnyUrl = Field(
-            ...,
-            description="Url the server listens at."
-        )
+        url: str | AnyUrl = Field(..., description="Url the server listens at.")
 
         headers: dict[str, Any] | None = Field(
             default=None,
-            description="Additional Headers to pass to the client."
+            description="Additional Headers to pass to the client.",
         )
 
         auth: httpx.Auth | None = Field(
-            default=None,
-            description="Httpx Auth Schema."
+            default=None, description="Httpx Auth Schema."
         )
 
         timeout_seconds: float | int = Field(
-            default=5,
-            description="Http Timeout in Seconds"
+            default=5, description="Http Timeout in Seconds"
         )
 
         sse_read_timeout_seconds: float | int = Field(
-            default=60*5,
-            description="How many seconds to wait for server-sent events until closing the connection."
+            default=60 * 5,
+            description="How many seconds to wait for server-sent events until closing the connection.",
         )
 
         terminate_on_close: bool = Field(
             default=True,
-            description="Whether or not to terminate the underlying connection on close."
+            description="Whether or not to terminate the underlying connection on close.",
         )
 
         model_config = ConfigDict(
@@ -169,8 +162,7 @@ class FlockFactory:
         )
 
         auth: httpx.Auth | None = Field(
-            default=None,
-            description="Httpx Auth Scheme."
+            default=None, description="Httpx Auth Scheme."
         )
 
         model_config = ConfigDict(
@@ -189,7 +181,10 @@ class FlockFactory:
     @staticmethod
     def create_mcp_server(
         name: str,
-        connection_params: StreamableHttpParams | SSEParams | StdioParams | WebsocketParams,
+        connection_params: StreamableHttpParams
+        | SSEParams
+        | StdioParams
+        | WebsocketParams,
         max_retries: int = 3,
         mount_points: list[str | MCPRoot] | None = None,
         timeout_seconds: int | float = 10,
@@ -212,7 +207,7 @@ class FlockFactory:
         tool_result_cache_ttl=100,
         description: str | Callable[..., str] | None = None,
         alert_latency_threshold_ms: int = 30000,
-    ) -> FlockMCPServerBase:
+    ) -> FlockMCPServer:
         """Create a default MCP Server with common modules.
 
         Allows for creating one of the three default-implementations provided
@@ -251,19 +246,19 @@ class FlockFactory:
                     continue  # ignore
 
         # build generic configs
-        feature_config = FlockMCPFeatureConfigurationBase(
+        feature_config = FlockMCPFeatureConfiguration(
             roots_enabled=enable_roots_feature,
             tools_enabled=enable_tools_feature,
             prompts_enabled=enable_prompts_feature,
             sampling_enabled=enable_sampling_feature,
         )
-        callback_config = FlockMCPCallbackConfigurationBase(
+        callback_config = FlockMCPCallbackConfiguration(
             sampling_callback=sampling_callback,
             list_roots_callback=list_roots_callback,
             logging_callback=logging_callback,
             message_handler=message_handler,
         )
-        caching_config = FlockMCPCachingConfigurationBase(
+        caching_config = FlockMCPCachingConfiguration(
             tool_cache_max_size=tool_cache_size,
             tool_cache_max_ttl=tool_cache_ttl,
             resource_contents_cache_max_size=resource_contents_cache_size,
@@ -375,30 +370,30 @@ class FlockFactory:
 
         if not server_config:
             raise ValueError(
-                f"Unable to create server configuration for passed params."
+                "Unable to create server configuration for passed params."
             )
 
         server = concrete_server_cls(config=server_config)
 
-        metrics_module_config = MetricsModuleConfig(
+        metrics_component_config = MetricsUtilityConfig(
             latency_threshold_ms=alert_latency_threshold_ms
         )
 
-        metrics_module = MetricsModule("metrics", config=metrics_module_config)
+        metrics_component = MetricsUtilityComponent("metrics", config=metrics_component_config)
 
-        server.add_module(metrics_module)
+        server.add_component(metrics_component)
 
         return server
 
     @staticmethod
     def create_default_agent(
         name: str,
-        description: str | Callable[..., str] | None = None,
+        description: DynamicStr| None = None,
         model: str | Callable[..., str] | None = None,
-        input: SignatureType = None,
-        output: SignatureType = None,
+        input: DynamicStr = None,
+        output: DynamicStr = None,
         tools: list[Callable[..., Any] | Any] | None = None,
-        servers: list[str | FlockMCPServerBase] | None = None,
+        servers: list[str | FlockMCPServer] | None = None,
         use_cache: bool = True,
         enable_rich_tables: bool = False,
         output_theme: OutputTheme = OutputTheme.abernathy,
@@ -414,18 +409,34 @@ class FlockFactory:
         stream: bool = False,
         include_thought_process: bool = False,
         include_reasoning: bool = False,
+        next_agent: DynamicStr | None = None,
         temporal_activity_config: TemporalActivityConfig | None = None,
     ) -> FlockAgent:
-        """Creates a default FlockAgent.
+        """Creates a default FlockAgent using unified component architecture.
 
-        The default agent includes the following modules:
-        - DeclarativeEvaluator
-        - OutputModule
-        - MetricsModule
+        The default agent includes the following unified components:
+        - DeclarativeEvaluationComponent (core LLM evaluation)
+        - OutputUtilityComponent (result formatting and display)
+        - MetricsUtilityComponent (performance tracking)
 
-        It also includes direct acces to the most important configurations.
+        This provides a complete, production-ready agent with sensible defaults.
         """
-        eval_config = DeclarativeEvaluatorConfig(
+        # Import unified components locally to avoid circular imports
+        from flock.components.evaluation.declarative_evaluation_component import (
+            DeclarativeEvaluationComponent,
+            DeclarativeEvaluationConfig,
+        )
+        from flock.components.utility.metrics_utility_component import (
+            MetricsUtilityComponent,
+            MetricsUtilityConfig,
+        )
+        from flock.components.utility.output_utility_component import (
+            OutputUtilityComponent,
+            OutputUtilityConfig,
+        )
+
+        # Create evaluation component
+        eval_config = DeclarativeEvaluationConfig(
             model=model,
             use_cache=use_cache,
             max_tokens=max_tokens,
@@ -436,8 +447,30 @@ class FlockFactory:
             include_thought_process=include_thought_process,
             include_reasoning=include_reasoning,
         )
+        evaluator = DeclarativeEvaluationComponent(
+            name="default_evaluator", config=eval_config
+        )
 
-        evaluator = DeclarativeEvaluator(name="default", config=eval_config)
+        # Create output utility component
+        output_config = OutputUtilityConfig(
+            render_table=enable_rich_tables,
+            theme=output_theme,
+            no_output=no_output,
+            print_context=print_context,
+        )
+        output_component = OutputUtilityComponent(
+            name="output_formatter", config=output_config
+        )
+
+        # Create metrics utility component
+        metrics_config = MetricsUtilityConfig(
+            latency_threshold_ms=alert_latency_threshold_ms
+        )
+        metrics_component = MetricsUtilityComponent(
+            name="metrics_tracker", config=metrics_config
+        )
+
+        # Create agent with unified components
         agent = FlockAgent(
             name=name,
             input=input,
@@ -446,65 +479,56 @@ class FlockFactory:
             servers=servers,
             model=model,
             description=description,
-            evaluator=evaluator,
-            write_to_file=write_to_file,
-            wait_for_input=wait_for_input,
+            components=[evaluator, output_component, metrics_component],
+            config=FlockAgentConfig(write_to_file=write_to_file,
+                                    wait_for_input=wait_for_input),
+            next_agent=next_agent,
             temporal_activity_config=temporal_activity_config,
         )
-        output_config = OutputModuleConfig(
-            render_table=enable_rich_tables,
-            theme=output_theme,
-            no_output=no_output,
-            print_context=print_context,
-        )
-        output_module = OutputModule("output", config=output_config)
 
-        metrics_config = MetricsModuleConfig(
-            latency_threshold_ms=alert_latency_threshold_ms
-        )
-        metrics_module = MetricsModule("metrics", config=metrics_config)
-
-        agent.add_module(output_module)
-        agent.add_module(metrics_module)
         return agent
 
     @staticmethod
     def create_scheduled_agent(
         name: str,
-        schedule_expression: str, # e.g., "every 1h", "0 0 * * *"
-        description: str | Callable[..., str] | None = None,
-        model: str | Callable[..., str] | None = None,
-        output: SignatureType = None, # Input might be implicit or none
+        schedule_expression: str,  # e.g., "every 1h", "0 0 * * *"
+        description: DynamicStr | None = None,
+        model: str | None = None,
+        output: DynamicStr | None = None,  # Input might be implicit or none
         tools: list[Callable[..., Any] | Any] | None = None,
-        servers: list[str | FlockMCPServerBase] | None = None,
-        use_cache: bool = False, # Whether to cache results
-        temperature: float = 0.7, # Temperature for model responses
+        servers: list[str | FlockMCPServer] | None = None,
+        use_cache: bool = False,  # Whether to cache results
+        temperature: float = 0.7,  # Temperature for model responses
         # ... other common agent params from create_default_agent ...
-        temporal_activity_config: TemporalActivityConfig | None = None, # If you want scheduled tasks to be Temporal activities
-        **kwargs # Forward other standard agent params
+        next_agent: DynamicStr | None = None,
+        temporal_activity_config: TemporalActivityConfig
+        | None = None,  # If you want scheduled tasks to be Temporal activities
+        **kwargs,  # Forward other standard agent params
     ) -> FlockAgent:
         """Creates a FlockAgent configured to run on a schedule."""
-        agent_config = ScheduledAgentConfig( # Use the new config type
+        agent_config = ScheduledAgentConfig(  # Use the new config type
             schedule_expression=schedule_expression,
             enabled=True,
             initial_run=True,
             max_runs=0,
-            **kwargs
+            **kwargs,
         )
 
-
-        agent = FlockFactory.create_default_agent( # Reuse your existing factory
-            name=name,
-            description=description,
-            model=model,
-            input="trigger_time: str | Time of scheduled execution",
-            output=output,
-            tools=tools,
-            servers=servers,
-            temporal_activity_config=temporal_activity_config,
-            use_cache=use_cache,
-            temperature=temperature,
-            **kwargs
+        agent = (
+            FlockFactory.create_default_agent(  # Reuse your existing factory
+                name=name,
+                description=description,
+                model=model,
+                input="trigger_time: str | Time of scheduled execution",
+                output=output,
+                tools=tools,
+                servers=servers,
+                temporal_activity_config=temporal_activity_config,
+                use_cache=use_cache,
+                temperature=temperature,
+                next_agent=next_agent,
+                **kwargs,
+            )
         )
         agent.config = agent_config  # Assign the scheduled agent config
 

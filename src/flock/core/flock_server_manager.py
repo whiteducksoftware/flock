@@ -6,13 +6,13 @@ from contextlib import AsyncExitStack
 from anyio import Lock
 from pydantic import BaseModel, ConfigDict, Field
 
-from flock.core.mcp.flock_mcp_server import FlockMCPServerBase
+from flock.core.mcp.flock_mcp_server import FlockMCPServer
 
 
 class FlockServerManager(BaseModel):
     """Async-context-manager to start/stop a set of Flock MCP servers."""
 
-    servers: list[FlockMCPServerBase] | None = Field(
+    servers: list[FlockMCPServer] | None = Field(
         ..., exclude=True, description="The servers to manage."
     )
 
@@ -32,7 +32,7 @@ class FlockServerManager(BaseModel):
 
     def __init__(
         self,
-        servers: list[FlockMCPServerBase] | None = None,
+        servers: list[FlockMCPServer] | None = None,
         stack: AsyncExitStack | None = None,
         lock: asyncio.Lock | None = None,
     ) -> None:
@@ -43,7 +43,7 @@ class FlockServerManager(BaseModel):
             lock=lock,
         )
 
-    def add_server_sync(self, server: FlockMCPServerBase) -> None:
+    def add_server_sync(self, server: FlockMCPServer) -> None:
         """Add a server to be managed by the ServerManager.
 
         Note:
@@ -57,7 +57,7 @@ class FlockServerManager(BaseModel):
 
         self.servers.append(server)
 
-    def remove_server_sync(self, server: FlockMCPServerBase) -> None:
+    def remove_server_sync(self, server: FlockMCPServer) -> None:
         """Remove a server from the list of managed servers.
 
         Note:
@@ -71,7 +71,7 @@ class FlockServerManager(BaseModel):
 
     # -- For future use: Allow adding and removal of servers during runtime ---
     async def add_server_during_runtime(
-        self, server: FlockMCPServerBase
+        self, server: FlockMCPServer
     ) -> None:
         """Add a server to the manager and, if already running, start it immediately."""
         if self.lock is None:
@@ -88,13 +88,13 @@ class FlockServerManager(BaseModel):
             await self.stack.enter_async_context(server)
 
     async def remove_server_during_runtime(
-        self, server: FlockMCPServerBase
+        self, server: FlockMCPServer
     ) -> None:
         """Tear down and remove a server from the manager at runtime."""
         if self.lock is None:
             self.lock = asyncio.Lock()
 
-        retrieved_server: FlockMCPServerBase | None = None
+        retrieved_server: FlockMCPServer | None = None
 
         async with self.lock:
             if not self.servers or server not in self.servers:

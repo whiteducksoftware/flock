@@ -14,12 +14,12 @@ from opentelemetry import trace
 from pydantic import Field
 
 from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_server import FlockMCPServerBase
-from flock.core.mcp.mcp_client import FlockMCPClientBase
-from flock.core.mcp.mcp_client_manager import FlockMCPClientManagerBase
+from flock.core.mcp.flock_mcp_server import FlockMCPServer
+from flock.core.mcp.mcp_client import FlockMCPClient
+from flock.core.mcp.mcp_client_manager import FlockMCPClientManager
 from flock.core.mcp.mcp_config import (
-    FlockMCPConfigurationBase,
-    FlockMCPConnectionConfigurationBase,
+    FlockMCPConfiguration,
+    FlockMCPConnectionConfiguration,
 )
 from flock.core.mcp.types.types import WebsocketServerParameters
 
@@ -28,7 +28,7 @@ tracer = trace.get_tracer(__name__)
 
 
 # Optional to provide type hints.
-class FlockWSConnectionConfig(FlockMCPConnectionConfigurationBase):
+class FlockWSConnectionConfig(FlockMCPConnectionConfiguration):
     """Concrete ConnectionConfig for a WS Client."""
 
     # Only thing we need to override here is the concrete transport_type
@@ -44,7 +44,7 @@ class FlockWSConnectionConfig(FlockMCPConnectionConfigurationBase):
 
 
 # Optional to provide type hints.
-class FlockWSConfig(FlockMCPConfigurationBase):
+class FlockWSConfig(FlockMCPConfiguration):
     """Configuration for Websocket clients."""
 
     # The only thing we need to override here is the concrete
@@ -56,7 +56,7 @@ class FlockWSConfig(FlockMCPConfigurationBase):
     )
 
 
-class FlockWSClient(FlockMCPClientBase):
+class FlockWSClient(FlockMCPClient):
     """Client for Websocket servers."""
 
     config: FlockWSConfig = Field(..., description="Client Configuration")
@@ -90,7 +90,7 @@ class FlockWSClient(FlockMCPClientBase):
 
 
 # not really needed, but kept for type hints and as an example.
-class FlockWSClientManager(FlockMCPClientManagerBase):
+class FlockWSClientManager(FlockMCPClientManager):
     """Manager for handling websocket clients."""
 
     client_config: FlockWSConfig = Field(
@@ -106,7 +106,7 @@ class FlockWSClientManager(FlockMCPClientManagerBase):
         return new_client
 
 
-class FlockWSServer(FlockMCPServerBase):
+class FlockWSServer(FlockMCPServer):
     """Class which represents an MCP Server using the websocket transport type."""
 
     config: FlockWSConfig = Field(..., description="Config for the server.")

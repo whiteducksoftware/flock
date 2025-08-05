@@ -50,7 +50,7 @@ Therefore **both systems should coexist**:
    sc.add_singleton(trace.get_tracer("flock"))
 
    # Share embedding model across modules if desired
-   for module in agent.get_enabled_modules():
+   for module in agent.get_enabled_components():
        sc.add_singleton(type(module), module)
 
    container = sc.build()

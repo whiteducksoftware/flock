@@ -17,7 +17,8 @@ from opik.evaluation import evaluate
 
 from flock.core.flock import Flock
 from flock.core.flock_agent import FlockAgent
-from flock.core.flock_evaluator import FlockEvaluator
+
+# Legacy FlockEvaluator import removed
 from flock.core.logging.logging import get_logger
 
 # Potentially import metrics libraries like rouge_score, nltk, sentence_transformers
@@ -58,7 +59,7 @@ def evaluate_with_opik(
 
         # Use the shared Flock instance instead of creating a new one
         result_flock = shared_flock.run(
-            start_agent=start_agent, input=agent_input, box_result=False
+            agent=start_agent, input=agent_input, box_result=False
         )
 
         # agent_output = result_flock.get(answer_mapping[key], "No answer found")

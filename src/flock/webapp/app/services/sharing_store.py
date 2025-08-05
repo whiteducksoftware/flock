@@ -304,6 +304,7 @@ class SQLiteSharedLinkStore(SharedLinkStoreInterface):
             logger.error(f"SQLite error saving feedback {record.feedback_id}: {e}", exc_info=True)
             raise
 
+
 # ---------------------------------------------------------------------------
 # Azure Table + Blob implementation
 # ---------------------------------------------------------------------------

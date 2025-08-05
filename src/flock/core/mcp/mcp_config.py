@@ -36,14 +36,14 @@ LoggingLevel = Literal[
 ]
 
 
-A = TypeVar("A", bound="FlockMCPCallbackConfigurationBase")
-B = TypeVar("B", bound="FlockMCPConnectionConfigurationBase")
-C = TypeVar("C", bound="FlockMCPConfigurationBase")
-D = TypeVar("D", bound="FlockMCPCachingConfigurationBase")
-E = TypeVar("E", bound="FlockMCPFeatureConfigurationBase")
+A = TypeVar("A", bound="FlockMCPCallbackConfiguration")
+B = TypeVar("B", bound="FlockMCPConnectionConfiguration")
+C = TypeVar("C", bound="FlockMCPConfiguration")
+D = TypeVar("D", bound="FlockMCPCachingConfiguration")
+E = TypeVar("E", bound="FlockMCPFeatureConfiguration")
 
 
-class FlockMCPCachingConfigurationBase(BaseModel, Serializable):
+class FlockMCPCachingConfiguration(BaseModel, Serializable):
     """Configuration for Caching in Clients."""
 
     tool_cache_max_size: float = Field(
@@ -110,7 +110,7 @@ class FlockMCPCachingConfigurationBase(BaseModel, Serializable):
         )
 
 
-class FlockMCPCallbackConfigurationBase(BaseModel, Serializable):
+class FlockMCPCallbackConfiguration(BaseModel, Serializable):
     """Base Configuration Class for Callbacks for Clients."""
 
     sampling_callback: FlockSamplingMCPCallback | None = Field(
@@ -188,7 +188,7 @@ class FlockMCPCallbackConfigurationBase(BaseModel, Serializable):
         )
 
 
-class FlockMCPConnectionConfigurationBase(BaseModel, Serializable):
+class FlockMCPConnectionConfiguration(BaseModel, Serializable):
     """Base Configuration Class for Connection Parameters for a client."""
 
     max_retries: int = Field(
@@ -298,7 +298,7 @@ class FlockMCPConnectionConfigurationBase(BaseModel, Serializable):
         )
 
 
-class FlockMCPFeatureConfigurationBase(BaseModel, Serializable):
+class FlockMCPFeatureConfiguration(BaseModel, Serializable):
     """Base Configuration Class for switching MCP Features on and off."""
 
     roots_enabled: bool = Field(
@@ -346,7 +346,7 @@ class FlockMCPFeatureConfigurationBase(BaseModel, Serializable):
         )
 
 
-class FlockMCPConfigurationBase(BaseModel, Serializable):
+class FlockMCPConfiguration(BaseModel, Serializable):
     """Base Configuration Class for MCP Clients.
 
     Each Client should implement their own config
@@ -357,22 +357,22 @@ class FlockMCPConfigurationBase(BaseModel, Serializable):
         ..., description="Name of the server the client connects to."
     )
 
-    connection_config: FlockMCPConnectionConfigurationBase = Field(
+    connection_config: FlockMCPConnectionConfiguration = Field(
         ..., description="MCP Connection Configuration for a client."
     )
 
-    caching_config: FlockMCPCachingConfigurationBase = Field(
-        default_factory=FlockMCPCachingConfigurationBase,
+    caching_config: FlockMCPCachingConfiguration = Field(
+        default_factory=FlockMCPCachingConfiguration,
         description="Configuration for the internal caches of the client.",
     )
 
-    callback_config: FlockMCPCallbackConfigurationBase = Field(
-        default_factory=FlockMCPCallbackConfigurationBase,
+    callback_config: FlockMCPCallbackConfiguration = Field(
+        default_factory=FlockMCPCallbackConfiguration,
         description="Callback configuration for the client.",
     )
 
-    feature_config: FlockMCPFeatureConfigurationBase = Field(
-        default_factory=FlockMCPFeatureConfigurationBase,
+    feature_config: FlockMCPFeatureConfiguration = Field(
+        default_factory=FlockMCPFeatureConfiguration,
         description="Feature configuration for the client.",
     )
 
@@ -425,7 +425,7 @@ class FlockMCPConfigurationBase(BaseModel, Serializable):
                 config_cls = config_field.annotation
             except (AttributeError, KeyError):
                 # fallback
-                config_cls = FlockMCPConnectionConfigurationBase
+                config_cls = FlockMCPConnectionConfiguration
             instance_data["connection_config"] = config_cls.from_dict(connection_config)
         else:
             raise ValueError(f"connection_config MUST be specified for '{data.get('name', 'unknown_server')}")
@@ -436,10 +436,10 @@ class FlockMCPConfigurationBase(BaseModel, Serializable):
                 config_cls = config_field.annotation
             except (AttributeError, KeyError):
                 # fallback
-                config_cls = FlockMCPCachingConfigurationBase
+                config_cls = FlockMCPCachingConfiguration
             instance_data["caching_config"] = config_cls.from_dict(caching_config)
         else:
-            instance_data["caching_config"] = FlockMCPCachingConfigurationBase()
+            instance_data["caching_config"] = FlockMCPCachingConfiguration()
 
         if feature_config:
             try:
@@ -447,10 +447,10 @@ class FlockMCPConfigurationBase(BaseModel, Serializable):
                 config_cls = config_field.annotation
             except (AttributeError, KeyError):
                 # fallback
-                config_cls = FlockMCPFeatureConfigurationBase
+                config_cls = FlockMCPFeatureConfiguration
             instance_data["feature_config"] = config_cls.from_dict(feature_config)
         else:
-            instance_data["feature_config"] = FlockMCPFeatureConfigurationBase()
+            instance_data["feature_config"] = FlockMCPFeatureConfiguration()
 
         if callback_config:
             try:
@@ -458,10 +458,10 @@ class FlockMCPConfigurationBase(BaseModel, Serializable):
                 config_cls = config_field.annotation
             except (AttributeError, KeyError):
                 # fallback
-                config_cls = FlockMCPCallbackConfigurationBase
+                config_cls = FlockMCPCallbackConfiguration
             instance_data["callback_config"] = config_cls.from_dict(callback_config)
         else:
-            instance_data["callback_config"] = FlockMCPCallbackConfigurationBase()
+            instance_data["callback_config"] = FlockMCPCallbackConfiguration()
 
         return cls(**{k: v for k, v in instance_data.items()})
 

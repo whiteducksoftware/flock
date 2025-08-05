@@ -105,7 +105,7 @@ def _list_agents(flock: Flock):
         model = agent.model or flock.model or "Default"
 
         # Format description (truncate if too long)
-        description = agent.resolved_description
+        description = agent.description
         if description and len(description) > 30:
             description = description[:27] + "..."
         elif not description:
@@ -165,11 +165,11 @@ def _view_agent_details(agent: FlockAgent):
 
     basic_info.add_row("Name", agent.name)
     basic_info.add_row("Model", str(agent.model or "Default"))
-    basic_info.add_row("Description", agent.resolved_description if agent.resolved_description else "N/A")
+    basic_info.add_row("Description", agent.description if agent.description else "N/A")
     basic_info.add_row("Input", str(agent.input))
     basic_info.add_row("Output", str(agent.output))
-    basic_info.add_row("Write to File", str(agent.write_to_file))
-    basic_info.add_row("Wait for input", str(agent.wait_for_input))
+    basic_info.add_row("Write to File", str(agent.config.write_to_file))
+    basic_info.add_row("Wait for input", str(agent.config.wait_for_input))
 
     console.print(Panel(basic_info, title="Basic Information"))
 
@@ -180,7 +180,7 @@ def _view_agent_details(agent: FlockAgent):
     console.print(Panel(evaluator_info, title="Evaluator"))
 
     # Router info
-    router_info = f"Type: {type(agent.handoff_router).__name__ if agent.handoff_router else 'None'}"
+    router_info = f"Type: {type(agent.router).__name__ if agent.router else 'None'}"
     console.print(Panel(router_info, title="Router"))
 
     # Tools
@@ -339,7 +339,7 @@ def _edit_agent(flock: Flock):
     console.print(f"\n[bold underline]Details for Agent: {agent.name}[/]")
     basic_info = Table(show_header=False, box=Box.ROUNDED, padding=(0, 2))
     basic_info.add_row("Name", agent.name)
-    description = agent.resolved_description
+    description = agent.description
     basic_info.add_row("Description", description if description else "N/A")
     basic_info.add_row("Model", agent.model or "Flock Default")
     basic_info.add_row("Input Signature", str(agent.input))

@@ -24,13 +24,13 @@ from pydantic import BaseModel
 if TYPE_CHECKING:
     pass
 
-from flock.core.flock_registry import get_registry
+from flock.core.registry import get_registry
 from flock.core.logging.logging import get_logger
 
 logger = get_logger("serialization.utils")
 
 # Remove this line to avoid circular import at module level
-# FlockRegistry = get_registry()  # Get singleton instance
+# registry = get_registry()  # Get singleton instance
 
 # --- Serialization Helper ---
 
@@ -188,16 +188,16 @@ def collect_pydantic_models(
 
 def serialize_item(item: Any) -> Any:
     """Recursively prepares an item for serialization (e.g., to dict for YAML/JSON).
-    Converts known callables to their path strings using FlockRegistry.
+    Converts known callables to their path strings using registry.
     Converts Pydantic models using model_dump.
     """
     # Import the registry lazily when needed
-    from flock.core.flock_registry import get_registry
+    from flock.core.registry import get_registry
 
-    FlockRegistry = get_registry()
+    registry = get_registry()
 
     if callable(item) and not isinstance(item, type):
-        path_str = FlockRegistry.get_callable_path_string(
+        path_str = registry.get_callable_path_string(
             item
         )  # Use registry helper
         if path_str:
@@ -248,12 +248,12 @@ def serialize_item(item: Any) -> Any:
     elif isinstance(
         item, type
     ):  # Handle type objects themselves (e.g. if stored directly)
-        type_name = FlockRegistry.get_component_type_name(
+        type_name = registry.get_component_type_name(
             item
         )  # Check components first
         if type_name:
             return {"__component_ref__": type_name}
-        type_name = FlockRegistry._get_path_string(
+        type_name = registry._get_path_string(
             item
         )  # Check regular types/classes by path
         if type_name:
@@ -274,13 +274,13 @@ def serialize_item(item: Any) -> Any:
 
 def deserialize_item(item: Any) -> Any:
     """Recursively processes a deserialized item (e.g., from YAML/JSON dict).
-    Converts reference dicts back to actual callables or types using FlockRegistry.
+    Converts reference dicts back to actual callables or types using registry.
     Handles nested lists and dicts.
     """
     # Import the registry lazily when needed
-    from flock.core.flock_registry import get_registry
+    from flock.core.registry import get_registry
 
-    FlockRegistry = get_registry()
+    registry = get_registry()
 
     if isinstance(item, Mapping):
         if "__callable_ref__" in item and len(item) == 1:
@@ -288,7 +288,7 @@ def deserialize_item(item: Any) -> Any:
             try:
                 # The registry's get_callable needs to handle lookup by simple name OR full path
                 # Or we assume get_callable handles finding the right function from the simple name
-                resolved_callable = FlockRegistry.get_callable(ref_name)
+                resolved_callable = registry.get_callable(ref_name)
                 logger.debug(
                     f"Deserialized callable reference '{ref_name}' to {resolved_callable}"
                 )
@@ -307,7 +307,7 @@ def deserialize_item(item: Any) -> Any:
         elif "__component_ref__" in item and len(item) == 1:
             type_name = item["__component_ref__"]
             try:
-                return FlockRegistry.get_component(type_name)
+                return registry.get_component(type_name)
             except KeyError:
                 logger.error(
                     f"Component reference '{type_name}' not found during deserialization."
@@ -318,7 +318,7 @@ def deserialize_item(item: Any) -> Any:
             try:
                 # For general types, use get_type or fallback to dynamic import like get_callable
                 # Using get_type for now, assuming it needs registration
-                return FlockRegistry.get_type(type_name)
+                return registry.get_type(type_name)
             except KeyError:
                 # Attempt dynamic import as fallback if get_type fails (similar to get_callable)
                 try:
@@ -329,7 +329,7 @@ def deserialize_item(item: Any) -> Any:
                         mod = importlib.import_module(module_name)
                     type_obj = getattr(mod, class_name)
                     if isinstance(type_obj, type):
-                        FlockRegistry.register_type(
+                        registry.register_type(
                             type_obj, type_name
                         )  # Cache it
                         return type_obj
@@ -356,12 +356,12 @@ def deserialize_component(
     data: dict | None, expected_base_type: type
 ) -> Any | None:
     """Deserializes a component (Module, Evaluator, Router) from its dict representation.
-    Uses the 'type' field to find the correct class via FlockRegistry.
+    Uses the 'type' field to find the correct class via registry.
     """
     # Import the registry and COMPONENT_BASE_TYPES lazily when needed
-    from flock.core.flock_registry import COMPONENT_BASE_TYPES, get_registry
+    from flock.core.registry import get_registry
 
-    FlockRegistry = get_registry()
+    registry = get_registry()
 
     if data is None:
         return None
@@ -379,14 +379,17 @@ def deserialize_component(
         return None
 
     try:
-        ComponentClass = FlockRegistry.get_component(type_name)  # Use registry
+        ComponentClass = registry.get_component(type_name)  # Use registry
         # Optional: Keep the base type check
-        if COMPONENT_BASE_TYPES and not issubclass(
-            ComponentClass, expected_base_type
-        ):
-            raise TypeError(
-                f"Deserialized class {type_name} is not a subclass of {expected_base_type.__name__}"
-            )
+        try:
+            from flock.core.component.agent_component_base import AgentComponent
+            if not issubclass(ComponentClass, AgentComponent):
+                logger.warning(
+                    f"Deserialized class '{type_name}' is not a subclass of AgentComponent."
+                )
+        except ImportError:
+            # AgentComponent not available during setup
+            pass
 
         # Recursively deserialize the data *before* passing to Pydantic constructor
         # This handles nested callables/types within the component's config/data
