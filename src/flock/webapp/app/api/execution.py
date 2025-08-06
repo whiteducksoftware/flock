@@ -14,6 +14,7 @@ from fastapi import (  # Ensure Form and HTTPException are imported
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
+from werkzeug.utils import secure_filename
 
 from flock.webapp.app.services.feedback_file_service import (
     create_csv_feedback_file,
@@ -437,13 +438,14 @@ async def chat_feedback_download_all(
     Raises:
         HTTPException: If no flock is loaded or no agents are found in the flock
     """
-    if format == "csv":
+    safe_format = secure_filename(format)
+    if safe_format == "csv":
         return await create_csv_feedback_file(
             request=request,
             store=store,
             separator=","
         )
-    elif format == "xlsx":
+    elif safe_format == "xlsx":
         return await create_xlsx_feedback_file(
             request=request,
             store=store,
@@ -475,18 +477,20 @@ async def chat_feedback_download(
     Returns:
         FileResponse: CSV/XLSX file containing all feedback records for the specified agent
     """
-    if format == "csv":
+    safe_format = secure_filename(format)
+    safe_agent_name = secure_filename(agent_name)
+    if safe_format == "csv":
         return await create_csv_feedback_file_for_agent(
             request=request,
             store=store,
             separator=",",
-            agent_name=agent_name,
+            agent_name=safe_agent_name,
         )
-    elif format == "xlsx":
+    elif safe_format == "xlsx":
         return await create_xlsx_feedback_file_for_agent(
             request=request,
             store=store,
-            agent_name=agent_name,
+            agent_name=safe_agent_name,
         )
     else:
         from fastapi import HTTPException
