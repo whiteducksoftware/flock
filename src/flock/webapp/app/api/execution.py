@@ -1,10 +1,10 @@
 # src/flock/webapp/app/api/execution.py
+import html
 import json
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import html
 import markdown2  # Import markdown2
 from fastapi import (  # Ensure Form and HTTPException are imported
     APIRouter,
@@ -385,6 +385,8 @@ async def htmx_submit_feedback_shared(
     expected_response: str | None = Form(None),
     actual_response: str | None = Form(None),
     flock_definition: str | None = Form(None),
+    flock_name: str | None = Form(None),
+    agent_name: str | None = Form(None),
     store: SharedLinkStoreInterface = Depends(get_shared_link_store),
 ):
     from uuid import uuid4
@@ -399,6 +401,8 @@ async def htmx_submit_feedback_shared(
         expected_response=expected_response,
         actual_response=actual_response,
         flock_definition=flock_definition,
+        agent_name=agent_name,
+        flock_name=flock_name,
     )
     await store.save_feedback(record)
     return HTMLResponse(
@@ -533,6 +537,7 @@ async def chat_feedback_download(
     import csv
     import tempfile
     from pathlib import Path
+
     from werkzeug.utils import secure_filename
 
     records = await store.get_all_feedback_records_for_agent(
