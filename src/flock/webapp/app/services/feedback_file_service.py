@@ -46,7 +46,8 @@ async def create_xlsx_feedback_file_for_agent(
 
   temp_dir = tempfile.gettempdir()
   timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-  xlsx_filename = f"flock_feedback_{agent_name}_{timestamp}.xlsx"
+  safe_agent_name = secure_filename(agent_name)
+  xlsx_filename = f"flock_feedback_{safe_agent_name}_{timestamp}.xlsx"
   xlsx_path = Path(temp_dir) / xlsx_filename
   headers = [
       "feedback_id",
