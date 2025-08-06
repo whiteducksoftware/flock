@@ -1,10 +1,9 @@
 # src/flock/webapp/app/api/execution.py
-import json
-from datetime import datetime
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
 import html
+import json
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
+
 import markdown2  # Import markdown2
 from fastapi import (  # Ensure Form and HTTPException are imported
     APIRouter,
@@ -15,6 +14,14 @@ from fastapi import (  # Ensure Form and HTTPException are imported
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
+from werkzeug.utils import secure_filename
+
+from flock.webapp.app.services.feedback_file_service import (
+    create_csv_feedback_file,
+    create_csv_feedback_file_for_agent,
+    create_xlsx_feedback_file,
+    create_xlsx_feedback_file_for_agent,
+)
 
 if TYPE_CHECKING:
     from flock.core.flock import Flock
@@ -385,6 +392,8 @@ async def htmx_submit_feedback_shared(
     expected_response: str | None = Form(None),
     actual_response: str | None = Form(None),
     flock_definition: str | None = Form(None),
+    flock_name: str | None = Form(None),
+    agent_name: str | None = Form(None),
     store: SharedLinkStoreInterface = Depends(get_shared_link_store),
 ):
     from uuid import uuid4
@@ -399,6 +408,8 @@ async def htmx_submit_feedback_shared(
         expected_response=expected_response,
         actual_response=actual_response,
         flock_definition=flock_definition,
+        agent_name=agent_name,
+        flock_name=flock_name,
     )
     await store.save_feedback(record)
     return HTMLResponse(
@@ -406,9 +417,10 @@ async def htmx_submit_feedback_shared(
     )
 
 
-@router.get("/htmx/feedback-download/", response_class=FileResponse)
+@router.get("/htmx/feedback-download/{format}", response_class=FileResponse)
 async def chat_feedback_download_all(
     request: Request,
+    format: Literal["csv", "xlsx"] = "csv",
     store: SharedLinkStoreInterface = Depends(get_shared_link_store),
 ):
     """Download all feedback records for all agents in the current flock as a CSV file.
@@ -421,170 +433,69 @@ async def chat_feedback_download_all(
         store: The shared link store interface dependency
 
     Returns:
-        FileResponse: CSV file containing all feedback records for all agents
+        FileResponse: CSV/XLSX file containing all feedback records for all agents
 
     Raises:
         HTTPException: If no flock is loaded or no agents are found in the flock
     """
-    import csv
-    import tempfile
-    from pathlib import Path
-
-    # Get the current flock instance to retrieve all agent names
-    from flock.core.flock import Flock
-
-    current_flock_instance: Flock | None = getattr(
-        request.app.state, "flock_instance", None
-    )
-
-    if not current_flock_instance:
-        # If no flock is loaded, return an error response
+    safe_format = secure_filename(format)
+    if safe_format == "csv":
+        return await create_csv_feedback_file(
+            request=request,
+            store=store,
+            separator=","
+        )
+    elif safe_format == "xlsx":
+        return await create_xlsx_feedback_file(
+            request=request,
+            store=store,
+        )
+    else:
         from fastapi import HTTPException
 
         raise HTTPException(
-            status_code=400, detail="No Flock loaded to download feedback for"
+            status_code=400,
+            detail="Invalid file-format specified. Valid formats are: 'csv', 'xlsx'"
         )
 
-    # Get all agent names from the current flock
-    all_agent_names = list(current_flock_instance.agents.keys())
 
-    if not all_agent_names:
-        # If no agents in the flock, return an error response
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=400, detail="No agents found in the current Flock"
-        )
-
-    # Collect all feedback records from all agents
-    all_records = []
-    for agent_name in all_agent_names:
-        records = await store.get_all_feedback_records_for_agent(
-            agent_name=agent_name
-        )
-        all_records.extend(records)
-
-    # Create a temporary CSV file
-    temp_dir = tempfile.gettempdir()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_filename = f"flock_feedback_all_agents_{timestamp}.csv"
-    csv_path = Path(temp_dir) / csv_filename
-
-    # Define CSV headers based on FeedbackRecord fields
-    headers = [
-        "feedback_id",
-        "share_id",
-        "context_type",
-        "reason",
-        "expected_response",
-        "actual_response",
-        "created_at",
-        "flock_name",
-        "agent_name",
-        "flock_definition",
-    ]
-
-    # Write records to CSV
-    with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=headers)
-        writer.writeheader()
-
-        for record in all_records:
-            # Convert the Pydantic model to dict and ensure all fields are present
-            row_data = {}
-            for header in headers:
-                value = getattr(record, header, None)
-                # Convert datetime to ISO string for CSV
-                if header == "created_at" and value:
-                    row_data[header] = (
-                        value.isoformat()
-                        if isinstance(value, datetime)
-                        else str(value)
-                    )
-                else:
-                    row_data[header] = str(value) if value is not None else ""
-            writer.writerow(row_data)
-
-    # Return FileResponse with the CSV file
-    return FileResponse(
-        path=str(csv_path),
-        filename=csv_filename,
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={csv_filename}"},
-    )
-
-
-@router.get("/htmx/feedback-download/{agent_name}", response_class=FileResponse)
+@router.get("/htmx/feedback-download/{agent_name}/{format}", response_class=FileResponse)
 async def chat_feedback_download(
     request: Request,
     agent_name: str,
+    format: Literal["csv", "xlsx"] = "csv",
     store: SharedLinkStoreInterface = Depends(get_shared_link_store),
 ):
-    """Download all feedback records for a specific agent as a CSV file.
+    """Download all feedback records for a specific agent as a file.
 
     Args:
         request: The FastAPI request object
         agent_name: Name of the agent to download feedback for
         store: The shared link store interface dependency
+        format: Either 'csv' or 'xlsx' the file format to use
 
     Returns:
-        FileResponse: CSV file containing all feedback records for the specified agent
+        FileResponse: CSV/XLSX file containing all feedback records for the specified agent
     """
-    import csv
-    import tempfile
-    from pathlib import Path
-    from werkzeug.utils import secure_filename
-
-    records = await store.get_all_feedback_records_for_agent(
-        agent_name=agent_name
-    )
-
-    # Create a temporary CSV file
-    temp_dir = tempfile.gettempdir()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_format = secure_filename(format)
     safe_agent_name = secure_filename(agent_name)
-    csv_filename = f"flock_feedback_{safe_agent_name}_{timestamp}.csv"
-    csv_path = Path(temp_dir) / csv_filename
+    if safe_format == "csv":
+        return await create_csv_feedback_file_for_agent(
+            request=request,
+            store=store,
+            separator=",",
+            agent_name=safe_agent_name,
+        )
+    elif safe_format == "xlsx":
+        return await create_xlsx_feedback_file_for_agent(
+            request=request,
+            store=store,
+            agent_name=safe_agent_name,
+        )
+    else:
+        from fastapi import HTTPException
 
-    # Define CSV headers based on FeedbackRecord fields
-    headers = [
-        "feedback_id",
-        "share_id",
-        "context_type",
-        "reason",
-        "expected_response",
-        "actual_response",
-        "created_at",
-        "flock_name",
-        "agent_name",
-        "flock_definition",
-    ]
-
-    # Write records to CSV
-    with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=headers)
-        writer.writeheader()
-
-        for record in records:
-            # Convert the Pydantic model to dict and ensure all fields are present
-            row_data = {}
-            for header in headers:
-                value = getattr(record, header, None)
-                # Convert datetime to ISO string for CSV
-                if header == "created_at" and value:
-                    row_data[header] = (
-                        value.isoformat()
-                        if isinstance(value, datetime)
-                        else str(value)
-                    )
-                else:
-                    row_data[header] = str(value) if value is not None else ""
-            writer.writerow(row_data)
-
-    # Return FileResponse with the CSV file
-    return FileResponse(
-        path=str(csv_path),
-        filename=csv_filename,
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={csv_filename}"},
-    )
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file-format specified. Valid formats are: 'csv', 'xlsx'"
+        )

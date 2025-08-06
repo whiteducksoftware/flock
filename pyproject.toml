@@ -60,6 +60,8 @@ dependencies = [
     "rouge-score>=0.1.2",
     "sentence-transformers>=3.4.1",
     "neo4j>=5.28.1",
+    "azure-storage-blob>=12.25.1",
+    "xlsxwriter>=3.2.3",
 ]
 
 [project.optional-dependencies]
