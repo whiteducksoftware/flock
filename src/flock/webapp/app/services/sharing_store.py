@@ -455,6 +455,9 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
             "actual_response":   record.actual_response,
             "created_at":   record.created_at.isoformat(),
         }
+
+        # additional sanity check
+
         if record.flock_name is not None:
             entity["flock_name"] = record.flock_name
         if record.agent_name is not None:
@@ -520,38 +523,49 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
         tbl_client = self.table_svc.get_table_client(self._FEEDBACK_TBL_NAME)
 
         # Use Azure Table Storage filtering to only get records for the specified agent
-        filter_query = f"agent_name eq '{agent_name}'"
+        escaped_agent_name = agent_name.replace("'", "''")
+        filter_query = f"agent_name eq '{escaped_agent_name}'"
+
+        logger.debug(f"Querying feedback records with filter: {filter_query}")
 
         records = []
-        async for entity in tbl_client.query_entities(filter_query):
-            # Get flock_definition from blob if it exists
-            flock_definition = None
-            if "flock_blob_name" in entity:
-                blob_name = entity["flock_blob_name"]
-                blob_client = self.blob_svc.get_blob_client(self._CONTAINER_NAME, blob_name)
-                try:
-                    blob_bytes = await (await blob_client.download_blob()).readall()
-                    flock_definition = blob_bytes.decode()
-                except Exception as e:
-                    logger.error("Cannot download blob '%s' for feedback_id=%s: %s",
-                               blob_name, entity["RowKey"], e, exc_info=True)
-                    # Continue without flock_definition rather than failing
+        try:
+            async for entity in tbl_client.query_entities(filter_query):
+                # Get flock_definition from blob if it exists
+                flock_definition = None
+                if "flock_blob_name" in entity:
+                    blob_name = entity["flock_blob_name"]
+                    blob_client = self.blob_svc.get_blob_client(self._CONTAINER_NAME, blob_name)
+                    try:
+                        blob_bytes = await (await blob_client.download_blob()).readall()
+                        flock_definition = blob_bytes.decode()
+                    except Exception as e:
+                        logger.error("Cannot download blob '%s' for feedback_id=%s: %s",
+                                   blob_name, entity["RowKey"], e, exc_info=True)
+                        # Continue without flock_definition rather than failing
 
-            records.append(FeedbackRecord(
-                feedback_id=entity["RowKey"],
-                share_id=entity.get("share_id"),
-                context_type=entity["context_type"],
-                reason=entity["reason"],
-                expected_response=entity.get("expected_response"),
-                actual_response=entity.get("actual_response"),
-                flock_name=entity.get("flock_name"),
-                agent_name=entity.get("agent_name"),
-                flock_definition=flock_definition,
-                created_at=entity["created_at"],
-            ))
+                records.append(FeedbackRecord(
+                    feedback_id=entity["RowKey"],
+                    share_id=entity.get("share_id"),
+                    context_type=entity["context_type"],
+                    reason=entity["reason"],
+                    expected_response=entity.get("expected_response"),
+                    actual_response=entity.get("actual_response"),
+                    flock_name=entity.get("flock_name"),
+                    agent_name=entity.get("agent_name"),
+                    flock_definition=flock_definition,
+                    created_at=entity["created_at"],
+                ))
 
-        logger.debug("Retrieved %d feedback records for agent %s", len(records), agent_name)
-        return records
+            logger.debug("Retrieved %d feedback records for agent %s", len(records), agent_name)
+            return records
+
+        except Exception as e:
+            # Log the error.
+            logger.error(
+                f"Unable to query entries for agent {agent_name}. Exception: {e}"
+            )
+            return records
 
 
 # ----------------------- Factory Function -----------------------
