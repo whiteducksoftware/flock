@@ -2,7 +2,7 @@
 """DeclarativeEvaluationComponent - DSPy-based evaluation using the unified component system."""
 
 from collections.abc import Generator
-from typing import Any
+from typing import Any, override
 
 from temporalio import workflow
 
@@ -29,7 +29,7 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
     model: str | None = "openai/gpt-4o"
     use_cache: bool = True
     temperature: float = 0.0
-    max_tokens: int = 4096
+    max_tokens: int = 8192
     max_retries: int = 3
     max_tool_calls: int = 10
     stream: bool = Field(
@@ -68,6 +68,14 @@ class DeclarativeEvaluationComponent(
 
     def __init__(self, **data):
         super().__init__(**data)
+
+    @override
+    def set_model(self, model: str, temperature: float = 0.0, max_tokens: int = 8192) -> None:
+        """Set the model for the evaluation component."""
+        self.config.model = model
+        if "gpt-oss" in model and temperature == 0.0 and max_tokens == 8192:
+            self.config.temperature = 1.0
+            self.config.max_tokens = 32768
 
     async def evaluate_core(
         self,

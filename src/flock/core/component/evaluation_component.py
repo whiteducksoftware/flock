@@ -25,6 +25,12 @@ class EvaluationComponent(AgentComponent):
     """
 
     @abstractmethod
+    def set_model(self, model: str, temperature: float = 0.0, max_tokens: int = 4096) -> None:
+        """Set the model for the evaluation component."""
+        pass
+
+
+    @abstractmethod
     async def evaluate_core(
         self,
         agent: Any,

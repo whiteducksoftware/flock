@@ -435,7 +435,7 @@ class FlockFactory:
             OutputUtilityConfig,
         )
 
-        if "gpt-oss" in model:
+        if model and "gpt-oss" in model:
             temperature = 1.0
             max_tokens = 32768
 
