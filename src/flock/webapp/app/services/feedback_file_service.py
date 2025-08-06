@@ -3,7 +3,7 @@ import csv
 import tempfile
 from datetime import datetime
 from pathlib import Path
-
+from werkzeug.utils import secure_filename
 from fastapi import Request
 from fastapi.responses import FileResponse
 
@@ -173,7 +173,8 @@ async def create_csv_feedback_file_for_agent(
   )
   temp_dir = tempfile.gettempdir()
   timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-  csv_filename = f"flock_feedback_{agent_name}_{timestamp}.csv"
+  safe_agent_name = secure_filename(agent_name)
+  csv_filename = f"flock_feedback_{safe_agent_name}_{timestamp}.csv"
   csv_path = Path(temp_dir) / csv_filename
   headers = [
     "feedback_id",
