@@ -258,7 +258,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         """
         self.model = model
         if self.evaluator and hasattr(self.evaluator, "config"):
-            self.evaluator.config.model = model
+            self.evaluator.set_model(model)
             logger.info(
                 f"Set model to '{model}' for agent '{self.name}' and its evaluator."
             )
