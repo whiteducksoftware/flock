@@ -435,6 +435,10 @@ class FlockFactory:
             OutputUtilityConfig,
         )
 
+        if "gpt-oss" in model:
+            temperature = 1.0
+            max_tokens = 32768
+
         # Create evaluation component
         eval_config = DeclarativeEvaluationConfig(
             model=model,
