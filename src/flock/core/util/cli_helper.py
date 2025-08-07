@@ -38,7 +38,7 @@ def display_hummingbird():
 """)
 
 
-def init_console(clear_screen: bool = True, show_banner: bool = True):
+def init_console(clear_screen: bool = True, show_banner: bool = True, model: str = ""):
     """Display the Flock banner."""
     from rich.console import Console
     from rich.syntax import Text
@@ -65,6 +65,9 @@ def init_console(clear_screen: bool = True, show_banner: bool = True):
         console.print(
             "[italic]'Magpie'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
         )
+
+    if model:
+        console.print(f"[italic]Global Model:[/] {model}")
 
 
 def display_banner_no_version():

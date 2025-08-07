@@ -133,7 +133,7 @@ class FlockExecution:
             span.set_attribute("enable_temporal", self.flock.enable_temporal)
 
             logger.info(
-                f"Initiating Flock run '{self.flock.name}'. Start Agent: '{start_agent_name}'. Temporal: {self.flock.enable_temporal}."
+                f"Initiating Flock run '{self.flock.name}'. Model: '{self.flock.model}'. Start Agent: '{start_agent_name}'. Temporal: {self.flock.enable_temporal}."
             )
 
             try:

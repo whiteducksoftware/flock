@@ -180,7 +180,8 @@ class OutputUtilityComponent(UtilityComponent):
                 max_length=self.config.max_length,
                 render_table=self.config.render_table,
             )
-        self._formatter.display_result(result_to_display, agent.name)
+        model = agent.model if agent.model else context.get_variable("model")
+        self._formatter.display_result(result_to_display, agent.name + " - " + model)
 
         return result  # Return the original, unmodified result
 
