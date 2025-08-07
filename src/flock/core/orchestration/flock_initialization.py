@@ -41,7 +41,7 @@ class FlockInitialization:
 
         # Initialize console if needed for banner
         if self.flock.show_flock_banner:
-            init_console(clear_screen=True, show_banner=self.flock.show_flock_banner)
+            init_console(clear_screen=True, show_banner=self.flock.show_flock_banner, model=self.flock.model)
 
         # Set Temporal debug environment variable
         self._set_temporal_debug_flag()

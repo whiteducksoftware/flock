@@ -176,7 +176,8 @@ class OutputModule(FlockModule):
                 render_table=self.config.render_table,
                 wait_for_input=self.config.wait_for_input,
             )
-        self._formatter.display_result(result_to_display, agent.name)
+        model = agent.model if agent.model else context.get_variable("model")
+        self._formatter.display_result(result_to_display, agent.name + " - " + model)
 
         return result  # Return the original, unmodified result
 
