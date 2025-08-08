@@ -986,9 +986,15 @@ async def htmx_theme_preview(request: Request, theme: str = Query(None)):
         theme_path_candidate = resolved_themes_dir / theme_filename_to_load
         resolved_theme_path = theme_path_candidate.resolve()
 
-        if not str(resolved_theme_path).startswith(str(resolved_themes_dir)) or \
-           resolved_theme_path.name != theme_filename_to_load:
+        try:
+            resolved_theme_path.relative_to(resolved_themes_dir)
+        except ValueError:
             logger.warning(f"Invalid theme path access attempt for '{theme_name_for_display}'. "
+                           f"Original input: '{chosen_theme_name_input}', Sanitized filename: '{theme_filename_to_load}', "
+                           f"Attempted path: '{theme_path_candidate}', Resolved to: '{resolved_theme_path}'")
+            return HTMLResponse(f"<p>Invalid theme name or path for '{theme_name_for_display}'.</p>", status_code=400)
+        if resolved_theme_path.name != theme_filename_to_load:
+            logger.warning(f"Invalid theme filename for '{theme_name_for_display}'. "
                            f"Original input: '{chosen_theme_name_input}', Sanitized filename: '{theme_filename_to_load}', "
                            f"Attempted path: '{theme_path_candidate}', Resolved to: '{resolved_theme_path}'")
             return HTMLResponse(f"<p>Invalid theme name or path for '{theme_name_for_display}'.</p>", status_code=400)
