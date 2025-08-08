@@ -12,8 +12,8 @@ else:
     FlockFactory = "flock.core.flock_factory.FlockFactory"
 
 from flock.core.api.run_store import RunStore
-from flock.core.flock_registry import get_registry
 from flock.core.logging.logging import get_logger
+from flock.core.registry import get_registry
 from flock.webapp.app.config import FLOCK_FILES_DIR
 from flock.webapp.app.dependencies import set_global_flock_services
 
