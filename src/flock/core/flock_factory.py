@@ -398,7 +398,7 @@ class FlockFactory:
         enable_rich_tables: bool = False,
         output_theme: OutputTheme = OutputTheme.abernathy,
         wait_for_input: bool = False,
-        temperature: float = 0.0,
+        temperature: float = 1.0,
         max_tokens: int = 8192,
         max_tool_calls: int = 10,
         max_retries: int = 3,

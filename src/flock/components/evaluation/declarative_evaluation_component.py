@@ -28,7 +28,7 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
     override_evaluator_type: str | None = None
     model: str | None = "openai/gpt-4o"
     use_cache: bool = True
-    temperature: float = 0.0
+    temperature: float = 1.0
     max_tokens: int = 8192
     max_retries: int = 3
     max_tool_calls: int = 10
@@ -70,12 +70,11 @@ class DeclarativeEvaluationComponent(
         super().__init__(**data)
 
     @override
-    def set_model(self, model: str, temperature: float = 0.0, max_tokens: int = 8192) -> None:
+    def set_model(self, model: str, temperature: float = 1.0, max_tokens: int = 8192) -> None:
         """Set the model for the evaluation component."""
         self.config.model = model
-        if "gpt-oss" in model and temperature == 0.0 and max_tokens == 8192:
-            self.config.temperature = 1.0
-            self.config.max_tokens = 32768
+        self.config.temperature = temperature
+        self.config.max_tokens = max_tokens
 
     async def evaluate_core(
         self,
