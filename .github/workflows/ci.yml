@@ -128,8 +128,9 @@ jobs:
       - name: Import sanity (source tree)
         env:
           FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
+          PYTHONPATH: src
         run: |
-          python -c "import flock; import flock.core"
+          python -c "import sys; import flock; import flock.core; print('OK source import')"
       - name: Install built wheel
         run: |
           pip install dist/*.whl
@@ -137,4 +138,4 @@ jobs:
         env:
           FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
         run: |
-          python -c "import flock; import flock.core"
+          python -c "import flock; import flock.core; print('OK installed import')"
