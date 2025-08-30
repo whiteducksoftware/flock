@@ -1,16 +1,13 @@
 # src/flock/core/orchestration/__init__.py
-"""Orchestration components for Flock."""
+"""Orchestration package public API.
 
-from .flock_batch_processor import FlockBatchProcessor
-from .flock_evaluator import FlockEvaluator
-from .flock_execution import FlockExecution
-from .flock_initialization import FlockInitialization
-from .flock_server_manager import FlockServerManager
-from .flock_web_server import FlockWebServer
+Avoid importing submodules at package import time to prevent heavy side effects
+and keep tests fast and deterministic. Import modules directly where needed.
+"""
 
 __all__ = [
     "FlockExecution",
-    "FlockServerManager", 
+    "FlockServerManager",
     "FlockBatchProcessor",
     "FlockEvaluator",
     "FlockWebServer",

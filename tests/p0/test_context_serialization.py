@@ -22,3 +22,7 @@ def test_context_introspection_after_run(register_fakes):
     # State present and contains last agent/result vars
     assert isinstance(ctx.state, dict)
     assert ctx.get_variable("flock.current_agent") == "a"
+    # get_agent_history and get_most_recent_value work
+    hist = ctx.get_agent_history("a")
+    assert hist and hist[-1].agent == "a"
+    assert ctx.get_most_recent_value("result") is not None

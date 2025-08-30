@@ -19,8 +19,14 @@ from temporalio import workflow
 
 from flock.core.mcp.flock_mcp_server import FlockMCPServer
 
-with workflow.unsafe.imports_passed_through():
-    from datasets import Dataset  # type: ignore
+# Guard datasets import to avoid heavy side effects during tests (pyarrow extensions)
+from typing import Any as _Any
+try:
+    with workflow.unsafe.imports_passed_through():
+        from datasets import Dataset as _HF_Dataset  # type: ignore
+    Dataset = _HF_Dataset  # type: ignore
+except Exception:
+    Dataset = _Any  # type: ignore
 
 from opentelemetry import trace
 from pandas import DataFrame  # type: ignore
