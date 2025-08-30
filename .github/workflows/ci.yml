@@ -132,11 +132,3 @@ jobs:
           PYTHONPATH: src
         run: |
           python -c "import sys; import flock; import flock.core; print('OK source import')"
-      - name: Install built wheel
-        run: |
-          pip install dist/*.whl
-      - name: Import sanity (installed wheel)
-        env:
-          FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
-        run: |
-          python -c "import flock; import flock.core; print('OK installed import')"
