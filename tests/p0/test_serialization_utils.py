@@ -42,3 +42,12 @@ def test_deserialize_type_ref_builtin():
     t = deserialize_item({"__type_ref__": "builtins.int"})
     assert t is int
 
+
+def test_deserialize_unknown_callable_returns_none():
+    fn = deserialize_item({"__callable_ref__": "does_not_exist"})
+    assert fn is None
+
+
+def test_deserialize_unknown_component_returns_none():
+    comp = deserialize_component({"type": "Nope"}, expected_base_type=object)
+    assert comp is None

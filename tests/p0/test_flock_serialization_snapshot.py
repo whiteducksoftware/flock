@@ -21,4 +21,6 @@ def test_flock_to_dict_minimal(register_fakes):
     # Agent entry should include components with FakeEvaluator type
     agent_entry = data["agents"]["a1"]
     assert any(c.get("type") == "FakeEvaluator" for c in agent_entry.get("components", []))
-    # Components catalog is optional in minimal cases; presence not required here
+    # Dependencies and metadata present
+    assert "dependencies" in data
+    assert data.get("metadata", {}).get("path_type") in {"relative", "absolute"}

@@ -23,6 +23,12 @@ def test_flock_error_missing_start_agent_returns_error_dict(register_fakes):
         flock.run(input={"message": "hi"}, box_result=False)
 
 
+def test_flock_error_no_agents_present():
+    flock = Flock(name="err2", show_flock_banner=False)
+    with pytest.raises(ValueError):
+        flock.run(input={"message": "hi"}, box_result=False)
+
+
 def test_agent_without_evaluator_raises_runtime_error():
     agent = FlockAgent(name="noeval", input="x", output="y", components=[])
     with pytest.raises(RuntimeError):
