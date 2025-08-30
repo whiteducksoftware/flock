@@ -129,13 +129,20 @@ We follow the [Contributor Covenant](https://www.contributor-covenant.org/) code
 ## 🔭 Testing and Reliability:
 Flock aims to provide an easy and reliable way to implement agentic applications. Therefore, well tested code is crucial.
 
-- Test your changes thoroughly! Ensure that existing tests pass and add **new tests** for any new functionality.
-- Follow Flock's testing conventions and use the provided testing framework.
-- Run the tests before submitting your pull request to confirm that nothing is broken.
-- Tests can be run locally with `pytest -q`
-- Place new tests in `tests/` mirroring the package path.
+Start here:
+- Strategy: see `testing_strategy.md` for priorities and coverage goals.
+- How-to: see `testing_guide.md` for setup, patterns, and examples.
+
+Run tests with uv (recommended):
+- Quick suite (CI-equivalent): `uv run poe test`
+- Full/nightly: `uv run poe test-all`
+- Select markers: `uv run pytest -m 'p0 or integration'`
+
+Guidelines:
+- Ensure existing tests pass and add **new tests** for new or changed functionality.
+- Prefer deterministic, isolated tests using fixtures in `tests/conftest.py` and helpers in `tests/_helpers`.
+- Place tests under `tests/` by concern (see strategy structure).
 - Use [`pytest`](https://docs.pytest.org/en/stable/) fixtures instead of duplicating setup code.
-- For Temporal code, rely on the *Temporal Test Server* fixture.
 
 
 <!-- TOC --><a name="release-process"></a>
@@ -147,5 +154,4 @@ Flock aims to provide an easy and reliable way to implement agentic applications
 5. GitHub Action publishes to PyPI.
 
 Thank you for contributing to Flock, the declarative Agent-Framework. 🦆💓
-
 

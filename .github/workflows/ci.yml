@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  schedule:
+    - cron: '0 3 * * *' # Daily at 03:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quick:
+    name: Quick Suite (P0 + Integration)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+
+      - name: Install (dev)
+        run: |
+          uv sync --dev --all-groups
+
+      - name: Run quick tests with coverage (core)
+        env:
+          FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
+        run: |
+          uv run pytest -q -m "p0 or (integration and not otel)" \
+            --cov=flock.core.flock \
+            --cov=flock.core.flock_agent \
+            --cov=flock.core.registry \
+            --cov=flock.core.context \
+            --cov=flock.core.orchestration.flock_execution \
+            --cov-branch \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: coverage.xml
+
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+      - name: Install
+        run: uv sync --dev --all-groups
+      - name: Ruff check
+        run: uv run ruff check src/flock/* tests/*
+
+  nightly:
+    name: Nightly (Full + Optional Markers)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install (dev)
+        run: |
+          uv sync --dev --all-groups
+
+      - name: Run full test suite (includes optional markers)
+        env:
+          FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
+        run: |
+          # Include otel/perf markers explicitly
+          uv run pytest -m "p0 or integration or otel or perf" || true
+
+  package:
+    name: Build and Import Sanity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+      - name: Build wheel/sdist
+        run: |
+          uv build
+      - name: Import sanity (source tree)
+        env:
+          FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
+          PYTHONPATH: src
+        run: |
+          python -c "import sys; import flock; import flock.core; print('OK source import')"
