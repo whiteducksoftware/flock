@@ -5,7 +5,7 @@ import os
 import sys
 
 
-def main():
+def main():  # noqa: C901
     """Main function."""
     # Parse command line arguments
     parser = argparse.ArgumentParser(
@@ -103,7 +103,7 @@ def main():
     from rich.panel import Panel
 
     from flock.cli.config import init_config_file, load_config_file
-    from flock.cli.constants import (
+    from flock.cli.constants import (  # noqa: F401
         CLI_CFG_FILE,
         CLI_CREATE_AGENT,
         CLI_CREATE_FLOCK,

@@ -1,3 +1,8 @@
+"""Global configuration for Flock.
+
+Reads environment via `decouple` and exposes constants used across the codebase.
+"""
+
 # flock/config.py
 import os
 
