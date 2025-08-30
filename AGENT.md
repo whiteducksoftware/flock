@@ -49,6 +49,7 @@ This section captures practical instructions and conventions for evolving Flock'
   - Quick suite (CI‑equivalent): `uv run poe test`
   - Full/nightly: `uv run poe test-all`
   - Select markers: `uv run pytest -m 'p0 or (integration and not otel)'`
+  - Lint: `uv run ruff check src/flock/* tests/*`
 
 - Markers and defaults
   - p0: fast, deterministic, CI‑blocking
@@ -67,6 +68,22 @@ This section captures practical instructions and conventions for evolving Flock'
 - Coverage gates
   - Quick suite targets core modules with a configurable threshold (currently 70%).
   - Raise incrementally (80–85%) by adding targeted tests in weak areas (orchestration, decorators, serialization_utils).
+
+### Linting Routine (Before Every Commit)
+
+- Run: `uv run ruff check src/flock/* tests/*`.
+- Fix reported issues (imports/order, docstrings, unused imports, small style nits).
+- If a rule requires a larger refactor, prefer a minimal, safe change with a clear `# noqa:` comment and a follow‑up TODO.
+- Never commit with SyntaxError or import errors — keep the tree runnable.
+
+### Commit Discipline (Follow This Cadence)
+
+- Small, atomic commits: one logical change per commit (e.g., a new test file, a specific fix, or a CI tweak).
+- Always run the quick suite locally before committing: `uv run poe test`.
+- Keep commits green: tests pass and coverage gate holds.
+- Prefer multiple small commits over one large “kitchen sink” change.
+- Use clear commit messages (prefix with `test:`, `ci:`, `fix:`, `docs:` as appropriate).
+- Avoid committing noisy changes (formatting only) unless included in the same logical change.
 
 - Serialization contracts (snapshots)
   - `FlockAgent.to_dict`: simple and router+evaluator variants should be snapshotted to catch drift.
