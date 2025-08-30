@@ -5,7 +5,13 @@ on:
     branches: ["**"]
   pull_request:
     branches: ["**"]
+  schedule:
+    - cron: '0 3 * * *' # Daily at 03:00 UTC
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quick:
@@ -60,6 +66,23 @@ jobs:
           name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
           path: coverage.xml
 
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+      - name: Install
+        run: uv sync --dev --all-groups
+      - name: Ruff check
+        run: uv run ruff check src/flock/* tests/*
+
   nightly:
     name: Nightly (Full + Optional Markers)
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
@@ -84,5 +107,35 @@ jobs:
         env:
           FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
         run: |
-          uv run poe test-all || true
+          # Include otel/perf markers explicitly
+          uv run pytest -m "p0 or integration or otel or perf" || true
+
+  package:
+    name: Build and Import Sanity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+      - name: Build wheel/sdist
+        run: |
+          uv build
+      - name: Import sanity (source tree)
+        env:
+          FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
+        run: |
+          python -c "import flock; import flock.core"
+      - name: Install built wheel
+        run: |
+          pip install dist/*.whl
+      - name: Import sanity (installed wheel)
+        env:
+          FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
+        run: |
+          python -c "import flock; import flock.core"
 
