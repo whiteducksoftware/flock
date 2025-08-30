@@ -58,7 +58,7 @@ jobs:
             --cov-branch \
             --cov-report=term-missing:skip-covered \
             --cov-report=xml:coverage.xml \
-            --cov-fail-under=70
+            --cov-fail-under=80
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
@@ -138,4 +138,3 @@ jobs:
           FLOCK_DISABLE_TELEMETRY_AUTOSETUP: "1"
         run: |
           python -c "import flock; import flock.core"
-

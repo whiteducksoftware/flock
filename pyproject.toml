@@ -183,7 +183,7 @@ format = "ruff format src/flock/* tests/*"
 docs = ["_docs-build", "_docs-serve"]
 
 # Testing tasks
-test = "uv run pytest -q -m 'p0 or (integration and not otel)' --cov=flock.core.flock --cov=flock.core.flock_agent --cov=flock.core.registry --cov=flock.core.context --cov=flock.core.orchestration --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under=70"
+test = "uv run pytest -q -m 'p0 or (integration and not otel)' --cov=flock.core.flock --cov=flock.core.flock_agent --cov=flock.core.registry --cov=flock.core.context --cov=flock.core.orchestration --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under=80"
 test-all = "uv run pytest -m 'p0 or integration or temporal or mcp or web or perf'"
 
 
