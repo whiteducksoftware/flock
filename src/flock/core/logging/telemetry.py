@@ -2,6 +2,7 @@
 
 import sys
 
+import os
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -68,9 +69,31 @@ class TelemetryConfig:
         self.otlp_protocol = otlp_protocol
         self.otlp_endpoint = otlp_endpoint
         self.global_tracer = None
+        self._configured: bool = False
+
+    def _should_setup(self) -> bool:
+        # Respect explicit disable flag for tests and minimal setups
+        if os.environ.get("FLOCK_DISABLE_TELEMETRY_AUTOSETUP", "").lower() in {"1", "true", "yes", "on"}:
+            return False
+        try:
+            # If a provider is already installed (typically by user/tests), don't override it
+            from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider  # type: ignore
+
+            current = trace.get_tracer_provider()
+            if isinstance(current, SDKTracerProvider):
+                return False
+        except Exception:
+            # If SDK isn't available or introspection fails, fall back to enabling
+            pass
+        return True
 
     def setup_tracing(self):
         """Set up OpenTelemetry tracing with the specified exporters."""
+        if self._configured:
+            return
+        if not self._should_setup():
+            return
+
         # Create a Resource with the service name.
         resource = Resource(attributes={"service.name": self.service_name})
         provider = TracerProvider(resource=resource)
@@ -150,8 +173,9 @@ class TelemetryConfig:
         provider.add_span_processor(
             BaggageAttributeSpanProcessor(baggage_keys=["session_id", "run_id"])
         )
-        # self.global_tracer = trace.get_tracer("flock")
+        self.global_tracer = trace.get_tracer("flock")
         sys.excepthook = self.log_exception_to_otel
+        self._configured = True
 
     def log_exception_to_otel(self, exc_type, exc_value, exc_traceback):
         """Log unhandled exceptions to OpenTelemetry."""
