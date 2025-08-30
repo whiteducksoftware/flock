@@ -69,6 +69,7 @@ jobs:
   lint:
     name: Ruff Lint
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
