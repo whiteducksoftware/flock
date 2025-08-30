@@ -54,7 +54,7 @@ jobs:
             --cov=flock.core.flock_agent \
             --cov=flock.core.registry \
             --cov=flock.core.context \
-            --cov=flock.core.orchestration \
+            --cov=flock.core.orchestration.flock_execution \
             --cov-branch \
             --cov-report=term-missing:skip-covered \
             --cov-report=xml:coverage.xml \
