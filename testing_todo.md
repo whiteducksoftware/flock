@@ -64,6 +64,53 @@ This plan tracks the next concrete tasks to complete and extend the test framewo
 
 ## Ownership and Tracking
 
+## Release Must‑Haves (v0.5.0)
+
+- Coverage (Core 80–85%)
+  - Raise quick-suite gate incrementally to 80–85% for: `flock.core.flock`, `flock.core.flock_agent`, `flock.core.registry/*`, `flock.core.serialization/*`, `flock.core.context/*`, `flock.core.orchestration/*`.
+  - Add targeted tests for weak spots: orchestration error paths (`_format_result`, exception → error dict vs Box), decorators error branches, serialization_utils dynamic imports.
+
+- CI Integration
+  - GitHub Actions matrix: Linux + macOS; Python 3.10/3.11/3.12.
+  - PR quick job: `uv run poe test` (no network, excludes `otel`, `perf`).
+  - Nightly job: `uv run poe test-all` (includes `otel`, `perf`, `temporal`, `mcp` when env present).
+  - Upload coverage artifact; optional Codecov for PR diff coverage.
+
+- Packaging Sanity
+  - Build wheel/sdist: `uv build`.
+  - Import sanity on built wheel: `python -c "import flock; import flock.core"`.
+
+- Snapshot Contracts
+  - Golden snapshots for `FlockAgent.to_dict` (simple + router+evaluator variants) and `Flock.to_dict` (two-agent, router present). Keep snapshots stable and intentional.
+
+- Orchestration/Execution
+  - Tests for `_execution.run_async` exception formatting and `_format_result` box vs raw.
+  - Confirm local execution updates context/history (already covered) and memo handling if present.
+
+- Discovery
+  - Ensure “skip private modules” behavior and resilient logging on import errors (no crash) with a targeted test.
+
+- Stability/Determinism
+  - Confirm default suite performs no network/Temporal/MCP unless markers selected. Verify lazy imports avoid heavy deps during collection.
+
+- Docs
+  - Ensure `testing_strategy.md`, `testing_guide.md`, `testing_todo.md` are linked in `CONTRIBUTING.md`/README and reflect final gates and commands.
+
+## Strongly Recommended (Pre‑ or Post‑Release)
+
+- Temporal integration test (marker `temporal`) using in‑process worker; skip when unavailable.
+- MCP minimal test (marker `mcp`) with stub server + tool roundtrip.
+- Telemetry shim `FLOCK_OTEL_TEST=1` to allow span assertions in default runs without exporters.
+- Concurrency smoke for `RegistryHub` to validate thread safety.
+- Property‑based fuzz tests for `splitter.parse_schema` and `serialization_utils.deserialize_item` (optional dep).
+
+## Implementation Notes (Quick Guide)
+
+- Use fixtures from `tests/conftest.py`; registry is auto‑cleared.
+- For servers in tests, prefer minimal stubs with `.config.name` for registry exercises.
+- For discovery tests, create temporary packages under `tmp_path` and update `sys.path` within the test.
+- Telemetry: default is disabled via `FLOCK_DISABLE_TELEMETRY_AUTOSETUP=1`; run `-m otel` for optional span tests.
+
 - Create GitHub issues for each bullet (link back to this file); tag with `tests` and the relevant area (orchestrator, registry, serialization, web, temporal, mcp).
 - Use milestones: `Testing P0`, `Testing P1`, etc., to visualize progress.
 

@@ -40,6 +40,87 @@ flock/
 └── docs/                      # Documentation
 ```
 
+## Testing Workstream Guide (for Agents)
+
+This section captures practical instructions and conventions for evolving Flock's tests. Use it to quickly onboard and to execute the release Must‑Haves.
+
+- Commands
+  - Install dev: `uv sync --dev --all-groups`
+  - Quick suite (CI‑equivalent): `uv run poe test`
+  - Full/nightly: `uv run poe test-all`
+  - Select markers: `uv run pytest -m 'p0 or (integration and not otel)'`
+
+- Markers and defaults
+  - p0: fast, deterministic, CI‑blocking
+  - integration: cross‑module flows (no network); default quick run includes them
+  - otel: telemetry span tests (opt‑in)
+  - temporal, mcp, web, perf: opt‑in categories for extended coverage
+  - tests disable auto telemetry setup by default via `FLOCK_DISABLE_TELEMETRY_AUTOSETUP=1` (see tests/conftest.py)
+
+- Patterns
+  - Use `tests/_helpers/fakes.py` for deterministic components.
+  - Registry is auto‑cleared per test via `registry_clear` fixture.
+  - For discovery tests, write temp packages in `tmp_path`, push to `sys.path` inside test, and remove in `finally`.
+  - For server registry tests, a minimal stub with `.config.name` is sufficient to validate registry paths.
+  - Lazy imports: core uses lazy `__getattr__` to avoid importing heavy deps (datasets/pyarrow) during collection.
+
+- Coverage gates
+  - Quick suite targets core modules with a configurable threshold (currently 70%).
+  - Raise incrementally (80–85%) by adding targeted tests in weak areas (orchestration, decorators, serialization_utils).
+
+- Serialization contracts (snapshots)
+  - `FlockAgent.to_dict`: simple and router+evaluator variants should be snapshotted to catch drift.
+  - `Flock.to_dict`: minimal shape and multi‑agent shape; allow optional components catalog in minimal cases.
+
+### Release Must‑Haves (v0.5.0)
+
+Implement these to finalize the test framework for 0.5.0:
+
+1. Coverage to 80–85% (core)
+   - Add error‑path tests for orchestration (`_format_result`; exception path → error dict vs Box)
+   - Expand weak modules: `orchestration/*`, `registry/decorators.py` (invalid inputs), `serialization_utils` dynamic import fallbacks.
+
+2. CI
+   - GitHub Actions: Linux+macOS; Python 3.10/3.11/3.12.
+   - PR: `uv run poe test` with coverage gate; Nightly: `uv run poe test-all` including optional markers.
+   - Upload coverage; optional Codecov.
+
+3. Packaging sanity
+   - `uv build`; import sanity on built wheel: `python -c "import flock; import flock.core"`.
+
+4. Snapshots
+   - Golden snapshots for `FlockAgent.to_dict` (variants) and `Flock.to_dict` (2 agents + router).
+
+5. Discovery
+   - Tests for skip private modules and robust behavior on import errors (no crash; log warning).
+
+6. Docs
+   - Keep `testing_strategy.md`, `testing_guide.md`, `testing_todo.md` up to date and linked in CONTRIBUTING/README.
+
+### Strongly Recommended
+
+- Temporal test (marker `temporal`) with in‑process worker; skip when unavailable.
+- MCP test (marker `mcp`) with a stub server and tool roundtrip.
+- `FLOCK_OTEL_TEST=1` shim to emit run spans without external exporters and allow default‑suite span checks.
+- Thread‑safety smoke for `RegistryHub` across threads.
+- Fuzz/property tests for `splitter.parse_schema` and `serialization_utils.deserialize_item`.
+
+### Quick How‑To for Must‑Haves
+
+- Orchestration error‑paths
+  - Add tests under `tests/p0/` that force exceptions inside `run_async` and assert `_format_result` returns Box/dict as configured.
+
+- Snapshots
+  - Add tests under `tests/p0/` with stable assertions against `to_dict` structure. Avoid over‑specifying optional keys to prevent flakiness.
+
+- Discovery
+  - Create tmp packages with modules `_hidden.py` and assert they are skipped by registration. Insert logging assertions only if stable.
+
+- CI
+  - Add `.github/workflows/ci.yml` with jobs as described; ensure uv caching and matrix. Keep quick job fast; nightly may include optional markers.
+
+These patterns have been validated in the current suite and should keep tests deterministic, fast, and contributor‑friendly.
+
 ## Key Components & Architecture
 
 ### Core Classes
