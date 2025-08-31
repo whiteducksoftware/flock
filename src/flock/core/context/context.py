@@ -178,9 +178,8 @@ class FlockContext(Serializable, BaseModel):
                     return AgentRunRecord(
                         **{
                             **obj,
-                            "timestamp": datetime.fromisoformat(
-                                obj["timestamp"]
-                            ),
+                            "timestamp": obj["timestamp"]
+                            ,
                         }
                     )
                 if "agent_type" in obj:
