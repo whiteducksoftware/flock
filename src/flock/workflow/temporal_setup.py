@@ -1,12 +1,20 @@
 import uuid
+from typing import Optional
 
 from temporalio.client import Client
 from temporalio.worker import Worker
+from flock.config import TEMPORAL_SERVER_URL
 
 
-async def create_temporal_client() -> Client:
-    # Consider making the address configurable
-    client = await Client.connect("localhost:7233")
+async def create_temporal_client(server_address: Optional[str] = None) -> Client:
+    """Create a Temporal client using configured server address.
+
+    Args:
+        server_address: Optional override for the Temporal server endpoint. If not
+            provided, falls back to flock.config.TEMPORAL_SERVER_URL.
+    """
+    address = server_address or TEMPORAL_SERVER_URL
+    client = await Client.connect(address)
     return client
 
 
