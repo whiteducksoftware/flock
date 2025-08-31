@@ -24,7 +24,7 @@ class DeclarativeEvaluatorConfig(FlockEvaluatorConfig):
     override_evaluator_type: str | None = None
     model: str | None = "openai/gpt-4o"
     use_cache: bool = True
-    temperature: float = 0.0
+    temperature: float = 1.0
     max_tokens: int = 4096
     max_retries: int = 3
     max_tool_calls: int = 10
