@@ -118,13 +118,17 @@ class FlockWorkflow:
                 )
 
                 # --- Execute the current agent activity ---
-                agent_result = await workflow.execute_activity(
-                    execute_single_agent,
-                    args=[current_agent_name, context],
-                    task_queue=activity_task_queue,  # Use determined task queue
-                    start_to_close_timeout=activity_timeout,  # Use determined timeout
-                    retry_policy=final_retry_policy,  # Use determined retry policy
-                )
+                try:
+                    agent_result = await workflow.execute_activity(
+                        execute_single_agent,
+                        args=[current_agent_name, context.model_dump(mode="json")],
+                        task_queue=activity_task_queue,
+                        start_to_close_timeout=activity_timeout,
+                        retry_policy=final_retry_policy,
+                    )
+                except Exception as e:
+                    logger.error("execute_single_agent activity failed", agent=current_agent_name, error=str(e))
+                    raise
 
                 # Record the execution in the context history
                 # Note: The 'called_from' is the agent *before* this one
@@ -143,12 +147,16 @@ class FlockWorkflow:
                     current_agent=current_agent_name,
                 )
                 # --- Determine the next agent (using routing component) ---
-                next_agent_name = await workflow.execute_activity(
-                    determine_next_agent,
-                    args=[current_agent_name, agent_result, context],
-                    start_to_close_timeout=timedelta(minutes=1),
-                    retry_policy=default_retry_config.to_temporalio_policy(),
-                )
+                try:
+                    next_agent_name = await workflow.execute_activity(
+                        determine_next_agent,
+                        args=[current_agent_name, agent_result, context.model_dump(mode="json")],
+                        start_to_close_timeout=timedelta(minutes=1),
+                        retry_policy=default_retry_config.to_temporalio_policy(),
+                    )
+                except Exception as e:
+                    logger.error("determine_next_agent activity failed", agent=current_agent_name, error=str(e))
+                    raise
 
                 # Update previous agent name for the next loop iteration
                 previous_agent_name = current_agent_name
@@ -182,9 +190,14 @@ class FlockWorkflow:
             return final_result  # Return the actual result of the last agent
 
         except Exception as e:
-            # Catch exceptions from activities (e.g., after retries fail)
-            # or workflow logic errors
-            logger.exception("Workflow execution failed", error=str(e))
+            # Catch exceptions from activities (e.g., after retries fail) or workflow logic errors
+            logger.exception(f"Workflow execution failed: {e!r}")
+            try:
+                from temporalio.exceptions import ActivityError
+                if isinstance(e, ActivityError) and getattr(e, "cause", None) is not None:
+                    logger.error(f"ActivityError cause: {e.cause!r}")
+            except Exception:
+                pass
             context.set_variable(
                 "flock.result",
                 {
