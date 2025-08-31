@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.4.529"
+version = "0.4.531"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -18,7 +18,7 @@ dependencies = [
     "dspy==2.6.23",
     "fastapi>=0.115.8",
     "httpx>=0.28.1",
-    "litellm==1.69.3",
+    "litellm[proxy]==v1.75.3",
     "loguru>=0.7.3",
     "mcp>=1.7.1",
     "msgpack>=1.1.0",
@@ -40,17 +40,17 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "pyyaml>=6.0",
     "questionary>=2.1.0",
-    "rich>=13.9.4",
+    "rich>=13.7.1",
     "temporalio>=1.9.0",
     "thefuzz>=0.22.1",
     "tiktoken>=0.8.0",
     "toml>=0.10.2",
     "tqdm>=4.60.1",
-    "uvicorn>=0.34.0",
+    "uvicorn>=0.29.0",
     "aiosqlite>=0.21.0",
     "markdown2>=2.5.3",
     "wd-di>=0.2.14",
-    "websockets>=15.0.1",
+    "websockets>=13.0.1",
     "opik>=1.7.26",
     "azure-data-tables>=12.7.0",
     "croniter>=6.0.0",
