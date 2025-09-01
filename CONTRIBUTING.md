@@ -132,6 +132,7 @@ Flock aims to provide an easy and reliable way to implement agentic applications
 Start here:
 - Strategy: see `docs/testing_strategy.md` for priorities and coverage goals.
 - How-to: see `docs/testing_guide.md` for setup, patterns, and examples.
+- TODOs (internal): see `docs/internal/testing_todo.md`.
 
 Run tests with uv (recommended):
 - Quick suite (CI-equivalent): `uv run poe test`

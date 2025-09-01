@@ -56,7 +56,7 @@ flock.add_agent(agent_a)
 flock.add_agent(agent_b)
 
 # Run starting with agent_a
-flock.run(start_agent=agent_a, input={"topic": "AI Agents"})
+flock.run(agent=agent_a, input={"topic": "AI Agents"})
 ```
 
 The `hand_off` value in `DefaultRouterConfig` can also be a callable function that dynamically returns a `HandOffRequest` based on the context or result.

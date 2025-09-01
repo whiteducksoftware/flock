@@ -42,7 +42,7 @@ search_agent.handoff_router = AgentRouter(
 You can start the workflow by **name** or by passing the agent instance:
 
 ```python
-result = flock.run(start_agent="searcher", input={"query": "LLM frameworks"})
+result = flock.run(agent="searcher", input={"query": "LLM frameworks"})
 print(result.summary)
 ```
 
@@ -78,7 +78,7 @@ Agents and modules can read/write to the context at will, enabling memory and co
 ```python
 # Run multiple inputs concurrently
 results = await flock.run_batch_async(
-    start_agent="searcher",
+    agent="searcher",
     input_list=[{"query": q} for q in queries],
 )
 ```

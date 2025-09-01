@@ -24,7 +24,7 @@ input_data = {"topic": "Benefits of Declarative AI"}
 # Run starting with 'my_agent'
 try:
     # result is a Box object (dot-accessible dict) by default
-    result = flock.run(start_agent=my_agent, input=input_data)
+    result = flock.run(agent=my_agent, input=input_data)
 
     print("Workflow Completed!")
     print(f"Title: {result.generated_title}") # Access results easily
@@ -42,7 +42,7 @@ Simple scripts, direct integration where blocking execution is acceptable, easie
 
 A Box object (dot-accessible dictionary) containing the final result of the last agent executed in the chain, or a standard dictionary if box_result=False.
 
-## 2. Single Asynchronous Run: flock.run_async()
+## 2. Single Asynchronous Run: `flock.run_async()`
 
 For applications using asyncio, this method allows you to run a workflow without blocking the main event loop.
 
@@ -55,7 +55,7 @@ from flock.core import Flock, FlockFactory
 async def main():
     input_data = {"topic": "Async AI Workflows"}
     try:
-        result = await flock.run_async(start_agent=my_agent.name, input=input_data) # Can use agent name
+        result = await flock.run_async(agent=my_agent.name, input=input_data)  # Can use agent name or instance
         print("Async Workflow Completed!")
         print(f"Result: {result}") # result is a Box object by default
     except Exception as e:
@@ -182,4 +182,3 @@ Input/Answer mapping, various built-in metrics (exact match, fuzzy, ROUGE, seman
 A pandas DataFrame (if return_dataframe=True) or a list of dictionaries containing inputs, expected answers, agent output, calculated metrics, and errors for each dataset item.
 
 Choose the programmatic method that best fits your execution needs within your Python application.
-

@@ -3,80 +3,50 @@ hide: # Optional: Hide table of contents on simple pages
   - toc
 ---
 
-# Evaluators 🧑‍⚖️
+# Evaluation Components 🧠
 
-Evaluators are responsible for **turning an agent's declarative specification into actual work**.  They live inside the agent instance (`agent.evaluator`) and must implement the async method:
+Evaluation components implement the agent’s core logic. The default option uses DSPy for structured prompting and tool use.
 
+## DeclarativeEvaluationComponent (default)
+
+Created by `FlockFactory.create_default_agent`, it converts your contracts into a DSPy signature and runs a suitable program (`Predict`, `ReAct`, or `ChainOfThought`).
+
+### Highlights
+- Honors `description`, `input`, and `output` (string or Pydantic) contracts
+- Supports streaming output and optional reasoning/trajectory fields
+- Integrates native Python tools and MCP tools
+
+### Example
 ```python
-async def evaluate(self, agent: FlockAgent, inputs: dict, tools: list[Callable]) -> dict:  ...
-```
+from flock.core import FlockFactory
 
-The returned dict is validated against the agent's `output` signature.
-
----
-
-## 1. Built-in Evaluators
-
-| Class | Location | Description |
-| ----- | -------- | ----------- |
-| `DeclarativeEvaluator` | `flock.evaluators.declarative` | Default.  Generates a prompt from the agent's signatures and calls `litellm`.
-| `DSPyEvaluator` | `flock.evaluators.dspy` | Integrates with [DSPy](https://github.com/stanfordnlp/dspy) for structured prompting & optimisation.
-| `RuleEvaluator` | `flock.evaluators.rule` | Pure-Python rules engine (no LLM). Useful for testing. |
-
----
-
-## 2. Configuring Evaluators
-
-All evaluators accept a `*Config` dataclass (Pydantic model) with relevant fields.  Example for Declarative:
-
-```python
-from flock.evaluators.declarative import DeclarativeEvaluator, DeclarativeEvaluatorConfig
-
-config = DeclarativeEvaluatorConfig(
-    model="anthropic/claude-3-opus",
-    temperature=0.2,
-    max_tokens=2048,
-    stream=True,
-    include_thought_process=False,
-    use_cache=True,
+agent = FlockFactory.create_default_agent(
+    name="summarizer",
+    description="Summarize the provided text",
+    input="text: str",
+    output="summary: str | A concise abstract"
 )
-
-evaluator = DeclarativeEvaluator(name="default", config=config)
 ```
 
-You can then inject the evaluator when you instantiate the agent or replace it later:
+## Custom Evaluation Components
+
+Subclass `EvaluationComponent` and implement `evaluate_core`.
 
 ```python
-agent.evaluator = evaluator  # hot-swap!
-```
-
----
-
-## 3. Writing a Custom Evaluator
-
-1. Subclass `FlockEvaluator` and optionally declare a `FlockEvaluatorConfig`.
-2. Implement `async evaluate(self, agent, inputs, tools)`.
-3. Register with the registry (optional) for serialization:
-
-```python
-from flock.core import flock_component
+from flock.core.component.evaluation_component import EvaluationComponent
+from flock.core.registry import flock_component
 
 @flock_component
-class MyCoolEvaluator(FlockEvaluator):
-    async def evaluate(self, agent, inputs, tools):
-        # do stuff…
-        return {"answer": "42"}
+class MyEvaluator(EvaluationComponent):
+    async def evaluate_core(self, agent, inputs, context=None, tools=None, mcp_tools=None):
+        return {"result": inputs.get("text", "").upper()}
 ```
 
----
+Register via `@flock_component` for discovery and serialization.
 
-## 4. Best Practices
+## Best Practices
 
-* Respect the `model` selected on the agent unless your evaluator has a reason to override.
-* Validate inputs early; raise `ValueError` to trigger `on_error` hooks.
-* Make expensive network calls **async** to keep the event loop responsive.
-* Return only the fields declared in the output signature (extra fields are dropped).
-
----
-
-➡️ Continue to [Modules](modules.md) to see how to augment agent behaviour.
+- Respect the agent’s `model` unless you have a strong reason to override.
+- Validate inputs early; raise errors to trigger `on_error` hooks.
+- Make network calls async.
+- Return only declared output fields; keep responses compact and structured.

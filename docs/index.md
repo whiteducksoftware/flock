@@ -4,7 +4,7 @@ hide: # Optional: Hide table of contents on simple pages
 ---
 
 
-# 🚀 Welcome to Flock! Take Flight with Declarative AI Agents 🚀
+# 🚀 Flock — Declarative, Testable AI Agents
 
 <!-- Optional: Add banner back later if desired -->
 
@@ -21,9 +21,9 @@ hide: # Optional: Hide table of contents on simple pages
 
 Tired of wrestling with paragraphs of prompt text just to get your AI agent to do *one specific thing*? 😫 Enter **Flock**, the agent framework that lets you ditch the prompt-palaver and focus on **what** you want your agents to achieve!
 
-Flock takes a **declarative approach**. Think of it like ordering a pizza 🍕: you specify the toppings (your agent's `input` and `output`), not the 30 steps the chef needs to follow. Flock, powered by modern LLMs and a clever architecture, figures out the "how" for you.
+Flock takes a **declarative approach**. You define contracts — the agent’s input and output — and let the framework figure out the “how”. Powered by modern LLMs, a clean component system, and strong orchestration, Flock makes agents reliable and testable.
 
-Built with real-world deployment in mind, Flock integrates seamlessly with tools like **Temporal** for building robust, fault-tolerant, and scalable agent systems right out of the box.
+Built with real-world deployment in mind, Flock integrates with **Temporal** for fault-tolerant execution, offers a web API/UI, and provides a thread-safe registry and serialization out of the box.
 
 ## ✨ Why Join the Flock?
 
@@ -34,7 +34,7 @@ Built with real-world deployment in mind, Flock integrates seamlessly with tools
 | 💥 **Fragile & Unpredictable**      | ⚡ **Robust & Production-Ready**           |
 | *Single errors crash the system*  | *Fault-tolerant via Temporal integration* |
 | 🧩 **Monolithic & Rigid**          | 🔧 **Modular & Flexible**                   |
-| *Hard to extend or modify logic*  | *Pluggable Evaluators, Modules, Routers*  |
+| *Hard to extend or modify logic*  | *Unified Components (Evaluation, Routing, Utility)*  |
 | ⛓️ **Basic Chaining**              | 🚀 **Advanced Orchestration**               |
 | *Often just linear workflows*     | *Dynamic routing, parallel/batch runs*    |
 
@@ -42,13 +42,13 @@ Built with real-world deployment in mind, Flock integrates seamlessly with tools
 
 Flock's power comes from a few key concepts:
 
-1.  **Declarative Agents:** Define agents by *what* they do (inputs/outputs), not *how*. Flock uses **Evaluators** to handle the underlying logic (be it LLM calls, rules, or custom code).
-2.  **Modular Components:** Extend agent capabilities with pluggable **Modules** (for memory, metrics, output formatting, etc.) that hook into the agent's lifecycle without touching its core definition.
-3.  **Intelligent Workflows:** Chain agents explicitly or use **Routers** (like LLM-based or Agent-based) for dynamic decision-making on the next step.
-4.  **Reliable Execution:** Run locally for debugging or switch seamlessly to **Temporal** for production-grade fault tolerance, retries, and state management.
-5.  **Type Safety:** Leverage Python type hints and Pydantic for clear contracts, validation, and easier integration.
+1. **Declarative Contracts:** Define input/output as concise strings or Pydantic models.
+2. **Unified Components:** Add behavior via Evaluation, Routing, and Utility components in a single list (`agent.components`).
+3. **Intelligent Workflows:** Pick the next agent explicitly, via callable, or through routing components.
+4. **Reliable Execution:** Debug locally or switch to **Temporal** for production-grade retries and durability.
+5. **Type Safety:** Use type hints and Pydantic for predictable, testable agent behavior.
 
-## 🐥 Hello Flock! - A Quick Taste
+## 🐥 Quick Taste
 
 Building your first agent is refreshingly simple:
 
@@ -76,13 +76,12 @@ flock = Flock(name="hello_flock", description="This is your first flock!", model
 # Create an agent
 # --------------------------------
 # The Flock doesn't believe in prompts (see the docs for more info)
-# The Flock just declares what agents get in and what agents produce
-# my_presentation_agent takes in a topic and outputs a
-# funny_title, fun_slide_headers and fun_slide_summaries
+# Declare input/output contracts; the framework manages the "how"
 presentation_agent = FlockFactory.create_default_agent(
     name="my_presentation_agent",
-    input="topic",
-    output="fun_title, fun_slide_headers, fun_slide_summaries"
+    description="Create a fun presentation outline",
+    input="topic: str",
+    output="fun_title: str, fun_slide_headers: list[str]"
 )
 flock.add_agent(presentation_agent)
 
@@ -91,29 +90,23 @@ flock.add_agent(presentation_agent)
 # Run the flock
 # --------------------------------
 # Tell the flock who the starting agent is and what input to give it
-flock.run(
-    start_agent=presentation_agent, 
-    input={"topic": "A presentation about robot kittens"}
-)
+flock.run(agent=presentation_agent, input={"topic": "Robot kittens"})
 
 ```
 
 
-That's it! Flock handled turning your simple declaration into the necessary LLM interaction and gave you back a clean, typed Python object.
+That’s it. Flock turns the contract into the necessary LLM calls and returns a clean, dot-accessible result.
 
 🗺️ Ready to Explore?
 
 - Dive deeper into the Flock ecosystem:
 
-- Getting Started: Your first flight – installation and basic usage.
-
-- Core Concepts: Understand the foundations – Agents, Declarative logic, Workflows.
-
-- Key Components: Learn about the building blocks – Evaluators, Modules, Tools.
-
-- Guides: Practical walkthroughs for common tasks like chaining agents.
-
-- Deployment: Take your Flock to production with Temporal.
+• Getting Started: Install and run your first agent
+• Core Concepts: Agents, Contracts, Context, Workflows
+• Components: Evaluation, Routing, Utility
+• Guides: Hydrator, Custom components, MCP tools
+• Interacting: Programmatic, REST API, Web UI, CLI
+• Deployment: Temporal configuration
 
 🤝 Join the Flock Community!
 
@@ -125,4 +118,4 @@ That's it! Flock handled turning your simple declaration into the necessary LLM 
 
 - Help us improve the documentation!
 
-Let's build amazing, reliable AI agent systems together! 🚀
+Let’s build reliable AI agent systems together! 🚀

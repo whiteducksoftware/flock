@@ -112,7 +112,7 @@ Implement these to finalize the test framework for 0.5.0:
    - Tests for skip private modules and robust behavior on import errors (no crash; log warning).
 
 6. Docs
-  - Keep `docs/testing_strategy.md`, `docs/testing_guide.md`, `docs/testing_todo.md` up to date and linked in CONTRIBUTING/README.
+  - Keep `docs/testing_strategy.md`, `docs/testing_guide.md`, `docs/internal/testing_todo.md` up to date and linked in CONTRIBUTING/README.
 
 ### Strongly Recommended
 

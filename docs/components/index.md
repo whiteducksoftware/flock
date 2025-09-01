@@ -5,18 +5,20 @@ hide: # Optional: Hide table of contents on simple pages
 
 # Components Overview 🧩
 
-Components are the **plug-in** architecture that powers extensibility in Flock.  They allow you to add behaviour without rewriting agent code.
+Flock uses a unified component system: every agent has a single list `agent.components` that may include any of the following:
 
 | Component Type | Purpose | Base Class |
 | -------------- | ------- | ---------- |
-| **Evaluator** | Implements an agent's core logic.  Often calls an LLM but could be pure Python. | `FlockEvaluator` |
-| **Module** | Hooks into the agent lifecycle for cross-cutting concerns (metrics, output formatting, memory, etc.). | `FlockModule` |
-| **Tool** | A single callable that an evaluator may invoke to access external functionality (web search, DB query, script execution…). | Registered via `@flock_tool` |
+| **Evaluation** | Implements an agent’s core logic (LLM/DSPy or custom code). | `EvaluationComponent` |
+| **Routing** | Chooses the next agent in a workflow (static, conditional, LLM-based). | `RoutingComponent` |
+| **Utility** | Cross-cutting concerns: output formatting, metrics, memory, etc. | `AgentComponent` |
 
-Each component type is described in its own page:
+Tools are simple callables (or MCP tools) that evaluators may invoke; register them via `@flock_tool`.
 
-* [Evaluators](evaluators.md)
-* [Modules](modules.md)
+Learn more:
+
+* [Evaluation Components](evaluators.md)
+* [Utility Components](utility.md)
 * [Tools](tools.md)
 
 ---
@@ -27,16 +29,17 @@ All core component base classes follow **Semantic Versioning**.  Adding new opti
 
 ---
 
-## Lifecycle Hook Matrix
+## Lifecycle Hooks
 
-| Stage | Evaluator | Module |
-| ----- | --------- | ------ |
-| `initialize` | ❌ (Evaluator created beforehand) | ✅ |
-| `evaluate` | ✅ | ✅ (wrap/observe) |
-| `terminate` | ❌ | ✅ |
-| `on_error` | ❌ | ✅ |
+All components inherit from `AgentComponent` and can implement lifecycle hooks:
 
-Tools do not participate in hooks; they are invoked directly by the evaluator.
+- `on_initialize(agent, inputs, context)`
+- `on_pre_evaluate(agent, inputs, context)`
+- `on_post_evaluate(agent, inputs, context, result)`
+- `terminate(agent, inputs, result, context)`
+- `on_error(agent, inputs, context, error)`
+
+Evaluation components also implement `evaluate_core(...)`.
 
 ---
 
