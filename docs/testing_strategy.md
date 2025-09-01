@@ -81,57 +81,14 @@ P0 exact cases:
   - `FlockContext` history/state round‑trip; `next_input_for` behavior for 1 key vs multiple keys.
 
 - Contract Parsing
-  - Type resolution for simple and generic types; graceful fallback when unknown types; no import of heavy libs required.
-
-P1 additions:
-
-  - Local Execution Engines and Routing
-    - Multi‑agent chain with a routing component deciding `next_agent`; context propagation of outputs to inputs.
-    - Batch/loop behavior if applicable in `flock_execution` or routing utils; ensure termination when no router.
-
-  - Web API (FastAPI)
-    - App creation and minimal endpoints: health, run an agent with fixed inputs, return JSON result; no templates/no JS.
-
-  - Discovery
-    - Package scanning over a nested package; skip private modules; robust errors on import failure.
-
-- Telemetry
-  - Spans created on run paths; no exporter required; verify attributes like `run_id`/`agent.name` are set. Optional: run `otel`-marked tests to validate span plumbing; we may later add a `FLOCK_OTEL_TEST` shim to include this in default runs safely.
-
-P2 extended:
-
-  - Temporal
-    - In‑process worker path (`temporal_start_in_process_worker=True`) guarded by marker; a single agent run succeeds; retries configured.
-
-  - MCP
-    - Register a lightweight `FlockMCPServer`, create one tool, invoke through agent execution.
-
-  - Web UI
-    - Render 1–2 UI GET routes; validate 200 and basic template markers present.
-
-P3 extended:
-
-  - Performance baselines for orchestrator run and serializer; threshold alerts but non‑blocking.
-  - Fuzzed inputs for signature parser and serializer using Hypothesis or lightweight generators (optional dependency).
-
-## Determinism and Mocking
-
-- LLM/DSPy: Avoid any real model calls in default suites.
-  - Provide a `FakeEvaluator` component whose `evaluate_core` echoes input or applies a deterministic transform.
-  - For DSPy signature creation, parse and build types only; never call models.
-
-- Network: Default tests must not perform network I/O. Mark any external calls with `@pytest.mark.network` and skip by default.
-
-- Temporal: Guard with `@pytest.mark.temporal` and environment flag, use in‑process worker option only.
-
-- MCP: Use minimal, local servers only; guard with `@pytest.mark.mcp`.
+  - Type resolution for simple and generic types; graceful fallback when unknown types; no import of he
 
 ## Fixtures and Utilities
 
 - `registry_clear` (autouse): `get_registry().clear_all()` before/after to isolate tests.
 - `simple_agent` factory: returns a `FlockAgent` with `FakeEvaluator` and optional router.
 - `context_factory`: empty `FlockContext` with helpers for seeding variables/history.
-- `test_pkg_factory(tmp_path)`: writes a tiny package to disk for discovery tests, adds to `sys.path` during test.
+- `test_pkg_factory(tmp_path)`: writes a tiny package to disk for discovery tests, adds to `sys.path` during test, and remove in `finally`.
 - `web_app` factory: constructs FastAPI app router subset for smoke tests.
 
 Place common fixtures in `tests/conftest.py`. Keep names stable and documented.
@@ -154,7 +111,7 @@ Optional speedups: `pytest -n auto` with `pytest-xdist` (add later if needed).
 ## Contributor Guide (Quick Start)
 
 1) Sync dev deps: `uv sync --dev --all-groups`
-2) Run fast suite: `uv run pytest -m p0`
+2) Run fast suite: `uv run poe test -q -m 'p0 or integration'`
 3) Add tests near your change:
    - Create a small `FlockAgent` with a `FakeEvaluator` to keep tests deterministic.
    - Use `registry_clear` fixture; avoid real network/Temporal/LLMs.
@@ -198,3 +155,4 @@ Phase E — P3 Non‑blocking (ongoing)
 - No unexpected network/Temporal/LLM access in default runs.
 
 When these conditions hold, the framework is considered healthy for contributors and downstream users.
+

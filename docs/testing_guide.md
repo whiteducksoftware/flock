@@ -102,3 +102,4 @@ This guide helps new contributors write, run, and maintain tests for Flock. It c
 - **Covered:** Meaningful lines covered; add tests where coverage dips.
 
 If you’re unsure where a test belongs or need a new helper/fixture, open a short PR or discussion and we’ll converge quickly.
+
