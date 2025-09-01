@@ -133,6 +133,42 @@ A Flock‑level helper can exist for bulk wiring if desired:
 flock.subscribe(source=triage, target=followup, reliable=True)
 ```
 
+### SubscriptionComponent (Modular Reactivity)
+
+Prefer everything modular? Model subscriptions as a component:
+
+```python
+class SubscriptionComponentConfig(BaseModel):
+    source: str
+    when: str | Callable | None = None
+    map: dict[str, str] | Callable | None = None
+    strategy: str = "append"
+    reliable: bool = False
+    retry: dict | None = None
+    timeout: float | None = None
+    idempotency_key: Callable | None = None
+
+class SubscriptionComponent(AgentComponent):
+    config: SubscriptionComponentConfig
+```
+
+Use it explicitly or via sugar:
+
+```python
+# sugar: adds a SubscriptionComponent under the hood
+followup.subscribe_to(triage, SubscriptionComponentConfig(source="triage", reliable=True))
+
+# explicit:
+followup.add_component(
+    SubscriptionComponent(
+        name="on_triage",
+        config=SubscriptionComponentConfig(source="triage", strategy="append"),
+    )
+)
+```
+
+Need a complex consumption filter or join? Inherit from `SubscriptionComponent` and override. This keeps reactivity fully pluggable and consistent with Flock’s unified components.
+
 ---
 
 ## Implementation Plan (Incremental)
@@ -183,4 +219,45 @@ Deliverables: examples and docs. Keep entirely optional.
 
 ## Final Opinion
 
-This agent‑centric reactive design is the right path. It preserves Flock’s approachable feel while unlocking robust, production‑ready systems. If we obsess over the simplicity of `subscribe_to`, get structured decoding right, and layer reliability ergonomically, Flock can be one of the frameworks people reach for when they need correctness, durability, and speed — without learning three new paradigms.
+This agent‑centric reactive design is the right path. It preserves Flock’s approachable feel while unlocking robust, production‑ready systems. If we obsess over the simplicity of `subscribe_to` (and the `SubscriptionComponent`), get structured decoding right, and layer reliability ergonomically, Flock can be one of the frameworks people reach for when they need correctness, durability, and speed — without learning three new paradigms.
+
+---
+
+## Post‑1.0: Where Flock Can Win Big
+
+1) Contract Synthesis and Negotiation
+- Auto‑generate adapters when contracts differ (rename/coerce/reshape), surface the diff for approval, then persist as mapping in the subscription config.
+
+2) Self‑Optimizing Subscriptions
+- A/B or multi‑armed bandit across routing policies and delivery tiers to optimize cost/latency/quality under budgets; persist learnings per subscription.
+
+3) Elastic Multi‑Model Policy
+- Per‑subscription smart model selection with budget/SLO guardrails (fallback/escalation on confidence);
+  clear audit trail of choices.
+
+4) Judges and Quality Gates
+- First‑class judge components to gate emissions; structured quality checks and auto‑repair before subscribers receive data.
+
+5) Time‑Travel Debugging and Replay
+- Typed event store, deterministic replay, and “replay from here / branch run” in UI; stable CI via recorded LLM outputs.
+
+6) Memory, Typed
+- Pluggable memory interface with typed queries (e.g., `Memory[CustomerProfile]`), contract‑aware reads/writes; local defaults, optional backends.
+
+7) Interop Without Lock‑In
+- Wrap LangGraph nodes, AutoGen actors, PydanticAI handlers as Flock agents via contracts; export AsyncAPI/OpenAPI.
+
+8) Security and Supply Chain by Default
+- Signed bundles/artifacts, SBOMs, policy checks; per‑subscription capability scopes for MCP/tools.
+
+9) Analytics and SLOs at the Subscription Level
+- Track latency/cost/quality per subscription and contract version; surface simple SLOs in UI/logs.
+
+10) Local‑First Dev Server & Flock Lab
+- Zero‑dep dev server with derived graph and envelope inspector; property‑based fuzzing for contracts; scenario builders (dup delivery, timeouts).
+
+11) Visual Inspector that Respects Devs
+- Read‑only graph, branch runs from any event; no drag‑and‑drop editors required.
+
+12) Multi‑Language SDKs with Codegen
+- TypeScript/Go generated from AsyncAPI/OpenAPI so cross‑language services can participate in Flock flows.

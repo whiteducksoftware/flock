@@ -115,6 +115,8 @@ nav:
   - Internal:
       - Architecture Report: architecture_report.md
       - Must Haves: internal/must_have_for_0.5.0b.md
+      - Flock 1.0 Pitch: internal/flock_1.0_pitch.md
+      - Flock 1.0 Review: internal/flock_1.0_review.md
       - Refactor Plan (Flock): internal/refactor_plan_flock.md
       - Refactor Plan (Registry): internal/refactor_plan_flock_registry.md
       - Testing TODO: internal/testing_todo.md

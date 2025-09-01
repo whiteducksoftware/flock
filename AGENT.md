@@ -506,3 +506,17 @@ The unified architecture completely replaces the legacy system:
 - Zero code duplication in registry operations
 
 This should give you a solid foundation to understand and contribute to the Flock framework efficiently!
+
+## Branching & Pre‑Release Policy
+
+- Pre‑release main branch for 0.5.0: `0.5.0b`.
+  - All PRs targeting the 0.5.0 pre‑release must be opened against `0.5.0b`, not `main`.
+  - We use a `[Phase0]` prefix in GitHub issue titles for the 0.5.0 peak‑condition tasks.
+- Once 0.5.0 ships, `main` will receive a fast‑forward or merge from `0.5.0b` according to release policy.
+
+## Contributor Tips (0.5.0 → 1.0)
+
+- Prefer explicit Agent classes over factory helpers. Factory APIs remain during 0.5.0 but will be deprecated in favor of real agent classes (e.g., `DefaultAgent`).
+- Contracts first: for complex schemas, pass Pydantic models for `input`/`output` and pass `BaseModel` instances as `flock.run(..., input=...)` — they are normalized under the hood.
+- Unified components only: Evaluation/Routing/Utility; legacy “modules” are considered internal/legacy and will be removed in 1.0.
+- Reactive path: future 1.0 work will add a `SubscriptionComponent` and `agent.subscribe_to(...)` sugar; no need to author graphs or decorators.
