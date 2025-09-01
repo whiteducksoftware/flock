@@ -102,6 +102,16 @@ def resolve_inputs(
     keys = _parse_keys(split_input)
     inputs = {}
 
+    def _normalize_empty_string(val):
+        """Treat empty string inputs as None to match None semantics.
+
+        This aligns behavior so passing "" behaves like passing None
+        for agent input properties.
+        """
+        if isinstance(val, str) and val == "":
+            return None
+        return val
+
     for key in keys:
         split_key = key.split(".")
 
@@ -122,16 +132,16 @@ def resolve_inputs(
             # Fallback to the most recent value in the state
             historic_value = context.get_most_recent_value(key)
             if historic_value is not None:
-                inputs[key] = historic_value
+                inputs[key] = _normalize_empty_string(historic_value)
                 continue
 
             # Fallback to the initial input
             var_value = context.get_variable(key)
             if var_value is not None:
-                inputs[key] = var_value
+                inputs[key] = _normalize_empty_string(var_value)
                 continue
 
-            inputs[key] = context.get_variable("flock." + key)
+            inputs[key] = _normalize_empty_string(context.get_variable("flock." + key))
 
         # Case 2: A compound key (e.g., "agent_name.property" or "context.property")
         elif len(split_key) == 2:
@@ -139,16 +149,16 @@ def resolve_inputs(
 
             if entity_name.lower() == "context":
                 # Try to fetch the attribute from the context
-                inputs[key] = getattr(context, property_name, None)
+                inputs[key] = _normalize_empty_string(getattr(context, property_name, None))
                 continue
 
             if entity_name.lower() == "def":
                 # Return the agent definition for the given property name
-                inputs[key] = context.get_agent_definition(property_name)
+                inputs[key] = _normalize_empty_string(context.get_agent_definition(property_name))
                 continue
 
             # Otherwise, attempt to look up a state variable with the key "entity_name.property_name"
-            inputs[key] = context.get_variable(f"{entity_name}.{property_name}")
+            inputs[key] = _normalize_empty_string(context.get_variable(f"{entity_name}.{property_name}"))
             continue
 
     return inputs
