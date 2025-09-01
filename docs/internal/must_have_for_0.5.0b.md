@@ -1,11 +1,111 @@
-# 0.5.0b Must-Haves (Release Blockers and High-Value Fixes)
+# Phase 0: 0.5.0 Peak‑Condition Plan (No Baggage to 1.0)
 
-This document lists the issues that must be addressed before publishing 0.5.0b. Each item includes a short description, concrete file references for reproduction or review, acceptance criteria, and a pragmatic implementation plan to help future contributors land the fixes efficiently.
+This is the comprehensive hardening plan for 0.5.0. The goal is to eliminate bloat, streamline APIs, and modularize the right seams so we can start 1.0 without dragging design debt. Each item includes the problem, why it matters, a focused plan, and concrete acceptance criteria (AC).
 
-Priorities:
-- P0: Must fix before public beta (release blockers)
-- P1: Strongly recommended for polish/stability
-- P2: Nice-to-have improvements that reduce confusion and support adoption
+Priorities
+- P0: Release blockers — must land in 0.5.0 to start 1.0 clean.
+- P1: Strongly recommended polish/stability for adoption.
+- P2: Nice‑to‑have improvements.
+
+Guiding Principles
+- Keep the FlockAgent API as the primary mental model. Flock hides complexity (like Temporal) and should also hide reactive/event complexity.
+- Contracts first (Pydantic at the boundary), structured decoding behind one knob, and typed results everywhere.
+- Single, unified component system (Evaluation, Routing, Utility). Everything else is legacy/noise.
+
+---
+
+## P0 — API & Architecture Hygiene
+
+### 0) Replace FlockFactory With Real Agent Classes (Deprecate Factory)
+Problem
+- FlockFactory.create_default_agent(...) adds indirection, hides configuration, and is not the 1.0 direction. We want explicit, real Agent classes now.
+
+Plan
+- Introduce a minimal “preset” agent class that users can instantiate directly:
+  - DefaultAgent(FlockAgent) whose __init__ wires the standard evaluation + utility components and accepts clear kwargs (model, temperature, max_tokens, output options, etc.).
+- Mirror Factory semantics in the constructor for 0.5.0 so migration is trivial.
+- Keep the factory as a thin adapter that calls the new class; mark as deprecated (docs + runtime warning behind an env gate).
+
+AC
+- New DefaultAgent (or DeclarativeAgent) subclass exists and can fully replace Factory in examples.
+- All docs/examples use real classes; Factory only kept for back‑compat.
+- A deprecation note is printed once when Factory is used (guarded to avoid spam).
+
+### 1) Modular Reactivity Seam (SubscriptionComponent Skeleton)
+Problem
+- We will add reactivity in 1.0; 0.5.0 should expose the seam without forcing the whole feature.
+
+Plan
+- Add SubscriptionComponentConfig and SubscriptionComponent(AgentComponent) types (no runtime fan‑out yet). Keep them inert placeholders so API and serialization stabilize now.
+- Add sugar API on agents: subscribe_to(source, SubscriptionComponentConfig(...)) that just installs the component.
+- Docs: Preview the pattern as “coming soon”, no behavior changes in 0.5.0.
+
+AC
+- Types and basic plumbing exist and serialize.
+- No behavior change (tests unaffected); docs explain future use.
+
+### 2) Component Taxonomy & Naming (Unified)
+Problem
+- Legacy “modules” terminology/code paths still lurk and confuse. We already use a unified component system, but names/docs must be consistent.
+
+Plan
+- Ensure only EvaluationComponent, RoutingComponent, and AgentComponent (utility) remain public.
+- Move remaining module references under legacy/ or replace with utility components.
+- Update docs (done) and verify code search has no lingering “module base” usage.
+
+AC
+- No public references to legacy module base classes remain under src/flock.
+- Docs point to Evaluation/Routing/Utility exclusively.
+
+### 3) Context & Input Resolver Streamline
+Problem
+- Handoff strategies + resolver are powerful but hard to reason about. We need to lock semantics pre‑1.0 and remove noise.
+
+Plan
+- Keep three strategies only: append, override, map.
+- Collapse special cases into these and document precisely. Ensure resolve_inputs implements only those paths, with tests for comma‑separated specs and dotted keys.
+- Name and document context variables consistently (FLOCK_*), remove unused keys.
+
+AC
+- resolve_inputs unit tests exist for the three strategies and dotted/context keys.
+- No undocumented context vars are written.
+
+### 4) Orchestration Consistency & Error Paths
+Problem
+- Box/dict returns and error path semantics must be predictable.
+
+Plan
+- Keep box_result=True default; ensure _format_result used consistently. Error path always returns a dict with error, details, run_id, start_agent (boxed if requested).
+- Add p0 tests for these paths.
+
+AC
+- Tests pass and assert consistent shapes for success/error with and without boxing.
+
+### 5) Pydantic I/O (0.5.0 Definitive)
+Problem
+- We just added BaseModel support for contracts and BaseModel inputs. Lock it down as a 0.5.0 feature.
+
+Plan
+- Ensure agent accepts Pydantic classes for input/output and BaseModel instances at runtime (done). Add negative tests and doc examples.
+- Make @flock_type recommended but optional; auto‑register nested models.
+
+AC
+- P0 tests cover Pydantic I/O (positive/negative); docs show both string and Pydantic contracts.
+
+### 6) Remove Dead Code and Deprecated Mixins
+Problem
+- prompt_parser.py is marked “DELETE THIS FILE!”. Keep no dead code in 0.5.0.
+
+Plan
+- Remove src/flock/core/mixin/prompt_parser.py (or move to legacy/ with explicit warnings if truly required by an old import path).
+- Fix any header path typos.
+
+AC
+- File removed or moved to legacy/; rg for “TODO: DELETE” under src/flock returns none.
+
+---
+
+## P0 — Temporal/Registry Completion (Carry‑over From Audit)
 
 ## P0 Blockers
 
