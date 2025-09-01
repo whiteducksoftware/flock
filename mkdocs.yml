@@ -58,8 +58,8 @@ markdown_extensions:
   - admonition
   - pymdownx.details
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - toc:
       permalink: true
   - attr_list
@@ -93,6 +93,7 @@ nav:
       - MCP Integration: guides/mcp.md
       - Chaining Agents: guides/chaining-agents.md
       - Configuring Temporal: guides/temporal-configuration.md
+      - Custom Endpoints: guides/custom-endpoints.md
   - Interacting:
       - Overview: interacting-with-flock/index.md
       - Programmatic: interacting-with-flock/programmatic.md
@@ -117,9 +118,14 @@ nav:
       - Refactor Plan (Flock): internal/refactor_plan_flock.md
       - Refactor Plan (Registry): internal/refactor_plan_flock_registry.md
       - Testing TODO: internal/testing_todo.md
+      - DI Overview: internal/di.md
+      - Getting Started Concepts (legacy): internal/getting-started-concepts.md
+      - Legacy Modules: internal/legacy-modules.md
   - About:
       - Contributing: about/contributing.md
       - Changelog: about/changelog.md
+      - Release Notes:
+          - v0.4.0 Magpie: release-notes/magpie.md
 
 # Optional Plugins (Install them: pip install mkdocs-material-extensions mkdocs-macros-plugin)
 # plugins:

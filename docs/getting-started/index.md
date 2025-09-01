@@ -15,7 +15,7 @@ This section covers the essentials to get you up and running:
 
 *   **[Quick Start](quickstart.md):** Jump right in and build your very first Flock agent in minutes. See how simple the declarative approach can be.
 *   **[Installation](installation.md):** Get Flock set up on your machine, along with any necessary dependencies.
-*   **[Basic Concepts](concepts.md):** Understand the fundamental ideas behind Flock – Agents, the Declarative approach, and the core components you'll interact with. *(Coming Soon)*
+*   **[Core Concepts](../core-concepts/index.md):** Understand the fundamental ideas behind Flock – Agents, the declarative approach, and the component system.
 *   **[Configuration](configuration.md):** Learn how to configure Flock for your specific needs, including setting up LLM providers.
 
 ## Prerequisites

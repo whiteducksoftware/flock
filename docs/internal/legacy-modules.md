@@ -70,4 +70,4 @@ Components run in the order they were added. Use this to your advantage (e.g., l
 
 ---
 
-Next up: [Tools](tools.md).
+Next up: [Tools](../components/tools.md).

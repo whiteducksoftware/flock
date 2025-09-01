@@ -21,7 +21,7 @@ If you're brand-new to Flock, start here.  This page gives you a *glossary-level
 
 ## Next Steps
 
-* Follow the [Quick Start](quickstart.md) to build your first agent.
+* Follow the [Quick Start](../getting-started/quickstart.md) to build your first agent.
 * Dive into the full explanations in **Core Concepts**:
   * [Agents](../core-concepts/agents.md)
   * [Declarative programming](../core-concepts/declarative.md)
