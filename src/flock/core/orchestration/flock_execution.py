@@ -124,6 +124,13 @@ class FlockExecution:
 
             # Setup execution context and input
             run_input = input if input is not None else self.flock._start_input
+            # Accept Pydantic BaseModel instances as input by converting to dict
+            try:
+                from pydantic import BaseModel as _BM
+                if not isinstance(run_input, dict) and isinstance(run_input, _BM):
+                    run_input = run_input.model_dump(exclude_none=True)  # type: ignore[attr-defined]
+            except Exception:
+                pass
             effective_run_id = run_id or f"flockrun_{uuid.uuid4().hex[:8]}"
 
             # Set span attributes

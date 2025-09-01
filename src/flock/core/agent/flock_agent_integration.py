@@ -9,6 +9,12 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from flock.core.context.context import FlockContext
 from flock.core.logging.logging import get_logger
 from flock.core.mcp.flock_mcp_server import FlockMCPServer
+from pydantic import BaseModel
+from flock.core.registry import get_registry
+from flock.core.serialization.serialization_utils import (
+    _format_type_to_string,
+    collect_pydantic_models,
+)
 
 if TYPE_CHECKING:
     from flock.core.flock_agent import FlockAgent
@@ -83,9 +89,57 @@ class FlockAgentIntegration:
         self.agent = agent
 
     def _resolve(self, raw: str | Callable[..., str], name: str, ctx: FlockContext | None) -> str | None:
+        # Support Pydantic BaseModel classes (alternative I/O definitions)
+        try:
+            if isinstance(raw, type) and issubclass(raw, BaseModel):
+                return self._build_spec_from_pydantic(raw)
+            # Also support instances directly (use their class schema)
+            if isinstance(raw, BaseModel):
+                return self._build_spec_from_pydantic(type(raw))
+        except Exception:
+            # If introspection failed, fall through to normal handling
+            pass
+
         if callable(raw):
             raw = adapt(name, raw)(ctx or FlockContext())
         return raw
+
+    def _build_spec_from_pydantic(self, model_cls: type[BaseModel]) -> str:
+        """Builds a flock I/O spec string from a Pydantic BaseModel class.
+
+        Format per field: "name: type | description"; description omitted when empty.
+        Also ensures involved Pydantic models are registered in the TypeRegistry
+        so type resolution works when constructing DSPy signatures.
+        """
+        # Proactively register this model and any nested models
+        try:
+            registry = get_registry()
+            registry.register_type(model_cls, name=model_cls.__name__)
+            # Register nested Pydantic models used in type hints
+            if hasattr(model_cls, "model_fields"):
+                for _, f in model_cls.model_fields.items():
+                    ann = getattr(f, "annotation", None)
+                    for m in collect_pydantic_models(ann):
+                        registry.register_type(m, name=m.__name__)
+        except Exception:
+            # Registration best-effort; continue building spec
+            pass
+
+        fields = []
+        # Pydantic v2: class-level model_fields
+        if not hasattr(model_cls, "model_fields") or model_cls.model_fields is None:  # type: ignore[attr-defined]
+            return ""
+
+        for name, field in model_cls.model_fields.items():  # type: ignore[attr-defined]
+            type_hint = getattr(field, "annotation", None)
+            type_str = _format_type_to_string(type_hint) if type_hint is not None else "str"
+            desc = getattr(field, "description", None) or ""
+            if desc:
+                fields.append(f"{name}: {type_str} | {desc}")
+            else:
+                fields.append(f"{name}: {type_str}")
+
+        return ", ".join(fields)
 
     def resolve_description(self, context: FlockContext | None = None) -> str | None:
         """Resolve the agent's description, handling callable descriptions."""
