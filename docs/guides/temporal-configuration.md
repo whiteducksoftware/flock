@@ -117,7 +117,7 @@ You can add non-indexed metadata to your workflow run for observability using th
 ```python
 # Assuming 'my_flock' is the Flock instance from previous examples
 # result = my_flock.run_async(
-#    start_agent="some_agent",
+#    agent="some_agent",
 #    input={"data": "..."},
 #    memo={"user_id": "user123", "experiment_tag": "v2-prompt"}
 # )
@@ -191,7 +191,7 @@ async def main():
     # 7. Run the workflow (example input)
     try:
         result = await flock.run_async(
-            start_agent="presentation_agent",
+            agent="presentation_agent",
             input={"topic": "Why Temporal makes distributed systems easier"},
             memo={"run_type": "docs_example"} # Example memo
         )

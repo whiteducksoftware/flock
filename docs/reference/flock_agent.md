@@ -85,7 +85,7 @@ agent = FlockFactory.create_default_agent(
 )
 
 flock = Flock(agents=[agent])
-print(flock.run(start_agent="title_case", input={"text": "hello world"}).title)
+print(flock.run(agent="title_case", input={"text": "hello world"}).title)
 ```
 
 ---

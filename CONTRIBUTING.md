@@ -130,8 +130,9 @@ We follow the [Contributor Covenant](https://www.contributor-covenant.org/) code
 Flock aims to provide an easy and reliable way to implement agentic applications. Therefore, well tested code is crucial.
 
 Start here:
-- Strategy: see `testing_strategy.md` for priorities and coverage goals.
-- How-to: see `testing_guide.md` for setup, patterns, and examples.
+- Strategy: see `docs/testing_strategy.md` for priorities and coverage goals.
+- How-to: see `docs/testing_guide.md` for setup, patterns, and examples.
+- TODOs (internal): see `docs/internal/testing_todo.md`.
 
 Run tests with uv (recommended):
 - Quick suite (CI-equivalent): `uv run poe test`
@@ -144,6 +145,10 @@ Guidelines:
 - Place tests under `tests/` by concern (see strategy structure).
 - Use [`pytest`](https://docs.pytest.org/en/stable/) fixtures instead of duplicating setup code.
 
+### Pydantic I/O and Hydrator
+- Agents may define input/output contracts using Pydantic models as an alternative to string contracts. See `AGENT.md#pydantic-io-contracts-new` for examples and guidelines.
+- To generate structured data with an LLM into a model instance, use the hydrator decorator. See `AGENT.md#hydrator-pydantic`.
+
 
 <!-- TOC --><a name="release-process"></a>
 ## Release Process:
@@ -154,4 +159,3 @@ Guidelines:
 5. GitHub Action publishes to PyPI.
 
 Thank you for contributing to Flock, the declarative Agent-Framework. 🦆💓
-

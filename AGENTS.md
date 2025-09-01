@@ -112,7 +112,7 @@ Implement these to finalize the test framework for 0.5.0:
    - Tests for skip private modules and robust behavior on import errors (no crash; log warning).
 
 6. Docs
-   - Keep `testing_strategy.md`, `testing_guide.md`, `testing_todo.md` up to date and linked in CONTRIBUTING/README.
+  - Keep `docs/testing_strategy.md`, `docs/testing_guide.md`, `docs/internal/testing_todo.md` up to date and linked in CONTRIBUTING/README.
 
 ### Strongly Recommended
 
@@ -178,6 +178,47 @@ These patterns have been validated in the current suite and should keep tests de
 - `agent.router`: Primary routing component (delegates to helper)
 - `agent.next_agent`: Next agent in workflow (string, callable, or None)
 - `agent._components`: Component management helper (lazy-loaded)
+
+### Pydantic I/O Contracts (New)
+
+In addition to string-based contracts, agents can define input/output using Pydantic models. The framework converts Pydantic schemas into the canonical flock signature used for DSPy and validation, and it accepts `BaseModel` instances as inputs at runtime.
+
+```python
+from typing import Literal
+from pydantic import BaseModel, Field
+from flock.core.registry import flock_type
+from flock.core import Flock, FlockFactory
+
+@flock_type  # recommended: registers the model with the TypeRegistry
+class MovieIdea(BaseModel):
+    topic: str
+    genre: Literal["comedy", "drama", "horror", "action", "adventure"]
+
+@flock_type
+class Movie(BaseModel):
+    fun_title: str
+    runtime: int
+    synopsis: str
+    characters: list[dict[str, str]]
+
+flock = Flock(name="example", model="openai/gpt-5")
+agent = FlockFactory.create_default_agent(
+    name="movie_agent",
+    description="Create a fun movie",
+    input=MovieIdea,      # Pydantic class
+    output=Movie,         # Pydantic class
+)
+flock.add_agent(agent)
+
+# You can pass a BaseModel instance directly; it will be normalized to dict
+result = flock.run(agent=agent, input=MovieIdea(topic="AI agents", genre="comedy"))
+print(result.fun_title)
+```
+
+Notes:
+- The framework will auto-register encountered Pydantic models (including nested ones) in the `TypeRegistry` during signature building. Using `@flock_type` is still recommended for clarity and early registration.
+- Internally, these models are translated to a string contract like `"field: type | description"`, so existing components (e.g., DSPy integration) work seamlessly.
+- String-based I/O remains fully supported and unchanged.
 
 ### Execution Flow
 
@@ -326,6 +367,24 @@ agent.router     # Same as helper.get_primary_router()
 - Support JSON, YAML, and Python dict formats
 - Use `to_dict()` / `from_dict()` for persistence
 
+### Hydrator (Pydantic)
+You can “hydrate” Pydantic models (fill missing/None fields) using the `@flockclass` decorator, which spins up a temporary agent based on the model’s schema.
+
+```python
+from pydantic import BaseModel, Field
+from flock.core.util.hydrator import flockclass
+
+@flockclass(model="openai/gpt-5")
+class RandomPerson(BaseModel):
+    name: str | None = None
+    age: int | None = None
+    bio: str | None = Field(default=None, description="A short biography")
+
+person = RandomPerson()
+person = person.hydrate()  # fills in missing fields via a dynamic agent
+```
+See `07-hydrator.py` for a full example.
+
 ## Development Guidelines
 
 ### When Making Changes
@@ -447,3 +506,17 @@ The unified architecture completely replaces the legacy system:
 - Zero code duplication in registry operations
 
 This should give you a solid foundation to understand and contribute to the Flock framework efficiently!
+
+## Branching & Pre‑Release Policy
+
+- Pre‑release main branch for 0.5.0: `0.5.0b`.
+  - All PRs targeting the 0.5.0 pre‑release must be opened against `0.5.0b`, not `main`.
+  - We use a `[Phase0]` prefix in GitHub issue titles for the 0.5.0 peak‑condition tasks.
+- Once 0.5.0 ships, `main` will receive a fast‑forward or merge from `0.5.0b` according to release policy.
+
+## Contributor Tips (0.5.0 → 1.0)
+
+- Prefer explicit Agent classes over factory helpers. Factory APIs remain during 0.5.0 but will be deprecated in favor of real agent classes (e.g., `DefaultAgent`).
+- Contracts first: for complex schemas, pass Pydantic models for `input`/`output` and pass `BaseModel` instances as `flock.run(..., input=...)` — they are normalized under the hood.
+- Unified components only: Evaluation/Routing/Utility; legacy “modules” are considered internal/legacy and will be removed in 1.0.
+- Reactive path: future 1.0 work will add a `SubscriptionComponent` and `agent.subscribe_to(...)` sugar; no need to author graphs or decorators.

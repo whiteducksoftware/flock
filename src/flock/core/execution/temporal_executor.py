@@ -1,4 +1,4 @@
-# src/your_package/core/execution/temporal_executor.py
+# src/flock/core/execution/temporal_executor.py
 
 import asyncio  # Import asyncio
 from typing import TYPE_CHECKING, Any
@@ -20,6 +20,7 @@ from flock.workflow.temporal_config import (
     TemporalWorkflowConfig,
 )
 from flock.workflow.temporal_setup import create_temporal_client, setup_worker
+from flock.config import TEMPORAL_SERVER_URL
 
 logger = get_logger("flock")
 
@@ -50,7 +51,7 @@ async def run_temporal_workflow(
         wf_config = flock_instance.temporal_config or TemporalWorkflowConfig()
 
         logger.debug("Creating Temporal client")
-        flock_client = await create_temporal_client()
+        flock_client = await create_temporal_client(server_address=TEMPORAL_SERVER_URL)
 
         # Determine if we need to manage an in-process worker
         start_worker_locally = flock_instance.temporal_start_in_process_worker
@@ -70,12 +71,9 @@ async def run_temporal_workflow(
                 [execute_single_agent, determine_next_agent],
             )
 
-            # Run the worker in the background
+            # Run the worker in the background; result awaiting will block until a worker picks up tasks
             worker_task = asyncio.create_task(worker.run())
             logger.info("Temporal worker started in background.")
-
-            # Allow worker time to start polling (heuristic for local testing)
-            await asyncio.sleep(2)
         else:
             logger.info(
                 "Skipping in-process worker startup. Assuming dedicated workers are running."

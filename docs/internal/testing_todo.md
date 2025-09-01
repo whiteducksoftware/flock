@@ -94,7 +94,7 @@ This plan tracks the next concrete tasks to complete and extend the test framewo
   - Confirm default suite performs no network/Temporal/MCP unless markers selected. Verify lazy imports avoid heavy deps during collection.
 
 - Docs
-  - Ensure `testing_strategy.md`, `testing_guide.md`, `testing_todo.md` are linked in `CONTRIBUTING.md`/README and reflect final gates and commands.
+  - Ensure `docs/testing_strategy.md`, `docs/testing_guide.md`, `docs/testing_todo.md` are linked in CONTRIBUTING/README and reflect final gates and commands.
 
 ## Strongly Recommended (Pre‑ or Post‑Release)
 
@@ -117,3 +117,4 @@ This plan tracks the next concrete tasks to complete and extend the test framewo
 ---
 
 If you want, I can start with the P0 fixes (pyproject `addopts` and adding a couple of snapshot tests) and open corresponding issues to track the rest.
+

@@ -118,13 +118,17 @@ class FlockWorkflow:
                 )
 
                 # --- Execute the current agent activity ---
-                agent_result = await workflow.execute_activity(
-                    execute_single_agent,
-                    args=[current_agent_name, context],
-                    task_queue=activity_task_queue,  # Use determined task queue
-                    start_to_close_timeout=activity_timeout,  # Use determined timeout
-                    retry_policy=final_retry_policy,  # Use determined retry policy
-                )
+                try:
+                    agent_result = await workflow.execute_activity(
+                        execute_single_agent,
+                        args=[current_agent_name, context.model_dump(mode="json")],
+                        task_queue=activity_task_queue,
+                        start_to_close_timeout=activity_timeout,
+                        retry_policy=final_retry_policy,
+                    )
+                except Exception as e:
+                    logger.error("execute_single_agent activity failed", agent=current_agent_name, error=str(e))
+                    raise
 
                 # Record the execution in the context history
                 # Note: The 'called_from' is the agent *before* this one
@@ -142,54 +146,34 @@ class FlockWorkflow:
                     "Determining next agent activity",
                     current_agent=current_agent_name,
                 )
-                # --- Determine the next agent activity (using workflow defaults for now) ---
-                # We could apply similar config logic to determine_next_agent if needed
-                handoff_data_dict = await workflow.execute_activity(
-                    determine_next_agent,
-                    args=[current_agent_name, agent_result, context],
-                    # Using sensible defaults, but could be configured via workflow_config?
-                    start_to_close_timeout=timedelta(minutes=1),
-                    retry_policy=default_retry_config.to_temporalio_policy(),  # Use default retry
-                )
+                # --- Determine the next agent (using routing component) ---
+                try:
+                    next_agent_name = await workflow.execute_activity(
+                        determine_next_agent,
+                        args=[current_agent_name, agent_result, context.model_dump(mode="json")],
+                        start_to_close_timeout=timedelta(minutes=1),
+                        retry_policy=default_retry_config.to_temporalio_policy(),
+                    )
+                except Exception as e:
+                    logger.error("determine_next_agent activity failed", agent=current_agent_name, error=str(e))
+                    raise
 
                 # Update previous agent name for the next loop iteration
                 previous_agent_name = current_agent_name
 
-                if handoff_data_dict:
-                    logger.debug(
-                        "Handoff data received", data=handoff_data_dict
-                    )
-                    # Deserialize handoff data back into Pydantic model for easier access
-                    handoff_request = HandOffRequest.model_validate(
-                        handoff_data_dict
-                    )
-
-                    # Update context based on handoff overrides
-                    if handoff_request.override_context:
-                        context.state.update(handoff_request.override_context)
-                        logger.info("Context updated based on handoff override")
-
-                    # Update the last record's handoff information
+                if next_agent_name:
+                    logger.debug("Next agent received", data=next_agent_name)
+                    # Update the last record's handoff information for observability
                     if context.history:
-                        context.history[-1].hand_off = handoff_data_dict
+                        context.history[-1].hand_off = {"next_agent": next_agent_name}
 
                     # Set the next agent
-                    current_agent_name = handoff_request.next_agent
-                    if current_agent_name:
-                        context.set_variable(
-                            FLOCK_CURRENT_AGENT, current_agent_name
-                        )
-                        logger.info("Next agent set", agent=current_agent_name)
-                    else:
-                        logger.info(
-                            "Handoff requested termination (no next agent)"
-                        )
-                        break  # Exit loop if router explicitly returned no next agent
-
+                    current_agent_name = next_agent_name
+                    context.set_variable(FLOCK_CURRENT_AGENT, current_agent_name)
+                    logger.info("Next agent set", agent=current_agent_name)
                 else:
-                    # No handoff data returned (no router or router returned None)
-                    logger.info("No handoff occurred, workflow terminating.")
-                    current_agent_name = None  # End the loop
+                    logger.info("No next agent, workflow terminating.")
+                    current_agent_name = None
 
             # --- Workflow Completion ---
             logger.success(
@@ -206,9 +190,14 @@ class FlockWorkflow:
             return final_result  # Return the actual result of the last agent
 
         except Exception as e:
-            # Catch exceptions from activities (e.g., after retries fail)
-            # or workflow logic errors
-            logger.exception("Workflow execution failed", error=str(e))
+            # Catch exceptions from activities (e.g., after retries fail) or workflow logic errors
+            logger.exception(f"Workflow execution failed: {e!r}")
+            try:
+                from temporalio.exceptions import ActivityError
+                if isinstance(e, ActivityError) and getattr(e, "cause", None) is not None:
+                    logger.error(f"ActivityError cause: {e.cause!r}")
+            except Exception:
+                pass
             context.set_variable(
                 "flock.result",
                 {

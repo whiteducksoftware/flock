@@ -76,12 +76,14 @@ def _format_type_to_string(type_hint: type) -> str:
     elif hasattr(type_hint, "__name__"):
         # Handle custom types registered in registry (get preferred name)
         registry = get_registry()
-        for (
-            name,
-            reg_type,
-        ) in registry._types.items():  # Access internal for lookup
-            if reg_type == type_hint:
-                return name  # Return registered name
+        try:
+            # Prefer explicit type registration names when available
+            for name, reg_type in registry.types.get_all_types().items():
+                if reg_type == type_hint:
+                    return name
+        except Exception:
+            # Defensive: if registry helper is unavailable, fall back below
+            pass
         return type_hint.__name__  # Fallback to class name if not registered
     else:
         # Fallback for complex types or types not handled above
@@ -245,22 +247,20 @@ def serialize_item(item: Any) -> Any:
         return {key: serialize_item(value) for key, value in item.items()}
     elif isinstance(item, Sequence) and not isinstance(item, str):
         return [serialize_item(sub_item) for sub_item in item]
-    elif isinstance(
-        item, type
-    ):  # Handle type objects themselves (e.g. if stored directly)
-        type_name = registry.get_component_type_name(
-            item
-        )  # Check components first
+    elif isinstance(item, type):  # Handle type objects themselves (e.g. if stored directly)
+        # Prefer registered component/type names when possible
+        type_name = registry.get_component_type_name(item)
         if type_name:
             return {"__component_ref__": type_name}
-        type_name = registry._get_path_string(
-            item
-        )  # Check regular types/classes by path
-        if type_name:
-            return {"__type_ref__": type_name}
-        logger.warning(
-            f"Could not serialize type object {item}, storing as string."
-        )
+        # Fall back to module-qualified path for general types
+        try:
+            module = getattr(item, "__module__", None)
+            name = getattr(item, "__name__", None)
+            if module and name:
+                return {"__type_ref__": f"{module}.{name}"}
+        except Exception:
+            pass
+        logger.warning(f"Could not serialize type object {item}, storing as string.")
         return str(item)
     elif isinstance(item, Enum):
         return item.value

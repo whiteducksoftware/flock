@@ -60,8 +60,8 @@ flock.add_agent(presentation_agent)
 # Tell the Flock which agent to start with and provide the input.
 print(f"Running agent '{presentation_agent.name}'...")
 result = flock.run(
-    start_agent=presentation_agent, # Or use the name: "my_presentation_agent"
-    input={"topic": "Why Llamas Make Great Urban Pets"} # The input data
+    agent=presentation_agent,  # Or use the name: "my_presentation_agent"
+    input={"topic": "Why Llamas Make Great Urban Pets"}
 )
 
 # --------------------------------
