@@ -17,7 +17,6 @@ dependencies = [
     "devtools>=0.12.2",
     "dspy==2.6.23",
     "fastapi>=0.115.8",
-    "starlette>=0.47.2",
     "httpx>=0.28.1",
     "litellm[proxy]==v1.75.3",
     "loguru>=0.7.3",
