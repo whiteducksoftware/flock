@@ -223,6 +223,25 @@ Testing strategy
 - Parity tests vs current DSPy-backed flows for Predict and ReAct (same inputs → same shape; comparable behavior under errors).
 - Bounded, deterministic tests for PlanExecute and Reflection (fake tools and LM stubs).
 
+---
+
+## Async/Sync Execution Model (Impact and Plan)
+
+Today
+- Flock exposes both `run` (sync) and `run_async`. Internally some wrappers call `run_until_complete`, which can clash with already-running loops (e.g., notebooks).
+- DSPy relies on global `dspy.settings` which complicates safe reentrancy and parallelism.
+
+Going Native — Benefits
+- `LMClient` is fully async and stateless; Programs are async by default. No global settings to mutate across runs.
+- Streaming is modeled as an async iterator with typed events, enabling clean backpressure and cancellation.
+- LiteLLM supports async + concurrency; we can map this directly into safe Program concurrency when appropriate.
+
+Plan
+- Keep `Program.run` async and expose sync wrappers at the orchestrator or component boundary only (thin and testable).
+- Improve the sync wrapper to handle running-loop environments safely (e.g., schedule in a background thread/loop when a loop is already running, or use anyio’s utilities).
+- Ensure run-batch helpers rely on TaskGroup-style concurrency (asyncio/anyio) with strict caps.
+- Add tests for: sync-in-running-loop, streaming consumption, and concurrent invocations (no shared state).
+
 
 ## Developer Ergonomics Improvements (with a native layer)
 
