@@ -17,6 +17,7 @@ from flock.core.context.context import FlockContext
 from flock.core.logging.logging import get_logger
 from flock.core.mixin.dspy_integration import DSPyIntegrationMixin
 from flock.core.mixin.prompt_parser import PromptParserMixin
+import os
 from flock.core.registry import flock_component
 
 logger = get_logger("components.evaluation.declarative")
@@ -43,6 +44,15 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
     include_reasoning: bool = Field(
         default=False,
         description="Include the reasoning in the output.",
+    )
+    # Native evaluator scaffolding (experimental)
+    use_native: bool = Field(
+        default=False,
+        description="Use experimental native evaluator programs instead of DSPy.",
+    )
+    program_type: str | None = Field(
+        default=None,
+        description="Native program type (e.g., 'predict', 'react', 'plan_execute').",
     )
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
@@ -84,7 +94,14 @@ class DeclarativeEvaluationComponent(
         tools: list[Any] | None = None,
         mcp_tools: list[Any] | None = None,
     ) -> dict[str, Any]:
-        """Core evaluation logic using DSPy - migrated from DeclarativeEvaluator."""
+        """Core evaluation logic.
+
+        If configured, dispatch to native programs; otherwise use DSPy path.
+        """
+        if self._should_use_native():
+            return await self._evaluate_native(agent=agent, inputs=inputs, tools=tools, mcp_tools=mcp_tools)
+
+        # --- DSPy path ---
         logger.debug(f"Starting declarative evaluation for component '{self.name}'")
 
         # Setup DSPy context with LM (directly from original implementation)
@@ -139,6 +156,40 @@ class DeclarativeEvaluationComponent(
                 return await self._execute_streaming(agent_task, inputs, agent, console)
             else:
                 return await self._execute_standard(agent_task, inputs, agent)
+
+    def _should_use_native(self) -> bool:
+        if self.config.use_native:
+            return True
+        flag = os.getenv("FLOCK_USE_NATIVE_EVALUATOR", "0").strip()
+        return flag not in {"", "0", "false", "False", "off", "OFF"}
+
+    async def _evaluate_native(
+        self,
+        agent: Any,
+        inputs: dict[str, Any],
+        tools: list[Any] | None,
+        mcp_tools: list[Any] | None,
+    ) -> dict[str, Any]:
+        """Dispatch to a native Program (skeleton)."""
+        try:
+            from flock.core.eval.program_base import ProgramRegistry
+            from flock.core.eval.program_predict import PredictProgram  # register default
+        except Exception as e:  # pragma: no cover - defensive
+            logger.error(f"Native evaluator not available: {e}")
+            raise
+
+        # Register a minimal default predict program if not present
+        try:
+            ProgramRegistry.get("predict")
+        except KeyError:
+            ProgramRegistry.register("predict", lambda **kw: PredictProgram(**kw))
+
+        program_type = (self.config.program_type or "predict").strip()
+        factory = ProgramRegistry.get(program_type)
+        program = factory()
+        # Placeholder behavior: just run and return (Predict echoes inputs)
+        result = await program.run(inputs=inputs)
+        return {**inputs, **result}
 
     async def _execute_streaming(self, agent_task, inputs: dict[str, Any], agent: Any, console) -> dict[str, Any]:
         """Execute DSPy program in streaming mode (from original implementation)."""
@@ -226,4 +277,3 @@ class DeclarativeEvaluationComponent(
                 for k, v in result_dict.items()
                 if not (k.startswith("reasoning"))
             }
-
