@@ -9,6 +9,7 @@ from .lm_client import LMClient, LMRequest
 from .prompt_builder import build_prompt
 
 from .program_base import Program
+from .stream_adapter import stream_text
 
 
 class PredictProgram(Program):
@@ -83,7 +84,6 @@ class PredictProgram(Program):
             extra["response_format"] = {"type": "json_object"}
 
         client = LMClient(model=self.model)
-        async for chunk in client.stream(LMRequest(model=self.model, messages=messages, extra=extra)):
-            yield chunk
-        # Final result
+        async for ev in stream_text(client, LMRequest(model=self.model, messages=messages, extra=extra)):
+            yield ev
         yield {"event": "final", "result": await self.run(inputs=inputs)}

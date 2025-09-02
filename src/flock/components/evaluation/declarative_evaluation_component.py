@@ -185,6 +185,20 @@ class DeclarativeEvaluationComponent(
             ProgramRegistry.register("predict", lambda **kw: PredictProgram(**kw))
 
         program_type = (self.config.program_type or "predict").strip()
+        # Lazy-import additional programs on demand to trigger registration
+        if program_type == "react":  # register ReAct if requested
+            try:
+                from flock.core.eval.program_react import ReActProgram as _
+            except Exception as e:
+                logger.error(f"Failed to import ReAct program: {e}")
+                raise
+        elif program_type in {"llm_compiler", "llmcompiler", "compiler"}:
+            try:
+                from flock.core.eval.program_llmcompiler import LLMCompilerProgram as _
+                program_type = "llm_compiler"
+            except Exception as e:
+                logger.error(f"Failed to import LLMCompiler program: {e}")
+                raise
         factory = ProgramRegistry.get(program_type)
         # Pass resolved specs into the program (model may be None)
         program = factory(
@@ -193,6 +207,8 @@ class DeclarativeEvaluationComponent(
             input_spec=getattr(agent, "input", None),
             output_spec=getattr(agent, "output", None),
             agent_name=getattr(agent, "name", "agent"),
+            tools={t.__name__: t for t in (tools or [])},
+            max_steps=self.config.max_tool_calls,
         )
         # Placeholder behavior: just run and return (Predict echoes inputs)
         result = await program.run(inputs=inputs)
