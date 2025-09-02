@@ -60,7 +60,7 @@ Everything else is ignored, so the handler remains clean.
 
 ```python title="07-custom-endpoints.py" linenums="1"
 from pydantic import BaseModel
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 from flock.core.api.custom_endpoint import FlockEndpoint
 
 class YodaReq(BaseModel):
@@ -72,7 +72,7 @@ async def yoda(body: YodaReq, flock: Flock):
 
 flock = Flock()
 flock.add_agent(
-    FlockFactory.create_default_agent(
+    DefaultAgent(
         name="yoda_translator",
         input="text",
         output="yoda_text",

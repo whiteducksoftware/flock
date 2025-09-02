@@ -21,7 +21,9 @@ flock.add_server(server)
 Registered servers contribute tools to an agent at runtime; the default evaluator will merge MCP tools and native tools when selecting the DSPy program (e.g., `ReAct`).
 
 ```python
-agent = FlockFactory.create_default_agent(
+from flock.core import DefaultAgent
+
+agent = DefaultAgent(
     name="search_and_summarize",
     input="query: str",
     output="summary: str",

@@ -12,12 +12,12 @@ For quick interactive testing, demonstrations, or simple internal tools, Flock c
 To enable the Web UI, simply set the `create_ui=True` flag when starting the API server:
 
 ```python
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 
 # --- Configure your Flock and Agents ---
 flock = Flock(name="My UI Flock", model="openai/gpt-4o")
 
-greeting_agent = FlockFactory.create_default_agent(
+greeting_agent = DefaultAgent(
     name="greeter",
     input="name: str | Person's name",
     output="greeting: str | A friendly greeting"

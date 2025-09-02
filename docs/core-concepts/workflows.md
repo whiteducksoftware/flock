@@ -12,18 +12,18 @@ A **workflow** in Flock is *simply* a sequence of agent evaluations managed by a
 ## 1. Creating a Workflow
 
 ```python
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 from flock.routers.agent import AgentRouter
 
 flock = Flock(name="demo")
 
-search_agent = FlockFactory.create_default_agent(
+search_agent = DefaultAgent(
     name="searcher",
     input="query: str",
     output="documents: list[str]",
 )
 
-summariser = FlockFactory.create_default_agent(
+summariser = DefaultAgent(
     name="summariser",
     input="docs: list[str]",
     output="summary: str",

@@ -76,9 +76,9 @@ Modules can hook into each stage.
 ## 4. Example
 
 ```python
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 
-agent = FlockFactory.create_default_agent(
+agent = DefaultAgent(
     name="title_case",
     input="text: str",
     output="title: str"

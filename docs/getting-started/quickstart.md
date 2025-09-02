@@ -17,7 +17,7 @@ Create a new Python file (e.g., `hello_flock.py`) and paste the following code:
 
 ```python
 # hello_flock.py
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 
 # --------------------------------
 # 1. Choose Your LLM
@@ -41,8 +41,7 @@ flock = Flock(
 # 3. Define Your Agent Declaratively
 # --------------------------------
 # No complex prompts needed! Just declare what goes in and what comes out.
-# We'll use FlockFactory for a quick setup.
-presentation_agent = FlockFactory.create_default_agent(
+presentation_agent = DefaultAgent(
     name="my_presentation_agent",
     description="Creates a fun presentation outline about a given topic",
     input="topic: str", # The agent expects a string named 'topic'
@@ -100,7 +99,7 @@ Let's break down the magic:
 
 **Create Your Flock**: The Flock object acts as the container and orchestrator for your agents.
 
-**Define Your Agent Declaratively**: This is the core of Flock! Instead of writing a long prompt, you used FlockFactory.create_default_agent and simply declared:
+**Define Your Agent Declaratively**: This is the core of Flock! Instead of writing a long prompt, you constructed a `DefaultAgent` and simply declared:
 
 `input="topic: str"`: The agent needs one input called topic, which should be a string.
 

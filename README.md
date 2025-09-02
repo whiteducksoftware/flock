@@ -53,16 +53,16 @@ No brittle prompts. No guesswork. Just reliable, testable AI agents.
 ## ⚡ Quick Start
 
 ```python
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 
 # 1. Create the main orchestrator
 my_flock = Flock(model="openai/gpt-4.1")
 
 # 2. Declaratively define an agent
-brainstorm_agent = FlockFactory.create_default_agent(
+brainstorm_agent = DefaultAgent(
     name="idea_generator",
     input="topic",
-    output="catchy_title, key_points"
+    output="catchy_title, key_points",
 )
 
 # 3. Add the agent to the Flock

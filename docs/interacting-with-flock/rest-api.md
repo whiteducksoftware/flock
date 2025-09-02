@@ -12,12 +12,12 @@ Flock allows you to easily expose your configured agents and workflows as a REST
 To start the API server, simply call the `start_api()` method on your configured `Flock` instance within your Python script:
 
 ```python
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 
 # --- Configure your Flock and Agents ---
 flock = Flock(name="My API Flock", model="openai/gpt-4o")
 
-analyzer_agent = FlockFactory.create_default_agent(
+analyzer_agent = DefaultAgent(
     name="text_analyzer",
     input="text: str",
     output="sentiment: str, keywords: list[str]"
@@ -135,6 +135,5 @@ When the API server is running, you can access interactive documentation generat
 - **ReDoc**: http://<host>:<port>/redoc
 
 These interfaces allow you to explore endpoints, view request/response schemas, and even try out API calls directly from your browser.
-
 
 

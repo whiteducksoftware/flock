@@ -29,7 +29,9 @@ Decorating with `@flock_tool` registers the function in the **global registry** 
 ## 2. Using Tools in Agents
 
 ```python
-agent = FlockFactory.create_default_agent(
+from flock.core import DefaultAgent
+
+agent = DefaultAgent(
     name="page_analyser",
     input="url: str",
     output="title: str, headings: list[str]",
