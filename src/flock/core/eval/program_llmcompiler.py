@@ -114,7 +114,8 @@ class LLMCompilerProgram(Program):
 
     async def _compile_plan(self, client: LMClient, inputs: dict[str, Any]) -> list[_Task]:
         messages = self._build_planner_messages(inputs)
-        extra = {"response_format": {"type": "json_schema", "json_schema": self._plan_schema()}}
+        # Use generic JSON object for planning to maximize provider compatibility
+        extra = {"response_format": {"type": "json_object"}}
         result, _usage = await client.generate(LMRequest(model=self.model or "", messages=messages, extra=extra))
         text = (result.get("text") or "").strip()
         try:
@@ -290,4 +291,3 @@ try:
     ProgramRegistry.register("llm_compiler", lambda **kw: LLMCompilerProgram(**kw))
 except Exception:
     pass
-

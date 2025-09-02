@@ -94,7 +94,8 @@ class ReActProgram(Program):
         scratch: list[dict[str, str]] = []
         for _ in range(max(1, self.max_steps)):
             messages = self._build_messages(inputs, scratch)
-            extra = {"response_format": {"type": "json_schema", "json_schema": self._response_schema()}}
+            # Prefer generic JSON object for broad compatibility across providers
+            extra = {"response_format": {"type": "json_object"}}
             result, _usage = await client.generate(LMRequest(model=self.model, messages=messages, extra=extra))
             text = (result.get("text") or "").strip()
             if not text:
@@ -156,7 +157,8 @@ class ReActProgram(Program):
         yield {"event": "start"}
         for step in range(max(1, self.max_steps)):
             messages = self._build_messages(inputs, scratch)
-            extra = {"response_format": {"type": "json_schema", "json_schema": self._response_schema()}}
+            # Prefer generic JSON object to avoid provider-specific schema constraints
+            extra = {"response_format": {"type": "json_object"}}
             yield {"event": "step_start", "step": step + 1}
             result, _usage = await client.generate(LMRequest(model=self.model, messages=messages, extra=extra))
             text = (result.get("text") or "").strip()
