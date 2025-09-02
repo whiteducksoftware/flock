@@ -11,6 +11,7 @@ from typing import Any
 __all__ = [
     "Flock",
     "FlockAgent",
+    "DefaultAgent",
     "FlockContext",
     "FlockFactory",
     # Components
@@ -43,6 +44,10 @@ def __getattr__(name: str) -> Any:  # pragma: no cover - thin loader
         from .flock_agent import FlockAgent
 
         return FlockAgent
+    if name == "DefaultAgent":
+        from .agent.default_agent import DefaultAgent
+
+        return DefaultAgent
     if name == "FlockContext":
         from .context.context import FlockContext
 

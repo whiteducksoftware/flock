@@ -1,6 +1,11 @@
-"""Factory for creating pre-configured Flock agents."""
+"""Factory for creating pre-configured Flock agents.
+
+Deprecated: Prefer explicit `DefaultAgent` class for new code. This factory
+remains as a thin adapter to ease migration and preserve backward compatibility.
+"""
 
 import os
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
@@ -17,7 +22,9 @@ from flock.components.utility.metrics_utility_component import (
 from flock.core.config.flock_agent_config import FlockAgentConfig
 from flock.core.config.scheduled_agent_config import ScheduledAgentConfig
 from flock.core.flock_agent import DynamicStr, FlockAgent
+from flock.core.agent.default_agent import DefaultAgent
 from flock.core.logging.formatters.themes import OutputTheme
+from flock.core.logging.logging import get_logger
 from flock.core.mcp.flock_mcp_server import FlockMCPServer
 from flock.core.mcp.mcp_config import (
     FlockMCPCachingConfiguration,
@@ -412,85 +419,40 @@ class FlockFactory:
         next_agent: DynamicStr | None = None,
         temporal_activity_config: TemporalActivityConfig | None = None,
     ) -> FlockAgent:
-        """Creates a default FlockAgent using unified component architecture.
+        """Create a default FlockAgent.
 
-        The default agent includes the following unified components:
-        - DeclarativeEvaluationComponent (core LLM evaluation)
-        - OutputUtilityComponent (result formatting and display)
-        - MetricsUtilityComponent (performance tracking)
-
-        This provides a complete, production-ready agent with sensible defaults.
+        Deprecated: Use `DefaultAgent(...)` instead. This method now delegates to
+        `DefaultAgent` and emits an optional one-time deprecation warning if the
+        environment variable `FLOCK_WARN_FACTORY_DEPRECATION` is truthy (default).
         """
-        # Import unified components locally to avoid circular imports
-        from flock.components.evaluation.declarative_evaluation_component import (
-            DeclarativeEvaluationComponent,
-            DeclarativeEvaluationConfig,
-        )
-        from flock.components.utility.metrics_utility_component import (
-            MetricsUtilityComponent,
-            MetricsUtilityConfig,
-        )
-        from flock.components.utility.output_utility_component import (
-            OutputUtilityComponent,
-            OutputUtilityConfig,
-        )
+        _maybe_warn_factory_deprecation()
 
-        if model and "gpt-oss" in model:
-            temperature = 1.0
-            max_tokens = 32768
-
-        # Create evaluation component
-        eval_config = DeclarativeEvaluationConfig(
+        return DefaultAgent(
+            name=name,
+            description=description,
             model=model,
+            input=input,
+            output=output,
+            tools=tools,
+            servers=servers,
             use_cache=use_cache,
-            max_tokens=max_tokens,
             temperature=temperature,
+            max_tokens=max_tokens,
             max_tool_calls=max_tool_calls,
             max_retries=max_retries,
             stream=stream,
             include_thought_process=include_thought_process,
             include_reasoning=include_reasoning,
-        )
-        evaluator = DeclarativeEvaluationComponent(
-            name="default_evaluator", config=eval_config
-        )
-
-        # Create output utility component
-        output_config = OutputUtilityConfig(
-            render_table=enable_rich_tables,
-            theme=output_theme,
+            enable_rich_tables=enable_rich_tables,
+            output_theme=output_theme,
             no_output=no_output,
             print_context=print_context,
-        )
-        output_component = OutputUtilityComponent(
-            name="output_formatter", config=output_config
-        )
-
-        # Create metrics utility component
-        metrics_config = MetricsUtilityConfig(
-            latency_threshold_ms=alert_latency_threshold_ms
-        )
-        metrics_component = MetricsUtilityComponent(
-            name="metrics_tracker", config=metrics_config
-        )
-
-        # Create agent with unified components
-        agent = FlockAgent(
-            name=name,
-            input=input,
-            output=output,
-            tools=tools,
-            servers=servers,
-            model=model,
-            description=description,
-            components=[evaluator, output_component, metrics_component],
-            config=FlockAgentConfig(write_to_file=write_to_file,
-                                    wait_for_input=wait_for_input),
+            write_to_file=write_to_file,
+            wait_for_input=wait_for_input,
+            alert_latency_threshold_ms=alert_latency_threshold_ms,
             next_agent=next_agent,
             temporal_activity_config=temporal_activity_config,
         )
-
-        return agent
 
     @staticmethod
     def create_scheduled_agent(
@@ -518,22 +480,47 @@ class FlockFactory:
             **kwargs,
         )
 
-        agent = (
-            FlockFactory.create_default_agent(  # Reuse your existing factory
-                name=name,
-                description=description,
-                model=model,
-                input="trigger_time: str | Time of scheduled execution",
-                output=output,
-                tools=tools,
-                servers=servers,
-                temporal_activity_config=temporal_activity_config,
-                use_cache=use_cache,
-                temperature=temperature,
-                next_agent=next_agent,
-                **kwargs,
-            )
+        agent = DefaultAgent(
+            name=name,
+            description=description,
+            model=model,
+            input="trigger_time: str | Time of scheduled execution",
+            output=output,
+            tools=tools,
+            servers=servers,
+            temporal_activity_config=temporal_activity_config,
+            use_cache=use_cache,
+            temperature=temperature,
+            next_agent=next_agent,
+            **kwargs,
         )
         agent.config = agent_config  # Assign the scheduled agent config
 
         return agent
+
+
+# ---- one-time deprecation warning helper ----
+_FACTORY_DEPRECATION_WARNED = False
+_factory_logger = get_logger("core.factory")
+
+
+def _maybe_warn_factory_deprecation() -> None:  # pragma: no cover - side-effect
+    global _FACTORY_DEPRECATION_WARNED
+    if _FACTORY_DEPRECATION_WARNED:
+        return
+    flag = os.getenv("FLOCK_WARN_FACTORY_DEPRECATION", "1").strip()
+    enabled = flag not in {"0", "false", "False", "off", "OFF"}
+    if not enabled:
+        _FACTORY_DEPRECATION_WARNED = True
+        return
+    msg = (
+        "FlockFactory.create_default_agent is deprecated and will be removed in a future release. "
+        "Please use DefaultAgent(...) instead. Set FLOCK_WARN_FACTORY_DEPRECATION=0 to disable this notice."
+    )
+    # Log and emit a warnings.warn once
+    try:
+        _factory_logger.warning(msg)
+    except Exception:
+        pass
+    warnings.warn(msg, DeprecationWarning, stacklevel=2)
+    _FACTORY_DEPRECATION_WARNED = True

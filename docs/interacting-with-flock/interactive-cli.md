@@ -14,20 +14,20 @@ This mode is specifically designed for **development and debugging** purposes, a
 You typically call `start_cli()` at a point in your script where you have a fully configured `Flock` object ready.
 
 ```python
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 from flock.routers.default import DefaultRouter, DefaultRouterConfig # Assuming DefaultRouter is used
 
 # --- Configure your Flock and Agents ---
 flock = Flock(name="Debug Flock", model="openai/gpt-4o")
 
-agent_a = FlockFactory.create_default_agent(
+agent_a = DefaultAgent(
     name="AgentA",
     input="start_query: str",
     output="intermediate_result: str",
     wait_for_input=True # Useful in interactive mode
 )
 
-agent_b = FlockFactory.create_default_agent(
+agent_b = DefaultAgent(
     name="AgentB",
     input="intermediate_result: str", # Takes output from AgentA
     output="final_answer: str",
@@ -76,4 +76,3 @@ When you run the script above, instead of executing the full workflow automatica
 - **Manual Control:** Intervene in the workflow or provide specific inputs at different stages.
 
 **Important:** `flock.start_cli()` operates on the Flock object currently in your Python script's memory. It does not load or save .flock.yaml files like the main flock management tool. It's purely a development aid within a script.
-

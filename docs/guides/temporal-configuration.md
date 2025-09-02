@@ -62,7 +62,7 @@ Sometimes, different agents need different settings (e.g., longer timeouts for c
 ```python
 # Import necessary classes
 from datetime import timedelta
-from flock.core import FlockFactory
+from flock.core import DefaultAgent
 # Adjust path if needed: from flock.config.temporal_config import ...
 from flock.workflow.temporal_config import TemporalActivityConfig, TemporalRetryPolicyConfig 
 
@@ -80,7 +80,7 @@ agent_activity_config = TemporalActivityConfig(
 )
 
 # Create the agent and pass the config
-special_agent = FlockFactory.create_default_agent(
+special_agent = DefaultAgent(
     name="special_gpu_agent",
     input="data",
     output="processed_data",
@@ -140,7 +140,7 @@ from flock.workflow.temporal_config import (
     TemporalRetryPolicyConfig,
     TemporalWorkflowConfig,
 )
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 from flock.routers.default.default_router import DefaultRouterConfig
 
 async def main():
@@ -159,7 +159,7 @@ async def main():
     )
 
     # 3. Presentation Agent (uses workflow defaults)
-    agent = FlockFactory.create_default_agent(
+    agent = DefaultAgent(
         name="presentation_agent",
         input="topic",
         output="funny_title, funny_slide_headers",
@@ -174,7 +174,7 @@ async def main():
     )
 
     # 5. Content Agent (with specific config)
-    content_agent = FlockFactory.create_default_agent(
+    content_agent = DefaultAgent(
         name="content_agent",
         input="funny_title, funny_slide_headers",
         output="funny_slide_content",

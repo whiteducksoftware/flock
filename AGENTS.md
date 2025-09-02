@@ -187,7 +187,7 @@ In addition to string-based contracts, agents can define input/output using Pyda
 from typing import Literal
 from pydantic import BaseModel, Field
 from flock.core.registry import flock_type
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 
 @flock_type  # recommended: registers the model with the TypeRegistry
 class MovieIdea(BaseModel):
@@ -202,7 +202,7 @@ class Movie(BaseModel):
     characters: list[dict[str, str]]
 
 flock = Flock(name="example", model="openai/gpt-5")
-agent = FlockFactory.create_default_agent(
+agent = DefaultAgent(
     name="movie_agent",
     description="Create a fun movie",
     input=MovieIdea,      # Pydantic class
@@ -282,10 +282,10 @@ class MyComponent(EvaluationComponentBase):
 
 ### Agent Creation
 ```python
-from flock.core import Flock, FlockFactory
+from flock.core import Flock, DefaultAgent
 
 flock = Flock(model="openai/gpt-4o")
-agent = FlockFactory.create_default_agent(
+agent = DefaultAgent(
     name="my_agent",
     input="query: str",
     output="result: str"
@@ -410,7 +410,7 @@ See `07-hydrator.py` for a full example.
 1. **Understand the flow**: `Flock` → `FlockAgent` → `Utility/Evaluator/Router` → Result
 2. **Start with examples**: Check `examples/01-getting-started/`
 3. **Read tests**: `tests/core/test_flock_core.py` shows usage patterns
-4. **Use the factory**: `FlockFactory.create_default_agent()` for quick setup
+4. **Use DefaultAgent**: prefer `DefaultAgent(...)` for explicit setup; `FlockFactory` is deprecated
 5. **Focus on contracts**: Input/output signatures are key
 
 ## Workflow Management
@@ -489,7 +489,7 @@ Based on the review, focus on:
 The unified architecture completely replaces the legacy system:
 - Legacy evaluators, modules, and routers have been removed
 - All legacy dependencies cleaned up from codebase  
-- FlockFactory creates agents with new unified components
+- DefaultAgent wires unified components under the hood
 - Workflow execution uses `agent.next_agent` for routing
 - HandOffRequest system replaced with direct property assignment
 

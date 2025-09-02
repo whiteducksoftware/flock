@@ -54,7 +54,7 @@ Building your first agent is refreshingly simple:
 
 ```python
 import os
-from flock.core import Flock, FlockFactory 
+from flock.core import Flock, DefaultAgent 
 
 
 # --------------------------------
@@ -77,7 +77,7 @@ flock = Flock(name="hello_flock", description="This is your first flock!", model
 # --------------------------------
 # The Flock doesn't believe in prompts (see the docs for more info)
 # Declare input/output contracts; the framework manages the "how"
-presentation_agent = FlockFactory.create_default_agent(
+presentation_agent = DefaultAgent(
     name="my_presentation_agent",
     description="Create a fun presentation outline",
     input="topic: str",

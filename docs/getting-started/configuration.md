@@ -79,7 +79,7 @@ You can also override or set configurations directly when creating Flock or Floc
 
 ### Configure Flock instance
 ```python
-from flock.core import Flock, FlockAgent, FlockFactory
+from flock.core import Flock, FlockAgent, DefaultAgent
 from flock.core.logging.logging import configure_logging
 
 # Only show error logs
@@ -94,7 +94,7 @@ my_flock = Flock(
 
 ### Configure Agent instance
 ```python
-specific_agent = FlockFactory.create_default_agent(
+specific_agent = DefaultAgent(
     name="SpecificAgent",
     model="openai/gpt-3.5-turbo", # Use a different model for this agent
     use_cache=False,              # Disable caching for this agent

@@ -12,9 +12,9 @@ A **FlockAgent** is the fundamental unit of work. Each agent is declarative — 
 ## 1. Anatomy of an Agent (Unified)
 
 ```python
-from flock.core import FlockFactory
+from flock.core import DefaultAgent
 
-agent = FlockFactory.create_default_agent(
+agent = DefaultAgent(
     name="movie_pitcher",
     description="Create a fun movie idea",
     input="topic: str | Central subject",
@@ -62,7 +62,7 @@ class SearchIn(BaseModel):
 class SearchOut(BaseModel):
     documents: list[str]
 
-search_agent = FlockFactory.create_default_agent(
+search_agent = DefaultAgent(
     name="searcher",
     input=SearchIn,
     output=SearchOut,

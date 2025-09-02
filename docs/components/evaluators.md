@@ -9,7 +9,7 @@ Evaluation components implement the agent’s core logic. The default option use
 
 ## DeclarativeEvaluationComponent (default)
 
-Created by `FlockFactory.create_default_agent`, it converts your contracts into a DSPy signature and runs a suitable program (`Predict`, `ReAct`, or `ChainOfThought`).
+Created when you construct a `DefaultAgent`, it converts your contracts into a DSPy signature and runs a suitable program (`Predict`, `ReAct`, or `ChainOfThought`).
 
 ### Highlights
 - Honors `description`, `input`, and `output` (string or Pydantic) contracts
@@ -18,9 +18,9 @@ Created by `FlockFactory.create_default_agent`, it converts your contracts into 
 
 ### Example
 ```python
-from flock.core import FlockFactory
+from flock.core import DefaultAgent
 
-agent = FlockFactory.create_default_agent(
+agent = DefaultAgent(
     name="summarizer",
     description="Summarize the provided text",
     input="text: str",

@@ -14,7 +14,7 @@ Once you have a configured `Flock` instance, you can trigger agent executions us
 This is the simplest way to execute a workflow starting from a specific agent. It runs synchronously, meaning your script will wait until the entire workflow (including any agent handoffs) completes before proceeding.
 
 ```python
-from flock.core import Flock, FlockFactory
+from flock.core import Flock
 
 # Assume 'flock' is your configured Flock instance
 # Assume 'my_agent' is a FlockAgent instance added to the flock
@@ -48,7 +48,7 @@ For applications using asyncio, this method allows you to run a workflow without
 
 ```python
 import asyncio
-from flock.core import Flock, FlockFactory
+from flock.core import Flock
 
 # Assume 'flock' and 'my_agent' are configured
 
@@ -77,7 +77,7 @@ Same as flock.run(), but returns an awaitable coroutine.
 Process multiple input items efficiently, either sequentially or in parallel. This is ideal for tasks like generating variations, processing datasets, or evaluating agent performance.
 
 ```python
-from flock.core import Flock, FlockFactory
+from flock.core import Flock
 
 # Assume 'flock' and 'summarizer_agent' are configured
 # summarizer_agent takes 'text_to_summarize', outputs 'summary'

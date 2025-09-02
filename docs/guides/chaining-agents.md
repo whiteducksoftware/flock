@@ -33,11 +33,11 @@ The simplest way to chain agents. The `DefaultRouter` routes to a predetermined 
 
 ```python
 # --- In your agent definition ---
-from flock.core import FlockFactory
+from flock.core import DefaultAgent
 from flock.routers.default import DefaultRouter, DefaultRouterConfig
 
 # Agent A always hands off to Agent B
-agent_a = FlockFactory.create_default_agent(
+agent_a = DefaultAgent(
     name="agent_a",
     input="topic",
     output="summary",
@@ -46,7 +46,7 @@ agent_a = FlockFactory.create_default_agent(
     )
 )
 
-agent_b = FlockFactory.create_default_agent(
+agent_b = DefaultAgent(
     name="agent_b",
     input="summary", # Expects output from agent_a
     output="final_report"
