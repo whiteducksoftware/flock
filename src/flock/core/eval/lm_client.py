@@ -49,7 +49,41 @@ class LMClient:
         Returns a (result_dict, usage) tuple. The result_dict is expected to
         include the raw text and, where applicable, a parsed JSON payload.
         """
-        raise NotImplementedError
+        # Delayed import so tests can stub without importing network libs
+        import litellm  # type: ignore
+
+        kwargs: dict[str, Any] = {
+            "model": request.model,
+            "messages": request.messages,
+        }
+        if request.temperature is not None:
+            kwargs["temperature"] = request.temperature
+        if request.max_tokens is not None:
+            # new OpenAI param is sometimes max_completion_tokens; litellm maps both
+            kwargs["max_tokens"] = request.max_tokens
+        if request.extra:
+            kwargs.update(request.extra)
+
+        resp = await litellm.acompletion(**kwargs)  # type: ignore
+        # Extract text
+        text = None
+        try:
+            choice = resp.choices[0]
+            if hasattr(choice, "message"):
+                text = choice.message.get("content")
+            elif hasattr(choice, "text"):
+                text = choice.text
+        except Exception:
+            text = None
+
+        # Usage
+        usage = LMUsage(
+            model=request.model,
+            input_tokens=getattr(resp, "usage", {}).get("prompt_tokens") if hasattr(resp, "usage") else None,  # type: ignore
+            output_tokens=getattr(resp, "usage", {}).get("completion_tokens") if hasattr(resp, "usage") else None,  # type: ignore
+            cost=None,
+        )
+        return {"text": text, "raw": resp}, usage
 
     async def stream(self, request: LMRequest) -> AsyncIterator[dict[str, Any]]:
         """Yield a normalized stream of chunks.
@@ -58,5 +92,26 @@ class LMClient:
         or {"field": "summary", "delta": "..."}). A final item can include a
         completion marker and usage summary.
         """
-        raise NotImplementedError
+        import litellm  # type: ignore
 
+        kwargs: dict[str, Any] = {
+            "model": request.model,
+            "messages": request.messages,
+            "stream": True,
+        }
+        if request.temperature is not None:
+            kwargs["temperature"] = request.temperature
+        if request.max_tokens is not None:
+            kwargs["max_tokens"] = request.max_tokens
+        if request.extra:
+            kwargs.update(request.extra)
+
+        async for chunk in await litellm.acompletion(**kwargs):  # type: ignore
+            # Normalize to token delta when available
+            try:
+                delta = chunk.choices[0].get("delta", {})
+                content = delta.get("content")
+                if content:
+                    yield {"token": content}
+            except Exception:
+                yield {"chunk": chunk}

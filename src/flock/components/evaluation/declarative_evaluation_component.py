@@ -186,7 +186,14 @@ class DeclarativeEvaluationComponent(
 
         program_type = (self.config.program_type or "predict").strip()
         factory = ProgramRegistry.get(program_type)
-        program = factory()
+        # Pass resolved specs into the program (model may be None)
+        program = factory(
+            model=getattr(agent, "model", None),
+            description=getattr(agent, "description", None),
+            input_spec=getattr(agent, "input", None),
+            output_spec=getattr(agent, "output", None),
+            agent_name=getattr(agent, "name", "agent"),
+        )
         # Placeholder behavior: just run and return (Predict echoes inputs)
         result = await program.run(inputs=inputs)
         return {**inputs, **result}

@@ -26,8 +26,28 @@ def build_prompt(
     This is a scaffold; the final implementation will derive JSON schema from
     Pydantic models and generate a compact instruction for string-based specs.
     """
-    instruction = f"Agent {agent_name}: produce the declared outputs strictly as JSON."
-    schema: dict[str, Any] | None = None
-    # TODO: implement Pydantic schema extraction and string-spec parsing.
-    return instruction, schema
+    # Instruction
+    base_desc = (description or "").strip()
+    instruction = (
+        (base_desc + "\n\n") if base_desc else ""
+    ) + (
+        "You are an agent named '" + agent_name + "'. "
+        "Return strictly a JSON object that matches the declared output schema."
+    )
 
+    # Schema (Pydantic only for now)
+    schema: dict[str, Any] | None = None
+    try:
+        if isinstance(output_spec, type) and issubclass(output_spec, BaseModel):
+            # Pydantic v2 JSON schema
+            js = output_spec.model_json_schema()
+            # Wrap for OpenAI JSON schema response_format
+            schema = {
+                "name": f"{agent_name}_output",
+                "schema": js,
+                "strict": True,
+            }
+    except Exception:
+        schema = None
+
+    return instruction, schema
