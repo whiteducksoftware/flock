@@ -197,6 +197,12 @@ Flock now ships an experimental, modular native evaluator that mirrors our Agent
 - Intent: Make planning algorithms (Predict/ReAct/Plan‑Execute/Reflection/ToT/Debate) swappable “Programs” with a clean, testable surface.
 - Migration doc: `docs/internal/dspy_integration_review.md`.
 
+Examples (native Programs)
+- `.flock/flock-showcase/02-core-concepts/09-native-react.py` — tools + ReAct loop (native).
+- `.flock/flock-showcase/02-core-concepts/10-native-compile.py` — LLMCompiler-style parallel planning.
+
+Tip: set `FLOCK_USE_NATIVE_EVALUATOR=1` or set `agent.evaluator.config.use_native = True` and `program_type = "react" | "llm_compiler"`.
+
 ### Pydantic I/O Contracts (New)
 
 In addition to string-based contracts, agents can define input/output using Pydantic models. The framework converts Pydantic schemas into the canonical flock signature used for DSPy and validation, and it accepts `BaseModel` instances as inputs at runtime.

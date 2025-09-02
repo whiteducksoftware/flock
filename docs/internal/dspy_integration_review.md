@@ -18,6 +18,13 @@ This review summarizes how Flock uses DSPy today, the pain points we see in prac
 
 - Conclusion: It’s viable to replace the DSPy dependency in the evaluator with a focused, native layer built directly atop LiteLLM (which we already depend on via DSPy) and Flock’s own contracts/registries. We can do this incrementally behind a feature gate.
 
+Status (2025-09-02)
+- Foundations complete: LMClient, PromptBuilder (string + Pydantic schemas), ToolAdapter, StreamAdapter, Program interface/registry.
+- Programs v1 complete: PredictProgram + ReActProgram with basic streaming; wired via `DeclarativeEvaluationComponent` with `use_native`/env flag + `program_type`.
+- LLMCompilerProgram (initial): planner → parallel executor → synthesizer; native, provider-agnostic.
+- P0 tests added for ProgramRegistry, Predict/ReAct/LLMCompiler echo + streaming-final; native switch tests.
+- Examples added: native ReAct and native LLMCompiler under `.flock/flock-showcase/02-core-concepts/`.
+
 ---
 
 ## How Flock Uses DSPy Today
