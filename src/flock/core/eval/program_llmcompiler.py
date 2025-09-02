@@ -304,6 +304,14 @@ class LLMCompilerProgram(Program):
         for k, v in fallback.items():
             if k not in final or final.get(k) in (None, {}, [], ""):
                 final[k] = v
+        # Prefer deterministic totals if LLM produced an implausible value
+        try:
+            f_total = float(fallback.get("total", 0) or 0)
+            l_total = float(final.get("total", 0) or 0)
+            if f_total > 0 and (l_total <= 0 or abs(l_total - f_total) > 1e-6):
+                final["total"] = f_total
+        except Exception:
+            final["total"] = fallback.get("total")
         return final
 
     async def run_stream(self, *, inputs: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:

@@ -62,6 +62,7 @@ dependencies = [
     "neo4j>=5.28.1",
     "azure-storage-blob>=12.25.1",
     "xlsxwriter>=3.2.3",
+    "instructor>=1.11.2",
 ]
 
 [project.optional-dependencies]

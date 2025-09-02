@@ -1076,6 +1076,15 @@ wheels = [
 ]
 
 [[package]]
+name = "docstring-parser"
+version = "0.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/9d/c3b43da9515bd270df0f80548d9944e389870713cc1fe2b8fb35fe2bcefd/docstring_parser-0.17.0.tar.gz", hash = "sha256:583de4a309722b3315439bb31d64ba3eebada841f2e2cee23b99df001434c912", size = 27442, upload-time = "2025-07-21T07:35:01.868Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/55/e2/2537ebcff11c1ee1ff17d8d0b6f4db75873e3b0fb32c2d4a2ee31ecb310a/docstring_parser-0.17.0-py3-none-any.whl", hash = "sha256:cf2569abd23dce8099b300f9b4fa8191e9582dda731fd533daf54c4551658708", size = 36896, upload-time = "2025-07-21T07:35:00.684Z" },
+]
+
+[[package]]
 name = "dspy"
 version = "2.6.23"
 source = { registry = "https://pypi.org/simple" }
@@ -1216,6 +1225,7 @@ dependencies = [
     { name = "dspy" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "instructor" },
     { name = "litellm", extra = ["proxy"] },
     { name = "loguru" },
     { name = "markdown2" },
@@ -1294,6 +1304,7 @@ requires-dist = [
     { name = "dspy", specifier = "==2.6.23" },
     { name = "fastapi", specifier = ">=0.115.8" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "instructor", specifier = ">=1.11.2" },
     { name = "litellm", extras = ["proxy"], specifier = "==1.75.3" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "markdown2", specifier = ">=2.5.3" },
@@ -1868,6 +1879,29 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f2/97/ebf4da567aa6827c909642694d71c9fcf53e5b504f2d96afea02718862f3/iniconfig-2.1.0.tar.gz", hash = "sha256:3abbd2e30b36733fee78f9c7f7308f2d0050e88f0087fd25c2645f63c773e1c7", size = 4793, upload-time = "2025-03-19T20:09:59.721Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl", hash = "sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760", size = 6050, upload-time = "2025-03-19T20:10:01.071Z" },
+]
+
+[[package]]
+name = "instructor"
+version = "1.11.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "diskcache" },
+    { name = "docstring-parser" },
+    { name = "jinja2" },
+    { name = "jiter" },
+    { name = "openai" },
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "tenacity" },
+    { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/64/17/802d1dc4484410b65249e9d3c95a751b9c05dc106f1dff2e4a601c063ecd/instructor-1.11.2.tar.gz", hash = "sha256:e9ad4e2e0450a0840720bd2be034ffdfd7a65262ebdb854e7b2969886e1a2576", size = 69867645, upload-time = "2025-08-27T22:20:40.207Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/93/d514a35d01db8461a56798c53f715ee1c956e72ec8885de88779b1244f2c/instructor-1.11.2-py3-none-any.whl", hash = "sha256:f7bc1094bcb7c6494d53ff284fe6a6737eb5e343945693c198e253ee7496fe82", size = 148884, upload-time = "2025-08-27T22:20:36.579Z" },
 ]
 
 [[package]]
