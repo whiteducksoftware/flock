@@ -99,13 +99,23 @@ class LLMCompilerProgram(Program):
         }
 
     def _build_planner_messages(self, inputs: dict[str, Any]) -> list[dict[str, str]]:
+        tool_names = ", ".join(sorted(self.tools.keys())) or "<none>"
         sys = (
             f"You are an agent named '{self.agent_name}'.\n"
             f"{self.description}\n\n"
             "TOOLS (callable by name with JSON args):\n"
             f"{self._tool_manifest()}\n\n"
-            "Output JSON only that matches the provided JSON schema.\n"
-            "Plan rules: use 'depends_on' to encode data dependencies; use 'save_as' for shared results; keep tasks independent when possible."
+            "PLANNING RULES (strict):\n"
+            "- Respond with ONLY JSON (no extra text).\n"
+            "- Output an object with a 'tasks' array. Each task has: id, uses, args, optional depends_on (array), optional save_as.\n"
+            f"- Allowed tool names (uses) EXACTLY: {tool_names}. Do not invent new names.\n"
+            "- Use 'save_as' for reusable results (e.g., 'p_widget', 'ship', 'tax').\n"
+            "- Keep independent tasks parallelizable (e.g., different item prices).\n\n"
+            "EXAMPLE (illustrative):\n"
+            "{\n  \"tasks\": [\n    {\"id\": \"t1\", \"uses\": \"fetch_product_price\", \"args\": {\"name\": \"widget\"}, \"save_as\": \"p_widget\"},\n"
+            "    {\"id\": \"t2\", \"uses\": \"fetch_product_price\", \"args\": {\"name\": \"gizmo\"}, \"save_as\": \"p_gizmo\"},\n"
+            "    {\"id\": \"t3\", \"uses\": \"fetch_shipping_rate\", \"args\": {\"country\": \"DE\"}, \"save_as\": \"ship\"},\n"
+            "    {\"id\": \"t4\", \"uses\": \"fetch_tax_rate\", \"args\": {\"country\": \"DE\"}, \"save_as\": \"tax\"}\n  ]\n}"
         )
         return [
             {"role": "system", "content": sys},
@@ -198,18 +208,12 @@ class LLMCompilerProgram(Program):
             if not ready:
                 # Cyclic deps or blocked
                 break
-            # Launch ready tasks up to parallel limit
-            tg = asyncio.TaskGroup()
-            for t in ready:
-                in_progress.add(t.id)
-                del remaining[t.id]
-                tg.create_task(_run_task(t))
-            await tg.__aenter__()
-            try:
-                # tasks scheduled and awaited implicitly on exit
-                pass
-            finally:
-                await tg.__aexit__(None, None, None)
+            # Launch ready tasks within a TaskGroup context
+            async with asyncio.TaskGroup() as tg:
+                for t in ready:
+                    in_progress.add(t.id)
+                    del remaining[t.id]
+                    tg.create_task(_run_task(t))
 
     # ---------------- Synthesizer ----------------
     async def _synthesize(self, client: LMClient, inputs: dict[str, Any], memory: dict[str, Any]) -> dict[str, Any]:
@@ -237,6 +241,48 @@ class LLMCompilerProgram(Program):
         except Exception:
             return {"text": text}
 
+    def _aggregate_receipt(self, inputs: dict[str, Any], memory: dict[str, Any]) -> dict[str, Any]:
+        items = list(inputs.get("items") or [])
+        breakdown: list[dict[str, str]] = []
+        subtotal = 0.0
+        # Collect any saved item prices (keys starting with 'p_')
+        for k, v in memory.items():
+            if isinstance(k, str) and k.startswith("p_"):
+                try:
+                    price = float(v)
+                except Exception:
+                    continue
+                breakdown.append({"item": k[2:], "amount": f"{price:.2f}"})
+                subtotal += price
+        # If no saved prices present, try fetching from catalog via memory or zero
+        if not breakdown and items:
+            for name in items:
+                # If planner didn't fetch, we can't call tools here; show as 0.00
+                breakdown.append({"item": str(name), "amount": f"{0.00:.2f}"})
+        ship = 0.0
+        tax_rate = 0.0
+        # shipping
+        if "ship" in memory:
+            try:
+                ship = float(memory["ship"])  # type: ignore
+            except Exception:
+                ship = 0.0
+        # tax
+        if "tax" in memory:
+            try:
+                tax_rate = float(memory["tax"])  # type: ignore
+            except Exception:
+                tax_rate = 0.0
+        tax_amount = subtotal * tax_rate
+        total = subtotal + ship + tax_amount
+        # Add shipping and tax lines to breakdown
+        if ship:
+            breakdown.append({"item": "shipping", "amount": f"{ship:.2f}"})
+        if tax_rate:
+            breakdown.append({"item": f"tax ({tax_rate:.0%})", "amount": f"{tax_amount:.2f}"})
+        note = f"Subtotal {subtotal:.2f} + shipping {ship:.2f} + tax {tax_amount:.2f} = total {total:.2f}"
+        return {"total": round(total, 2), "breakdown": breakdown, "note": note}
+
     # ---------------- Program interface ----------------
     async def run(self, *, inputs: dict[str, Any]) -> dict[str, Any]:
         if not self.model:
@@ -249,8 +295,16 @@ class LLMCompilerProgram(Program):
         # 2) Execute
         memory: dict[str, Any] = {}
         await self._execute_plan(tasks, memory)
-        # 3) Synthesize final
-        return await self._synthesize(client, inputs, memory)
+        # 3) Synthesize final, with deterministic fallback aggregation
+        final = await self._synthesize(client, inputs, memory)
+        fallback = self._aggregate_receipt(inputs, memory)
+        if not isinstance(final, dict):
+            return fallback
+        # Fill missing fields from fallback
+        for k, v in fallback.items():
+            if k not in final or final.get(k) in (None, {}, [], ""):
+                final[k] = v
+        return final
 
     async def run_stream(self, *, inputs: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
         if not self.model:

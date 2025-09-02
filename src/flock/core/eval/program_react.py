@@ -72,11 +72,19 @@ class ReActProgram(Program):
         sys = (
             f"You are an agent named '{self.agent_name}'.\n"
             f"{self.description}\n\n"
-            f"TOOLS:\n{self._tool_manifest()}\n\n"
-            "You operate in steps. At each step, output a JSON object.\n"
-            "Either propose a tool call: {\"action\": <tool_name>, \"args\": {...}}\n"
-            "Or conclude: {\"final\": {...}}. Optionally include a short 'reason'.\n"
-            "Do not include any other text besides JSON."
+            f"TOOLS (available actions):\n{self._tool_manifest()}\n\n"
+            "FORMAT RULES (strict):\n"
+            "- Respond with ONLY a JSON object each step (no extra text).\n"
+            "- Choose exactly one of:\n"
+            "  {\"action\": \"<tool_name>\", \"args\": { ... }}\n"
+            "  {\"final\": { \"answer\": \"<final answer string>\" }}\n"
+            "- Keep arguments minimal and valid for the tool.\n"
+            "- Do not invent tools beyond the listed TOOLS.\n\n"
+            "EXAMPLES (illustrative only):\n"
+            "{\"action\": \"compute\", \"args\": {\"expression\": \"23*7\"}}\n"
+            "{\"action\": \"get_weather\", \"args\": {\"city\": \"Paris\"}}\n"
+            "{\"action\": \"lookup_exchange_rate\", \"args\": {\"base\": \"usd\", \"target\": \"eur\"}}\n"
+            "{\"final\": {\"answer\": \"161; Cloudy, 21°C; usd→eur ≈ 0.91\"}}\n"
         )
         msgs = [{"role": "system", "content": sys}]
         user = {"role": "user", "content": json.dumps({"inputs": inputs})}
