@@ -32,6 +32,7 @@ flock/
 │   ├── tools/                 # Utility functions
 │   ├── webapp/                # FastAPI web interface
 │   └── workflow/              # Temporal.io activities
+│   └── core/eval/             # Native evaluator (experimental): LMClient, PromptBuilder, ToolAdapter, Programs
 ├── tests/                     # Comprehensive test suite
 │   ├── components/            # Tests for unified components
 │   ├── core/                  # Core framework tests
@@ -49,7 +50,12 @@ This section captures practical instructions and conventions for evolving Flock'
   - Quick suite (CI‑equivalent): `uv run poe test`
   - Full/nightly: `uv run poe test-all`
   - Select markers: `uv run pytest -m 'p0 or (integration and not otel)'`
-  - Lint: `uv run ruff check src/flock/* tests/*`
+- Lint: `uv run ruff check src/flock/* tests/*`
+
+- Mandatory policy (non‑negotiable)
+  - Tests are a MUST for every change. Follow the patterns in `docs/testing_guide.md` and `docs/testing_strategy.md`.
+  - Extend P0 where applicable; keep the quick suite green locally before pushing (`uv run poe test`).
+  - Maintain/raise coverage where relevant; do not remove/skip tests without a documented rationale.
 
 - Markers and defaults
   - p0: fast, deterministic, CI‑blocking
@@ -84,6 +90,9 @@ This section captures practical instructions and conventions for evolving Flock'
 - Prefer multiple small commits over one large “kitchen sink” change.
 - Use clear commit messages (prefix with `test:`, `ci:`, `fix:`, `docs:` as appropriate).
 - Avoid committing noisy changes (formatting only) unless included in the same logical change.
+
+- Active PR etiquette
+  - If a PR is active, update the PR description after every commit to reflect the current state (scope, validation, next steps). This keeps reviewers aligned and avoids churn.
 
 - Serialization contracts (snapshots)
   - `FlockAgent.to_dict`: simple and router+evaluator variants should be snapshotted to catch drift.
@@ -178,6 +187,15 @@ These patterns have been validated in the current suite and should keep tests de
 - `agent.router`: Primary routing component (delegates to helper)
 - `agent.next_agent`: Next agent in workflow (string, callable, or None)
 - `agent._components`: Component management helper (lazy-loaded)
+
+### Native Evaluator (Experimental)
+
+Flock now ships an experimental, modular native evaluator that mirrors our Agent+Components ethos and reduces external coupling:
+
+- Location: `src/flock/core/eval/` (LMClient, PromptBuilder, ToolAdapter, Program interface + registry, and initial Programs like `PredictProgram`).
+- Usage: opt‑in via `DeclarativeEvaluationConfig(use_native=True, program_type="predict|react|plan_execute|...")` or env `FLOCK_USE_NATIVE_EVALUATOR=1`.
+- Intent: Make planning algorithms (Predict/ReAct/Plan‑Execute/Reflection/ToT/Debate) swappable “Programs” with a clean, testable surface.
+- Migration doc: `docs/internal/dspy_integration_review.md`.
 
 ### Pydantic I/O Contracts (New)
 
