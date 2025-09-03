@@ -10,6 +10,28 @@ Focus areas
 - Improve structure/ownership boundaries: core vs integrations vs web/CLI
 - Add a productive, optional fluent DX layer that compiles to core primitives
 
+## 0) Initial Improvement Plan (4‑Week Cut)
+
+Goal for next release window: remove Temporal entirely and ship a DSPy‑only engine while keeping the rest of the codebase stable. No users are on Temporal today; removing it reduces risk and complexity immediately.
+
+Scope (do now)
+- Remove temporalio and all workflow/activity code paths (workflow/, temporal_config.py, executor wires, unsafe.imports_passed_through shims).
+- Keep a single engine in core: DSPy (via DeclarativeEvaluationComponent), running locally.
+- Retain MCP/tooling and web as optional extras; do not expand scope.
+- Document a clean path to re‑introduce an external durable engine later (prefer Restate) once we have bandwidth.
+
+Non‑goals for this cut
+- No Restate implementation in core yet (we have POCs under vendor/ for prototyping).
+- No major re‑structure of folders beyond removing Temporal code; save deeper layout changes for post‑release.
+
+Benefits
+- Smaller install, faster runs, fewer moving parts to stabilize in 4 weeks.
+- Eliminates the determinism hacks and corner‑cases tied to Temporal’s workflow VM.
+
+Follow‑on (post‑release)
+- Introduce an engine boundary and add Restate as an optional engine (engines/restate) when ready.
+- Split optional features into extras (see Section 4 and 5).
+
 ## 1) Architecture — Engine‑Agnostic, Component‑Centric Core
 
 Current issues
@@ -28,6 +50,8 @@ Outcomes
 - Engine changes don’t cascade; unsafe import shims disappear from core
 - Evaluation logic is swappable without touching agents or serialization
 - Clear package boundaries, faster mental model for contributors
+
+Note for the 4‑week cut: implement the “engine boundary” as a no‑op placeholder but keep only DSPy (local) wired. Add Restate/others later.
 
 ## 2) Component System — Fewer Concepts, Better Defaults
 
@@ -77,6 +101,34 @@ Recommendations
 
 Outcomes
 - Faster installs and CI, fewer transitive conflicts, smaller containers
+
+## 4.1) “Separate from core” — Packaging & Repo Strategy (with UV)
+
+What “separate from core” means
+- The core library (flock-core) contains only the orchestrator, components, serialization, and minimal evaluation adapter (DSPy for now). Everything else (web, MCP, DX layer, optional engines) lives in separate distribution packages. They can share a repo (monorepo) or live in separate repos; the important bit is they are separate Python packages with their own pyproject.toml and optional dependencies.
+
+Recommended shape (monorepo first)
+- Reorganize into packages/ with multiple Python dists:
+  - packages/flock-core (required)
+  - packages/flock-dx (optional fluent API; depends on flock-core)
+  - packages/flock-mcp (MCP integration as ToolSpec adapter)
+  - packages/flock-web (FastAPI UI; extra)
+  - packages/flock-engines-restate (future; extra)
+- Each has its own pyproject.toml. The top-level repo keeps a dev convenience script/Makefile.
+
+Using UV in a monorepo
+- Add/editable installs during dev: `uv pip install -e packages/flock-core packages/flock-dx`.
+- Path deps between local packages: in pyproject, use PEP 508 path dependencies, e.g. `flock-core = { path = "../flock-core" }`.
+- Dependency groups: keep `[dependency-groups]` for dev/test tooling. `uv sync --dev --all-groups` supports installing all groups.
+- Extras: declare optional features in each package (e.g., `[project.optional-dependencies] web = ["fastapi", ...]`). Install via `uv pip install 'flock-web[all]'`.
+- Locking: a single top-level `uv.lock` can be used if you install from the root with all local packages; or each package can maintain its own lock if you prefer isolation.
+
+Separate repo vs submodules
+- Start monorepo (simpler cross‑package refactors). Avoid git submodules unless you truly need independent lifecycles and access control — they add friction.
+- If you later split repos, keep the same package names and publish to PyPI or an internal index; consumers switch from path deps to versioned deps. UV works fine with both published packages and local paths.
+
+Best practice
+- Keep core tiny and stable. Everything optional is a separate package with extras. Use path deps for tight inner‑loop dev, publish versions for consumers.
 
 ## 5) Package Layout — Clear Ownership and Isolation
 
@@ -183,3 +235,37 @@ Deliverables
 - Add `flock-dx` (optional) that compiles fluent definitions to core
 
 These changes keep Flock’s philosophy (contract‑first, testable, production‑ready) while making the codebase smaller, faster, and friendlier — both for contributors and for the “AI agent orchestration” scenarios we want to excel at.
+
+## 13) Temporal Removal Checklist (4‑Week Release)
+
+- Dependencies
+  - Remove `temporalio` and any Temporal-related pins from `pyproject.toml`.
+  - Remove or guard any Temporal-specific dev/test deps.
+
+- Source files to delete (or archive under `legacy/`)
+  - `src/flock/workflow/` (flock_workflow.py, agent_activities*.py, temporal_config.py, temporal_setup.py, activities.py)
+  - Any `orchestration/*` helpers that only exist for Temporal (leave general orchestration intact).
+
+- Imports and guards to remove
+  - `from temporalio import workflow` and `workflow.unsafe.imports_passed_through()` usages in core/logging/evaluation/etc.
+  - Temporal-specific logging branches and exceptions (e.g., ActivityError handling in workflow code).
+
+- Orchestrator wiring
+  - In `FlockExecution`, remove branching to Temporal executor; keep only local run path.
+  - Ensure `run()` and `run_async()` execute agents locally with no Temporal references.
+
+- Examples / docs
+  - Update examples to show only DSPy/local engine; mark Temporal docs as legacy and move under `docs/legacy/`.
+  - Ensure README and getting-started mention only DSPy engine; add a short note that durable engines will return later as optional.
+
+- Tests
+  - Remove/skip Temporal-marked tests (`-m temporal`) and references.
+  - Ensure quick suite remains green: `uv run poe test` with current coverage target.
+
+- CI / packaging
+  - Clean CI jobs of Temporal setup (worker startup, Temporal server spins).
+  - Verify `uv build` + `python -c "import flock; import flock.core"` still pass.
+
+- Sanity pass
+  - Ripgrep for `temporal`, `workflow.unsafe`, `ActivityError`, `Temporal` and ensure no references remain in core.
+  - Confirm import tree of `flock.core` pulls only minimal deps.
