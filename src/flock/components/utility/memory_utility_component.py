@@ -542,7 +542,9 @@ class MemoryUtilityComponent(UtilityComponent):
             "Extract key concepts from text",
             "text: str | Input text -> concepts: list[str] | key concepts lower case",
         )
-        agent._configure_language_model(agent.model, True, 0.0, 8192)
-        predictor = agent._select_task(concept_signature, "Completion")
-        res = predictor(text=text)
+        import dspy
+        lm = dspy.LM(model=agent.model, cache=True, temperature=0.0, max_tokens=8192)
+        predictor = agent._select_task(concept_signature, "Predict")
+        with dspy.settings.context(lm=lm):
+            res = predictor(text=text)
         return set(getattr(res, "concepts", []))

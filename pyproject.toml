@@ -15,10 +15,10 @@ requires-python = ">=3.10"
 dependencies = [
     "cloudpickle>=3.1.1",
     "devtools>=0.12.2",
-    "dspy==2.6.23",
+    "dspy>=3.0.0",
     "fastapi>=0.115.8",
     "httpx>=0.28.1",
-    "litellm[proxy]==v1.75.3",
+    "litellm>=1.75.3",
     "loguru>=0.7.3",
     "mcp>=1.7.1",
     "msgpack>=1.1.0",

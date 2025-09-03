@@ -1,5 +1,10 @@
 # src/flock/core/mixin/dspy_integration.py
-"""Mixin class for integrating with the dspy library."""
+"""Mixin class for integrating with the dspy library.
+
+This mixin centralizes Flock ↔ DSPy interop. It intentionally
+delegates more to DSPy’s native builders (Signature, settings.context,
+modules) to reduce custom glue and stay aligned with DSPy updates.
+"""
 
 import ast
 import re  # Import re for parsing
@@ -145,114 +150,70 @@ def _resolve_type_string(type_str: str) -> type:
 class DSPyIntegrationMixin:
     """Mixin class for integrating with the dspy library."""
 
-    def create_dspy_signature_class(
-        self, agent_name, description_spec, fields_spec
-    ) -> Any:
-        """Creates a dynamic DSPy Signature class from string specifications,
-        resolving types using the registry.
+    def create_dspy_signature_class(self, agent_name: str, description_spec: str, fields_spec: str) -> Any:
+        """Create a DSPy Signature using DSPy's native builder.
+
+        We support the Flock spec format: "field: type | description, ... -> ...".
+        This converts to the dict-based make_signature format with
+        InputField/OutputField and resolved Python types.
         """
         try:
             import dspy
-        except ImportError:
-            logger.error(
-                "DSPy library is not installed. Cannot create DSPy signature. "
-                "Install with: pip install dspy-ai"
-            )
-            raise ImportError("DSPy is required for this functionality.")
+        except ImportError as exc:
+            logger.error("DSPy is not installed. Install with: pip install dspy-ai")
+            raise
 
-        base_class = dspy.Signature
-        class_dict = {"__doc__": description_spec, "__annotations__": {}}
-
+        # Split input/output part
         if "->" in fields_spec:
             inputs_spec, outputs_spec = fields_spec.split("->", 1)
         else:
-            inputs_spec, outputs_spec = (
-                fields_spec,
-                "",
-            )  # Assume only inputs if no '->'
+            inputs_spec, outputs_spec = fields_spec, ""
 
-        def parse_field(field_str):
-            """Parses 'name: type_str | description' using _resolve_type_string."""
+        def parse_field(field_str: str) -> tuple[str, type, str | None] | None:
             field_str = field_str.strip()
             if not field_str:
                 return None
-
             parts = field_str.split("|", 1)
             main_part = parts[0].strip()
             desc = parts[1].strip() if len(parts) > 1 else None
-
             if ":" in main_part:
                 name, type_str = [s.strip() for s in main_part.split(":", 1)]
             else:
-                name = main_part
-                type_str = "str"  # Default type
-
+                name, type_str = main_part, "str"
             try:
-                field_type = _resolve_type_string(type_str)
-            except Exception as e:  # Catch resolution errors
-                logger.error(
-                    f"Failed to resolve type '{type_str}' for field '{name}': {e}. Defaulting to str."
+                py_type = _resolve_type_string(type_str)
+            except Exception as e:
+                logger.warning(
+                    f"Type resolution failed for '{type_str}' in field '{name}': {e}. Falling back to str."
                 )
-                field_type = str
+                py_type = str
+            return name, py_type, desc
 
-            return name, field_type, desc
-
-        def process_fields(fields_string, field_kind):
-            """Process fields and add to class_dict."""
-            if not fields_string or not fields_string.strip():
-                return
-
-            split_fields = split_top_level(fields_string)
-            for field in split_fields:
-                if field.strip():
-                    parsed = parse_field(field)
-                    if not parsed:
-                        continue
-                    name, field_type, desc = parsed
-                    class_dict["__annotations__"][name] = (
-                        field_type  # Use resolved type
-                    )
-
-                    FieldClass = (
-                        dspy.InputField
-                        if field_kind == "input"
-                        else dspy.OutputField
-                    )
-                    # DSPy Fields use 'desc' for description
-                    class_dict[name] = (
-                        FieldClass(desc=desc)
-                        if desc is not None
-                        else FieldClass()
-                    )
+        def to_field_tuples(spec: str, kind: str) -> dict[str, tuple[type, Any]]:
+            mapping: dict[str, tuple[type, Any]] = {}
+            if not spec.strip():
+                return mapping
+            for raw in split_top_level(spec):
+                parsed = parse_field(raw)
+                if not parsed:
+                    continue
+                fname, ftype, fdesc = parsed
+                FieldClass = dspy.InputField if kind == "input" else dspy.OutputField
+                finfo = FieldClass(desc=fdesc) if fdesc is not None else FieldClass()
+                mapping[fname] = (ftype, finfo)
+            return mapping
 
         try:
-            process_fields(inputs_spec, "input")
-            process_fields(outputs_spec, "output")
-        except Exception as e:
-            logger.error(
-                f"Error processing fields for DSPy signature '{agent_name}': {e}",
-                exc_info=True,
-            )
-            raise ValueError(
-                f"Could not process fields for signature: {e}"
-            ) from e
-
-        # Create and return the dynamic class
-        try:
-            DynamicSignature = type(
-                "dspy_" + agent_name, (base_class,), class_dict
-            )
-            logger.info(
-                f"Successfully created DSPy Signature: {DynamicSignature.__name__} "
-                f"with fields: {DynamicSignature.__annotations__}"
-            )
-            return DynamicSignature
-        except Exception as e:
-            logger.error(
-                f"Failed to create dynamic type 'dspy_{agent_name}': {e}",
-                exc_info=True,
-            )
-            raise TypeError(f"Could not create DSPy signature type: {e}") from e
+            fields: dict[str, tuple[type, Any]] = {
+                **to_field_tuples(inputs_spec, "input"),
+                **to_field_tuples(outputs_spec, "output"),
+            }
+            sig = dspy.Signature(fields, description_spec or None, signature_name=f"dspy_{agent_name}")
+            logger.info("Created DSPy Signature %s", sig.__name__)
+            return sig
+        except Exception as e:  # pragma: no cover - defensive
+            logger.error("Failed to create DSPy Signature for %s: %s", agent_name, e, exc_info=True)
+            raise
 
     def _configure_language_model(
         self,
@@ -275,34 +236,28 @@ class DSPyIntegrationMixin:
         try:
             import dspy
         except ImportError:
-            logger.error(
-                "DSPy library is not installed. Cannot configure language model."
-            )
-            return  # Or raise
+            logger.error("DSPy is not installed; cannot configure LM.")
+            return
 
+        # Build an LM instance for per-call usage; prefer settings.context over global configure.
         try:
-            # Ensure 'cache' parameter is handled correctly (might not exist on dspy.LM directly)
-            # DSPy handles caching globally or via specific optimizers typically.
-            # We'll configure the LM without explicit cache control here.
             lm_instance = dspy.LM(
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 cache=use_cache,
-                # Add other relevant parameters if needed, e.g., API keys via dspy.settings
             )
-            dspy.settings.configure(lm=lm_instance)
+            # Do not call settings.configure() here to avoid cross-task/thread conflicts.
+            # Callers should pass this LM via dspy.settings.context(lm=...) or program.acall(lm=...)
+            dspy.settings  # touch to ensure settings is importable
             logger.info(
-                f"DSPy LM configured with model: {model}, temp: {temperature}, max_tokens: {max_tokens}"
+                "Prepared DSPy LM (defer install to settings.context): model=%s temp=%s max_tokens=%s",
+                model,
+                temperature,
+                max_tokens,
             )
-            # Note: DSPy caching is usually configured globally, e.g., dspy.settings.configure(cache=...)
-            # or handled by optimizers. Setting `cache=use_cache` on dspy.LM might not be standard.
         except Exception as e:
-            logger.error(
-                f"Failed to configure DSPy language model '{model}': {e}",
-                exc_info=True,
-            )
-            # We need to raise this exception, otherwise Flock will trundle on until it needs dspy.settings.lm and can't find it.
+            logger.error("Failed to prepare DSPy LM '%s': %s", model, e, exc_info=True)
             raise
 
     def _select_task(
@@ -349,9 +304,17 @@ class DSPyIntegrationMixin:
 
         # Determine type if not overridden
         if not selected_type:
-            selected_type = (
-                "ReAct" if processed_tools or processed_mcp_tools else "Predict"
-            )  # Default logic
+            selected_type = "ReAct" if processed_tools or processed_mcp_tools else "Predict"
+
+        # Normalize common aliases/casing
+        sel = selected_type.lower() if isinstance(selected_type, str) else selected_type
+        if isinstance(sel, str):
+            if sel in {"completion", "predict"}:
+                sel = "predict"
+            elif sel in {"react"}:
+                sel = "react"
+            elif sel in {"chainofthought", "cot", "chain_of_thought"}:
+                sel = "chain_of_thought"
 
         logger.debug(
             f"Selecting DSPy program type: {selected_type} (Tools provided: {bool(processed_tools)}) (MCP Tools: {bool(processed_mcp_tools)}"
@@ -368,15 +331,15 @@ class DSPyIntegrationMixin:
             merged_tools = merged_tools + processed_mcp_tools
 
         try:
-            if selected_type == "ChainOfThought":
+            if sel == "chain_of_thought":
                 dspy_program = dspy.ChainOfThought(signature, **kwargs)
-            elif selected_type == "ReAct":
+            elif sel == "react":
                 if not kwargs:
                     kwargs = {"max_iters": max_tool_calls}
                 dspy_program = dspy.ReAct(
                     signature, tools=merged_tools or [], **kwargs
                 )
-            elif selected_type == "Predict":  # Default or explicitly Completion
+            elif sel == "predict":
                 dspy_program = dspy.Predict(signature)
             else:  # Fallback or handle unknown type
                 logger.warning(
@@ -395,51 +358,46 @@ class DSPyIntegrationMixin:
             )
             raise RuntimeError(f"Could not create DSPy program: {e}") from e
 
-    def _process_result(
-        self, result: Any, inputs: dict[str, Any]
-    ) -> tuple[dict[str, Any], float, list]:
-        """Convert the DSPy result object to a dictionary."""
-        import dspy
+    def _process_result(self, result: Any, inputs: dict[str, Any]) -> tuple[dict[str, Any], float, list]:
+        """Convert a DSPy Prediction or mapping to a plain dict and attach LM history.
+
+        Returns (result_dict, cost_placeholder, lm_history). The cost is set to 0.0;
+        use token usage trackers elsewhere for accurate accounting.
+        """
+        try:
+            import dspy
+        except ImportError:
+            dspy = None
 
         if result is None:
             logger.warning("DSPy program returned None result.")
-            return {}
-        try:
-            # DSPy Prediction objects often behave like dicts or have .keys() / items()
-            if hasattr(result, "items") and callable(result.items):
-                output_dict = dict(result.items())
-            elif hasattr(result, "__dict__"):  # Fallback for other object types
-                output_dict = {
-                    k: v
-                    for k, v in result.__dict__.items()
-                    if not k.startswith("_")
-                }
-            else:
-                # If it's already a dict (less common for DSPy results directly)
-                if isinstance(result, dict):
-                    output_dict = result
-                else:  # Final fallback
-                    logger.warning(
-                        f"Could not reliably convert DSPy result of type {type(result)} to dict. Returning as is."
-                    )
-                    output_dict = {"raw_result": result}
+            return {}, 0.0, []
 
-            logger.debug(f"Processed DSPy result to dict: {output_dict}")
-            # Optionally merge inputs back if desired (can make result dict large)
+        try:
+            # Best-effort extraction from DSPy Prediction
+            if dspy and isinstance(result, dspy.Prediction):
+                output_dict = dict(result.items(include_dspy=False))
+            elif isinstance(result, dict):
+                output_dict = result
+            elif hasattr(result, "items") and callable(result.items):
+                try:
+                    output_dict = dict(result.items())
+                except Exception:
+                    output_dict = {"raw_result": str(result)}
+            else:
+                output_dict = {"raw_result": str(result)}
+
             final_result = {**inputs, **output_dict}
 
-            lm = dspy.settings.get("lm")
-            cost = sum([x["cost"] for x in lm.history if x["cost"] is not None])
-            lm_history = lm.history
+            lm_history = []
+            try:
+                if dspy and dspy.settings.lm is not None and hasattr(dspy.settings.lm, "history"):
+                    lm_history = dspy.settings.lm.history
+            except Exception:
+                lm_history = []
 
-            return final_result, cost, lm_history
+            return final_result, 0.0, lm_history
 
-        except Exception as conv_error:
-            logger.error(
-                f"Failed to process DSPy result into dictionary: {conv_error}",
-                exc_info=True,
-            )
-            return {
-                "error": "Failed to process result",
-                "raw_result": str(result),
-            }
+        except Exception as conv_error:  # pragma: no cover - defensive
+            logger.error("Failed to process DSPy result into dictionary: %s", conv_error, exc_info=True)
+            return {"error": "Failed to process result", "raw_result": str(result)}, 0.0, []
