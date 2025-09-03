@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.0b16"
+version = "0.5.0b17"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -33,7 +33,7 @@ dependencies = [
     "pillow>=10.4.0",
     "prometheus-client>=0.21.1",
     "psutil>=6.1.1",
-    "pydantic==2.10.5",
+    "pydantic>=2.10.5",
     "pydantic-settings>=2.7.1",
     "python-box>=7.3.2",
     "python-decouple>=3.8",
