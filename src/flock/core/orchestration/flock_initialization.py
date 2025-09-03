@@ -31,6 +31,10 @@ class FlockInitialization:
         servers: list["FlockMCPServer"] | None = None,
     ) -> None:
         """Handle all initialization side effects and setup."""
+        # Workaround: newer litellm logging tries to import proxy dependencies (apscheduler)
+        # via cold storage logging even for non-proxy usage. Avoid hard dependency by
+        # pre-stubbing the `litellm.proxy.proxy_server` module with a minimal object.
+        self._patch_litellm_proxy_imports()
         # Register passed servers first (agents may depend on them)
         if servers:
             self._register_servers(servers)
@@ -63,6 +67,26 @@ class FlockInitialization:
             model=self.flock.model,
             enable_temporal=self.flock.enable_temporal,
         )
+
+    def _patch_litellm_proxy_imports(self) -> None:
+        """Stub litellm proxy_server to avoid optional proxy deps when not used.
+
+        Some litellm versions import `litellm.proxy.proxy_server` during standard logging
+        to read `general_settings`, which pulls in optional dependencies like `apscheduler`.
+        We provide a stub so imports succeed but cold storage remains disabled.
+        """
+        try:
+            import sys
+            import types
+
+            if "litellm.proxy.proxy_server" not in sys.modules:
+                stub = types.ModuleType("litellm.proxy.proxy_server")
+                # Minimal surface that cold_storage_handler accesses
+                setattr(stub, "general_settings", {})
+                sys.modules["litellm.proxy.proxy_server"] = stub
+        except Exception as e:
+            # Safe to ignore; worst case litellm will log a warning
+            logger.debug(f"Failed to stub litellm proxy_server: {e}")
 
     def _register_servers(self, servers: list["FlockMCPServer"]) -> None:
         """Register servers with the Flock instance."""
