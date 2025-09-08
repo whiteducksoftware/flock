@@ -1,6 +1,7 @@
 """Factory for creating pre-configured Flock agents."""
 
 import os
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
@@ -408,7 +409,7 @@ class FlockFactory:
         max_tool_calls: int = 10,
         max_retries: int = 3,
         alert_latency_threshold_ms: int = 30000,
-        no_output: bool = False,
+        no_output: bool | None = None,
         print_context: bool = False,
         write_to_file: bool = False,
         stream: bool = False,
@@ -423,7 +424,14 @@ class FlockFactory:
         - OutputModule
         - MetricsModule
 
-        It also includes direct acces to the most important configurations.
+        It also includes direct access to the most important configurations.
+        
+        Output Behavior:
+        - If no_output is None (default), the behavior is determined by:
+          1. FLOCK_NO_OUTPUT environment variable (true/false)
+          2. Non-interactive context detection (CI, non-TTY)
+          3. Falls back to False (verbose) for interactive use
+        - If no_output is explicitly set, that value is used
         """
         eval_config = DeclarativeEvaluatorConfig(
             model=model,
@@ -451,6 +459,25 @@ class FlockFactory:
             wait_for_input=wait_for_input,
             temporal_activity_config=temporal_activity_config,
         )
+        
+        # Determine default output behavior based on environment and context
+        if no_output is None:
+            # Check environment variable first
+            env_no_output = os.environ.get('FLOCK_NO_OUTPUT', '').lower()
+            if env_no_output in ('true', '1', 'yes'):
+                no_output = True
+            elif env_no_output in ('false', '0', 'no'):
+                no_output = False
+            else:
+                # Default to quieter behavior for programmatic contexts
+                # Check if we're in a non-interactive environment (common in CI/batch processing)
+                is_non_interactive = (
+                    not sys.stdin.isatty() or  # Not connected to terminal
+                    os.environ.get('CI', '').lower() in ('true', '1') or  # CI environment
+                    os.environ.get('FLOCK_PROGRAMMATIC', '').lower() in ('true', '1')  # Explicit flag
+                )
+                no_output = is_non_interactive
+        
         output_config = OutputModuleConfig(
             render_table=enable_rich_tables,
             theme=output_theme,
