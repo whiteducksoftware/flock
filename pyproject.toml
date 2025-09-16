@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.4.531"
+version = "0.4.532"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -18,7 +18,7 @@ dependencies = [
     "dspy==2.6.23",
     "fastapi>=0.115.8",
     "httpx>=0.28.1",
-    "litellm[proxy]==v1.75.3",
+    "litellm>=v1.75.3",
     "loguru>=0.7.3",
     "mcp>=1.7.1",
     "msgpack>=1.1.0",
@@ -46,7 +46,7 @@ dependencies = [
     "tiktoken>=0.8.0",
     "toml>=0.10.2",
     "tqdm>=4.60.1",
-    "uvicorn>=0.29.0",
+    "uvicorn>=0.29.1",
     "aiosqlite>=0.21.0",
     "markdown2>=2.5.3",
     "wd-di>=0.2.14",
@@ -195,7 +195,7 @@ asyncio_default_fixture_loop_scope = "function"
 
 
 [tool.poe.tasks]
-_sync = "uv sync --dev --all-groups --all-extras"
+_sync = "uv sync --dev --all-groups --all-extras --reinstall"
 _build = "uv build"
 _install = "uv pip install -e ."
 _init = ["_ensure-uv", "_sync-submodules"]

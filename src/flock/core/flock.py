@@ -179,6 +179,27 @@ class Flock(BaseModel, Serializable):
                 if not future.done():
                     future.cancel()
 
+
+    def _patch_litellm_proxy_imports(self) -> None:
+        """Stub litellm proxy_server to avoid optional proxy deps when not used.
+
+        Some litellm versions import `litellm.proxy.proxy_server` during standard logging
+        to read `general_settings`, which pulls in optional dependencies like `apscheduler`.
+        We provide a stub so imports succeed but cold storage remains disabled.
+        """
+        try:
+            import sys
+            import types
+
+            if "litellm.proxy.proxy_server" not in sys.modules:
+                stub = types.ModuleType("litellm.proxy.proxy_server")
+                # Minimal surface that cold_storage_handler accesses
+                setattr(stub, "general_settings", {})
+                sys.modules["litellm.proxy.proxy_server"] = stub
+        except Exception as e:
+            # Safe to ignore; worst case litellm will log a warning
+            logger.debug(f"Failed to stub litellm proxy_server: {e}")
+
     def __init__(
         self,
         name: str | None = None,
@@ -216,6 +237,8 @@ class Flock(BaseModel, Serializable):
         self._start_agent_name = None
         self._start_input = {}
         self._mgr = FlockServerManager()
+
+        self._patch_litellm_proxy_imports()
 
         # Register passed servers
         # (need to be registered first so that agents can retrieve them from the registry)
