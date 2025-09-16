@@ -44,3 +44,24 @@
 - Confirm whether shared-run or batch workflows must surface the flag (requirement only mentions direct runs; plan assumes batch remains dev-only unless requested otherwise).
 - Decide how to handle agents lacking a production tool list when the flag is enabled (proposed behaviour: fall back to dev tools, plus warning log).
 - Ensure concurrency safety if multiple runs toggle tool sets concurrently—using per-call parameters instead of mutating agent state should avoid cross-talk.
+
+## Implementation Summary
+
+- **Agent Model Extensions**
+  - Added a `production_tools` field and runtime helper `_get_runtime_tools`, enabling evaluators to receive either the default or production list without mutating agent state (`src/flock/core/flock_agent.py#L100`, `src/flock/core/flock_agent.py#L334`).
+  - Serialization/deserialization updated to persist both tool collections, plus registration of production tools during flock export (`src/flock/core/flock_agent.py#L724`, `src/flock/core/flock_agent.py#L930`, `src/flock/core/serialization/flock_serializer.py#L262`).
+  - `FlockFactory.create_default_agent` accepts an optional production list for UI/editor flows (`src/flock/core/flock_factory.py#L398`).
+
+- **Execution Propagation**
+  - `Flock.run/run_async` now accept `use_production_tools`; the flag is stored in context via `initialize_context` for downstream consumers (`src/flock/core/flock.py#L465`, `src/flock/core/context/context_manager.py#L14`).
+  - Local and Temporal workflows read the shared context value before invoking each agent, ensuring chained agents share the same selection (`src/flock/workflow/activities.py#L68`, `src/flock/workflow/agent_execution_activity.py#L81`).
+
+- **API & UI Integration**
+  - REST model/endpoint extended with a `use_production_tools` boolean that is forwarded into flock execution (`src/flock/core/api/models.py#L17`, `src/flock/core/api/endpoints.py#L81`).
+  - Web execution form gains a confirmation-backed checkbox; HTMX handler and service propagate the flag to `Flock.run_async` (`src/flock/webapp/templates/partials/_execution_form.html#L37`, `src/flock/webapp/app/api/execution.py#L145`, `src/flock/webapp/app/services/flock_service.py#L249`).
+
+- **Testing & Example**
+  - Added `examples/02-core-concepts/10-production-tools-toggle.py`, a compact integration script that drives the new flag through `Flock.run` and prints tool usage, validated via `uv run` with model `openai/gpt-4.1`.
+
+- **Outcome**
+  - Agents default to development tools, but a run-wide toggle can switch all agents in the context to their production tool set, falling back gracefully when unspecified. The web UI and REST API surface the new control, while serialization keeps both tool bundles intact for config handoff.
