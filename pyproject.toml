@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.4.533"
+version = "0.4.534"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -61,11 +61,9 @@ dependencies = [
 
 [project.optional-dependencies]
 basic-tools = [
-    "docling>=2.34.0",
     "tavily-python>=0.5.0",
     "markdownify>=0.14.1",
-    "duckduckgo-search>=7.3.2",
-    
+    "ddgs>=9.2.0",   
 ]
 azure-tools = [
     "azure-identity>=1.23.0",
@@ -89,7 +87,7 @@ all-tools = [
     "docling>=2.34.0",
     "tavily-python>=0.5.0",
     "markdownify>=0.14.1",
-    "duckduckgo-search>=7.3.2",
+    "ddgs>=9.2.0",
     "azure-identity>=1.23.0",
     "azure-storage-blob>=12.25.1",
     "azure-search-documents>=11.5.2",
@@ -100,7 +98,7 @@ all = [
     "docling>=2.34.0",
     "tavily-python>=0.5.0",
     "markdownify>=0.14.1",
-    "duckduckgo-search>=7.3.2",
+    "ddgs>=9.2.0",
     "azure-identity>=1.23.0",
     "azure-storage-blob>=12.25.1",
     "azure-search-documents>=11.5.2",
