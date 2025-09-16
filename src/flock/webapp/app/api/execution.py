@@ -144,6 +144,9 @@ async def htmx_run_flock(
 
     form_data = await request.form()
     start_agent_name = form_data.get("start_agent_name")
+    use_production_flag = str(
+        form_data.get("use_production_tools", "")
+    ).lower() in {"true", "on", "1"}
 
     if not start_agent_name:
         logger.warning("HTMX Run (Regular): Starting agent not selected.")
@@ -204,7 +207,10 @@ async def htmx_run_flock(
             )
 
     result_data = await run_current_flock_service(
-        start_agent_name, inputs, request.app.state
+        start_agent_name,
+        inputs,
+        request.app.state,
+        use_production_tools=use_production_flag,
     )
 
     raw_json_for_template = json.dumps(

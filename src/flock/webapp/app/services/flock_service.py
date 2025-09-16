@@ -250,9 +250,14 @@ async def run_current_flock_service(
     start_agent_name: str,
     inputs: dict[str, Any],
     app_state: Any,
+    *,
+    use_production_tools: bool = False,
 ) -> dict[str, Any]:
     """Runs the specified agent from the current flock instance in app_state."""
-    logger.info(f"Attempting to run agent: {start_agent_name} using flock from app_state.")
+    logger.info(
+        f"Attempting to run agent: {start_agent_name} using flock from app_state.",
+        use_production_tools=use_production_tools,
+    )
 
     current_flock: Flock | None = getattr(app_state, "flock_instance", None)
     run_store: RunStore | None = getattr(app_state, "run_store", None)
@@ -281,7 +286,10 @@ async def run_current_flock_service(
         logger.info(f"Executing agent '{start_agent_name}' from flock '{current_flock.name}' using app_state.")
         # Direct execution using the flock from app_state
         result = await current_flock.run_async(
-            start_agent=start_agent_name, input=inputs, box_result=False
+            start_agent=start_agent_name,
+            input=inputs,
+            box_result=False,
+            use_production_tools=use_production_tools,
         )
         # Store run details using the run_store from app_state
         if hasattr(run_store, "add_run_details"): # Check if RunStore has this method

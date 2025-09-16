@@ -6,7 +6,11 @@ from opentelemetry import trace
 from temporalio import activity
 
 from flock.core.context.context import FlockContext
-from flock.core.context.context_vars import FLOCK_CURRENT_AGENT, FLOCK_MODEL
+from flock.core.context.context_vars import (
+    FLOCK_CURRENT_AGENT,
+    FLOCK_MODEL,
+    FLOCK_USE_PRODUCTION_TOOLS,
+)
 from flock.core.flock_agent import FlockAgent
 from flock.core.flock_registry import get_registry
 from flock.core.flock_router import HandOffRequest
@@ -64,7 +68,19 @@ async def run_agent(context: FlockContext) -> dict:
                 with tracer.start_as_current_span("execute_agent") as exec_span:
                     logger.info("Executing agent", agent=agent.name)
                     try:
-                        result = await agent.run_async(agent_inputs)
+                        use_prod_tools = bool(
+                            context.get_variable(
+                                FLOCK_USE_PRODUCTION_TOOLS, False
+                            )
+                        )
+                        exec_span.set_attribute(
+                            "tools.selection",
+                            "production" if use_prod_tools else "dev",
+                        )
+                        result = await agent.run_async(
+                            agent_inputs,
+                            use_production_tools=use_prod_tools,
+                        )
                         exec_span.set_attribute("result", str(result))
                         logger.debug(
                             "Agent execution completed", agent=agent.name

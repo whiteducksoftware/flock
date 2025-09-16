@@ -7,6 +7,7 @@ from flock.core.context.context_vars import (
     FLOCK_LOCAL_DEBUG,
     FLOCK_MODEL,
     FLOCK_RUN_ID,
+    FLOCK_USE_PRODUCTION_TOOLS,
 )
 
 
@@ -17,6 +18,7 @@ def initialize_context(
     run_id: str,
     local_debug: bool,
     model: str,
+    use_production_tools: bool,
 ) -> None:
     """Initialize the FlockContext with standard variables before running an agent.
 
@@ -35,3 +37,4 @@ def initialize_context(
     context.run_id = run_id
     context.set_variable(FLOCK_RUN_ID, run_id)
     context.set_variable(FLOCK_MODEL, model)
+    context.set_variable(FLOCK_USE_PRODUCTION_TOOLS, use_production_tools)
