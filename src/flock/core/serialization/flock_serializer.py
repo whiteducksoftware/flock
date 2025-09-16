@@ -262,6 +262,32 @@ class FlockSerializer:
                                         )
                                     )
 
+                production_tool_names = agent_data.get("production_tools")
+                if production_tool_names:
+                    logger.debug(
+                        f"Extracting production tool information from agent '{name}': {production_tool_names}"
+                    )
+                    prod_tool_objs = (
+                        agent_instance.production_tools
+                        if agent_instance.production_tools
+                        else []
+                    )
+                    for i, tool_name in enumerate(production_tool_names):
+                        if tool_name not in components and i < len(prod_tool_objs):
+                            tool = prod_tool_objs[i]
+                            if callable(tool) and not isinstance(tool, type):
+                                path_str = (
+                                    FlockRegistry.get_callable_path_string(tool)
+                                )
+                                if path_str:
+                                    logger.debug(
+                                        f"Adding production tool '{tool_name}' (from path '{path_str}') to components"
+                                    )
+                                    components[tool_name] = (
+                                        FlockSerializer._get_callable_definition(
+                                            path_str, tool_name, path_type
+                                        )
+                                    )
             except Exception as e:
                 logger.error(
                     f"Failed to serialize agent '{name}' within Flock: {e}",

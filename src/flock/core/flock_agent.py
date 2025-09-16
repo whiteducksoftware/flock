@@ -94,8 +94,12 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
     tools: list[Callable[..., Any]] | None = (
         Field(  # Assume tools are always callable for serialization simplicity
             default=None,
-            description="List of callable tools the agent can use. These must be registered.",
+            description="List of callable tools the agent can use for development/default runs.",
         )
+    )
+    production_tools: list[Callable[..., Any]] | None = Field(
+        default=None,
+        description="Optional list of callable tools to use when production tool set is enabled.",
     )
     servers: list[str | FlockMCPServerBase] | None = Field(
         default=None,
@@ -151,6 +155,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         input: SignatureType = None,
         output: SignatureType = None,
         tools: list[Callable[..., Any]] | None = None,
+        production_tools: list[Callable[..., Any]] | None = None,
         servers: list[str | FlockMCPServerBase] | None = None,
         evaluator: "FlockEvaluator | None" = None,
         handoff_router: "FlockRouter | None" = None,
@@ -168,6 +173,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             input=input,  # Store the raw input spec
             output=output,  # Store the raw output spec
             tools=tools,
+            production_tools=production_tools,
             servers=servers,
             write_to_file=write_to_file,
             wait_for_input=wait_for_input,
@@ -325,7 +331,27 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                 )
                 span.record_exception(module_error)
 
-    async def evaluate(self, inputs: dict[str, Any]) -> dict[str, Any]:
+    def _get_runtime_tools(self, use_production_tools: bool | None = None) -> list[Callable[..., Any]]:
+        """Select the tool list for the current run."""
+        if use_production_tools and self.production_tools:
+            logger.info(
+                "Using production tool set",
+                agent=self.name,
+                tool_count=len(self.production_tools),
+            )
+            return list(self.production_tools)
+
+        if use_production_tools and not self.production_tools:
+            logger.warning(
+                "Production tool set requested but not configured; falling back to default tools",
+                agent=self.name,
+            )
+
+        return list(self.tools or [])
+
+    async def evaluate(
+        self, inputs: dict[str, Any], *, use_production_tools: bool | None = None
+    ) -> dict[str, Any]:
         """Core evaluation logic, calling the assigned evaluator and modules."""
         if not self.evaluator:
             raise RuntimeError(
@@ -351,11 +377,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             # Actual evaluation
             try:
                 # Pass registered tools if the evaluator needs them
-                registered_tools = []
-                if self.tools:
-                    # Ensure tools are actually retrieved/validated if needed by evaluator type
-                    # For now, assume evaluator handles tool resolution if necessary
-                    registered_tools = self.tools
+                registered_tools = self._get_runtime_tools(use_production_tools)
 
                 # Retrieve available mcp_tools if the evaluator needs them
                 mcp_tools = []
@@ -415,7 +437,10 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
                             async def _final_handler():
                                 return await self.evaluator.evaluate(
-                                    self, current_inputs, registered_tools
+                                    self,
+                                    current_inputs,
+                                    registered_tools,
+                                    mcp_tools=mcp_tools,
                                 )
 
                             idx = 0
@@ -434,20 +459,26 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                         else:
                             # No pipeline registered, direct evaluation
                             result = await self.evaluator.evaluate(
-                                self, current_inputs, registered_tools
+                                self,
+                                current_inputs,
+                                registered_tools,
+                                mcp_tools=mcp_tools,
                             )
                     except ImportError:
                         # wd.di not installed – fall back
                         result = await self.evaluator.evaluate(
-                            self, current_inputs, registered_tools
+                            self,
+                            current_inputs,
+                            registered_tools,
+                            mcp_tools=mcp_tools,
                         )
                 else:
                     # No DI container – standard execution
                     result = await self.evaluator.evaluate(
                         self,
-                    current_inputs,
-                    registered_tools,
-                    mcp_tools=mcp_tools,
+                        current_inputs,
+                        registered_tools,
+                        mcp_tools=mcp_tools,
                     )
             except Exception as eval_error:
                 logger.error(
@@ -477,7 +508,9 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             logger.debug(f"Evaluation completed for agent '{self.name}'")
             return current_result
 
-    def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
+    def run(
+        self, inputs: dict[str, Any], *, use_production_tools: bool | None = None
+    ) -> dict[str, Any]:
         """Synchronous wrapper for run_async."""
         try:
             loop = asyncio.get_running_loop()
@@ -486,7 +519,9 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         ):  # 'RuntimeError: There is no current event loop...'
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        return loop.run_until_complete(self.run_async(inputs))
+        return loop.run_until_complete(
+            self.run_async(inputs, use_production_tools=use_production_tools)
+        )
 
     def set_model(self, model: str):
         """Set the model for the agent and its evaluator."""
@@ -505,14 +540,18 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                 f"Agent '{self.name}' has no evaluator to set model for."
             )
 
-    async def run_async(self, inputs: dict[str, Any]) -> dict[str, Any]:
+    async def run_async(
+        self, inputs: dict[str, Any], *, use_production_tools: bool | None = None
+    ) -> dict[str, Any]:
         """Asynchronous execution logic with lifecycle hooks."""
         with tracer.start_as_current_span("agent.run") as span:
             span.set_attribute("agent.name", self.name)
             span.set_attribute("inputs", str(inputs))
             try:
                 await self.initialize(inputs)
-                result = await self.evaluate(inputs)
+                result = await self.evaluate(
+                    inputs, use_production_tools=use_production_tools
+                )
                 await self.terminate(inputs, result)
                 span.set_attribute("result", str(result))
                 logger.info("Agent run completed", agent=self.name)
@@ -724,6 +763,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             "modules",
             "handoff_router",
             "tools",
+            "production_tools",
             "servers",
         ]
 
@@ -869,6 +909,34 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                     f"Added {len(serialized_tools)} tools to agent '{self.name}'"
                 )
 
+        if self.production_tools:
+            logger.debug(
+                f"Serializing {len(self.production_tools)} production tools for agent '{self.name}'"
+            )
+            serialized_prod_tools = []
+            for tool in self.production_tools:
+                if callable(tool) and not isinstance(tool, type):
+                    path_str = FlockRegistry.get_callable_path_string(tool)
+                    if path_str:
+                        func_name = path_str.split(".")[-1]
+                        serialized_prod_tools.append(func_name)
+                        logger.debug(
+                            f"Added production tool '{func_name}' (from path '{path_str}') to agent '{self.name}'"
+                        )
+                    else:
+                        logger.warning(
+                            f"Could not get path string for production tool {tool} in agent '{self.name}'. Skipping."
+                        )
+                else:
+                    logger.warning(
+                        f"Non-callable item found in production tools list for agent '{self.name}': {tool}. Skipping."
+                    )
+            if serialized_prod_tools:
+                data["production_tools"] = serialized_prod_tools
+                logger.debug(
+                    f"Added {len(serialized_prod_tools)} production tools to agent '{self.name}'"
+                )
+
         if is_descrition_callable:
             path_str = FlockRegistry.get_callable_path_string(self.description)
             if path_str:
@@ -930,6 +998,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         component_configs = {}
         callable_configs = {}
         tool_config = []
+        production_tool_config = []
         servers_config = []
         agent_data = {}
 
@@ -945,6 +1014,7 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
             "output_callable",
         ]
         tool_key = "tools"
+        production_tool_key = "production_tools"
 
         servers_key = "mcp_servers"
 
@@ -955,10 +1025,13 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                 callable_configs[key] = value
             elif key == tool_key and value is not None:
                 tool_config = value  # Expecting a list of names
+            elif key == production_tool_key and value is not None:
+                production_tool_config = value
             elif key == servers_key and value is not None:
                 servers_config = value  # Expecting a list of names
             elif key not in component_keys + callable_keys + [
                 tool_key,
+                production_tool_key,
                 servers_key,
             ]:  # Avoid double adding
                 agent_data[key] = value
@@ -1072,6 +1145,33 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
                 except Exception as e:
                     logger.error(
                         f"Unexpected error resolving tool '{tool_name_or_path}' for agent '{agent.name}': {e}. Skipping.",
+                        exc_info=True,
+                    )
+
+        agent.production_tools = []
+        if production_tool_config:
+            logger.debug(
+                f"Deserializing {len(production_tool_config)} production tools for '{agent.name}'"
+            )
+            for tool_name_or_path in production_tool_config:
+                try:
+                    found_tool = registry.get_callable(tool_name_or_path)
+                    if found_tool and callable(found_tool):
+                        agent.production_tools.append(found_tool)
+                        logger.debug(
+                            f"Resolved and added production tool '{tool_name_or_path}' for agent '{agent.name}'"
+                        )
+                    else:
+                        logger.warning(
+                            f"Registry returned non-callable for production tool '{tool_name_or_path}' for agent '{agent.name}'. Skipping."
+                        )
+                except (ValueError) as e:
+                    logger.warning(
+                        f"Could not resolve production tool '{tool_name_or_path}' for agent '{agent.name}': {e}. Skipping."
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Unexpected error resolving production tool '{tool_name_or_path}' for agent '{agent.name}': {e}. Skipping.",
                         exc_info=True,
                     )
 

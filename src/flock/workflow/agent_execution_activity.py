@@ -10,7 +10,10 @@ from temporalio import activity
 # Third-party imports only within activity functions if needed, or pass context
 # For core flock types, import directly
 from flock.core.context.context import FlockContext
-from flock.core.context.context_vars import FLOCK_MODEL
+from flock.core.context.context_vars import (
+    FLOCK_MODEL,
+    FLOCK_USE_PRODUCTION_TOOLS,
+)
 from flock.core.flock_agent import FlockAgent  # Import concrete class if needed
 from flock.core.flock_registry import get_registry
 from flock.core.flock_router import HandOffRequest
@@ -78,8 +81,17 @@ async def execute_single_agent(agent_name: str, context: FlockContext) -> dict:
         )
 
         try:
+            use_prod_tools = bool(
+                context.get_variable(FLOCK_USE_PRODUCTION_TOOLS, False)
+            )
+            span.set_attribute(
+                "tools.selection",
+                "production" if use_prod_tools else "dev",
+            )
             # Execute just this agent
-            result = await agent.run_async(agent_inputs)
+            result = await agent.run_async(
+                agent_inputs, use_production_tools=use_prod_tools
+            )
             # Avoid logging potentially large results directly to span attributes
             result_str = str(result)
             span.set_attribute("result.type", type(result).__name__)

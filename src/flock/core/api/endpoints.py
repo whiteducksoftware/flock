@@ -78,7 +78,9 @@ def create_api_router() -> APIRouter:
             # For this refactoring step, let's assume a helper `_execute_flock_run` exists
             # that we can call.
 
-            async def _execute_flock_run_task(run_id_task, agent_name_task, inputs_task):
+            async def _execute_flock_run_task(
+                run_id_task, agent_name_task, inputs_task, use_production_tools_task
+            ):
                 # This is a simplified version of what was in FlockAPI._run_flock
                 try:
                     if agent_name_task not in flock_instance.agents:
@@ -89,7 +91,9 @@ def create_api_router() -> APIRouter:
                     typed_inputs = inputs_task # Simplified for now
 
                     result = await flock_instance.run_async(
-                        start_agent=agent_name_task, input=typed_inputs
+                        start_agent=agent_name_task,
+                        input=typed_inputs,
+                        use_production_tools=use_production_tools_task,
                     )
                     run_store.update_run_result(run_id_task, result)
                 except Exception as e_task:
@@ -106,6 +110,7 @@ def create_api_router() -> APIRouter:
                     run_id,
                     request_model.agent_name,
                     processed_inputs,
+                    request_model.use_production_tools,
                 )
                 run_store.update_run_status(run_id, "running")
                 response_data.status = "running"
@@ -114,7 +119,10 @@ def create_api_router() -> APIRouter:
                     f"Running flock '{request_model.agent_name}' synchronously (run_id: {run_id})"
                 )
                 await _execute_flock_run_task(
-                     run_id, request_model.agent_name, processed_inputs
+                    run_id,
+                    request_model.agent_name,
+                    processed_inputs,
+                    request_model.use_production_tools,
                 )
                 response_data = run_store.get_run(run_id)
 

@@ -17,6 +17,10 @@ class FlockAPIRequest(BaseModel):
     async_run: bool = Field(
         default=False, description="Whether to run asynchronously"
     )
+    use_production_tools: bool = Field(
+        default=False,
+        description="If true, run agents with their production tool set where available",
+    )
 
 
 class FlockAPIResponse(BaseModel):

@@ -34,6 +34,15 @@
             <progress indeterminate></progress> Loading input form...
         </div>
 
+        <fieldset style="margin-top: 1rem;">
+            <label style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="checkbox" name="use_production_tools" value="true"
+                    @change="if ($event.target.checked && !confirm('Use production tool set? These calls may access live systems.')) { $event.target.checked = false; }">
+                <span>Use production tool set</span>
+            </label>
+            <small>Production tools may connect to live services.</small>
+        </fieldset>
+
         <button type="submit" {% if not flock.agents %}disabled{% endif %}>Run Flock</button>
         <div id="share-agent-link-container" style="margin-top: 0.5rem;">
             <a href="#" id="shareAgentHtmxLink" hx-post="{{ url_for('htmx_generate_share_link') }}"

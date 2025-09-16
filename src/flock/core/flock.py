@@ -472,6 +472,8 @@ class Flock(BaseModel, Serializable):
         agents: list[FlockAgent] | None = None,
         servers: list[FlockMCPServerBase] | None = None,
         memo: dict[str, Any] | None = None,
+        *,
+        use_production_tools: bool = False,
     ) -> Box | dict:
         return self._run_sync(
             self.run_async(
@@ -483,6 +485,7 @@ class Flock(BaseModel, Serializable):
                 agents=agents,
                 servers=servers,
                 memo=memo,
+                use_production_tools=use_production_tools,
             )
         )
 
@@ -496,6 +499,8 @@ class Flock(BaseModel, Serializable):
         agents: list[FlockAgent] | None = None,
         servers: list[FlockMCPServerBase] | None = None,
         memo: dict[str, Any] | None = None,
+        *,
+        use_production_tools: bool = False,
     ) -> Box | dict:
         """Entry point for running an agent system asynchronously."""
         # Import here to allow forward reference resolution
@@ -588,6 +593,7 @@ class Flock(BaseModel, Serializable):
                     effective_run_id,
                     not self.enable_temporal,  # local_debug is inverse of enable_temporal
                     self.model or resolved_start_agent.model or DEFAULT_MODEL,
+                    use_production_tools,
                 )
                 # Add agent definitions to context for routing/serialization within workflow
                 for agent_name_iter, agent_instance_iter in self.agents.items():
