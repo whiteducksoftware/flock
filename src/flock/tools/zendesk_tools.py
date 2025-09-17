@@ -146,7 +146,7 @@ def zendesk_search_articles(query: str) -> list[dict]:
         response.raise_for_status()
         return response.json().get("results", [])
 
-def zendesk_add_comment_to_ticket(ticket_id: str, comment_body: str, public: bool = True) -> dict:
+def zendesk_add_comment_to_ticket(ticket_id: str, comment_body: str, public: bool = False) -> dict:
     """Add a comment to a Zendesk ticket.
 
     Updates the ticket with a new comment via Zendesk Ticketing API:
@@ -166,6 +166,36 @@ def zendesk_add_comment_to_ticket(ticket_id: str, comment_body: str, public: boo
     }
 
     import httpx
+    with httpx.Client(headers=_get_headers(), timeout=30.0) as client:
+        response = client.put(url, json=payload)
+        response.raise_for_status()
+        return response.json()["ticket"]
+
+def zendesk_set_ticket_custom_field(
+    ticket_id: str, custom_field_id: int, category_value: str
+) -> dict:
+    """Set the custom field value of a Zendesk ticket.
+
+    Uses Zendesk's Update Ticket API to set a custom field value:
+    PUT /api/v2/tickets/{ticket_id}.json
+    """
+    ZENDESK_SUBDOMAIN = os.getenv("ZENDESK_SUBDOMAIN_TICKET")
+    BASE_URL = f"https://{ZENDESK_SUBDOMAIN}.zendesk.com"
+    url = f"{BASE_URL}/api/v2/tickets/{ticket_id}.json"
+
+    payload = {
+        "ticket": {
+            "custom_fields": [
+                {
+                    "id": custom_field_id,
+                    "value": category_value,
+                }
+            ]
+        }
+    }
+
+    import httpx
+
     with httpx.Client(headers=_get_headers(), timeout=30.0) as client:
         response = client.put(url, json=payload)
         response.raise_for_status()
