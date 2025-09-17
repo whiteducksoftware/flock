@@ -146,6 +146,7 @@ def zendesk_search_articles(query: str) -> list[dict]:
         response.raise_for_status()
         return response.json().get("results", [])
 
+@mcp.tool()
 def zendesk_add_comment_to_ticket(ticket_id: str, comment_body: str, public: bool = False) -> dict:
     """Add a comment to a Zendesk ticket.
 
@@ -171,6 +172,7 @@ def zendesk_add_comment_to_ticket(ticket_id: str, comment_body: str, public: boo
         response.raise_for_status()
         return response.json()["ticket"]
 
+@mcp.tool()
 def zendesk_set_ticket_custom_field(
     ticket_id: str, custom_field_id: int, category_value: str
 ) -> dict:
@@ -200,6 +202,42 @@ def zendesk_set_ticket_custom_field(
         response = client.put(url, json=payload)
         response.raise_for_status()
         return response.json()["ticket"]
+
+
+
+@mcp.tool()
+def zendesk_set_ticket_tags(ticket_id: str, tags: list[str]) -> list[str]:
+    """Set the complete tag list for a ticket (overwrites existing tags)."""
+    ZENDESK_SUBDOMAIN = os.getenv("ZENDESK_SUBDOMAIN_TICKET")
+    BASE_URL = f"https://{ZENDESK_SUBDOMAIN}.zendesk.com"
+    url = f"{BASE_URL}/api/v2/tickets/{ticket_id}/tags.json"
+
+    payload = {"tags": tags}
+
+    import httpx
+
+    with httpx.Client(headers=_get_headers(), timeout=30.0) as client:
+        resp = client.put(url, json=payload)
+        resp.raise_for_status()
+        return resp.json().get("tags", [])
+
+
+@mcp.tool()
+def zendesk_add_ticket_tags(ticket_id: str, tags: list[str]) -> list[str]:
+    """Add tags to a ticket (preserves existing tags)."""
+    ZENDESK_SUBDOMAIN = os.getenv("ZENDESK_SUBDOMAIN_TICKET")
+    BASE_URL = f"https://{ZENDESK_SUBDOMAIN}.zendesk.com"
+    url = f"{BASE_URL}/api/v2/tickets/{ticket_id}/tags.json"
+
+    payload = {"tags": tags}
+
+    import httpx
+
+    with httpx.Client(headers=_get_headers(), timeout=30.0) as client:
+        resp = client.post(url, json=payload)
+        resp.raise_for_status()
+        return resp.json().get("tags", [])
+
 
 
 if __name__ == "__main__":
