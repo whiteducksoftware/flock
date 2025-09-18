@@ -10,6 +10,7 @@ __pycache__/
 *.env*
 !*.env_template
 
+.DS_Store
 
 # Distribution / packaging
 .Python

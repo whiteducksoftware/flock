@@ -1,8 +1,8 @@
 """This module sets up OpenTelemetry tracing for a service."""
 
+import os
 import sys
 
-import os
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -77,7 +77,9 @@ class TelemetryConfig:
             return False
         try:
             # If a provider is already installed (typically by user/tests), don't override it
-            from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider  # type: ignore
+            from opentelemetry.sdk.trace import (
+                TracerProvider as SDKTracerProvider,  # type: ignore
+            )
 
             current = trace.get_tracer_provider()
             if isinstance(current, SDKTracerProvider):
@@ -182,6 +184,9 @@ class TelemetryConfig:
         if issubclass(exc_type, KeyboardInterrupt):
             # Allow normal handling of KeyboardInterrupt
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+
+        if not self.global_tracer:
             return
 
         # Use OpenTelemetry to record the exception
