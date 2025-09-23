@@ -347,7 +347,7 @@ def zendesk_set_ticket_custom_field(
             "custom_fields": [
                 {
                     "id": custom_field_id,
-                    "value": custom_field_value,
+                    "value": custom_field_value
                 }
             ]
         }
