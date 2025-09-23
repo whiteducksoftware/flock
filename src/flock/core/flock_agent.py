@@ -82,7 +82,14 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
 
     tool_whitelist: list[str] | None = Field(
         default=None,
-        description="Whitelist for tools that this agent can use in execution."
+        description="Whitelist of tool names that this agent can use during execution. "
+                   "If provided, the agent will only have access to tools whose names "
+                   "are in this list. This applies to both native Python tools (identified "
+                   "by __name__) and MCP tools (identified by name attribute). "
+                   "When combined with server-level tool filtering, the agent gets access "
+                   "to the intersection of both whitelists. If None, all available tools "
+                   "from servers and native tools are accessible. "
+                   "Recommended over server-level filtering for granular control."
     )
 
     servers: list[str | FlockMCPServer] | None = Field(

@@ -32,6 +32,8 @@ agent = DefaultAgent(
 | `input` | `str | BaseModel` | Contract for accepted data. |
 | `output` | `str | BaseModel` | Contract for produced data. |
 | `tools` | `list[Callable]` | Extra callables the evaluator may invoke. |
+| `tool_whitelist` | `list[str] \| None` | Filter tools by name for security (recommended). |
+| `servers` | `list[str \| FlockMCPServer]` | MCP servers providing additional tools. |
 | `components` | `list[AgentComponent]` | Unified list: evaluation, routing, utility. |
 | `evaluator` | `EvaluationComponent | None` | Convenience property: primary evaluator. |
 | `router` | `RoutingComponent | None` | Convenience property: primary router. |
@@ -71,7 +73,51 @@ search_agent = DefaultAgent(
 
 ---
 
-## 3. Lifecycle
+## 3. Tools & Security
+
+Agents can use both native Python functions and tools from MCP (Model Context Protocol) servers:
+
+```python
+agent = DefaultAgent(
+    name="research_agent",
+    tools=[my_python_function],      # Native Python tools
+    servers=["web-search-server"],   # MCP servers
+    tool_whitelist=["search_web", "summarize"],  # Security filtering
+)
+```
+
+### Tool Whitelisting
+
+For security and control, agents support tool filtering via `tool_whitelist`:
+
+* **`tool_whitelist: list[str] | None`** – If provided, only tools with names in this list are accessible
+* Applies to both native Python tools (by `__name__`) and MCP tools (by `name` attribute)
+* If `None`, all tools from servers and the tools list are available
+
+**Example:**
+```python
+# Only allow specific tools
+secure_agent = DefaultAgent(
+    name="secure_agent",
+    servers=["general-tools"],
+    tool_whitelist=["safe_search", "validate_input"],  # Restricted access
+)
+
+# Allow all tools (default)
+open_agent = DefaultAgent(
+    name="open_agent", 
+    servers=["general-tools"],
+    # No tool_whitelist = all server tools available
+)
+```
+
+**Best Practice:** Use agent-level filtering for granular control. Different agents can access different tool subsets from the same server.
+
+See the **[Tool Whitelisting & Security Guide](../guides/tool-whitelist.md)** for comprehensive security patterns and implementation details.
+
+---
+
+## 4. Lifecycle
 
 ```mermaid
 flowchart LR
