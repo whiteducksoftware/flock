@@ -44,33 +44,33 @@ footer.main-footer {
     width: 100%;
     background-color: var(--pico-card-background-color);
     border-top: 1px solid var(--pico-muted-border-color);
-    padding: 0.5rem 1.5rem 0.65rem;
+    padding: 0.15rem 1.25rem 0.2rem;
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.18rem;
     align-items: stretch;
     box-sizing: border-box;
 }
 
 
 .footer-bar {
-    display: grid;
-    grid-template-columns: 1fr auto;
+    display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem;
 }
 
 .live-log-toggle-link {
     border: none;
     background: none;
     color: var(--pico-color-primary, #2e8aea);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 500;
     padding: 0;
     cursor: pointer;
     text-decoration: underline;
-    justify-self: end;
+    margin-left: auto;
+    line-height: 1;
 }
 
 .live-log-toggle-link:hover,
@@ -268,8 +268,14 @@ footer.main-footer.maximized .live-log-wrapper {
 }
 
 .footer-meta {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--pico-muted-color, #6f7782);
     text-align: center;
-    grid-column: 1 / -1;
+    flex: 1;
+    margin: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.45rem;
 }
