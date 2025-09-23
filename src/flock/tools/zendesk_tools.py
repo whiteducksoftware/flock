@@ -174,13 +174,15 @@ def zendesk_add_comment_to_ticket(ticket_id: str, comment_body: str, public: boo
 
 @mcp.tool()
 def zendesk_set_ticket_custom_field(
-    ticket_id: str, custom_field_id: int, custom_field_value: str
+    ticket_id: str, custom_field_id: int, custom_field_value: str, is_multi_option: bool = False
 ) -> dict:
     """Set the custom field value of a Zendesk ticket.
 
     Uses Zendesk's Update Ticket API to set a custom field value:
     PUT /api/v2/tickets/{ticket_id}.json
-    """
+    """#
+    if is_multi_option:
+        custom_field_value = [custom_field_value]
     ZENDESK_SUBDOMAIN = os.getenv("ZENDESK_SUBDOMAIN_TICKET")
     BASE_URL = f"https://{ZENDESK_SUBDOMAIN}.zendesk.com"
     url = f"{BASE_URL}/api/v2/tickets/{ticket_id}.json"
