@@ -174,7 +174,7 @@ def zendesk_add_comment_to_ticket(ticket_id: str, comment_body: str, public: boo
 
 @mcp.tool()
 def zendesk_set_ticket_custom_field(
-    ticket_id: str, custom_field_id: int, category_value: str
+    ticket_id: str, custom_field_id: int, custom_field_value: str
 ) -> dict:
     """Set the custom field value of a Zendesk ticket.
 
@@ -190,7 +190,7 @@ def zendesk_set_ticket_custom_field(
             "custom_fields": [
                 {
                     "id": custom_field_id,
-                    "value": category_value,
+                    "value": custom_field_value,
                 }
             ]
         }
