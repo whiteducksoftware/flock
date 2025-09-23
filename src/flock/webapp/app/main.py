@@ -6,6 +6,7 @@ import shutil
 
 # Added for share link creation
 import uuid
+from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,7 @@ from flock.core.api.run_store import RunStore
 from flock.core.flock import Flock  # For type hinting
 from flock.core.flock_scheduler import FlockScheduler
 from flock.core.logging.logging import get_logger  # For logging
+from flock.core.logging.live_capture import get_live_log_store
 from flock.core.util.splitter import parse_schema
 
 # Import UI-specific routers
@@ -899,6 +901,45 @@ async def ui_create_flock_action(request: Request, flock_name: str = Form(...), 
 
 
 # --- Settings Page & Endpoints ---
+
+@app.get("/ui/htmx/live-logs", response_class=HTMLResponse, tags=["UI HTMX Partials"])
+async def htmx_live_cli_logs(request: Request, limit: int = Query(200, ge=50, le=800)):
+    store = get_live_log_store()
+    entries = store.get_entries(limit=limit)
+
+    hide_polling_param = request.query_params.get("hide_polling", "1")
+    hide_polling = str(hide_polling_param).lower() not in {"0", "false", "off", ""}
+
+    if hide_polling:
+        entries = [entry for entry in entries if "GET /ui/htmx/live-logs" not in str(entry.get("text", ""))]
+
+    logs = []
+    for entry in entries:
+        raw_timestamp = float(entry.get("timestamp", 0.0) or 0.0)
+        time_display = datetime.fromtimestamp(raw_timestamp).strftime("%H:%M:%S")
+        stream = str(entry.get("stream", "stdout") or "stdout")
+        css_class = "stderr" if stream == "stderr" else "stdout"
+        stream_label = "STDERR" if stream == "stderr" else "STDOUT"
+        text_value = str(entry.get("text", ""))
+        logs.append(
+            {
+                "time_display": time_display,
+                "stream_label": stream_label,
+                "css_class": css_class,
+                "text": text_value,
+            }
+        )
+
+    latest_timestamp = entries[-1]["timestamp"] if entries else None
+    return templates.TemplateResponse(
+        "partials/_live_logs.html",
+        {
+            "request": request,
+            "logs": logs,
+            "latest_timestamp": latest_timestamp,
+        },
+    )
+
 @app.get("/ui/settings", response_class=HTMLResponse, tags=["UI Pages"])
 async def page_settings(request: Request, error: str = None, success: str = None, ui_mode: str = Query("standalone")):
     context = get_base_context_web(request, error, success, ui_mode)

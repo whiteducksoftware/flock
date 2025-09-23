@@ -47,6 +47,7 @@ def start_unified_server(
         # Import necessary webapp components HERE, after path setup.
         from flock.core.api.run_store import RunStore
         from flock.core.logging.logging import get_logger  # For logging
+        from flock.core.logging.live_capture import enable_live_log_capture
         from flock.webapp.app.config import (  # For logging resolved theme
             get_current_theme_name,
             set_current_theme_name,
@@ -60,6 +61,9 @@ def start_unified_server(
         )
 
         logger = get_logger("webapp.run") # Use a logger
+        enable_live_log_capture()
+        logger.info("Live CLI log capture enabled for web footer display.")
+
 
         # 1. Set UI Theme globally for the webapp
         set_current_theme_name(ui_theme)

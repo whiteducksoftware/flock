@@ -80,8 +80,38 @@
         </template>
     </div>
 
-    <footer class="main-footer">
-        <small>Built with FastAPI, HTMX, Pico.CSS by 🤍 white duck 🦆 - Theme: {{ active_theme_name | default('default') }}</small>
+    <footer class="main-footer" data-expanded="false">
+        <div class="footer-controls">
+            <button id="live-log-toggle" class="live-log-toggle" type="button" aria-expanded="false" aria-controls="live-log-panel">
+                Show Logs
+            </button>
+        </div>
+        <div class="live-log-wrapper" hidden>
+            <div class="live-log-header">
+                <span class="live-log-title">Live CLI Logs</span>
+                <div class="live-log-actions">
+                    <span class="live-log-hint">Mirrors recent stdout/stderr output</span>
+                    <form id="live-log-filter-form" class="live-log-filter" onsubmit="return false;">
+                        <label>
+                            <input type="checkbox" name="hide_polling" value="1" checked>
+                            Hide poll requests
+                        </label>
+                    </form>
+                </div>
+            </div>
+            <div
+                id="live-log-panel"
+                class="live-log-panel"
+                hx-get="{{ url_for('htmx_live_cli_logs') }}"
+                hx-trigger="refresh"
+                hx-swap="innerHTML"
+                hx-target="this"
+                hx-include="#live-log-filter-form"
+            >
+                <div class="live-log-empty">Collecting CLI output...</div>
+            </div>
+        </div>
+        <small class="footer-meta">Built with FastAPI, HTMX, Pico.CSS by 🤍 white duck 🦆 - Theme: {{ active_theme_name | default('default') }}</small>
     </footer>
 
     <script>
@@ -138,6 +168,68 @@
         });
     </script>
     {# Global Toast Handler - identical to the one in chat.html #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var footer = document.querySelector('.main-footer');
+            var toggleBtn = document.getElementById('live-log-toggle');
+            var wrapper = footer ? footer.querySelector('.live-log-wrapper') : null;
+            var panel = document.getElementById('live-log-panel');
+            var filterForm = document.getElementById('live-log-filter-form');
+
+            if (!footer || !toggleBtn || !wrapper || !panel) {
+                return;
+            }
+
+            var collapsedTrigger = 'refresh';
+            var expandedTrigger = 'refresh, every 2s, change from:#live-log-filter-form';
+
+            var updateLayout = function (expanded) {
+                footer.classList.toggle('expanded', expanded);
+                document.body.classList.toggle('logs-expanded', expanded);
+                footer.dataset.expanded = expanded ? 'true' : 'false';
+                toggleBtn.setAttribute('aria-expanded', String(expanded));
+                toggleBtn.textContent = expanded ? 'Hide Logs' : 'Show Logs';
+                wrapper.hidden = !expanded;
+                panel.setAttribute('hx-trigger', expanded ? expandedTrigger : collapsedTrigger);
+
+                if (window.htmx) {
+                    if (typeof window.htmx.stopPolling === 'function') {
+                        window.htmx.stopPolling(panel);
+                    }
+                    if (expanded) {
+                        window.htmx.process(panel);
+                        window.htmx.trigger(panel, 'refresh');
+                    }
+                }
+            };
+
+            updateLayout(false);
+
+            toggleBtn.addEventListener('click', function () {
+                var expanded = !footer.classList.contains('expanded');
+                updateLayout(expanded);
+            });
+
+            if (window.htmx) {
+                document.body.addEventListener('htmx:afterSwap', function (event) {
+                    if (event.target === panel) {
+                        var entries = panel.querySelector('.live-log-entries');
+                        if (entries) {
+                            entries.scrollTop = entries.scrollHeight;
+                        }
+                    }
+                });
+            }
+
+            if (filterForm) {
+                filterForm.addEventListener('change', function () {
+                    if (window.htmx && footer.classList.contains('expanded')) {
+                        window.htmx.trigger(panel, 'refresh');
+                    }
+                });
+            }
+        });
+    </script>
     <script>
         document.body.addEventListener('showGlobalToast', function (event) {
             const detail = event.detail;
