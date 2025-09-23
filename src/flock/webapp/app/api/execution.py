@@ -67,8 +67,7 @@ async def htmx_get_execution_form_content(
     ),  # Use optional if form can show 'no flock'
 ):
     # flock instance is injected
-    return templates.TemplateResponse(
-        "partials/_execution_form.html",
+    return templates.TemplateResponse(request, "partials/_execution_form.html",
         {
             "request": request,
             "flock": current_flock,  # Pass the injected flock instance
@@ -123,8 +122,7 @@ async def htmx_get_agent_input_form(
             return HTMLResponse(
                 f"<p class='error'>Error parsing input signature for {agent_name}: {e}</p>"
             )
-    return templates.TemplateResponse(
-        "partials/_dynamic_input_form_content.html",
+    return templates.TemplateResponse(request, "partials/_dynamic_input_form_content.html",
         {"request": request, "input_fields": input_fields},
     )
 
@@ -223,8 +221,7 @@ async def htmx_run_flock(
     # Unescape newlines for proper display in HTML <pre> tag
     result_data_raw_json_str = raw_json_for_template.replace("\\n", "\n")
     root_path = request.scope.get("root_path", "")
-    return templates.TemplateResponse(
-        "partials/_results_display.html",
+    return templates.TemplateResponse(request, "partials/_results_display.html",
         {
             "request": request,
             "result": result_data,
@@ -344,8 +341,7 @@ async def htmx_run_shared_flock(
         )
     root_path = request.scope.get("root_path", "")
 
-    return templates.TemplateResponse(
-        "partials/_results_display.html",
+    return templates.TemplateResponse(request, "partials/_results_display.html",
         {
             "request": request,
             "result": result_data,

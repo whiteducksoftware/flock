@@ -20,8 +20,7 @@ async def htmx_get_registry_table(request: Request, item_type: str):
         )
 
     items = get_registered_items_service(item_type)
-    return templates.TemplateResponse(
-        "partials/_registry_table.html",
+    return templates.TemplateResponse(request, "partials/_registry_table.html",
         {
             "request": request,
             "item_type_display": item_type.capitalize() + "s",

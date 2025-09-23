@@ -1,0 +1,13 @@
+{% if logs %}
+<div class="live-log-entries">
+{% for entry in logs %}
+    <div class="live-log-entry {{ entry.css_class }}">
+        <span class="live-log-time">{{ entry.time_display }}</span>
+        <span class="live-log-stream">{{ entry.stream_label }}</span>
+        <span class="live-log-text">{{ entry.text }}</span>
+    </div>
+{% endfor %}
+</div>
+{% else %}
+<div class="live-log-empty">No CLI output captured yet.</div>
+{% endif %}

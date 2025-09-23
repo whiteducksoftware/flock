@@ -140,7 +140,7 @@ async def chat_page(request: Request):
     cfg = get_chat_config(request)
     context = get_base_context_web(request, ui_mode="standalone")
     context.update({"history": history, "chat_cfg": cfg, "chat_subtitle": f"Agent: {cfg.agent_name}" if cfg.agent_name else "Echo demo", "is_shared_chat": False, "share_id": None})
-    response = templates.TemplateResponse("chat.html", context)
+    response = templates.TemplateResponse(request, "chat.html", context)
     # Set cookie if not already present
     if COOKIE_NAME not in request.cookies:
         response.set_cookie(COOKIE_NAME, sid, max_age=60 * 60 * 24 * 7)
@@ -152,6 +152,7 @@ async def chat_history_partial(request: Request):
     """HTMX endpoint that returns the rendered message list."""
     _, history = _ensure_session(request)
     return templates.TemplateResponse(
+        request,
         "partials/_chat_messages.html",
         {"request": request, "history": history, "now": datetime.now}
     )
@@ -244,8 +245,7 @@ async def chat_send(request: Request, message: str = Form(...)):
         "flock_yaml": getattr(flock_inst, 'to_yaml', lambda: "")()
     })
     # Return updated history partial
-    return templates.TemplateResponse(
-        "partials/_chat_messages.html",
+    return templates.TemplateResponse(request, "partials/_chat_messages.html",
         {"request": request, "history": history, "now": datetime.now}
     )
 
@@ -253,7 +253,7 @@ async def chat_send(request: Request, message: str = Form(...)):
 @router.get("/ui/htmx/chat-view", response_class=HTMLResponse, tags=["Chat"], include_in_schema=False)
 async def chat_container_partial(request: Request):
     _ensure_session(request)
-    return templates.TemplateResponse("partials/_chat_container.html", {"request": request})
+    return templates.TemplateResponse(request, "partials/_chat_container.html", {"request": request})
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +287,7 @@ async def chat_settings_form(request: Request):
         "input_fields": input_fields,
         "output_fields": output_fields,
     })
-    return templates.TemplateResponse("partials/_chat_settings_form.html", context)
+    return templates.TemplateResponse(request, "partials/_chat_settings_form.html", context)
 
 
 @router.post("/chat/settings", include_in_schema=False)
@@ -329,7 +329,7 @@ async def chat_settings_standalone(request: Request):
         "chat_cfg": cfg,
         "current_flock": getattr(request.app.state, "flock_instance", None),
     })
-    return templates.TemplateResponse("chat_settings.html", context)
+    return templates.TemplateResponse(request, "chat_settings.html", context)
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +341,7 @@ async def chat_settings_standalone(request: Request):
 async def htmx_chat_view(request: Request):
     """Return chat container partial for standalone page reload via HTMX."""
     _ensure_session(request)
-    return templates.TemplateResponse("partials/_chat_container.html", {"request": request})
+    return templates.TemplateResponse(request, "partials/_chat_container.html", {"request": request})
 
 
 @router.get("/chat/htmx/settings-form", response_class=HTMLResponse, include_in_schema=False)
@@ -363,7 +363,7 @@ async def htmx_chat_settings_partial(request: Request):
         output_fields = _extract(agent_obj.output) if getattr(agent_obj, 'output', '') else []
 
     context = {"request": request, "chat_cfg": cfg, "current_flock": flock_inst, "input_fields": input_fields, "output_fields": output_fields}
-    return templates.TemplateResponse("partials/_chat_settings_form.html", context)
+    return templates.TemplateResponse(request, "partials/_chat_settings_form.html", context)
 
 
 # ---------------------------------------------------------------------------
@@ -387,7 +387,7 @@ async def page_shared_chat(
         logger.warning(f"Shared chat link {share_id} not found or not a chat share type.")
         # Consider rendering an error template or redirecting
         error_context = get_base_context_web(request, ui_mode="standalone", error="Shared chat link is invalid or has expired.")
-        return templates.TemplateResponse("error_page.html", {**error_context, "error_title": "Invalid Link"}, status_code=404)
+        return templates.TemplateResponse(request, "error_page.html", {**error_context, "error_title": "Invalid Link"}, status_code=404)
 
     # Load Flock from definition and cache in app.state.shared_flocks
     loaded_flock: Flock | None = None
@@ -404,7 +404,7 @@ async def page_shared_chat(
         except Exception as e_load:
             logger.error(f"Fatal: Could not load Flock from definition for shared chat {share_id}: {e_load}", exc_info=True)
             error_context = get_base_context_web(request, ui_mode="standalone", error=f"Could not load the shared Flock configuration: {e_load!s}")
-            return templates.TemplateResponse("error_page.html", {**error_context, "error_title": "Configuration Error"}, status_code=500)
+            return templates.TemplateResponse(request, "error_page.html", {**error_context, "error_title": "Configuration Error"}, status_code=500)
 
     frozen_chat_cfg = ChatConfig(
         agent_name=shared_config_db.agent_name,
@@ -426,7 +426,7 @@ async def page_shared_chat(
         "flock": loaded_flock # Pass flock for potential display, though backend uses cached one
     })
 
-    response = templates.TemplateResponse("chat.html", context)
+    response = templates.TemplateResponse(request, "chat.html", context)
     if COOKIE_NAME not in request.cookies: # Ensure cookie is set if _ensure_session created a new one
         response.set_cookie(COOKIE_NAME, sid, max_age=60 * 60 * 24 * 7)
     return response
@@ -436,8 +436,7 @@ async def chat_history_partial_shared(request: Request, share_id: str):
     """HTMX endpoint that returns the rendered message list for a shared chat."""
     # _ensure_session called on page load, so cookie should exist for history keying
     history = _get_history_for_shared_chat(request, share_id)
-    return templates.TemplateResponse(
-        "partials/_chat_messages.html",
+    return templates.TemplateResponse(request, "partials/_chat_messages.html",
         {"request": request, "history": history, "now": datetime.now}
     )
 
@@ -460,8 +459,7 @@ async def chat_send_shared(
         # Error response if config or flock couldn't be loaded
         # This history is ephemeral as it won't be saved if the config is bad
         error_history = [{"role": "bot", "text": "Error: Shared chat configuration is invalid or Flock not found.", "timestamp": datetime.now().strftime('%H:%M')}]
-        return templates.TemplateResponse(
-            "partials/_chat_messages.html",
+        return templates.TemplateResponse(request, "partials/_chat_messages.html",
             {"request": request, "history": error_history, "now": datetime.now},
             status_code=404
         )
@@ -544,8 +542,7 @@ async def chat_send_shared(
         "flock_yaml": getattr(flock_inst, 'to_yaml', lambda: "")()
     })
 
-    return templates.TemplateResponse(
-        "partials/_chat_messages.html",
+    return templates.TemplateResponse(request, "partials/_chat_messages.html",
         {"request": request, "history": history, "now": datetime.now}
     )
 

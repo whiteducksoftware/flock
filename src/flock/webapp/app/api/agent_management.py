@@ -49,8 +49,7 @@ async def htmx_get_agent_list(
         # For a partial, returning an error or empty state is reasonable.
         return HTMLResponse("<div id='agent-list-container'><p class='error'>No Flock loaded to display agents.</p></div>", headers={"HX-Retarget": "#agent-list-container", "HX-Reswap": "innerHTML"})
 
-    return templates.TemplateResponse(
-        "partials/_agent_list.html",
+    return templates.TemplateResponse(request, "partials/_agent_list.html",
         {
             "request": request,
             "flock": current_flock, # Pass the injected flock instance
@@ -78,8 +77,7 @@ async def htmx_get_agent_details_form(
         [tool.__name__ for tool in agent.tools] if agent.tools else []
     )
 
-    return templates.TemplateResponse(
-        "partials/_agent_detail_form.html",
+    return templates.TemplateResponse(request, "partials/_agent_detail_form.html",
         {
             "request": request,
             "agent": agent,
@@ -97,8 +95,7 @@ async def htmx_get_new_agent_form(
 ):
     # current_flock is injected, primarily to ensure context if needed by template/tools list
     registered_tools = get_registered_items_service("tool")
-    return templates.TemplateResponse(
-        "partials/_agent_detail_form.html",
+    return templates.TemplateResponse(request, "partials/_agent_detail_form.html",
         {
             "request": request,
             "agent": None,
@@ -123,8 +120,7 @@ async def htmx_create_agent(
     # The service function add_agent_to_current_flock_service now takes app_state
     if (not agent_name.strip() or not input_signature.strip() or not output_signature.strip()):
         registered_tools = get_registered_items_service("tool")
-        return templates.TemplateResponse(
-            "partials/_agent_detail_form.html",
+        return templates.TemplateResponse(request, "partials/_agent_detail_form.html",
             {
                 "request": request, "agent": None, "is_new": True,
                 "error_message": "Name, Input Signature, and Output Signature are required.",
@@ -153,7 +149,7 @@ async def htmx_create_agent(
         "form_message": "Agent created successfully!" if success else "Failed to create agent. Check logs.",
         "success": success,
     }
-    return templates.TemplateResponse("partials/_agent_detail_form.html", new_form_context, headers=response_headers)
+    return templates.TemplateResponse(request, "partials/_agent_detail_form.html", new_form_context, headers=response_headers)
 
 
 @router.put("/htmx/agents/{original_agent_name}", response_class=HTMLResponse)
@@ -196,7 +192,7 @@ async def htmx_update_agent(
         "success": success,
         "registered_tools": registered_tools, "current_tools": current_agent_tools,
     }
-    return templates.TemplateResponse("partials/_agent_detail_form.html", updated_form_context, headers=response_headers)
+    return templates.TemplateResponse(request, "partials/_agent_detail_form.html", updated_form_context, headers=response_headers)
 
 
 @router.delete("/htmx/agents/{agent_name}", response_class=HTMLResponse)
@@ -219,7 +215,7 @@ async def htmx_delete_agent(
             # "form_message": f"Agent '{agent_name}' removed.", # Message handled by notify
             # "success": True, # Not strictly needed if form is cleared
         }
-        return templates.TemplateResponse("partials/_agent_detail_form.html", empty_form_context, headers=response_headers)
+        return templates.TemplateResponse(request, "partials/_agent_detail_form.html", empty_form_context, headers=response_headers)
     else:
         # Deletion failed, re-render the form for the agent that failed to delete (if it still exists)
         flock_instance_from_state: Flock | None = getattr(request.app.state, 'flock_instance', None)
@@ -238,4 +234,4 @@ async def htmx_delete_agent(
         }
         # Trigger a notification for the error as well
         response_headers["HX-Trigger"] = json.dumps({"notify": {"type":"error", "message": f"Failed to remove agent '{agent_name}'."}})
-        return templates.TemplateResponse("partials/_agent_detail_form.html", error_form_context, headers=response_headers)
+        return templates.TemplateResponse(request, "partials/_agent_detail_form.html", error_form_context, headers=response_headers)

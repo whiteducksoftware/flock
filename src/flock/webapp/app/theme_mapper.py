@@ -773,8 +773,7 @@ function example() {
                     "passes": ratio >= 4.5,
                 })
 
-            return templates.TemplateResponse(
-                "theme_mapper.html",
+            return templates.TemplateResponse(request, "theme_mapper.html",
                 {
                     "request": request,
                     "css_vars": css_vars_str,
