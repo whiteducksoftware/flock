@@ -386,8 +386,7 @@ async def htmx_generate_share_link(
 ):
     if not start_agent_name:
         logger.warning("HTMX generate share link: Agent name not provided.")
-        return templates.TemplateResponse(
-            "partials/_share_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_link_snippet.html",
             {"request": request, "error_message": "No agent selected to share."}
         )
 
@@ -396,15 +395,13 @@ async def htmx_generate_share_link(
 
     if not current_flock_instance or not current_flock_filename:
         logger.error("HTMX: Cannot create share link: No Flock is currently loaded.")
-        return templates.TemplateResponse(
-            "partials/_share_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_link_snippet.html",
             {"request": request, "error_message": "No Flock loaded. Cannot create share link."}
         )
 
     if start_agent_name not in current_flock_instance.agents:
         logger.error(f"HTMX: Agent '{start_agent_name}' not found in Flock '{current_flock_instance.name}'.")
-        return templates.TemplateResponse(
-            "partials/_share_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_link_snippet.html",
             {"request": request, "error_message": f"Agent '{start_agent_name}' not found in current Flock."}
         )
 
@@ -417,8 +414,7 @@ async def htmx_generate_share_link(
             flock_definition_str = flock_file_path.read_text()
     except Exception as e:
         logger.error(f"HTMX: Failed to get flock definition for sharing: {e}", exc_info=True)
-        return templates.TemplateResponse(
-            "partials/_share_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_link_snippet.html",
             {"request": request, "error_message": "Could not retrieve Flock definition for sharing."}
         )
 
@@ -435,14 +431,12 @@ async def htmx_generate_share_link(
         full_share_url = f"{base_url.rstrip('/')}/ui/shared-run/{share_id}"
 
         logger.info(f"HTMX: Generated share link for agent '{start_agent_name}' in Flock '{current_flock_instance.name}' with ID '{share_id}'. URL: {full_share_url}")
-        return templates.TemplateResponse(
-            "partials/_share_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_link_snippet.html",
             {"request": request, "share_url": full_share_url, "flock_name": current_flock_instance.name, "agent_name": start_agent_name}
         )
     except Exception as e:
         logger.error(f"HTMX: Failed to create share link for agent '{start_agent_name}': {e}", exc_info=True)
-        return templates.TemplateResponse(
-            "partials/_share_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_link_snippet.html",
             {"request": request, "error_message": f"Could not generate link: {e!s}"}
         )
 # --- End HTMX Endpoint ---
@@ -459,8 +453,7 @@ async def htmx_generate_share_chat_link(
 ):
     if not agent_name:
         logger.warning("HTMX generate share chat link: Agent name not provided.")
-        return templates.TemplateResponse(
-            "partials/_share_chat_link_snippet.html", # Will create this template
+        return templates.TemplateResponse(request, "partials/_share_chat_link_snippet.html", # Will create this template
             {"request": request, "error_message": "No agent selected for chat sharing."}
         )
 
@@ -469,15 +462,13 @@ async def htmx_generate_share_chat_link(
 
     if not current_flock_instance or not current_flock_filename:
         logger.error("HTMX Chat Share: Cannot create share link: No Flock is currently loaded.")
-        return templates.TemplateResponse(
-            "partials/_share_chat_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_chat_link_snippet.html",
             {"request": request, "error_message": "No Flock loaded. Cannot create share link."}
         )
 
     if agent_name not in current_flock_instance.agents:
         logger.error(f"HTMX Chat Share: Agent '{agent_name}' not found in Flock '{current_flock_instance.name}'.")
-        return templates.TemplateResponse(
-            "partials/_share_chat_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_chat_link_snippet.html",
             {"request": request, "error_message": f"Agent '{agent_name}' not found in current Flock."}
         )
 
@@ -490,8 +481,7 @@ async def htmx_generate_share_chat_link(
             flock_definition_str = flock_file_path.read_text()
     except Exception as e:
         logger.error(f"HTMX Chat Share: Failed to get flock definition for sharing: {e}", exc_info=True)
-        return templates.TemplateResponse(
-            "partials/_share_chat_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_chat_link_snippet.html",
             {"request": request, "error_message": "Could not retrieve Flock definition for sharing."}
         )
 
@@ -519,14 +509,12 @@ async def htmx_generate_share_chat_link(
         full_share_url = f"{base_url.rstrip('/')}/chat/shared/{share_id}"
 
         logger.info(f"HTMX: Generated share CHAT link for agent '{agent_name}' in Flock '{current_flock_instance.name}' with ID '{share_id}'. URL: {full_share_url}")
-        return templates.TemplateResponse(
-            "partials/_share_chat_link_snippet.html", # Will create this template
+        return templates.TemplateResponse(request, "partials/_share_chat_link_snippet.html", # Will create this template
             {"request": request, "share_url": full_share_url, "flock_name": current_flock_instance.name, "agent_name": agent_name}
         )
     except Exception as e:
         logger.error(f"HTMX Chat Share: Failed to create share link for agent '{agent_name}': {e}", exc_info=True)
-        return templates.TemplateResponse(
-            "partials/_share_chat_link_snippet.html",
+        return templates.TemplateResponse(request, "partials/_share_chat_link_snippet.html",
             {"request": request, "error_message": f"Could not generate chat link: {e!s}"}
         )
 
@@ -542,8 +530,7 @@ async def page_shared_run(
 
     if not shared_config:
         logger.warning(f"Share ID {share_id} not found.")
-        return templates.TemplateResponse(
-            "error_page.html",
+        return templates.TemplateResponse(request, "error_page.html",
             {"request": request, "error_title": "Link Not Found", "error_message": "The shared link does not exist or may have expired."},
             status_code=404
         )
@@ -610,7 +597,7 @@ async def page_shared_run(
         context["active_theme_name"] = DEFAULT_THEME_NAME
 
     # The shared_run_page.html will now be a simple wrapper that includes _execution_form.html
-    return templates.TemplateResponse("shared_run_page.html", context)
+    return templates.TemplateResponse(request, "shared_run_page.html", context)
 
 # --- End Route for Shared Run Page ---
 
@@ -741,7 +728,7 @@ async def page_dashboard(
         context["initial_content_url"] = str(request.url_for("htmx_get_execution_view_container")) if flock_in_state else str(request.url_for("htmx_scoped_no_flock_view"))
     else:
         context["initial_content_url"] = str(request.url_for("htmx_get_load_flock_view"))
-    return templates.TemplateResponse("base.html", context)
+    return templates.TemplateResponse(request, "base.html", context)
 
 @app.get("/ui/editor/{section:path}", response_class=HTMLResponse, tags=["UI Pages"])
 async def page_editor_section(
@@ -765,14 +752,14 @@ async def page_editor_section(
     }
     context["initial_content_url"] = content_map.get(section, f"{root_path}/ui/htmx/load-flock-view")
     if section not in content_map: context["error_message"] = "Invalid editor section."
-    return templates.TemplateResponse("base.html", context)
+    return templates.TemplateResponse(request, "base.html", context)
 
 @app.get("/ui/registry", response_class=HTMLResponse, tags=["UI Pages"])
 async def page_registry(request: Request, error: str = None, success: str = None, ui_mode: str = Query("standalone")):
     context = get_base_context_web(request, error, success, ui_mode)
     root_path = request.scope.get("root_path", "")
     context["initial_content_url"] = f"{root_path}/ui/htmx/registry-viewer"
-    return templates.TemplateResponse("base.html", context)
+    return templates.TemplateResponse(request, "base.html", context)
 
 @app.get("/ui/create", response_class=HTMLResponse, tags=["UI Pages"])
 async def page_create(request: Request, error: str = None, success: str = None, ui_mode: str = Query("standalone")):
@@ -780,23 +767,23 @@ async def page_create(request: Request, error: str = None, success: str = None, 
     context = get_base_context_web(request, error, success, "standalone")
     root_path = request.scope.get("root_path", "")
     context["initial_content_url"] = f"{root_path}/ui/htmx/create-flock-form"
-    return templates.TemplateResponse("base.html", context)
+    return templates.TemplateResponse(request, "base.html", context)
 
 @app.get("/ui/htmx/sidebar", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_sidebar(request: Request, ui_mode: str = Query("standalone")):
-    return templates.TemplateResponse("partials/_sidebar.html", get_base_context_web(request, ui_mode=ui_mode))
+    return templates.TemplateResponse(request, "partials/_sidebar.html", get_base_context_web(request, ui_mode=ui_mode))
 
 @app.get("/ui/htmx/header-flock-status", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_header_flock_status(request: Request, ui_mode: str = Query("standalone")):
-    return templates.TemplateResponse("partials/_header_flock_status.html", get_base_context_web(request, ui_mode=ui_mode))
+    return templates.TemplateResponse(request, "partials/_header_flock_status.html", get_base_context_web(request, ui_mode=ui_mode))
 
 @app.get("/ui/htmx/load-flock-view", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_load_flock_view(request: Request, error: str = None, success: str = None, ui_mode: str = Query("standalone")):
-    return templates.TemplateResponse("partials/_load_manager_view.html", get_base_context_web(request, error, success, ui_mode))
+    return templates.TemplateResponse(request, "partials/_load_manager_view.html", get_base_context_web(request, error, success, ui_mode))
 
 @app.get("/ui/htmx/dashboard-flock-file-list", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_dashboard_flock_file_list_partial(request: Request):
-    return templates.TemplateResponse("partials/_dashboard_flock_file_list.html", {"request": request, "flock_files": get_available_flock_files()})
+    return templates.TemplateResponse(request, "partials/_dashboard_flock_file_list.html", {"request": request, "flock_files": get_available_flock_files()})
 
 @app.get("/ui/htmx/dashboard-default-action-pane", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_dashboard_default_action_pane(request: Request):
@@ -805,11 +792,11 @@ async def htmx_get_dashboard_default_action_pane(request: Request):
 @app.get("/ui/htmx/dashboard-flock-properties-preview/{filename}", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_dashboard_flock_properties_preview(request: Request, filename: str):
     preview_flock_data = get_flock_preview_service(filename)
-    return templates.TemplateResponse("partials/_dashboard_flock_properties_preview.html", {"request": request, "selected_filename": filename, "preview_flock": preview_flock_data})
+    return templates.TemplateResponse(request, "partials/_dashboard_flock_properties_preview.html", {"request": request, "selected_filename": filename, "preview_flock": preview_flock_data})
 
 @app.get("/ui/htmx/create-flock-form", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_create_flock_form(request: Request, error: str = None, success: str = None, ui_mode: str = Query("standalone")):
-    return templates.TemplateResponse("partials/_create_flock_form.html", get_base_context_web(request, error, success, ui_mode))
+    return templates.TemplateResponse(request, "partials/_create_flock_form.html", get_base_context_web(request, error, success, ui_mode))
 
 @app.get("/ui/htmx/agent-manager-view", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_agent_manager_view(request: Request):
@@ -817,20 +804,19 @@ async def htmx_get_agent_manager_view(request: Request):
     if not context.get("current_flock"): # Check if flock exists in the context
         return HTMLResponse("<article class='error'><p>No flock loaded. Cannot manage agents.</p></article>")
     # Pass the 'current_flock' from the context to the template as 'flock'
-    return templates.TemplateResponse(
-        "partials/_agent_manager_view.html",
+    return templates.TemplateResponse(request, "partials/_agent_manager_view.html",
         {"request": request, "flock": context.get("current_flock")}
     )
 
 @app.get("/ui/htmx/registry-viewer", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_registry_viewer(request: Request):
-    return templates.TemplateResponse("partials/_registry_viewer_content.html", get_base_context_web(request))
+    return templates.TemplateResponse(request, "partials/_registry_viewer_content.html", get_base_context_web(request))
 
 @app.get("/ui/htmx/execution-view-container", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_execution_view_container(request: Request):
     context = get_base_context_web(request)
     if not context.get("current_flock"): return HTMLResponse("<article class='error'><p>No Flock loaded. Cannot execute.</p></article>")
-    return templates.TemplateResponse("partials/_execution_view_container.html", context)
+    return templates.TemplateResponse(request, "partials/_execution_view_container.html", context)
 
 @app.get("/ui/htmx/scoped-no-flock-view", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_scoped_no_flock_view(request: Request):
@@ -847,13 +833,13 @@ async def ui_load_flock_by_name_action(request: Request, selected_flock_filename
         response_headers["HX-Push-Url"] = "/ui/editor/execute?ui_mode=" + ui_mode_query
         response_headers["HX-Trigger"] = json.dumps({"flockLoaded": None, "notify": {"type": "success", "message": success_message_text}})
         context = get_base_context_web(request, success=success_message_text, ui_mode=ui_mode_query)
-        return templates.TemplateResponse("partials/_execution_view_container.html", context, headers=response_headers)
+        return templates.TemplateResponse(request, "partials/_execution_view_container.html", context, headers=response_headers)
     else:
         error_message_text = f"Failed to load flock file '{selected_flock_filename}'."
         response_headers["HX-Trigger"] = json.dumps({"notify": {"type": "error", "message": error_message_text}})
         context = get_base_context_web(request, error=error_message_text, ui_mode=ui_mode_query)
         context["error_message_inline"] = error_message_text # For direct display in partial
-        return templates.TemplateResponse("partials/_load_manager_view.html", context, headers=response_headers)
+        return templates.TemplateResponse(request, "partials/_load_manager_view.html", context, headers=response_headers)
 
 @app.post("/ui/load-flock-action/by-upload", response_class=HTMLResponse, tags=["UI Actions"])
 async def ui_load_flock_by_upload_action(request: Request, flock_file_upload: UploadFile = File(...)):
@@ -878,26 +864,26 @@ async def ui_load_flock_by_upload_action(request: Request, flock_file_upload: Up
             response_headers["HX-Push-Url"] = f"/ui/editor/execute?ui_mode={ui_mode_query}"
             response_headers["HX-Trigger"] = json.dumps({"flockLoaded": None, "flockFileListChanged": None, "notify": {"type": "success", "message": success_message_text}})
             context = get_base_context_web(request, success=success_message_text, ui_mode=ui_mode_query)
-            return templates.TemplateResponse("partials/_execution_view_container.html", context, headers=response_headers)
+            return templates.TemplateResponse(request, "partials/_execution_view_container.html", context, headers=response_headers)
         else: error_message_text = f"Failed to process uploaded '{filename_to_load}'."
 
     final_error_msg = error_message_text or "Upload failed."
     response_headers["HX-Trigger"] = json.dumps({"notify": {"type": "error", "message": final_error_msg}})
     context = get_base_context_web(request, error=final_error_msg, ui_mode=ui_mode_query)
-    return templates.TemplateResponse("partials/_create_flock_form.html", context, headers=response_headers)
+    return templates.TemplateResponse(request, "partials/_create_flock_form.html", context, headers=response_headers)
 
 @app.post("/ui/create-flock", response_class=HTMLResponse, tags=["UI Actions"])
 async def ui_create_flock_action(request: Request, flock_name: str = Form(...), default_model: str = Form(None), description: str = Form(None)):
     ui_mode_query = request.query_params.get("ui_mode", "standalone")
     if not flock_name.strip():
         context = get_base_context_web(request, error="Flock name cannot be empty.", ui_mode=ui_mode_query)
-        return templates.TemplateResponse("partials/_create_flock_form.html", context)
+        return templates.TemplateResponse(request, "partials/_create_flock_form.html", context)
 
     new_flock = create_new_flock_service(flock_name, default_model, description, request.app.state)
     success_msg_text = f"New flock '{new_flock.name}' created. Navigating to Execute page. Configure properties and agents as needed."
     response_headers = {"HX-Push-Url": f"/ui/editor/execute?ui_mode={ui_mode_query}", "HX-Trigger": json.dumps({"flockLoaded": None, "notify": {"type": "success", "message": success_msg_text}})}
     context = get_base_context_web(request, success=success_msg_text, ui_mode=ui_mode_query)
-    return templates.TemplateResponse("partials/_execution_view_container.html", context, headers=response_headers)
+    return templates.TemplateResponse(request, "partials/_execution_view_container.html", context, headers=response_headers)
 
 
 # --- Settings Page & Endpoints ---
@@ -931,8 +917,7 @@ async def htmx_live_cli_logs(request: Request, limit: int = Query(200, ge=50, le
         )
 
     latest_timestamp = entries[-1]["timestamp"] if entries else None
-    return templates.TemplateResponse(
-        "partials/_live_logs.html",
+    return templates.TemplateResponse(request, "partials/_live_logs.html",
         {
             "request": request,
             "logs": logs,
@@ -945,7 +930,7 @@ async def page_settings(request: Request, error: str = None, success: str = None
     context = get_base_context_web(request, error, success, ui_mode)
     root_path = request.scope.get("root_path", "")
     context["initial_content_url"] = f"{root_path}/ui/htmx/settings-view"
-    return templates.TemplateResponse("base.html", context)
+    return templates.TemplateResponse(request, "base.html", context)
 
 def _prepare_env_vars_for_template_web():
     env_vars_raw = load_env_file_web(); show_secrets = get_show_secrets_setting_web(env_vars_raw)
@@ -961,21 +946,21 @@ async def htmx_get_settings_view(request: Request):
     env_vars_list, show_secrets = _prepare_env_vars_for_template_web()
     theme_name = get_current_theme_name()
     themes_available = [p.stem for p in THEMES_DIR.glob("*.toml")] if THEMES_DIR and THEMES_DIR.exists() else []
-    return templates.TemplateResponse("partials/_settings_view.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets, "themes": themes_available, "current_theme": theme_name})
+    return templates.TemplateResponse(request, "partials/_settings_view.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets, "themes": themes_available, "current_theme": theme_name})
 
 @app.post("/ui/htmx/toggle-show-secrets", response_class=HTMLResponse, tags=["UI Actions"])
 async def htmx_toggle_show_secrets(request: Request):
     env_vars_raw = load_env_file_web(); current = get_show_secrets_setting_web(env_vars_raw)
     set_show_secrets_setting_web(not current)
     env_vars_list, show_secrets = _prepare_env_vars_for_template_web()
-    return templates.TemplateResponse("partials/_env_vars_table.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
+    return templates.TemplateResponse(request, "partials/_env_vars_table.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
 
 @app.post("/ui/htmx/env-delete", response_class=HTMLResponse, tags=["UI Actions"])
 async def htmx_env_delete(request: Request, var_name: str = Form(...)):
     env_vars_raw = load_env_file_web()
     if var_name in env_vars_raw: del env_vars_raw[var_name]; save_env_file_web(env_vars_raw)
     env_vars_list, show_secrets = _prepare_env_vars_for_template_web()
-    return templates.TemplateResponse("partials/_env_vars_table.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
+    return templates.TemplateResponse(request, "partials/_env_vars_table.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
 
 @app.post("/ui/htmx/env-edit", response_class=HTMLResponse, tags=["UI Actions"])
 async def htmx_env_edit(request: Request, var_name: str = Form(...)):
@@ -986,7 +971,7 @@ async def htmx_env_edit(request: Request, var_name: str = Form(...)):
         env_vars_raw[var_name] = new_value
         save_env_file_web(env_vars_raw)
         env_vars_list, show_secrets = _prepare_env_vars_for_template_web()
-    return templates.TemplateResponse("partials/_env_vars_table.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
+    return templates.TemplateResponse(request, "partials/_env_vars_table.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
 
 @app.get("/ui/htmx/env-add-form", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_env_add_form(request: Request):
@@ -997,7 +982,7 @@ async def htmx_env_add(request: Request, var_name: str = Form(...), var_value: s
     env_vars_raw = load_env_file_web()
     env_vars_raw[var_name] = var_value; save_env_file_web(env_vars_raw)
     env_vars_list, show_secrets = _prepare_env_vars_for_template_web()
-    return templates.TemplateResponse("partials/_env_vars_table.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
+    return templates.TemplateResponse(request, "partials/_env_vars_table.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
 
 @app.get("/ui/htmx/theme-preview", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_theme_preview(request: Request, theme: str = Query(None)):
@@ -1051,7 +1036,7 @@ async def htmx_theme_preview(request: Request, theme: str = Query(None)):
 
     css_vars_str = ":root {\n" + "\\n".join([f"  {k}: {v};" for k, v in css_vars.items()]) + "\\n}"
     main_colors = [("Background", css_vars.get("--pico-background-color")), ("Text", css_vars.get("--pico-color")), ("Primary", css_vars.get("--pico-primary")), ("Secondary", css_vars.get("--pico-secondary")), ("Muted", css_vars.get("--pico-muted-color"))]
-    return templates.TemplateResponse("partials/_theme_preview.html", {"request": request, "theme_name": theme_name_for_display, "css_vars_str": css_vars_str, "main_colors": main_colors})
+    return templates.TemplateResponse(request, "partials/_theme_preview.html", {"request": request, "theme_name": theme_name_for_display, "css_vars_str": css_vars_str, "main_colors": main_colors})
 
 @app.post("/ui/apply-theme", tags=["UI Actions"])
 async def apply_theme(request: Request, theme: str = Form(...)):
@@ -1065,24 +1050,24 @@ async def apply_theme(request: Request, theme: str = Form(...)):
 @app.get("/ui/htmx/settings/env-vars", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_settings_env_vars(request: Request):
     env_vars_list, show_secrets = _prepare_env_vars_for_template_web()
-    return templates.TemplateResponse("partials/_settings_env_content.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
+    return templates.TemplateResponse(request, "partials/_settings_env_content.html", {"request": request, "env_vars": env_vars_list, "show_secrets": show_secrets})
 
 @app.get("/ui/htmx/settings/theme", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_settings_theme(request: Request):
     theme_name = get_current_theme_name()
     themes_available = [p.stem for p in THEMES_DIR.glob("*.toml")] if THEMES_DIR and THEMES_DIR.exists() else []
-    return templates.TemplateResponse("partials/_settings_theme_content.html", {"request": request, "themes": themes_available, "current_theme": theme_name})
+    return templates.TemplateResponse(request, "partials/_settings_theme_content.html", {"request": request, "themes": themes_available, "current_theme": theme_name})
 
 @app.get("/ui/chat", response_class=HTMLResponse, tags=["UI Pages"])
 async def page_chat(request: Request, ui_mode: str = Query("standalone")):
     context = get_base_context_web(request, ui_mode=ui_mode)
     context["initial_content_url"] = "/ui/htmx/chat-view"
-    return templates.TemplateResponse("base.html", context)
+    return templates.TemplateResponse(request, "base.html", context)
 
 @app.get("/ui/htmx/chat-view", response_class=HTMLResponse, tags=["UI HTMX Partials"])
 async def htmx_get_chat_view(request: Request):
     # Render container partial; session handled in chat router
-    return templates.TemplateResponse("partials/_chat_container.html", get_base_context_web(request))
+    return templates.TemplateResponse(request, "partials/_chat_container.html", get_base_context_web(request))
 
 if __name__ == "__main__":
     import uvicorn

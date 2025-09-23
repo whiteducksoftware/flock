@@ -42,8 +42,7 @@ async def htmx_get_flock_properties_form(
         return HTMLResponse(
             "<div class='error'>Error: No flock loaded. Please load or create one first.</div>"
         )
-    return templates.TemplateResponse(
-        "partials/_flock_properties_form.html",
+    return templates.TemplateResponse(request, "partials/_flock_properties_form.html",
         {
             "request": request,
             "flock": current_flock,
@@ -71,8 +70,7 @@ async def htmx_update_flock_properties(
     updated_flock: Flock | None = getattr(request.app.state, 'flock_instance', None)
     updated_filename: str | None = getattr(request.app.state, 'flock_filename', None)
 
-    return templates.TemplateResponse(
-        "partials/_flock_properties_form.html",
+    return templates.TemplateResponse(request, "partials/_flock_properties_form.html",
         {
             "request": request,
             "flock": updated_flock,
@@ -95,8 +93,7 @@ async def htmx_save_flock(
     current_filename_from_state: str | None = getattr(request.app.state, 'flock_filename', None)
 
     if not save_filename.strip():
-        return templates.TemplateResponse(
-            "partials/_flock_properties_form.html",
+        return templates.TemplateResponse(request, "partials/_flock_properties_form.html",
             {
                 "request": request,
                 "flock": current_flock_from_state,
@@ -117,8 +114,7 @@ async def htmx_save_flock(
     saved_filename: str | None = getattr(request.app.state, 'flock_filename', None)
 
 
-    return templates.TemplateResponse(
-        "partials/_flock_properties_form.html",
+    return templates.TemplateResponse(request, "partials/_flock_properties_form.html",
         {
             "request": request,
             "flock": saved_flock, # Use the instance from app_state

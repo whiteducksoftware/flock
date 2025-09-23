@@ -80,23 +80,38 @@
         </template>
     </div>
 
-    <footer class="main-footer" data-expanded="false">
-        <div class="footer-controls">
-            <button id="live-log-toggle" class="live-log-toggle" type="button" aria-expanded="false" aria-controls="live-log-panel">
-                Show Logs
+    <footer class="main-footer" data-expanded="false" data-maximized="false">
+        <div class="footer-bar">
+            <small class="footer-meta">Built with FastAPI, HTMX, Pico.CSS by 🤍 white duck 🦆 - Theme: {{ active_theme_name | default('default') }}</small>
+            <button id="live-log-toggle" class="live-log-toggle-link" type="button" aria-expanded="false" aria-controls="live-log-panel">
+                Show logs
             </button>
         </div>
         <div class="live-log-wrapper" hidden>
             <div class="live-log-header">
-                <span class="live-log-title">Live CLI Logs</span>
-                <div class="live-log-actions">
+                <div class="live-log-title-group">
+                    <span class="live-log-title">Live CLI Logs</span>
                     <span class="live-log-hint">Mirrors recent stdout/stderr output</span>
+                </div>
+                <div class="live-log-actions">
                     <form id="live-log-filter-form" class="live-log-filter" onsubmit="return false;">
-                        <label>
+                        <label class="live-log-option">
                             <input type="checkbox" name="hide_polling" value="1" checked>
                             Hide poll requests
                         </label>
                     </form>
+                    <label class="live-log-option" for="live-log-autoscroll">
+                        <input type="checkbox" id="live-log-autoscroll" checked>
+                        Auto-scroll
+                    </label>
+                    <div class="live-log-buttons">
+                        <button id="live-log-copy" type="button" class="live-log-action-button" title="Copy visible logs" aria-label="Copy logs to clipboard">
+                            Copy
+                        </button>
+                        <button id="live-log-maximize" type="button" class="live-log-action-button" aria-pressed="false">
+                            Maximize
+                        </button>
+                    </div>
                 </div>
             </div>
             <div
@@ -111,7 +126,6 @@
                 <div class="live-log-empty">Collecting CLI output...</div>
             </div>
         </div>
-        <small class="footer-meta">Built with FastAPI, HTMX, Pico.CSS by 🤍 white duck 🦆 - Theme: {{ active_theme_name | default('default') }}</small>
     </footer>
 
     <script>
@@ -175,6 +189,22 @@
             var wrapper = footer ? footer.querySelector('.live-log-wrapper') : null;
             var panel = document.getElementById('live-log-panel');
             var filterForm = document.getElementById('live-log-filter-form');
+            var autoScrollCheckbox = document.getElementById('live-log-autoscroll');
+            var maximizeBtn = document.getElementById('live-log-maximize');
+            var copyBtn = document.getElementById('live-log-copy');
+            var AUTO_SCROLL_STORAGE_KEY = 'flock.liveLogs.autoScroll';
+            var storageAvailable = false;
+
+            try {
+                if (window.localStorage) {
+                    var probeKey = '__flock_live_log_probe__';
+                    localStorage.setItem(probeKey, '1');
+                    localStorage.removeItem(probeKey);
+                    storageAvailable = true;
+                }
+            } catch (err) {
+                storageAvailable = false;
+            }
 
             if (!footer || !toggleBtn || !wrapper || !panel) {
                 return;
@@ -183,12 +213,23 @@
             var collapsedTrigger = 'refresh';
             var expandedTrigger = 'refresh, every 2s, change from:#live-log-filter-form';
 
-            var updateLayout = function (expanded) {
+            if (autoScrollCheckbox && storageAvailable) {
+                var stored = localStorage.getItem(AUTO_SCROLL_STORAGE_KEY);
+                if (stored === 'true' || stored === 'false') {
+                    autoScrollCheckbox.checked = stored === 'true';
+                }
+            }
+
+            function updateLayout(expanded) {
+                if (!expanded) {
+                    updateMaximize(false);
+                }
+
                 footer.classList.toggle('expanded', expanded);
                 document.body.classList.toggle('logs-expanded', expanded);
                 footer.dataset.expanded = expanded ? 'true' : 'false';
                 toggleBtn.setAttribute('aria-expanded', String(expanded));
-                toggleBtn.textContent = expanded ? 'Hide Logs' : 'Show Logs';
+                toggleBtn.textContent = expanded ? 'Hide logs' : 'Show logs';
                 wrapper.hidden = !expanded;
                 panel.setAttribute('hx-trigger', expanded ? expandedTrigger : collapsedTrigger);
 
@@ -201,7 +242,29 @@
                         window.htmx.trigger(panel, 'refresh');
                     }
                 }
-            };
+            }
+
+            function updateMaximize(maximized) {
+                footer.classList.toggle('maximized', maximized);
+                document.body.classList.toggle('logs-maximized', maximized);
+                footer.dataset.maximized = maximized ? 'true' : 'false';
+                if (maximizeBtn) {
+                    maximizeBtn.setAttribute('aria-pressed', String(maximized));
+                    maximizeBtn.textContent = maximized ? 'Minimize' : 'Maximize';
+                }
+
+                if (maximized) {
+                    if (!footer.classList.contains('expanded')) {
+                        updateLayout(true);
+                    }
+
+                    requestAnimationFrame(function () {
+                        if (!autoScrollCheckbox || autoScrollCheckbox.checked) {
+                            panel.scrollTop = panel.scrollHeight;
+                        }
+                    });
+                }
+            }
 
             updateLayout(false);
 
@@ -210,12 +273,46 @@
                 updateLayout(expanded);
             });
 
+            if (maximizeBtn) {
+                maximizeBtn.addEventListener('click', function () {
+                    var maximized = footer.classList.contains('maximized');
+                    updateMaximize(!maximized);
+                });
+            }
+
+            if (copyBtn && navigator.clipboard && navigator.clipboard.writeText) {
+                copyBtn.addEventListener('click', function () {
+                    var text = panel.innerText.trim();
+                    if (!text) {
+                        return;
+                    }
+
+                    navigator.clipboard.writeText(text).then(function () {
+                        if (typeof triggerEvent === 'function') {
+                            triggerEvent('showGlobalToast', { type: 'success', message: 'Logs copied to clipboard.' });
+                        } else {
+                            document.body.dispatchEvent(new CustomEvent('showGlobalToast', { detail: { type: 'success', message: 'Logs copied to clipboard.' } }));
+                        }
+                    }).catch(function () {
+                        document.body.dispatchEvent(new CustomEvent('showGlobalToast', { detail: { type: 'error', message: 'Unable to copy logs.' } }));
+                    });
+                });
+            } else if (copyBtn) {
+                copyBtn.disabled = true;
+                copyBtn.title = 'Clipboard API unavailable in this browser.';
+            }
+
+            if (autoScrollCheckbox && storageAvailable) {
+                autoScrollCheckbox.addEventListener('change', function () {
+                    localStorage.setItem(AUTO_SCROLL_STORAGE_KEY, String(autoScrollCheckbox.checked));
+                });
+            }
+
             if (window.htmx) {
                 document.body.addEventListener('htmx:afterSwap', function (event) {
                     if (event.target === panel) {
-                        var entries = panel.querySelector('.live-log-entries');
-                        if (entries) {
-                            entries.scrollTop = entries.scrollHeight;
+                        if (!autoScrollCheckbox || autoScrollCheckbox.checked) {
+                            panel.scrollTop = panel.scrollHeight;
                         }
                     }
                 });
