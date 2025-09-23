@@ -321,7 +321,7 @@ def zendesk_add_comment_to_ticket(ticket_id: str, comment_body: str, public: boo
 
 @mcp.tool()
 def zendesk_set_ticket_custom_field(
-    ticket_id: str, custom_field_id: int, custom_field_value: str, is_multi_option: bool = False
+    ticket_id: str, custom_field_id: int, custom_field_value: str
 ) -> dict:
     """Set the custom field value of a Zendesk ticket.
 
@@ -329,11 +329,11 @@ def zendesk_set_ticket_custom_field(
     PUT /api/v2/tickets/{ticket_id}.json
     """#
     logger.info(f"Starting zendesk_set_ticket_custom_field for ticket_id: {ticket_id}, field_id: {custom_field_id}")
-    logger.debug(f"Custom field value: {custom_field_value}, is_multi_option: {is_multi_option}")
+    logger.info(f"Custom field value: {custom_field_value}")
 
-    if is_multi_option:
-        custom_field_value = [custom_field_value]
-        logger.debug("Converted custom field value to list for multi-option field")
+
+    custom_field_value = [custom_field_value]
+    logger.debug("Converted custom field value to list for multi-option field")
 
     ZENDESK_SUBDOMAIN = os.getenv("ZENDESK_SUBDOMAIN_TICKET")
     logger.debug(f"Using Zendesk subdomain: {ZENDESK_SUBDOMAIN}")

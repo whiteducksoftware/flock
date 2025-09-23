@@ -6,8 +6,8 @@ import shutil
 
 # Added for share link creation
 import uuid
-from datetime import datetime
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,8 +33,8 @@ from flock.core.api.run_store import RunStore
 # Import core Flock components and API related modules
 from flock.core.flock import Flock  # For type hinting
 from flock.core.flock_scheduler import FlockScheduler
-from flock.core.logging.logging import get_logger  # For logging
 from flock.core.logging.live_capture import get_live_log_store
+from flock.core.logging.logging import get_logger  # For logging
 from flock.core.util.splitter import parse_schema
 
 # Import UI-specific routers
@@ -897,7 +897,7 @@ async def htmx_live_cli_logs(request: Request, limit: int = Query(200, ge=50, le
     hide_polling = str(hide_polling_param).lower() not in {"0", "false", "off", ""}
 
     if hide_polling:
-        entries = [entry for entry in entries if "GET /ui/htmx/live-logs" not in str(entry.get("text", ""))]
+        entries = [entry for entry in entries if "htmx/live-logs" not in str(entry.get("text", ""))]
 
     logs = []
     for entry in entries:
