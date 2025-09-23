@@ -35,11 +35,11 @@ DynamicStr = str | Callable[[FlockContext], str]
 
 class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
     """Unified FlockAgent using the new component architecture.
-    
+
     This is the next-generation FlockAgent that uses a single components list
     instead of separate evaluator, router, and modules. All agent functionality
     is now provided through AgentComponent instances.
-    
+
     Key changes:
     - components: list[AgentComponent] - unified component list
     - next_agent: str | None - explicit workflow state
@@ -79,6 +79,12 @@ class FlockAgent(BaseModel, Serializable, DSPyIntegrationMixin, ABC):
         default=None,
         description="List of callable tools the agent can use. These must be registered.",
     )
+
+    tool_whitelist: list[str] | None = Field(
+        default=None,
+        description="Whitelist for tools that this agent can use in execution."
+    )
+
     servers: list[str | FlockMCPServer] | None = Field(
         default=None,
         description="List of MCP Servers the agent can use to enhance its capabilities.",

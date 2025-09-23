@@ -302,22 +302,27 @@ class FlockMCPFeatureConfiguration(BaseModel, Serializable):
     """Base Configuration Class for switching MCP Features on and off."""
 
     roots_enabled: bool = Field(
-        default=False,
+        default=True,
         description="Whether or not the Roots feature is enabled for this client.",
     )
 
     sampling_enabled: bool = Field(
-        default=False,
+        default=True,
         description="Whether or not the Sampling feature is enabled for this client.",
     )
 
     tools_enabled: bool = Field(
-        default=False,
+        default=True,
         description="Whether or not the Tools feature is enabled for this client.",
     )
 
+    tool_whitelist: list[str] | None = Field(
+        default=None,
+        description="Whitelist of tools that are enabled for this server."
+    )
+
     prompts_enabled: bool = Field(
-        default=False,
+        default=True,
         description="Whether or not the Prompts feature is enabled for this client.",
     )
 
@@ -355,6 +360,11 @@ class FlockMCPConfiguration(BaseModel, Serializable):
 
     name: str = Field(
         ..., description="Name of the server the client connects to."
+    )
+
+    allow_all_tools: bool = Field(
+        default=True,
+        description="Whether or not to allow the usage of all tools (If a whitelist is passed, this option will be ignored)."
     )
 
     connection_config: FlockMCPConnectionConfiguration = Field(
