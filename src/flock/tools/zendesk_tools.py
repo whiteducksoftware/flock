@@ -239,6 +239,35 @@ def zendesk_add_ticket_tags(ticket_id: str, tags: list[str]) -> list[str]:
         return resp.json().get("tags", [])
 
 
+@mcp.tool()
+def zendesk_get_ticket_field_type(field_id: int) -> dict:
+    """Return the Zendesk custom field type and options for a field id.
+
+    Uses GET /api/v2/ticket_fields/{field_id}.json.
+
+    Returns a dict containing at least:
+    { "type": str, "custom_field_options": list }
+    """
+    ZENDESK_SUBDOMAIN = os.getenv("ZENDESK_SUBDOMAIN_TICKET")
+    BASE_URL = f"https://{ZENDESK_SUBDOMAIN}.zendesk.com"
+    url = f"{BASE_URL}/api/v2/ticket_fields/{field_id}.json"
+
+    import httpx
+
+    with httpx.Client(headers=_get_headers(), timeout=30.0) as client:
+        resp = client.get(url)
+        resp.raise_for_status()
+        field = resp.json().get("ticket_field", {})
+        return {
+            "id": field.get("id"),
+            "type": field.get("type"),
+            "title": field.get("title"),
+            "required": field.get("required"),
+            "custom_field_options": field.get("custom_field_options", []),
+        }
+
+
+
 
 if __name__ == "__main__":
     transport = os.getenv("ZENDESK_MCP_TRANSPORT", "stdio")
