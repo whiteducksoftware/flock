@@ -39,6 +39,7 @@ class DefaultAgent(FlockAgent):
         output: DynamicStr | None = None,
         tools: list[Callable[..., Any] | Any] | None = None,
         servers: list[str | FlockMCPServer] | None = None,
+        tool_whitelist: list[str] | None = None,
         # Evaluation parameters
         use_cache: bool = False,
         temperature: float = 0.7,
@@ -62,6 +63,39 @@ class DefaultAgent(FlockAgent):
         next_agent: DynamicStr | None = None,
         temporal_activity_config: TemporalActivityConfig | None = None,
     ):
+        """Initialize a DefaultAgent with standard components and configuration.
+
+        Args:
+            name: Unique identifier for the agent
+            description: Human-readable description of the agent's purpose
+            model: Model identifier (e.g., 'openai/gpt-4o'). Uses Flock default if None
+            input: Input signature for the agent
+            output: Output signature for the agent
+            tools: List of callable tools the agent can use
+            servers: List of MCP servers the agent can connect to
+            tool_whitelist: List of tool names that this agent is allowed to use.
+                          If provided, the agent will only have access to tools
+                          whose names are in this list. This applies to both native
+                          Python tools and MCP tools. Recommended for security and
+                          to prevent tool conflicts in multi-agent workflows.
+            use_cache: Whether to enable caching for evaluation
+            temperature: Sampling temperature for LLM generation
+            max_tokens: Maximum tokens for LLM response
+            max_tool_calls: Maximum number of tool calls per evaluation
+            max_retries: Maximum retries for failed LLM calls
+            stream: Whether to enable streaming responses
+            include_thought_process: Include reasoning in output
+            include_reasoning: Include detailed reasoning steps
+            enable_rich_tables: Enable rich table formatting for output
+            output_theme: Theme for output formatting
+            no_output: Disable output printing
+            print_context: Include context in output
+            write_to_file: Save outputs to file
+            wait_for_input: Wait for user input after execution
+            alert_latency_threshold_ms: Threshold for latency alerts
+            next_agent: Next agent in workflow chain
+            temporal_activity_config: Configuration for Temporal workflow execution
+        """
         # Import evaluation/output components lazily to avoid heavy imports at module import time
         from flock.components.evaluation.declarative_evaluation_component import (
             DeclarativeEvaluationComponent,
@@ -125,6 +159,7 @@ class DefaultAgent(FlockAgent):
             output=output,
             tools=tools,
             servers=servers,
+            tool_whitelist=tool_whitelist,
             components=[evaluator, output_component, metrics_component],
             config=FlockAgentConfig(
                 write_to_file=write_to_file,

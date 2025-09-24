@@ -153,6 +153,10 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
                     self.client_manager = await self.initialize()
                     self.initialized = True
                     await self.post_init()
+            if not self.config.allow_all_tools:
+                whitelist = self.config.feature_config.tool_whitelist
+                if whitelist is not None and len(whitelist) > 0 and name not in whitelist:
+                    return None
             async with self.condition:
                 try:
                     additional_params: dict[str, Any] = {
@@ -217,6 +221,14 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
                         run_id=run_id,
                         additional_params=additional_params,
                     )
+                    # filtering based on whitelist
+                    if not self.config.allow_all_tools:
+                        whitelist = self.config.feature_config.tool_whitelist
+                        filtered_results: list[FlockMCPTool] = []
+                        for tool in result:
+                            if tool.name in whitelist:
+                                filtered_results.append(tool)
+                        result = filtered_results
                     converted_tools = [
                         t.as_dspy_tool(server=self) for t in result
                     ]
@@ -263,6 +275,13 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
         )
         with tracer.start_as_current_span("server.pre_init") as span:
             span.set_attribute("server.name", self.config.name)
+            # run whitelist checks
+            whitelist = self.config.feature_config
+            if whitelist is not None and len(whitelist) > 0:
+                self.config.feature_config = False
+            else:
+                # if the whitelist is none..
+                self.config.allow_all_tools = True
             try:
                 for module in self.get_enabled_components():
                     await module.on_pre_server_init(self)

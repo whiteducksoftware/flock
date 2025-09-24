@@ -17,12 +17,11 @@ from flock.components.utility.metrics_utility_component import (
     MetricsUtilityComponent,
     MetricsUtilityConfig,
 )
+from flock.core.agent.default_agent import DefaultAgent
 
 # New unified components imported locally to avoid circular imports
-from flock.core.config.flock_agent_config import FlockAgentConfig
 from flock.core.config.scheduled_agent_config import ScheduledAgentConfig
 from flock.core.flock_agent import DynamicStr, FlockAgent
-from flock.core.agent.default_agent import DefaultAgent
 from flock.core.logging.formatters.themes import OutputTheme
 from flock.core.logging.logging import get_logger
 from flock.core.mcp.flock_mcp_server import FlockMCPServer
@@ -214,6 +213,8 @@ class FlockFactory:
         tool_result_cache_ttl=100,
         description: str | Callable[..., str] | None = None,
         alert_latency_threshold_ms: int = 30000,
+        tool_whitelist: list[str] | None = None,
+        allow_all_tools: bool = True,
     ) -> FlockMCPServer:
         """Create a default MCP Server with common modules.
 
@@ -222,6 +223,26 @@ class FlockFactory:
         - SSE-Server (specify "sse" in type)
         - Stdio-Server (specify "stdio" in type)
         - Websockets-Server (specifiy "websockets" in type)
+
+        Args:
+            name: Unique identifier for the MCP server
+            connection_params: Connection configuration (StdioParams, SSEParams, etc.)
+            tool_whitelist: List of tool names to allow from this server. If provided,
+                          only tools with these names will be available. Used with
+                          allow_all_tools=False for strict filtering. Agent-level
+                          filtering is generally preferred over server-level filtering.
+            allow_all_tools: Whether to allow all tools from the server. When True
+                           (default), all tools are available. When False, only tools
+                           in tool_whitelist (if provided) are available.
+            Other args: Various configuration options for caching, callbacks, etc.
+
+        Returns:
+            FlockMCPServer: Configured MCP server instance
+
+        Note:
+            For security and flexibility, prefer using agent-level tool_whitelist
+            over server-level filtering. This allows different agents to access
+            different tool subsets from the same server.
         """
         # infer server type from the pydantic model class
         if isinstance(connection_params, FlockFactory.StdioParams):
@@ -258,6 +279,7 @@ class FlockFactory:
             tools_enabled=enable_tools_feature,
             prompts_enabled=enable_prompts_feature,
             sampling_enabled=enable_sampling_feature,
+            tool_whitelist=tool_whitelist,
         )
         callback_config = FlockMCPCallbackConfiguration(
             sampling_callback=sampling_callback,
@@ -326,6 +348,7 @@ class FlockFactory:
                 feature_config=feature_config,
                 caching_config=caching_config,
                 callback_config=callback_config,
+                allow_all_tools=allow_all_tools,
             )
 
         elif server_kind == "sse":
@@ -349,6 +372,7 @@ class FlockFactory:
                 feature_config=feature_config,
                 caching_config=caching_config,
                 callback_config=callback_config,
+                allow_all_tools=allow_all_tools,
             )
 
         elif server_kind == "websockets":
@@ -368,6 +392,7 @@ class FlockFactory:
                 feature_config=feature_config,
                 caching_config=caching_config,
                 callback_config=callback_config,
+                allow_all_tools=allow_all_tools,
             )
 
         else:

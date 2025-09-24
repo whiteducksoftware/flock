@@ -131,6 +131,15 @@ class FlockAgentLifecycle:
                 if self.agent.servers:
                     mcp_tools = await self.agent._integration.get_mcp_tools()
 
+                # Filter tools based on the agent's whitelist (if it has been provided)
+                if self.agent.tool_whitelist is not None and len(self.agent.tool_whitelist) > 0:
+                    for tool in mcp_tools:
+                        if hasattr(tool, "name") and tool.name not in self.agent.tool_whitelist:
+                            mcp_tools.remove(tool)
+                    for tool in registered_tools:
+                        if hasattr(tool, "__name__") and tool.__name__ not in self.agent.tool_whitelist:
+                            registered_tools.remove(tool)
+
                 # --------------------------------------------------
                 # Use evaluator component's evaluate_core method
                 # --------------------------------------------------
