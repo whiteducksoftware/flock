@@ -46,7 +46,8 @@ class DefaultAgent(FlockAgent):
         max_tokens: int | None = None,
         max_tool_calls: int = 0,
         max_retries: int = 2,
-        stream: bool = False,
+        stream: bool = True,
+        stream_callbacks: list[Callable[..., Any] | Any] | None = None,
         include_thought_process: bool = False,
         include_reasoning: bool = False,
         # Output utility parameters
@@ -119,7 +120,9 @@ class DefaultAgent(FlockAgent):
             temperature=temperature,
             max_tool_calls=max_tool_calls,
             max_retries=max_retries,
+            no_output=no_output,
             stream=stream,
+            stream_callbacks=stream_callbacks,
             include_thought_process=include_thought_process,
             include_reasoning=include_reasoning,
         )

@@ -1,7 +1,7 @@
 # src/flock/components/evaluation/declarative_evaluation_component.py
 """DeclarativeEvaluationComponent - DSPy-based evaluation using the unified component system."""
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from typing import Any, Literal, override
 
 from temporalio import workflow
@@ -11,6 +11,7 @@ with workflow.unsafe.imports_passed_through():
 
 from pydantic import Field, PrivateAttr
 
+from flock.cli.utils import print_header
 from flock.core.component.agent_component_base import AgentComponentConfig
 from flock.core.component.evaluation_component import EvaluationComponent
 from flock.core.context.context import FlockContext
@@ -32,6 +33,10 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
     max_tokens: int = 32000
     max_retries: int = 3
     max_tool_calls: int = 10
+    no_output: bool = Field(
+        default=False,
+        description="Disable output from the underlying DSPy program.",
+    )
     stream: bool = Field(
         default=False,
         description="Enable streaming output from the underlying DSPy program.",
@@ -52,6 +57,7 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
         default=None,
         description="Extraction LM for TwoStepAdapter when adapter='two_step'",
     )
+    stream_callbacks: list[Callable[..., Any] | Any] | None = None
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -190,12 +196,13 @@ class DeclarativeEvaluationComponent(
 
         console.print("\n")
         final_result: dict[str, Any] | None = None
+        current_signature_field = None
         async for value in stream_generator:
             # Handle DSPy streaming artifacts
             try:
+                import dspy as _d
                 from dspy.streaming import StatusMessage, StreamResponse
                 from litellm import ModelResponseStream
-                import dspy as _d
             except Exception:
                 StatusMessage = object  # type: ignore
                 StreamResponse = object  # type: ignore
@@ -207,7 +214,19 @@ class DeclarativeEvaluationComponent(
                 console.print(f"[status] {getattr(value, 'message', '')}")
                 continue
             if isinstance(value, StreamResponse):
-                token = getattr(value, "token", None)
+                for callback in self.config.stream_callbacks or []:
+                    try:
+                        callback(value)
+                    except Exception as e:
+                        logger.warning(f"Stream callback error: {e}")
+                if self.config.no_output:
+                    continue
+                token = getattr(value, "chunk", None)
+                signature_field = getattr(value, "signature_field_name", None)
+                if signature_field and signature_field != current_signature_field:
+                    current_signature_field = signature_field
+                    print("\n")
+                    print_header(f"{current_signature_field}", style="magenta")
                 if token:
                     console.print(token, end="")
                 continue
