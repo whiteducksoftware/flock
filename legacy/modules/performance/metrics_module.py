@@ -443,11 +443,11 @@ class MetricsModule(FlockModule):
         if self.config.collect_timing and self._start_time:
             latency = time.time() - self._start_time
             self._record_metric("latency", latency, {"agent": agent.name})
-
+            print(f"Latency: {latency * 1000:.2f}ms")
             # Check for alerts
             if self._should_alert("latency", latency):
                 # In practice, you'd want to integrate with a proper alerting system
-                print(f"ALERT: High latency detected: {latency * 1000:.2f}ms")
+                print(f"ALERT: High latency detected!")
 
         if self.config.collect_token_usage:
             # Calculate output tokens and cost
