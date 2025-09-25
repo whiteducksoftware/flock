@@ -197,6 +197,7 @@ class DeclarativeEvaluationComponent(
         console.print("\n")
         final_result: dict[str, Any] | None = None
         current_signature_field = None
+        streamed_fields: set[str] = set()
         async for value in stream_generator:
             # Handle DSPy streaming artifacts
             try:
@@ -225,6 +226,7 @@ class DeclarativeEvaluationComponent(
                 signature_field = getattr(value, "signature_field_name", None)
                 if signature_field and signature_field != current_signature_field:
                     current_signature_field = signature_field
+                    streamed_fields.add(signature_field)
                     print("\n")
                     print_header(f"{current_signature_field}", style="magenta")
                 if token:
@@ -250,12 +252,16 @@ class DeclarativeEvaluationComponent(
         console.print("\n")
         if final_result is None:
             raise RuntimeError("Streaming did not yield a final prediction.")
-        final_result = self.filter_reasoning(
+        filtered_result = self.filter_reasoning(
             final_result, self.config.include_reasoning
         )
-        return self.filter_thought_process(
-            final_result, self.config.include_thought_process
+        filtered_result = self.filter_thought_process(
+            filtered_result, self.config.include_thought_process
         )
+        self._render_missing_stream_fields(
+            signature, filtered_result, streamed_fields, console, inputs
+        )
+        return filtered_result
 
     async def _execute_standard(self, agent_task, inputs: dict[str, Any], agent: Any) -> dict[str, Any]:
         """Execute DSPy program in standard mode (from original implementation)."""
@@ -279,6 +285,44 @@ class DeclarativeEvaluationComponent(
                 exc_info=True,
             )
             raise RuntimeError(f"Evaluation failed: {e}") from e
+
+    def _render_missing_stream_fields(
+        self,
+        signature: Any,
+        result_dict: dict[str, Any],
+        streamed_fields: set[str],
+        console: Any,
+        inputs: dict[str, Any],
+    ) -> None:
+        """Render any output fields that were not emitted during streaming."""
+        if self.config.no_output:
+            return
+
+        try:
+            output_field_order = list(signature.output_fields.keys())
+        except Exception:
+            output_field_order = []
+
+        printed_fields = set(streamed_fields)
+        input_keys = set(inputs.keys())
+
+        for field_name in output_field_order:
+            if field_name in printed_fields or field_name in input_keys:
+                continue
+            if field_name not in result_dict:
+                continue
+            self._print_stream_field(console, field_name, result_dict[field_name])
+            printed_fields.add(field_name)
+
+        for field_name, value in result_dict.items():
+            if field_name in printed_fields or field_name in input_keys:
+                continue
+            self._print_stream_field(console, field_name, value)
+
+    def _print_stream_field(self, console: Any, field_name: str, value: Any) -> None:
+        print("\n")
+        print_header(f"{field_name}", style="magenta")
+        console.print(value)
 
     def filter_thought_process(
         self, result_dict: dict[str, Any], include_thought_process: bool
