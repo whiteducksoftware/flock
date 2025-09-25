@@ -1,7 +1,9 @@
 # src/flock/components/evaluation/declarative_evaluation_component.py
 """DeclarativeEvaluationComponent - DSPy-based evaluation using the unified component system."""
 
+from collections import OrderedDict
 from collections.abc import Callable, Generator
+from contextlib import nullcontext
 from typing import Any, Literal, override
 
 from temporalio import workflow
@@ -11,7 +13,6 @@ with workflow.unsafe.imports_passed_through():
 
 from pydantic import Field, PrivateAttr
 
-from flock.cli.utils import print_header
 from flock.core.component.agent_component_base import AgentComponentConfig
 from flock.core.component.evaluation_component import EvaluationComponent
 from flock.core.context.context import FlockContext
@@ -171,7 +172,7 @@ class DeclarativeEvaluationComponent(
                 return await self._execute_standard(agent_task, inputs, agent)
 
     async def _execute_streaming(self, signature, agent_task, inputs: dict[str, Any], agent: Any, console) -> dict[str, Any]:
-        """Execute DSPy program in streaming mode (from original implementation)."""
+        """Execute DSPy program in streaming mode with rich table updates."""
         logger.info(f"Evaluating agent '{agent.name}' with async streaming.")
 
         if not callable(agent_task):
@@ -183,7 +184,9 @@ class DeclarativeEvaluationComponent(
         try:
             for name, field in signature.output_fields.items():
                 if field.annotation is str:
-                    listeners.append(dspy.streaming.StreamListener(signature_field_name=name))
+                    listeners.append(
+                        dspy.streaming.StreamListener(signature_field_name=name)
+                    )
         except Exception:
             listeners = []
 
@@ -194,72 +197,134 @@ class DeclarativeEvaluationComponent(
         )
         stream_generator: Generator = streaming_task(**inputs)
 
-        console.print("\n")
+        from collections import defaultdict
+        from rich.live import Live
+
+        signature_order = []
+        try:
+            signature_order = list(signature.output_fields.keys())
+        except Exception:
+            signature_order = []
+
+        display_data: OrderedDict[str, Any] = OrderedDict()
+        for key in inputs.keys():
+            display_data[key] = inputs[key]
+
+        for field_name in signature_order:
+            if field_name not in display_data:
+                display_data[field_name] = ""
+
+        stream_buffers: defaultdict[str, list[str]] = defaultdict(list)
+
+        formatter = theme_dict = styles = agent_label = None
+        live_cm = nullcontext()
+        if not self.config.no_output:
+            (
+                formatter,
+                theme_dict,
+                styles,
+                agent_label,
+            ) = self._prepare_stream_formatter(agent)
+            initial_panel = formatter.format_result(
+                display_data, agent_label, theme_dict, styles
+            )
+            live_cm = Live(
+                initial_panel,
+                console=console,
+                refresh_per_second=8,
+                transient=False,
+            )
+
         final_result: dict[str, Any] | None = None
-        current_signature_field = None
-        streamed_fields: set[str] = set()
-        async for value in stream_generator:
-            # Handle DSPy streaming artifacts
-            try:
-                import dspy as _d
-                from dspy.streaming import StatusMessage, StreamResponse
-                from litellm import ModelResponseStream
-            except Exception:
-                StatusMessage = object  # type: ignore
-                StreamResponse = object  # type: ignore
-                ModelResponseStream = object  # type: ignore
-                _d = None
 
-            if isinstance(value, StatusMessage):
-                # Optionally surface status to console
-                console.print(f"[status] {getattr(value, 'message', '')}")
-                continue
-            if isinstance(value, StreamResponse):
-                for callback in self.config.stream_callbacks or []:
-                    try:
-                        callback(value)
-                    except Exception as e:
-                        logger.warning(f"Stream callback error: {e}")
-                if self.config.no_output:
-                    continue
-                token = getattr(value, "chunk", None)
-                signature_field = getattr(value, "signature_field_name", None)
-                if signature_field and signature_field != current_signature_field:
-                    current_signature_field = signature_field
-                    streamed_fields.add(signature_field)
-                    print("\n")
-                    print_header(f"{current_signature_field}", style="magenta")
-                if token:
-                    console.print(token, end="")
-                continue
-            if isinstance(value, ModelResponseStream):
-                # Raw model chunk; print minimal content if available for debug
+        with live_cm as live:
+            def _refresh_panel() -> None:
+                if formatter is None or live is None:
+                    return
+                live.update(
+                    formatter.format_result(
+                        display_data, agent_label, theme_dict, styles
+                    )
+                )
+
+            async for value in stream_generator:
                 try:
-                    chunk = value
-                    text = chunk.choices[0].delta.content or ""
-                    if text:
-                        console.print(text, end="")
+                    import dspy as _d
+                    from dspy.streaming import StatusMessage, StreamResponse
+                    from litellm import ModelResponseStream
                 except Exception:
-                    pass
-                continue
-            if _d and isinstance(value, _d.Prediction):
-                # Final prediction
-                result_dict, cost, lm_history = self._process_result(value, inputs)
-                self._cost = cost
-                self._lm_history = lm_history
-                final_result = result_dict
+                    StatusMessage = object  # type: ignore
+                    StreamResponse = object  # type: ignore
+                    ModelResponseStream = object  # type: ignore
+                    _d = None
 
-        console.print("\n")
+                if isinstance(value, StatusMessage):
+                    message = getattr(value, "message", "")
+                    if message and live is not None:
+                        live.console.log(f"[status] {message}")
+                    continue
+
+                if isinstance(value, StreamResponse):
+                    for callback in self.config.stream_callbacks or []:
+                        try:
+                            callback(value)
+                        except Exception as e:
+                            logger.warning(f"Stream callback error: {e}")
+                    token = getattr(value, "chunk", None)
+                    signature_field = getattr(value, "signature_field_name", None)
+                    if signature_field:
+                        if signature_field not in display_data:
+                            display_data[signature_field] = ""
+                        if token:
+                            stream_buffers[signature_field].append(str(token))
+                            display_data[signature_field] = "".join(
+                                stream_buffers[signature_field]
+                            )
+                        if formatter is not None:
+                            _refresh_panel()
+                    continue
+
+                if isinstance(value, ModelResponseStream):
+                    try:
+                        chunk = value
+                        text = chunk.choices[0].delta.content or ""
+                        if text and live is not None:
+                            live.console.log(text)
+                    except Exception:
+                        pass
+                    continue
+
+                if _d and isinstance(value, _d.Prediction):
+                    result_dict, cost, lm_history = self._process_result(
+                        value, inputs
+                    )
+                    self._cost = cost
+                    self._lm_history = lm_history
+                    final_result = result_dict
+
+                    if formatter is not None:
+                        ordered_final = OrderedDict()
+                        for key in inputs.keys():
+                            if key in final_result:
+                                ordered_final[key] = final_result[key]
+                        for field_name in signature_order:
+                            if field_name in final_result:
+                                ordered_final[field_name] = final_result[field_name]
+                        for key, val in final_result.items():
+                            if key not in ordered_final:
+                                ordered_final[key] = val
+                        display_data.clear()
+                        display_data.update(ordered_final)
+                        _refresh_panel()
+
         if final_result is None:
             raise RuntimeError("Streaming did not yield a final prediction.")
+
         filtered_result = self.filter_reasoning(
             final_result, self.config.include_reasoning
         )
         filtered_result = self.filter_thought_process(
             filtered_result, self.config.include_thought_process
-        )
-        self._render_missing_stream_fields(
-            signature, filtered_result, streamed_fields, console, inputs
         )
         return filtered_result
 
@@ -286,43 +351,60 @@ class DeclarativeEvaluationComponent(
             )
             raise RuntimeError(f"Evaluation failed: {e}") from e
 
-    def _render_missing_stream_fields(
-        self,
-        signature: Any,
-        result_dict: dict[str, Any],
-        streamed_fields: set[str],
-        console: Any,
-        inputs: dict[str, Any],
-    ) -> None:
-        """Render any output fields that were not emitted during streaming."""
-        if self.config.no_output:
-            return
+    def _prepare_stream_formatter(
+        self, agent: Any
+    ) -> tuple[Any, dict[str, Any], dict[str, Any], str]:
+        """Build formatter + theme metadata for streaming tables."""
+        from flock.core.logging.formatters.themed_formatter import (
+            ThemedAgentResultFormatter,
+            create_pygments_syntax_theme,
+            get_default_styles,
+            load_syntax_theme_from_file,
+            load_theme_from_file,
+        )
+        from flock.core.logging.formatters.themes import OutputTheme
+        import pathlib
+
+        stream_theme = OutputTheme.afterglow
+        output_component = None
+        try:
+            output_component = agent.get_component("output_formatter")
+        except Exception:
+            output_component = None
+        if output_component and getattr(output_component, "config", None):
+            stream_theme = getattr(
+                output_component.config, "theme", stream_theme
+            )
+
+        formatter = ThemedAgentResultFormatter(theme=stream_theme)
+
+        themes_dir = pathlib.Path(__file__).resolve().parents[2] / "themes"
+        theme_filename = stream_theme.value
+        if not theme_filename.endswith(".toml"):
+            theme_filename = f"{theme_filename}.toml"
+        theme_path = themes_dir / theme_filename
 
         try:
-            output_field_order = list(signature.output_fields.keys())
+            theme_dict = load_theme_from_file(theme_path)
         except Exception:
-            output_field_order = []
+            fallback_path = themes_dir / "afterglow.toml"
+            theme_dict = load_theme_from_file(fallback_path)
+            theme_path = fallback_path
 
-        printed_fields = set(streamed_fields)
-        input_keys = set(inputs.keys())
+        styles = get_default_styles(theme_dict)
+        formatter.styles = styles
+        try:
+            syntax_theme = load_syntax_theme_from_file(theme_path)
+            formatter.syntax_style = create_pygments_syntax_theme(syntax_theme)
+        except Exception:
+            formatter.syntax_style = None
 
-        for field_name in output_field_order:
-            if field_name in printed_fields or field_name in input_keys:
-                continue
-            if field_name not in result_dict:
-                continue
-            self._print_stream_field(console, field_name, result_dict[field_name])
-            printed_fields.add(field_name)
+        model_label = getattr(agent, "model", None) or self.config.model or ""
+        agent_label = (
+            agent.name if not model_label else f"{agent.name} - {model_label}"
+        )
 
-        for field_name, value in result_dict.items():
-            if field_name in printed_fields or field_name in input_keys:
-                continue
-            self._print_stream_field(console, field_name, value)
-
-    def _print_stream_field(self, console: Any, field_name: str, value: Any) -> None:
-        print("\n")
-        print_header(f"{field_name}", style="magenta")
-        console.print(value)
+        return formatter, theme_dict, styles, agent_label
 
     def filter_thought_process(
         self, result_dict: dict[str, Any], include_thought_process: bool
