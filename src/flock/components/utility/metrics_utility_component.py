@@ -15,8 +15,12 @@ from pydantic import BaseModel, Field, field_validator
 from flock.core.component.agent_component_base import AgentComponentConfig
 from flock.core.component.utility_component import UtilityComponent
 from flock.core.context.context import FlockContext
+from flock.core.logging.logging import get_logger
 from flock.core.mcp.flock_mcp_server import FlockMCPServer
 from flock.core.registry import flock_component
+
+logger = get_logger(__name__)
+
 
 if TYPE_CHECKING:
     from flock.core.flock_agent import FlockAgent
@@ -181,7 +185,7 @@ class MetricsUtilityComponent(UtilityComponent):
 
             return dict(metrics)
         except Exception as e:
-            print(f"Error loading metrics from files: {e}")
+            logger.error(f"Error loading metrics from files: {e}")
             return {}
 
     def get_metrics(
@@ -419,11 +423,12 @@ class MetricsUtilityComponent(UtilityComponent):
         if self.config.collect_timing and self._start_time:
             latency = time.time() - self._start_time
             self._record_metric("latency", latency, {"agent": agent.name})
+            print(f"Latency: {latency * 1000:.2f}ms")
 
             # Check for alerts
             if self._should_alert("latency", latency):
                 # In practice, you'd want to integrate with a proper alerting system
-                print(f"ALERT: High latency detected: {latency * 1000:.2f}ms")
+                logger.warning(f"ALERT: High latency detected!")
 
         if self.config.collect_token_usage and result:
             # Calculate output tokens and cost
@@ -439,6 +444,8 @@ class MetricsUtilityComponent(UtilityComponent):
                     total_output_cost += cost
                 else:
                     total_output_cost += cost[1]
+
+            print(f"Total output tokens: {total_output_tokens}")
 
             self._record_metric(
                 "tokens",
