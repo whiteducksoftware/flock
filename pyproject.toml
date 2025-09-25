@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.0b16"
+version = "0.5.0b17"
 description = "Declarative LLM Orchestration at Scale"
 readme = "README.md"
 authors = [
@@ -15,10 +15,10 @@ requires-python = ">=3.10"
 dependencies = [
     "cloudpickle>=3.1.1",
     "devtools>=0.12.2",
-    "dspy==2.6.23",
+    "dspy>=3.0.0",
     "fastapi>=0.115.8",
     "httpx>=0.28.1",
-    "litellm[proxy]==v1.75.3",
+    "litellm>=1.75.3",
     "loguru>=0.7.3",
     "mcp>=1.7.1",
     "msgpack>=1.1.0",
@@ -33,7 +33,7 @@ dependencies = [
     "pillow>=10.4.0",
     "prometheus-client>=0.21.1",
     "psutil>=6.1.1",
-    "pydantic==2.10.5",
+    "pydantic>=2.10.5",
     "pydantic-settings>=2.7.1",
     "python-box>=7.3.2",
     "python-decouple>=3.8",

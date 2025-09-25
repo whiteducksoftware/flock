@@ -3,6 +3,7 @@
 from typing import Any, TypeVar
 
 from dspy import Tool as DSPyTool
+from dspy.adapters.types.tool import convert_input_schema_to_tool_args
 from mcp import Tool
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from opentelemetry import trace
@@ -75,59 +76,14 @@ class FlockMCPTool(BaseModel):
             annotations=instance.annotations,
         )
 
-    def resolve_json_schema_reference(self, schema: dict) -> dict:
-        """Recursively resolve json model schema, expanding all references."""
-        if "$defs" not in schema and "definitions" not in schema:
-            return schema
-
-        def resolve_refs(obj: Any) -> Any:
-            if not isinstance(obj, dict[list, list]):
-                return obj
-            if isinstance(obj, dict) and "$ref" in obj:
-                # ref_path = obj["$ref"].split("/")[-1]
-                return {resolve_refs(v) for k, v in obj.items()}
-
-            return [resolve_refs(item) for item in obj]
-
-        resolved_schema = resolve_refs(schema)
-
-        resolved_schema.pop("$defs", None)
-        return resolved_schema
-
-    def _convert_input_schema_to_tool_args(
-        self, input_schema: dict[str, Any]
-    ) -> tuple[dict[str, Any], dict[str, type], dict[str, str]]:
-        """Convert an input schema to tool arguments compatible with Dspy Tool.
-
-        Args:
-            schema: an input schema describing the tool's input parameters
-
-        Returns:
-            A tuple of (args, arg_types, arg_desc) for Dspy Tool definition
-        """
-        args, arg_types, arg_desc = {}, {}, {}
-        properties = input_schema.get("properties")
-        if properties is None:
-            return args, arg_types, arg_desc
-
-        required = input_schema.get("required", [])
-
-        defs = input_schema.get("$defs", {})
-
-        for name, prop in properties.items():
-            if len(defs) > 0:
-                prop = self.resolve_json_schema_reference(
-                    {"$defs": defs, **prop}
-                )
-
-            args[name] = prop
-
-            arg_types[name] = TYPE_MAPPING.get(prop.get("type"), Any)
-            arg_desc[name] = prop.get("description", "No description provided")
-            if name in required:
-                arg_desc[name] += " (Required)"
-
-        return args, arg_types, arg_desc
+    # Use DSPy's converter for JSON Schema → Tool args to stay aligned with DSPy.
+    def _convert_input_schema_to_tool_args(self, input_schema: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, str]]:
+        try:
+            return convert_input_schema_to_tool_args(input_schema)
+        except Exception as e:  # pragma: no cover - defensive
+            logger.error("Failed to convert MCP tool schema to DSPy tool args: %s", e)
+            # Fallback to empty definitions to avoid breaking execution
+            return {}, {}, {}
 
     def _convert_mcp_tool_result(
         self, call_tool_result: CallToolResult

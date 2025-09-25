@@ -10,6 +10,8 @@ __pycache__/
 *.env*
 !*.env_template
 
+.DS_Store
+flock-showcase/
 
 # Distribution / packaging
 .Python

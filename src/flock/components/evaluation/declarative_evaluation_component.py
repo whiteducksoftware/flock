@@ -2,7 +2,7 @@
 """DeclarativeEvaluationComponent - DSPy-based evaluation using the unified component system."""
 
 from collections.abc import Generator
-from typing import Any, override
+from typing import Any, Literal, override
 
 from temporalio import workflow
 
@@ -29,7 +29,7 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
     model: str | None = "openai/gpt-4o"
     use_cache: bool = True
     temperature: float = 1.0
-    max_tokens: int = 8192
+    max_tokens: int = 32000
     max_retries: int = 3
     max_tool_calls: int = 10
     stream: bool = Field(
@@ -43,6 +43,14 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
     include_reasoning: bool = Field(
         default=False,
         description="Include the reasoning in the output.",
+    )
+    adapter: Literal["chat", "json", "xml", "two_step"] | None = Field(
+        default=None,
+        description="Optional DSPy adapter to use for formatting/parsing.",
+    )
+    extraction_model: str | None = Field(
+        default=None,
+        description="Extraction LM for TwoStepAdapter when adapter='two_step'",
     )
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
@@ -70,7 +78,7 @@ class DeclarativeEvaluationComponent(
         super().__init__(**data)
 
     @override
-    def set_model(self, model: str, temperature: float = 1.0, max_tokens: int = 8192) -> None:
+    def set_model(self, model: str, temperature: float = 1.0, max_tokens: int = 32000) -> None:
         """Set the model for the evaluation component."""
         self.config.model = model
         self.config.temperature = temperature
@@ -87,16 +95,32 @@ class DeclarativeEvaluationComponent(
         """Core evaluation logic using DSPy - migrated from DeclarativeEvaluator."""
         logger.debug(f"Starting declarative evaluation for component '{self.name}'")
 
-        # Setup DSPy context with LM (directly from original implementation)
-        with dspy.context(
-            lm=dspy.LM(
-                model=self.config.model or agent.model,
-                cache=self.config.use_cache,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-                num_retries=self.config.max_retries,
-            )
-        ):
+        # Prepare LM and optional adapter; keep settings changes scoped with dspy.context
+        lm = dspy.LM(
+            model=self.config.model or agent.model,
+            cache=self.config.use_cache,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+            num_retries=self.config.max_retries,
+        )
+
+        adapter = None
+        if self.config.adapter:
+            try:
+                if self.config.adapter == "json":
+                    adapter = dspy.JSONAdapter()
+                elif self.config.adapter == "xml":
+                    adapter = dspy.XMLAdapter()
+                elif self.config.adapter == "two_step":
+                    extractor = dspy.LM(self.config.extraction_model or "openai/gpt-4o-mini")
+                    adapter = dspy.TwoStepAdapter(extraction_model=extractor)
+                else:
+                    # chat is default; leave adapter=None
+                    adapter = None
+            except Exception as e:
+                logger.warning(f"Failed to construct adapter '{self.config.adapter}': {e}. Proceeding without.")
+
+        with dspy.context(lm=lm, adapter=adapter):
             try:
                 from rich.console import Console
                 console = Console()
@@ -136,11 +160,11 @@ class DeclarativeEvaluationComponent(
 
             # Execute with streaming or non-streaming
             if self.config.stream:
-                return await self._execute_streaming(agent_task, inputs, agent, console)
+                return await self._execute_streaming(_dspy_signature, agent_task, inputs, agent, console)
             else:
                 return await self._execute_standard(agent_task, inputs, agent)
 
-    async def _execute_streaming(self, agent_task, inputs: dict[str, Any], agent: Any, console) -> dict[str, Any]:
+    async def _execute_streaming(self, signature, agent_task, inputs: dict[str, Any], agent: Any, console) -> dict[str, Any]:
         """Execute DSPy program in streaming mode (from original implementation)."""
         logger.info(f"Evaluating agent '{agent.name}' with async streaming.")
 
@@ -148,34 +172,70 @@ class DeclarativeEvaluationComponent(
             logger.error("agent_task is not callable, cannot stream.")
             raise TypeError("DSPy task could not be created or is not callable.")
 
-        streaming_task = dspy.streamify(agent_task, is_async_program=True)
+        # Prepare stream listeners for any string output fields
+        listeners = []
+        try:
+            for name, field in signature.output_fields.items():
+                if field.annotation is str:
+                    listeners.append(dspy.streaming.StreamListener(signature_field_name=name))
+        except Exception:
+            listeners = []
+
+        streaming_task = dspy.streamify(
+            agent_task,
+            is_async_program=True,
+            stream_listeners=listeners if listeners else None,
+        )
         stream_generator: Generator = streaming_task(**inputs)
-        delta_content = ""
 
         console.print("\n")
-        async for chunk in stream_generator:
-            if (
-                hasattr(chunk, "choices")
-                and chunk.choices
-                and hasattr(chunk.choices[0], "delta")
-                and chunk.choices[0].delta
-                and hasattr(chunk.choices[0].delta, "content")
-            ):
-                delta_content = chunk.choices[0].delta.content
+        final_result: dict[str, Any] | None = None
+        async for value in stream_generator:
+            # Handle DSPy streaming artifacts
+            try:
+                from dspy.streaming import StatusMessage, StreamResponse
+                from litellm import ModelResponseStream
+                import dspy as _d
+            except Exception:
+                StatusMessage = object  # type: ignore
+                StreamResponse = object  # type: ignore
+                ModelResponseStream = object  # type: ignore
+                _d = None
 
-            if delta_content:
-                console.print(delta_content, end="")
-
-            result_dict, cost, lm_history = self._process_result(chunk, inputs)
-            self._cost = cost
-            self._lm_history = lm_history
+            if isinstance(value, StatusMessage):
+                # Optionally surface status to console
+                console.print(f"[status] {getattr(value, 'message', '')}")
+                continue
+            if isinstance(value, StreamResponse):
+                token = getattr(value, "token", None)
+                if token:
+                    console.print(token, end="")
+                continue
+            if isinstance(value, ModelResponseStream):
+                # Raw model chunk; print minimal content if available for debug
+                try:
+                    chunk = value
+                    text = chunk.choices[0].delta.content or ""
+                    if text:
+                        console.print(text, end="")
+                except Exception:
+                    pass
+                continue
+            if _d and isinstance(value, _d.Prediction):
+                # Final prediction
+                result_dict, cost, lm_history = self._process_result(value, inputs)
+                self._cost = cost
+                self._lm_history = lm_history
+                final_result = result_dict
 
         console.print("\n")
-        result_dict = self.filter_reasoning(
-                    result_dict, self.config.include_reasoning
-                )
+        if final_result is None:
+            raise RuntimeError("Streaming did not yield a final prediction.")
+        final_result = self.filter_reasoning(
+            final_result, self.config.include_reasoning
+        )
         return self.filter_thought_process(
-            result_dict, self.config.include_thought_process
+            final_result, self.config.include_thought_process
         )
 
     async def _execute_standard(self, agent_task, inputs: dict[str, Any], agent: Any) -> dict[str, Any]:
@@ -189,8 +249,8 @@ class DeclarativeEvaluationComponent(
             self._cost = cost
             self._lm_history = lm_history
             result_dict = self.filter_reasoning(
-                    result_dict, self.config.include_reasoning
-                )
+                result_dict, self.config.include_reasoning
+            )
             return self.filter_thought_process(
                 result_dict, self.config.include_thought_process
             )
@@ -226,4 +286,3 @@ class DeclarativeEvaluationComponent(
                 for k, v in result_dict.items()
                 if not (k.startswith("reasoning"))
             }
-
