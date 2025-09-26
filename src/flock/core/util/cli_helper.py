@@ -67,7 +67,7 @@ def init_console(clear_screen: bool = True, show_banner: bool = True, model: str
         )
 
     if model:
-        console.print(f"[italic]Global Model:[/] {model}")
+        console.print(f"[italic]Global Model:[/] {model}\n")
 
 
 def display_banner_no_version():
