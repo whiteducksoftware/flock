@@ -51,7 +51,7 @@ def init_console(clear_screen: bool = True, show_banner: bool = True, model: str
 │ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
 │ ▒█▀▀▀ █░░ █░░█ █░░ █▀▄ │
 │ ▒█░░░ ▀▀▀ ▀▀▀▀ ▀▀▀ ▀░▀ │
-╰━━━━━━━━v{__version__}━━━━━━━━╯
+╰━━━━━━━━v{__version__}━━━━━━━╯
 🦆     🐤    🐧     🐓
 """,
         justify="center",
@@ -63,7 +63,7 @@ def init_console(clear_screen: bool = True, show_banner: bool = True, model: str
     if show_banner:
         console.print(banner_text)
         console.print(
-            "[italic]'Magpie'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
+            "[italic]'Kea'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
         )
 
     if model:
