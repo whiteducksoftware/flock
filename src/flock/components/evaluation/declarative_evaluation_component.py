@@ -289,11 +289,11 @@ class DeclarativeEvaluationComponent(
         stream_buffers: defaultdict[str, list[str]] = defaultdict(list)
 
         formatter = theme_dict = styles = agent_label = None
-        _ensure_live_crop_above()
         live_cm = nullcontext()
-        initial_panel = None
         overflow_mode = self.config.stream_vertical_overflow
+        initial_panel = None
         if not self.config.no_output:
+            _ensure_live_crop_above()
             (
                 formatter,
                 theme_dict,
@@ -306,23 +306,22 @@ class DeclarativeEvaluationComponent(
             live_cm = Live(
                 initial_panel,
                 console=console,
-                refresh_per_second=8,
-                transient=True,
+                refresh_per_second=400,
+                transient=False,
                 vertical_overflow=overflow_mode,
             )
 
         final_result: dict[str, Any] | None = None
-        final_panel = initial_panel if formatter is not None else None
 
         with live_cm as live:
             def _refresh_panel() -> None:
-                nonlocal final_panel
                 if formatter is None or live is None:
                     return
-                final_panel = formatter.format_result(
-                    display_data, agent_label, theme_dict, styles
+                live.update(
+                    formatter.format_result(
+                        display_data, agent_label, theme_dict, styles
+                    )
                 )
-                live.update(final_panel)
 
             async for value in stream_generator:
                 try:
@@ -393,9 +392,6 @@ class DeclarativeEvaluationComponent(
                         display_data.clear()
                         display_data.update(ordered_final)
                         _refresh_panel()
-
-        if formatter is not None and final_panel is not None and not self.config.no_output:
-            console.print(final_panel)
 
         if final_result is None:
             raise RuntimeError("Streaming did not yield a final prediction.")

@@ -87,7 +87,7 @@ class DefaultAgent(FlockAgent):
             max_retries: Maximum retries for failed LLM calls
             stream: Whether to enable streaming responses
             stream_callbacks: Optional callbacks invoked with each streaming chunk
-            stream_vertical_overflow: Rich Live overflow handling ('ellipsis', 'crop', 'visible')
+            stream_vertical_overflow: Rich Live overflow handling ('ellipsis', 'crop', 'crop_above', 'visible')
             include_thought_process: Include reasoning in output
             include_reasoning: Include detailed reasoning steps
             enable_rich_tables: Enable rich table formatting for output
