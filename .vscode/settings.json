@@ -91,5 +91,8 @@
         "tag:yaml.org,2002:python/object/apply:pymdownx.slugs.slugify mapping"
     ],
     "editor.guides.indentation": false,
-    "python.REPL.enableREPLSmartSend": false
+    "python.REPL.enableREPLSmartSend": false,
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": []
 }

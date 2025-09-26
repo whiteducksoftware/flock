@@ -1,0 +1,195 @@
+<div id="streaming-results-wrapper"
+     data-run-id="{{ run_id }}"
+     data-stream-url="{{ stream_url }}"
+     data-target-id="results-display"
+     data-agent-name="{{ agent_name }}">
+    <header style="margin-bottom: 0.75rem;">
+        <h5 style="margin: 0;">Streaming {{ agent_name }}</h5>
+        <p style="margin: 0; color: var(--pico-muted-color);">Live output appears below while the agent runs.</p>
+    </header>
+
+    <p class="error" data-role="error" hidden></p>
+    <div class="stream-output" data-role="output" style="min-height: 8rem; white-space: normal; word-break: break-word; font-family: var(--pico-code-font-family, monospace);">Connecting to agent…</div>
+    <div data-role="progress" style="margin-top: 0.5rem;" role="status">
+        <progress indeterminate></progress> Streaming response…
+    </div>
+</div>
+
+<script>
+(function () {
+    const script = document.currentScript;
+    if (!script) {
+        return;
+    }
+    const wrapper = script.previousElementSibling;
+    if (!(wrapper instanceof HTMLElement)) {
+        return;
+    }
+    if (wrapper.dataset.streamInit === '1') {
+        return;
+    }
+    wrapper.dataset.streamInit = '1';
+
+    const streamUrl = wrapper.dataset.streamUrl;
+    const runId = wrapper.dataset.runId;
+    const targetId = wrapper.dataset.targetId || 'results-display';
+
+    const outputEl = wrapper.querySelector('[data-role="output"]');
+    const errorEl = wrapper.querySelector('[data-role="error"]');
+    const progressEl = wrapper.querySelector('[data-role="progress"]');
+
+    if (!streamUrl || !runId || !(outputEl instanceof HTMLElement)) {
+        if (errorEl instanceof HTMLElement) {
+            errorEl.textContent = 'Streaming setup failed due to missing metadata.';
+            errorEl.hidden = false;
+        }
+        if (progressEl instanceof HTMLElement) {
+            progressEl.hidden = true;
+        }
+        return;
+    }
+
+    let plainText = outputEl instanceof HTMLElement ? outputEl.textContent || '' : '';
+    let source;
+    const fieldValues = new Map();
+    let latestStatus = '';
+
+    function escapeHtml(value) {
+        return value.replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        })[char]);
+    }
+
+    function renderTableCell(value) {
+        return escapeHtml(value).replace(/\n/g, '<br>');
+    }
+
+    function renderStream() {
+        if (!(outputEl instanceof HTMLElement)) {
+            return;
+        }
+        if (fieldValues.size > 0) {
+            outputEl.style.whiteSpace = 'normal';
+            let rows = '';
+            fieldValues.forEach((value, field) => {
+                rows += `<tr><td class="stream-field" style="white-space: nowrap; padding-right: 1rem; vertical-align: top;">${escapeHtml(field)}</td><td>${renderTableCell(value)}</td></tr>`;
+            });
+            if (latestStatus) {
+                rows += `<tr class="stream-status"><td class="stream-field" style="white-space: nowrap; padding-right: 1rem; vertical-align: top;">status</td><td>${escapeHtml(latestStatus)}</td></tr>`;
+            }
+            outputEl.innerHTML = `<table class="structured-table streaming-table" style="width:100%; border-collapse: collapse; table-layout: auto;"><tbody>${rows}</tbody></table>`;
+        } else {
+            outputEl.style.whiteSpace = 'pre-wrap';
+            outputEl.textContent = plainText;
+        }
+    }
+
+    function showError(message) {
+        if (errorEl instanceof HTMLElement) {
+            errorEl.textContent = message;
+            errorEl.hidden = false;
+        }
+        if (progressEl instanceof HTMLElement) {
+            progressEl.hidden = true;
+        }
+    }
+
+    function closeStream() {
+        if (source) {
+            source.close();
+            source = undefined;
+        }
+        if (progressEl instanceof HTMLElement) {
+            progressEl.hidden = true;
+        }
+        renderStream();
+    }
+
+    function renderFinal(html, rawJson) {
+        const target = document.getElementById(targetId);
+        if (!target) {
+            return;
+        }
+        target.innerHTML = html;
+        if (window.htmx) {
+            window.htmx.process(target);
+        }
+        if (window.Prism) {
+            window.Prism.highlightAllUnder(target);
+        }
+        if (outputEl instanceof HTMLElement) {
+            outputEl.textContent = '';
+        }
+    }
+
+    try {
+        source = new EventSource(streamUrl);
+    } catch (err) {
+        console.error('Failed to start EventSource', err);
+        showError('Failed to connect for streaming.');
+        return;
+    }
+
+    source.onmessage = (event) => {
+        if (!event.data) {
+            return;
+        }
+        let payload;
+        try {
+            payload = JSON.parse(event.data);
+        } catch (err) {
+            console.warn('Unable to parse streaming payload', err);
+            return;
+        }
+
+        switch (payload.type) {
+            case 'token':
+                if (typeof payload.chunk === 'string') {
+                    if (payload.field) {
+                        const existing = fieldValues.get(payload.field) || '';
+                        fieldValues.set(payload.field, existing + payload.chunk);
+                    } else {
+                        plainText = (plainText === 'Connecting to agent…' ? '' : plainText) + payload.chunk;
+                    }
+                    renderStream();
+                }
+                break;
+            case 'status':
+                if (payload.message) {
+                    latestStatus = payload.message;
+                    if (fieldValues.size === 0) {
+                        plainText = (plainText === 'Connecting to agent…' ? '' : plainText);
+                        if (plainText && !plainText.endsWith('\n')) {
+                            plainText += '\n';
+                        }
+                        plainText += payload.message + '\n';
+                    }
+                    renderStream();
+                }
+                break;
+            case 'error':
+                showError(payload.message || 'An unexpected error occurred while streaming.');
+                closeStream();
+                break;
+            case 'final':
+                closeStream();
+                renderFinal(payload.html || '', payload.raw_json || payload.rawJson);
+                break;
+            case 'complete':
+                closeStream();
+                break;
+            default:
+                break;
+        }
+    };
+
+    source.onerror = () => {
+        showError('Connection lost while streaming.');
+        closeStream();
+    };
+})();
+</script>
