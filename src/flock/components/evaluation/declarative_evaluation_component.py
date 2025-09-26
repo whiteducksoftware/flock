@@ -1,7 +1,9 @@
 # src/flock/components/evaluation/declarative_evaluation_component.py
 """DeclarativeEvaluationComponent - DSPy-based evaluation using the unified component system."""
 
-from collections.abc import Generator
+from collections import OrderedDict
+from collections.abc import Callable, Generator
+from contextlib import nullcontext
 from typing import Any, Literal, override
 
 from temporalio import workflow
@@ -22,6 +24,73 @@ from flock.core.registry import flock_component
 logger = get_logger("components.evaluation.declarative")
 
 
+_live_patch_applied = False
+
+
+def _ensure_live_crop_above() -> None:
+    """Monkeypatch rich.live_render to support 'crop_above' overflow."""
+    global _live_patch_applied
+    if _live_patch_applied:
+        return
+    try:
+        from typing import Literal as _Literal
+
+        from rich import live_render as _lr
+    except Exception:
+        return
+
+    # Extend the accepted literal at runtime so type checks don't block the new option.
+    current_args = getattr(_lr.VerticalOverflowMethod, '__args__', ())
+    if 'crop_above' not in current_args:
+        _lr.VerticalOverflowMethod = _Literal['crop', 'crop_above', 'ellipsis', 'visible']  # type: ignore[assignment]
+
+    if getattr(_lr.LiveRender.__rich_console__, '_flock_crop_above', False):
+        _live_patch_applied = True
+        return
+
+    Segment = _lr.Segment
+    Text = _lr.Text
+    loop_last = _lr.loop_last
+
+    def _patched_rich_console(self, console, options):
+        renderable = self.renderable
+        style = console.get_style(self.style)
+        lines = console.render_lines(renderable, options, style=style, pad=False)
+        shape = Segment.get_shape(lines)
+
+        _, height = shape
+        max_height = options.size.height
+        if height > max_height:
+            if self.vertical_overflow == 'crop':
+                lines = lines[: max_height]
+                shape = Segment.get_shape(lines)
+            elif self.vertical_overflow == 'crop_above':
+                lines = lines[-max_height:]
+                shape = Segment.get_shape(lines)
+            elif self.vertical_overflow == 'ellipsis' and max_height > 0:
+                lines = lines[: (max_height - 1)]
+                overflow_text = Text(
+                    '...',
+                    overflow='crop',
+                    justify='center',
+                    end='',
+                    style='live.ellipsis',
+                )
+                lines.append(list(console.render(overflow_text)))
+                shape = Segment.get_shape(lines)
+        self._shape = shape
+
+        new_line = Segment.line()
+        for last, line in loop_last(lines):
+            yield from line
+            if not last:
+                yield new_line
+
+    _patched_rich_console._flock_crop_above = True  # type: ignore[attr-defined]
+    _lr.LiveRender.__rich_console__ = _patched_rich_console
+    _live_patch_applied = True
+
+
 class DeclarativeEvaluationConfig(AgentComponentConfig):
     """Configuration for the DeclarativeEvaluationComponent."""
 
@@ -32,6 +101,10 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
     max_tokens: int = 32000
     max_retries: int = 3
     max_tool_calls: int = 10
+    no_output: bool = Field(
+        default=False,
+        description="Disable output from the underlying DSPy program.",
+    )
     stream: bool = Field(
         default=False,
         description="Enable streaming output from the underlying DSPy program.",
@@ -51,6 +124,11 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
     extraction_model: str | None = Field(
         default=None,
         description="Extraction LM for TwoStepAdapter when adapter='two_step'",
+    )
+    stream_callbacks: list[Callable[..., Any] | Any] | None = None
+    stream_vertical_overflow: Literal["crop", "ellipsis", "crop_above", "visible"] = Field(
+        default="crop_above",
+        description=("Rich Live vertical overflow strategy; select how tall output is handled; 'crop_above' keeps the most recent rows visible."),
     )
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
@@ -165,7 +243,7 @@ class DeclarativeEvaluationComponent(
                 return await self._execute_standard(agent_task, inputs, agent)
 
     async def _execute_streaming(self, signature, agent_task, inputs: dict[str, Any], agent: Any, console) -> dict[str, Any]:
-        """Execute DSPy program in streaming mode (from original implementation)."""
+        """Execute DSPy program in streaming mode with rich table updates."""
         logger.info(f"Evaluating agent '{agent.name}' with async streaming.")
 
         if not callable(agent_task):
@@ -177,7 +255,9 @@ class DeclarativeEvaluationComponent(
         try:
             for name, field in signature.output_fields.items():
                 if field.annotation is str:
-                    listeners.append(dspy.streaming.StreamListener(signature_field_name=name))
+                    listeners.append(
+                        dspy.streaming.StreamListener(signature_field_name=name)
+                    )
         except Exception:
             listeners = []
 
@@ -188,55 +268,147 @@ class DeclarativeEvaluationComponent(
         )
         stream_generator: Generator = streaming_task(**inputs)
 
-        console.print("\n")
+        from collections import defaultdict
+
+        from rich.live import Live
+
+        signature_order = []
+        try:
+            signature_order = list(signature.output_fields.keys())
+        except Exception:
+            signature_order = []
+
+        display_data: OrderedDict[str, Any] = OrderedDict()
+        for key in inputs:
+            display_data[key] = inputs[key]
+
+        for field_name in signature_order:
+            if field_name not in display_data:
+                display_data[field_name] = ""
+
+        stream_buffers: defaultdict[str, list[str]] = defaultdict(list)
+
+        formatter = theme_dict = styles = agent_label = None
+        live_cm = nullcontext()
+        overflow_mode = self.config.stream_vertical_overflow
+        initial_panel = None
+        if not self.config.no_output:
+            _ensure_live_crop_above()
+            (
+                formatter,
+                theme_dict,
+                styles,
+                agent_label,
+            ) = self._prepare_stream_formatter(agent)
+            initial_panel = formatter.format_result(
+                display_data, agent_label, theme_dict, styles
+            )
+            live_cm = Live(
+                initial_panel,
+                console=console,
+                refresh_per_second=400,
+                transient=False,
+                vertical_overflow=overflow_mode,
+            )
+
         final_result: dict[str, Any] | None = None
-        async for value in stream_generator:
-            # Handle DSPy streaming artifacts
-            try:
-                from dspy.streaming import StatusMessage, StreamResponse
-                from litellm import ModelResponseStream
-                import dspy as _d
-            except Exception:
-                StatusMessage = object  # type: ignore
-                StreamResponse = object  # type: ignore
-                ModelResponseStream = object  # type: ignore
-                _d = None
 
-            if isinstance(value, StatusMessage):
-                # Optionally surface status to console
-                console.print(f"[status] {getattr(value, 'message', '')}")
-                continue
-            if isinstance(value, StreamResponse):
-                token = getattr(value, "token", None)
-                if token:
-                    console.print(token, end="")
-                continue
-            if isinstance(value, ModelResponseStream):
-                # Raw model chunk; print minimal content if available for debug
+        with live_cm as live:
+            def _refresh_panel() -> None:
+                if formatter is None or live is None:
+                    return
+                live.update(
+                    formatter.format_result(
+                        display_data, agent_label, theme_dict, styles
+                    )
+                )
+
+            async for value in stream_generator:
                 try:
-                    chunk = value
-                    text = chunk.choices[0].delta.content or ""
-                    if text:
-                        console.print(text, end="")
+                    import dspy as _d
+                    from dspy.streaming import StatusMessage, StreamResponse
+                    from litellm import ModelResponseStream
                 except Exception:
-                    pass
-                continue
-            if _d and isinstance(value, _d.Prediction):
-                # Final prediction
-                result_dict, cost, lm_history = self._process_result(value, inputs)
-                self._cost = cost
-                self._lm_history = lm_history
-                final_result = result_dict
+                    StatusMessage = object  # type: ignore
+                    StreamResponse = object  # type: ignore
+                    ModelResponseStream = object  # type: ignore
+                    _d = None
 
-        console.print("\n")
+                if isinstance(value, StatusMessage):
+                    message = getattr(value, "message", "")
+                    if message and live is not None:
+                        live.console.log(f"[status] {message}")
+                    continue
+
+                if isinstance(value, StreamResponse):
+                    for callback in self.config.stream_callbacks or []:
+                        try:
+                            callback(value)
+                        except Exception as e:
+                            logger.warning(f"Stream callback error: {e}")
+                    token = getattr(value, "chunk", None)
+                    signature_field = getattr(value, "signature_field_name", None)
+                    if signature_field:
+                        if signature_field not in display_data:
+                            display_data[signature_field] = ""
+                        if token:
+                            stream_buffers[signature_field].append(str(token))
+                            display_data[signature_field] = "".join(
+                                stream_buffers[signature_field]
+                            )
+                        if formatter is not None:
+                            _refresh_panel()
+                    continue
+
+                if isinstance(value, ModelResponseStream):
+                    try:
+                        chunk = value
+                        text = chunk.choices[0].delta.content or ""
+                        if text and live is not None:
+                            live.console.log(text)
+                    except Exception:
+                        pass
+                    continue
+
+                if _d and isinstance(value, _d.Prediction):
+                    result_dict, cost, lm_history = self._process_result(
+                        value, inputs
+                    )
+                    self._cost = cost
+                    self._lm_history = lm_history
+                    final_result = result_dict
+
+                    if formatter is not None:
+                        ordered_final = OrderedDict()
+                        for key in inputs:
+                            if key in final_result:
+                                ordered_final[key] = final_result[key]
+                        for field_name in signature_order:
+                            if field_name in final_result:
+                                ordered_final[field_name] = final_result[field_name]
+                        for key, val in final_result.items():
+                            if key not in ordered_final:
+                                ordered_final[key] = val
+                        display_data.clear()
+                        display_data.update(ordered_final)
+                        _refresh_panel()
+
         if final_result is None:
             raise RuntimeError("Streaming did not yield a final prediction.")
-        final_result = self.filter_reasoning(
+
+        filtered_result = self.filter_reasoning(
             final_result, self.config.include_reasoning
         )
-        return self.filter_thought_process(
-            final_result, self.config.include_thought_process
+        filtered_result = self.filter_thought_process(
+            filtered_result, self.config.include_thought_process
         )
+
+        if not self.config.no_output:
+            context = getattr(agent, "context", None)
+            if context is not None:
+                context.state["_flock_stream_live_active"] = True
+
+        return filtered_result
 
     async def _execute_standard(self, agent_task, inputs: dict[str, Any], agent: Any) -> dict[str, Any]:
         """Execute DSPy program in standard mode (from original implementation)."""
@@ -260,6 +432,62 @@ class DeclarativeEvaluationComponent(
                 exc_info=True,
             )
             raise RuntimeError(f"Evaluation failed: {e}") from e
+
+    def _prepare_stream_formatter(
+        self, agent: Any
+    ) -> tuple[Any, dict[str, Any], dict[str, Any], str]:
+        """Build formatter + theme metadata for streaming tables."""
+        import pathlib
+
+        from flock.core.logging.formatters.themed_formatter import (
+            ThemedAgentResultFormatter,
+            create_pygments_syntax_theme,
+            get_default_styles,
+            load_syntax_theme_from_file,
+            load_theme_from_file,
+        )
+        from flock.core.logging.formatters.themes import OutputTheme
+
+        stream_theme = OutputTheme.afterglow
+        output_component = None
+        try:
+            output_component = agent.get_component("output_formatter")
+        except Exception:
+            output_component = None
+        if output_component and getattr(output_component, "config", None):
+            stream_theme = getattr(
+                output_component.config, "theme", stream_theme
+            )
+
+        formatter = ThemedAgentResultFormatter(theme=stream_theme)
+
+        themes_dir = pathlib.Path(__file__).resolve().parents[2] / "themes"
+        theme_filename = stream_theme.value
+        if not theme_filename.endswith(".toml"):
+            theme_filename = f"{theme_filename}.toml"
+        theme_path = themes_dir / theme_filename
+
+        try:
+            theme_dict = load_theme_from_file(theme_path)
+        except Exception:
+            fallback_path = themes_dir / "afterglow.toml"
+            theme_dict = load_theme_from_file(fallback_path)
+            theme_path = fallback_path
+
+        styles = get_default_styles(theme_dict)
+        formatter.styles = styles
+        try:
+            syntax_theme = load_syntax_theme_from_file(theme_path)
+            formatter.syntax_style = create_pygments_syntax_theme(syntax_theme)
+        except Exception:
+            formatter.syntax_style = None
+
+        model_label = getattr(agent, "model", None) or self.config.model or ""
+        agent_label = (
+            agent.name if not model_label else f"{agent.name} - {model_label}"
+        )
+
+        return formatter, theme_dict, styles, agent_label
 
     def filter_thought_process(
         self, result_dict: dict[str, Any], include_thought_process: bool

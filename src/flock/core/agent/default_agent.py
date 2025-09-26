@@ -8,7 +8,7 @@ and composes the standard components under the hood.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from flock.components.utility.metrics_utility_component import (
     MetricsUtilityComponent,
@@ -46,7 +46,9 @@ class DefaultAgent(FlockAgent):
         max_tokens: int | None = None,
         max_tool_calls: int = 0,
         max_retries: int = 2,
-        stream: bool = False,
+        stream: bool = True,
+        stream_callbacks: list[Callable[..., Any] | Any] | None = None,
+        stream_vertical_overflow: Literal["crop", "ellipsis", "crop_above", "visible"] = "crop_above",
         include_thought_process: bool = False,
         include_reasoning: bool = False,
         # Output utility parameters
@@ -84,6 +86,8 @@ class DefaultAgent(FlockAgent):
             max_tool_calls: Maximum number of tool calls per evaluation
             max_retries: Maximum retries for failed LLM calls
             stream: Whether to enable streaming responses
+            stream_callbacks: Optional callbacks invoked with each streaming chunk
+            stream_vertical_overflow: Rich Live overflow handling ('ellipsis', 'crop', 'crop_above', 'visible')
             include_thought_process: Include reasoning in output
             include_reasoning: Include detailed reasoning steps
             enable_rich_tables: Enable rich table formatting for output
@@ -119,7 +123,10 @@ class DefaultAgent(FlockAgent):
             temperature=temperature,
             max_tool_calls=max_tool_calls,
             max_retries=max_retries,
+            no_output=no_output,
             stream=stream,
+            stream_callbacks=stream_callbacks,
+            stream_vertical_overflow=stream_vertical_overflow,
             include_thought_process=include_thought_process,
             include_reasoning=include_reasoning,
         )
