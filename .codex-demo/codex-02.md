@@ -25,5 +25,3 @@ src\flock\webapp
 
 Screenshot:
 .codex-demo\image.png
-
-Make it so, that ALL the agent generates shows up in the streaming part, and check if this is the case by running 00-sanity.py
