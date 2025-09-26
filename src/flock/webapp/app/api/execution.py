@@ -1,6 +1,8 @@
 # src/flock/webapp/app/api/execution.py
+import asyncio
 import html
 import json
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -12,7 +14,7 @@ from fastapi import (  # Ensure Form and HTTPException are imported
     Request,
 )
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from werkzeug.utils import secure_filename
 
@@ -40,10 +42,6 @@ from flock.webapp.app.dependencies import (
 )
 
 # Service function now takes app_state
-from flock.webapp.app.services.flock_service import (
-    run_current_flock_service,
-    # get_current_flock_instance IS NO LONGER IMPORTED
-)
 from flock.webapp.app.services.sharing_store import SharedLinkStoreInterface
 
 router = APIRouter()
@@ -57,6 +55,183 @@ def markdown_filter(text):
 
 
 templates.env.filters["markdown"] = markdown_filter
+
+
+class ExecutionStreamManager:
+    """In-memory tracker for live streaming sessions."""
+
+    def __init__(self) -> None:
+        self._sessions: dict[str, asyncio.Queue] = {}
+        self._lock = asyncio.Lock()
+
+    async def create_session(self) -> tuple[str, asyncio.Queue]:
+        run_id = uuid.uuid4().hex
+        queue: asyncio.Queue = asyncio.Queue()
+        async with self._lock:
+            self._sessions[run_id] = queue
+        return run_id, queue
+
+    async def get_queue(self, run_id: str) -> asyncio.Queue | None:
+        async with self._lock:
+            return self._sessions.get(run_id)
+
+    async def remove_session(self, run_id: str) -> None:
+        async with self._lock:
+            self._sessions.pop(run_id, None)
+
+
+execution_stream_manager = ExecutionStreamManager()
+stream_logger = get_flock_logger("webapp.execution.stream")
+
+
+async def _execute_agent_with_stream(
+    run_id: str,
+    queue: asyncio.Queue,
+    start_agent_name: str,
+    inputs: dict[str, Any],
+    app_state: Any,
+    template_context: dict[str, Any],
+) -> None:
+    """Run the requested agent while forwarding streaming chunks to the UI."""
+
+    completed = False
+
+    def emit(payload: dict[str, Any]) -> None:
+        try:
+            queue.put_nowait(payload)
+        except asyncio.QueueFull:
+            stream_logger.warning(
+                "Dropping streaming payload for run %s due to full queue", run_id
+            )
+
+    async def terminate_with_error(message: str) -> None:
+        emit({"type": "error", "message": message})
+        await finalize_stream()
+
+    async def finalize_stream() -> None:
+        nonlocal completed
+        if not completed:
+            emit({"type": "complete"})
+            completed = True
+        await queue.put(None)
+
+    current_flock: "Flock | None" = getattr(app_state, "flock_instance", None)
+    run_store: RunStore | None = getattr(app_state, "run_store", None)
+
+    if not current_flock:
+        stream_logger.error("Stream run aborted: no flock loaded in app state.")
+        await terminate_with_error("No Flock loaded in the application.")
+        return
+
+    agent = current_flock.agents.get(start_agent_name)
+    if not agent:
+        stream_logger.error(
+            "Stream run aborted: agent '%s' not found in flock '%s'.",
+            start_agent_name,
+            current_flock.name,
+        )
+        await terminate_with_error(
+            f"Agent '{html.escape(str(start_agent_name))}' not found."
+        )
+        return
+
+    evaluator = getattr(agent, "evaluator", None)
+    previous_callbacks: list[Any] | None = None
+    original_stream_setting: bool | None = None
+
+    if evaluator is not None:
+        previous_callbacks = list(evaluator.config.stream_callbacks or [])
+        original_stream_setting = getattr(evaluator.config, "stream", False)
+
+        def stream_callback(message: Any) -> None:
+            chunk = getattr(message, "chunk", None)
+            signature_field = getattr(message, "signature_field_name", None)
+            if chunk is None:
+                return
+            emit(
+                {
+                    "type": "token",
+                    "chunk": str(chunk),
+                    "field": signature_field,
+                }
+            )
+
+        evaluator.config.stream_callbacks = [
+            *previous_callbacks,
+            stream_callback,
+        ]
+        if not original_stream_setting:
+            evaluator.config.stream = True
+    else:
+        emit(
+            {
+                "type": "status",
+                "message": "Streaming not available for this agent; results will appear when the run completes.",
+            }
+        )
+
+    try:
+        emit(
+            {
+                "type": "status",
+                "message": f"Running agent '{start_agent_name}'...",
+            }
+        )
+        result_data = await current_flock.run_async(
+            agent=start_agent_name, input=inputs, box_result=False
+        )
+
+        if run_store and hasattr(run_store, "add_run_details"):
+            run_identifier = (
+                result_data.get("run_id", run_id)
+                if isinstance(result_data, dict)
+                else run_id
+            )
+            run_store.add_run_details(
+                run_id=run_identifier,
+                agent_name=start_agent_name,
+                inputs=inputs,
+                outputs=result_data,
+            )
+
+        encoded_result = jsonable_encoder(result_data)
+        raw_json = json.dumps(
+            encoded_result, indent=2, ensure_ascii=False
+        ).replace("\\n", "\n")
+
+        template = templates.get_template("partials/_results_display.html")
+        final_html = template.render(
+            {
+                **template_context,
+                "result": result_data,
+                "result_raw_json": raw_json,
+            }
+        )
+
+        emit(
+            {
+                "type": "final",
+                "html": final_html,
+                "result": encoded_result,
+                "raw_json": raw_json,
+            }
+        )
+    except Exception as exc:  # pragma: no cover - defensive logging
+        stream_logger.error(
+            "Streamed execution for agent '%s' failed: %s",
+            start_agent_name,
+            exc,
+            exc_info=True,
+        )
+        await terminate_with_error(f"An error occurred: {html.escape(str(exc))}")
+        return
+    finally:
+        if evaluator is not None:
+            if previous_callbacks is not None:
+                evaluator.config.stream_callbacks = previous_callbacks
+            if original_stream_setting is not None:
+                evaluator.config.stream = original_stream_setting
+    await finalize_stream()
 
 
 @router.get("/htmx/execution-form-content", response_class=HTMLResponse)
@@ -203,33 +378,66 @@ async def htmx_run_flock(
                 f"<p class='error'>Error processing inputs for {html.escape(str(start_agent_name))}: {html.escape(str(e_parse))}</p>"
             )
 
-    result_data = await run_current_flock_service(
-        start_agent_name, inputs, request.app.state
+    run_id, queue = await execution_stream_manager.create_session()
+    stream_url = str(request.url_for("htmx_stream_run", run_id=run_id))
+    root_path = request.scope.get("root_path", "")
+
+    template_context = {
+        "request": request,
+        "feedback_endpoint": f"{root_path}/ui/api/flock/htmx/feedback",
+        "share_id": None,
+        "flock_name": current_flock_from_state.name,
+        "agent_name": start_agent_name,
+        "flock_definition": current_flock_from_state.to_yaml(),
+    }
+
+    asyncio.create_task(
+        _execute_agent_with_stream(
+            run_id=run_id,
+            queue=queue,
+            start_agent_name=start_agent_name,
+            inputs=inputs,
+            app_state=request.app.state,
+            template_context=template_context,
+        )
     )
 
-    raw_json_for_template = json.dumps(
-        jsonable_encoder(
-            result_data
-        ),  # ← converts every nested BaseModel, datetime, etc.
-        indent=2,
-        ensure_ascii=False,
-    )
-    # Unescape newlines for proper display in HTML <pre> tag
-    result_data_raw_json_str = raw_json_for_template.replace("\\n", "\n")
-    root_path = request.scope.get("root_path", "")
     return templates.TemplateResponse(
-        "partials/_results_display.html",
+        "partials/_streaming_results_container.html",
         {
             "request": request,
-            "result": result_data,
-            "result_raw_json": result_data_raw_json_str,
-            "feedback_endpoint": f"{root_path}/ui/api/flock/htmx/feedback",
-            "share_id": None,
-            "flock_name": current_flock_from_state.name,
+            "run_id": run_id,
+            "stream_url": stream_url,
             "agent_name": start_agent_name,
-            "flock_definition": current_flock_from_state.to_yaml(),
+            "flock_name": current_flock_from_state.name,
         },
     )
+
+
+@router.get("/htmx/run-stream/{run_id}")
+async def htmx_stream_run(run_id: str):
+    """Server-Sent Events endpoint streaming live agent output."""
+
+    queue = await execution_stream_manager.get_queue(run_id)
+    if queue is None:
+        return HTMLResponse(
+            "<p class='error'>Streaming session not found or already closed.</p>",
+            status_code=404,
+        )
+
+    async def event_generator():
+        try:
+            while True:
+                payload = await queue.get()
+                if payload is None:
+                    yield "event: close\ndata: {}\n\n"
+                    break
+                data = json.dumps(payload, ensure_ascii=False)
+                yield f"data: {data}\n\n"
+        finally:
+            await execution_stream_manager.remove_session(run_id)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 # --- NEW ENDPOINT FOR SHARED RUNS ---

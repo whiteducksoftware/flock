@@ -9,7 +9,7 @@ please read @AGENTS.md to get an overview of this repository.
 It's an agent framework managed with uv (so use uv commands where applicable)
 
 analyze the code in src/flock in-depth until you have an understanding on how this codebase works and do a sanity check by running
-"uv run .showcase/00-new-examples/00-sanity.py"
+"uv run flock-showcase/00-new-examples/01-hello-flock.py"
 to see it live in action.
 
 Flock's answer is getting streamed per default (stream=True property)

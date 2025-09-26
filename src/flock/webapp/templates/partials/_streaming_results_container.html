@@ -1,0 +1,149 @@
+<div id="streaming-results-wrapper"
+     data-run-id="{{ run_id }}"
+     data-stream-url="{{ stream_url }}"
+     data-target-id="results-display"
+     data-agent-name="{{ agent_name }}">
+    <header style="margin-bottom: 0.75rem;">
+        <h5 style="margin: 0;">Streaming {{ agent_name }}</h5>
+        <p style="margin: 0; color: var(--pico-muted-color);">Live output appears below while the agent runs.</p>
+    </header>
+
+    <p class="error" data-role="error" hidden></p>
+    <pre class="stream-output" data-role="output" style="min-height: 8rem; white-space: pre-wrap; word-break: break-word;">Connecting to agent…</pre>
+    <div data-role="progress" style="margin-top: 0.5rem;" role="status">
+        <progress indeterminate></progress> Streaming response…
+    </div>
+</div>
+
+<script>
+(function () {
+    const script = document.currentScript;
+    if (!script) {
+        return;
+    }
+    const wrapper = script.previousElementSibling;
+    if (!(wrapper instanceof HTMLElement)) {
+        return;
+    }
+    if (wrapper.dataset.streamInit === '1') {
+        return;
+    }
+    wrapper.dataset.streamInit = '1';
+
+    const streamUrl = wrapper.dataset.streamUrl;
+    const runId = wrapper.dataset.runId;
+    const targetId = wrapper.dataset.targetId || 'results-display';
+
+    const outputEl = wrapper.querySelector('[data-role="output"]');
+    const errorEl = wrapper.querySelector('[data-role="error"]');
+    const progressEl = wrapper.querySelector('[data-role="progress"]');
+
+    if (!streamUrl || !runId || !(outputEl instanceof HTMLElement)) {
+        if (errorEl instanceof HTMLElement) {
+            errorEl.textContent = 'Streaming setup failed due to missing metadata.';
+            errorEl.hidden = false;
+        }
+        if (progressEl instanceof HTMLElement) {
+            progressEl.hidden = true;
+        }
+        return;
+    }
+
+    let streamText = '';
+    let source;
+
+    function showError(message) {
+        if (errorEl instanceof HTMLElement) {
+            errorEl.textContent = message;
+            errorEl.hidden = false;
+        }
+        if (progressEl instanceof HTMLElement) {
+            progressEl.hidden = true;
+        }
+    }
+
+    function closeStream() {
+        if (source) {
+            source.close();
+            source = undefined;
+        }
+        if (progressEl instanceof HTMLElement) {
+            progressEl.hidden = true;
+        }
+    }
+
+    function renderFinal(html, rawJson) {
+        const target = document.getElementById(targetId);
+        if (!target) {
+            return;
+        }
+        target.innerHTML = html;
+        if (window.htmx) {
+            window.htmx.process(target);
+        }
+        if (window.Prism) {
+            window.Prism.highlightAllUnder(target);
+        }
+        if (rawJson && outputEl instanceof HTMLElement) {
+            outputEl.textContent = '';
+        }
+    }
+
+    try {
+        source = new EventSource(streamUrl);
+    } catch (err) {
+        console.error('Failed to start EventSource', err);
+        showError('Failed to connect for streaming.');
+        return;
+    }
+
+    source.onmessage = (event) => {
+        if (!event.data) {
+            return;
+        }
+        let payload;
+        try {
+            payload = JSON.parse(event.data);
+        } catch (err) {
+            console.warn('Unable to parse streaming payload', err);
+            return;
+        }
+
+        switch (payload.type) {
+            case 'token':
+                if (typeof payload.chunk === 'string' && outputEl instanceof HTMLElement) {
+                    streamText += payload.chunk;
+                    outputEl.textContent = streamText;
+                }
+                break;
+            case 'status':
+                if (payload.message && outputEl instanceof HTMLElement) {
+                    if (streamText && !streamText.endsWith('\n')) {
+                        streamText += '\n';
+                    }
+                    streamText += payload.message + '\n';
+                    outputEl.textContent = streamText;
+                }
+                break;
+            case 'error':
+                showError(payload.message || 'An unexpected error occurred while streaming.');
+                closeStream();
+                break;
+            case 'final':
+                closeStream();
+                renderFinal(payload.html || '', payload.raw_json || payload.rawJson);
+                break;
+            case 'complete':
+                closeStream();
+                break;
+            default:
+                break;
+        }
+    };
+
+    source.onerror = () => {
+        showError('Connection lost while streaming.');
+        closeStream();
+    };
+})();
+</script>
