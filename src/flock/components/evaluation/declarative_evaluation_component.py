@@ -289,6 +289,7 @@ class DeclarativeEvaluationComponent(
         stream_buffers: defaultdict[str, list[str]] = defaultdict(list)
 
         formatter = theme_dict = styles = agent_label = None
+        _ensure_live_crop_above()
         live_cm = nullcontext()
         initial_panel = None
         overflow_mode = self.config.stream_vertical_overflow
