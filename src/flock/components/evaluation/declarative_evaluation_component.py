@@ -24,6 +24,73 @@ from flock.core.registry import flock_component
 logger = get_logger("components.evaluation.declarative")
 
 
+_live_patch_applied = False
+
+
+def _ensure_live_crop_above() -> None:
+    """Monkeypatch rich.live_render to support 'crop_above' overflow."""
+    global _live_patch_applied
+    if _live_patch_applied:
+        return
+    try:
+        from typing import Literal as _Literal
+
+        from rich import live_render as _lr
+    except Exception:
+        return
+
+    # Extend the accepted literal at runtime so type checks don't block the new option.
+    current_args = getattr(_lr.VerticalOverflowMethod, '__args__', ())
+    if 'crop_above' not in current_args:
+        _lr.VerticalOverflowMethod = _Literal['crop', 'crop_above', 'ellipsis', 'visible']  # type: ignore[assignment]
+
+    if getattr(_lr.LiveRender.__rich_console__, '_flock_crop_above', False):
+        _live_patch_applied = True
+        return
+
+    Segment = _lr.Segment
+    Text = _lr.Text
+    loop_last = _lr.loop_last
+
+    def _patched_rich_console(self, console, options):
+        renderable = self.renderable
+        style = console.get_style(self.style)
+        lines = console.render_lines(renderable, options, style=style, pad=False)
+        shape = Segment.get_shape(lines)
+
+        _, height = shape
+        max_height = options.size.height
+        if height > max_height:
+            if self.vertical_overflow == 'crop':
+                lines = lines[: max_height]
+                shape = Segment.get_shape(lines)
+            elif self.vertical_overflow == 'crop_above':
+                lines = lines[-max_height:]
+                shape = Segment.get_shape(lines)
+            elif self.vertical_overflow == 'ellipsis' and max_height > 0:
+                lines = lines[: (max_height - 1)]
+                overflow_text = Text(
+                    '...',
+                    overflow='crop',
+                    justify='center',
+                    end='',
+                    style='live.ellipsis',
+                )
+                lines.append(list(console.render(overflow_text)))
+                shape = Segment.get_shape(lines)
+        self._shape = shape
+
+        new_line = Segment.line()
+        for last, line in loop_last(lines):
+            yield from line
+            if not last:
+                yield new_line
+
+    _patched_rich_console._flock_crop_above = True  # type: ignore[attr-defined]
+    _lr.LiveRender.__rich_console__ = _patched_rich_console
+    _live_patch_applied = True
+
+
 class DeclarativeEvaluationConfig(AgentComponentConfig):
     """Configuration for the DeclarativeEvaluationComponent."""
 
@@ -59,6 +126,10 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
         description="Extraction LM for TwoStepAdapter when adapter='two_step'",
     )
     stream_callbacks: list[Callable[..., Any] | Any] | None = None
+    stream_vertical_overflow: Literal["crop", "ellipsis", "crop_above", "visible"] = Field(
+        default="crop_above",
+        description=("Rich Live vertical overflow strategy; select how tall output is handled; 'crop_above' keeps the most recent rows visible."),
+    )
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -198,6 +269,7 @@ class DeclarativeEvaluationComponent(
         stream_generator: Generator = streaming_task(**inputs)
 
         from collections import defaultdict
+
         from rich.live import Live
 
         signature_order = []
@@ -207,7 +279,7 @@ class DeclarativeEvaluationComponent(
             signature_order = []
 
         display_data: OrderedDict[str, Any] = OrderedDict()
-        for key in inputs.keys():
+        for key in inputs:
             display_data[key] = inputs[key]
 
         for field_name in signature_order:
@@ -218,6 +290,8 @@ class DeclarativeEvaluationComponent(
 
         formatter = theme_dict = styles = agent_label = None
         live_cm = nullcontext()
+        initial_panel = None
+        overflow_mode = self.config.stream_vertical_overflow
         if not self.config.no_output:
             (
                 formatter,
@@ -232,21 +306,22 @@ class DeclarativeEvaluationComponent(
                 initial_panel,
                 console=console,
                 refresh_per_second=8,
-                transient=False,
-                vertical_overflow="visible",
+                transient=True,
+                vertical_overflow=overflow_mode,
             )
 
         final_result: dict[str, Any] | None = None
+        final_panel = initial_panel if formatter is not None else None
 
         with live_cm as live:
             def _refresh_panel() -> None:
+                nonlocal final_panel
                 if formatter is None or live is None:
                     return
-                live.update(
-                    formatter.format_result(
-                        display_data, agent_label, theme_dict, styles
-                    )
+                final_panel = formatter.format_result(
+                    display_data, agent_label, theme_dict, styles
                 )
+                live.update(final_panel)
 
             async for value in stream_generator:
                 try:
@@ -305,7 +380,7 @@ class DeclarativeEvaluationComponent(
 
                     if formatter is not None:
                         ordered_final = OrderedDict()
-                        for key in inputs.keys():
+                        for key in inputs:
                             if key in final_result:
                                 ordered_final[key] = final_result[key]
                         for field_name in signature_order:
@@ -317,6 +392,9 @@ class DeclarativeEvaluationComponent(
                         display_data.clear()
                         display_data.update(ordered_final)
                         _refresh_panel()
+
+        if formatter is not None and final_panel is not None and not self.config.no_output:
+            console.print(final_panel)
 
         if final_result is None:
             raise RuntimeError("Streaming did not yield a final prediction.")
@@ -362,6 +440,8 @@ class DeclarativeEvaluationComponent(
         self, agent: Any
     ) -> tuple[Any, dict[str, Any], dict[str, Any], str]:
         """Build formatter + theme metadata for streaming tables."""
+        import pathlib
+
         from flock.core.logging.formatters.themed_formatter import (
             ThemedAgentResultFormatter,
             create_pygments_syntax_theme,
@@ -370,7 +450,6 @@ class DeclarativeEvaluationComponent(
             load_theme_from_file,
         )
         from flock.core.logging.formatters.themes import OutputTheme
-        import pathlib
 
         stream_theme = OutputTheme.afterglow
         output_component = None
