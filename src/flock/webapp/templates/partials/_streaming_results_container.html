@@ -9,7 +9,7 @@
     </header>
 
     <p class="error" data-role="error" hidden></p>
-    <pre class="stream-output" data-role="output" style="min-height: 8rem; white-space: pre-wrap; word-break: break-word;">Connecting to agent…</pre>
+    <div class="stream-output" data-role="output" style="min-height: 8rem; white-space: normal; word-break: break-word; font-family: var(--pico-code-font-family, monospace);">Connecting to agent…</div>
     <div data-role="progress" style="margin-top: 0.5rem;" role="status">
         <progress indeterminate></progress> Streaming response…
     </div>
@@ -49,8 +49,44 @@
         return;
     }
 
-    let streamText = '';
+    let plainText = outputEl instanceof HTMLElement ? outputEl.textContent || '' : '';
     let source;
+    const fieldValues = new Map();
+    let latestStatus = '';
+
+    function escapeHtml(value) {
+        return value.replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        })[char]);
+    }
+
+    function renderTableCell(value) {
+        return escapeHtml(value).replace(/\n/g, '<br>');
+    }
+
+    function renderStream() {
+        if (!(outputEl instanceof HTMLElement)) {
+            return;
+        }
+        if (fieldValues.size > 0) {
+            outputEl.style.whiteSpace = 'normal';
+            let rows = '';
+            fieldValues.forEach((value, field) => {
+                rows += `<tr><td class="stream-field" style="white-space: nowrap; padding-right: 1rem; vertical-align: top;">${escapeHtml(field)}</td><td>${renderTableCell(value)}</td></tr>`;
+            });
+            if (latestStatus) {
+                rows += `<tr class="stream-status"><td class="stream-field" style="white-space: nowrap; padding-right: 1rem; vertical-align: top;">status</td><td>${escapeHtml(latestStatus)}</td></tr>`;
+            }
+            outputEl.innerHTML = `<table class="structured-table streaming-table" style="width:100%; border-collapse: collapse; table-layout: auto;"><tbody>${rows}</tbody></table>`;
+        } else {
+            outputEl.style.whiteSpace = 'pre-wrap';
+            outputEl.textContent = plainText;
+        }
+    }
 
     function showError(message) {
         if (errorEl instanceof HTMLElement) {
@@ -70,6 +106,7 @@
         if (progressEl instanceof HTMLElement) {
             progressEl.hidden = true;
         }
+        renderStream();
     }
 
     function renderFinal(html, rawJson) {
@@ -84,7 +121,7 @@
         if (window.Prism) {
             window.Prism.highlightAllUnder(target);
         }
-        if (rawJson && outputEl instanceof HTMLElement) {
+        if (outputEl instanceof HTMLElement) {
             outputEl.textContent = '';
         }
     }
@@ -111,18 +148,27 @@
 
         switch (payload.type) {
             case 'token':
-                if (typeof payload.chunk === 'string' && outputEl instanceof HTMLElement) {
-                    streamText += payload.chunk;
-                    outputEl.textContent = streamText;
+                if (typeof payload.chunk === 'string') {
+                    if (payload.field) {
+                        const existing = fieldValues.get(payload.field) || '';
+                        fieldValues.set(payload.field, existing + payload.chunk);
+                    } else {
+                        plainText = (plainText === 'Connecting to agent…' ? '' : plainText) + payload.chunk;
+                    }
+                    renderStream();
                 }
                 break;
             case 'status':
-                if (payload.message && outputEl instanceof HTMLElement) {
-                    if (streamText && !streamText.endsWith('\n')) {
-                        streamText += '\n';
+                if (payload.message) {
+                    latestStatus = payload.message;
+                    if (fieldValues.size === 0) {
+                        plainText = (plainText === 'Connecting to agent…' ? '' : plainText);
+                        if (plainText && !plainText.endsWith('\n')) {
+                            plainText += '\n';
+                        }
+                        plainText += payload.message + '\n';
                     }
-                    streamText += payload.message + '\n';
-                    outputEl.textContent = streamText;
+                    renderStream();
                 }
                 break;
             case 'error':
