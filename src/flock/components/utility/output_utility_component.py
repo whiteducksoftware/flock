@@ -146,10 +146,22 @@ class OutputUtilityComponent(UtilityComponent):
         """Format and display the output."""
         logger.debug("Formatting and displaying output")
 
+        streaming_live_handled = False
+        if context:
+            streaming_live_handled = bool(
+                context.get_variable("_flock_stream_live_active", False)
+            )
+            if streaming_live_handled:
+                context.state.pop("_flock_stream_live_active", None)
+
         # Determine if output should be suppressed
         is_silent = self.config.no_output or (
             context and context.get_variable(FLOCK_BATCH_SILENT_MODE, False)
         )
+
+        if streaming_live_handled:
+            logger.debug("Skipping static table because streaming rendered live output.")
+            return result
 
         if is_silent:
             logger.debug("Output suppressed (config or batch silent mode).")

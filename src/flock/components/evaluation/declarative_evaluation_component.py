@@ -233,6 +233,7 @@ class DeclarativeEvaluationComponent(
                 console=console,
                 refresh_per_second=8,
                 transient=False,
+                vertical_overflow="visible",
             )
 
         final_result: dict[str, Any] | None = None
@@ -326,6 +327,12 @@ class DeclarativeEvaluationComponent(
         filtered_result = self.filter_thought_process(
             filtered_result, self.config.include_thought_process
         )
+
+        if not self.config.no_output:
+            context = getattr(agent, "context", None)
+            if context is not None:
+                context.state["_flock_stream_live_active"] = True
+
         return filtered_result
 
     async def _execute_standard(self, agent_task, inputs: dict[str, Any], agent: Any) -> dict[str, Any]:
