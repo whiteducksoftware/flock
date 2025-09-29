@@ -25,10 +25,12 @@ flock.add_server(read_website_fast_mcp_server)
 
 agent = FlockFactory.create_default_agent(
     name="my_agent",
+    description="Analyses an URI and writes a report to report.md",
     input="url",
     output="title, headings: list[str],"
     "entities_and_metadata: list[dict[str, str]],"
-    "type:Literal['news', 'blog', 'opinion piece', 'tweet']",
+    "type:Literal['news', 'blog', 'opinion piece', 'tweet'],"
+    "output_path: str",
     servers=[read_website_fast_mcp_server],
     tools=[write_file],
     enable_rich_tables=True,  # Instead of the json output, you can use the rich library to render the output as a table

@@ -13,7 +13,7 @@ __pycache__/
 .DS_Store
 flock-showcase/
 .showcase/
-
+report.md
 # Distribution / packaging
 .Python
 build/
