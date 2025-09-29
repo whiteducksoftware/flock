@@ -40,11 +40,13 @@ def _ensure_live_crop_above() -> None:
         return
 
     # Extend the accepted literal at runtime so type checks don't block the new option.
-    current_args = getattr(_lr.VerticalOverflowMethod, '__args__', ())
-    if 'crop_above' not in current_args:
-        _lr.VerticalOverflowMethod = _Literal['crop', 'crop_above', 'ellipsis', 'visible']  # type: ignore[assignment]
+    current_args = getattr(_lr.VerticalOverflowMethod, "__args__", ())
+    if "crop_above" not in current_args:
+        _lr.VerticalOverflowMethod = _Literal[
+            "crop", "crop_above", "ellipsis", "visible"
+        ]  # type: ignore[assignment]
 
-    if getattr(_lr.LiveRender.__rich_console__, '_flock_crop_above', False):
+    if getattr(_lr.LiveRender.__rich_console__, "_flock_crop_above", False):
         _live_patch_applied = True
         return
 
@@ -55,26 +57,28 @@ def _ensure_live_crop_above() -> None:
     def _patched_rich_console(self, console, options):
         renderable = self.renderable
         style = console.get_style(self.style)
-        lines = console.render_lines(renderable, options, style=style, pad=False)
+        lines = console.render_lines(
+            renderable, options, style=style, pad=False
+        )
         shape = Segment.get_shape(lines)
 
         _, height = shape
         max_height = options.size.height
         if height > max_height:
-            if self.vertical_overflow == 'crop':
-                lines = lines[: max_height]
+            if self.vertical_overflow == "crop":
+                lines = lines[:max_height]
                 shape = Segment.get_shape(lines)
-            elif self.vertical_overflow == 'crop_above':
+            elif self.vertical_overflow == "crop_above":
                 lines = lines[-max_height:]
                 shape = Segment.get_shape(lines)
-            elif self.vertical_overflow == 'ellipsis' and max_height > 0:
+            elif self.vertical_overflow == "ellipsis" and max_height > 0:
                 lines = lines[: (max_height - 1)]
                 overflow_text = Text(
-                    '...',
-                    overflow='crop',
-                    justify='center',
-                    end='',
-                    style='live.ellipsis',
+                    "...",
+                    overflow="crop",
+                    justify="center",
+                    end="",
+                    style="live.ellipsis",
                 )
                 lines.append(list(console.render(overflow_text)))
                 shape = Segment.get_shape(lines)
@@ -126,9 +130,13 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
         description="Extraction LM for TwoStepAdapter when adapter='two_step'",
     )
     stream_callbacks: list[Callable[..., Any] | Any] | None = None
-    stream_vertical_overflow: Literal["crop", "ellipsis", "crop_above", "visible"] = Field(
+    stream_vertical_overflow: Literal[
+        "crop", "ellipsis", "crop_above", "visible"
+    ] = Field(
         default="crop_above",
-        description=("Rich Live vertical overflow strategy; select how tall output is handled; 'crop_above' keeps the most recent rows visible."),
+        description=(
+            "Rich Live vertical overflow strategy; select how tall output is handled; 'crop_above' keeps the most recent rows visible."
+        ),
     )
     kwargs: dict[str, Any] = Field(default_factory=dict)
 
@@ -138,7 +146,7 @@ class DeclarativeEvaluationComponent(
     EvaluationComponent, DSPyIntegrationMixin, PromptParserMixin
 ):
     """Evaluation component that uses DSPy for generation.
-    
+
     This component provides the core intelligence for agents using DSPy's
     declarative programming model. It handles LLM interactions, tool usage,
     and prompt management through DSPy's framework.
@@ -156,7 +164,9 @@ class DeclarativeEvaluationComponent(
         super().__init__(**data)
 
     @override
-    def set_model(self, model: str, temperature: float = 1.0, max_tokens: int = 32000) -> None:
+    def set_model(
+        self, model: str, temperature: float = 1.0, max_tokens: int = 32000
+    ) -> None:
         """Set the model for the evaluation component."""
         self.config.model = model
         self.config.temperature = temperature
@@ -171,7 +181,9 @@ class DeclarativeEvaluationComponent(
         mcp_tools: list[Any] | None = None,
     ) -> dict[str, Any]:
         """Core evaluation logic using DSPy - migrated from DeclarativeEvaluator."""
-        logger.debug(f"Starting declarative evaluation for component '{self.name}'")
+        logger.debug(
+            f"Starting declarative evaluation for component '{self.name}'"
+        )
 
         # Prepare LM and optional adapter; keep settings changes scoped with dspy.context
         lm = dspy.LM(
@@ -190,17 +202,22 @@ class DeclarativeEvaluationComponent(
                 elif self.config.adapter == "xml":
                     adapter = dspy.XMLAdapter()
                 elif self.config.adapter == "two_step":
-                    extractor = dspy.LM(self.config.extraction_model or "openai/gpt-4o-mini")
+                    extractor = dspy.LM(
+                        self.config.extraction_model or "openai/gpt-4o-mini"
+                    )
                     adapter = dspy.TwoStepAdapter(extraction_model=extractor)
                 else:
                     # chat is default; leave adapter=None
                     adapter = None
             except Exception as e:
-                logger.warning(f"Failed to construct adapter '{self.config.adapter}': {e}. Proceeding without.")
+                logger.warning(
+                    f"Failed to construct adapter '{self.config.adapter}': {e}. Proceeding without."
+                )
 
         with dspy.context(lm=lm, adapter=adapter):
             try:
                 from rich.console import Console
+
                 console = Console()
 
                 # Create DSPy signature from agent definition
@@ -238,17 +255,23 @@ class DeclarativeEvaluationComponent(
 
             # Execute with streaming or non-streaming
             if self.config.stream:
-                return await self._execute_streaming(_dspy_signature, agent_task, inputs, agent, console)
+                return await self._execute_streaming(
+                    _dspy_signature, agent_task, inputs, agent, console
+                )
             else:
                 return await self._execute_standard(agent_task, inputs, agent)
 
-    async def _execute_streaming(self, signature, agent_task, inputs: dict[str, Any], agent: Any, console) -> dict[str, Any]:
+    async def _execute_streaming(
+        self, signature, agent_task, inputs: dict[str, Any], agent: Any, console
+    ) -> dict[str, Any]:
         """Execute DSPy program in streaming mode with rich table updates."""
         logger.info(f"Evaluating agent '{agent.name}' with async streaming.")
 
         if not callable(agent_task):
             logger.error("agent_task is not callable, cannot stream.")
-            raise TypeError("DSPy task could not be created or is not callable.")
+            raise TypeError(
+                "DSPy task could not be created or is not callable."
+            )
 
         # Prepare stream listeners for any string output fields
         listeners = []
@@ -306,7 +329,7 @@ class DeclarativeEvaluationComponent(
             live_cm = Live(
                 initial_panel,
                 console=console,
-                refresh_per_second=400,
+                refresh_per_second=4,
                 transient=False,
                 vertical_overflow=overflow_mode,
             )
@@ -314,6 +337,7 @@ class DeclarativeEvaluationComponent(
         final_result: dict[str, Any] | None = None
 
         with live_cm as live:
+
             def _refresh_panel() -> None:
                 if formatter is None or live is None:
                     return
@@ -347,7 +371,9 @@ class DeclarativeEvaluationComponent(
                         except Exception as e:
                             logger.warning(f"Stream callback error: {e}")
                     token = getattr(value, "chunk", None)
-                    signature_field = getattr(value, "signature_field_name", None)
+                    signature_field = getattr(
+                        value, "signature_field_name", None
+                    )
                     if signature_field:
                         if signature_field not in display_data:
                             display_data[signature_field] = ""
@@ -385,7 +411,9 @@ class DeclarativeEvaluationComponent(
                                 ordered_final[key] = final_result[key]
                         for field_name in signature_order:
                             if field_name in final_result:
-                                ordered_final[field_name] = final_result[field_name]
+                                ordered_final[field_name] = final_result[
+                                    field_name
+                                ]
                         for key, val in final_result.items():
                             if key not in ordered_final:
                                 ordered_final[key] = val
@@ -410,14 +438,18 @@ class DeclarativeEvaluationComponent(
 
         return filtered_result
 
-    async def _execute_standard(self, agent_task, inputs: dict[str, Any], agent: Any) -> dict[str, Any]:
+    async def _execute_standard(
+        self, agent_task, inputs: dict[str, Any], agent: Any
+    ) -> dict[str, Any]:
         """Execute DSPy program in standard mode (from original implementation)."""
         logger.info(f"Evaluating agent '{agent.name}' without streaming.")
 
         try:
             # Ensure the call is awaited if the underlying task is async
             result_obj = await agent_task.acall(**inputs)
-            result_dict, cost, lm_history = self._process_result(result_obj, inputs)
+            result_dict, cost, lm_history = self._process_result(
+                result_obj, inputs
+            )
             self._cost = cost
             self._lm_history = lm_history
             result_dict = self.filter_reasoning(
