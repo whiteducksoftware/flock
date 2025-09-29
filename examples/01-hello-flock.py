@@ -2,7 +2,7 @@ from flock.cli.utils import print_header, print_subheader
 from flock.core import DefaultAgent, Flock
 
 # 1. Create the main orchestrator
-my_flock = Flock(model="openai/gpt-5-mini")  # Uses DEFAULT_MODEL from environment if set
+my_flock = Flock()  # Uses DEFAULT_MODEL from environment if set
 
 # 2. Declaratively define an agent
 prd_agent = DefaultAgent(
