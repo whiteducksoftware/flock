@@ -155,7 +155,11 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
                     await self.post_init()
             if not self.config.allow_all_tools:
                 whitelist = self.config.feature_config.tool_whitelist
-                if whitelist is not None and len(whitelist) > 0 and name not in whitelist:
+                if (
+                    whitelist is not None
+                    and len(whitelist) > 0
+                    and name not in whitelist
+                ):
                     return None
             async with self.condition:
                 try:
@@ -267,6 +271,7 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
                     error=str(module_error),
                 )
                 span.record_exception(module_error)
+            return additional_params
 
     async def pre_init(self) -> None:
         """Run pre-init hooks on modules."""
@@ -276,11 +281,15 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
         with tracer.start_as_current_span("server.pre_init") as span:
             span.set_attribute("server.name", self.config.name)
             # run whitelist checks
-            whitelist = self.config.feature_config
-            if whitelist is not None and len(whitelist) > 0:
-                self.config.feature_config = False
-            else:
-                # if the whitelist is none..
+            feature_config = self.config.feature_config
+            whitelist = (
+                feature_config.tool_whitelist if feature_config else None
+            )
+            if whitelist:
+                # Enforce whitelist usage by disabling blanket tool access
+                self.config.allow_all_tools = False
+            elif whitelist is None:
+                # No whitelist configured; ensure defaults allow full access
                 self.config.allow_all_tools = True
             try:
                 for module in self.get_enabled_components():
@@ -449,7 +458,7 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
                 span.record_exception(server_error)
 
     # --- Serialization Implementation ---
-    def to_dict(self, path_type: str = "relative") -> dict[str, Any]:
+    def to_dict(self, path_type: str = "relative") -> dict[str, Any]:  # noqa: C901 - TODO: refactor to simplify serialization logic
         """Convert instance to dictionary representation suitable for serialization."""
         from flock.core.registry import get_registry
 
@@ -468,7 +477,6 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
         # --- Let the config handle its own serialization ---
         config_data = self.config.to_dict(path_type=path_type)
         data["config"] = config_data
-
 
         builtin_by_transport = {}
 
@@ -638,7 +646,13 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
             data["config"] = config_object
 
         # now construct
-        server = real_cls(**{k: v for k, v in data.items() if k not in ["modules", "components"]})
+        server = real_cls(
+            **{
+                k: v
+                for k, v in data.items()
+                if k not in ["modules", "components"]
+            }
+        )
 
         # re-hydrate components (both legacy modules and new components)
         for cname, cdata in data.get("components", {}).items():
@@ -646,7 +660,9 @@ class FlockMCPServer(BaseModel, Serializable, ABC):
 
         # Handle legacy modules for backward compatibility during transition
         for mname, mdata in data.get("modules", {}).items():
-            logger.warning(f"Legacy module '{mname}' found during deserialization - consider migrating to unified components")
+            logger.warning(
+                f"Legacy module '{mname}' found during deserialization - consider migrating to unified components"
+            )
             # Skip legacy modules during migration
 
         # --- Separate Data ---
