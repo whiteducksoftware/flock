@@ -38,7 +38,6 @@ presentation_agent = DefaultAgent(
     "runtime: int | The runtime of the movie in minutes, "
     "synopsis: str | A crazy over the top synopsis of the movie, "
     "characters: list[dict[str, str]] | Key is character name, Value is a character description ",
-    tools=[save_movie_to_file],
 )
 flock.add_agent(presentation_agent)
 
