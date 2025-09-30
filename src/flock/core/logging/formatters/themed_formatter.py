@@ -256,6 +256,14 @@ def create_rich_renderable(
     if styles is None:
         styles = get_default_styles(theme)
 
+    # Convert Pydantic BaseModel instances to dicts for rendering
+    try:
+        from pydantic import BaseModel
+        if isinstance(value, BaseModel):
+            value = value.model_dump()
+    except ImportError:
+        pass
+
     # If the value is a dictionary, render it as a table.
     if isinstance(value, dict):
         # Convert table_box string into an actual box style.

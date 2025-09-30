@@ -44,13 +44,14 @@ class DefaultAgent(FlockAgent):
         use_cache: bool = False,
         temperature: float = 0.7,
         max_tokens: int | None = None,
-        max_tool_calls: int = 0,
+        max_tool_calls: int = 10,
         max_retries: int = 2,
         stream: bool = True,
         stream_callbacks: list[Callable[..., Any] | Any] | None = None,
         stream_vertical_overflow: Literal["crop", "ellipsis", "crop_above", "visible"] = "crop_above",
         include_thought_process: bool = False,
         include_reasoning: bool = False,
+        include_status_output: bool = False,
         # Output utility parameters
         enable_rich_tables: bool = True,
         output_theme: OutputTheme | None = None,
@@ -90,6 +91,7 @@ class DefaultAgent(FlockAgent):
             stream_vertical_overflow: Rich Live overflow handling ('ellipsis', 'crop', 'crop_above', 'visible')
             include_thought_process: Include reasoning in output
             include_reasoning: Include detailed reasoning steps
+            include_status_output: Include status output in output
             enable_rich_tables: Enable rich table formatting for output
             output_theme: Theme for output formatting
             no_output: Disable output printing
@@ -129,6 +131,7 @@ class DefaultAgent(FlockAgent):
             stream_vertical_overflow=stream_vertical_overflow,
             include_thought_process=include_thought_process,
             include_reasoning=include_reasoning,
+            include_status_output=include_status_output,
         )
         if max_tokens is not None:
             _eval_kwargs["max_tokens"] = max_tokens

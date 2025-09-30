@@ -121,6 +121,14 @@ class DeclarativeEvaluationConfig(AgentComponentConfig):
         default=False,
         description="Include the reasoning in the output.",
     )
+    status_output_field: str = Field(
+        default="_status_output",
+        description="The field name for the status output.",
+    )
+    include_status_output: bool = Field(
+        default=False,
+        description="Include the status output in the finaloutput.",
+    )
     adapter: Literal["chat", "json", "xml", "two_step"] | None = Field(
         default=None,
         description="Optional DSPy adapter to use for formatting/parsing.",
@@ -296,6 +304,7 @@ class DeclarativeEvaluationComponent(
         from rich.live import Live
 
         signature_order = []
+        status_field = self.config.status_output_field
         try:
             signature_order = list(signature.output_fields.keys())
         except Exception:
@@ -309,7 +318,10 @@ class DeclarativeEvaluationComponent(
             if field_name not in display_data:
                 display_data[field_name] = ""
 
+        display_data[status_field] = ""
+
         stream_buffers: defaultdict[str, list[str]] = defaultdict(list)
+        stream_buffers[status_field] = []
 
         formatter = theme_dict = styles = agent_label = None
         live_cm = nullcontext()
@@ -359,9 +371,14 @@ class DeclarativeEvaluationComponent(
                     _d = None
 
                 if isinstance(value, StatusMessage):
-                    message = getattr(value, "message", "")
-                    if message and live is not None:
-                        live.console.log(f"[status] {message}")
+                    token = getattr(value, "message", "")
+                    if token:
+                        stream_buffers[status_field].append(str(token) + "\n")
+                        display_data[status_field] = "".join(
+                            stream_buffers[status_field]
+                        )
+                        if formatter is not None:
+                            _refresh_panel()
                     continue
 
                 if isinstance(value, StreamResponse):
@@ -387,14 +404,37 @@ class DeclarativeEvaluationComponent(
                     continue
 
                 if isinstance(value, ModelResponseStream):
-                    try:
-                        chunk = value
-                        text = chunk.choices[0].delta.content or ""
-                        if text and live is not None:
-                            live.console.log(text)
-                    except Exception:
-                        pass
+                    for callback in self.config.stream_callbacks or []:
+                        try:
+                            callback(value)
+                        except Exception as e:
+                            logger.warning(f"Stream callback error: {e}")
+
+                    chunk = value
+                    token = chunk.choices[0].delta.content or ""
+                    signature_field = getattr(
+                        value, "signature_field_name", None
+                    )
+                    if signature_field:
+                        if signature_field not in display_data:
+                            display_data[signature_field] = ""
+                        if token:
+                            stream_buffers[signature_field].append(str(token))
+                            display_data[signature_field] = "".join(
+                                stream_buffers[signature_field]
+                            )
+                        if formatter is not None:
+                            _refresh_panel()
+                    else:
+                        if token:
+                            stream_buffers[status_field].append(str(token))
+                            display_data[status_field] = "".join(
+                                stream_buffers[status_field]
+                            )
+                        if formatter is not None:
+                            _refresh_panel()
                     continue
+                    
 
                 if _d and isinstance(value, _d.Prediction):
                     result_dict, cost, lm_history = self._process_result(
@@ -414,9 +454,14 @@ class DeclarativeEvaluationComponent(
                                 ordered_final[field_name] = final_result[
                                     field_name
                                 ]
+                            
+                        
                         for key, val in final_result.items():
                             if key not in ordered_final:
                                 ordered_final[key] = val
+                        
+                        if self.config.include_status_output:   
+                            ordered_final[self.config.status_output_field] = display_data[self.config.status_output_field]
                         display_data.clear()
                         display_data.update(ordered_final)
                         _refresh_panel()
@@ -532,6 +577,19 @@ class DeclarativeEvaluationComponent(
                 k: v
                 for k, v in result_dict.items()
                 if not (k.startswith("reasoning") or k.startswith("trajectory"))
+            }
+    
+    def filter_status_output(
+        self, result_dict: dict[str, Any], include_status_output: bool
+    ) -> dict[str, Any]:
+        """Filter out status output from the result dictionary."""
+        if include_status_output:
+            return result_dict
+        else:
+            return {
+                k: v
+                for k, v in result_dict.items()
+                if not (k.startswith("_status_output"))
             }
 
     def filter_reasoning(

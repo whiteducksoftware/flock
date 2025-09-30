@@ -41,13 +41,14 @@ flock = Flock(
 presentation_agent = DefaultAgent(
     name="my_movie_agent",
     description="Creates a fun movie about a given topic",  # Isn't just a description, but also a control mechanism
-    input="input: MovieIdea",
-    output="output: Movie",
+    input=MovieIdea,
+    output=Movie,
+    include_status_output=True,
 )
 flock.add_agent(presentation_agent)
 
 
-result = flock.run(agent=presentation_agent, input={"input": MovieIdea(topic="AI agents", genre="comedy")})
+result = flock.run(agent=presentation_agent, input=MovieIdea(topic="AI agents", genre="comedy"))
 
 print_header("Results")
 print_subheader(result.fun_title)
