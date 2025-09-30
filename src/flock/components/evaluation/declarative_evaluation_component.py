@@ -309,7 +309,10 @@ class DeclarativeEvaluationComponent(
             if field_name not in display_data:
                 display_data[field_name] = ""
 
+        display_data["_additional_output"] = ""
+
         stream_buffers: defaultdict[str, list[str]] = defaultdict(list)
+        stream_buffers["_additional_output"] = []
 
         formatter = theme_dict = styles = agent_label = None
         live_cm = nullcontext()
@@ -359,9 +362,14 @@ class DeclarativeEvaluationComponent(
                     _d = None
 
                 if isinstance(value, StatusMessage):
-                    message = getattr(value, "message", "")
-                    if message and live is not None:
-                        live.console.log(f"[status] {message}")
+                    token = getattr(value, "message", "")
+                    if token:
+                        stream_buffers["_additional_output"].append(str(token) + "\n")
+                        display_data["_additional_output"] = "".join(
+                            stream_buffers["_additional_output"]
+                        )
+                        if formatter is not None:
+                            _refresh_panel()
                     continue
 
                 if isinstance(value, StreamResponse):
@@ -387,14 +395,37 @@ class DeclarativeEvaluationComponent(
                     continue
 
                 if isinstance(value, ModelResponseStream):
-                    try:
-                        chunk = value
-                        text = chunk.choices[0].delta.content or ""
-                        if text and live is not None:
-                            live.console.log(text)
-                    except Exception:
-                        pass
+                    for callback in self.config.stream_callbacks or []:
+                        try:
+                            callback(value)
+                        except Exception as e:
+                            logger.warning(f"Stream callback error: {e}")
+
+                    chunk = value
+                    token = chunk.choices[0].delta.content or ""
+                    signature_field = getattr(
+                        value, "signature_field_name", None
+                    )
+                    if signature_field:
+                        if signature_field not in display_data:
+                            display_data[signature_field] = ""
+                        if token:
+                            stream_buffers[signature_field].append(str(token))
+                            display_data[signature_field] = "".join(
+                                stream_buffers[signature_field]
+                            )
+                        if formatter is not None:
+                            _refresh_panel()
+                    else:
+                        if token:
+                            stream_buffers["_additional_output"].append(str(token))
+                            display_data["_additional_output"] = "".join(
+                                stream_buffers["_additional_output"]
+                            )
+                        if formatter is not None:
+                            _refresh_panel()
                     continue
+                    
 
                 if _d and isinstance(value, _d.Prediction):
                     result_dict, cost, lm_history = self._process_result(

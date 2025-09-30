@@ -24,14 +24,14 @@ class MovieIdea(BaseModel):
 class Movie(BaseModel):
     """The movie."""
     fun_title: str = Field(..., description="The title of the movie.")
-    runtime: int = Field(..., description="The runtime of the movie.")
+    runtime: int = Field(..., description="The runtime of the movie.", gt=200)
     synopsis: str = Field(..., description="The synopsis of the movie.")
     characters: list[dict[str, str]] = Field(
         ..., description="The characters of the movie."
     )
 
 
-MODEL = "azure/gpt-4.1"
+MODEL = "azure/gpt-5-mini"
 
 flock = Flock(
     name="example_02", description="The flock input and output syntax", model=MODEL
@@ -41,13 +41,13 @@ flock = Flock(
 presentation_agent = DefaultAgent(
     name="my_movie_agent",
     description="Creates a fun movie about a given topic",  # Isn't just a description, but also a control mechanism
-    input=MovieIdea,
-    output=Movie,
+    input="input: MovieIdea",
+    output="output: Movie",
 )
 flock.add_agent(presentation_agent)
 
 
-result = flock.run(agent=presentation_agent, input=MovieIdea(topic="AI agents", genre="comedy"))
+result = flock.run(agent=presentation_agent, input={"input": MovieIdea(topic="AI agents", genre="comedy")})
 
 print_header("Results")
 print_subheader(result.fun_title)

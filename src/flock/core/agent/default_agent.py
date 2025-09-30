@@ -44,7 +44,7 @@ class DefaultAgent(FlockAgent):
         use_cache: bool = False,
         temperature: float = 0.7,
         max_tokens: int | None = None,
-        max_tool_calls: int = 0,
+        max_tool_calls: int = 10,
         max_retries: int = 2,
         stream: bool = True,
         stream_callbacks: list[Callable[..., Any] | Any] | None = None,

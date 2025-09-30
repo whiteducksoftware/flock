@@ -2,11 +2,10 @@
 import json
 
 from flock.cli.utils import print_header, print_subheader, print_success
-from flock.core import DefaultAgent, Flock
+from flock.core import DefaultAgent, Flock, flock_tool
 from flock.core.logging.logging import configure_logging
-from flock.core.registry.decorators import flock_tool
 
-MODEL = "azure/gpt-4.1"
+MODEL = "azure/gpt-5-mini"
 
 flock = Flock(
     name="example_02a", description="The flock input and output syntax", model=MODEL
@@ -33,7 +32,7 @@ def save_movie_to_file(title: str, synopsis: str):
 # If you need to specify the agents behavior, you can do so with the description field.
 presentation_agent = DefaultAgent(
     name="my_movie_agent",
-    description="Creates a fun movie about a given topic, and saves it to a file",  # Isn't just a description, but also a control mechanism
+    description="Creates a fun movie about a given topic, and saves it to a file with save_movie_to_file",  # Isn't just a description, but also a control mechanism
     input="topic: str",
     output="fun_title: str | The funny title of the movie in all caps, "
     "runtime: int | The runtime of the movie in minutes, "

@@ -7,7 +7,7 @@ def write_file(string: str, file_path: str) -> None:
     f.write(string)
 
 
-flock = Flock(model="azure/gpt-4.1")
+flock = Flock(model="azure/gpt-5")
 
 read_website_fast_mcp_server = FlockFactory.create_mcp_server(
     name="read-website-fast-mcp-server",
