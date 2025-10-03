@@ -456,6 +456,17 @@ class FlockFactory:
         feedback_sqlite_db_path: str = "./flock_feedback.db",
         feedback_azure_connection_string: str | None = None,
         feedback_azure_table_name: str = "flockfeedback",
+        # Example parameters
+        enable_examples: bool = False,
+        example_storage_type: Literal["sqlite", "azure"] = "sqlite",
+        example_max_examples: int = 5,
+        example_timeframe_days: int = 30,
+        example_input_key: str = "examples_context",
+        example_filter_keywords: list[str] | None = None,
+        example_exclude_keywords: list[str] | None = None,
+        example_sqlite_db_path: str = "./flock_examples.db",
+        example_azure_connection_string: str | None = None,
+        example_azure_table_name: str = "flockexamples",
     ) -> FlockAgent:
         """Create a default FlockAgent.
 
@@ -481,6 +492,22 @@ class FlockFactory:
                 sqlite_db_path=feedback_sqlite_db_path,
                 azure_connection_string=feedback_azure_connection_string,
                 azure_table_name=feedback_azure_table_name,
+            )
+        
+        # Configure examples if enabled
+        example_config = None
+        if enable_examples:
+            from flock.components.utility.example_utility_component import ExampleUtilityConfig
+            example_config = ExampleUtilityConfig(
+                storage_type=example_storage_type,
+                max_examples=example_max_examples,
+                example_timeframe_days=example_timeframe_days,
+                example_input_key=example_input_key,
+                example_filter_keywords=example_filter_keywords or [],
+                example_exclude_keywords=example_exclude_keywords or [],
+                sqlite_db_path=example_sqlite_db_path,
+                azure_connection_string=example_azure_connection_string,
+                azure_table_name=example_azure_table_name,
             )
 
         return DefaultAgent(
@@ -510,6 +537,8 @@ class FlockFactory:
             temporal_activity_config=temporal_activity_config,
             enable_feedback=enable_feedback,
             feedback_config=feedback_config,
+            enable_examples=enable_examples,
+            example_config=example_config,
         )
 
     @staticmethod

@@ -5,6 +5,7 @@ import sqlite3
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
+from datetime import datetime
 
 import aiosqlite
 
@@ -65,6 +66,22 @@ class SharedLinkStoreInterface(ABC):
     async def get_all_feedback_records_for_agent(self, agent_name: str) -> list[FeedbackRecord]:
         """Get all feedback records for a given agent."""
         pass
+    
+    # Examples
+    @abstractmethod
+    async def save_example(self, example: Any):
+        """Persist an example record."""
+        pass
+    
+    @abstractmethod
+    async def get_example(self, id: str) -> Any | None:
+        """Get a single example record."""
+        pass
+    
+    @abstractmethod
+    async def get_all_examples_for_agent(self, agent_name: str) -> list[Any]:
+        """Get all example records for a given agent."""
+        pass
 
 class SQLiteSharedLinkStore(SharedLinkStoreInterface):
     """SQLite implementation for storing and retrieving shared link configurations."""
@@ -99,18 +116,13 @@ class SQLiteSharedLinkStore(SharedLinkStoreInterface):
                     ("chat_history_key", "TEXT"),
                     ("chat_response_key", "TEXT")
                 ]
-
-                for column_name, column_type in new_columns:
+                for col_name, col_def in new_columns:
                     try:
-                        await db.execute(f"ALTER TABLE shared_links ADD COLUMN {column_name} {column_type}")
-                        logger.info(f"Added column '{column_name}' to shared_links table.")
-                    except sqlite3.OperationalError as e:
-                        if "duplicate column name" in str(e).lower():
-                            logger.debug(f"Column '{column_name}' already exists in shared_links table.")
-                        else:
-                            raise # Re-raise if it's a different operational error
+                        await db.execute(f"ALTER TABLE shared_links ADD COLUMN {col_name} {col_def}")
+                    except sqlite3.OperationalError:
+                        pass  # Column already exists
 
-                # Feedback table
+                # Create feedback table if it doesn't exist
                 await db.execute(
                     """
                     CREATE TABLE IF NOT EXISTS feedback (
@@ -123,16 +135,27 @@ class SQLiteSharedLinkStore(SharedLinkStoreInterface):
                         flock_name TEXT,
                         agent_name TEXT,
                         flock_definition TEXT,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
+                
+                # Create examples table if it doesn't exist
+                await db.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS examples (
+                        example_id TEXT PRIMARY KEY,
+                        agent_name TEXT NOT NULL,
+                        content TEXT NOT NULL,
                         created_at TEXT NOT NULL,
-                        FOREIGN KEY(share_id) REFERENCES shared_links(share_id)
+                        context_type TEXT NOT NULL DEFAULT 'example'
                     )
                     """
                 )
 
                 await db.commit()
-            logger.info(f"Database initialized and shared_links table schema ensured at {self.db_path}")
-        except sqlite3.Error as e:
-            logger.error(f"SQLite error during initialization: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Error initializing database: {e}", exc_info=True)
             raise
 
     async def save_config(self, config: SharedLinkConfig) -> SharedLinkConfig:
@@ -303,6 +326,76 @@ class SQLiteSharedLinkStore(SharedLinkStoreInterface):
         except sqlite3.Error as e:
             logger.error(f"SQLite error saving feedback {record.feedback_id}: {e}", exc_info=True)
             raise
+
+    async def save_example(self, example: Any) -> Any:
+        """Persist an example record to SQLite."""
+        try:
+            example_dict = example.to_dict()
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    """INSERT INTO examples (
+                        example_id, agent_name, content, created_at, context_type
+                    ) VALUES (?, ?, ?, ?, ?)""",
+                    (
+                        example_dict["example_id"],
+                        example_dict["agent_name"],
+                        example_dict["content"],
+                        example_dict["created_at"],
+                        example_dict["context_type"],
+                    ),
+                )
+                await db.commit()
+            logger.info(f"Saved example {example_dict['example_id']} for agent {example_dict['agent_name']}")
+            return example
+        except sqlite3.Error as e:
+            logger.error(f"SQLite error saving example {example.example_id}: {e}", exc_info=True)
+            raise
+
+    async def get_example(self, id: str) -> Any | None:
+        """Get a single example record."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db, db.execute(
+                """SELECT example_id, agent_name, content, created_at FROM examples WHERE example_id = ?""",
+                (id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    from flock.components.utility.example_utility_component import ExampleRecord
+                    return ExampleRecord(
+                        example_id=row[0],
+                        agent_name=row[1],
+                        content=row[2],
+                        created_at=datetime.fromisoformat(row[3])
+                    )
+                return None
+        except sqlite3.Error as e:
+            logger.error(f"SQLite error retrieving example {id}: {e}", exc_info=True)
+            return None
+
+    async def get_all_examples_for_agent(self, agent_name: str) -> list[Any]:
+        """Retrieve all example records from SQLite."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db, db.execute(
+                """SELECT example_id, agent_name, content, created_at FROM examples WHERE agent_name = ? ORDER BY created_at DESC""",
+                (agent_name,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+            examples = []
+            for row in rows:
+                from flock.components.utility.example_utility_component import ExampleRecord
+                examples.append(ExampleRecord(
+                    example_id=row[0],
+                    agent_name=row[1],
+                    content=row[2],
+                    created_at=datetime.fromisoformat(row[3])
+                ))
+
+            logger.debug(f"Retrieved {len(examples)} example records")
+            return examples
+        except sqlite3.Error as e:
+            logger.error(f"SQLite error retrieving all example records: {e}", exc_info=True)
+            return []  # Return empty list on error
 
 
 # ---------------------------------------------------------------------------
@@ -567,6 +660,77 @@ class AzureTableSharedLinkStore(SharedLinkStoreInterface):
                 f"Unable to query entries for agent {agent_name}. Exception: {e}"
             )
             return records
+
+    # -------------------------------------------------------- save_example --
+    async def save_example(self, example: Any) -> Any:
+        """Persist an example record to Azure Table Storage."""
+        tbl_client = self.table_svc.get_table_client("flockexamples")
+        
+        example_dict = example.to_dict()
+        
+        entity = {
+            "PartitionKey": "examples",
+            "RowKey": example_dict["example_id"],
+            "agent_name": example_dict["agent_name"],
+            "content": example_dict["content"],
+            "created_at": example_dict["created_at"],
+            "context_type": example_dict["context_type"]
+        }
+        
+        # ------------------------------------------------------------------ Table upsert
+        await tbl_client.upsert_entity(entity)
+        logger.info(f"Saved example {example_dict['example_id']} for agent {example_dict['agent_name']}")
+        return example
+
+    # -------------------------------------------------------- get_example --
+    async def get_example(self, id: str) -> Any | None:
+        """Retrieve a single example record from Azure Table Storage."""
+        tbl_client = self.table_svc.get_table_client("flockexamples")
+        try:
+            entity = await tbl_client.get_entity("examples", id)
+        except ResourceNotFoundError:
+            logger.debug("No example record found for ID: %s", id)
+            return None
+
+        from flock.components.utility.example_utility_component import ExampleRecord
+        return ExampleRecord(
+            example_id=id,
+            agent_name=entity["agent_name"],
+            content=entity["content"],
+            created_at=entity["created_at"]
+        )
+
+    # ------------------------------------------- get_all_examples_for_agent --
+    async def get_all_examples_for_agent(self, agent_name: str) -> list[Any]:
+        """Retrieve all example records from Azure Table Storage for a specific agent."""
+        tbl_client = self.table_svc.get_table_client("flockexamples")
+
+        # Use Azure Table Storage filtering to only get records for the specified agent
+        escaped_agent_name = agent_name.replace("'", "''")
+        filter_query = f"agent_name eq '{escaped_agent_name}'"
+
+        logger.debug(f"Querying example records with filter: {filter_query}")
+
+        examples = []
+        try:
+            async for entity in tbl_client.query_entities(filter_query):
+                from flock.components.utility.example_utility_component import ExampleRecord
+                examples.append(ExampleRecord(
+                    example_id=entity["RowKey"],
+                    agent_name=entity["agent_name"],
+                    content=entity["content"],
+                    created_at=entity["created_at"]
+                ))
+
+            logger.debug("Retrieved %d example records for agent %s", len(examples), agent_name)
+            return examples
+
+        except Exception as e:
+            # Log the error.
+            logger.error(
+                f"Unable to query example entries for agent {agent_name}. Exception: {e}"
+            )
+            return examples
 
 
 # ----------------------- Factory Function -----------------------

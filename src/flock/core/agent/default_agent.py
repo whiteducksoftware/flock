@@ -10,6 +10,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal
 
+from flock.components.utility.example_utility_component import (
+    ExampleUtilityComponent,
+    ExampleUtilityConfig,
+)
 from flock.components.utility.feedback_utility_component import (
     FeedbackUtilityComponent,
     FeedbackUtilityConfig,
@@ -70,6 +74,9 @@ class DefaultAgent(FlockAgent):
         # Feedback utility
         enable_feedback: bool = False,
         feedback_config: FeedbackUtilityConfig | None = None,
+        # Example utility
+        enable_examples: bool = False,
+        example_config: ExampleUtilityConfig | None = None,
         # Workflow
         next_agent: DynamicStr | None = None,
         temporal_activity_config: TemporalActivityConfig | None = None,
@@ -109,6 +116,8 @@ class DefaultAgent(FlockAgent):
             alert_latency_threshold_ms: Threshold for latency alerts
             enable_feedback: Whether to enable feedback learning component
             feedback_config: Configuration for feedback component
+            enable_examples: Whether to enable example learning component
+            example_config: Configuration for example component
             next_agent: Next agent in workflow chain
             temporal_activity_config: Configuration for Temporal workflow execution
         """
@@ -179,6 +188,14 @@ class DefaultAgent(FlockAgent):
                 config=feedback_config or FeedbackUtilityConfig()
             )
             components.append(feedback_component)
+        
+        # Example utility component (optional)
+        if enable_examples:
+            example_component = ExampleUtilityComponent(
+                name="examples",
+                config=example_config or ExampleUtilityConfig()
+            )
+            components.append(example_component)
 
         super().__init__(
             name=name,
