@@ -9,7 +9,7 @@ __pycache__/
 # ignore all .env* files except .env_template
 *.env*
 !*.env_template
-
+pr.md
 .DS_Store
 flock-showcase/
 .showcase/
