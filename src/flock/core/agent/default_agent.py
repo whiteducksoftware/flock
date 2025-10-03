@@ -10,6 +10,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal
 
+from flock.components.utility.example_utility_component import (
+    ExampleUtilityComponent,
+    ExampleUtilityConfig,
+)
+from flock.components.utility.feedback_utility_component import (
+    FeedbackUtilityComponent,
+    FeedbackUtilityConfig,
+)
 from flock.components.utility.metrics_utility_component import (
     MetricsUtilityComponent,
     MetricsUtilityConfig,
@@ -28,6 +36,7 @@ class DefaultAgent(FlockAgent):
     - DeclarativeEvaluationComponent (LLM evaluation)
     - OutputUtilityComponent (formatting/printing)
     - MetricsUtilityComponent (latency tracking)
+    - FeedbackUtilityComponent (feedback learning) - optional
     """
 
     def __init__(
@@ -62,6 +71,12 @@ class DefaultAgent(FlockAgent):
         wait_for_input: bool = False,
         # Metrics utility
         alert_latency_threshold_ms: int = 30_000,
+        # Feedback utility
+        enable_feedback: bool = False,
+        feedback_config: FeedbackUtilityConfig | None = None,
+        # Example utility
+        enable_examples: bool = False,
+        example_config: ExampleUtilityConfig | None = None,
         # Workflow
         next_agent: DynamicStr | None = None,
         temporal_activity_config: TemporalActivityConfig | None = None,
@@ -99,6 +114,10 @@ class DefaultAgent(FlockAgent):
             write_to_file: Save outputs to file
             wait_for_input: Wait for user input after execution
             alert_latency_threshold_ms: Threshold for latency alerts
+            enable_feedback: Whether to enable feedback learning component
+            feedback_config: Configuration for feedback component
+            enable_examples: Whether to enable example learning component
+            example_config: Configuration for example component
             next_agent: Next agent in workflow chain
             temporal_activity_config: Configuration for Temporal workflow execution
         """
@@ -161,6 +180,23 @@ class DefaultAgent(FlockAgent):
             name="metrics_tracker", config=metrics_config
         )
 
+        # Feedback utility component (optional)
+        components = [evaluator, output_component, metrics_component]
+        if enable_feedback:
+            feedback_component = FeedbackUtilityComponent(
+                name="feedback",
+                config=feedback_config or FeedbackUtilityConfig()
+            )
+            components.append(feedback_component)
+        
+        # Example utility component (optional)
+        if enable_examples:
+            example_component = ExampleUtilityComponent(
+                name="examples",
+                config=example_config or ExampleUtilityConfig()
+            )
+            components.append(example_component)
+
         super().__init__(
             name=name,
             model=model,
@@ -170,7 +206,7 @@ class DefaultAgent(FlockAgent):
             tools=tools,
             servers=servers,
             tool_whitelist=tool_whitelist,
-            components=[evaluator, output_component, metrics_component],
+            components=components,
             config=FlockAgentConfig(
                 write_to_file=write_to_file,
                 wait_for_input=wait_for_input,

@@ -443,6 +443,30 @@ class FlockFactory:
         include_reasoning: bool = False,
         next_agent: DynamicStr | None = None,
         temporal_activity_config: TemporalActivityConfig | None = None,
+        # Feedback parameters
+        enable_feedback: bool = False,
+        feedback_storage_type: Literal["sqlite", "azure"] = "sqlite",
+        feedback_max_items: int = 5,
+        feedback_timeframe_days: int = 30,
+        feedback_input_key: str = "feedback_context",
+        feedback_include_expected_responses: bool = True,
+        feedback_include_actual_responses: bool = False,
+        feedback_filter_keywords: list[str] | None = None,
+        feedback_exclude_keywords: list[str] | None = None,
+        feedback_sqlite_db_path: str = "./flock_feedback.db",
+        feedback_azure_connection_string: str | None = None,
+        feedback_azure_table_name: str = "flockfeedback",
+        # Example parameters
+        enable_examples: bool = False,
+        example_storage_type: Literal["sqlite", "azure"] = "sqlite",
+        example_max_examples: int = 5,
+        example_timeframe_days: int = 30,
+        example_input_key: str = "examples_context",
+        example_filter_keywords: list[str] | None = None,
+        example_exclude_keywords: list[str] | None = None,
+        example_sqlite_db_path: str = "./flock_examples.db",
+        example_azure_connection_string: str | None = None,
+        example_azure_table_name: str = "flockexamples",
     ) -> FlockAgent:
         """Create a default FlockAgent.
 
@@ -451,6 +475,40 @@ class FlockFactory:
         environment variable `FLOCK_WARN_FACTORY_DEPRECATION` is truthy (default).
         """
         _maybe_warn_factory_deprecation()
+
+        # Configure feedback if enabled
+        feedback_config = None
+        if enable_feedback:
+            from flock.components.utility.feedback_utility_component import FeedbackUtilityConfig
+            feedback_config = FeedbackUtilityConfig(
+                storage_type=feedback_storage_type,
+                max_feedback_items=feedback_max_items,
+                feedback_timeframe_days=feedback_timeframe_days,
+                feedback_input_key=feedback_input_key,
+                include_expected_responses=feedback_include_expected_responses,
+                include_actual_responses=feedback_include_actual_responses,
+                feedback_filter_keywords=feedback_filter_keywords or [],
+                feedback_exclude_keywords=feedback_exclude_keywords or [],
+                sqlite_db_path=feedback_sqlite_db_path,
+                azure_connection_string=feedback_azure_connection_string,
+                azure_table_name=feedback_azure_table_name,
+            )
+        
+        # Configure examples if enabled
+        example_config = None
+        if enable_examples:
+            from flock.components.utility.example_utility_component import ExampleUtilityConfig
+            example_config = ExampleUtilityConfig(
+                storage_type=example_storage_type,
+                max_examples=example_max_examples,
+                example_timeframe_days=example_timeframe_days,
+                example_input_key=example_input_key,
+                example_filter_keywords=example_filter_keywords or [],
+                example_exclude_keywords=example_exclude_keywords or [],
+                sqlite_db_path=example_sqlite_db_path,
+                azure_connection_string=example_azure_connection_string,
+                azure_table_name=example_azure_table_name,
+            )
 
         return DefaultAgent(
             name=name,
@@ -477,6 +535,10 @@ class FlockFactory:
             alert_latency_threshold_ms=alert_latency_threshold_ms,
             next_agent=next_agent,
             temporal_activity_config=temporal_activity_config,
+            enable_feedback=enable_feedback,
+            feedback_config=feedback_config,
+            enable_examples=enable_examples,
+            example_config=example_config,
         )
 
     @staticmethod
