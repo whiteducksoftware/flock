@@ -73,7 +73,7 @@ pizza_master = (
 **Hard-binding type contracts will even work with GPT-4729.**
 
 <p align="center">
-  <img alt="Flock Blackboard" src="docs/img/pizza.png" width="600">
+  <img alt="Flock Blackboard" src="docs/img/pizza.png" width="1000">
 </p>
 
 ### ✅ Key Advantages
@@ -125,7 +125,7 @@ workflow.add_edge("agent_b", "agent_c")  # Predefined flow!
 ### The Blackboard Alternative: How Experts Actually Collaborate
 
 <p align="center">
-  <img alt="Flock Blackboard" src="docs/img/flock_ui_blackboard_view.png" width="600">
+  <img alt="Flock Blackboard" src="docs/img/flock_ui_blackboard_view.png" width="1000">
 </p>
 
 Watch a team of specialists solve a complex problem:
