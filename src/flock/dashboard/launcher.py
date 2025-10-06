@@ -55,14 +55,8 @@ class DashboardLauncher:
     def _ensure_npm_dependencies(self) -> None:
         """Ensure npm dependencies are installed.
 
-        Runs 'npm install' if node_modules doesn't exist.
-        Skips if already installed to avoid unnecessary installs on every run.
+        Runs 'npm install'.
         """
-        node_modules = self.frontend_dir / "node_modules"
-
-        if node_modules.exists():
-            print(f"[Dashboard] npm dependencies already installed at {node_modules}")
-            return
 
         print(f"[Dashboard] Installing npm dependencies in {self.frontend_dir}...")
         try:
