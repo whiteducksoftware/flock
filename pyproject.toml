@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.52b"
+version = "0.5.53b"
 description = "Add your description here"
 readme = "README.md"
 authors = [
