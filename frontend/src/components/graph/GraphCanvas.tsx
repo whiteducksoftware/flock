@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect, useState, useRef } from 'react';
+import { useCallback, useMemo, useEffect, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -26,12 +26,11 @@ import { usePersistence } from '../../hooks/usePersistence';
 import { v4 as uuidv4 } from 'uuid';
 
 const GraphCanvas: React.FC = () => {
-  const { fitView } = useReactFlow();
+  const { fitView, getIntersectingNodes } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
   const layoutDirection = useSettingsStore((state) => state.advanced.layoutDirection);
-  const autoZoom = useSettingsStore((state) => state.advanced.autoZoom);
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
   const agents = useGraphStore((state) => state.agents);
@@ -49,9 +48,6 @@ const GraphCanvas: React.FC = () => {
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
-
-  // Track previous node count to detect changes
-  const prevNodeCountRef = useRef(nodes.length);
 
   // Persistence hook - loads positions on mount and handles saves
   const { saveNodePosition } = usePersistence();
@@ -91,20 +87,6 @@ const GraphCanvas: React.FC = () => {
       generateBlackboardViewGraph();
     }
   }, [edgeType, edgeStrokeWidth, edgeAnimation, mode, generateAgentViewGraph, generateBlackboardViewGraph]);
-
-  // Auto-zoom when nodes change (if enabled)
-  useEffect(() => {
-    if (autoZoom && nodes.length > 0) {
-      // Only zoom if node count changed (new nodes added)
-      if (nodes.length !== prevNodeCountRef.current) {
-        // Small delay to ensure layout is complete
-        setTimeout(() => {
-          fitView({ padding: 0.1, duration: 300 });
-        }, 100);
-      }
-      prevNodeCountRef.current = nodes.length;
-    }
-  }, [nodes, autoZoom, fitView]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -183,6 +165,26 @@ const GraphCanvas: React.FC = () => {
     setShowModuleSubmenu(false);
   }, []);
 
+  // Node drag handler - prevent overlaps with collision detection
+  const onNodeDrag = useCallback(
+    (_event: React.MouseEvent | MouseEvent, node: Node) => {
+      const intersections = getIntersectingNodes(node);
+
+      // If there are intersecting nodes, snap back to prevent overlap
+      if (intersections.length > 0) {
+        // Revert to previous position by updating the nodes
+        useGraphStore.setState((state) => ({
+          nodes: state.nodes.map((n) =>
+            n.id === node.id
+              ? { ...n, position: n.position } // Keep previous position
+              : n
+          ),
+        }));
+      }
+    },
+    [getIntersectingNodes]
+  );
+
   // Node drag stop handler - persist position with 300ms debounce
   const onNodeDragStop = useCallback(
     (_event: React.MouseEvent | MouseEvent, node: Node) => {
@@ -218,6 +220,7 @@ const GraphCanvas: React.FC = () => {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onNodeDoubleClick={onNodeDoubleClick}
         nodeTypes={nodeTypes}
@@ -225,7 +228,6 @@ const GraphCanvas: React.FC = () => {
         defaultEdgeOptions={defaultEdgeOptions}
         onPaneContextMenu={onPaneContextMenu}
         onPaneClick={onPaneClick}
-        fitView
         style={{
           backgroundColor: 'var(--color-bg-elevated)',
         }}
