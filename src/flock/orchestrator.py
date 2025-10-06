@@ -300,16 +300,16 @@ class Flock:
             # Insert at beginning of utilities list (highest priority)
             agent.utilities.insert(0, event_collector)
 
+        # Start dashboard launcher (npm process + browser)
+        launcher = DashboardLauncher(port=port)
+        launcher.start()
+
         # Create dashboard HTTP service
         service = DashboardHTTPService(
             orchestrator=self,
             websocket_manager=websocket_manager,
             event_collector=event_collector,
         )
-
-        # Start dashboard launcher (npm process + browser)
-        launcher = DashboardLauncher(port=port)
-        launcher.start()
 
         # Store launcher for cleanup
         self._dashboard_launcher = launcher

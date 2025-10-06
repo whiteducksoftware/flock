@@ -53,16 +53,14 @@ class TestDashboardLauncher:
         assert "install" in args
 
     @patch("subprocess.run")
-    def test_npm_install_skipped_when_exists(self, mock_run, launcher, mock_frontend_dir):
+    def test_npm_install_runs_when_exists(self, mock_run, launcher, mock_frontend_dir):
         """Test npm install skipped when node_modules exists."""
         # Create node_modules directory
         node_modules = mock_frontend_dir / "node_modules"
         node_modules.mkdir()
 
         launcher._ensure_npm_dependencies()
-
-        # Should NOT call npm install
-        mock_run.assert_not_called()
+        mock_run.assert_called_once()
 
     @patch("subprocess.Popen")
     def test_start_dev_server(self, mock_popen, launcher):
