@@ -4,8 +4,8 @@ from datetime import timedelta
 
 import pytest
 
-from flock_flow.agent import AgentIdentity
-from flock_flow.visibility import (
+from flock.agent import AgentIdentity
+from flock.visibility import (
     AfterVisibility,
     LabelledVisibility,
     PrivateVisibility,

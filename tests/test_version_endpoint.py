@@ -5,8 +5,8 @@ from importlib.metadata import version as get_version
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from flock_flow.dashboard.service import DashboardHTTPService
-from flock_flow.orchestrator import Flock
+from flock.dashboard.service import DashboardHTTPService
+from flock.orchestrator import Flock
 
 
 @pytest.mark.asyncio

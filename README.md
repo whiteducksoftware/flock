@@ -77,7 +77,7 @@ orchestrator = Flock("openai/gpt-4o")
 movie = orchestrator.agent("movie").publishes(Movie)  # Live streaming!
 
 # Customize streaming behavior
-from flock_flow.engines import DSPyEngine
+from flock.engines import DSPyEngine
 custom_engine = DSPyEngine(stream=True, theme="cyberpunk")
 agent.with_engines(custom_engine)
 ```
@@ -165,8 +165,8 @@ pip install flock-flow
 ```python
 import asyncio
 from pydantic import BaseModel, Field
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
+from flock.orchestrator import Flock
+from flock.registry import flock_type
 
 # 1. Define typed artifacts
 @flock_type
@@ -544,8 +544,8 @@ We've built the foundation for real-time visualization of agent workflows:
 ```python
 import asyncio
 from pydantic import BaseModel
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
+from flock.orchestrator import Flock
+from flock.registry import flock_type
 
 # Define your artifacts
 @flock_type

@@ -5,9 +5,9 @@ from uuid import UUID
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
-from flock_flow.artifacts import Artifact, ArtifactSpec
-from flock_flow.registry import flock_type
-from flock_flow.visibility import PublicVisibility
+from flock.artifacts import Artifact, ArtifactSpec
+from flock.registry import flock_type
+from flock.visibility import PublicVisibility
 
 
 # Test artifact types

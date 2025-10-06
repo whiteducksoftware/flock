@@ -14,14 +14,14 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from flock_flow.mcp.config import (
+from flock.mcp.config import (
     FlockMCPConfiguration,
     FlockMCPConnectionConfiguration,
     FlockMCPFeatureConfiguration,
 )
-from flock_flow.mcp.manager import FlockMCPClientManager
-from flock_flow.mcp.tool import FlockMCPTool
-from flock_flow.mcp.types import (
+from flock.mcp.manager import FlockMCPClientManager
+from flock.mcp.tool import FlockMCPTool
+from flock.mcp.types import (
     SseServerParameters,
     StdioServerParameters,
     StreamableHttpServerParameters,
@@ -113,7 +113,7 @@ class TestFlockMCPClientManager:
         """Test get_client creates a new client when none exists."""
         # Mock the client class based on transport type
         mock_client_class = mocker.patch(
-            "flock_flow.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
+            "flock.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
             return_value=AsyncMock(),
         )
         mock_client_instance = mock_client_class.return_value
@@ -187,14 +187,14 @@ class TestFlockMCPClientManager:
 
         # Mock all client classes
         mock_stdio = mocker.patch(
-            "flock_flow.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
+            "flock.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
             return_value=AsyncMock(),
         )
         mock_sse = mocker.patch(
-            "flock_flow.mcp.servers.sse.flock_sse_server.FlockSSEClient", return_value=AsyncMock()
+            "flock.mcp.servers.sse.flock_sse_server.FlockSSEClient", return_value=AsyncMock()
         )
         mock_http = mocker.patch(
-            "flock_flow.mcp.servers.streamable_http.flock_streamable_http_server.FlockStreamableHttpClient",
+            "flock.mcp.servers.streamable_http.flock_streamable_http_server.FlockStreamableHttpClient",
             return_value=AsyncMock(),
         )
 
@@ -519,7 +519,7 @@ class TestFlockMCPClientManager:
             return mock_client
 
         mock_client_class = mocker.patch(
-            "flock_flow.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
+            "flock.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
             side_effect=create_mock_client,
         )
 
@@ -550,7 +550,7 @@ class TestFlockMCPClientManager:
         shared_mock_client._connect = AsyncMock()
 
         mock_client_class = mocker.patch(
-            "flock_flow.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
+            "flock.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
             return_value=shared_mock_client,
         )
 
@@ -583,7 +583,7 @@ class TestFlockMCPClientManager:
             return mock_client
 
         mock_client_class = mocker.patch(
-            "flock_flow.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
+            "flock.mcp.servers.stdio.flock_stdio_server.FlockStdioClient",
             side_effect=create_mock_client,
         )
 

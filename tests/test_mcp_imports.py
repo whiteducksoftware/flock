@@ -3,7 +3,7 @@
 
 def test_mcp_types_import():
     """Test MCP types can be imported."""
-    from flock_flow.mcp.types import (
+    from flock.mcp.types import (
         MCPRoot,
         ServerParameters,
         StdioServerParameters,
@@ -16,7 +16,7 @@ def test_mcp_types_import():
 
 def test_mcp_config_import():
     """Test MCP configuration classes can be imported."""
-    from flock_flow.mcp.config import (
+    from flock.mcp.config import (
         FlockMCPConfiguration,
         FlockMCPConnectionConfiguration,
         FlockMCPFeatureConfiguration,
@@ -29,28 +29,28 @@ def test_mcp_config_import():
 
 def test_mcp_client_import():
     """Test MCP client can be imported."""
-    from flock_flow.mcp.client import FlockMCPClient
+    from flock.mcp.client import FlockMCPClient
 
     assert FlockMCPClient is not None
 
 
 def test_mcp_manager_import():
     """Test MCP manager can be imported."""
-    from flock_flow.mcp.manager import FlockMCPClientManager
+    from flock.mcp.manager import FlockMCPClientManager
 
     assert FlockMCPClientManager is not None
 
 
 def test_mcp_tool_import():
     """Test MCP tool wrapper can be imported."""
-    from flock_flow.mcp.tool import FlockMCPTool
+    from flock.mcp.tool import FlockMCPTool
 
     assert FlockMCPTool is not None
 
 
 def test_mcp_package_import():
     """Test top-level package imports."""
-    from flock_flow.mcp import (
+    from flock.mcp import (
         FlockMCPClient,
         FlockMCPClientManager,
         FlockMCPConfiguration,

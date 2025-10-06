@@ -78,8 +78,8 @@ LICENSE
 
 **Scenario 1: Only backend changed**
 ```bash
-# Made changes to src/flock_flow/agent.py
-git add src/flock_flow/agent.py
+# Made changes to src/flock/agent.py
+git add src/flock/agent.py
 
 poe version-patch
 # Output:
@@ -101,7 +101,7 @@ poe version-patch
 **Scenario 3: Both changed**
 ```bash
 # Added new API endpoint (backend) and UI for it (frontend)
-git add src/flock_flow/dashboard/service.py
+git add src/flock/dashboard/service.py
 git add frontend/src/components/settings/AdvancedSettings.tsx
 
 poe version-minor
@@ -149,13 +149,13 @@ python scripts/bump_version.py patch --check
 
 ```bash
 # 1. Make changes to code
-vim src/flock_flow/orchestrator.py
+vim src/flock/orchestrator.py
 
 # 2. Test changes
 poe test
 
 # 3. Commit code changes
-git add src/flock_flow/orchestrator.py
+git add src/flock/orchestrator.py
 git commit -m "feat: add new orchestration feature"
 
 # 4. Bump version based on change type
@@ -268,7 +268,7 @@ poe version-major
 **Solution**: Stage your changes first with `git add`
 
 ```bash
-git add src/flock_flow/agent.py
+git add src/flock/agent.py
 poe version-patch
 ```
 

@@ -58,9 +58,9 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport
 from pydantic import BaseModel, Field, ValidationError
 
-from flock_flow.artifacts import Artifact
-from flock_flow.registry import flock_type
-from flock_flow.visibility import PublicVisibility
+from flock.artifacts import Artifact
+from flock.registry import flock_type
+from flock.visibility import PublicVisibility
 
 
 # Test data models for API testing
@@ -118,7 +118,7 @@ def dashboard_service_with_mocks(orchestrator, mock_artifact, mock_agent):
 
     # Create service
     try:
-        from flock_flow.dashboard.service import DashboardHTTPService
+        from flock.dashboard.service import DashboardHTTPService
 
         service = DashboardHTTPService(orchestrator)
         yield service
@@ -150,7 +150,7 @@ async def async_client(dashboard_service_with_mocks):
 def dashboard_service(orchestrator):
     """Create DashboardHTTPService instance for testing."""
     try:
-        from flock_flow.dashboard.service import DashboardHTTPService
+        from flock.dashboard.service import DashboardHTTPService
 
         return DashboardHTTPService(orchestrator)
     except ImportError:
@@ -160,7 +160,7 @@ def dashboard_service(orchestrator):
 @pytest.mark.asyncio
 async def test_service_extends_blackboard_http_service(dashboard_service):
     """Test that DashboardHTTPService extends BlackboardHTTPService."""
-    from flock_flow.service import BlackboardHTTPService
+    from flock.service import BlackboardHTTPService
 
     # Verify inheritance
     assert isinstance(dashboard_service, BlackboardHTTPService)
@@ -215,7 +215,7 @@ async def test_dashboard_event_collector_integration(dashboard_service):
 
     # Verify collector and manager are connected
     # When collector emits events, they should be broadcast via WebSocketManager
-    from flock_flow.dashboard.events import MessagePublishedEvent
+    from flock.dashboard.events import MessagePublishedEvent
 
     # Create event
     event = MessagePublishedEvent(
@@ -283,7 +283,7 @@ async def test_websocket_connection_lifecycle(dashboard_service):
         assert mock_ws in dashboard_service.websocket_manager.clients
 
         # Send message
-        from flock_flow.dashboard.events import AgentActivatedEvent, SubscriptionInfo
+        from flock.dashboard.events import AgentActivatedEvent, SubscriptionInfo
 
         event = AgentActivatedEvent(
             agent_name="test",
@@ -336,7 +336,7 @@ async def test_dashboard_dev_environment_variable_cors(orchestrator):
     os.environ["DASHBOARD_DEV"] = "1"
 
     try:
-        from flock_flow.dashboard.service import DashboardHTTPService
+        from flock.dashboard.service import DashboardHTTPService
 
         service = DashboardHTTPService(orchestrator)
         app = service.get_app()
@@ -390,7 +390,7 @@ async def test_dashboard_service_cleanup_on_shutdown(dashboard_service):
 async def test_get_artifact_types_success(async_client, mocker):
     """Test GET /api/artifact-types returns registered artifact types with schemas."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_type_registry._by_name = ["TestArtifact", "InvalidTestArtifact"]
 
     # Mock model class and schema
@@ -420,7 +420,7 @@ async def test_get_artifact_types_success(async_client, mocker):
 async def test_get_artifact_types_handles_schema_errors(async_client, mocker):
     """Test GET /api/artifact-types handles schema generation errors gracefully."""
     # Mock type_registry with a type that causes schema errors
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_type_registry._by_name = ["TestArtifact", "BrokenType"]
 
     # Mock working type
@@ -450,7 +450,7 @@ async def test_get_artifact_types_handles_schema_errors(async_client, mocker):
 async def test_get_artifact_types_empty_registry(async_client, mocker):
     """Test GET /api/artifact-types with empty type registry."""
     # Mock empty type registry
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_type_registry._by_name = []
 
     # Act
@@ -509,7 +509,7 @@ async def test_get_agents_multiple_agents(async_client, mocker):
     type(mock_orchestrator).agents = PropertyMock(return_value=[agent1, agent2, agent3])
 
     # Create service with mocked orchestrator
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(mock_orchestrator)
 
@@ -548,7 +548,7 @@ async def test_get_agents_empty_list(async_client, mocker):
     type(mock_orchestrator).agents = PropertyMock(return_value=[])
 
     # Create service with mocked orchestrator
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(mock_orchestrator)
 
@@ -571,7 +571,7 @@ async def test_get_agents_empty_list(async_client, mocker):
 async def test_get_version_success(async_client, mocker):
     """Test GET /api/version returns version information."""
     # Mock version function
-    mock_version = mocker.patch("flock_flow.dashboard.service.version")
+    mock_version = mocker.patch("flock.dashboard.service.version")
     mock_version.return_value = "0.2.0"
 
     # Act
@@ -592,7 +592,7 @@ async def test_get_version_package_not_found(async_client, mocker):
     # Mock version to raise PackageNotFoundError
     from importlib.metadata import PackageNotFoundError
 
-    mock_version = mocker.patch("flock_flow.dashboard.service.version")
+    mock_version = mocker.patch("flock.dashboard.service.version")
     mock_version.side_effect = PackageNotFoundError()
 
     # Act
@@ -614,12 +614,12 @@ async def test_get_version_package_not_found(async_client, mocker):
 async def test_publish_artifact_success(async_client, mock_artifact, mocker):
     """Test POST /api/control/publish successfully publishes artifact."""
     # Mock type_registry and orchestrator
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 
     # Mock orchestrator.publish
-    mock_orchestrator = mocker.patch("flock_flow.dashboard.service.Flock")
+    mock_orchestrator = mocker.patch("flock.dashboard.service.Flock")
     mock_orchestrator.publish = AsyncMock(return_value=mock_artifact)
 
     # Mock websocket manager
@@ -667,7 +667,7 @@ async def test_publish_artifact_missing_content(async_client):
 async def test_publish_artifact_unknown_type(async_client, mocker):
     """Test POST /api/control/publish with unknown artifact type returns 422."""
     # Mock type_registry to raise KeyError
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_type_registry.resolve.side_effect = KeyError("UnknownType")
 
     response = await async_client.post(
@@ -683,7 +683,7 @@ async def test_publish_artifact_unknown_type(async_client, mocker):
 async def test_publish_artifact_validation_error(async_client, mocker):
     """Test POST /api/control/publish with invalid content returns 422."""
     # Mock type_registry and model validation error
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_model_class = Mock()
     mock_model_class.side_effect = ValidationError.from_exception_data(
         "TestArtifact",
@@ -707,7 +707,7 @@ async def test_publish_artifact_validation_error(async_client, mocker):
 async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
     """Test POST /api/control/publish handles orchestrator errors returns 500."""
     # Mock type_registry to return a mock instance
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -719,7 +719,7 @@ async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
     )
 
     # Create service with mocked orchestrator
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(orchestrator)
 
@@ -742,12 +742,12 @@ async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
 async def test_invoke_agent_success(async_client, mock_artifact, mocker):
     """Test POST /api/control/invoke successfully invokes agent."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 
     # Mock orchestrator methods
-    mock_orchestrator = mocker.patch("flock_flow.dashboard.service.Flock")
+    mock_orchestrator = mocker.patch("flock.dashboard.service.Flock")
     mock_agent = create_mock_agent()
     mock_orchestrator.get_agent.return_value = mock_agent
     mock_orchestrator.invoke = AsyncMock(return_value=[mock_artifact])
@@ -812,7 +812,7 @@ async def test_invoke_agent_not_found(orchestrator, mocker):
     mocker.patch.object(orchestrator, "get_agent", side_effect=KeyError("UnknownAgent"))
 
     # Create service with mocked orchestrator
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(orchestrator)
 
@@ -835,12 +835,12 @@ async def test_invoke_agent_not_found(orchestrator, mocker):
 async def test_invoke_agent_unknown_input_type(async_client, mocker):
     """Test POST /api/control/invoke with unknown input type returns 422."""
     # Mock orchestrator.get_agent
-    mock_orchestrator = mocker.patch("flock_flow.dashboard.service.Flock")
+    mock_orchestrator = mocker.patch("flock.dashboard.service.Flock")
     mock_agent = create_mock_agent()
     mock_orchestrator.get_agent.return_value = mock_agent
 
     # Mock type_registry to raise KeyError
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_type_registry.resolve.side_effect = KeyError("UnknownType")
 
     response = await async_client.post(
@@ -860,7 +860,7 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
     mocker.patch.object(orchestrator, "get_agent", return_value=mock_agent)
 
     # Mock type_registry and model validation error
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_model_class = Mock()
     mock_model_class.side_effect = ValidationError.from_exception_data(
         "TestArtifact",
@@ -877,7 +877,7 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
     mock_type_registry.resolve.return_value = mock_model_class
 
     # Create service with mocked orchestrator
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(orchestrator)
 
@@ -904,7 +904,7 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
 async def test_invoke_agent_no_outputs(orchestrator, mocker):
     """Test POST /api/control/invoke when agent returns no outputs."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -918,7 +918,7 @@ async def test_invoke_agent_no_outputs(orchestrator, mocker):
     )  # No outputs
 
     # Create service with mocked orchestrator
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(orchestrator)
 
@@ -944,7 +944,7 @@ async def test_invoke_agent_no_outputs(orchestrator, mocker):
 async def test_invoke_agent_orchestrator_error(orchestrator, mocker):
     """Test POST /api/control/invoke handles orchestrator errors returns 500."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -961,7 +961,7 @@ async def test_invoke_agent_orchestrator_error(orchestrator, mocker):
     )
 
     # Create service with mocked orchestrator
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(orchestrator)
 
@@ -1005,7 +1005,7 @@ async def test_resume_orchestrator_not_implemented(async_client):
 async def test_get_streaming_history_success(async_client, mocker):
     """Test GET /api/streaming-history/{agent_name} returns streaming history."""
     # Mock streaming history events
-    from flock_flow.dashboard.events import StreamingOutputEvent
+    from flock.dashboard.events import StreamingOutputEvent
 
     mock_events = [
         StreamingOutputEvent(
@@ -1035,7 +1035,7 @@ async def test_get_streaming_history_success(async_client, mocker):
     mock_websocket_manager.get_streaming_history.return_value = mock_events
 
     # Get service and inject mock
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(Mock())
     service.websocket_manager = mock_websocket_manager
@@ -1067,7 +1067,7 @@ async def test_get_streaming_history_empty(async_client, mocker):
     mock_websocket_manager.get_streaming_history.return_value = []
 
     # Get service and inject mock
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(Mock())
     service.websocket_manager = mock_websocket_manager
@@ -1093,7 +1093,7 @@ async def test_get_streaming_history_error(async_client, mocker):
     mock_websocket_manager.get_streaming_history.side_effect = Exception("Database error")
 
     # Get service and inject mock
-    from flock_flow.dashboard.service import DashboardHTTPService
+    from flock.dashboard.service import DashboardHTTPService
 
     service = DashboardHTTPService(Mock())
     service.websocket_manager = mock_websocket_manager
@@ -1260,7 +1260,7 @@ async def test_correlation_id_generation_and_timestamp_formatting(
 ):
     """Test that correlation IDs and timestamps are properly formatted."""
     # Mock type_registry and orchestrator
-    mock_type_registry = mocker.patch("flock_flow.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 
@@ -1269,7 +1269,7 @@ async def test_correlation_id_generation_and_timestamp_formatting(
     mock_artifact.created_at = fixed_time
     mock_artifact.correlation_id = uuid4()
 
-    mock_orchestrator = mocker.patch("flock_flow.dashboard.service.Flock")
+    mock_orchestrator = mocker.patch("flock.dashboard.service.Flock")
     mock_orchestrator.publish = AsyncMock(return_value=mock_artifact)
 
     # Mock websocket manager

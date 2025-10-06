@@ -2,7 +2,7 @@
 Theme API Endpoints
 
 Serves 300+ terminal color themes from TOML files.
-Themes are loaded from src/flock_flow/themes/
+Themes are loaded from src/flock/themes/
 """
 
 from pathlib import Path

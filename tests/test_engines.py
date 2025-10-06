@@ -5,13 +5,13 @@ from uuid import UUID
 import pytest
 from pydantic import BaseModel, Field
 
-from flock_flow.artifacts import Artifact
-from flock_flow.components import EngineComponent
-from flock_flow.engines.dspy_engine import DSPyEngine
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
-from flock_flow.runtime import EvalInputs, EvalResult
-from flock_flow.visibility import PublicVisibility
+from flock.artifacts import Artifact
+from flock.components import EngineComponent
+from flock.engines.dspy_engine import DSPyEngine
+from flock.orchestrator import Flock
+from flock.registry import flock_type
+from flock.runtime import EvalInputs, EvalResult
+from flock.visibility import PublicVisibility
 
 
 # Test artifact types
@@ -69,7 +69,7 @@ async def test_dspy_engine_evaluation_with_mock_llm(orchestrator, mocker):
     mock_dspy.OutputField = lambda **kwargs: "output_field"
     mock_dspy.context = lambda **kwargs: mocker.MagicMock()
 
-    mocker.patch("flock_flow.engines.dspy_engine.DSPyEngine._import_dspy", return_value=mock_dspy)
+    mocker.patch("flock.engines.dspy_engine.DSPyEngine._import_dspy", return_value=mock_dspy)
 
     agent = (
         orchestrator.agent("test_agent")
@@ -176,7 +176,7 @@ def test_dspy_engine_disables_streaming_in_pytest():
     # Arrange
     import sys
 
-    from flock_flow.engines.dspy_engine import DSPyEngine
+    from flock.engines.dspy_engine import DSPyEngine
 
     # Act - Create engine with default stream parameter
     engine = DSPyEngine()
@@ -190,7 +190,7 @@ def test_dspy_engine_disables_streaming_in_pytest():
 def test_dspy_engine_respects_explicit_stream_parameter():
     """Test that explicit stream parameter overrides auto-detection."""
     # Arrange
-    from flock_flow.engines.dspy_engine import DSPyEngine
+    from flock.engines.dspy_engine import DSPyEngine
 
     # Act - Explicitly set stream=True
     engine_enabled = DSPyEngine(stream=True)

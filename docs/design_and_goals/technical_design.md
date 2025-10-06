@@ -242,7 +242,7 @@ time = max(agent1_time, agent2_time, agent3_time)  # 10s (3x faster)
 
 ### Artifact Model
 
-**Source:** `src/flock_flow/artifacts.py`
+**Source:** `src/flock/artifacts.py`
 
 ```python
 class Artifact(BaseModel):
@@ -287,7 +287,7 @@ await ctx.board.publish(artifact)
 
 ### Type Registry
 
-**Source:** `src/flock_flow/registry.py`
+**Source:** `src/flock/registry.py`
 
 **Purpose:** Bidirectional mapping between Pydantic models and string type names.
 
@@ -321,7 +321,7 @@ type_registry.register(Movie, name="Movie")
 
 ### Subscription System
 
-**Source:** `src/flock_flow/subscription.py`
+**Source:** `src/flock/subscription.py`
 
 **Purpose:** Declarative rules for when an agent should process an artifact.
 
@@ -371,7 +371,7 @@ def matches(self, artifact: Artifact) -> bool:
 
 ### Visibility System
 
-**Source:** `src/flock_flow/visibility.py`
+**Source:** `src/flock/visibility.py`
 
 **Purpose:** Fine-grained access control at artifact level.
 
@@ -465,7 +465,7 @@ The blackboard pattern has three components:
 
 #### 1. Blackboard = `BlackboardStore`
 
-**Source:** `src/flock_flow/store.py`
+**Source:** `src/flock/store.py`
 
 ```python
 class BlackboardStore:
@@ -491,7 +491,7 @@ class BlackboardStore:
 
 #### 2. Knowledge Sources = `Agent`
 
-**Source:** `src/flock_flow/agent.py`
+**Source:** `src/flock/agent.py`
 
 Each agent:
 - **Consumes:** Declares subscriptions (what artifacts trigger it)
@@ -511,7 +511,7 @@ agent = (
 
 #### 3. Control = `Flock`
 
-**Source:** `src/flock_flow/orchestrator.py`
+**Source:** `src/flock/orchestrator.py`
 
 **Scheduling Algorithm:**
 
@@ -674,7 +674,7 @@ agent.with_engines(
 
 ### Best-of-N Execution
 
-**Source:** `src/flock_flow/agent.py:140-153`
+**Source:** `src/flock/agent.py:140-153`
 
 **Key Innovation:** Run entire engine chain N times in parallel, pick best result.
 
@@ -754,7 +754,7 @@ return best
 
 ### Idempotency Tracking
 
-**Source:** `src/flock_flow/orchestrator.py:169-175`
+**Source:** `src/flock/orchestrator.py:169-175`
 
 ```python
 self._processed: set[tuple[str, str]] = set()  # (artifact_id, agent_name)
@@ -920,7 +920,7 @@ class PIIRedactor(AgentComponent):
 
 ### Task Management
 
-**Source:** `src/flock_flow/orchestrator.py:161-180`
+**Source:** `src/flock/orchestrator.py:161-180`
 
 ```python
 def _schedule_task(self, agent: Agent, artifacts: List[Artifact]) -> None:
@@ -1125,7 +1125,7 @@ class BudgetComponent(AgentComponent):
 
 ### DSPy Engine
 
-**Source:** `src/flock_flow/engines/dspy_engine.py`
+**Source:** `src/flock/engines/dspy_engine.py`
 
 **Key Features:**
 - **Real-time streaming output** (enabled by default) - Watch AI agents think in real-time with beautiful Rich console output
@@ -1138,7 +1138,7 @@ class BudgetComponent(AgentComponent):
 
 **Configuration:**
 ```python
-from flock_flow.engines import DSPyEngine
+from flock.engines import DSPyEngine
 
 # Default (streaming enabled)
 engine = DSPyEngine()  # stream=True by default
@@ -1559,7 +1559,7 @@ def announce(tagline: Tagline) -> dict:
 ### Visibility
 
 ```python
-from flock_flow.visibility import (
+from flock.visibility import (
     PublicVisibility,
     PrivateVisibility,
     LabelledVisibility,

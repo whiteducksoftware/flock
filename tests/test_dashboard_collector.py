@@ -11,16 +11,16 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock_flow.artifacts import Artifact
-from flock_flow.dashboard.collector import DashboardEventCollector
-from flock_flow.dashboard.events import (
+from flock.artifacts import Artifact
+from flock.dashboard.collector import DashboardEventCollector
+from flock.dashboard.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
     AgentErrorEvent,
     MessagePublishedEvent,
 )
-from flock_flow.runtime import Context
-from flock_flow.visibility import (
+from flock.runtime import Context
+from flock.visibility import (
     LabelledVisibility,
     PrivateVisibility,
     PublicVisibility,
@@ -539,9 +539,9 @@ async def test_event_timestamps_are_iso_format(collector, test_agent, test_conte
 @pytest.mark.asyncio
 async def test_collector_as_agent_component(orchestrator):
     """Test that collector can be added as agent component and hooks are called."""
-    from flock_flow.components import EngineComponent
-    from flock_flow.registry import flock_type
-    from flock_flow.runtime import EvalInputs, EvalResult
+    from flock.components import EngineComponent
+    from flock.registry import flock_type
+    from flock.runtime import EvalInputs, EvalResult
 
     # Register test types
     @flock_type(name="CollectorTestInput")

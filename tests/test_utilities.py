@@ -10,7 +10,7 @@ from rich.json import JSON
 from rich.panel import Panel
 from rich.table import Table
 
-from flock_flow.utilities import LoggingUtility, MetricsUtility
+from flock.utilities import LoggingUtility, MetricsUtility
 
 
 class TestMetricsUtility:
@@ -178,7 +178,7 @@ class TestLoggingUtility:
     def test_logging_utility_initialization_default_console(self):
         """Test LoggingUtility initialization with default console."""
         with (
-            patch("flock_flow.utilities.Console") as MockConsole,
+            patch("flock.utilities.Console") as MockConsole,
             patch("sys.stdout") as mock_stdout,
         ):
             mock_console_instance = Mock()
@@ -709,7 +709,7 @@ class TestLoggingUtility:
         await queue.put({"kind": "chunk", "chunk": "World"})
         await queue.put({"kind": "end"})
 
-        with patch("flock_flow.utilities.Live") as MockLive:
+        with patch("flock.utilities.Live") as MockLive:
             mock_live_instance = Mock()
             mock_live_instance.__enter__ = Mock(return_value=mock_live_instance)
             mock_live_instance.__exit__ = Mock(return_value=None)
@@ -736,7 +736,7 @@ class TestLoggingUtility:
         await queue.put({"kind": "status", "message": "Processing", "stage": "init"})
         await queue.put({"kind": "end"})
 
-        with patch("flock_flow.utilities.Live") as MockLive:
+        with patch("flock.utilities.Live") as MockLive:
             mock_live_instance = Mock()
             mock_live_instance.__enter__ = Mock(return_value=mock_live_instance)
             mock_live_instance.__exit__ = Mock(return_value=None)
@@ -762,7 +762,7 @@ class TestLoggingUtility:
         await queue.put({"kind": "error", "message": "Something went wrong"})
         await queue.put({"kind": "end"})
 
-        with patch("flock_flow.utilities.Live") as MockLive:
+        with patch("flock.utilities.Live") as MockLive:
             mock_live_instance = Mock()
             mock_live_instance.__enter__ = Mock(return_value=mock_live_instance)
             mock_live_instance.__exit__ = Mock(return_value=None)

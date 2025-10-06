@@ -11,8 +11,8 @@ from uuid import uuid4
 
 import pytest
 
-from flock_flow.dashboard.events import StreamingOutputEvent
-from flock_flow.engines.dspy_engine import DSPyEngine
+from flock.dashboard.events import StreamingOutputEvent
+from flock.engines.dspy_engine import DSPyEngine
 
 
 class TestWebSocketManagerRetrieval:

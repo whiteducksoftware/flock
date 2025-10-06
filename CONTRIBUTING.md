@@ -101,7 +101,7 @@ pre-commit run --all-files
 git checkout -b feature/your-feature-name
 
 # 2. Make your changes
-vim src/flock_flow/your_file.py
+vim src/flock/your_file.py
 
 # 3. Run tests locally
 poe test
@@ -202,7 +202,7 @@ poe test-determinism
 ```python
 # tests/test_your_feature.py
 import pytest
-from flock_flow import Flock
+from flock import Flock
 
 @pytest.mark.asyncio
 async def test_your_feature():
@@ -333,7 +333,7 @@ Before submitting a pull request, ensure:
 - [ ] Coverage requirements met (`poe test-cov-fail`)
 - [ ] Code is properly formatted (`poe format`)
 - [ ] Linting passes (`poe lint`)
-- [ ] Type checking passes (`uv run mypy src/flock_flow/`)
+- [ ] Type checking passes (`uv run mypy src/flock/`)
 - [ ] Frontend tests pass (`cd frontend && npm test`)
 - [ ] **Backend builds without errors** (`uv build`) ⚠️ **REQUIRED**
 - [ ] **Frontend builds without errors** (`cd frontend && npm run build`) ⚠️ **REQUIRED**
@@ -467,7 +467,7 @@ uv run pytest -s -vv tests/test_specific.py
 uv run pytest --lf
 
 # Run with coverage for specific module
-uv run pytest tests/test_orchestrator.py --cov=src/flock_flow/orchestrator.py
+uv run pytest tests/test_orchestrator.py --cov=src/flock/orchestrator.py
 ```
 
 ### Update Documentation

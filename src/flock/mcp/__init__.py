@@ -18,8 +18,8 @@ Key Components:
 
 Example Usage:
     ```python
-    from flock_flow import Flock
-    from flock_flow.mcp import StdioServerParameters
+    from flock import Flock
+    from flock.mcp import StdioServerParameters
 
     # Create orchestrator
     orchestrator = Flock()

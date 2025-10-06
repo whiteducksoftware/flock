@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from flock_flow.mcp import StdioServerParameters
-from flock_flow.orchestrator import Flock
+from flock.mcp import StdioServerParameters
+from flock.orchestrator import Flock
 
 
 @pytest.mark.asyncio

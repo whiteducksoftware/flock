@@ -122,7 +122,7 @@ class DashboardLauncher:
             )
             print("[Dashboard] Production build completed")
 
-            # Copy build output from frontend/dist to src/flock_flow/dashboard/static
+            # Copy build output from frontend/dist to src/flock/dashboard/static
             self._copy_build_output()
 
         except subprocess.CalledProcessError as e:
@@ -136,7 +136,7 @@ class DashboardLauncher:
         import shutil
 
         source_dir = self.frontend_dir / "dist"
-        # Dashboard directory is src/flock_flow/dashboard
+        # Dashboard directory is src/flock/dashboard
         target_dir = Path(__file__).parent / "static"
 
         if not source_dir.exists():

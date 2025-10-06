@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from flock_flow.dashboard.collector import DashboardEventCollector
+from flock.dashboard.collector import DashboardEventCollector
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def sample_agent(orchestrator):
 class TestOrchestratorDashboardIntegration:
     """Test orchestrator.serve(dashboard=True) integration."""
 
-    @patch("flock_flow.service.BlackboardHTTPService")
+    @patch("flock.service.BlackboardHTTPService")
     async def test_serve_without_dashboard(self, mock_service_class, orchestrator):
         """Test serve() works without dashboard parameter (backward compatibility)."""
         # Mock the standard service to avoid port binding
@@ -44,8 +44,8 @@ class TestOrchestratorDashboardIntegration:
         except asyncio.CancelledError:
             pass  # Expected
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.service.BlackboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.service.BlackboardHTTPService")
     async def test_serve_with_dashboard_false(
         self, mock_service_class, mock_launcher_class, orchestrator
     ):
@@ -68,8 +68,8 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.dashboard.service.DashboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
     async def test_serve_with_dashboard_true(
         self, mock_service_class, mock_launcher_class, orchestrator, sample_agent
     ):
@@ -96,8 +96,8 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.dashboard.service.DashboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
     async def test_dashboard_collector_injected_into_agents(
         self, mock_service_class, mock_launcher_class, orchestrator, sample_agent
     ):
@@ -128,8 +128,8 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.dashboard.service.DashboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
     async def test_multiple_agents_all_get_collector(
         self, mock_service_class, mock_launcher_class, orchestrator
     ):
@@ -163,8 +163,8 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.dashboard.service.DashboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
     async def test_websocket_manager_set_on_collector(
         self, mock_service_class, mock_launcher_class, orchestrator, sample_agent
     ):
@@ -190,8 +190,8 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.dashboard.service.DashboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
     async def test_dashboard_collector_receives_events(
         self, mock_service_class, mock_launcher_class, orchestrator
     ):
@@ -225,8 +225,8 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.dashboard.service.DashboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
     async def test_dashboard_launcher_port_configuration(
         self, mock_service_class, mock_launcher_class, orchestrator
     ):
@@ -250,8 +250,8 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.dashboard.service.DashboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
     @patch.dict("os.environ", {"DASHBOARD_DEV": "1"})
     async def test_dashboard_dev_mode_env_var(
         self, mock_service_class, mock_launcher_class, orchestrator
@@ -275,7 +275,7 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock_flow.service.BlackboardHTTPService")
+    @patch("flock.service.BlackboardHTTPService")
     async def test_backward_compatibility_no_dashboard_parameter(
         self, mock_service_class, orchestrator
     ):
@@ -294,8 +294,8 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.dashboard.service.DashboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
     async def test_agent_added_after_serve_behavior(
         self, mock_service_class, mock_launcher_class, orchestrator
     ):
@@ -337,8 +337,8 @@ class TestOrchestratorDashboardIntegration:
 class TestDashboardServiceIntegration:
     """Test DashboardHTTPService integration."""
 
-    @patch("flock_flow.dashboard.launcher.DashboardLauncher")
-    @patch("flock_flow.dashboard.service.DashboardHTTPService")
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
     async def test_dashboard_service_starts_with_orchestrator(
         self, mock_service_class, mock_launcher_class, orchestrator
     ):

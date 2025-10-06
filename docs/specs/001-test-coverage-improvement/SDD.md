@@ -81,24 +81,24 @@ Location: tests/
 #### Component: Source Modules (Testing Targets)
 
 ```yaml
-Location: src/flock_flow/
+Location: src/flock/
 
-- file: src/flock_flow/engines/dspy_engine.py
+- file: src/flock/engines/dspy_engine.py
   relevance: CRITICAL
   sections: [Lines 74-105, 211-256, 480-776, 782-847 - uncovered]
   why: "Core engine at 25.43% coverage - highest priority module"
 
-- file: src/flock_flow/mcp/client.py
+- file: src/flock/mcp/client.py
   relevance: CRITICAL
   sections: [Lines 159-220, 241-324, 357-402, 502-559 - uncovered]
   why: "MCP client at 18.88% coverage - critical protocol support"
 
-- file: src/flock_flow/logging/telemetry.py
+- file: src/flock/logging/telemetry.py
   relevance: CRITICAL
   sections: [Lines 3-193 - entire file]
   why: "0% coverage - complete gap in observability testing"
 
-- file: src/flock_flow/service.py
+- file: src/flock/service.py
   relevance: HIGH
   sections: [Line 37 - deprecated publish_external in production]
   why: "Production code using deprecated API - must fix first"
@@ -108,7 +108,7 @@ Location: src/flock_flow/
 
 - **Must Preserve:** All existing test functionality, backward compatibility with current API
 - **Can Modify:** Test fixtures, test method implementations, production code at service.py:37
-- **Must Not Touch:** Core framework implementation (src/flock_flow/*.py except service.py:37), frontend code, deployment configurations
+- **Must Not Touch:** Core framework implementation (src/flock/*.py except service.py:37), frontend code, deployment configurations
 
 ### Project Commands
 
@@ -208,7 +208,7 @@ tests/
 
 **Component**: Production Code
 ```
-src/flock_flow/
+src/flock/
 └── service.py               # MODIFY: Line 37 - Replace publish_external with publish
 ```
 

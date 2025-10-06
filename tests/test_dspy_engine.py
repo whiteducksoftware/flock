@@ -15,15 +15,15 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, Field
 
-from flock_flow.artifacts import Artifact
-from flock_flow.engines.dspy_engine import (
+from flock.artifacts import Artifact
+from flock.engines.dspy_engine import (
     DSPyEngine,
     _default_stream_value,
     _ensure_live_crop_above,
 )
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
-from flock_flow.runtime import EvalInputs, EvalResult
+from flock.orchestrator import Flock
+from flock.registry import flock_type
+from flock.runtime import EvalInputs, EvalResult
 
 
 # Test artifact types
@@ -322,7 +322,7 @@ class TestDSPyEngineBasics:
         """Test successful input model resolution."""
         mock_type_registry = mocker.MagicMock()
         mock_type_registry.resolve.return_value = TestInput
-        mocker.patch("flock_flow.engines.dspy_engine.type_registry", mock_type_registry)
+        mocker.patch("flock.engines.dspy_engine.type_registry", mock_type_registry)
 
         artifact = Artifact(type="TestInput", payload={}, produced_by="test")
         engine = DSPyEngine()
@@ -333,7 +333,7 @@ class TestDSPyEngineBasics:
         """Test input model resolution failure."""
         mock_type_registry = mocker.MagicMock()
         mock_type_registry.resolve.side_effect = KeyError("Type not found")
-        mocker.patch("flock_flow.engines.dspy_engine.type_registry", mock_type_registry)
+        mocker.patch("flock.engines.dspy_engine.type_registry", mock_type_registry)
 
         artifact = Artifact(type="UnknownType", payload={}, produced_by="test")
         engine = DSPyEngine()
@@ -629,7 +629,7 @@ class TestDSPyEngineContext:
 
     def test_conversation_context_method_exists(self):
         """Test that conversation context method is available (inherited)."""
-        from flock_flow.engines.dspy_engine import DSPyEngine
+        from flock.engines.dspy_engine import DSPyEngine
 
         engine = DSPyEngine()
         # The method should be inherited from EngineComponent
@@ -734,23 +734,23 @@ class TestDSPyEngineRichLivePatch:
     def test_ensure_live_crop_above_idempotency(self):
         """Test that live crop above patch is applied only once."""
         # Reset global state
-        import flock_flow.engines.dspy_engine
+        import flock.engines.dspy_engine
 
-        flock_flow.engines.dspy_engine._live_patch_applied = False
+        flock.engines.dspy_engine._live_patch_applied = False
 
         # First call should apply patch
         _ensure_live_crop_above()
 
         # Check that patch was applied
-        assert flock_flow.engines.dspy_engine._live_patch_applied is True
+        assert flock.engines.dspy_engine._live_patch_applied is True
 
         # Second call should be no-op
         _ensure_live_crop_above()
-        assert flock_flow.engines.dspy_engine._live_patch_applied is True
+        assert flock.engines.dspy_engine._live_patch_applied is True
 
     def test_ensure_live_crop_above_without_rich(self, mocker):
         """Test graceful handling when Rich is not available."""
-        mocker.patch("flock_flow.engines.dspy_engine._live_patch_applied", False)
+        mocker.patch("flock.engines.dspy_engine._live_patch_applied", False)
 
         # Mock import to fail
         mocker.patch.dict("sys.modules", {"rich": None})
@@ -760,15 +760,15 @@ class TestDSPyEngineRichLivePatch:
     def test_apply_live_patch_on_import_success(self, mocker):
         """Test successful Live patch application on import."""
         # Reset patch state
-        import flock_flow.engines.dspy_engine
+        import flock.engines.dspy_engine
 
-        flock_flow.engines.dspy_engine._live_patch_applied = False
+        flock.engines.dspy_engine._live_patch_applied = False
 
         # Mock the patch function
-        mock_patch = mocker.patch("flock_flow.engines.dspy_engine._ensure_live_crop_above")
+        mock_patch = mocker.patch("flock.engines.dspy_engine._ensure_live_crop_above")
 
         # Import module to trigger patch
-        from flock_flow.engines.dspy_engine import _apply_live_patch_on_import
+        from flock.engines.dspy_engine import _apply_live_patch_on_import
 
         _apply_live_patch_on_import()
 
@@ -779,12 +779,12 @@ class TestDSPyEngineRichLivePatch:
         """Test graceful handling when Live patch application fails."""
         # Mock the patch function to raise exception
         mock_patch = mocker.patch(
-            "flock_flow.engines.dspy_engine._ensure_live_crop_above",
+            "flock.engines.dspy_engine._ensure_live_crop_above",
             side_effect=Exception("Patch failed"),
         )
 
         # Should not raise exception
-        from flock_flow.engines.dspy_engine import _apply_live_patch_on_import
+        from flock.engines.dspy_engine import _apply_live_patch_on_import
 
         _apply_live_patch_on_import()
 

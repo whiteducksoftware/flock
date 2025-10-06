@@ -69,7 +69,7 @@ export OPENAI_API_KEY="sk-..."
 export DEFAULT_MODEL="openai/gpt-4o-mini"
 
 # Verify installation
-uv run python -c "from flock_flow import Flock; print('✅ Ready!')"
+uv run python -c "from flock import Flock; print('✅ Ready!')"
 ```
 
 ### Run Examples
@@ -91,7 +91,7 @@ uv run python examples/features/visibility/public_visibility.py
 
 ```
 flock-flow/
-├── src/flock_flow/              # Core Python framework
+├── src/flock/              # Core Python framework
 │   ├── orchestrator.py          # Main orchestrator (scheduling, blackboard)
 │   ├── agent.py                 # Agent & AgentBuilder (fluent API)
 │   ├── artifacts.py             # Artifact model & specs
@@ -202,7 +202,7 @@ uv run pytest tests/test_specific.py       # Run specific test
 
 ## 🔬 Core Architecture
 
-### 1. Flock Orchestrator (`src/flock_flow/orchestrator.py`)
+### 1. Flock Orchestrator (`src/flock/orchestrator.py`)
 
 **Purpose:** Central coordinator—manages blackboard, schedules agents
 
@@ -219,7 +219,7 @@ uv run pytest tests/test_specific.py       # Run specific test
 - **Duplicate Prevention**: Tracks processed (artifact_id, agent_name) pairs
 - **Self-Trigger Protection**: `prevent_self_trigger=True` by default
 
-### 2. Agent System (`src/flock_flow/agent.py`)
+### 2. Agent System (`src/flock/agent.py`)
 
 **Builder Pattern:**
 ```python
@@ -247,7 +247,7 @@ agent = (
 8. `on_error` - Handle failures
 9. `on_terminate` - Cleanup
 
-### 3. Dashboard System (`src/flock_flow/dashboard/`)
+### 3. Dashboard System (`src/flock/dashboard/`)
 
 **One-Line Activation:**
 ```python
@@ -268,7 +268,7 @@ await orchestrator.serve(dashboard=True)
 - **EventLog Module**: Comprehensive event viewing with filtering
 - **Persistence**: Node positions, preferences, session data in IndexedDB
 
-### 4. MCP Integration (`src/flock_flow/mcp/`)
+### 4. MCP Integration (`src/flock/mcp/`)
 
 **Purpose:** Model Context Protocol support for external tool integration
 
@@ -286,7 +286,7 @@ orchestrator.register_mcp_server("server_name", config)
 agent.uses_mcp("server_name")
 ```
 
-### 5. Visibility System (`src/flock_flow/visibility.py`)
+### 5. Visibility System (`src/flock/visibility.py`)
 
 **Access Control Types:**
 - `PublicVisibility` - Everyone can see
@@ -456,7 +456,7 @@ git push origin feature/your-feature-name
 - [ ] Coverage requirements met (`poe test-cov-fail`)
 - [ ] Code is properly formatted (`poe format`)
 - [ ] Linting passes (`poe lint`)
-- [ ] Type checking passes (`uv run mypy src/flock_flow/`)
+- [ ] Type checking passes (`uv run mypy src/flock/`)
 - [ ] Frontend tests pass (`cd frontend && npm test`)
 - [ ] **Backend builds without errors** (`uv build`) ⚠️ **REQUIRED**
 - [ ] **Frontend builds without errors** (`cd frontend && npm run build`) ⚠️ **REQUIRED**
@@ -571,8 +571,8 @@ git commit -m "perf: Optimize graph rendering performance"
 ```python
 import asyncio
 from pydantic import BaseModel
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
+from flock.orchestrator import Flock
+from flock.registry import flock_type
 
 # Define artifacts
 @flock_type
@@ -800,7 +800,7 @@ agent = (
 
 ```python
 # 1. Create component class
-from flock_flow.components import AgentComponent
+from flock.components import AgentComponent
 
 class MyComponent(AgentComponent):
     name: str = "my_component"
@@ -1088,7 +1088,7 @@ def pytest_collection_modifyitems(config, items):
 
 Always use the appropriate subdirectory:
 - **Tests**: `/tests` - All test files only
-- **Source Code**: `/src/flock_flow` - Production code only
+- **Source Code**: `/src/flock` - Production code only
 - **Documentation**: `/docs` - Documentation only
 - **Examples**: `/examples` - Example scripts only
 - **Frontend**: `/frontend/src` - React components and frontend code
@@ -1167,7 +1167,7 @@ npm run build       # Build for production
 
 **Create orchestrator:**
 ```python
-from flock_flow.orchestrator import Flock
+from flock.orchestrator import Flock
 orchestrator = Flock("openai/gpt-4o")
 ```
 

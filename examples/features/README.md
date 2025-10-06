@@ -61,7 +61,7 @@ Feature Example: [Feature Name]
 Validates: [Specific behaviors being tested]
 """
 import asyncio
-from flock_flow.orchestrator import Flock
+from flock.orchestrator import Flock
 
 async def main():
     print("🧪 Feature: [Feature Name]")

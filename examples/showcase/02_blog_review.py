@@ -11,8 +11,8 @@ import asyncio
 
 from pydantic import BaseModel, Field
 
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_tool, flock_type
+from flock.orchestrator import Flock
+from flock.registry import flock_tool, flock_type
 
 
 # 1. Define typed artifacts

@@ -8,11 +8,11 @@ import asyncio
 
 from pydantic import BaseModel, Field
 
-from flock_flow.artifacts import Artifact
-from flock_flow.components import EngineComponent
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
-from flock_flow.runtime import EvalInputs, EvalResult
+from flock.artifacts import Artifact
+from flock.components import EngineComponent
+from flock.orchestrator import Flock
+from flock.registry import flock_type
+from flock.runtime import EvalInputs, EvalResult
 
 
 @flock_type

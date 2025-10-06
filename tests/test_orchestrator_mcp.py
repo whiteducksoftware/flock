@@ -2,9 +2,9 @@
 
 import pytest
 
-from flock_flow.mcp import StdioServerParameters
-from flock_flow.mcp.manager import FlockMCPClientManager
-from flock_flow.orchestrator import Flock
+from flock.mcp import StdioServerParameters
+from flock.mcp.manager import FlockMCPClientManager
+from flock.orchestrator import Flock
 
 
 def test_orchestrator_has_mcp_properties():

@@ -13,16 +13,16 @@ from uuid import uuid4
 
 import pytest
 
-from flock_flow.artifacts import Artifact
-from flock_flow.dashboard.collector import DashboardEventCollector
-from flock_flow.dashboard.events import (
+from flock.artifacts import Artifact
+from flock.dashboard.collector import DashboardEventCollector
+from flock.dashboard.events import (
     AgentActivatedEvent,
     AgentErrorEvent,
     MessagePublishedEvent,
     StreamingOutputEvent,
 )
-from flock_flow.runtime import Context
-from flock_flow.visibility import PublicVisibility
+from flock.runtime import Context
+from flock.visibility import PublicVisibility
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def collector():
 def websocket_manager():
     """Create WebSocketManager instance."""
     try:
-        from flock_flow.dashboard.websocket_manager import WebSocketManager
+        from flock.dashboard.websocket_manager import WebSocketManager
 
         return WebSocketManager()
     except ImportError:
@@ -417,7 +417,7 @@ async def test_json_serialization_deserialization_roundtrip(
     await websocket_manager.add_client(mock_websocket_client)
 
     # Create event with various data types
-    from flock_flow.dashboard.events import VisibilitySpec
+    from flock.dashboard.events import VisibilitySpec
 
     event = MessagePublishedEvent(
         artifact_id=str(uuid4()),
@@ -468,7 +468,7 @@ async def test_websocket_latency_target(websocket_manager, mock_websocket_client
     await websocket_manager.add_client(mock_websocket_client)
 
     # Create simple event
-    from flock_flow.dashboard.events import SubscriptionInfo
+    from flock.dashboard.events import SubscriptionInfo
 
     event = AgentActivatedEvent(
         agent_name="test",

@@ -47,7 +47,7 @@
   - [x] Read `docs/domain/test-improvement-roadmap.md` sections: Phase 1 (lines 53-145) `[ref: docs/domain/test-improvement-roadmap.md; lines: 53-145]`
   - [x] Read `docs/specs/001-test-coverage-improvement/SDD.md` sections: Architecture Decisions, Risks `[ref: docs/specs/001-test-coverage-improvement/SDD.md]`
   - [x] Read `tests/conftest.py` to understand current fixtures `[ref: tests/conftest.py]`
-  - [x] Read `src/flock_flow/service.py` line 37 `[ref: src/flock_flow/service.py; lines: 37]`
+  - [x] Read `src/flock/service.py` line 37 `[ref: src/flock/service.py; lines: 37]`
 
 - [x] **Task 1.1: Fix Production Code** (2hrs) `[activity: code-migration]`
   - [x] Replace `publish_external()` with `publish()` at `service.py:37` `[ref: docs/domain/test-improvement-roadmap.md; lines: 85-96]`
@@ -107,22 +107,22 @@
 
 - [x] **Prime Context**:
   - [x] Read `docs/domain/test-improvement-roadmap.md` Phase 2 section `[ref: docs/domain/test-improvement-roadmap.md; lines: 147-296]`
-  - [x] Read `src/flock_flow/engines/dspy_engine.py` `[ref: src/flock_flow/engines/dspy_engine.py]`
-  - [x] Read `src/flock_flow/mcp/client.py` `[ref: src/flock_flow/mcp/client.py]`
-  - [x] Read `src/flock_flow/logging/telemetry.py` `[ref: src/flock_flow/logging/telemetry.py]`
-  - [x] Read `src/flock_flow/mcp/manager.py` `[ref: src/flock_flow/mcp/manager.py]`
-  - [x] Read `src/flock_flow/mcp/config.py` `[ref: src/flock_flow/mcp/config.py]`
+  - [x] Read `src/flock/engines/dspy_engine.py` `[ref: src/flock/engines/dspy_engine.py]`
+  - [x] Read `src/flock/mcp/client.py` `[ref: src/flock/mcp/client.py]`
+  - [x] Read `src/flock/logging/telemetry.py` `[ref: src/flock/logging/telemetry.py]`
+  - [x] Read `src/flock/mcp/manager.py` `[ref: src/flock/mcp/manager.py]`
+  - [x] Read `src/flock/mcp/config.py` `[ref: src/flock/mcp/config.py]`
 
 - [x] **Task 2.1: Create test_dspy_engine.py** (16-20hrs) `[activity: test-writing]`
   - [x] **Write Tests**: DSPy engine test scenarios
-    - [x] Test basic signature execution (lines 211-256) `[ref: src/flock_flow/engines/dspy_engine.py; lines: 211-256]`
-    - [x] Test streaming output (lines 480-600) `[ref: src/flock_flow/engines/dspy_engine.py; lines: 480-600]`
-    - [x] Test non-streaming output (lines 600-700) `[ref: src/flock_flow/engines/dspy_engine.py; lines: 600-700]`
-    - [x] Test MCP tool integration (lines 782-847) `[ref: src/flock_flow/engines/dspy_engine.py; lines: 782-847]`
-    - [x] Test error handling (lines 700-776) `[ref: src/flock_flow/engines/dspy_engine.py; lines: 700-776]`
-    - [x] Test Rich Live patching (lines 74-105) `[ref: src/flock_flow/engines/dspy_engine.py; lines: 74-105]`
-    - [x] Test context variables (lines 400-450) `[ref: src/flock_flow/engines/dspy_engine.py; lines: 400-450]`
-    - [x] Test multiple inputs (lines 320-400) `[ref: src/flock_flow/engines/dspy_engine.py; lines: 320-400]`
+    - [x] Test basic signature execution (lines 211-256) `[ref: src/flock/engines/dspy_engine.py; lines: 211-256]`
+    - [x] Test streaming output (lines 480-600) `[ref: src/flock/engines/dspy_engine.py; lines: 480-600]`
+    - [x] Test non-streaming output (lines 600-700) `[ref: src/flock/engines/dspy_engine.py; lines: 600-700]`
+    - [x] Test MCP tool integration (lines 782-847) `[ref: src/flock/engines/dspy_engine.py; lines: 782-847]`
+    - [x] Test error handling (lines 700-776) `[ref: src/flock/engines/dspy_engine.py; lines: 700-776]`
+    - [x] Test Rich Live patching (lines 74-105) `[ref: src/flock/engines/dspy_engine.py; lines: 74-105]`
+    - [x] Test context variables (lines 400-450) `[ref: src/flock/engines/dspy_engine.py; lines: 400-450]`
+    - [x] Test multiple inputs (lines 320-400) `[ref: src/flock/engines/dspy_engine.py; lines: 320-400]`
   - [x] **Results**: 54 tests created, comprehensive engine functionality covered
   - [x] **Validate**:
     - [x] `poe test tests/test_dspy_engine.py` passes (54/54 tests)
@@ -130,11 +130,11 @@
 
 - [x] **Task 2.2: Create test_mcp_client.py** (12-16hrs) `[activity: test-writing]`
   - [x] **Write Tests**: MCP client test scenarios
-    - [x] Test client initialization (lines 159-220) `[ref: src/flock_flow/mcp/client.py; lines: 159-220]`
-    - [x] Test tool listing & caching (lines 241-324) `[ref: src/flock_flow/mcp/client.py; lines: 241-324]`
-    - [x] Test tool execution (lines 357-402) `[ref: src/flock_flow/mcp/client.py; lines: 357-402]`
-    - [x] Test resource operations (lines 411-475) `[ref: src/flock_flow/mcp/client.py; lines: 411-475]`
-    - [x] Test connection management (lines 479-559) `[ref: src/flock_flow/mcp/client.py; lines: 479-559]`
+    - [x] Test client initialization (lines 159-220) `[ref: src/flock/mcp/client.py; lines: 159-220]`
+    - [x] Test tool listing & caching (lines 241-324) `[ref: src/flock/mcp/client.py; lines: 241-324]`
+    - [x] Test tool execution (lines 357-402) `[ref: src/flock/mcp/client.py; lines: 357-402]`
+    - [x] Test resource operations (lines 411-475) `[ref: src/flock/mcp/client.py; lines: 411-475]`
+    - [x] Test connection management (lines 479-559) `[ref: src/flock/mcp/client.py; lines: 479-559]`
   - [x] **Results**: 42 tests created, 86.73% coverage achieved
   - [x] **Validate**:
     - [x] `poe test tests/test_mcp_client.py` passes (37/42 tests, 5 minor edge case failures)
@@ -142,10 +142,10 @@
 
 - [x] **Task 2.3: Create test_telemetry.py** (8-12hrs) `[activity: test-writing]`
   - [x] **Write Tests**: Telemetry test scenarios
-    - [x] Test TelemetryConfig (lines 10-50) `[ref: src/flock_flow/logging/telemetry.py; lines: 10-50]`
-    - [x] Test tracer setup (lines 60-120) `[ref: src/flock_flow/logging/telemetry.py; lines: 60-120]`
-    - [x] Test exporters (lines 130-170) `[ref: src/flock_flow/logging/telemetry.py; lines: 130-170]`
-    - [x] Test environment variables (lines 180-193) `[ref: src/flock_flow/logging/telemetry.py; lines: 180-193]`
+    - [x] Test TelemetryConfig (lines 10-50) `[ref: src/flock/logging/telemetry.py; lines: 10-50]`
+    - [x] Test tracer setup (lines 60-120) `[ref: src/flock/logging/telemetry.py; lines: 60-120]`
+    - [x] Test exporters (lines 130-170) `[ref: src/flock/logging/telemetry.py; lines: 130-170]`
+    - [x] Test environment variables (lines 180-193) `[ref: src/flock/logging/telemetry.py; lines: 180-193]`
   - [x] **Results**: 33 tests created, 89.57% coverage achieved
   - [x] **Validate**:
     - [x] `poe test tests/test_telemetry.py` passes (33/33 tests)
@@ -164,9 +164,9 @@
 
 - [x] **Task 2.5: Create test_mcp_config.py** (8-12hrs) `[activity: test-writing]`
   - [x] **Write Tests**: MCP config test scenarios
-    - [x] Test config parsing (lines 182-244) `[ref: src/flock_flow/mcp/config.py; lines: 182-244]`
-    - [x] Test transport types (lines 249-290) `[ref: src/flock_flow/mcp/config.py; lines: 249-290]`
-    - [x] Test validation (lines 291-431) `[ref: src/flock_flow/mcp/config.py; lines: 291-431]`
+    - [x] Test config parsing (lines 182-244) `[ref: src/flock/mcp/config.py; lines: 182-244]`
+    - [x] Test transport types (lines 249-290) `[ref: src/flock/mcp/config.py; lines: 249-290]`
+    - [x] Test validation (lines 291-431) `[ref: src/flock/mcp/config.py; lines: 291-431]`
   - [x] **Results**: 65 tests created, 73.96% coverage achieved
   - [x] **Validate**:
     - [x] `poe test tests/test_mcp_config.py` passes (54/65 tests, 11 skipped due to known implementation bug)
@@ -206,14 +206,14 @@
 
 - [x] **Task 3.1: Expand test_dashboard_service.py** (12-16hrs) `[activity: test-expansion]`
   - [x] **API Endpoint Tests**: Comprehensive coverage for all 8 endpoints
-    - [x] /api/artifact-types (lines 170-181) - schema generation and error handling `[ref: src/flock_flow/dashboard/service.py; lines: 170-181]`
-    - [x] /api/agents (lines 199-210) - agent listing and metadata `[ref: src/flock_flow/dashboard/service.py; lines: 199-210]`
-    - [x] /api/control/publish (lines 247-300) - artifact publishing with validation `[ref: src/flock_flow/dashboard/service.py; lines: 247-300]`
-    - [x] /api/control/invoke (lines 319-376) - agent invocation and error handling `[ref: src/flock_flow/dashboard/service.py; lines: 319-376]`
-    - [x] /api/themes (lines 449-493) - theme management and security `[ref: src/flock_flow/dashboard/service.py; lines: 449-493]`
+    - [x] /api/artifact-types (lines 170-181) - schema generation and error handling `[ref: src/flock/dashboard/service.py; lines: 170-181]`
+    - [x] /api/agents (lines 199-210) - agent listing and metadata `[ref: src/flock/dashboard/service.py; lines: 199-210]`
+    - [x] /api/control/publish (lines 247-300) - artifact publishing with validation `[ref: src/flock/dashboard/service.py; lines: 247-300]`
+    - [x] /api/control/invoke (lines 319-376) - agent invocation and error handling `[ref: src/flock/dashboard/service.py; lines: 319-376]`
+    - [x] /api/themes (lines 449-493) - theme management and security `[ref: src/flock/dashboard/service.py; lines: 449-493]`
     - [x] /api/control/pause & /api/control/resume (501 responses) - placeholder endpoints
-    - [x] /api/version (lines 212-228) - version information `[ref: src/flock_flow/dashboard/service.py; lines: 212-228]`
-    - [x] /api/streaming-history/{agent_name} (lines 396-431) - streaming history `[ref: src/flock_flow/dashboard/service.py; lines: 396-431]`
+    - [x] /api/version (lines 212-228) - version information `[ref: src/flock/dashboard/service.py; lines: 212-228]`
+    - [x] /api/streaming-history/{agent_name} (lines 396-431) - streaming history `[ref: src/flock/dashboard/service.py; lines: 396-431]`
   - [x] **Error Conditions**: 400, 404, 422, 500, 501 responses fully tested
   - [x] **Security Testing**: Path traversal protection, input validation
   - [x] **Results**: 39 new tests created, 876 lines of test code
@@ -279,17 +279,17 @@
     - `tests/test_dashboard_service.py`: Added create_mock_agent() helper, fixed fixture cleanup, corrected event types
     - `tests/test_engines.py`: Added publish_outputs=False to avoid double execution
     - `tests/conftest.py`: Improved mock_llm fixture with explicit cleanup
-    - `src/flock_flow/dashboard/service.py`: Fixed return type hint for invoke_agent
+    - `src/flock/dashboard/service.py`: Fixed return type hint for invoke_agent
   - [x] **Result**: All 32 tests fixed, 494 tests passing (100% success rate), clean baseline achieved
 
 - [x] **Task 4.1: Coverage Gap Analysis** (1hr actual) `[activity: coverage-analysis]`
   - [x] **Generate Coverage Report**: Current coverage 70.38% (improved from 69.07% after fixes)
   - [x] **Top Targets Identified** (by impact and feasibility):
-    - `src/flock_flow/cli.py` (34.78% coverage) - 26 lines to cover - HIGH PRIORITY
-    - `src/flock_flow/components.py` (56.52% coverage) - 21 lines to cover - HIGH PRIORITY
-    - `src/flock_flow/logging/logging.py` (52.89% coverage) - 70 lines to cover - MEDIUM PRIORITY
-    - `src/flock_flow/helper/cli_helper.py` (59.38% coverage) - 10 lines to cover - MEDIUM PRIORITY
-    - `src/flock_flow/engines/dspy_engine.py` (41.35% coverage) - 235 lines - TOO COMPLEX for Phase 4
+    - `src/flock/cli.py` (34.78% coverage) - 26 lines to cover - HIGH PRIORITY
+    - `src/flock/components.py` (56.52% coverage) - 21 lines to cover - HIGH PRIORITY
+    - `src/flock/logging/logging.py` (52.89% coverage) - 70 lines to cover - MEDIUM PRIORITY
+    - `src/flock/helper/cli_helper.py` (59.38% coverage) - 10 lines to cover - MEDIUM PRIORITY
+    - `src/flock/engines/dspy_engine.py` (41.35% coverage) - 235 lines - TOO COMPLEX for Phase 4
   - [x] **Revised Strategy**: Focus on CLI, components, and logging modules for quick wins
   - [x] **Expected Impact**: These modules should add 5-7% coverage, may need 1-2 additional modules
 
@@ -358,7 +358,7 @@
 
 - [x] **Task 4.10: CI/CD Pipeline Fixes** (4hrs actual) `[activity: ci-configuration, test-fixing]`
   - [x] **Ruff Configuration Updates**:
-    - [x] Updated `poe lint` and `poe format` to only check `src/flock_flow/` (not tests/examples)
+    - [x] Updated `poe lint` and `poe format` to only check `src/flock/` (not tests/examples)
     - [x] Added pragmatic ignore rules for non-critical linting warnings (ARG002, TRY300, etc.)
     - [x] Updated pre-commit hooks to Ruff v0.13.3 for version consistency
     - [x] Updated GitHub Actions workflow to match local configuration
@@ -375,7 +375,7 @@
   - [x] **Files Modified**:
     - `pyproject.toml`: Updated Ruff lint/format paths and ignore rules
     - `.pre-commit-config.yaml`: Updated Ruff version to v0.13.3
-    - `.github/workflows/quality.yml`: Updated to only lint src/flock_flow/
+    - `.github/workflows/quality.yml`: Updated to only lint src/flock/
     - `tests/conftest.py`: Added pytest_collection_modifyitems hook for test ordering
     - `tests/test_cli.py`: Added strip_ansi() helper and updated assertions
   - [x] **CI Pipeline Validation**: All quality gates passing ✅
@@ -505,7 +505,7 @@ git revert HEAD
   - Backend Quality: PASS
   - Frontend Quality: PASS
   - Security Scan: PASS
-- Ruff Configuration: Updated to only lint src/flock_flow/ (not tests/examples)
+- Ruff Configuration: Updated to only lint src/flock/ (not tests/examples)
 - Test Ordering: Implemented pytest hook to eliminate contamination failures
 - CI Environment: Tests now robust across local and CI environments
 - Service Improvements: Added error handling for agent execution failures
@@ -585,7 +585,7 @@ git revert HEAD
   - Backend Quality: PASS (lint, format, tests, coverage)
   - Frontend Quality: PASS (type-check, tests, build)
   - Security Scan: PASS (bandit security checks)
-- Ruff configuration: Focused on production code quality (src/flock_flow only)
+- Ruff configuration: Focused on production code quality (src/flock only)
 - Test ordering: pytest hook eliminates contamination failures
 - CI compatibility: Tests robust across local and CI environments
 - Production code improvements: service.py error handling, UUID imports fixed

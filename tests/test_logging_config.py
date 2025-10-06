@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from flock_flow.logging.logging import (
+from flock.logging.logging import (
     BOLD_CATEGORIES,
     COLOR_MAP,
     LOG_LEVELS,
@@ -75,7 +75,7 @@ class TestWorkflowContext:
 class TestTraceId:
     """Test trace ID functionality."""
 
-    @patch("flock_flow.logging.logging.trace.get_current_span")
+    @patch("flock.logging.logging.trace.get_current_span")
     def test_get_current_trace_id_valid(self, mock_get_span):
         """Test getting trace ID with valid span."""
         mock_span = Mock()
@@ -88,7 +88,7 @@ class TestTraceId:
         trace_id = get_current_trace_id()
         assert trace_id == "00000000000000000012345678abcdef"
 
-    @patch("flock_flow.logging.logging.trace.get_current_span")
+    @patch("flock.logging.logging.trace.get_current_span")
     def test_get_current_trace_id_invalid(self, mock_get_span):
         """Test getting trace ID with invalid span."""
         mock_span = Mock()
@@ -277,8 +277,8 @@ class TestFlockLogger:
         assert logger.name == "test"
         assert logger.min_level_severity == LOG_LEVELS["INFO"]
 
-    @patch("flock_flow.logging.logging.get_current_trace_id")
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.get_current_trace_id")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_get_logger(self, mock_loguru, mock_trace_id):
         """Test FlockLogger _get_logger method."""
         mock_trace_id.return_value = "test-trace-id"
@@ -307,7 +307,7 @@ class TestFlockLogger:
         assert len(truncated) > 100  # Includes truncation indicator
         assert "...<yellow>+(50 chars)</yellow>" in truncated
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_debug(self, mock_loguru):
         """Test FlockLogger debug method."""
         mock_bound = Mock()
@@ -318,7 +318,7 @@ class TestFlockLogger:
 
         mock_bound.debug.assert_called_once_with("test message")
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_debug_filtered(self, mock_loguru):
         """Test FlockLogger debug method when level is filtered."""
         logger = FlockLogger("test", LOG_LEVELS["INFO"])
@@ -327,7 +327,7 @@ class TestFlockLogger:
         # Should not call loguru at all if filtered
         mock_loguru.bind.assert_not_called()
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_info(self, mock_loguru):
         """Test FlockLogger info method."""
         mock_bound = Mock()
@@ -338,7 +338,7 @@ class TestFlockLogger:
 
         mock_bound.info.assert_called_once_with("test message")
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_warning(self, mock_loguru):
         """Test FlockLogger warning method."""
         mock_bound = Mock()
@@ -349,7 +349,7 @@ class TestFlockLogger:
 
         mock_bound.warning.assert_called_once_with("test message")
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_error(self, mock_loguru):
         """Test FlockLogger error method."""
         mock_bound = Mock()
@@ -360,7 +360,7 @@ class TestFlockLogger:
 
         mock_bound.error.assert_called_once_with("test message")
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_exception(self, mock_loguru):
         """Test FlockLogger exception method."""
         mock_bound = Mock()
@@ -371,7 +371,7 @@ class TestFlockLogger:
 
         mock_bound.exception.assert_called_once_with("test exception")
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_success(self, mock_loguru):
         """Test FlockLogger success method."""
         mock_bound = Mock()
@@ -382,7 +382,7 @@ class TestFlockLogger:
 
         mock_bound.success.assert_called_once_with("test success")
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_no_logs_level(self, mock_loguru):
         """Test FlockLogger with NO_LOGS level filters all messages."""
         logger = FlockLogger("test", LOG_LEVELS["NO_LOGS"])
@@ -397,7 +397,7 @@ class TestFlockLogger:
         # Should not call loguru at all
         mock_loguru.bind.assert_not_called()
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_with_max_length(self, mock_loguru):
         """Test FlockLogger respects max_length parameter."""
         mock_bound = Mock()
@@ -419,7 +419,7 @@ class TestLoggerManagement:
     def test_get_logger_creates_new(self):
         """Test get_logger creates new logger if not cached."""
         # Clear cache first
-        from flock_flow.logging.logging import _LOGGER_CACHE
+        from flock.logging.logging import _LOGGER_CACHE
 
         _LOGGER_CACHE.clear()
 
@@ -430,7 +430,7 @@ class TestLoggerManagement:
 
     def test_get_logger_returns_cached(self):
         """Test get_logger returns cached logger."""
-        from flock_flow.logging.logging import _LOGGER_CACHE
+        from flock.logging.logging import _LOGGER_CACHE
 
         _LOGGER_CACHE.clear()
 
@@ -445,7 +445,7 @@ class TestLoggerManagement:
 
     def test_get_logger_respects_specific_severity(self):
         """Test get_logger respects specific severity settings."""
-        from flock_flow.logging.logging import _LOGGER_CACHE, _SPECIFIC_SEVERITIES
+        from flock.logging.logging import _LOGGER_CACHE, _SPECIFIC_SEVERITIES
 
         _LOGGER_CACHE.clear()
         _SPECIFIC_SEVERITIES["test_specific"] = LOG_LEVELS["DEBUG"]
@@ -455,7 +455,7 @@ class TestLoggerManagement:
 
     def test_get_module_loggers(self):
         """Test get_module_loggers returns module loggers."""
-        from flock_flow.logging.logging import _LOGGER_CACHE
+        from flock.logging.logging import _LOGGER_CACHE
 
         _LOGGER_CACHE.clear()
 
@@ -475,21 +475,21 @@ class TestLoggerManagement:
 class TestConfigureLogging:
     """Test configure_logging function."""
 
-    @patch("flock_flow.logging.logging.logging.basicConfig")
+    @patch("flock.logging.logging.logging.basicConfig")
     def test_configure_logging_basic(self, mock_basic_config):
         """Test basic configure_logging."""
         configure_logging("INFO", "WARNING", None)
 
         mock_basic_config.assert_called_with(level=LOG_LEVELS["WARNING"])
         # Check that the global variable was updated
-        import flock_flow.logging.logging as logging_module
+        import flock.logging.logging as logging_module
 
         assert LOG_LEVELS["INFO"] == logging_module._DEFAULT_FLOCK_SEVERITY
 
-    @patch("flock_flow.logging.logging.logging.basicConfig")
+    @patch("flock.logging.logging.logging.basicConfig")
     def test_configure_logging_with_specific_levels(self, mock_basic_config):
         """Test configure_logging with specific levels."""
-        from flock_flow.logging.logging import _LOGGER_CACHE, _SPECIFIC_SEVERITIES
+        from flock.logging.logging import _LOGGER_CACHE, _SPECIFIC_SEVERITIES
 
         _LOGGER_CACHE.clear()
         _SPECIFIC_SEVERITIES.clear()
@@ -507,13 +507,13 @@ class TestConfigureLogging:
         assert _SPECIFIC_SEVERITIES["test1"] == LOG_LEVELS["DEBUG"]
         assert _SPECIFIC_SEVERITIES["test2"] == LOG_LEVELS["ERROR"]
 
-    @patch("flock_flow.logging.logging.logging.basicConfig")
+    @patch("flock.logging.logging.logging.basicConfig")
     def test_configure_logging_with_int_levels(self, mock_basic_config):
         """Test configure_logging with integer levels."""
         configure_logging(20, 30, {"test": 10})
 
         mock_basic_config.assert_called_with(level=30)
-        from flock_flow.logging.logging import _DEFAULT_FLOCK_SEVERITY
+        from flock.logging.logging import _DEFAULT_FLOCK_SEVERITY
 
         assert _DEFAULT_FLOCK_SEVERITY == 20
 
@@ -593,7 +593,7 @@ class TestLoggerConstants:
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    @patch("flock_flow.logging.logging.loguru_logger")
+    @patch("flock.logging.logging.loguru_logger")
     def test_logger_with_extra_args_kwargs(self, mock_loguru):
         """Test logger methods with extra args and kwargs."""
         mock_bound = Mock()
@@ -629,7 +629,7 @@ def cleanup_logger_cache():
     """Clean up logger cache after each test."""
     yield
     # Clear the caches to avoid state pollution between tests
-    from flock_flow.logging.logging import _LOGGER_CACHE, _SPECIFIC_SEVERITIES
+    from flock.logging.logging import _LOGGER_CACHE, _SPECIFIC_SEVERITIES
 
     _LOGGER_CACHE.clear()
     _SPECIFIC_SEVERITIES.clear()

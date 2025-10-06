@@ -51,10 +51,10 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
-from flock_flow.artifacts import Artifact
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
-from flock_flow.visibility import PublicVisibility
+from flock.artifacts import Artifact
+from flock.orchestrator import Flock
+from flock.registry import flock_type
+from flock.visibility import PublicVisibility
 
 
 # Test data models - Note: Names intentionally follow pattern for test artifacts
@@ -104,11 +104,11 @@ def mock_dashboard_service(orchestrator):
 
     # Try to import DashboardHTTPService, fall back to BlackboardHTTPService
     try:
-        from flock_flow.dashboard.service import DashboardHTTPService
+        from flock.dashboard.service import DashboardHTTPService
 
         service = DashboardHTTPService(orchestrator)
     except (ImportError, AttributeError):
-        from flock_flow.service import BlackboardHTTPService
+        from flock.service import BlackboardHTTPService
 
         service = BlackboardHTTPService(orchestrator)
 
@@ -143,7 +143,7 @@ async def test_publish_accepts_artifact_type_and_content(orchestrator):
 
     # Note: This test documents expected API behavior
     # Control endpoint implementation should be added to service
-    from flock_flow.service import BlackboardHTTPService
+    from flock.service import BlackboardHTTPService
 
     service = BlackboardHTTPService(orchestrator)
 
@@ -262,7 +262,7 @@ async def test_publish_validates_pydantic_schema(orchestrator):
 async def test_publish_handles_missing_required_fields(orchestrator):
     """Test publish endpoint returns 400 for missing required fields."""
     # Arrange
-    from flock_flow.service import BlackboardHTTPService
+    from flock.service import BlackboardHTTPService
 
     service = BlackboardHTTPService(orchestrator)
     client = TestClient(service.app)
@@ -313,7 +313,7 @@ async def test_invoke_accepts_agent_name_parameter(orchestrator):
     ]
     orchestrator.invoke = AsyncMock(return_value=mock_outputs)
 
-    from flock_flow.service import BlackboardHTTPService
+    from flock.service import BlackboardHTTPService
 
     service = BlackboardHTTPService(orchestrator)
     client = TestClient(service.app)
@@ -418,7 +418,7 @@ async def test_invoke_handles_unknown_agent_name(orchestrator):
     # Arrange
     orchestrator.get_agent = Mock(side_effect=KeyError("Agent not found"))
 
-    from flock_flow.service import BlackboardHTTPService
+    from flock.service import BlackboardHTTPService
 
     service = BlackboardHTTPService(orchestrator)
     client = TestClient(service.app)
@@ -446,7 +446,7 @@ async def test_pause_endpoint_returns_501_not_implemented():
     """Test POST /api/control/pause returns 501 Not Implemented."""
     # Arrange
     orchestrator = Flock()
-    from flock_flow.service import BlackboardHTTPService
+    from flock.service import BlackboardHTTPService
 
     service = BlackboardHTTPService(orchestrator)
     client = TestClient(service.app)
@@ -469,7 +469,7 @@ async def test_resume_endpoint_returns_501_not_implemented():
     """Test POST /api/control/resume returns 501 Not Implemented."""
     # Arrange
     orchestrator = Flock()
-    from flock_flow.service import BlackboardHTTPService
+    from flock.service import BlackboardHTTPService
 
     service = BlackboardHTTPService(orchestrator)
     client = TestClient(service.app)
@@ -559,7 +559,7 @@ async def test_invoke_with_multiple_outputs(orchestrator):
 async def test_control_endpoints_use_json_content_type(orchestrator):
     """Test control endpoints require and return JSON content type."""
     # Arrange
-    from flock_flow.service import BlackboardHTTPService
+    from flock.service import BlackboardHTTPService
 
     service = BlackboardHTTPService(orchestrator)
     client = TestClient(service.app)

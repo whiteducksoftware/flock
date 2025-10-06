@@ -7,9 +7,9 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock_flow.artifacts import Artifact
-from flock_flow.registry import type_registry
-from flock_flow.runtime import Context, EvalInputs, EvalResult
+from flock.artifacts import Artifact
+from flock.registry import type_registry
+from flock.runtime import Context, EvalInputs, EvalResult
 
 
 # Test models for testing

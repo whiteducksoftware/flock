@@ -12,7 +12,7 @@ This document provides a comprehensive structural analysis of the Flock-Flow rep
 
 ```
 flock-flow/
-├── 📁 src/flock_flow/          # Main Python package (backend)
+├── 📁 src/flock/          # Main Python package (backend)
 ├── 📁 frontend/                # React/TypeScript frontend dashboard
 ├── 📁 tests/                   # Comprehensive test suite
 ├── 📁 docs/                    # Documentation and analysis
@@ -29,7 +29,7 @@ flock-flow/
 └── 📄 README.md                # Project documentation
 ```
 
-## Core Python Package Structure (`src/flock_flow/`)
+## Core Python Package Structure (`src/flock/`)
 
 ### Main Module Files
 - **`__init__.py`** (332 bytes) - Package initialization with exports
@@ -213,12 +213,12 @@ Test utilities and helpers.
 - **Configuration**: `.env*`, `*.config.*`, `*.toml`
 
 ### Import Patterns
-- **Python imports**: Use absolute imports from `src.flock_flow`
+- **Python imports**: Use absolute imports from `src.flock`
 - **TypeScript imports**: Relative imports within frontend, absolute for external packages
 - **Test imports**: Test utilities in `conftest.py` and test helpers
 
 ### Module Organization
-- **Core functionality**: Directly in `src/flock_flow/`
+- **Core functionality**: Directly in `src/flock/`
 - **Feature modules**: Grouped in subdirectories
 - **Shared utilities**: Centralized in `utility/`, `helper/`, `utils/`
 - **External integrations**: Separate modules (e.g., `mcp/`, `api/`)
@@ -275,7 +275,7 @@ Test utilities and helpers.
 ## Navigation Guidelines for Agents
 
 ### When Working with Core Logic
-1. **Start with `src/flock_flow/`** for main implementation
+1. **Start with `src/flock/`** for main implementation
 2. **Check `orchestrator.py`** for coordination patterns
 3. **Review `agent.py`** for agent implementation
 4. **Consult `components.py`** for shared utilities

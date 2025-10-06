@@ -3,11 +3,11 @@ import asyncio
 import pytest
 from pydantic import PrivateAttr
 
-from flock_flow.artifacts import Artifact
-from flock_flow.components import EngineComponent
-from flock_flow.examples import Idea, Movie, Tagline, create_demo_orchestrator
-from flock_flow.registry import type_registry
-from flock_flow.runtime import EvalInputs, EvalResult
+from flock.artifacts import Artifact
+from flock.components import EngineComponent
+from flock.examples import Idea, Movie, Tagline, create_demo_orchestrator
+from flock.registry import type_registry
+from flock.runtime import EvalInputs, EvalResult
 
 
 @pytest.mark.asyncio
@@ -59,9 +59,9 @@ async def test_visibility_only_for_blocks_eavesdropper():
 
 from pydantic import BaseModel, Field
 
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
-from flock_flow.visibility import PrivateVisibility, PublicVisibility
+from flock.orchestrator import Flock
+from flock.registry import flock_type
+from flock.visibility import PrivateVisibility, PublicVisibility
 
 
 @flock_type(name="OrchestratorMovie")
@@ -186,7 +186,7 @@ async def test_orchestrator_enforces_private_visibility(orchestrator):
     (orchestrator.agent("denied").consumes(OrchestratorMovie).with_engines(TrackingEngine()))
 
     # Act - publish artifact with private visibility for "allowed" only
-    from flock_flow.artifacts import Artifact
+    from flock.artifacts import Artifact
 
     artifact = Artifact(
         type="OrchestratorMovie",
@@ -293,7 +293,7 @@ async def test_board_handle_get_artifact():
     artifact_id = artifact.id
 
     # Act - Use BoardHandle
-    from flock_flow.orchestrator import BoardHandle
+    from flock.orchestrator import BoardHandle
 
     handle = BoardHandle(orchestrator)
     result = await handle.get(artifact_id)
@@ -315,7 +315,7 @@ async def test_board_handle_list_all_artifacts():
     await orchestrator.publish({"type": "OrchestratorIdea", "topic": "idea2"})
 
     # Act
-    from flock_flow.orchestrator import BoardHandle
+    from flock.orchestrator import BoardHandle
 
     handle = BoardHandle(orchestrator)
     result = await handle.list()
@@ -333,7 +333,7 @@ async def test_board_handle_get_nonexistent_returns_none():
     from uuid import uuid4
 
     # Act
-    from flock_flow.orchestrator import BoardHandle
+    from flock.orchestrator import BoardHandle
 
     handle = BoardHandle(orchestrator)
     result = await handle.get(uuid4())

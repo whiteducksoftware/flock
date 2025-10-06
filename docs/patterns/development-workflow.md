@@ -44,7 +44,7 @@ Development is containerized using VS Code DevContainers with Python 3.12 and No
 
 ```
 flock-flow/
-├── src/flock_flow/           # Main source code
+├── src/flock/           # Main source code
 │   ├── agent.py             # Agent implementation
 │   ├── orchestrator.py      # Core orchestration logic
 │   ├── api/                 # REST API endpoints
@@ -124,17 +124,17 @@ Key fixtures available in `conftest.py`:
 
 ```bash
 # Lint code
-poe lint  # Equivalent to: ruff check src/flock_flow/ tests/
+poe lint  # Equivalent to: ruff check src/flock/ tests/
 
 # Format code
-poe format  # Equivalent to: ruff format src/flock_flow/ tests/
+poe format  # Equivalent to: ruff format src/flock/ tests/
 ```
 
 ### Type Checking
 
 ```bash
 # Run mypy type checker
-uv run mypy src/flock_flow/
+uv run mypy src/flock/
 ```
 
 ### Code Style
@@ -245,7 +245,7 @@ uv run ruff check
 
 ```toml
 [tool.coverage.run]
-source = ["src/flock_flow"]
+source = ["src/flock"]
 omit = [
     "tests/*",
     "examples/*",
@@ -290,7 +290,7 @@ uv run pytest --lf
 uv run pytest --profile-svg
 
 # Coverage with branch analysis
-uv run pytest --cov=src/flock_flow --cov-branch
+uv run pytest --cov=src/flock --cov-branch
 ```
 
 ### 3. Development Server
@@ -300,7 +300,7 @@ uv run pytest --cov=src/flock_flow --cov-branch
 cd frontend && npm start
 
 # Start API server
-uvicorn src.flock_flow.api.main:app --reload
+uvicorn src.flock.api.main:app --reload
 ```
 
 ## 📋 Agent Development Checklist

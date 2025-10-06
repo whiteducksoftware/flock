@@ -3,9 +3,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from flock_flow.mcp import StdioServerParameters
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_tool, flock_type
+from flock.mcp import StdioServerParameters
+from flock.orchestrator import Flock
+from flock.registry import flock_tool, flock_type
 
 
 @flock_tool

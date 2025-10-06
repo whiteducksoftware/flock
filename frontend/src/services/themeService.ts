@@ -2,7 +2,7 @@
  * Theme Service
  *
  * Fetches terminal themes from the backend API.
- * Themes are loaded from TOML files in src/flock_flow/themes/
+ * Themes are loaded from TOML files in src/flock/themes/
  */
 
 import { TerminalTheme, ThemeListResponse, ThemeDataResponse } from '../types/theme';

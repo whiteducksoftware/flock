@@ -7,9 +7,9 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel
 
-from flock_flow.artifacts import Artifact
-from flock_flow.registry import flock_type
-from flock_flow.service import BlackboardHTTPService
+from flock.artifacts import Artifact
+from flock.registry import flock_type
+from flock.service import BlackboardHTTPService
 
 
 @flock_type(name="ServiceTestInput")

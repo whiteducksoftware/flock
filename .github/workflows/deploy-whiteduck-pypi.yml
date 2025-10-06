@@ -1,0 +1,52 @@
+# .github/workflows/publish.yml
+
+name: Publish Python Package
+
+on:
+  push:
+    branches:
+      - main # Replace with your default branch
+    paths:
+      - 'pyproject.toml'  # Only trigger on changes to pyproject.toml (version number)
+
+jobs:
+  build-and-publish:
+    strategy:
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install the project
+        run: uv sync
+
+      - name: Build the project
+        run: uv build
+
+      - name: Check if should skip
+        id: skip-check
+        run: |
+          if echo "${{ github.event.head_commit.message }}" | grep -iq "\[skip publish\]"; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to pypi
+        if: steps.skip-check.outputs.skip != 'true'
+        run: uv publish --token ${{ secrets.PYPI_API_TOKEN }}

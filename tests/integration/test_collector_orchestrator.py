@@ -8,14 +8,14 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 
-from flock_flow.components import EngineComponent
-from flock_flow.dashboard.collector import DashboardEventCollector
-from flock_flow.dashboard.events import (
+from flock.components import EngineComponent
+from flock.dashboard.collector import DashboardEventCollector
+from flock.dashboard.events import (
     AgentCompletedEvent,
     MessagePublishedEvent,
 )
-from flock_flow.orchestrator import Flock
-from flock_flow.runtime import EvalInputs, EvalResult
+from flock.orchestrator import Flock
+from flock.runtime import EvalInputs, EvalResult
 
 
 class Idea(BaseModel):
@@ -176,7 +176,7 @@ async def test_error_event_capture():
         await orchestrator.invoke(failing_agent, idea)
 
     # Verify error event was captured
-    from flock_flow.dashboard.events import AgentErrorEvent
+    from flock.dashboard.events import AgentErrorEvent
 
     error_events = [e for e in collector.events if isinstance(e, AgentErrorEvent)]
     assert len(error_events) == 1
@@ -212,7 +212,7 @@ async def test_multiple_runs_accumulate_events():
         await orchestrator.invoke(agent, idea)
 
     # Verify events accumulated (at least 5 completed events)
-    from flock_flow.dashboard.events import AgentCompletedEvent
+    from flock.dashboard.events import AgentCompletedEvent
 
     completed_events = [e for e in collector.events if isinstance(e, AgentCompletedEvent)]
     assert len(completed_events) >= 5

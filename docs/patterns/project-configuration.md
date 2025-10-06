@@ -10,7 +10,7 @@ Flock-Flow is a Python-based AI agent framework that uses UV for dependency mana
 flock-flow/
 ├── pyproject.toml          # Main project configuration
 ├── uv.lock                 # UV dependency lockfile
-├── src/flock_flow/         # Main source code
+├── src/flock/         # Main source code
 ├── examples/               # Example implementations
 │   ├── features/          # Feature validation examples
 │   └── showcase/          # Demonstration examples
@@ -86,9 +86,9 @@ The project uses UV dependency groups for development tools:
 
 **Build Backend:** `hatchling`
 - Configuration: `[build-system]` section in pyproject.toml
-- Package location: `src/flock_flow/`
+- Package location: `src/flock/`
 
-**Entry Point:** `flock-flow = "flock_flow:main"`
+**Entry Point:** `flock-flow = "flock:main"`
 - Command-line interface accessible via `flock-flow` command
 
 ## Development Tools Configuration
@@ -127,7 +127,7 @@ The project uses Poe for task automation with these key tasks:
 **Pytest Settings:**
 - Async mode: `auto`
 - Test paths: `tests/`
-- Coverage source: `src/flock_flow`
+- Coverage source: `src/flock`
 - Coverage exclusions: tests, examples, themes, pycache
 - Branch coverage: enabled
 - Coverage precision: 2 decimal places

@@ -31,21 +31,21 @@ dependencies = [
 ]
 
 [project.scripts]
-flock-flow = "flock_flow:main"
+flock-flow = "flock:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/flock_flow"]
+packages = ["src/flock"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.coverage.run]
-source = ["src/flock_flow"]
+source = ["src/flock"]
 omit = [
     "tests/*",
     "examples/*",
@@ -100,15 +100,15 @@ _docs-build = "mkdocs build"
 
 install = ["_init", "build"]
 build = ["_sync", "_build", "_install"]
-lint = "ruff check src/flock_flow/"
-format = "ruff format src/flock_flow/"
+lint = "ruff check src/flock/"
+format = "ruff format src/flock/"
 docs = ["_docs-build", "_docs-serve"]
 
 # Testing tasks (Constitutional compliance: 75%+ overall, 100% critical paths)
 test = "uv run pytest -v"
-test-cov = "uv run pytest --cov=src/flock_flow --cov-branch --cov-report=term-missing --cov-report=html"
-test-cov-fail = "uv run pytest --cov=src/flock_flow --cov-branch --cov-report=term --cov-fail-under=75"
-test-critical = "uv run pytest tests/test_orchestrator.py tests/test_subscription.py tests/test_visibility.py tests/test_agent.py --cov=flock_flow.orchestrator --cov=flock_flow.subscription --cov=flock_flow.visibility --cov=flock_flow.agent --cov-fail-under=100"
+test-cov = "uv run pytest --cov=src/flock --cov-branch --cov-report=term-missing --cov-report=html"
+test-cov-fail = "uv run pytest --cov=src/flock --cov-branch --cov-report=term --cov-fail-under=75"
+test-critical = "uv run pytest tests/test_orchestrator.py tests/test_subscription.py tests/test_visibility.py tests/test_agent.py --cov=flock.orchestrator --cov=flock.subscription --cov=flock.visibility --cov=flock.agent --cov-fail-under=100"
 test-watch = "uv run pytest --watch"
 test-determinism = "for i in {1..10}; do uv run pytest -q || exit 1; done"
 
@@ -300,7 +300,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.isort]
 # Configure import sorting to match project structure
-known-first-party = ["flock_flow"]
+known-first-party = ["flock"]
 force-single-line = false
 lines-after-imports = 2
 section-order = [

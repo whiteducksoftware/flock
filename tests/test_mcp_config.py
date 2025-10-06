@@ -7,14 +7,14 @@ from unittest.mock import Mock
 import pytest
 from pydantic import ValidationError
 
-from flock_flow.mcp.config import (
+from flock.mcp.config import (
     FlockMCPCachingConfiguration,
     FlockMCPCallbackConfiguration,
     FlockMCPConfiguration,
     FlockMCPConnectionConfiguration,
     FlockMCPFeatureConfiguration,
 )
-from flock_flow.mcp.types import (
+from flock.mcp.types import (
     MCPRoot,
     StdioServerParameters,
 )

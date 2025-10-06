@@ -1,4 +1,4 @@
-"""Public package API for flock_flow."""
+"""Public package API for flock."""
 
 from __future__ import annotations
 

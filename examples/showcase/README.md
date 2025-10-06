@@ -87,8 +87,8 @@ Story: [Narrative description of the workflow]
 """
 
 import asyncio
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
+from flock.orchestrator import Flock
+from flock.registry import flock_type
 # ... imports ...
 
 # 1. Define artifacts with comments

@@ -5,10 +5,10 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock_flow.artifacts import Artifact
-from flock_flow.registry import flock_type
-from flock_flow.store import InMemoryBlackboardStore
-from flock_flow.visibility import PublicVisibility
+from flock.artifacts import Artifact
+from flock.registry import flock_type
+from flock.store import InMemoryBlackboardStore
+from flock.visibility import PublicVisibility
 
 
 @flock_type(name="TypeA")

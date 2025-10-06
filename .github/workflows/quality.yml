@@ -35,17 +35,17 @@ jobs:
       - name: Lint with Ruff
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
-          uv run ruff check src/flock_flow/ --fix --exit-zero
+          uv run ruff check src/flock/ --fix --exit-zero
 
       - name: Format check with Ruff
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
-          uv run ruff format --check src/flock_flow/
+          uv run ruff format --check src/flock/
 
       - name: Run tests with coverage
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
-          uv run pytest --cov=src/flock_flow --cov-branch --cov-report=xml --cov-report=term --cov-fail-under=75
+          uv run pytest --cov=src/flock --cov-branch --cov-report=xml --cov-report=term --cov-fail-under=75
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -122,4 +122,4 @@ jobs:
       - name: Run Bandit security scan
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
-          uv run bandit -c pyproject.toml -r src/flock_flow/ -ll
+          uv run bandit -c pyproject.toml -r src/flock/ -ll

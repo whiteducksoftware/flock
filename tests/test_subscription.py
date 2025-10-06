@@ -3,10 +3,10 @@
 import pytest
 from pydantic import BaseModel, Field
 
-from flock_flow.artifacts import Artifact
-from flock_flow.registry import flock_type
-from flock_flow.subscription import Subscription
-from flock_flow.visibility import PublicVisibility
+from flock.artifacts import Artifact
+from flock.registry import flock_type
+from flock.subscription import Subscription
+from flock.visibility import PublicVisibility
 
 
 # Test artifact types - use explicit names to avoid module path issues

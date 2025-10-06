@@ -1,4 +1,4 @@
-"""Engine implementations for flock_flow agents."""
+"""Engine implementations for flock agents."""
 
 from flock.engines.dspy_engine import DSPyEngine
 

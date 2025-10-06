@@ -1,7 +1,7 @@
 /**
  * Theme Type Definitions
  *
- * Terminal theme format matching TOML structure from src/flock_flow/themes/
+ * Terminal theme format matching TOML structure from src/flock/themes/
  */
 
 export interface TerminalColors {

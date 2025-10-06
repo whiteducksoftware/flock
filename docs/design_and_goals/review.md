@@ -40,7 +40,7 @@ The framework faithfully implements the blackboard pattern with modern Python as
 
 **✅ Shared Workspace Model**
 ```python
-# src/flock_flow/store.py
+# src/flock/store.py
 class BlackboardStore:
     async def publish(self, artifact: Artifact) -> None: ...
     async def get(self, artifact_id: UUID) -> Artifact | None: ...
@@ -51,7 +51,7 @@ The `BlackboardStore` abstraction is clean and extensible. The in-memory impleme
 
 **✅ Typed Artifacts with Registry**
 ```python
-# src/flock_flow/artifacts.py:15-28
+# src/flock/artifacts.py:15-28
 class Artifact(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     type: str
@@ -69,7 +69,7 @@ Every artifact is strongly typed with Pydantic validation. The `type_registry` e
 
 **✅ Opportunistic Scheduling**
 ```python
-# src/flock_flow/orchestrator.py:146-159
+# src/flock/orchestrator.py:146-159
 async def _schedule_artifact(self, artifact: Artifact) -> None:
     for agent in self.agents:
         identity = agent.identity
@@ -120,7 +120,7 @@ This is textbook blackboard: agents operate on shared data structures without di
 
 **✅ Sophisticated Subscription System**
 ```python
-# src/flock_flow/subscription.py:37-68
+# src/flock/subscription.py:37-68
 class Subscription:
     def __init__(
         self,
@@ -168,7 +168,7 @@ The utility/engine separation is **textbook perfect** and demonstrates deep unde
 #### Component Lifecycle
 
 ```python
-# src/flock_flow/components.py:21-44
+# src/flock/components.py:21-44
 class AgentComponent(BaseModel):
     name: str | None = None
     config: AgentComponentConfig = Field(default_factory=AgentComponentConfig)
@@ -206,7 +206,7 @@ class AgentComponent(BaseModel):
 #### Engine Chaining
 
 ```python
-# src/flock_flow/agent.py:115-138
+# src/flock/agent.py:115-138
 async def _run_engines(self, ctx: Context, inputs: EvalInputs) -> EvalResult:
     engines = self._resolve_engines()
     if not engines:
@@ -248,7 +248,7 @@ This is **beautiful**:
 #### Example: OutputUtilityComponent
 
 ```python
-# src/flock_flow/utility/output_utility_component.py:137-193
+# src/flock/utility/output_utility_component.py:137-193
 async def on_post_evaluate(
     self, agent: "Agent", ctx: Context, inputs: EvalInputs, result: EvalResult
 ) -> EvalResult:
@@ -287,7 +287,7 @@ The `DSPyEngine` is **production-grade** with sophisticated error handling, stre
 #### Core Evaluation Flow
 
 ```python
-# src/flock_flow/engines/dspy_engine.py:32-81
+# src/flock/engines/dspy_engine.py:32-81
 async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
     if not inputs.artifacts:
         return EvalResult(artifacts=[], state=dict(inputs.state))
@@ -356,7 +356,7 @@ async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
 #### Streaming Implementation
 
 ```python
-# src/flock_flow/engines/dspy_engine.py:233-259
+# src/flock/engines/dspy_engine.py:233-259
 async def _run_streaming_program(self, dspy_mod, program, *, description: str, payload: dict[str, Any], stream_queue) -> Any:
     streaming_mod = getattr(dspy_mod, "streaming", None)
     stream_kwargs: dict[str, Any] = {"async_streaming": True}
@@ -393,12 +393,12 @@ The streaming support is **defensive** with multiple try/except guards and prope
 ⚠️ **Line 219**: Fallback engine creation in `_resolve_engines()` is implicit. Should be configurable or at least documented.
 
 ```python
-# src/flock_flow/agent.py:206-219
+# src/flock/agent.py:206-219
 def _resolve_engines(self) -> list[EngineComponent]:
     if self.engines:
         return self.engines
     try:
-        from flock_flow.engines import DSPyEngine
+        from flock.engines import DSPyEngine
     except Exception:
         return []
 
@@ -472,7 +472,7 @@ presenter = (
 #### Builder Implementation
 
 ```python
-# src/flock_flow/agent.py:262-301
+# src/flock/agent.py:262-301
 def consumes(
     self,
     *types: type[BaseModel],
@@ -520,7 +520,7 @@ The normalization of `where` (callable → list) and `join`/`batch` (dict → sp
 #### PublishBuilder Sugar
 
 ```python
-# src/flock_flow/agent.py:377-397
+# src/flock/agent.py:377-397
 class PublishBuilder:
     """Helper returned by `.publishes(...)` to support `.only_for` sugar."""
 
@@ -554,7 +554,7 @@ The visibility system is **sophisticated** and shows production-grade security t
 #### Visibility Types
 
 ```python
-# src/flock_flow/visibility.py:19-74
+# src/flock/visibility.py:19-74
 class Visibility(BaseModel):
     kind: Literal["Public", "Private", "Labelled", "Tenant", "After"]
 
@@ -608,7 +608,7 @@ class AfterVisibility(Visibility):
 #### Enforcement
 
 ```python
-# src/flock_flow/orchestrator.py:146-159
+# src/flock/orchestrator.py:146-159
 async def _schedule_artifact(self, artifact: Artifact) -> None:
     for agent in self.agents:
         identity = agent.identity
@@ -679,7 +679,7 @@ The `Flock` is the heart of the system and it's well-designed.
 #### Task Management
 
 ```python
-# src/flock_flow/orchestrator.py:161-180
+# src/flock/orchestrator.py:161-180
 def _schedule_task(self, agent: Agent, artifacts: List[Artifact]) -> None:
     task = asyncio.create_task(self._run_agent_task(agent, artifacts))
     self._tasks.add(task)
@@ -709,7 +709,7 @@ async def run_until_idle(self) -> None:
 #### Idempotency Tracking
 
 ```python
-# src/flock_flow/orchestrator.py:169-175
+# src/flock/orchestrator.py:169-175
 def _mark_processed(self, artifact: Artifact, agent: Agent) -> None:
     key = (str(artifact.id), agent.name)
     self._processed.add(key)
@@ -727,7 +727,7 @@ Simple but effective. In production, this set will grow unbounded—consider:
 #### Metrics
 
 ```python
-# src/flock_flow/orchestrator.py:69
+# src/flock/orchestrator.py:69
 self.metrics: Dict[str, float] = {"artifacts_published": 0, "agent_runs": 0}
 ```
 
@@ -739,7 +739,7 @@ Basic but functional. Expand to include:
 #### LiteLLM Proxy Patching
 
 ```python
-# src/flock_flow/orchestrator.py:41-60
+# src/flock/orchestrator.py:41-60
 def _patch_litellm_proxy_imports(self) -> None:
     """Stub litellm proxy_server to avoid optional proxy deps when not used."""
     try:
@@ -763,7 +763,7 @@ This is **hacky** but pragmatic. Document why this is necessary or consider fixi
 The type and function registries are elegant.
 
 ```python
-# src/flock_flow/registry.py:14-48
+# src/flock/registry.py:14-48
 class TypeRegistry:
     def __init__(self) -> None:
         self._by_name: Dict[str, type[BaseModel]] = {}
@@ -800,7 +800,7 @@ class TypeRegistry:
 ### 3. Artifact Model ⭐ 9/10
 
 ```python
-# src/flock_flow/artifacts.py:15-31
+# src/flock/artifacts.py:15-31
 class Artifact(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     type: str
@@ -835,14 +835,14 @@ class Artifact(BaseModel):
 Every operation is truly async with proper use of `asyncio`:
 
 ```python
-# src/flock_flow/agent.py:76
+# src/flock/agent.py:76
 async with self._semaphore:
 ```
 
 Semaphores for concurrency control per agent—perfect for rate limiting.
 
 ```python
-# src/flock_flow/orchestrator.py:162
+# src/flock/orchestrator.py:162
 task = asyncio.create_task(self._run_agent_task(agent, artifacts))
 ```
 
@@ -855,7 +855,7 @@ Non-blocking task creation enables true parallelism.
 ### 2. Best-of-N Execution ⭐⭐⭐
 
 ```python
-# src/flock_flow/agent.py:140-153
+# src/flock/agent.py:140-153
 if self.best_of_n <= 1:
     return await run_chain()
 
@@ -890,7 +890,7 @@ Run 5 parallel chains, pick the one with highest confidence. This is more sophis
 ### 3. Component Hooks with State Propagation ⭐⭐⭐
 
 ```python
-# src/flock_flow/agent.py:115-138
+# src/flock/agent.py:115-138
 async def _run_engines(self, ctx: Context, inputs: EvalInputs) -> EvalResult:
     current_inputs = inputs
     accumulated_logs: list[str] = []
@@ -923,7 +923,7 @@ Each engine builds on previous state without tight coupling.
 ### 4. Direct Invocation + Reactive Mode ⭐⭐
 
 ```python
-# src/flock_flow/subscription.py:70-74
+# src/flock/subscription.py:70-74
 def accepts_direct(self) -> bool:
     return self.mode in {"direct", "both"}
 
@@ -953,7 +953,7 @@ This is **flexible** and handles real-world scenarios:
 Lambda predicates on typed payloads are **elegant**. The framework deserializes the payload into a Pydantic model before applying the predicate:
 
 ```python
-# src/flock_flow/subscription.py:76-93
+# src/flock/subscription.py:76-93
 def matches(self, artifact: Artifact) -> bool:
     if artifact.type not in self.type_names:
         return False
@@ -981,7 +981,7 @@ The try/except around predicate evaluation prevents bad predicates from crashing
 ### 6. HTTP Service with FastAPI ⭐
 
 ```python
-# src/flock_flow/service.py:25-49
+# src/flock/service.py:25-49
 @app.post("/api/v1/artifacts")
 async def publish_artifact(body: Dict[str, Any]) -> Dict[str, str]:
     type_name = body.get("type")
@@ -1075,7 +1075,7 @@ async def test_visibility_only_for_blocks_eavesdropper(): ...
 #### Current State
 
 ```python
-# src/flock_flow/orchestrator.py:69
+# src/flock/orchestrator.py:69
 self.metrics: Dict[str, float] = {"artifacts_published": 0, "agent_runs": 0}
 ```
 
@@ -1153,7 +1153,7 @@ The design document is ambitious. The POC is solid but missing several planned f
 **Status:** Specs exist, not implemented
 
 ```python
-# src/flock_flow/subscription.py:23-35
+# src/flock/subscription.py:23-35
 @dataclass
 class JoinSpec:
     kind: str
@@ -1691,8 +1691,8 @@ The abstractions are correct—you can build on this foundation without major re
 ### Example: Adding a Custom Engine
 
 ```python
-from flock_flow.components import EngineComponent
-from flock_flow.runtime import EvalInputs, EvalResult
+from flock.components import EngineComponent
+from flock.runtime import EvalInputs, EvalResult
 
 class RetrievalEngine(EngineComponent):
     name: str = "retrieval"
@@ -1726,7 +1726,7 @@ agent.with_engines(
 ### Example: Budget Tracking Component
 
 ```python
-from flock_flow.components import AgentComponent
+from flock.components import AgentComponent
 
 class BudgetComponent(AgentComponent):
     name: str = "budget"

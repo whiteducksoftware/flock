@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from flock_flow.dashboard.events import (
+from flock.dashboard.events import (
     AgentActivatedEvent,
     MessagePublishedEvent,
     SubscriptionInfo,
@@ -54,7 +54,7 @@ def websocket_manager():
     """Create WebSocketManager instance for testing."""
     # Import here to avoid import errors before implementation exists
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         return WebSocketManager()
     except ImportError:
@@ -277,7 +277,7 @@ async def test_add_client_with_heartbeat_enabled():
     """Test add_client starts heartbeat task when enabled."""
     # Create WebSocketManager with heartbeat enabled
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=1, enable_heartbeat=True)
     except ImportError:
@@ -299,7 +299,7 @@ async def test_add_client_with_heartbeat_enabled():
 async def test_add_client_with_heartbeat_already_running():
     """Test add_client doesn't start duplicate heartbeat tasks."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=1, enable_heartbeat=True)
     except ImportError:
@@ -325,7 +325,7 @@ async def test_add_client_with_heartbeat_already_running():
 async def test_add_client_with_heartbeat_disabled():
     """Test add_client doesn't start heartbeat when disabled."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(enable_heartbeat=False)
     except ImportError:
@@ -343,7 +343,7 @@ async def test_add_client_with_heartbeat_disabled():
 async def test_remove_client_stops_heartbeat_when_last_client():
     """Test remove_client stops heartbeat task when last client is removed."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=1, enable_heartbeat=True)
     except ImportError:
@@ -373,7 +373,7 @@ async def test_remove_client_stops_heartbeat_when_last_client():
 async def test_remove_client_with_nonexistent_client():
     """Test remove_client handles non-existent client gracefully."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -391,8 +391,8 @@ async def test_remove_client_with_nonexistent_client():
 async def test_broadcast_stores_streaming_history():
     """Test broadcast stores streaming output events in history."""
     try:
-        from flock_flow.dashboard.events import StreamingOutputEvent
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.events import StreamingOutputEvent
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -422,8 +422,8 @@ async def test_broadcast_stores_streaming_history():
 async def test_broadcast_stores_streaming_history_with_max_length():
     """Test streaming history respects maxlen parameter."""
     try:
-        from flock_flow.dashboard.events import StreamingOutputEvent
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.events import StreamingOutputEvent
+        from flock.dashboard.websocket import WebSocketManager
 
         # Small maxlen for testing
         manager = WebSocketManager()
@@ -457,7 +457,7 @@ async def test_broadcast_stores_streaming_history_with_max_length():
 async def test_broadcast_message_serialization():
     """Test broadcast properly serializes events to JSON."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -496,8 +496,8 @@ async def test_broadcast_message_serialization():
 async def test_broadcast_logging_with_no_clients():
     """Test broadcast logging when no clients are connected."""
     try:
-        from flock_flow.dashboard.events import AgentActivatedEvent
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.events import AgentActivatedEvent
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -529,7 +529,7 @@ async def test_broadcast_logging_with_no_clients():
 async def test_heartbeat_loop_shutdown_condition():
     """Test heartbeat loop respects shutdown flag."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=0.1, enable_heartbeat=True)
     except ImportError:
@@ -559,7 +559,7 @@ async def test_heartbeat_loop_shutdown_condition():
 async def test_heartbeat_loop_exits_with_no_clients():
     """Test heartbeat loop exits when no clients remain."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=0.1, enable_heartbeat=True)
     except ImportError:
@@ -586,7 +586,7 @@ async def test_heartbeat_loop_exits_with_no_clients():
 async def test_heartbeat_loop_handles_exceptions():
     """Test heartbeat loop handles exceptions gracefully."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=0.1, enable_heartbeat=True)
     except ImportError:
@@ -616,7 +616,7 @@ async def test_heartbeat_loop_handles_exceptions():
 async def test_ping_client_success():
     """Test _ping_client sends ping successfully."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -646,7 +646,7 @@ async def test_ping_client_success():
 async def test_ping_client_failure():
     """Test _ping_client handles ping failure."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -673,7 +673,7 @@ async def test_ping_client_failure():
 async def test_start_heartbeat_with_enable_true():
     """Test start_heartbeat starts task when enabled."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=1, enable_heartbeat=True)
     except ImportError:
@@ -705,7 +705,7 @@ async def test_start_heartbeat_with_enable_true():
 async def test_start_heartbeat_already_running():
     """Test start_heartbeat doesn't start duplicate tasks."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=1, enable_heartbeat=True)
     except ImportError:
@@ -731,7 +731,7 @@ async def test_start_heartbeat_already_running():
 async def test_start_heartbeat_disabled():
     """Test start_heartbeat does nothing when disabled."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(enable_heartbeat=False)
     except ImportError:
@@ -748,7 +748,7 @@ async def test_start_heartbeat_disabled():
 async def test_start_heartbeat_with_shutdown():
     """Test start_heartbeat does nothing when shutdown."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=1, enable_heartbeat=True)
     except ImportError:
@@ -768,7 +768,7 @@ async def test_start_heartbeat_with_shutdown():
 async def test_shutdown_with_heartbeat_task():
     """Test shutdown cancels heartbeat task."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=1, enable_heartbeat=True)
     except ImportError:
@@ -794,7 +794,7 @@ async def test_shutdown_with_heartbeat_task():
 async def test_shutdown_with_multiple_clients():
     """Test shutdown closes all client connections."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -819,7 +819,7 @@ async def test_shutdown_with_multiple_clients():
 async def test_shutdown_with_real_websocket_methods():
     """Test shutdown handles real WebSocket close methods."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -849,8 +849,8 @@ async def test_shutdown_with_real_websocket_methods():
 async def test_get_streaming_history_for_existing_agent():
     """Test get_streaming_history returns list for existing agent."""
     try:
-        from flock_flow.dashboard.events import StreamingOutputEvent
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.events import StreamingOutputEvent
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -891,7 +891,7 @@ async def test_get_streaming_history_for_existing_agent():
 async def test_get_streaming_history_for_nonexistent_agent():
     """Test get_streaming_history returns empty list for non-existent agent."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -909,7 +909,7 @@ async def test_get_streaming_history_for_nonexistent_agent():
 async def test_concurrent_client_addition_removal():
     """Test concurrent client addition and removal operations."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -954,8 +954,8 @@ async def test_concurrent_client_addition_removal():
 async def test_stress_concurrent_broadcasts():
     """Test stress scenario with many concurrent broadcasts."""
     try:
-        from flock_flow.dashboard.events import StreamingOutputEvent
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.events import StreamingOutputEvent
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -998,7 +998,7 @@ async def test_stress_concurrent_broadcasts():
 async def test_memory_management_with_many_connections():
     """Test memory management with large number of connections."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -1014,7 +1014,7 @@ async def test_memory_management_with_many_connections():
     assert len(manager.clients) == initial_client_count
 
     # Broadcast to all clients
-    from flock_flow.dashboard.events import AgentCompletedEvent
+    from flock.dashboard.events import AgentCompletedEvent
 
     event = AgentCompletedEvent(
         agent_name="test_agent",
@@ -1041,8 +1041,8 @@ async def test_memory_management_with_many_connections():
 async def test_message_ordering_under_concurrency():
     """Test message ordering is preserved under concurrent operations."""
     try:
-        from flock_flow.dashboard.events import MessagePublishedEvent
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.events import MessagePublishedEvent
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -1086,7 +1086,7 @@ async def test_message_ordering_under_concurrency():
 async def test_error_recovery_during_broadcast():
     """Test error recovery when clients fail during broadcast."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -1113,7 +1113,7 @@ async def test_error_recovery_during_broadcast():
         await manager.add_client(client)
 
     # Send multiple broadcasts to trigger failures
-    from flock_flow.dashboard.events import AgentActivatedEvent
+    from flock.dashboard.events import AgentActivatedEvent
 
     for i in range(5):
         event = AgentActivatedEvent(
@@ -1147,8 +1147,8 @@ async def test_error_recovery_during_broadcast():
 async def test_websocket_json_serialization_edge_cases():
     """Test JSON serialization with edge cases and special characters."""
     try:
-        from flock_flow.dashboard.events import MessagePublishedEvent
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.events import MessagePublishedEvent
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -1222,8 +1222,8 @@ async def test_websocket_json_serialization_edge_cases():
 async def test_connection_pool_under_stress():
     """Test connection pool management under high stress conditions."""
     try:
-        from flock_flow.dashboard.events import StreamingOutputEvent
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.events import StreamingOutputEvent
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
     except ImportError:
@@ -1278,7 +1278,7 @@ async def test_connection_pool_under_stress():
 async def test_timeout_scenarios():
     """Test timeout scenarios and graceful degradation."""
     try:
-        from flock_flow.dashboard.websocket import WebSocketManager
+        from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager(heartbeat_interval=0.1, enable_heartbeat=True)
     except ImportError:
@@ -1291,7 +1291,7 @@ async def test_timeout_scenarios():
     await manager.add_client(normal_ws2)
 
     # Send a broadcast to test normal operation
-    from flock_flow.dashboard.events import AgentErrorEvent
+    from flock.dashboard.events import AgentErrorEvent
 
     event = AgentErrorEvent(
         agent_name="test_agent",

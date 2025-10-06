@@ -12,8 +12,8 @@ from rich.console import Console
 from rich.table import Table
 from typer.testing import CliRunner
 
-from flock_flow.artifacts import Artifact
-from flock_flow.cli import app, demo, list_agents, main, serve
+from flock.artifacts import Artifact
+from flock.cli import app, demo, list_agents, main, serve
 
 
 def strip_ansi(text: str) -> str:
@@ -25,7 +25,7 @@ def strip_ansi(text: str) -> str:
 @pytest.fixture
 def mock_console(mocker):
     """Mock Rich console for testing output."""
-    return mocker.patch("flock_flow.cli.console", spec=Console)
+    return mocker.patch("flock.cli.console", spec=Console)
 
 
 @pytest.fixture
@@ -40,8 +40,8 @@ class TestDemoCommand:
     def test_demo_command_imports_and_runs(self, mocker, mock_console):
         """Test that demo command properly imports and runs orchestrator."""
         # Mock the imports that happen inside the function
-        mock_idea = mocker.patch("flock_flow.examples.Idea")
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
+        mock_idea = mocker.patch("flock.examples.Idea")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
 
         # Setup mock orchestrator
         mock_orchestrator = Mock()
@@ -85,8 +85,8 @@ class TestDemoCommand:
 
     def test_demo_default_parameters(self, runner, mocker):
         """Test demo with default parameters."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
-        mock_idea = mocker.patch("flock_flow.examples.Idea")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
+        mock_idea = mocker.patch("flock.examples.Idea")
 
         mock_orchestrator = Mock()
         mock_orchestrator.arun = AsyncMock()
@@ -116,8 +116,8 @@ class TestDemoCommand:
 
     def test_demo_with_artifacts(self, mocker, mock_console):
         """Test demo displays artifacts correctly."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
-        mocker.patch("flock_flow.examples.Idea")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
+        mocker.patch("flock.examples.Idea")
 
         mock_orchestrator = Mock()
         mock_orchestrator.arun = AsyncMock()
@@ -155,8 +155,8 @@ class TestDemoCommand:
 
     def test_demo_cli_invocation(self, runner, mocker):
         """Test demo command via CLI runner."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
-        mocker.patch("flock_flow.examples.Idea")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
+        mocker.patch("flock.examples.Idea")
 
         mock_orchestrator = Mock()
         mock_orchestrator.arun = AsyncMock()
@@ -186,7 +186,7 @@ class TestListAgentsCommand:
 
     def test_list_agents_displays_all_agents(self, mocker, mock_console):
         """Test that list_agents shows all registered agents."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
 
         # Create mock agents with descriptions
         agent1 = Mock()
@@ -219,7 +219,7 @@ class TestListAgentsCommand:
 
     def test_list_agents_cli_invocation(self, runner, mocker):
         """Test list-agents command via CLI runner."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
 
         agent = Mock()
         agent.name = "test"
@@ -236,7 +236,7 @@ class TestListAgentsCommand:
 
     def test_list_agents_empty_descriptions(self, mocker, mock_console):
         """Test list_agents handles agents without descriptions."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
 
         agent1 = Mock()
         agent1.name = "agent1"
@@ -265,10 +265,10 @@ class TestServeCommand:
     def test_serve_creates_and_runs_service(self, mocker):
         """Test that serve creates HTTP service and runs it."""
         # Patch the imports that happen inside the function
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
 
         # We need to patch BlackboardHTTPService where it's imported in cli.py
-        from flock_flow import cli
+        from flock import cli
 
         mock_service_cls = mocker.patch.object(cli, "BlackboardHTTPService")
 
@@ -289,9 +289,9 @@ class TestServeCommand:
 
     def test_serve_default_parameters(self, mocker):
         """Test serve with default host and port."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
 
-        from flock_flow import cli
+        from flock import cli
 
         mock_service_cls = mocker.patch.object(cli, "BlackboardHTTPService")
 
@@ -309,9 +309,9 @@ class TestServeCommand:
 
     def test_serve_cli_invocation(self, runner, mocker):
         """Test serve command via CLI runner."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
 
-        from flock_flow import cli
+        from flock import cli
 
         mock_service_cls = mocker.patch.object(cli, "BlackboardHTTPService")
 
@@ -333,7 +333,7 @@ class TestMainFunction:
 
     def test_main_calls_app(self, mocker):
         """Test that main() invokes the Typer app."""
-        mock_app = mocker.patch("flock_flow.cli.app")
+        mock_app = mocker.patch("flock.cli.app")
 
         main()
 
@@ -385,8 +385,8 @@ class TestAsyncBehavior:
 
     def test_demo_async_flow(self, mocker):
         """Test the async execution flow of demo."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
-        mocker.patch("flock_flow.examples.Idea")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
+        mocker.patch("flock.examples.Idea")
 
         mock_orchestrator = Mock()
         mock_orchestrator.arun = AsyncMock()
@@ -429,8 +429,8 @@ class TestErrorHandling:
 
     def test_demo_handles_orchestrator_error(self, mocker, mock_console):
         """Test demo handles errors during orchestration."""
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
-        mocker.patch("flock_flow.examples.Idea")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
+        mocker.patch("flock.examples.Idea")
 
         mock_orchestrator = Mock()
         mock_orchestrator.arun = AsyncMock(side_effect=RuntimeError("Orchestration failed"))
@@ -453,14 +453,14 @@ class TestErrorHandling:
     def test_serve_handles_service_error(self, mocker):
         """Test serve handles errors in service creation."""
         # Patch all the necessary components
-        mock_create = mocker.patch("flock_flow.examples.create_demo_orchestrator")
+        mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
         mock_uvicorn = mocker.patch("uvicorn.run")
 
         mock_orchestrator = Mock()
         mock_create.return_value = (mock_orchestrator, {})
 
         # Mock the service creation to fail
-        mock_service_cls = mocker.patch("flock_flow.cli.BlackboardHTTPService")
+        mock_service_cls = mocker.patch("flock.cli.BlackboardHTTPService")
         mock_service_cls.side_effect = ValueError("Service error")
 
         # The error should be raised when BlackboardHTTPService is instantiated
@@ -476,19 +476,19 @@ class TestModuleStructure:
 
     def test_cli_app_is_typer(self):
         """Test that app is a Typer instance."""
-        from flock_flow.cli import app
+        from flock.cli import app
 
         assert isinstance(app, typer.Typer)
 
     def test_console_is_rich_console(self):
         """Test that console is a Rich Console."""
-        from flock_flow.cli import console
+        from flock.cli import console
 
         assert isinstance(console, Console)
 
     def test_module_exports(self):
         """Test __all__ exports."""
-        from flock_flow import cli
+        from flock import cli
 
         assert hasattr(cli, "__all__")
         assert "app" in cli.__all__
@@ -496,7 +496,7 @@ class TestModuleStructure:
 
     def test_commands_registered(self):
         """Test that all commands are registered with the app."""
-        from flock_flow.cli import app
+        from flock.cli import app
 
         # Get registered command names
         # Typer uses callback name or function name

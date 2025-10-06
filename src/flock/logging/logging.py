@@ -108,7 +108,7 @@ COLOR_MAP = {
 
 LOGGERS = [
     "flock",  # Core Flock orchestration
-    "flock_flow.api",  # Flock API specific logs
+    "flock.api",  # Flock API specific logs
     "agent",  # General agent operations
     "context",  # Context management
     "registry",  # Unified registry operations (new)
@@ -258,7 +258,7 @@ loguru_logger.add(
 )
 logging.basicConfig(level=LOG_LEVELS["ERROR"])  # Default to ERROR level for fallback
 # Optionally add a file handler, e.g.:
-# loguru_logger.add("logs/flock_flow.log", rotation="100 MB", retention="30 days", level="DEBUG")
+# loguru_logger.add("logs/flock.log", rotation="100 MB", retention="30 days", level="DEBUG")
 
 
 def get_default_severity(

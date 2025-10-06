@@ -253,7 +253,7 @@ class DashboardEventCollector(AgentComponent):
             await self._websocket_manager.broadcast(event)
 
     def _convert_visibility(self, visibility) -> VisibilitySpec:
-        """Convert flock_flow.visibility.Visibility to VisibilitySpec.
+        """Convert flock.visibility.Visibility to VisibilitySpec.
 
         Args:
             visibility: Visibility object from artifact

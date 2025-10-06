@@ -99,7 +99,7 @@ pytest tests/e2e/test_critical_scenarios.py::test_scenario_1_e2e_agent_execution
 pytest tests/e2e/test_critical_scenarios.py -v -s
 
 # Run with coverage
-pytest tests/e2e/test_critical_scenarios.py --cov=flock_flow.dashboard --cov-report=html
+pytest tests/e2e/test_critical_scenarios.py --cov=flock.dashboard --cov-report=html
 ```
 
 ### Frontend E2E Tests (TypeScript)

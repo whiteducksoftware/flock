@@ -18,7 +18,7 @@ def main():
     # Paths
     project_root = Path(__file__).parent.parent
     frontend_dist = project_root / "frontend" / "dist"
-    dashboard_static = project_root / "src" / "flock_flow" / "dashboard" / "static"
+    dashboard_static = project_root / "src" / "flock" / "dashboard" / "static"
 
     # Validate frontend build exists
     if not frontend_dist.exists():

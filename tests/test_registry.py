@@ -3,7 +3,7 @@
 import pytest
 from pydantic import BaseModel, Field
 
-from flock_flow.registry import RegistryError, flock_type, type_registry
+from flock.registry import RegistryError, flock_type, type_registry
 
 
 # Test artifact types

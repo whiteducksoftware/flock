@@ -44,7 +44,7 @@ This roadmap provides a complete battle plan to achieve 80% test coverage while 
 
 ### 1.1 Fix Production Code Drift (CRITICAL - 2 hours)
 
-**File:** `/home/ara/work/flock-flow/src/flock_flow/service.py:37`
+**File:** `/home/ara/work/flock-flow/src/flock/service.py:37`
 
 ```python
 # BEFORE (Deprecated API)

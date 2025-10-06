@@ -17,16 +17,16 @@ from mcp import (
 )
 from mcp.types import CallToolResult, Implementation, TextContent, Tool
 
-from flock_flow.mcp.client import FlockMCPClient
-from flock_flow.mcp.config import (
+from flock.mcp.client import FlockMCPClient
+from flock.mcp.config import (
     FlockMCPCachingConfiguration,
     FlockMCPCallbackConfiguration,
     FlockMCPConfiguration,
     FlockMCPConnectionConfiguration,
     FlockMCPFeatureConfiguration,
 )
-from flock_flow.mcp.tool import FlockMCPTool
-from flock_flow.mcp.types import MCPRoot, StdioServerParameters
+from flock.mcp.tool import FlockMCPTool
+from flock.mcp.types import MCPRoot, StdioServerParameters
 
 
 class MockFlockMCPClient(FlockMCPClient):
@@ -396,7 +396,7 @@ class TestRootsOperations:
         mock_client_session.send_roots_list_changed.side_effect = McpError(error=MagicMock())
 
         # Mock logger
-        mock_logger = mocker.patch("flock_flow.mcp.client.logger")
+        mock_logger = mocker.patch("flock.mcp.client.logger")
 
         new_roots = [MCPRoot(uri="file:///new", name="new_root")]
         await mcp_client.set_roots(new_roots)
@@ -462,7 +462,7 @@ class TestCacheInvalidation:
     async def test_invalidate_nonexistent_cache_entry(self, mcp_client, mocker):
         """Test invalidating non-existent cache entry."""
         # Mock logger
-        mock_logger = mocker.patch("flock_flow.mcp.client.logger")
+        mock_logger = mocker.patch("flock.mcp.client.logger")
 
         await mcp_client.invalidate_resource_contents_cache_entry("nonexistent_key")
 
@@ -505,7 +505,7 @@ class TestConnectionManagement:
 
         # Mock ClientSession
         mock_session = AsyncMock()
-        mock_client_session_class = mocker.patch("flock_flow.mcp.client.ClientSession")
+        mock_client_session_class = mocker.patch("flock.mcp.client.ClientSession")
         mock_client_session_class.return_value.__aenter__ = AsyncMock(return_value=mock_session)
 
         await mcp_client._create_session()
@@ -526,7 +526,7 @@ class TestConnectionManagement:
 
         # Mock ClientSession
         mock_session = AsyncMock()
-        mock_client_session_class = mocker.patch("flock_flow.mcp.client.ClientSession")
+        mock_client_session_class = mocker.patch("flock.mcp.client.ClientSession")
         mock_client_session_class.return_value.__aenter__ = AsyncMock(return_value=mock_session)
 
         await mcp_client._create_session()
@@ -557,7 +557,7 @@ class TestConnectionManagement:
         mock_client_session.set_logging_level.side_effect = McpError(error=MagicMock())
 
         # Mock logger
-        mock_logger = mocker.patch("flock_flow.mcp.client.logger")
+        mock_logger = mocker.patch("flock.mcp.client.logger")
 
         await mcp_client._perform_initial_handshake()
 
@@ -644,7 +644,7 @@ class TestSafeTransportContext:
         mock_cm.__aexit__ = AsyncMock(side_effect=Exception("Exit error"))
 
         # Mock logger
-        mock_logger = mocker.patch("flock_flow.mcp.client.logger")
+        mock_logger = mocker.patch("flock.mcp.client.logger")
 
         async with mcp_client._safe_transport_ctx(mock_cm) as value:
             assert value == "test_value"

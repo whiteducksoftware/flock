@@ -139,7 +139,7 @@ pre-commit run pytest-critical
 ```yaml
 - id: mypy
   args: [--config-file=pyproject.toml]
-  files: ^src/flock_flow/
+  files: ^src/flock/
 ```
 
 ### Bandit (Security Scanning)
@@ -150,7 +150,7 @@ pre-commit run pytest-critical
 
 ```yaml
 - id: bandit
-  args: [-c, pyproject.toml, -r, src/flock_flow/]
+  args: [-c, pyproject.toml, -r, src/flock/]
 ```
 
 ### TypeScript Type Check
@@ -189,7 +189,7 @@ pre-commit run pytest-critical
 ```yaml
 - id: pytest-critical
   entry: bash -c 'poe test-critical'
-  files: ^src/flock_flow/(orchestrator|subscription|visibility|agent)\.py$
+  files: ^src/flock/(orchestrator|subscription|visibility|agent)\.py$
 ```
 
 ## 🎯 Best Practices

@@ -1,1 +1,1 @@
-"""Default Stdio Server Implementation for flock_flow."""
+"""Default Stdio Server Implementation for flock."""

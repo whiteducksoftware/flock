@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from flock_flow.logging.telemetry import TelemetryConfig
+from flock.logging.telemetry import TelemetryConfig
 
 
 class TestTelemetryConfig:
@@ -134,10 +134,10 @@ class TestTelemetryConfigShouldSetup:
         mock_non_sdk_provider = Mock()
         with (
             patch(
-                "flock_flow.logging.telemetry.trace.get_tracer_provider",
+                "flock.logging.telemetry.trace.get_tracer_provider",
                 return_value=mock_non_sdk_provider,
             ),
-            patch("flock_flow.logging.telemetry.trace.TracerProvider", side_effect=AttributeError),
+            patch("flock.logging.telemetry.trace.TracerProvider", side_effect=AttributeError),
         ):
             assert config._should_setup() is True
 
@@ -147,7 +147,7 @@ class TestTelemetryConfigShouldSetup:
         config = TelemetryConfig(service_name="test")
 
         with patch(
-            "flock_flow.logging.telemetry.trace.get_tracer_provider",
+            "flock.logging.telemetry.trace.get_tracer_provider",
             side_effect=Exception("Test error"),
         ):
             assert config._should_setup() is True
@@ -161,9 +161,9 @@ class TestTelemetryConfigSetupTracing:
         """Test setup_tracing does nothing when disabled by environment."""
         config = TelemetryConfig(service_name="test")
 
-        mock_resource = mocker.patch("flock_flow.logging.telemetry.Resource")
-        mock_provider = mocker.patch("flock_flow.logging.telemetry.TracerProvider")
-        mock_trace_set = mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
+        mock_resource = mocker.patch("flock.logging.telemetry.Resource")
+        mock_provider = mocker.patch("flock.logging.telemetry.TracerProvider")
+        mock_trace_set = mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
 
         config.setup_tracing()
 
@@ -178,9 +178,9 @@ class TestTelemetryConfigSetupTracing:
         config = TelemetryConfig(service_name="test")
         config._configured = True
 
-        mock_resource = mocker.patch("flock_flow.logging.telemetry.Resource")
-        mock_provider = mocker.patch("flock_flow.logging.telemetry.TracerProvider")
-        mock_trace_set = mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
+        mock_resource = mocker.patch("flock.logging.telemetry.Resource")
+        mock_provider = mocker.patch("flock.logging.telemetry.TracerProvider")
+        mock_trace_set = mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
 
         config.setup_tracing()
 
@@ -204,11 +204,11 @@ class TestTelemetryConfigSetupTracing:
         mock_provider = Mock()
         mock_tracer = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.sys")
 
         config.setup_tracing()
 
@@ -227,11 +227,11 @@ class TestTelemetryConfigSetupTracing:
         mock_provider = Mock()
         mock_tracer = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.sys")
 
         config.setup_tracing()
 
@@ -251,9 +251,9 @@ class TestTelemetryConfigSetupTracing:
             enable_otlp=False,
         )
 
-        mocker.patch("flock_flow.logging.telemetry.Resource")
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider")
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.Resource")
+        mocker.patch("flock.logging.telemetry.TracerProvider")
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
 
         with pytest.raises(ValueError, match="Invalid JAEGER_TRANSPORT specified"):
             config.setup_tracing()
@@ -273,11 +273,11 @@ class TestTelemetryConfigSetupTracing:
         mock_provider = Mock()
         mock_tracer = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.sys")
 
         config.setup_tracing()
 
@@ -296,9 +296,9 @@ class TestTelemetryConfigSetupTracing:
             enable_sql=False,
         )
 
-        mocker.patch("flock_flow.logging.telemetry.Resource")
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider")
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.Resource")
+        mocker.patch("flock.logging.telemetry.TracerProvider")
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
 
         with pytest.raises(ValueError, match="Invalid OTEL_EXPORTER_OTLP_PROTOCOL specified"):
             config.setup_tracing()
@@ -321,17 +321,17 @@ class TestTelemetryConfigSetupTracing:
         mock_file_exporter = Mock()
         mock_processor = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
         mocker.patch(
-            "flock_flow.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
+            "flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
         )
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.sys")
 
         # Mock the FileSpanExporter
-        mock_file_class = mocker.patch("flock_flow.logging.telemetry.FileSpanExporter")
+        mock_file_class = mocker.patch("flock.logging.telemetry.FileSpanExporter")
         mock_file_class.return_value = mock_file_exporter
 
         config.setup_tracing()
@@ -357,17 +357,17 @@ class TestTelemetryConfigSetupTracing:
         mock_sqlite_exporter = Mock()
         mock_processor = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
         mocker.patch(
-            "flock_flow.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
+            "flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
         )
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.sys")
 
         # Mock the SqliteTelemetryExporter
-        mock_sqlite_class = mocker.patch("flock_flow.logging.telemetry.SqliteTelemetryExporter")
+        mock_sqlite_class = mocker.patch("flock.logging.telemetry.SqliteTelemetryExporter")
         mock_sqlite_class.return_value = mock_sqlite_exporter
 
         config.setup_tracing()
@@ -391,15 +391,15 @@ class TestTelemetryConfigSetupTracing:
         mock_provider = Mock()
         mock_tracer = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.sys")
 
         # Mock local exporters
-        mock_file_class = mocker.patch("flock_flow.logging.telemetry.FileSpanExporter")
-        mock_sqlite_class = mocker.patch("flock_flow.logging.telemetry.SqliteTelemetryExporter")
+        mock_file_class = mocker.patch("flock.logging.telemetry.FileSpanExporter")
+        mock_sqlite_class = mocker.patch("flock.logging.telemetry.SqliteTelemetryExporter")
 
         config.setup_tracing()
 
@@ -416,7 +416,7 @@ class TestTelemetryConfigLogException:
     def test_log_exception_keyboard_interrupt(self, mocker):
         """Test log_exception_to_otel handles KeyboardInterrupt correctly."""
         config = TelemetryConfig(service_name="test")
-        mock_sys_excepthook = mocker.patch("flock_flow.logging.telemetry.sys.__excepthook__")
+        mock_sys_excepthook = mocker.patch("flock.logging.telemetry.sys.__excepthook__")
 
         exc_type = KeyboardInterrupt
         exc_value = KeyboardInterrupt("User interrupted")
@@ -516,11 +516,11 @@ class TestTelemetryConfigEdgeCases:
         mock_provider = Mock()
         mock_tracer = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.sys")
 
         # Call setup_tracing multiple times
         config.setup_tracing()
@@ -546,11 +546,11 @@ class TestTelemetryConfigEdgeCases:
         mock_provider = Mock()
         mock_tracer = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.sys")
 
         config.setup_tracing()
 
@@ -573,11 +573,11 @@ class TestTelemetryConfigEdgeCases:
         mock_provider = Mock()
         mock_tracer = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.sys")
 
         config.setup_tracing()
 
@@ -600,11 +600,11 @@ class TestTelemetryConfigEdgeCases:
         mock_provider = Mock()
         mock_tracer = Mock()
 
-        mocker.patch("flock_flow.logging.telemetry.Resource", return_value=mock_resource)
-        mocker.patch("flock_flow.logging.telemetry.TracerProvider", return_value=mock_provider)
-        mocker.patch("flock_flow.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
-        mocker.patch("flock_flow.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch("flock_flow.logging.telemetry.sys")
+        mocker.patch("flock.logging.telemetry.Resource", return_value=mock_resource)
+        mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
+        mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        mocker.patch("flock.logging.telemetry.sys")
 
         config.setup_tracing()
 

@@ -7,7 +7,7 @@ ensuring simple names resolve to canonical forms correctly.
 import pytest
 from pydantic import BaseModel
 
-from flock_flow.registry import RegistryError, flock_type, type_registry
+from flock.registry import RegistryError, flock_type, type_registry
 
 
 class TestTypeNormalizationContract:

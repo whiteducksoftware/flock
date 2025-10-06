@@ -9,12 +9,12 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock_flow.agent import AgentOutput
-from flock_flow.artifacts import Artifact, ArtifactSpec
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type, type_registry
-from flock_flow.runtime import EvalResult
-from flock_flow.visibility import PublicVisibility
+from flock.agent import AgentOutput
+from flock.artifacts import Artifact, ArtifactSpec
+from flock.orchestrator import Flock
+from flock.registry import flock_type, type_registry
+from flock.runtime import EvalResult
+from flock.visibility import PublicVisibility
 
 
 @pytest.mark.asyncio

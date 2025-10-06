@@ -20,15 +20,15 @@ from uuid import uuid4
 
 import pytest
 
-from flock_flow.artifacts import Artifact
-from flock_flow.dashboard.collector import DashboardEventCollector
-from flock_flow.dashboard.events import (
+from flock.artifacts import Artifact
+from flock.dashboard.collector import DashboardEventCollector
+from flock.dashboard.events import (
     AgentActivatedEvent,
     MessagePublishedEvent,
     StreamingOutputEvent,
 )
-from flock_flow.runtime import Context
-from flock_flow.visibility import PublicVisibility
+from flock.runtime import Context
+from flock.visibility import PublicVisibility
 
 
 # ============================================================================
@@ -45,7 +45,7 @@ def collector():
 @pytest.fixture
 def websocket_manager():
     """Create WebSocketManager instance."""
-    from flock_flow.dashboard.websocket import WebSocketManager
+    from flock.dashboard.websocket import WebSocketManager
 
     return WebSocketManager()
 

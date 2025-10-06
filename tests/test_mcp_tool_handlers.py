@@ -33,15 +33,15 @@ from mcp.types import (
 )
 from pydantic import ValidationError
 
-from flock_flow.mcp.tool import TYPE_MAPPING, FlockMCPTool
-from flock_flow.mcp.types import (
+from flock.mcp.tool import TYPE_MAPPING, FlockMCPTool
+from flock.mcp.types import (
     ServerNotification,
     SseServerParameters,
     StdioServerParameters,
     StreamableHttpServerParameters,
     WebsocketServerParameters,
 )
-from flock_flow.mcp.types.handlers import (
+from flock.mcp.types.handlers import (
     handle_cancellation_notification,
     handle_incoming_exception,
     handle_incoming_request,
@@ -148,7 +148,7 @@ class TestFlockMCPTool:
         assert "message" in arg_descs
         assert "count" in arg_descs
 
-    @patch("flock_flow.mcp.tool.convert_input_schema_to_tool_args")
+    @patch("flock.mcp.tool.convert_input_schema_to_tool_args")
     def test_convert_input_schema_with_exception(self, mock_convert, basic_tool_data):
         """Test schema conversion with exception handling."""
         mock_convert.side_effect = Exception("Conversion error")
@@ -263,7 +263,7 @@ class TestFlockMCPTool:
             isError=True,
         )
 
-        with patch("flock_flow.mcp.tool.logger") as mock_logger:
+        with patch("flock.mcp.tool.logger") as mock_logger:
             converted = tool._convert_mcp_tool_result(result)
             mock_logger.error.assert_called_once()
             assert "test" in mock_logger.error.call_args[0][0]
@@ -284,7 +284,7 @@ class TestFlockMCPTool:
             isError=True,
         )
 
-        with patch("flock_flow.mcp.tool.logger") as mock_logger:
+        with patch("flock.mcp.tool.logger") as mock_logger:
             returned = tool.on_error(result)
             assert returned == result
             mock_logger.error.assert_called_once()
@@ -330,7 +330,7 @@ class TestFlockMCPTool:
 
         dspy_tool = tool.as_dspy_tool(mock_server)
 
-        with patch("flock_flow.mcp.tool.logger") as mock_logger:
+        with patch("flock.mcp.tool.logger") as mock_logger:
             # Function should not raise, but log the exception
             result = await dspy_tool.func(message="Test")
             assert result is None  # No result on exception
@@ -361,7 +361,7 @@ class TestFlockMCPTool:
 
         dspy_tool = tool.as_dspy_tool(mock_server)
 
-        with patch("flock_flow.mcp.tool.tracer") as mock_tracer:
+        with patch("flock.mcp.tool.tracer") as mock_tracer:
             mock_span = MagicMock()
             mock_tracer.start_as_current_span.return_value.__enter__ = Mock(return_value=mock_span)
             mock_tracer.start_as_current_span.return_value.__exit__ = Mock()
