@@ -300,16 +300,16 @@ class Flock:
             # Insert at beginning of utilities list (highest priority)
             agent.utilities.insert(0, event_collector)
 
+        # Start dashboard launcher (npm process + browser)
+        launcher = DashboardLauncher(port=port)
+        launcher.start()
+
         # Create dashboard HTTP service
         service = DashboardHTTPService(
             orchestrator=self,
             websocket_manager=websocket_manager,
             event_collector=event_collector,
         )
-
-        # Start dashboard launcher (npm process + browser)
-        launcher = DashboardLauncher(port=port)
-        launcher.start()
 
         # Store launcher for cleanup
         self._dashboard_launcher = launcher
@@ -331,7 +331,7 @@ class Flock:
         correlation_id: str | None = None,
         partition_key: str | None = None,
         tags: set[str] | None = None,
-        is_dashboard: bool = False
+        is_dashboard: bool = False,
     ) -> Artifact:
         """Publish an artifact to the blackboard (event-driven).
 

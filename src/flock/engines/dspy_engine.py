@@ -229,15 +229,15 @@ class DSPyEngine(EngineComponent):
             orchestrator = getattr(ctx, "orchestrator", None)
             if orchestrator:
                 is_dashboard = getattr(orchestrator, "is_dashboard", False) if ctx else False
-                #if dashboard we always stream, streamin queue only for CLI output
+                # if dashboard we always stream, streamin queue only for CLI output
                 if should_stream and ctx and not is_dashboard:
-                        if not hasattr(orchestrator, "_active_streams"):
-                            orchestrator._active_streams = 0
+                    if not hasattr(orchestrator, "_active_streams"):
+                        orchestrator._active_streams = 0
 
-                        if orchestrator._active_streams > 0:
-                            should_stream = False
-                        else:
-                            orchestrator._active_streams += 1
+                    if orchestrator._active_streams > 0:
+                        should_stream = False
+                    else:
+                        orchestrator._active_streams += 1
 
             try:
                 if should_stream:
