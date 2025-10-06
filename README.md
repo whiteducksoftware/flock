@@ -18,7 +18,75 @@
 
 ---
 
-## The Problem with Graph-Based Frameworks
+## The Problem You Know Too Well
+
+🤯 **Prompt Hell**: Brittle 500-line prompts that break with every model update  
+💥 **System Failures**: One bad LLM response crashes your entire workflow  
+🧪 **Testing Nightmares**: "How do I unit test a prompt?" (You don't.)  
+📏 **Measuring Quality**: "How do I know my prompts are optimal?" (You also don't.)  
+📄 **Output Chaos**: Parsing unstructured LLM responses into reliable data  
+⛓️ **Orchestration Limits**: Graph-based frameworks create rigid, tightly-coupled systems  
+🚀 **Production Gap**: Jupyter notebooks don't scale to enterprise systems  
+🔓 **No Security Model**: Every agent sees everything—no access controls  
+
+**The tooling is fundamentally broken. It's time for a better approach.**
+
+---
+
+## The Flock Solution: Declarative + Blackboard Architecture
+
+**What if you could skip the 'prompt engineering' step AND avoid rigid workflow graphs?**
+
+Flock 0.5 combines **declarative AI workflows** with **blackboard architecture**—the pattern that powered groundbreaking AI systems since the 1970s (Hearsay-II speech recognition at CMU).
+
+### ✅ Declarative at Heart
+
+**No natural language prompts. No brittle instructions. Just type-safe contracts.**
+
+```python
+@flock_type
+class MyDreamPizza(BaseModel):
+    pizza_idea: str
+
+@flock_type
+class Pizza(BaseModel):
+    ingredients: list[str]
+    size: str
+    crust_type: str
+    step_by_step_instructions: list[str]
+
+# Create orchestrator
+flock = Flock("openai/gpt-4o")
+
+# Define agent with ZERO natural language
+pizza_master = (
+    flock.agent("pizza_master")
+    .consumes(MyDreamPizza)
+    .publishes(Pizza)
+)
+```
+
+**Hard-binding type contracts will even work with GPT-4729.**
+
+<p align="center">
+  <img alt="Flock Blackboard" src="docs/img/pizza.png" width="600">
+</p>
+
+### ✅ Key Advantages
+
+✅ **Declarative Contracts**: Define inputs/outputs with Pydantic models. Flock handles the LLM complexity.  
+⚡ **Built-in Resilience**: Blackboard persists context—agents crash? They recover and resume.  
+🧪 **Actually Testable**: Clear contracts make agents unit-testable like any other code  
+🔐 **Zero-Trust Security**: 5 built-in visibility types (Public, Private, Tenant, Label-based, Time-delayed)  
+🚀 **Dynamic Workflows**: Self-correcting loops, conditional routing, intelligent decision-making  
+🔧 **Production-Ready**: Real-time dashboard, WebSocket streaming, 743 passing tests  
+📊 **True Observability**: Agent View + Blackboard View with full data lineage  
+
+---
+
+## Why Graphs Fail (and Blackboards Win)
+
+### The Problem with Graph-Based Frameworks
 
 **LangGraph. CrewAI. AutoGen.** They all make the same fundamental mistake: **treating agent collaboration as a directed graph**.
 
@@ -45,13 +113,12 @@ workflow.add_edge("agent_b", "agent_c")  # Predefined flow!
 - 💀 **Single point of failure**: Orchestrator dies? Everything dies.
 - 🧠 **God object anti-pattern**: One orchestrator needs domain knowledge of 20+ agents to route correctly
 - 📦 **No context resilience**: Agent crashes? Context disappears. No recovery.
-- 🚫 **Ignores microservices wisdom**: We learned decoupling in the 2000s. Graphs throw it away.
 
 **This is workflow orchestration dressed up as "agent systems."**
 
 ---
 
-## The Blackboard Alternative: How Experts Actually Collaborate
+### The Blackboard Alternative: How Experts Actually Collaborate
 
 <p align="center">
   <img alt="Flock Blackboard" src="docs/img/flock_ui_blackboard_view.png" width="600">
@@ -182,6 +249,12 @@ class Review(BaseModel):
 # Type errors caught at definition time, not runtime!
 ```
 
+**Benefits:**
+- ✅ **Debuggable**: Strong typing catches errors at development time
+- ✅ **Measurable**: Validate outputs against explicit schemas
+- ✅ **Migratable**: Type contracts survive model upgrades (GPT-4 → GPT-6)
+- ✅ **Testable**: Mock inputs/outputs with concrete types
+
 ---
 
 ### 2. Subscriptions (Not Edges)
@@ -271,112 +344,6 @@ await orchestrator.publish(Review(text="Great product!", score=9))
 
 await orchestrator.run_until_idle()  # Waits for all agents
 ```
-
----
-
-## 🎬 Real-World Pattern Comparison
-
-### Sequential Workflow (Same as graphs, but cleaner)
-
-**Graph frameworks:**
-```python
-workflow.add_edge("research", "analyze")
-workflow.add_edge("analyze", "report")
-```
-
-**Flock 0.5:**
-```python
-research = orchestrator.agent("research").consumes(Query).publishes(Data)
-analyze = orchestrator.agent("analyze").consumes(Data).publishes(Insights)
-report = orchestrator.agent("report").consumes(Insights).publishes(Report)
-
-# Auto-chains: research → analyze → report
-```
-
-**Winner:** Flock (no manual edge wiring)
-
----
-
-### Conditional Branching
-
-**Graph frameworks:**
-```python
-def route_function(state):
-    if state["score"] > 8:
-        return "high_quality"
-    return "low_quality"
-
-workflow.add_conditional_edges("review", route_function)
-```
-
-**Flock 0.5:**
-```python
-high = orchestrator.agent("high_quality").consumes(
-    Review,
-    where=lambda r: r.score > 8
-)
-
-low = orchestrator.agent("low_quality").consumes(
-    Review,
-    where=lambda r: r.score <= 8
-)
-```
-
-**Winner:** Flock (declarative, no routing function)
-
----
-
-### Parallel Execution
-
-**Graph frameworks:**
-```python
-# Need explicit split and join nodes
-workflow.add_edge("input", "split")
-workflow.add_edge("split", "agent_a")
-workflow.add_edge("split", "agent_b")
-workflow.add_edge("split", "agent_c")
-workflow.add_edge("agent_a", "join")
-workflow.add_edge("agent_b", "join")
-workflow.add_edge("agent_c", "join")
-```
-
-**Flock 0.5:**
-```python
-# Three agents consume Movie, automatically run in parallel
-sentiment = orchestrator.agent("sentiment").consumes(Movie).publishes(Sentiment)
-rating = orchestrator.agent("rating").consumes(Movie).publishes(Rating)
-summary = orchestrator.agent("summary").consumes(Movie).publishes(Summary)
-
-# Publish Movie → all 3 fire concurrently, no join node needed
-```
-
-**Winner:** Flock (automatic parallelism)
-
----
-
-### Multi-Tenancy
-
-**Graph frameworks:**
-```python
-# No built-in support - implement manually in every agent
-def agent_logic(state):
-    if state["tenant_id"] != authorized_tenant:
-        raise UnauthorizedError
-    # ... actual logic
-```
-
-**Flock 0.5:**
-```python
-# Built-in at the framework level
-agent.publishes(
-    CustomerData,
-    visibility=TenantVisibility(tenant_id="customer_123")
-)
-
-# Only agents with matching tenant_id can consume!
-```
-
-**Winner:** Flock (zero-code security)
 
 ---
 
@@ -520,8 +487,6 @@ curl -X POST http://localhost:8000/api/control/publish \
 
 ## 🚀 Enterprise Use Cases
 
-
-
 ### Financial Services: Real-Time Risk Monitoring
 
 ```python
@@ -594,101 +559,6 @@ recommender = orchestrator.agent("recommender").consumes(
 # Add new signal? Just create agent, no graph rewiring ✅
 # Scale to 100+ agents? Linear complexity ✅
 ```
-
----
-
-## 🛠️ Migrating From Graph-Based Frameworks
-
-**Good news:** Blackboard can do everything graphs can—and more.
-
-### From LangGraph
-
-**Before:**
-```python
-from langgraph.graph import StateGraph
-
-workflow = StateGraph(AgentState)
-workflow.add_node("agent_a", agent_a_logic)
-workflow.add_node("agent_b", agent_b_logic)
-workflow.add_edge("agent_a", "agent_b")
-workflow.set_entry_point("agent_a")
-
-app = workflow.compile()
-result = app.invoke({"input": "..."})
-```
-
-**After:**
-```python
-from flock_flow.orchestrator import Flock
-from pydantic import BaseModel
-
-@flock_type
-class InputData(BaseModel):
-    input: str
-
-@flock_type
-class IntermediateData(BaseModel):
-    result: str
-
-orchestrator = Flock("openai/gpt-4o")
-
-agent_a = orchestrator.agent("agent_a").consumes(InputData).publishes(IntermediateData)
-agent_b = orchestrator.agent("agent_b").consumes(IntermediateData).publishes(FinalData)
-
-await orchestrator.publish(InputData(input="..."))
-await orchestrator.run_until_idle()
-```
-
-**What you gain:**
-- Type safety (Pydantic validation)
-- Automatic parallelism (when agents are independent)
-- Real-time dashboard
-- Built-in security
-
-**Effort:** 1-2 days
-
----
-
-### From CrewAI
-
-**Before:**
-```python
-from crewai import Agent, Task, Crew
-
-researcher = Agent(role="Researcher", goal="...", backstory="...")
-writer = Agent(role="Writer", goal="...", backstory="...")
-
-task1 = Task(description="...", agent=researcher)
-task2 = Task(description="...", agent=writer, context=[task1])
-
-crew = Crew(agents=[researcher, writer], tasks=[task1, task2])
-result = crew.kickoff(inputs={"topic": "..."})
-```
-
-**After:**
-```python
-@flock_type
-class ResearchData(BaseModel):
-    findings: str
-
-@flock_type
-class Article(BaseModel):
-    content: str
-
-orchestrator = Flock("openai/gpt-4o")
-
-researcher = orchestrator.agent("researcher").consumes(Topic).publishes(ResearchData)
-writer = orchestrator.agent("writer").consumes(ResearchData).publishes(Article)
-
-await orchestrator.publish(Topic(topic="..."))
-```
-
-**What you gain:**
-- No context wiring (automatic via types)
-- Parallel execution (when possible)
-- Better error handling
-
-**Effort:** 1-2 days
 
 ---
 
@@ -789,9 +659,14 @@ We're calling this 0.5 to signal:
 
 **Graph-based frameworks** treat agents like nodes in a workflow. Rigid. Sequential. Hard to scale.
 
-**Flock 0.5** treats agents like specialists at a whiteboard. Opportunistic. Parallel. Infinitely composable.
+**Flock 0.5** combines **declarative AI workflows** with **blackboard architecture**:
+- ✅ No brittle prompts (type-safe contracts)
+- ✅ No rigid graphs (opportunistic execution)
+- ✅ No testing nightmares (unit-testable agents)
+- ✅ No security gaps (5 visibility types)
+- ✅ No production fears (743 tests, real-time monitoring)
 
-**The future of AI agents isn't workflows—it's blackboards.**
+**The future of AI agents isn't workflows—it's declarative blackboards.**
 
 **Try it. You'll never go back to graphs.**
 
@@ -801,7 +676,7 @@ We're calling this 0.5 to signal:
 
 **Built with ❤️ by white duck GmbH**
 
-**"Agents collaborate. Frameworks shouldn't dictate how."**
+**"Agents are just microservices. Let's treat them that way."**
 
 [⭐ Star us on GitHub](https://github.com/whiteducksoftware/flock-flow) | [📖 Read the Docs](https://whiteducksoftware.github.io/flock/) | [🚀 Try Examples](examples/)
 
@@ -834,4 +709,4 @@ We're calling this 0.5 to signal:
 
 ---
 
-**"The blackboard pattern has been battle-tested for 50 years. We're bringing it to LLM agents—because rigid graphs were never going to scale."**
+**"The blackboard pattern has been battle-tested for 50 years. Declarative contracts eliminate prompt hell. Together, they're the future of AI agents."**
