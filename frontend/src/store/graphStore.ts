@@ -4,8 +4,6 @@ import { Node, Edge } from '@xyflow/react';
 import { Agent, Message, AgentNodeData, MessageNodeData } from '../types/graph';
 import { deriveAgentViewEdges, deriveBlackboardViewEdges, Artifact, Run, DashboardState } from '../utils/transforms';
 import { useFilterStore } from './filterStore';
-import { useSettingsStore } from './settingsStore';
-import { applyDagreLayout } from '../services/layout';
 
 interface GraphState {
   // Core data
@@ -213,15 +211,27 @@ export const useGraphStore = create<GraphState>()(
         }),
 
       generateAgentViewGraph: () => {
-        const { agents, messages, runs, consumptions } = get();
+        const { agents, messages, runs, consumptions, nodes: currentNodes } = get();
+
+        // Create a map of current node positions to preserve them during regeneration
+        const currentPositions = new Map<string, { x: number; y: number }>();
+        currentNodes.forEach(node => {
+          currentPositions.set(node.id, node.position);
+        });
+
         const nodes: Node<AgentNodeData>[] = [];
 
         // Create nodes from agents
         agents.forEach((agent) => {
+          // Preserve position priority: saved position > current React Flow position > default
+          const position = agent.position
+            || currentPositions.get(agent.id)
+            || { x: 400 + Math.random() * 200, y: 300 + Math.random() * 200 };
+
           nodes.push({
             id: agent.id,
             type: 'agent',
-            position: agent.position || { x: 0, y: 0 },
+            position,
             data: {
               name: agent.name,
               status: agent.status,
@@ -240,58 +250,18 @@ export const useGraphStore = create<GraphState>()(
         const dashboardState = toDashboardState(messages, runs, consumptions);
         const edges = deriveAgentViewEdges(dashboardState);
 
-        // Apply auto-layout ONLY if enabled and there are nodes without saved positions
-        const nodesNeedingLayout = nodes.filter(node => {
-          const agent = agents.get(node.id);
-          return !agent?.position; // No saved position
-        });
-
-        const { autoLayout, layoutDirection, nodeSpacing, rankSpacing } = useSettingsStore.getState().advanced;
-
-        if (autoLayout && nodesNeedingLayout.length > 0) {
-          // Apply layout to all nodes to maintain proper spacing
-          // Use layout settings from settings store
-          const layoutedNodes = applyDagreLayout(nodes, edges, layoutDirection, nodeSpacing, rankSpacing);
-
-          // But only update positions for nodes that didn't have saved positions
-          const finalNodes = layoutedNodes.map(layoutedNode => {
-            const agent = agents.get(layoutedNode.id);
-            if (agent?.position) {
-              // Keep the saved position
-              return { ...layoutedNode, position: agent.position };
-            }
-            // Use the computed layout position
-            return layoutedNode;
-          });
-
-          set({ nodes: finalNodes, edges });
-        } else {
-          // Either auto-layout is disabled, or all nodes have saved positions
-          // For new nodes without positions, place them at a default location
-          if (nodesNeedingLayout.length > 0 && !autoLayout) {
-            const nodesWithDefaultPositions = nodes.map(node => {
-              const agent = agents.get(node.id);
-              if (!agent?.position) {
-                // Place at center with slight random offset to avoid complete overlap
-                return {
-                  ...node,
-                  position: {
-                    x: 400 + Math.random() * 200,
-                    y: 300 + Math.random() * 200,
-                  }
-                };
-              }
-              return node;
-            });
-            set({ nodes: nodesWithDefaultPositions, edges });
-          } else {
-            set({ nodes, edges });
-          }
-        }
+        set({ nodes, edges });
       },
 
       generateBlackboardViewGraph: () => {
-        const { messages, runs, consumptions, messagePositions } = get();
+        const { messages, runs, consumptions, messagePositions, nodes: currentNodes } = get();
+
+        // Create a map of current node positions to preserve them during regeneration
+        const currentPositions = new Map<string, { x: number; y: number }>();
+        currentNodes.forEach(node => {
+          currentPositions.set(node.id, node.position);
+        });
+
         const nodes: Node<MessageNodeData>[] = [];
 
         // Create nodes from messages
@@ -301,13 +271,15 @@ export const useGraphStore = create<GraphState>()(
           // BUG FIX: Use ACTUAL consumption data from consumptions Map, not inferred from subscriptions!
           const consumedBy = consumptions.get(message.id) || [];
 
-          // Use saved position if available, otherwise start at origin
-          const savedPos = messagePositions.get(message.id);
+          // Preserve position priority: saved position > current React Flow position > default
+          const position = messagePositions.get(message.id)
+            || currentPositions.get(message.id)
+            || { x: 400 + Math.random() * 200, y: 300 + Math.random() * 200 };
 
           nodes.push({
             id: message.id,
             type: 'message',
-            position: savedPos || { x: 0, y: 0 },
+            position,
             data: {
               artifactType: message.type,
               payloadPreview: payloadStr.slice(0, 100),
@@ -325,51 +297,7 @@ export const useGraphStore = create<GraphState>()(
         const dashboardState = toDashboardState(messages, runs, consumptions);
         const edges = deriveBlackboardViewEdges(dashboardState);
 
-        // Apply auto-layout ONLY if enabled and there are nodes without saved positions
-        const nodesNeedingLayout = nodes.filter(node => !messagePositions.has(node.id));
-
-        const { autoLayout, layoutDirection, nodeSpacing, rankSpacing } = useSettingsStore.getState().advanced;
-
-        if (autoLayout && nodesNeedingLayout.length > 0) {
-          // Apply layout to all nodes to maintain proper spacing
-          // Use layout settings from settings store
-          const layoutedNodes = applyDagreLayout(nodes, edges, layoutDirection, nodeSpacing, rankSpacing);
-
-          // But only update positions for nodes that didn't have saved positions
-          const finalNodes = layoutedNodes.map(layoutedNode => {
-            const savedPos = messagePositions.get(layoutedNode.id);
-            if (savedPos) {
-              // Keep the saved position
-              return { ...layoutedNode, position: savedPos };
-            }
-            // Use the computed layout position
-            return layoutedNode;
-          });
-
-          set({ nodes: finalNodes, edges });
-        } else {
-          // Either auto-layout is disabled, or all nodes have saved positions
-          // For new nodes without positions, place them at a default location
-          if (nodesNeedingLayout.length > 0 && !autoLayout) {
-            const nodesWithDefaultPositions = nodes.map(node => {
-              const savedPos = messagePositions.get(node.id);
-              if (!savedPos) {
-                // Place at center with slight random offset to avoid complete overlap
-                return {
-                  ...node,
-                  position: {
-                    x: 400 + Math.random() * 200,
-                    y: 300 + Math.random() * 200,
-                  }
-                };
-              }
-              return node;
-            });
-            set({ nodes: nodesWithDefaultPositions, edges });
-          } else {
-            set({ nodes, edges });
-          }
-        }
+        set({ nodes, edges });
       },
 
       batchUpdate: (update) =>

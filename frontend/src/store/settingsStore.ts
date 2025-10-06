@@ -35,8 +35,6 @@ export interface SettingsState {
   };
 
   advanced: {
-    autoLayout: boolean;
-    autoZoom: boolean;
     layoutDirection: 'TB' | 'LR';
     nodeSpacing: number;
     rankSpacing: number;
@@ -65,8 +63,6 @@ export interface SettingsState {
   setCompactNodeView: (compact: boolean) => void;
 
   // Advanced Actions
-  setAutoLayout: (enabled: boolean) => void;
-  setAutoZoom: (enabled: boolean) => void;
   setLayoutDirection: (direction: SettingsState['advanced']['layoutDirection']) => void;
   setNodeSpacing: (spacing: number) => void;
   setRankSpacing: (spacing: number) => void;
@@ -104,8 +100,6 @@ const DEFAULT_SETTINGS: Omit<SettingsState, keyof ReturnType<typeof createAction
   },
 
   advanced: {
-    autoLayout: true,      // Auto-arrange new nodes
-    autoZoom: true,        // Auto-fit viewport after node changes
     layoutDirection: 'LR',
     nodeSpacing: 75,       // Horizontal spacing between nodes
     rankSpacing: 150,      // Vertical spacing between ranks
@@ -161,12 +155,6 @@ const createActions = (set: any) => ({
     set((state: SettingsState) => ({ appearance: { ...state.appearance, compactNodeView: compact } })),
 
   // Advanced Actions
-  setAutoLayout: (enabled: boolean) =>
-    set((state: SettingsState) => ({ advanced: { ...state.advanced, autoLayout: enabled } })),
-
-  setAutoZoom: (enabled: boolean) =>
-    set((state: SettingsState) => ({ advanced: { ...state.advanced, autoZoom: enabled } })),
-
   setLayoutDirection: (direction: SettingsState['advanced']['layoutDirection']) =>
     set((state: SettingsState) => ({ advanced: { ...state.advanced, layoutDirection: direction } })),
 

@@ -2,8 +2,8 @@
  * Advanced Settings Tab
  *
  * Power-user settings:
- * - Auto-layout on new nodes
- * - Layout direction (top-bottom vs left-right)
+ * - Layout direction (top-bottom vs left-right) for manual layout
+ * - Node and rank spacing for manual layout algorithm
  * - Debug mode (show node IDs, verbose logging)
  * - Performance mode (disable animations/effects)
  */
@@ -12,16 +12,12 @@ import React, { useEffect, useState } from 'react';
 import { useSettingsStore } from '../../store/settingsStore';
 
 const AdvancedSettings: React.FC = () => {
-  const autoLayout = useSettingsStore((state) => state.advanced.autoLayout);
-  const autoZoom = useSettingsStore((state) => state.advanced.autoZoom);
   const layoutDirection = useSettingsStore((state) => state.advanced.layoutDirection);
   const nodeSpacing = useSettingsStore((state) => state.advanced.nodeSpacing);
   const rankSpacing = useSettingsStore((state) => state.advanced.rankSpacing);
   const debugMode = useSettingsStore((state) => state.advanced.debugMode);
   const performanceMode = useSettingsStore((state) => state.advanced.performanceMode);
 
-  const setAutoLayout = useSettingsStore((state) => state.setAutoLayout);
-  const setAutoZoom = useSettingsStore((state) => state.setAutoZoom);
   const setLayoutDirection = useSettingsStore((state) => state.setLayoutDirection);
   const setNodeSpacing = useSettingsStore((state) => state.setNodeSpacing);
   const setRankSpacing = useSettingsStore((state) => state.setRankSpacing);
@@ -58,47 +54,11 @@ const AdvancedSettings: React.FC = () => {
         <h3 className="settings-section-title">Graph Layout</h3>
 
         <div className="settings-field">
-          <div className="settings-checkbox-wrapper">
-            <input
-              id="auto-layout"
-              type="checkbox"
-              checked={autoLayout}
-              onChange={(e) => setAutoLayout(e.target.checked)}
-              className="settings-checkbox"
-            />
-            <label htmlFor="auto-layout" className="settings-checkbox-label">
-              Auto-layout on new nodes
-            </label>
-          </div>
-          <p className="settings-description">
-            Automatically arrange new nodes using layout algorithm. When disabled, new nodes appear at center with manual positioning required.
-          </p>
-        </div>
-
-        <div className="settings-field">
-          <div className="settings-checkbox-wrapper">
-            <input
-              id="auto-zoom"
-              type="checkbox"
-              checked={autoZoom}
-              onChange={(e) => setAutoZoom(e.target.checked)}
-              className="settings-checkbox"
-            />
-            <label htmlFor="auto-zoom" className="settings-checkbox-label">
-              Auto-zoom on changes
-            </label>
-          </div>
-          <p className="settings-description">
-            Automatically fit all nodes in viewport when new nodes are added. Ensures all nodes are visible after changes.
-          </p>
-        </div>
-
-        <div className="settings-field">
           <label htmlFor="layout-direction" className="settings-label">
             Layout Direction
           </label>
           <p className="settings-description">
-            Direction for auto-layout algorithm
+            Direction for manual layout algorithm (right-click → Auto Layout)
           </p>
           <select
             id="layout-direction"
@@ -116,7 +76,7 @@ const AdvancedSettings: React.FC = () => {
             Node Spacing: {nodeSpacing}px
           </label>
           <p className="settings-description">
-            Horizontal space between nodes (affects edge label visibility)
+            Horizontal space between nodes when using manual layout (affects edge label visibility)
           </p>
           <input
             id="node-spacing"
@@ -135,7 +95,7 @@ const AdvancedSettings: React.FC = () => {
             Rank Spacing: {rankSpacing}px
           </label>
           <p className="settings-description">
-            Vertical space between graph layers
+            Vertical space between graph layers when using manual layout
           </p>
           <input
             id="rank-spacing"
