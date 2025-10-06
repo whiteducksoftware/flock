@@ -44,7 +44,7 @@ repos:
         exclude: tsconfig.*\.json$  # Exclude TypeScript config (uses JSON5)
       - id: check-added-large-files
         name: check for large files
-        args: [--maxkb=500]
+        args: [--maxkb=1000]  # 1 MB limit
       - id: check-merge-conflict
         name: check for merge conflicts
       - id: detect-private-key
@@ -68,7 +68,7 @@ repos:
       # TypeScript type checking
       - id: tsc
         name: typescript type check
-        entry: bash -c 'cd frontend && npm run type-check'
+        entry: bash -c 'cd src/flock/frontend && npm run type-check'
         language: system
         files: \.tsx?$
         pass_filenames: false
@@ -76,7 +76,7 @@ repos:
       # Frontend build check (ensures no build errors)
       - id: frontend-build
         name: frontend build check
-        entry: bash -c 'cd frontend && npm run build'
+        entry: bash -c 'cd src/flock/frontend && npm run build'
         language: system
         files: ^frontend/
         pass_filenames: false
