@@ -90,6 +90,7 @@ class Flock:
         # T068: Circuit breaker for runaway agents
         self.max_agent_iterations: int = max_agent_iterations
         self._agent_iteration_count: dict[str, int] = {}
+        self.is_dashboard: bool = False
         if not model:
             self.model = os.getenv("DEFAULT_MODEL")
 
@@ -330,6 +331,7 @@ class Flock:
         correlation_id: str | None = None,
         partition_key: str | None = None,
         tags: set[str] | None = None,
+        is_dashboard: bool = False
     ) -> Artifact:
         """Publish an artifact to the blackboard (event-driven).
 
@@ -361,6 +363,7 @@ class Flock:
             >>> await orchestrator.publish(task, tags={"urgent", "backend"})
         """
         init_console(clear_screen=True, show_banner=True, model=self.model)
+        self.is_dashboard = is_dashboard
         # Handle different input types
         if isinstance(obj, Artifact):
             # Already an artifact - publish as-is
