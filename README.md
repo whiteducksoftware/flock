@@ -31,6 +31,10 @@
 
 **The tooling is fundamentally broken. It's time for a better approach.**
 
+Most issues are solvable, because decades of experience with micro services tought us hard lessons about decoupling, orchestration and reliability. 
+
+**Let's introduce these learnings to AI agents!**
+
 ---
 
 ## The Flock Solution: Declarative + Blackboard Architecture
@@ -564,7 +568,7 @@ recommender = orchestrator.agent("recommender").consumes(
 
 ## 🗺️ Roadmap
 
-**✅ Phase 1: Core Framework (DONE - v0.1.20)**
+**✅ Phase 1: Core Framework (DONE - v0.5.00)**
 - [x] Blackboard orchestrator with typed artifacts
 - [x] Sequential + parallel execution
 - [x] Visibility controls (5 types)
@@ -572,21 +576,19 @@ recommender = orchestrator.agent("recommender").consumes(
 - [x] Safety features (circuit breaker, feedback prevention)
 - [x] 743 tests, 77.65% coverage
 
-**🚧 Phase 2: Advanced Features (Q1 2026)**
+**🚧 Phase 2: Roadmap to 1.0 (Q1 2026)**
 - [ ] **YAML/JSON Serialization** - Export/import full orchestrators
 - [ ] **LLM-Powered Routing** - AI agent selection based on context
 - [ ] **Batch API** - Process DataFrames/CSV files
 - [ ] **Advanced Predicates** - Complex subscription logic
 - [ ] **CLI Tool** - Management console
-
-**🚀 Phase 3: Enterprise (Q2 2026)**
 - [ ] Persistent blackboard (Redis/Postgres)
 - [ ] Event log replay (Kafka)
 - [ ] Distributed orchestration (multi-region)
 - [ ] OAuth/SSO for dashboard
 - [ ] Audit trail export (compliance)
 
-**📅 Phase 4: Developer Experience (Q3 2026)**
+**📅 Phase 3: Post 1.0 ideas**
 - [ ] Migration tool (auto-convert from LangGraph/CrewAI)
 - [ ] Template marketplace
 - [ ] VS Code extension
