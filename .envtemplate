@@ -1,0 +1,7 @@
+AZURE_API_KEY=xxx
+AZURE_API_BASE=https://xxx-foundry.cognitiveservices.azure.com/
+AZURE_API_VERSION="2024-12-01-preview"
+
+
+
+OPENAI_API_KEY=xxx

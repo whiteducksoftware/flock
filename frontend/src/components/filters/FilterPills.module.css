@@ -1,0 +1,79 @@
+.container {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  padding: var(--spacing-1-5) var(--spacing-3);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
+  border: 1px solid var(--color-primary-500);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-body-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-on-primary);
+  box-shadow: var(--shadow-xs);
+  transition: var(--transition-all);
+  animation: slideIn var(--duration-normal) var(--ease-out);
+}
+
+.pill:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.pillSecondary {
+  background: linear-gradient(135deg, var(--color-secondary-600) 0%, var(--color-secondary-700) 100%);
+  border-color: var(--color-secondary-500);
+}
+
+.pillLabel {
+  user-select: none;
+}
+
+.removeButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 var(--spacing-0-5);
+  font-size: 16px;
+  color: var(--color-text-on-primary);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-transform);
+  opacity: 0.8;
+}
+
+.removeButton:hover {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Animation when pill is removed */
+.pill.removing {
+  animation: slideOut var(--duration-fast) var(--ease-in) forwards;
+}
+
+@keyframes slideOut {
+  to {
+    opacity: 0;
+    transform: scale(0.8) translateX(-10px);
+  }
+}

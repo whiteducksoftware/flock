@@ -1,0 +1,47 @@
+/* ========================================
+   Themed Scrollbars
+   ========================================
+   Global scrollbar styling that uses theme CSS variables
+   for consistent appearance across all scrollable areas
+   ======================================== */
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--color-bg-base);
+  border-radius: var(--radius-sm, 4px);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-bg-overlay);
+  border-radius: var(--radius-sm, 4px);
+  border: 2px solid var(--color-bg-base);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-default);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: var(--color-border-strong);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-bg-overlay) var(--color-bg-base);
+}
+
+/* Ensure scrollbars are visible in detail windows and other components */
+div[style*="overflow: auto"],
+div[style*="overflow-y: auto"],
+div[style*="overflow-x: auto"],
+.settings-content,
+.publish-content {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-bg-overlay) var(--color-bg-base);
+}

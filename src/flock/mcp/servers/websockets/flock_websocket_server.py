@@ -13,15 +13,14 @@ from mcp.shared.message import SessionMessage
 from opentelemetry import trace
 from pydantic import Field
 
-from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_server import FlockMCPServer
-from flock.core.mcp.mcp_client import FlockMCPClient
-from flock.core.mcp.mcp_client_manager import FlockMCPClientManager
-from flock.core.mcp.mcp_config import (
+from flock.logging.logging import get_logger
+from flock.mcp.client import FlockMCPClient
+from flock.mcp.config import (
     FlockMCPConfiguration,
     FlockMCPConnectionConfiguration,
 )
-from flock.core.mcp.types.types import WebsocketServerParameters
+from flock.mcp.types import WebsocketServerParameters
+
 
 logger = get_logger("mcp.ws.server")
 tracer = trace.get_tracer(__name__)
@@ -59,7 +58,7 @@ class FlockWSConfig(FlockMCPConfiguration):
 class FlockWSClient(FlockMCPClient):
     """Client for Websocket servers."""
 
-    config: FlockWSConfig = Field(..., description="Client Configuration")
+    config: FlockMCPConfiguration = Field(..., description="Client Configuration")
 
     # This one we HAVE to specify. This tells Flock
     # how to create the underlying connection.
@@ -84,36 +83,4 @@ class FlockWSClient(FlockMCPClient):
             # If present, then apply the changes in "url" to the create_transport logic.
             param_copy.url = additional_params.get("url", params.url)
 
-        return websocket_client(
-            url=param_copy.url
-        )  # return the async context manager
-
-
-# not really needed, but kept for type hints and as an example.
-class FlockWSClientManager(FlockMCPClientManager):
-    """Manager for handling websocket clients."""
-
-    client_config: FlockWSConfig = Field(
-        ..., description="Configuration for clients."
-    )
-
-    async def make_client(self, additional_params=None):
-        """Create a new client instance."""
-        new_client = FlockWSClient(
-            config=self.client_config,
-            additional_params=additional_params,
-        )
-        return new_client
-
-
-class FlockWSServer(FlockMCPServer):
-    """Class which represents an MCP Server using the websocket transport type."""
-
-    config: FlockWSConfig = Field(..., description="Config for the server.")
-
-    # Specify the concrete type for the server.
-    async def initialize(self) -> FlockWSClientManager:
-        """Called when initializing the server."""
-        client_manager = FlockWSClientManager(client_config=self.config)
-
-        return client_manager
+        return websocket_client(url=param_copy.url)  # return the async context manager

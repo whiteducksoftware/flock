@@ -1,1 +1,1 @@
-"""Default SSE Server Implementation for Flock."""
+"""Default SSE Server Implementation for flock."""

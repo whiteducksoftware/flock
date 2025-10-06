@@ -1,0 +1,88 @@
+.connectionBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: var(--spacing-1-5) var(--spacing-3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  box-shadow: var(--shadow-xs);
+  transition: var(--transition-all);
+  cursor: default;
+}
+
+.connectionBadge.hasError {
+  cursor: help;
+}
+
+/* Status Variants */
+.connectionBadge.connected {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-dark);
+  border: var(--border-width-1) solid var(--color-success-border);
+}
+
+.connectionBadge.connecting,
+.connectionBadge.reconnecting {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning-dark);
+  border: var(--border-width-1) solid var(--color-warning-border);
+}
+
+.connectionBadge.disconnected {
+  background-color: var(--color-error-bg);
+  color: var(--color-error-dark);
+  border: var(--border-width-1) solid var(--color-error-border);
+}
+
+/* Status Indicator Dot */
+.statusIndicator {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-circle);
+  transition: var(--transition-opacity);
+}
+
+.statusIndicator.connected {
+  background-color: var(--color-success);
+}
+
+.statusIndicator.connecting,
+.statusIndicator.reconnecting {
+  background-color: var(--color-warning);
+  animation: statusPulse 2s var(--ease-smooth) infinite;
+}
+
+.statusIndicator.disconnected {
+  background-color: var(--color-error);
+}
+
+/* Status Text */
+.statusText {
+  line-height: var(--line-height-snug);
+  letter-spacing: var(--letter-spacing-normal);
+}
+
+/* Pulse Animation for Connecting States */
+@keyframes statusPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.95);
+  }
+}
+
+/* Accessibility - Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .statusIndicator.connecting,
+  .statusIndicator.reconnecting {
+    animation: none;
+  }
+
+  .connectionBadge {
+    transition: none;
+  }
+}

@@ -1,0 +1,115 @@
+/* Empty State Component */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-layout-xl);
+  text-align: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.icon {
+  margin-bottom: var(--spacing-6);
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  animation: fadeInScale var(--duration-slow) var(--ease-smooth);
+}
+
+.svgIcon {
+  display: block;
+}
+
+.title {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--spacing-3) 0;
+  line-height: var(--line-height-tight);
+  animation: fadeIn var(--duration-slow) var(--ease-smooth);
+  animation-delay: calc(var(--duration-fast));
+}
+
+.description {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0 0 var(--spacing-6) 0;
+  animation: fadeIn var(--duration-slow) var(--ease-smooth);
+  animation-delay: calc(var(--duration-fast) * 2);
+}
+
+.action {
+  padding: var(--space-component-sm) var(--space-component-lg);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-on-primary);
+  background: var(--color-primary-500);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-colors), var(--transition-shadow);
+  animation: fadeInUp var(--duration-slow) var(--ease-smooth);
+  animation-delay: calc(var(--duration-fast) * 3);
+}
+
+.action:hover {
+  background: var(--color-primary-600);
+  box-shadow: var(--shadow-md);
+}
+
+.action:active {
+  background: var(--color-primary-700);
+  box-shadow: var(--shadow-xs);
+  transform: translateY(1px);
+}
+
+.action:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-glow-primary);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .icon,
+  .title,
+  .description,
+  .action {
+    animation: none;
+  }
+}

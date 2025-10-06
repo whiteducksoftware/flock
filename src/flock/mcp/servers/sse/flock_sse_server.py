@@ -14,15 +14,14 @@ from mcp.shared.message import SessionMessage
 from opentelemetry import trace
 from pydantic import Field
 
-from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_server import FlockMCPServer
-from flock.core.mcp.mcp_client import FlockMCPClient
-from flock.core.mcp.mcp_client_manager import FlockMCPClientManager
-from flock.core.mcp.mcp_config import (
+from flock.logging.logging import get_logger
+from flock.mcp.client import FlockMCPClient
+from flock.mcp.config import (
     FlockMCPConfiguration,
     FlockMCPConnectionConfiguration,
 )
-from flock.core.mcp.types.types import SseServerParameters
+from flock.mcp.types import SseServerParameters
+
 
 logger = get_logger("mcp.sse.server")
 tracer = trace.get_tracer(__name__)
@@ -33,9 +32,7 @@ class FlockSSEConnectionConfig(FlockMCPConnectionConfiguration):
 
     # Only thing we need to override here is the concrete transport_type
     # and connection_parameters fields.
-    transport_type: Literal["sse"] = Field(
-        default="sse", description="Use the sse transport type."
-    )
+    transport_type: Literal["sse"] = Field(default="sse", description="Use the sse transport type.")
 
     connection_parameters: SseServerParameters = Field(
         ..., description="SSE Server Connection Parameters."
@@ -56,7 +53,7 @@ class FlockSSEConfig(FlockMCPConfiguration):
 class FlockSSEClient(FlockMCPClient):
     """Client for SSE Servers."""
 
-    config: FlockSSEConfig = Field(..., description="Client configuration.")
+    config: FlockMCPConfiguration = Field(..., description="Client configuration.")
 
     async def create_transport(
         self,
@@ -73,22 +70,14 @@ class FlockSSEClient(FlockMCPClient):
         param_copy = copy.deepcopy(params)
 
         if additional_params:
-            override_headers = bool(
-                additional_params.get("override_headers", False)
-            )
+            override_headers = bool(additional_params.get("override_headers", False))
             if "headers" in additional_params:
                 if override_headers:
-                    param_copy.headers = additional_params.get(
-                        "headers", params.headers
-                    )
+                    param_copy.headers = additional_params.get("headers", params.headers)
                 else:
-                    param_copy.headers.update(
-                        additional_params.get("headers", {})
-                    )
+                    param_copy.headers.update(additional_params.get("headers", {}))
             if "read_timeout_seconds" in additional_params:
-                param_copy.timeout =  additional_params.get(
-                    "read_timeout_seconds", params.timeout
-                )
+                param_copy.timeout = additional_params.get("read_timeout_seconds", params.timeout)
 
             if "sse_read_timeout" in additional_params:
                 param_copy.sse_read_timeout = additional_params.get(
@@ -113,34 +102,3 @@ class FlockSSEClient(FlockMCPClient):
             timeout=float(param_copy.timeout),
             sse_read_timeout=float(param_copy.sse_read_timeout),
         )
-
-
-class FlockSSEClientManager(FlockMCPClientManager):
-    """Manager for handling SSE Clients."""
-
-    client_config: FlockSSEConfig = Field(
-        ..., description="Configuration for clients."
-    )
-
-    async def make_client(
-        self, additional_params: dict[str, Any]
-    ) -> FlockSSEClient:
-        """Create a new client instance."""
-        new_client = FlockSSEClient(
-            config=self.client_config, additional_params=additional_params
-        )
-        return new_client
-
-
-class FlockSSEServer(FlockMCPServer):
-    """Class which represents a MCP Server using the SSE Transport type."""
-
-    config: FlockSSEConfig = Field(..., description="Config for the server.")
-
-    async def initialize(self) -> FlockSSEClientManager:
-        """Called when initializing the server."""
-        client_manager = FlockSSEClientManager(
-            client_config=self.config,
-        )
-
-        return client_manager

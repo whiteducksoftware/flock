@@ -1,161 +1,575 @@
-<!-- TOC --><a name="contributing-to-flock"></a>
-# Contributing to Flock
+# Contributing to Flock Flow
 
-First off, thanks for taking the time to contribute!
-Flock is still in early development but we value outside input. ❤️
+Welcome to Flock Flow! We're excited to have you contribute to the future of AI agent orchestration. This guide will help you get set up and contributing quickly.
 
-We follow the [Contributor Covenant](https://www.contributor-covenant.org/) code of conduct.
+## 🎯 Quick Start
 
-## Table of Contents:
-<!-- TOC start -->
+```bash
+# 1. Fork and clone the repository
+git clone https://github.com/yourusername/flock-flow.git
+cd flock-flow
 
-- [Contributing to Flock](#contributing-to-flock)
-   * [🗒️ Getting Started:](#-getting-started)
-   * [❗ Reporting Issues:](#-reporting-issues)
-   * [🚋 Pull Requests: ](#-pull-requests)
-   * [💻 Coding Standards: ](#-coding-standards)
-      + [General Standards:](#general-standards)
-      + [A few best practices for writing good code:](#a-few-best-practices-for-writing-good-code)
-         - [Embrace Declarative Programming Principles:](#embrace-declarative-programming-principles)
-         - [Consistent Code Formatting:](#consistent-code-formatting)
-         - [Meaningful Naming Conventions:](#meaningful-naming-conventions)
-         - [Modular and Composable Code:](#modular-and-composable-code)
-   * [📖 Documentation Guidelines: ](#-documentation-guidelines)
-      + [A few best practices for writing good documentation:](#a-few-best-practices-for-writing-good-documentation)
-   * [🔭 Testing and Reliability:](#-testing-and-reliability)
-   * [Release Process:](#release-process)
+# 2. Install all dependencies
+poe install
 
-<!-- TOC end -->
+# 3. Install pre-commit hooks
+pip install pre-commit
+pre-commit install
+pre-commit install --hook-type pre-push
 
-<!-- TOC --><a name="-getting-started"></a>
-## 🗒️ Getting Started:
-1. Fork the repo & create your feature branch (`git checkout -b feat/my-awesome-thing`).
-2. Install dev dependencies: `uv pip install -r requirements.txt && uv pip install -r requirements-dev.txt.`
-3. Run tests: `pytest -q` (they should pass before and after your change).
-4. Make changes – keep them atomic and well-documented.
-5. Lint & type-check: `ruff .` and `mypy src/.`
-6. Commit following Conventional Commits (`feat:`, `fix:`, `docs:` etc.).
-7. Open a PR against main. Include a description, screenshots, and linked issues.
+# 4. Verify setup
+poe test
+cd frontend && npm test
 
+# You're ready to contribute! 🚀
+```
 
-<!-- TOC --><a name="-reporting-issues"></a>
-## ❗ Reporting Issues:
-- Before submitting a new issue, please check [existing issues](https://github.com/whiteducksoftware/flock/issues) if it has already been reported.
-- To submit a new issue, please use the provided **Issue Templates** and provide a clear and descriptive title along with a detailed description of the problem or feature request, including steps to reproduce if it's a bug.
+## 📋 Prerequisites
 
-<!-- TOC --><a name="-pull-requests"></a>
-## 🚋 Pull Requests: 
-- Ensure your code is well-tested and adheres to the [Coding Standards](#code-standards) outlined below.
-- Write clear commit messages that explain the changes made.
-- Clearly outline and communicate breaking API-changes.
-- Before submitting a pull request, make sure your branch is up to date with the base branch (`main`) of the [main repository](https://github.com/whiteducksoftware/flock).
-- Open a pull request with a summary of your changes and any relevant issue numbers.
+### Required Software
 
-<!-- TOC --><a name="-coding-standards"></a>
-## 💻 Coding Standards: 
-- Flock follows a **declarative** approach and design philosophy. Make sure that your code follows this principle.
-- Follow the coding conventions used within the existing codebase.
-- Keep code modular and readable. Prefer clarity over brevity.
-- Include comments where necessary and explain complex logic.
+- **Python 3.10+** - Modern Python with async features
+- **UV Package Manager** - Fast, reliable dependency management (NOT pip!)
+- **Node.js 22+** - For frontend development
+- **Git** - Version control
 
-<!-- TOC --><a name="general-standards"></a>
-### General Standards:
-- Python `3.10.+`. Use type hints everywhere.
-- Follow [`ruff`](https://docs.astral.sh/ruff/) default rules + [`black`](https://black.readthedocs.io/en/stable/index.html) formatting.
-- Keep imports sorted (`ruff format`)
-- Write **async-friendly** code. (non-blocking I/O)
+### Recommended Tools
 
-<!-- TOC --><a name="a-few-best-practices-for-writing-good-code"></a>
-### A few best practices for writing good code:
+- **VS Code** - With Python and TypeScript extensions
+- **DevContainer** - For consistent development environment
+- **pre-commit** - Automated quality checks
 
-<!-- TOC --><a name="embrace-declarative-programming-principles"></a>
-#### Embrace Declarative Programming Principles:
-- **Favor Declarative Styles**:
-   - Exposed API-Code should express the desired results rather than detailing the control flow of the program.
-   - Use declarative constructs to define behavior instead of imperative constructs where applicable.
-   - Aim for expressiveness and clarity in stating "what" should happen rather than "how" it should happen.
-- **Use High-Level Abstractions**:
-   - Leverage Flock's existing abstractions to minimize boilerplate code and simplify the implementation.
-   - This makes the code easier to read and understand.
-<!-- TOC --><a name="consistent-code-formatting"></a>
-#### Consistent Code Formatting:
-- **Adhere to Existing Code Style**: Consistency in formatting enhances readability and helps developers navigate the codebase.
-<!-- TOC --><a name="meaningful-naming-conventions"></a>
-#### Meaningful Naming Conventions:
-- **Use Descriptive Names**:
-  - Choose variable, function, and class names that clearly describe their purpose.
-  - Be consistent. Stick to the naming conventions in Flock's existing code-base.
-<!-- TOC --><a name="modular-and-composable-code"></a>
-#### Modular and Composable Code:
-- **Write Modular Code**: Break down complex logic into smaller, reusable components.
-- **Avoid Side Effects**: Aim to minimize side effects where possible.
+## 🛠️ Development Environment Setup
 
+### 1. Install UV Package Manager
 
-<!-- TOC --><a name="-documentation-guidelines"></a>
-## 📖 Documentation Guidelines: 
-- Documentation lives under [`docs/`](https://github.com/whiteducksoftware/flock/tree/master/docs), and is built with [MkDocs Material](https://github.com/squidfunk/mkdocs-material).
-- Good documentation is crucial for the usability of Flock. When adding or updating code, please also update the relevant documentation.
-- Use clear, concise language and include examples where applicable. (On that note: If you want to, you may also provide an example for the [example showcase](https://github.com/whiteducksoftware/flock-showcase)
-- Maintain consistency in formatting and style throughout the documentation.
-- Use American English
-- Keep sentences short; favour lists & tables.
-- Add code blocks with triple-backticks and language.
+```bash
+# Install UV (NOT pip!)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-<!-- TOC --><a name="a-few-best-practices-for-writing-good-documentation"></a>
-### A few best practices for writing good documentation:
-1. Document the **Why**, not just the how:
-    - Documentation should explain the rationale behind your decisions, rather than just describing the "how".
-    - This helps other developers understand the context and reasoning for the implementation, making the code more maintainable and modifiable.
-2. Keep it Up to Date:
-   - Your documentation should evolve alongside the code. If you change the behavior of an existing component of Flock, please also take care to make sure the documentation reflects this fact.
-3. Write for the Reader:
-   - Consider the audience for your documentation.
-   - It should be accessible and understandable for developers who are not intimately familiar with the code.
-4. Document Intent and Design:
-   - Referring to Point 1, Document your decisions of **why** you chose to implement a new component or code change the way you did, if it is not immediately obvious.
-5. Code as Documentation:
-   - Well-written code can serve as it's own documentation.
-   - Code should be clear, expressive and self-explanatory where possible.
-   - Using meaningful names for variables, functions, and classes can reduce the need for excessive comments.
-6. Provide Examples:
-   - Examples can help other developers understand your changes and are therefore encouraged.
-7. Use Comments Wisely:
-   - Avoid redundant comments that merely restate what the code does, which can clutter the codebase and detract from its readability.
-8. Be Pragmatic:
-   - There is no need for you to excessively comment every line of code you provide.
-   - Add documentation where necessary and focus on keeping documentation on a high level.
+# Verify installation
+uv --version
+```
 
-<!-- TOC --><a name="-testing-and-reliability"></a>
-## 🔭 Testing and Reliability:
-Flock aims to provide an easy and reliable way to implement agentic applications. Therefore, well tested code is crucial.
+**⚠️ IMPORTANT**: Always use `uv add` instead of `pip install` to maintain lock file consistency.
 
-Start here:
-- Strategy: see `docs/testing_strategy.md` for priorities and coverage goals.
-- How-to: see `docs/testing_guide.md` for setup, patterns, and examples.
-- TODOs (internal): see `docs/internal/testing_todo.md`.
+### 2. Install Project Dependencies
 
-Run tests with uv (recommended):
-- Quick suite (CI-equivalent): `uv run poe test`
-- Full/nightly: `uv run poe test-all`
-- Select markers: `uv run pytest -m 'p0 or integration'`
+```bash
+# Full installation workflow (recommended)
+poe install
 
-Guidelines:
-- Ensure existing tests pass and add **new tests** for new or changed functionality.
-- Prefer deterministic, isolated tests using fixtures in `tests/conftest.py` and helpers in `tests/_helpers`.
-- Place tests under `tests/` by concern (see strategy structure).
-- Use [`pytest`](https://docs.pytest.org/en/stable/) fixtures instead of duplicating setup code.
+# Or manually:
+uv sync --dev --all-groups --all-extras  # Install Python deps
+cd frontend && npm install                # Install frontend deps
+```
 
-### Pydantic I/O and Hydrator
-- Agents may define input/output contracts using Pydantic models as an alternative to string contracts. See `AGENT.md#pydantic-io-contracts-new` for examples and guidelines.
-- To generate structured data with an LLM into a model instance, use the hydrator decorator. See `AGENT.md#hydrator-pydantic`.
+### 3. Set Up Environment Variables
 
+```bash
+# Copy environment template
+cp .envtemplate .env
 
-<!-- TOC --><a name="release-process"></a>
-## Release Process:
-1. Maintainer bumps version in `pyproject.toml` following **SemVer**.
-2. Changelog entry added in `docs/about/changelog.md`.
-3. `uv pip install -e .[all] && pytest`
-4. `git tag v.X.Y.Z && git push --tags`
-5. GitHub Action publishes to PyPI.
+# Edit .env and add your API keys
+export OPENAI_API_KEY="sk-..."
+export DEFAULT_MODEL="openai/gpt-4o-mini"
+```
 
-Thank you for contributing to Flock, the declarative Agent-Framework. 🦆💓
+### 4. Install Pre-commit Hooks
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Or use UV
+uv add --dev pre-commit
+
+# Install git hooks
+pre-commit install
+pre-commit install --hook-type pre-push
+
+# Verify installation
+pre-commit run --all-files
+```
+
+## 🔄 Development Workflow
+
+### Typical Contribution Flow
+
+```bash
+# 1. Create a feature branch
+git checkout -b feature/your-feature-name
+
+# 2. Make your changes
+vim src/flock/your_file.py
+
+# 3. Run tests locally
+poe test
+
+# 4. Lint and format
+poe format
+poe lint
+
+# 5. Commit (pre-commit hooks run automatically)
+git add .
+git commit -m "feat: add your feature"
+
+# If hooks auto-fix issues, re-commit
+git add .
+git commit -m "feat: add your feature"
+
+# 6. Bump version if needed
+poe version-check  # See what would be bumped
+poe version-minor  # Bump version
+
+# 7. Commit version bump
+git add pyproject.toml frontend/package.json
+git commit -m "chore: bump version to 0.2.0"
+
+# 8. Push (build checks run)
+git push origin feature/your-feature-name
+
+# 9. Create Pull Request
+# Use GitHub UI or: gh pr create
+```
+
+### Pre-commit Hooks
+
+Hooks run automatically on commit and push:
+
+**Pre-commit (fast - runs on every commit)**:
+- Ruff linting and formatting
+- mypy type checking
+- File validation (YAML, TOML, JSON)
+- Security scans (secrets, vulnerabilities)
+- Fast tests only
+
+**Pre-push (comprehensive - runs on push)**:
+- Frontend build check
+- Backend build check
+- Version bump validation (warning only)
+
+**To skip hooks (emergency only)**:
+```bash
+git commit --no-verify -m "emergency fix"
+```
+
+**Note**: CI will still run all checks!
+
+## 🧪 Testing Requirements
+
+### Test Categories
+
+1. **Unit Tests** - Individual component testing
+2. **Contract Tests** - System behavior contracts
+3. **Integration Tests** - Component interaction
+4. **E2E Tests** - Full workflow validation
+5. **Frontend Tests** - React component testing
+
+### Running Tests
+
+```bash
+# Run all tests
+poe test
+
+# Run with coverage
+poe test-cov
+
+# Coverage with failure threshold (80%+)
+poe test-cov-fail
+
+# Critical path tests (100% coverage required)
+poe test-critical
+
+# Frontend tests
+cd frontend && npm test
+
+# E2E tests
+poe test-e2e
+
+# Determinism test (10 consecutive runs)
+poe test-determinism
+```
+
+### Coverage Requirements
+
+- **Overall**: 75%+ minimum (currently 77.65%)
+- **Critical Paths**: 100% (orchestrator, subscription, visibility, agent)
+- **Frontend**: 80%+ recommended
+
+### Writing Tests
+
+```python
+# tests/test_your_feature.py
+import pytest
+from flock import Flock
+
+@pytest.mark.asyncio
+async def test_your_feature():
+    """Test description following docstring conventions."""
+    # Arrange
+    orchestrator = Flock("openai/gpt-4o-mini")
+
+    # Act
+    result = await orchestrator.do_something()
+
+    # Assert
+    assert result is not None
+```
+
+## 📦 Versioning
+
+Flock Flow uses **smart versioning** that only bumps versions for components that actually changed.
+
+### Quick Reference
+
+```bash
+# Check what would be bumped
+poe version-check
+
+# Bump versions
+poe version-patch   # 0.1.18 → 0.1.19 (bug fixes)
+poe version-minor   # 0.1.18 → 0.2.0 (new features)
+poe version-major   # 0.1.18 → 1.0.0 (breaking changes)
+```
+
+### Smart Detection
+
+- ✅ **Backend changes** (`src/`, `tests/`) → Bump `pyproject.toml`
+- ✅ **Frontend changes** (`frontend/`) → Bump `package.json`
+- ❌ **Docs changes** (`docs/`, `README.md`) → No version bump
+
+### Semantic Versioning Guidelines
+
+**Patch (0.1.18 → 0.1.19)**:
+- Bug fixes
+- Performance improvements
+- Documentation updates (if code also changed)
+- Internal refactoring
+
+**Minor (0.1.18 → 0.2.0)**:
+- New features (backward compatible)
+- New API endpoints
+- New components or modules
+- Deprecations (with backward compatibility)
+
+**Major (0.1.18 → 1.0.0)**:
+- Breaking API changes
+- Removed deprecated features
+- Major architectural changes
+- First stable release (0.x.x → 1.0.0)
+
+See [`docs/VERSIONING.md`](docs/VERSIONING.md) for complete guide.
+
+## 📝 Code Style
+
+### Python
+
+- **Formatter**: Ruff (auto-formats on commit)
+- **Linter**: Ruff with comprehensive rules
+- **Type Checker**: mypy
+
+```python
+# ✅ Good: Type hints everywhere
+async def execute(self, ctx: Context, artifacts: List[Artifact]) -> List[Artifact]:
+    """Execute the agent with given artifacts.
+
+    Args:
+        ctx: Execution context
+        artifacts: Input artifacts
+
+    Returns:
+        List of output artifacts
+    """
+    ...
+
+# ✅ Good: Pydantic models with Field descriptions
+@flock_type
+class Movie(BaseModel):
+    """Movie information."""
+
+    title: str = Field(description="Movie title in CAPS")
+    runtime: int = Field(ge=60, le=400, description="Runtime in minutes")
+```
+
+### TypeScript/React
+
+- **Type Safety**: Full TypeScript typing
+- **Framework**: React 19 with hooks
+- **State**: Zustand for global state
+- **Testing**: Vitest + React Testing Library
+
+```typescript
+// ✅ Good: Type-safe components
+interface DashboardLayoutProps {
+  children: React.ReactNode;
+}
+
+const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
+  // Component implementation
+};
+
+// ✅ Good: Custom hooks with proper typing
+const useWebSocket = (url: string): WebSocketState => {
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  // Hook implementation
+};
+```
+
+### Code Organization
+
+- Keep files under 500 lines
+- Use modular design patterns
+- Separate concerns clearly
+- Maintain clean architecture
+
+## ✅ Quality Checklist
+
+Before submitting a pull request, ensure:
+
+### Required Checks
+
+- [ ] All tests pass (`poe test`)
+- [ ] Coverage requirements met (`poe test-cov-fail`)
+- [ ] Code is properly formatted (`poe format`)
+- [ ] Linting passes (`poe lint`)
+- [ ] Type checking passes (`uv run mypy src/flock/`)
+- [ ] Frontend tests pass (`cd frontend && npm test`)
+- [ ] **Backend builds without errors** (`uv build`) ⚠️ **REQUIRED**
+- [ ] **Frontend builds without errors** (`cd frontend && npm run build`) ⚠️ **REQUIRED**
+- [ ] Documentation is updated
+- [ ] No hardcoded secrets
+- [ ] Versions bumped if needed (`poe version-check`)
+
+### Optional but Recommended
+
+- [ ] Added examples for new features
+- [ ] Updated AGENTS.md if workflow changed
+- [ ] Added integration tests
+- [ ] Performance considerations documented
+
+## 📤 Submitting Changes
+
+### Commit Message Convention
+
+Follow conventional commits:
+
+```bash
+# Feature
+git commit -m "feat: add dashboard event streaming"
+
+# Bug fix
+git commit -m "fix: resolve WebSocket reconnection issue"
+
+# Documentation
+git commit -m "docs: update AGENTS.md with versioning info"
+
+# Tests
+git commit -m "test: add E2E tests for dashboard controls"
+
+# Performance
+git commit -m "perf: optimize graph rendering performance"
+
+# Chore (dependencies, build, etc.)
+git commit -m "chore: bump version to 0.2.0"
+
+# Breaking change
+git commit -m "feat!: redesign agent API (BREAKING CHANGE)"
+```
+
+### Pull Request Process
+
+1. **Create PR** with descriptive title and body
+2. **Link related issues** if applicable
+3. **Request review** from maintainers
+4. **Address feedback** promptly
+5. **Wait for CI** to pass (all quality checks)
+6. **Merge** after approval
+
+### PR Description Template
+
+```markdown
+## Summary
+Brief description of changes and motivation
+
+## Changes
+- Added X feature
+- Fixed Y bug
+- Updated Z documentation
+
+## Testing
+- [ ] Unit tests added/updated
+- [ ] Integration tests added/updated
+- [ ] Manually tested feature
+
+## Breaking Changes
+None / Describe breaking changes
+
+## Checklist
+- [ ] Tests pass
+- [ ] Documentation updated
+- [ ] Version bumped (if applicable)
+```
+
+## 🔧 Common Tasks
+
+### Add a New Backend Dependency
+
+```bash
+# Production dependency
+uv add package-name
+
+# Development dependency
+uv add --dev package-name
+
+# Verify lock file updated
+git diff uv.lock
+```
+
+### Add a New Frontend Dependency
+
+```bash
+cd frontend
+
+# Production dependency
+npm install package-name
+
+# Development dependency
+npm install --save-dev package-name
+
+# Verify lock file updated
+git diff package-lock.json
+```
+
+### Run Dashboard Locally
+
+```bash
+# Terminal 1: Backend
+uv run python examples/showcase/04_dashboard.py
+
+# Terminal 2: Frontend (if developing)
+cd frontend
+npm run dev
+
+# Dashboard opens at http://localhost:8000
+```
+
+### Debug Tests
+
+```bash
+# Run specific test file
+uv run pytest tests/test_orchestrator.py -v
+
+# Run with debugging
+uv run pytest -s -vv tests/test_specific.py
+
+# Run only failing tests
+uv run pytest --lf
+
+# Run with coverage for specific module
+uv run pytest tests/test_orchestrator.py --cov=src/flock/orchestrator.py
+```
+
+### Update Documentation
+
+```bash
+# Build docs locally
+poe docs
+
+# Docs served at http://127.0.0.1:8000
+```
+
+## 🚨 Troubleshooting
+
+### Pre-commit hooks failing
+
+**Problem**: Hooks fail with "command not found"
+
+**Solution**: Install dependencies
+```bash
+poe install
+cd frontend && npm install
+```
+
+### UV not found
+
+**Problem**: `uv: command not found`
+
+**Solution**: Install UV
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+### Tests failing
+
+**Problem**: Tests fail with import errors
+
+**Solution**: Rebuild and reinstall
+```bash
+poe build
+```
+
+### Version check warning
+
+**Problem**: Pre-push warns about version bump
+
+**Solution**: This is just a reminder, not blocking
+```bash
+# Check what needs bumping
+poe version-check
+
+# Bump if needed
+poe version-minor
+
+# Or push anyway (warning only)
+git push
+```
+
+## 📚 Additional Resources
+
+### Documentation
+
+- **Project Overview**: [`README.md`](README.md)
+- **Agent Guide**: [`AGENTS.md`](AGENTS.md)
+- **Development Workflow**: [`docs/patterns/development-workflow.md`](docs/patterns/development-workflow.md)
+- **Versioning Guide**: [`docs/VERSIONING.md`](docs/VERSIONING.md)
+- **Pre-commit Hooks**: [`docs/PRE_COMMIT_HOOKS.md`](docs/PRE_COMMIT_HOOKS.md)
+
+### Examples
+
+- **Showcase Examples**: [`examples/showcase/`](examples/showcase/)
+- **Feature Examples**: [`examples/features/`](examples/features/)
+
+### Architecture
+
+- **Core Architecture**: [`docs/patterns/core-architecture.md`](docs/patterns/core-architecture.md)
+- **Repository Structure**: [`docs/patterns/repository-structure.md`](docs/patterns/repository-structure.md)
+- **Project Configuration**: [`docs/patterns/project-configuration.md`](docs/patterns/project-configuration.md)
+
+## 🤝 Getting Help
+
+- **Issues**: [GitHub Issues](https://github.com/whiteducksoftware/flock-flow/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/whiteducksoftware/flock-flow/discussions)
+- **Documentation**: [docs/](docs/)
+
+## 🎉 Recognition
+
+Contributors who make significant contributions will be:
+- Added to the contributors list
+- Mentioned in release notes
+- Invited to join the core team (for ongoing contributors)
+
+## 📜 License
+
+By contributing to Flock Flow, you agree that your contributions will be licensed under the same license as the project.
+
+---
+
+**Thank you for contributing to Flock Flow!** 🚀
+
+Every contribution, no matter how small, helps build the future of AI agent orchestration.
+
+---
+
+*Last updated: October 5, 2025*

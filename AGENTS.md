@@ -1,522 +1,1214 @@
-# AGENT.md - Flock Framework Onboarding Guide
+# AGENTS.md
 
-## Project Overview
+**Welcome, AI coding agent!** 👋
 
-**Flock** is a declarative AI agent orchestration framework built by white duck GmbH. It solves common LLM development pain points by providing:
+This is Flock Flow, a production-grade blackboard-first AI agent orchestration framework. This guide gets you up to speed quickly on the current project state and development patterns.
 
-- **Declarative Contracts**: Define inputs/outputs with Pydantic models instead of brittle prompts
-- **Built-in Resilience**: Automatic retries, state persistence via Temporal.io
-- **Production-Ready**: Deploy as REST APIs, scale without rewriting
-- **Actually Testable**: Clear contracts make agents unit-testable
-- **Dynamic Workflows**: Self-correcting loops, conditional routing
-- **Unified Architecture**: Simplified from 4 concepts to 2 (Agent + Components)
+**Current Version:** 0.1.16
+**Architecture:** Hybrid Python/TypeScript with real-time dashboard
+**Package Manager:** UV (NOT pip!)
+**Status:** Production-ready with comprehensive monitoring
 
-**Key Differentiator**: You define what goes in and what should come out - the framework handles the "how" with LLMs.
+---
 
-**Recent Architecture Update**: Flock has been refactored to use a unified component system that simplifies the mental model from "Agent + Evaluator + Router + Modules" to just "Agent + Components". Legacy components have been completely removed.
+## 🎯 Project Snapshot
 
-## Project Structure
+### What Is Flock Flow?
+
+A blackboard architecture framework where specialized AI agents collaborate through a shared typed workspace—no direct coupling, no rigid workflows, just emergent intelligence.
+
+**Core Pattern:** Blackboard Architecture (like Hearsay-II from 1970s, but for modern LLMs)
+
+**Key Differentiator:** The only framework treating blackboard orchestration as a first-class citizen with built-in visibility controls, real-time monitoring, and enterprise-grade safety features.
+
+### Architecture in 30 Seconds
 
 ```
-flock/
-├── src/flock/
-│   ├── core/                   # Framework foundation
-│   │   ├── flock.py           # Main orchestrator class
-│   │   ├── flock_agent.py     # Base agent class (~500 lines)
-│   │   ├── registry/          # Thread-safe component discovery & registration
-│   │   ├── context/           # State management
-│   │   ├── execution/         # Local & Temporal executors
-│   │   ├── serialization/     # Save/load functionality
-│   │   └── mcp/              # Model Context Protocol integration
-│   ├── components/            # Unified agent components (evaluation, routing, utility)
-│   ├── tools/                 # Utility functions
-│   ├── webapp/                # FastAPI web interface
-│   └── workflow/              # Temporal.io activities
-├── tests/                     # Comprehensive test suite
-│   ├── components/            # Tests for unified components
-│   ├── core/                  # Core framework tests
-│   └── integration/           # Integration tests
-├── examples/                  # Usage examples and showcases
-└── docs/                      # Documentation
+┌─────────────────────────────────────────────┐
+│         Blackboard (Typed Artifacts)        │
+│  ┌──────┐ → ┌──────┐ → ┌──────┐ → ┌──────┐│
+│  │ Idea │   │Movie │   │Script│   │Review││
+│  └──────┘   └──────┘   └──────┘   └──────┘│
+└─────────────────────────────────────────────┘
+      ↑           ↑           ↑           ↑
+  Agent A     Agent B     Agent C     Agent D
+  (produce)   (consume    (consume    (consume
+              & produce)  & produce)  & produce)
 ```
 
-## Testing Workstream Guide (for Agents)
+**Key Concepts:**
+- **Artifacts:** Typed data (Pydantic models) published to blackboard
+- **Subscriptions:** Declarative rules for when agents react
+- **Visibility:** Built-in access control (Public/Private/Tenant/Label-based/Time-based)
+- **Components:** Pluggable utilities (metrics, budgets, guards) + engines (DSPy, custom)
+- **Real-time Dashboard:** React/TypeScript interface for live monitoring
 
-This section captures practical instructions and conventions for evolving Flock's tests. Use it to quickly onboard and to execute the release Must‑Haves.
+---
 
-- Commands
-  - Install dev: `uv sync --dev --all-groups`
-  - Quick suite (CI‑equivalent): `uv run poe test`
-  - Full/nightly: `uv run poe test-all`
-  - Select markers: `uv run pytest -m 'p0 or (integration and not otel)'`
-  - Lint: `uv run ruff check src/flock/* tests/*`
+## 🚀 Quick Setup
 
-- Markers and defaults
-  - p0: fast, deterministic, CI‑blocking
-  - integration: cross‑module flows (no network); default quick run includes them
-  - otel: telemetry span tests (opt‑in)
-  - temporal, mcp, web, perf: opt‑in categories for extended coverage
-  - tests disable auto telemetry setup by default via `FLOCK_DISABLE_TELEMETRY_AUTOSETUP=1` (see tests/conftest.py)
+### Prerequisites
 
-- Patterns
-  - Use `tests/_helpers/fakes.py` for deterministic components.
-  - Registry is auto‑cleared per test via `registry_clear` fixture.
-  - For discovery tests, write temp packages in `tmp_path`, push to `sys.path` inside test, and remove in `finally`.
-  - For server registry tests, a minimal stub with `.config.name` is sufficient to validate registry paths.
-  - Lazy imports: core uses lazy `__getattr__` to avoid importing heavy deps (datasets/pyarrow) during collection.
+- **Python 3.10+** (we use modern async features)
+- **UV package manager** (faster than pip, handles virtual envs)
+- **Node.js 22+** (for dashboard frontend)
+- **OpenAI API key** (for running examples)
 
-- Coverage gates
-  - Quick suite targets core modules with a configurable threshold (currently 70%).
-  - Raise incrementally (80–85%) by adding targeted tests in weak areas (orchestration, decorators, serialization_utils).
+### Installation
 
-### Linting Routine (Before Every Commit)
+```bash
+# Clone repo
+git clone https://github.com/yourusername/flock-flow.git
+cd flock-flow
 
-- Run: `uv run ruff check src/flock/* tests/*`.
-- Fix reported issues (imports/order, docstrings, unused imports, small style nits).
-- If a rule requires a larger refactor, prefer a minimal, safe change with a clear `# noqa:` comment and a follow‑up TODO.
-- Never commit with SyntaxError or import errors — keep the tree runnable.
+# Install Python dependencies (UV creates venv automatically)
+poe install  # Equivalent to: uv sync --dev --all-groups --all-extras
 
-### Commit Discipline (Follow This Cadence)
+# Set up environment
+export OPENAI_API_KEY="sk-..."
+export DEFAULT_MODEL="openai/gpt-4o-mini"
 
-- Small, atomic commits: one logical change per commit (e.g., a new test file, a specific fix, or a CI tweak).
-- Always run the quick suite locally before committing: `uv run poe test`.
-- Keep commits green: tests pass and coverage gate holds.
-- Prefer multiple small commits over one large “kitchen sink” change.
-- Use clear commit messages (prefix with `test:`, `ci:`, `fix:`, `docs:` as appropriate).
-- Avoid committing noisy changes (formatting only) unless included in the same logical change.
+# Verify installation
+uv run python -c "from flock import Flock; print('✅ Ready!')"
+```
 
-- Serialization contracts (snapshots)
-  - `FlockAgent.to_dict`: simple and router+evaluator variants should be snapshotted to catch drift.
-  - `Flock.to_dict`: minimal shape and multi‑agent shape; allow optional components catalog in minimal cases.
+### Run Examples
 
-### Release Must‑Haves (v0.5.0)
+```bash
+# Showcase examples (workshops & demos)
+uv run python examples/showcase/01_hello_flock.py
+uv run python examples/showcase/02_blog_review.py
+uv run python examples/showcase/04_dashboard.py
 
-Implement these to finalize the test framework for 0.5.0:
+# Feature examples (with assertions)
+uv run python examples/features/feedback_prevention.py
+uv run python examples/features/visibility/public_visibility.py
+```
 
-1. Coverage to 80–85% (core)
-   - Add error‑path tests for orchestration (`_format_result`; exception path → error dict vs Box)
-   - Expand weak modules: `orchestration/*`, `registry/decorators.py` (invalid inputs), `serialization_utils` dynamic import fallbacks.
+---
 
-2. CI
-   - GitHub Actions: Linux+macOS; Python 3.10/3.11/3.12.
-   - PR: `uv run poe test` with coverage gate; Nightly: `uv run poe test-all` including optional markers.
-   - Upload coverage; optional Codecov.
+## 🏗️ Current Project Structure
 
-3. Packaging sanity
-   - `uv build`; import sanity on built wheel: `python -c "import flock; import flock.core"`.
+```
+flock-flow/
+├── src/flock/              # Core Python framework
+│   ├── orchestrator.py          # Main orchestrator (scheduling, blackboard)
+│   ├── agent.py                 # Agent & AgentBuilder (fluent API)
+│   ├── artifacts.py             # Artifact model & specs
+│   ├── subscription.py          # Subscription system
+│   ├── visibility.py            # Visibility/security controls
+│   ├── components.py            # Component base classes
+│   ├── runtime.py               # EvalInputs, EvalResult, Context
+│   ├── registry.py              # Type & function registries
+│   ├── store.py                 # Blackboard storage abstractions
+│   ├── dashboard/               # 🆕 Real-time dashboard backend
+│   │   ├── collector.py         # Event collection for streaming
+│   │   ├── websocket.py         # WebSocket manager
+│   │   ├── service.py           # Dashboard HTTP service
+│   │   └── launcher.py          # One-line dashboard activation
+│   ├── mcp/                     # MCP (Model Context Protocol) support
+│   │   ├── client.py            # MCP client implementation
+│   │   ├── manager.py           # MCP server management
+│   │   └── servers/             # MCP server implementations
+│   └── engines/                 # Engine implementations
+│       └── dspy_engine.py       # DSPy LLM engine with streaming
+├── frontend/                    # 🆕 React/TypeScript dashboard
+│   ├── src/
+│   │   ├── components/          # React components
+│   │   ├── hooks/               # Custom React hooks
+│   │   ├── store/               # Zustand state management
+│   │   ├── services/            # WebSocket, API clients
+│   │   └── types/               # TypeScript type definitions
+│   ├── package.json             # Node.js dependencies
+│   └── vite.config.ts           # Vite build configuration
+├── examples/                    # Working examples
+│   ├── showcase/                # Engaging demos for workshops
+│   └── features/                # Feature validation with assertions
+├── tests/                       # Comprehensive test suite
+│   ├── contract/                # Contract tests (system behavior)
+│   ├── integration/             # Component interaction tests
+│   ├── e2e/                     # End-to-end tests
+│   └── conftest.py              # Shared test fixtures
+├── docs/patterns/               # 🆕 Analysis documentation
+│   ├── development-workflow.md  # Development patterns
+│   ├── project-configuration.md # Technical configuration
+│   ├── core-architecture.md     # Architecture deep dive
+│   └── repository-structure.md  # Code organization
+├── pyproject.toml               # UV project configuration
+├── uv.lock                      # Locked dependencies
+├── README.md                    # User-facing documentation
+└── AGENTS.md                    # You are here! 👈
+```
 
-4. Snapshots
-   - Golden snapshots for `FlockAgent.to_dict` (variants) and `Flock.to_dict` (2 agents + router).
+---
 
-5. Discovery
-   - Tests for skip private modules and robust behavior on import errors (no crash; log warning).
+## 📦 Dependencies & Package Management
 
-6. Docs
-  - Keep `docs/testing_strategy.md`, `docs/testing_guide.md`, `docs/internal/testing_todo.md` up to date and linked in CONTRIBUTING/README.
+### UV Commands (NOT pip!)
 
-### Strongly Recommended
+```bash
+# Poe tasks (recommended)
+poe install          # Complete installation workflow
+poe build           # Sync dependencies, build, and install
+poe test            # Run tests
+poe test-cov        # Run with coverage
+poe lint            # Lint code
+poe format          # Format code
 
-- Temporal test (marker `temporal`) with in‑process worker; skip when unavailable.
-- MCP test (marker `mcp`) with a stub server and tool roundtrip.
-- `FLOCK_OTEL_TEST=1` shim to emit run spans without external exporters and allow default‑suite span checks.
-- Thread‑safety smoke for `RegistryHub` across threads.
-- Fuzz/property tests for `splitter.parse_schema` and `serialization_utils.deserialize_item`.
+# Manual UV commands
+uv sync --dev --all-groups --all-extras  # Install all dependencies
+uv add package-name                        # Add production dependency
+uv add --dev package-name                  # Add development dependency
+uv remove package-name                     # Remove dependency
+uv run pytest tests/test_specific.py       # Run specific test
+```
 
-### Quick How‑To for Must‑Haves
+**⚠️ CRITICAL: NEVER use `pip install`** - Always use `uv add` to maintain `uv.lock` consistency.
 
-- Orchestration error‑paths
-  - Add tests under `tests/p0/` that force exceptions inside `run_async` and assert `_format_result` returns Box/dict as configured.
+### Key Dependencies
 
-- Snapshots
-  - Add tests under `tests/p0/` with stable assertions against `to_dict` structure. Avoid over‑specifying optional keys to prevent flakiness.
+| Category | Package | Purpose |
+|----------|---------|---------|
+| **AI/LLM** | `dspy==3.0.0` | DSPy framework for prompt programming |
+| | `litellm==1.75.3` | LLM API abstraction layer |
+| **Web Framework** | `fastapi>=0.117.1` | Modern web framework |
+| | `uvicorn>=0.37.0` | ASGI server |
+| | `websockets>=15.0.1` | WebSocket support |
+| **Data & Validation** | `pydantic[email]>=2.11.9` | Data validation and settings |
+| **CLI & UX** | `typer>=0.19.2` | Modern CLI framework |
+| | `rich>=14.1.0` | Rich text and formatting |
+| **Observability** | `opentelemetry-***` | Distributed tracing |
+| | `loguru>=0.7.3` | Structured logging |
+| **Protocol** | `mcp>=1.7.1` | Model Context Protocol support |
+| **Testing** | `pytest>=8.3.3` | Testing framework |
+| | `ruff>=0.7.2` | Linting and formatting |
+| | `mypy>=1.15.0` | Type checking |
 
-- Discovery
-  - Create tmp packages with modules `_hidden.py` and assert they are skipped by registration. Insert logging assertions only if stable.
+### Frontend Dependencies
 
-- CI
-  - Add `.github/workflows/ci.yml` with jobs as described; ensure uv caching and matrix. Keep quick job fast; nightly may include optional markers.
+| Category | Package | Purpose |
+|----------|---------|---------|
+| **Core** | `react^19.2.0` | UI framework |
+| | `typescript^5.9.3` | Type safety |
+| | `vite^7.1.9` | Build tool |
+| **Visualization** | `@xyflow/react^12.8.6` | Graph visualization |
+| | `dagre^0.8.5` | Graph layout algorithm |
+| **State** | `zustand^5.0.8` | State management |
+| | `idb^8.0.3` | IndexedDB wrapper |
+| **Testing** | `vitest^3.2.4` | Test framework |
+| | `@testing-library/react^16.3.0` | React testing utilities |
 
-These patterns have been validated in the current suite and should keep tests deterministic, fast, and contributor‑friendly.
+---
 
-## Key Components & Architecture
+## 🔬 Core Architecture
 
-### Core Classes
+### 1. Flock Orchestrator (`src/flock/orchestrator.py`)
 
-1. **`Flock`** (`src/flock/core/flock.py`)
-   - Main orchestrator, manages agents and execution
-   - Handles both local and Temporal.io execution
-   - Entry point for most operations
+**Purpose:** Central coordinator—manages blackboard, schedules agents
 
-2. **`FlockAgent`** (`src/flock/core/flock_agent.py`)
-   - Base class for all agents (refactored from 1000+ to ~500 lines)
-   - Lifecycle hooks: initialize → evaluate → terminate
-   - **Unified Architecture**: Uses single `components` list instead of separate evaluator/router/modules
-   - **Workflow State**: `next_agent` property for explicit workflow control
-   - Composition-based architecture with focused components
+**Key Methods:**
+- `agent(name)` → Create new agent builder
+- `run(agent, *inputs)` → Synchronous execution
+- `arun(agent, *inputs)` → Async execution
+- `run_until_idle()` → Wait for all tasks to complete
+- `serve(dashboard=True)` → Start HTTP service + dashboard
+- `publish_external(type_name, payload)` → External artifact publishing
 
-3. **`RegistryHub`** (`src/flock/core/registry/`)
-   - Thread-safe registry system using composition pattern
-   - Manages agents, callables, types, servers with specialized helpers
-   - Auto-registration capabilities with component discovery
+**Safety Features:**
+- **Circuit Breaker**: `max_agent_iterations=1000` stops runaway agents
+- **Duplicate Prevention**: Tracks processed (artifact_id, agent_name) pairs
+- **Self-Trigger Protection**: `prevent_self_trigger=True` by default
 
-4. **`FlockContext`** (`src/flock/core/context/context.py`)
-   - State management between agent executions
-   - History tracking, variable storage
+### 2. Agent System (`src/flock/agent.py`)
 
-### Unified Component Architecture
+**Builder Pattern:**
+```python
+agent = (
+    orchestrator.agent("name")
+    .description("What this agent does")
+    .consumes(InputType, where=lambda x: x.valid)
+    .publishes(OutputType, visibility=PrivateVisibility(["agent_a"]))
+    .with_utilities(MetricsComponent(), LoggingComponent())
+    .with_engines(DSPyEngine(model="gpt-4o"))
+    .best_of(5, score=lambda r: r.metrics["confidence"])
+    .max_concurrency(10)
+    .prevent_self_trigger(False)  # Explicit opt-in for feedback loops
+)
+```
 
-**Mental Model**: Agent + Components (2 concepts instead of 4)
+**Lifecycle Stages (9 total):**
+1. `on_initialize` - Setup
+2. `on_pre_consume` - Transform input artifacts
+3. `on_pre_evaluate` - Prepare evaluation
+4. **Engines run** - Core processing
+5. `on_post_evaluate` - Transform results
+6. **Publish** - Create artifacts
+7. `on_post_publish` - React to publications
+8. `on_error` - Handle failures
+9. `on_terminate` - Cleanup
 
-**Component Types** (all follow `*ComponentBase` naming convention):
-- **EvaluationComponentBase**: Core LLM evaluation logic
-- **RoutingComponentBase**: Workflow routing decisions (sets `next_agent`)
-- **UtilityComponentBase**: Cross-cutting concerns (metrics, output, memory)
+### 3. Dashboard System (`src/flock/dashboard/`)
 
-**Key Properties**:
-- `agent.components`: List of all components
-- `agent.evaluator`: Primary evaluation component (delegates to helper)
-- `agent.router`: Primary routing component (delegates to helper)
-- `agent.next_agent`: Next agent in workflow (string, callable, or None)
-- `agent._components`: Component management helper (lazy-loaded)
+**One-Line Activation:**
+```python
+# Start dashboard with real-time monitoring
+await orchestrator.serve(dashboard=True)
+```
 
-### Pydantic I/O Contracts (New)
+**Components:**
+- **DashboardEventCollector** - Captures agent lifecycle events
+- **WebSocketManager** - Real-time event broadcasting to frontend
+- **DashboardHTTPService** - HTTP API for dashboard controls
+- **DashboardLauncher** - Handles npm install, process management, browser launch
 
-In addition to string-based contracts, agents can define input/output using Pydantic models. The framework converts Pydantic schemas into the canonical flock signature used for DSPy and validation, and it accepts `BaseModel` instances as inputs at runtime.
+**Frontend Features:**
+- **Dual Visualization Modes**: Agent View vs Blackboard View
+- **Real-time Updates**: WebSocket streaming with 2-minute heartbeat
+- **Control Panel**: Publish artifacts and invoke agents from UI
+- **EventLog Module**: Comprehensive event viewing with filtering
+- **Persistence**: Node positions, preferences, session data in IndexedDB
+
+### 4. MCP Integration (`src/flock/mcp/`)
+
+**Purpose:** Model Context Protocol support for external tool integration
+
+**Key Classes:**
+- **MCPClientManager** - Manages MCP server connections
+- **FlockMCPConfiguration** - Server configuration and tool assignments
+- **MCPClientWrapper** - Client interface with lazy connection establishment
+
+**Usage:**
+```python
+# Register MCP server with tools
+orchestrator.register_mcp_server("server_name", config)
+
+# Assign tools to agents
+agent.uses_mcp("server_name")
+```
+
+### 5. Visibility System (`src/flock/visibility.py`)
+
+**Access Control Types:**
+- `PublicVisibility` - Everyone can see
+- `PrivateVisibility` - Allowlist of agents
+- `LabelledVisibility` - RBAC (agents need required labels)
+- `TenantVisibility` - Multi-tenancy (per-tenant isolation)
+- `AfterVisibility` - Time-delayed (embargo periods)
+
+**Enforcement:**
+```python
+if not artifact.visibility.allows(agent.identity):
+    continue  # Don't schedule agent
+```
+
+---
+
+## 🎨 Code Style & Conventions
+
+### Python Style
 
 ```python
-from typing import Literal
-from pydantic import BaseModel, Field
-from flock.core.registry import flock_type
-from flock.core import Flock, DefaultAgent
+# ✅ Good: Type hints everywhere
+async def execute(self, ctx: Context, artifacts: List[Artifact]) -> List[Artifact]:
+    ...
 
-@flock_type  # recommended: registers the model with the TypeRegistry
-class MovieIdea(BaseModel):
+# ✅ Good: Descriptive names and docstrings
+def _schedule_artifact(self, artifact: Artifact) -> None:
+    """Schedule artifact for agent processing."""
+    ...
+
+# ✅ Good: Pydantic models with Field descriptions
+@flock_type
+class Movie(BaseModel):
+    title: str = Field(description="Movie title in CAPS")
+    runtime: int = Field(ge=60, le=400, description="Runtime in minutes")
+```
+
+### TypeScript/React Style
+
+```typescript
+// ✅ Good: Type-safe components with proper props
+interface DashboardLayoutProps {
+  children: React.ReactNode;
+}
+
+const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
+  // Component implementation
+};
+
+// ✅ Good: Custom hooks with proper typing
+const useWebSocket = (url: string) => {
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  // Hook implementation
+};
+```
+
+### Async Patterns
+
+```python
+# ✅ Always use async for I/O operations
+async def publish(self, artifact: Artifact) -> None:
+    async with self._lock:
+        await self.store.publish(artifact)
+
+# ✅ Use asyncio.gather for parallel operations
+results = await asyncio.gather(
+    agent_a.execute(ctx, artifacts),
+    agent_b.execute(ctx, artifacts),
+)
+```
+
+---
+
+## 🧪 Testing Strategy
+
+### Test Coverage Goals
+
+- **Overall Target:** 80%+ project-wide
+- **Core Framework Modules:** 90-100% coverage
+- **Critical Paths:** 100% coverage (security & correctness)
+- **Frontend Components:** 80%+ coverage
+- **Integration Tests:** Full E2E validation
+
+### Test Categories
+
+1. **Unit Tests** (`tests/test_*.py`) - Individual component testing
+2. **Contract Tests** (`tests/contract/`) - System behavior contracts
+3. **Integration Tests** (`tests/integration/`) - Component interaction testing
+4. **End-to-End Tests** (`tests/e2e/`) - Full workflow testing
+5. **Frontend Tests** (`frontend/src/test/**/*.test.tsx`) - React component testing
+
+### Running Tests
+
+```bash
+# Run all tests
+poe test
+
+# Run with coverage report
+poe test-cov
+
+# Run critical path tests (100% coverage required)
+poe test-critical
+
+# Run frontend tests
+cd frontend && npm test
+
+# Run E2E tests
+poe test-e2e
+
+# Determinism test (10 consecutive runs)
+poe test-determinism
+```
+
+### Current Test Status
+
+- **Backend:** 750+ tests passing
+- **Frontend:** 367 tests passing
+- **E2E:** 6 tests passing
+- **Total:** 1,100+ tests passing
+- **Coverage:** Core modules 90-100%, overall 79%
+- **100% Coverage Modules:** CLI, Components, Runtime, Store, MCP Tool, Helper CLI
+- **Near-Perfect Coverage:** Logging (99.11%), Utilities (95.85%)
+
+---
+
+## 🔧 Development Workflow
+
+### Quick Start for Contributors
+
+```bash
+# 1. Clone and setup
+git clone https://github.com/yourusername/flock-flow.git
+cd flock-flow
+poe install
+
+# 2. Install pre-commit hooks (quality automation)
+pip install pre-commit
+pre-commit install
+pre-commit install --hook-type pre-push
+
+# 3. Create feature branch
+git checkout -b feature/your-feature-name
+
+# 4. Make changes...
+# Write code, tests, documentation
+
+# 5. Run quality checks (or let pre-commit do it automatically)
+poe lint          # Lint code
+poe format        # Format code
+poe test          # Run tests
+poe test-cov      # Check coverage
+
+# 6. Commit (pre-commit hooks run automatically)
+git add .
+git commit -m "feat: Add your feature description"
+
+# 7. Push (build checks and version validation run)
+git push origin feature/your-feature-name
+```
+
+**📚 For detailed contribution guidelines, see [`CONTRIBUTING.md`](CONTRIBUTING.md)**
+
+### Quality Standards
+
+**Before submitting changes, ensure:**
+- [ ] All tests pass (`poe test`)
+- [ ] Coverage requirements met (`poe test-cov-fail`)
+- [ ] Code is properly formatted (`poe format`)
+- [ ] Linting passes (`poe lint`)
+- [ ] Type checking passes (`uv run mypy src/flock/`)
+- [ ] Frontend tests pass (`cd frontend && npm test`)
+- [ ] **Backend builds without errors** (`uv build`) ⚠️ **REQUIRED**
+- [ ] **Frontend builds without errors** (`cd frontend && npm run build`) ⚠️ **REQUIRED**
+- [ ] Pre-commit hooks installed and passing
+- [ ] Versions bumped if code changed (`poe version-check`)
+- [ ] Documentation is updated
+- [ ] No hardcoded secrets
+
+**💡 Tip**: Pre-commit hooks automatically check most of these when you commit!
+
+**🚨 CRITICAL BUILD REQUIREMENTS:**
+
+For **UI/Frontend changes:**
+- **MUST run `npm run build` successfully** before committing
+- Fix all TypeScript compilation errors
+- Fix all linting errors
+- Ensure no runtime errors in production build
+
+For **Backend/Python changes:**
+- **MUST run `uv build` successfully** before committing
+- Fix all type checking errors
+- Fix all import errors
+- Ensure package builds cleanly
+
+**Failure to build is a blocking issue - do not commit broken builds!**
+
+### Versioning
+
+Flock Flow uses **smart versioning** that only bumps versions for components that actually changed:
+
+```bash
+# Check what would be bumped (dry run)
+poe version-check
+
+# Bump versions based on what changed
+poe version-patch   # 0.1.18 → 0.1.19 (bug fixes)
+poe version-minor   # 0.1.18 → 0.2.0 (new features)
+poe version-major   # 0.1.18 → 1.0.0 (breaking changes)
+```
+
+**Smart detection**:
+- ✅ Backend changes (`src/`, `tests/`) → Bump `pyproject.toml`
+- ✅ Frontend changes (`frontend/`) → Bump `package.json`
+- ❌ Docs changes (`docs/`, `README.md`) → No version bump
+
+**Typical workflow**:
+1. Make code changes and commit
+2. Run `poe version-minor` (or patch/major)
+3. Commit version bump: `git commit -m "chore: bump version to 0.2.0"`
+4. Push (pre-push hook will validate)
+
+See [`docs/VERSIONING.md`](docs/VERSIONING.md) for complete guide.
+
+### Pre-commit Hooks
+
+Automated quality checks run on every commit and push:
+
+**Install hooks** (one-time setup):
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit install --hook-type pre-push
+```
+
+**What runs automatically:**
+- **On commit**: Linting, formatting, type checking, security scans, fast tests
+- **On push**: Build validation, comprehensive tests, version check
+
+**Manual runs:**
+```bash
+pre-commit run --all-files  # Run all hooks
+pre-commit run ruff         # Run specific hook
+```
+
+**Skip hooks** (emergency only):
+```bash
+git commit --no-verify -m "emergency fix"
+```
+
+See [`docs/PRE_COMMIT_HOOKS.md`](docs/PRE_COMMIT_HOOKS.md) for complete guide.
+
+### Commit Message Convention
+
+```bash
+# Feature
+git commit -m "feat: Add dashboard event streaming"
+
+# Bug fix
+git commit -m "fix: Resolve WebSocket reconnection issue"
+
+# Documentation
+git commit -m "docs: Update AGENTS.md with dashboard info"
+
+# Tests
+git commit -m "test: Add E2E tests for dashboard controls"
+
+# Performance
+git commit -m "perf: Optimize graph rendering performance"
+```
+
+---
+
+## 🚀 Running the Dashboard
+
+### Prerequisites
+
+- **Node.js 22+** for frontend development
+- **npm** or **yarn** package manager
+
+### Quick Start
+
+```python
+import asyncio
+from pydantic import BaseModel
+from flock.orchestrator import Flock
+from flock.registry import flock_type
+
+# Define artifacts
+@flock_type
+class Idea(BaseModel):
     topic: str
-    genre: Literal["comedy", "drama", "horror", "action", "adventure"]
+    genre: str
 
 @flock_type
 class Movie(BaseModel):
-    fun_title: str
-    runtime: int
+    title: str
     synopsis: str
-    characters: list[dict[str, str]]
 
-flock = Flock(name="example", model="openai/gpt-5")
-agent = DefaultAgent(
-    name="movie_agent",
-    description="Create a fun movie",
-    input=MovieIdea,      # Pydantic class
-    output=Movie,         # Pydantic class
+# Create orchestrator and agents
+orchestrator = Flock("openai/gpt-4o")
+
+movie = (
+    orchestrator.agent("movie")
+    .description("Generate movie concepts")
+    .consumes(Idea)
+    .publishes(Movie)
 )
-flock.add_agent(agent)
 
-# You can pass a BaseModel instance directly; it will be normalized to dict
-result = flock.run(agent=agent, input=MovieIdea(topic="AI agents", genre="comedy"))
-print(result.fun_title)
+# 🎉 ONE LINE TO START THE DASHBOARD!
+asyncio.run(orchestrator.serve(dashboard=True))
 ```
 
-Notes:
-- The framework will auto-register encountered Pydantic models (including nested ones) in the `TypeRegistry` during signature building. Using `@flock_type` is still recommended for clarity and early registration.
-- Internally, these models are translated to a string contract like `"field: type | description"`, so existing components (e.g., DSPy integration) work seamlessly.
-- String-based I/O remains fully supported and unchanged.
+### What Happens
 
-### Execution Flow
+1. ✅ **Auto-Install** - Runs `npm install` if `node_modules` missing
+2. ✅ **Start Services** - Launches both Python API and React dev server
+3. ✅ **Open Browser** - Automatically opens http://localhost:8000
+4. ✅ **Inject Collectors** - Adds event collectors to all agents
+5. ✅ **Stream Events** - Real-time WebSocket connection for live updates
+
+### Dashboard Features
+
+**Visualization Modes:**
+- **Agent View** - Nodes are agents, edges show message flows
+- **Blackboard View** - Nodes are artifacts, edges show transformations
+
+**Controls:**
+- **Publish Control** - Publish artifacts with auto-filtering
+- **Invoke Control** - Invoke agents by name
+- **EventLog Module** - Right-click → Add Module → EventLog
+
+**Keyboard Shortcuts:** ⌨️
+- **Ctrl+Shift+P** - Toggle Publish Panel
+- **Ctrl+Shift+D** - Toggle Agent Details
+- **Ctrl+Shift+F** - Toggle Filters Panel
+- **Ctrl+,** - Toggle Settings Panel
+- **Ctrl+M** - Toggle Agent/Blackboard View
+- **Ctrl+F** - Focus filter input
+- **Ctrl+/** - Show keyboard shortcuts help dialog
+- **Esc** - Close panels and windows
+
+**Real-time Features:**
+- **WebSocket Streaming** - Live event updates
+- **Connection Status** - Visual indicator for connection state
+- **Auto-Filter** - Correlation ID tracking after publish/invoke
+- **Keyboard Navigation** - Full accessibility support with WCAG 2.1 AA compliance
+
+---
+
+## 📁 Frontend Development
+
+### Structure
 
 ```
-Flock.run() → FlockAgent.run_async() → Components.evaluate() → Router.set_next_agent() → Next Agent
+frontend/src/
+├── components/
+│   ├── common/          # Reusable components
+│   ├── layout/          # Layout components
+│   └── modules/         # Dashboard modules
+├── hooks/               # Custom React hooks
+├── services/            # WebSocket, API clients
+├── store/               # Zustand state management
+├── types/               # TypeScript type definitions
+└── utils/               # Utility functions
 ```
 
-**Workflow Steps**:
-1. Agent initializes and runs evaluation components
-2. Routing components analyze results and set `agent.next_agent`
-3. Utility components handle cross-cutting concerns
-4. Orchestrator uses `agent.next_agent` to continue workflow
+### Development Commands
 
-## Development Workflow
+```bash
+cd frontend
+
+# Start development server
+npm run dev
+
+# Run tests
+npm test
+
+# Run tests with UI
+npm run test:ui
+
+# Type checking
+npm run type-check
+
+# Build for production
+npm run build
+```
+
+### Key Technologies
+
+- **React 19** - UI framework with latest features
+- **TypeScript** - Type safety and better DX
+- **Vite** - Fast build tool and dev server
+- **Zustand** - Lightweight state management
+- **React Flow** - Graph visualization library
+- **Vitest** - Fast test framework
+- **IndexedDB** - Client-side persistence
+
+---
+
+## 🔐 Security Considerations
+
+### API Keys
+
+```bash
+# ✅ Use environment variables
+export OPENAI_API_KEY="sk-..."
+export AZURE_API_KEY="..."
+
+# ❌ Never commit API keys to git!
+# Add to .gitignore:
+.env
+*.key
+```
+
+### Visibility Enforcement
+
+```python
+# Always check visibility before scheduling
+if not artifact.visibility.allows(agent.identity):
+    logger.warning(f"Access denied: {agent.name} → {artifact.id}")
+    continue  # Don't schedule
+```
+
+### Input Validation
+
+```python
+# ✅ Validate all external inputs
+@flock_type
+class UserInput(BaseModel):
+    query: str = Field(max_length=1000)  # Prevent abuse
+
+# ✅ Sanitize before processing
+def sanitize(text: str) -> str:
+    # Remove HTML, SQL injection attempts, etc.
+    return text
+```
+
+---
+
+## 🚀 Performance Tips
+
+### Backend Optimization
+
+```python
+# ✅ Use asyncio.gather for parallel operations
+results = await asyncio.gather(
+    agent_a.execute(ctx, artifacts),
+    agent_b.execute(ctx, artifacts),
+)
+
+# ✅ Use semaphores for concurrency control
+async with self._semaphore:  # Limit concurrent executions
+    result = await expensive_operation()
+```
+
+### Frontend Optimization
+
+```typescript
+// ✅ Use React.memo for expensive components
+const ExpensiveNode = React.memo(({ data }: NodeProps) => {
+  // Component implementation
+});
+
+// ✅ Use useMemo for expensive calculations
+const layout = useMemo(() => {
+  return calculateLayout(nodes, edges);
+}, [nodes, edges]);
+```
+
+### Monitoring
+
+```python
+# Add metrics to components
+class MetricsComponent(AgentComponent):
+    async def on_post_evaluate(self, agent, ctx, inputs, result):
+        result.metrics["latency_ms"] = elapsed * 1000
+        result.metrics["tokens"] = count_tokens(result.artifacts)
+        return result
+```
+
+---
+
+## 🛠️ Common Tasks
+
+### Add a New Agent
+
+```python
+# 1. Define artifact types
+@flock_type
+class MyInput(BaseModel):
+    data: str
+
+@flock_type
+class MyOutput(BaseModel):
+    result: str
+
+# 2. Create agent
+agent = (
+    orchestrator.agent("my-agent")
+    .description("Process my custom data")
+    .consumes(MyInput)
+    .publishes(MyOutput)
+    .with_engines(DSPyEngine())
+)
+
+# 3. Write tests
+# tests/test_my_agent.py
+```
+
+### Add a New Component
+
+```python
+# 1. Create component class
+from flock.components import AgentComponent
+
+class MyComponent(AgentComponent):
+    name: str = "my_component"
+
+    async def on_pre_evaluate(self, agent, ctx, inputs):
+        # Your logic here
+        return inputs
+
+# 2. Register with agent
+agent.with_utilities(MyComponent())
+
+# 3. Write tests
+# tests/test_my_component.py
+```
+
+### Add a New Dashboard Module
+
+```typescript
+// 1. Create module component
+const MyModule: React.FC<ModuleProps> = ({ id, position }) => {
+  // Module implementation
+};
+
+// 2. Register module
+import { ModuleRegistry } from '../modules/ModuleRegistry';
+
+ModuleRegistry.register({
+  name: 'MyModule',
+  component: MyModule,
+  icon: '📊',
+  defaultSize: { width: 400, height: 300 }
+});
+
+// 3. Write tests
+// frontend/src/test/modules.test.tsx
+```
+
+### Add New Dependencies
+
+```bash
+# Python dependency
+uv add package-name
+
+# Python dev dependency
+uv add --dev package-name
+
+# Frontend dependency
+cd frontend && npm install package-name
+
+# Frontend dev dependency
+cd frontend && npm install --save-dev package-name
+```
+
+---
+
+## 📊 Metrics & Monitoring
+
+### Current Metrics
+
+**Backend Metrics:**
+- `artifacts_published` - Total artifacts published
+- `agent_runs` - Total agent executions
+- `websocket_connections` - Active dashboard connections
+- `event_latency` - Event processing latency
+
+**Frontend Metrics:**
+- Graph rendering time (<200ms target)
+- WebSocket message throughput (>100 events/sec)
+- Autocomplete response time (<50ms target)
+
+### Adding Custom Metrics
+
+```python
+# In your component
+class MetricsComponent(AgentComponent):
+    async def on_post_evaluate(self, agent, ctx, inputs, result):
+        result.metrics["my_metric"] = value
+        return result
+
+# Metrics automatically aggregated in orchestrator
+```
+
+---
+
+## 🚨 CRITICAL PATTERNS (Learn from Our Experience)
+
+### ⚡ invoke() vs run_until_idle() - The Double Execution Trap
+
+**This pattern cost us hours of debugging - learn from our pain!**
+
+#### The Problem
+After API migration from `arun()` to `invoke()`, tests started executing component hooks **twice**:
+
+```python
+# Expected: ['A', 'B', 'C']
+# Actual: ['A', 'B', 'C', 'A', 'B', 'C']  # Double execution!
+```
+
+#### Root Cause Analysis
+`invoke()` method behavior depends on `publish_outputs` parameter:
+
+```python
+# invoke() with default publish_outputs=True:
+await orchestrator.invoke(agent, input_artifact)
+await orchestrator.run_until_idle()  # ❌ Triggers SECOND execution!
+
+# invoke() with publish_outputs=False:
+await orchestrator.invoke(agent, input_artifact, publish_outputs=False)
+# ✅ No double execution - just direct agent execution
+```
+
+**Why this happens:**
+1. `invoke(..., publish_outputs=True)` executes agent AND publishes results to blackboard
+2. `run_until_idle()` processes published artifacts, triggering agent execution again
+3. Component hooks fire on BOTH executions → double execution
+
+#### When to Use Which Pattern
+
+**✅ USE `publish_outputs=False` for:**
+- Unit testing specific agent behavior
+- Testing component hooks in isolation
+- Direct execution without cascade
+- Most test scenarios
+
+```python
+# ✅ CORRECT: Test component execution order
+await orchestrator.invoke(agent, input_artifact, publish_outputs=False)
+assert component_order == ["A", "B", "C"]
+```
+
+**✅ USE `publish_outputs=True` + `run_until_idle()` for:**
+- Integration testing agent cascades
+- Testing multi-agent workflows
+- End-to-end scenario validation
+- Event-driven behavior testing
+
+```python
+# ✅ CORRECT: Test agent cascade
+await orchestrator.invoke(agent_a, input_artifact, publish_outputs=True)
+await orchestrator.run_until_idle()  # Process agent_b, agent_c...
+assert len(output_artifacts) == 3
+```
+
+#### Quick Reference
+
+| Scenario | invoke() call | run_until_idle() | Result |
+|----------|---------------|------------------|---------|
+| Unit test | `invoke(..., publish_outputs=False)` | No | ✅ Single execution |
+| Integration test | `invoke(..., publish_outputs=True)` | Yes | ✅ Cascade execution |
+| Bug we fixed | `invoke(..., publish_outputs=True)` | Yes | ❌ Double execution |
+
+#### Legacy Migration Pattern
+
+During API migration from `arun()` to `invoke()`:
+
+```python
+# OLD (arun() - auto-handled publication):
+await orchestrator.arun(agent, input)
+await orchestrator.run_until_idle()
+
+# NEW (invoke() - manual control):
+await orchestrator.invoke(agent, input, publish_outputs=False)
+# OR
+await orchestrator.invoke(agent, input, publish_outputs=True)
+await orchestrator.run_until_idle()
+```
+
+**Rule of thumb:** Start with `publish_outputs=False` for tests, only enable publication if you specifically need cascade behavior.
+
+### 🔒 Test Isolation and Mock Cleanup - The Contamination Trap
+
+**We fixed 32 failing tests caused by test contamination - here's what we learned:**
+
+#### The Problem
+Tests were modifying class-level properties with PropertyMock that persisted across test boundaries:
+
+```python
+# ❌ WRONG: Contaminates other tests
+def test_something(orchestrator):
+    type(orchestrator).agents = PropertyMock(return_value=[mock_agent])
+    # No cleanup - mock persists!
+```
+
+#### The Solution
+Always use fixture cleanup with yield pattern:
+
+```python
+# ✅ CORRECT: Proper cleanup
+@pytest.fixture
+def dashboard_service_with_mocks(orchestrator):
+    original_agents = getattr(type(orchestrator), "agents", None)
+    type(orchestrator).agents = PropertyMock(return_value=[mock_agent])
+    try:
+        yield service
+    finally:
+        # Restore original or delete if it didn't exist
+        if original_agents is not None:
+            type(orchestrator).agents = original_agents
+        elif hasattr(type(orchestrator), "agents"):
+            delattr(type(orchestrator), "agents")
+```
+
+#### Best Practices for Test Isolation
+
+1. **Create Helper Functions for Complex Mocks**
+```python
+def create_mock_agent():
+    """Create a properly structured mock agent."""
+    mock_agent = Mock()
+    mock_agent.subscriptions = []  # Required attribute
+    mock_agent.name = "test_agent"
+    mock_agent.description = "Test agent"
+    return mock_agent
+```
+
+2. **Use Fixture Cleanup Pattern**
+- Store original values before modification
+- Use try/finally blocks in fixtures
+- Restore or delete modified attributes
+
+3. **Test in Isolation First**
+- Run individual test files to check for contamination
+- If tests pass alone but fail in suite = contamination issue
+
+4. **Common Contamination Sources**
+- PropertyMock on class attributes
+- Module-level patches without cleanup
+- Shared mutable state in fixtures
+- Async event loops not properly closed
+- Rich/logging state pollution across tests
+
+5. **Test Ordering for Contamination-Sensitive Tests**
+
+When some tests are sensitive to state pollution from other tests, use pytest hooks to control execution order:
+
+```python
+# In tests/conftest.py
+def pytest_collection_modifyitems(config, items):
+    """Reorder tests to run contamination-prone tests first sequentially."""
+    priority_modules = [
+        "test_utilities.py",
+        "test_cli.py",
+        "test_engines.py",
+        "test_orchestrator.py",
+        "test_service.py",
+    ]
+
+    # Separate priority tests from others
+    priority_tests = []
+    other_tests = []
+
+    for item in items:
+        test_file = Path(item.fspath).name
+        if test_file in priority_modules:
+            priority_tests.append(item)
+        else:
+            other_tests.append(item)
+
+    # Sort priority tests by module order
+    def get_priority(item):
+        test_file = Path(item.fspath).name
+        try:
+            return priority_modules.index(test_file)
+        except ValueError:
+            return 999
+
+    priority_tests.sort(key=get_priority)
+
+    # Reorder: priority tests first, then everything else
+    items[:] = priority_tests + other_tests
+```
+
+**Why this works:**
+- Tests sensitive to Rich/logging state run first before any contamination
+- Eliminates contamination failures without code changes
+- Tests pass reliably in both local and CI environments
+
+---
+
+## ❓ FAQ for AI Agents
+
+### Q: Where should I save new files?
+
+**⚠️ CRITICAL: NEVER save files to the project root directory!**
+
+Always use the appropriate subdirectory:
+- **Tests**: `/tests` - All test files only
+- **Source Code**: `/src/flock` - Production code only
+- **Documentation**: `/docs` - Documentation only
+- **Examples**: `/examples` - Example scripts only
+- **Frontend**: `/frontend/src` - React components and frontend code
+
+**Never create files in the root directory** - it should only contain configuration files like `pyproject.toml`, `README.md`, etc.
+
+### Q: How do I add a new dependency?
+
+```bash
+# Python
+uv add package-name
+
+# Frontend
+cd frontend && npm install package-name
+```
+
+### Q: How do I run a specific test?
+
+```bash
+# Backend
+uv run pytest tests/test_file.py::test_name -v
+
+# Frontend
+cd frontend && npm test -- test_name
+```
+
+### Q: How do I start the dashboard?
+
+```python
+await orchestrator.serve(dashboard=True)
+```
+
+### Q: Where should I add new tests?
+
+Add to existing test file if relevant, or create new file following naming convention `test_<module>.py` for backend, `<name>.test.tsx` for frontend.
+
+### Q: What Python version features can I use?
+
+Python 3.10+, so you can use:
+- `match`/`case` statements
+- `TaskGroup` for parallel execution
+- Improved type hints (`list[str]` not `List[str]`)
+
+### Q: How do I debug WebSocket issues?
+
+Check browser console for WebSocket logs, use Network tab to inspect connection, and verify backend WebSocket server is running on correct port.
+
+---
+
+## 🎯 Quick Reference
 
 ### Essential Commands
 
 ```bash
-# Project uses UV as package manager
-uv run python -m pytest tests/core/test_flock_core.py -v    # Run core tests
-uv run python -m pytest tests/serialization/ -v            # Test serialization
-uv run python -m pytest tests/components/ -v -k memory      # Test specific components
+# Setup
+poe install          # Install all dependencies
 
-# Common development tasks
-uv run python examples/01-getting-started/quickstart.py     # Run basic example
-uv run python -c "from flock.core import Flock; print('OK')" # Quick import test
+# Development
+poe build           # Build project
+poe lint            # Lint code
+poe format          # Format code
+
+# Testing
+poe test            # Run tests
+poe test-cov        # Run with coverage
+poe test-critical   # Run critical path tests
+
+# Frontend
+cd frontend
+npm run dev         # Start dev server
+npm test            # Run frontend tests
+npm run build       # Build for production
 ```
 
-### Testing Strategy
+### Code Snippets
 
-- **Unit Tests**: `tests/core/` for framework components
-- **Component Tests**: `tests/components/` for unified component architecture
-- **Integration Tests**: `tests/integration/` for external dependencies  
-- **Serialization Tests**: `tests/serialization/` for save/load
-
-**Important**: Many tests currently have issues unrelated to core functionality (logging conflicts, registry state). Focus on functionality tests.
-
-## Known Issues & Gotchas
-
-### Current Problems
-1. **Logging conflicts**: `exc_info` parameter duplication causing test failures
-2. **Test brittleness**: Some tests depend on external services or configuration
-
-### Code Quality Issues Found
-- Bare `except:` handlers in multiple files
-- Global state management patterns
-- Some circular import dependencies
-- Complex function complexity (Ruff warnings)
-
-## Important Patterns & Conventions
-
-### Component Registration
+**Create orchestrator:**
 ```python
-from flock.core.registry import flock_component
-from flock.core.component.evaluation_component_base import EvaluationComponentBase
-
-@flock_component(config_class=MyComponentConfig)
-class MyComponent(EvaluationComponentBase):
-    # Component implementation
+from flock.orchestrator import Flock
+orchestrator = Flock("openai/gpt-4o")
 ```
 
-### Agent Creation
+**Define agent:**
 ```python
-from flock.core import Flock, DefaultAgent
-
-flock = Flock(model="openai/gpt-4o")
-agent = DefaultAgent(
-    name="my_agent",
-    input="query: str",
-    output="result: str"
+agent = (
+    orchestrator.agent("name")
+    .description("What it does")
+    .consumes(InputType)
+    .publishes(OutputType)
 )
-flock.add_agent(agent)
-result = flock.run(start_agent="my_agent", input={"query": "test"})
 ```
 
-### Manual Component Assembly
+**Run agent:**
 ```python
-from flock.core import FlockAgent
-from flock.core.agent.flock_agent_components import FlockAgentComponents
-from flock.components.evaluation.declarative_evaluation_component import (
-    DeclarativeEvaluationComponent, DeclarativeEvaluationConfig
-)
-from flock.components.utility.output_utility_component import (
-    OutputUtilityComponent, OutputUtilityConfig
-)
-from flock.components.routing.default_routing_component import (
-    DefaultRoutingComponent, DefaultRoutingConfig
-)
-
-# Create agent with unified components
-agent = FlockAgent(
-    name="my_agent",
-    input="query: str",
-    output="result: str",
-    components=[
-        DeclarativeEvaluationComponent(name="evaluator", config=DeclarativeEvaluationConfig()),
-        OutputUtilityComponent(name="output", config=OutputUtilityConfig()),
-        DefaultRoutingComponent(name="router", config=DefaultRoutingConfig(hand_off="next_agent"))
-    ]
-)
-
-# Use helper for component management
-helper = agent._components  # Lazy-loaded property
-print(f"Evaluation components: {len(helper.get_evaluation_components())}")
-print(f"Primary evaluator: {helper.get_primary_evaluator()}")
-
-# Basic operations delegate to helper
-agent.add_component(my_component)  # Delegates to helper
-agent.get_component("component_name")  # Delegates to helper
-
-# Alternative: Set next_agent directly
-agent.next_agent = "next_agent_name"
+await orchestrator.arun(agent, input_data)
 ```
 
-### Component Management Helper
-
-The `FlockAgentComponents` class provides convenient methods for managing components:
-
+**Start dashboard:**
 ```python
-# Access helper through agent property (lazy-loaded)
-helper = agent._components
-
-# Component management
-helper.add_component(my_component)
-helper.remove_component("component_name")
-component = helper.get_component("component_name")
-
-# Type-specific getters
-evaluation_components = helper.get_evaluation_components()
-routing_components = helper.get_routing_components()
-utility_components = helper.get_utility_components()
-
-# Convenience methods
-primary_evaluator = helper.get_primary_evaluator()
-primary_router = helper.get_primary_router()
-enabled_components = helper.get_enabled_components()
-
-# Basic operations delegate to helper automatically
-agent.add_component(my_component)  # Same as helper.add_component()
-agent.evaluator  # Same as helper.get_primary_evaluator()
-agent.router     # Same as helper.get_primary_router()
+await orchestrator.serve(dashboard=True)
 ```
 
-### Serialization
-- All core classes inherit from `Serializable`
-- Support JSON, YAML, and Python dict formats
-- Use `to_dict()` / `from_dict()` for persistence
+---
 
-### Hydrator (Pydantic)
-You can “hydrate” Pydantic models (fill missing/None fields) using the `@flockclass` decorator, which spins up a temporary agent based on the model’s schema.
+## 📞 Getting Help
 
-```python
-from pydantic import BaseModel, Field
-from flock.core.util.hydrator import flockclass
+### Documentation
+- **Contributing Guide:** [`CONTRIBUTING.md`](CONTRIBUTING.md) - Complete contribution workflow
+- **Development Workflow:** [`docs/patterns/development-workflow.md`](docs/patterns/development-workflow.md)
+- **Versioning Guide:** [`docs/VERSIONING.md`](docs/VERSIONING.md) - Smart version bumping
+- **Pre-commit Hooks:** [`docs/PRE_COMMIT_HOOKS.md`](docs/PRE_COMMIT_HOOKS.md) - Quality automation
+- **Architecture:** [`docs/patterns/core-architecture.md`](docs/patterns/core-architecture.md)
+- **Examples:** [`examples/`](examples/) - Working code examples
+- **Analysis Documents:** [`docs/patterns/`](docs/patterns/)
 
-@flockclass(model="openai/gpt-5")
-class RandomPerson(BaseModel):
-    name: str | None = None
-    age: int | None = None
-    bio: str | None = Field(default=None, description="A short biography")
+---
 
-person = RandomPerson()
-person = person.hydrate()  # fills in missing fields via a dynamic agent
-```
-See `07-hydrator.py` for a full example.
+**Welcome to the team! Let's build the future of AI agent orchestration together.** 🚀
 
-## Development Guidelines
+---
 
-### When Making Changes
-1. **Always run diagnostics**: Use `get_diagnostics` tool on modified files
-2. **Test serialization**: Many components need to serialize/deserialize correctly
-3. **Check imports**: Circular imports are a known issue
-4. **Memory management**: Be careful with global state (registry, context)
-
-### Code Style
-- Use Pydantic for all data models
-- Prefer `async`/`await` for I/O operations
-- Type hints are mandatory
-- Error handling should be specific (avoid bare `except`)
-
-### Testing
-- Mock external dependencies (LLM calls, file systems)
-- Use fixtures for complex setup
-- Test both success and failure paths
-- Verify serialization roundtrips
-
-## Quick Start for Development
-
-1. **Understand the flow**: `Flock` → `FlockAgent` → `Utility/Evaluator/Router` → Result
-2. **Start with examples**: Check `examples/01-getting-started/`
-3. **Read tests**: `tests/core/test_flock_core.py` shows usage patterns
-4. **Use DefaultAgent**: prefer `DefaultAgent(...)` for explicit setup; `FlockFactory` is deprecated
-5. **Focus on contracts**: Input/output signatures are key
-
-## Workflow Management
-
-### Setting Next Agent
-
-You can control workflow flow in three ways:
-
-1. **Direct assignment**: `agent.next_agent = "agent_name"`
-2. **Callable**: `agent.next_agent = lambda context, result: "dynamic_agent"`
-3. **Routing component**: Add a routing component that sets `next_agent` based on evaluation results
-
-### Routing Components
-
-Routing components implement workflow logic:
-
-```python
-from flock.components.routing.default_routing_component import DefaultRoutingComponent, DefaultRoutingConfig
-from flock.components.routing.conditional_routing_component import ConditionalRoutingComponent, ConditionalRoutingConfig
-from flock.components.routing.llm_routing_component import LLMRoutingComponent, LLMRoutingConfig
-
-# Simple static routing
-router = DefaultRoutingComponent(
-    name="router",
-    config=DefaultRoutingConfig(hand_off="next_agent")
-)
-
-# Conditional routing based on results
-router = ConditionalRoutingComponent(
-    name="conditional_router", 
-    config=ConditionalRoutingConfig(
-        condition=lambda result: result.get("confidence", 0) > 0.8,
-        true_agent="high_confidence_agent",
-        false_agent="low_confidence_agent"
-    )
-)
-
-# AI-powered routing decisions
-router = LLMRoutingComponent(
-    name="llm_router",
-    config=LLMRoutingConfig(
-        available_agents=["agent_a", "agent_b", "agent_c"],
-        routing_prompt="Choose the best next agent based on the result"
-    )
-)
-```
-
-## Web Interface
-
-The framework includes a FastAPI web application at `src/flock/webapp/` with:
-- Agent execution interface
-- Configuration management
-- File upload/download
-- Real-time execution monitoring
-
-Start with: `flock.serve()` method on any Flock instance.
-
-## External Dependencies
-
-- **DSPy**: LLM interaction and prompt management
-- **Temporal.io**: Workflow orchestration and resilience
-- **FastAPI**: Web interface
-- **Pydantic**: Data validation and serialization
-- **OpenTelemetry**: Observability and tracing
-
-## Next Priority Areas
-
-Based on the review, focus on:
-1. **Fixing logging conflicts** in test suite
-2. **Improving error handling** patterns  
-3. **Adding security guidelines** for component development
-4. **Performance optimization** for component operations
-
-## Migration Notes
-
-The unified architecture completely replaces the legacy system:
-- Legacy evaluators, modules, and routers have been removed
-- All legacy dependencies cleaned up from codebase  
-- DefaultAgent wires unified components under the hood
-- Workflow execution uses `agent.next_agent` for routing
-- HandOffRequest system replaced with direct property assignment
-
-**Key Benefits of New Architecture**:
-- Simpler mental model (2 concepts vs 4)
-- Explicit workflow state management via `agent.next_agent`
-- Clean composition over complex inheritance
-- Easier testing and debugging
-- Unified component registration and discovery
-- Consistent `*ComponentBase` naming convention
-- Full composition pattern with `_components`, `_execution`, `_integration`, `_serialization`, `_lifecycle`
-- Lazy-loaded component helper with rich functionality
-- Thread-safe registry system with specialized helpers
-- Zero code duplication in registry operations
-
-This should give you a solid foundation to understand and contribute to the Flock framework efficiently!
-
-## Branching & Pre‑Release Policy
-
-- Pre‑release main branch for 0.5.0: `0.5.0b`.
-  - All PRs targeting the 0.5.0 pre‑release must be opened against `0.5.0b`, not `main`.
-  - We use a `[Phase0]` prefix in GitHub issue titles for the 0.5.0 peak‑condition tasks.
-- Once 0.5.0 ships, `main` will receive a fast‑forward or merge from `0.5.0b` according to release policy.
-
-## Contributor Tips (0.5.0 → 1.0)
-
-- Prefer explicit Agent classes over factory helpers. Factory APIs remain during 0.5.0 but will be deprecated in favor of real agent classes (e.g., `DefaultAgent`).
-- Contracts first: for complex schemas, pass Pydantic models for `input`/`output` and pass `BaseModel` instances as `flock.run(..., input=...)` — they are normalized under the hood.
-- Unified components only: Evaluation/Routing/Utility; legacy “modules” are considered internal/legacy and will be removed in 1.0.
-- Reactive path: future 1.0 work will add a `SubscriptionComponent` and `agent.subscribe_to(...)` sugar; no need to author graphs or decorators.
+*Last updated: October 5, 2025*
+*This file follows the modern AGENTS.md format for AI coding agents.*

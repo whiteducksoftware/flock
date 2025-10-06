@@ -13,15 +13,14 @@ from mcp.types import JSONRPCMessage
 from opentelemetry import trace
 from pydantic import Field
 
-from flock.core.logging.logging import get_logger
-from flock.core.mcp.flock_mcp_server import FlockMCPServer
-from flock.core.mcp.mcp_client import FlockMCPClient
-from flock.core.mcp.mcp_client_manager import FlockMCPClientManager
-from flock.core.mcp.mcp_config import (
+from flock.logging.logging import get_logger
+from flock.mcp.client import FlockMCPClient
+from flock.mcp.config import (
     FlockMCPConfiguration,
     FlockMCPConnectionConfiguration,
 )
-from flock.core.mcp.types.types import StdioServerParameters
+from flock.mcp.types import StdioServerParameters
+
 
 logger = get_logger("mcp.stdio.server")
 tracer = trace.get_tracer(__name__)
@@ -56,7 +55,7 @@ class FlockStdioConfig(FlockMCPConfiguration):
 class FlockStdioClient(FlockMCPClient):
     """Client for Stdio Servers."""
 
-    config: FlockStdioConfig = Field(..., description="Client Configuration.")
+    config: FlockMCPConfiguration = Field(..., description="Client Configuration.")
 
     async def create_transport(
         self,
@@ -78,9 +77,7 @@ class FlockStdioClient(FlockMCPClient):
         if additional_params:
             # If it is present, then modify server parameters based on certain keys.
             if "command" in additional_params:
-                param_copy.command = additional_params.get(
-                    "command", params.command
-                )
+                param_copy.command = additional_params.get("command", params.command)
             if "args" in additional_params:
                 param_copy.args = additional_params.get("args", params.command)
             if "env" in additional_params:
@@ -90,9 +87,7 @@ class FlockStdioClient(FlockMCPClient):
                 param_copy.cwd = additional_params.get("cwd", params.env)
 
             if "encoding" in additional_params:
-                param_copy.encoding = additional_params.get(
-                    "encoding", params.encoding
-                )
+                param_copy.encoding = additional_params.get("encoding", params.encoding)
 
             if "encoding_error_handler" in additional_params:
                 param_copy.encoding_error_handler = additional_params.get(
@@ -101,38 +96,3 @@ class FlockStdioClient(FlockMCPClient):
 
         # stdio_client already is an AsyncContextManager
         return stdio_client(server=param_copy)
-
-
-# Not really needed but kept here as an example.
-class FlockStdioClientManager(FlockMCPClientManager):
-    """Manager for handling Stdio Clients."""
-
-    client_config: FlockStdioConfig = Field(
-        ..., description="Configuration for clients."
-    )
-
-    async def make_client(
-        self, additional_params: dict[str, Any] | None = None
-    ):
-        """Create a new client instance with any additional parameters."""
-        new_client = FlockStdioClient(
-            config=self.client_config,
-            additional_params=additional_params,
-        )
-        return new_client
-
-
-class FlockMCPStdioServer(FlockMCPServer):
-    """Class which represents a MCP Server using the Stdio Transport type.
-
-    This means (most likely) that the server is a locally
-    executed script.
-    """
-
-    config: FlockStdioConfig = Field(..., description="Config for the server.")
-
-    async def initialize(self) -> FlockStdioClientManager:
-        """Called when initializing the server."""
-        client_manager = FlockStdioClientManager(client_config=self.config)
-
-        return client_manager

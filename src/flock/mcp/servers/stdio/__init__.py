@@ -1,1 +1,1 @@
-"""Default Stdio Server Implementation for Flock."""
+"""Default Stdio Server Implementation for flock."""

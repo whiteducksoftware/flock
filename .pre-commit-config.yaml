@@ -1,0 +1,112 @@
+# Flock Flow Pre-commit Hooks
+# Quality gates that run before every commit
+#
+# Installation:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Manual run:
+#   pre-commit run --all-files
+#
+# Skip hooks (emergency only):
+#   git commit --no-verify
+
+repos:
+  # Ruff - Fast Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.13.3
+    hooks:
+      # Run the linter (only fail on errors, not style suggestions)
+      - id: ruff
+        name: ruff lint
+        args: [--fix, --exit-zero]  # Don't fail the hook, just fix what's possible
+        types_or: [python, pyi]
+
+      # Run the formatter
+      - id: ruff-format
+        name: ruff format
+        types_or: [python, pyi]
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+      - id: end-of-file-fixer
+        name: fix end of files
+      - id: check-yaml
+        name: validate yaml files
+      - id: check-toml
+        name: validate toml files
+      - id: check-json
+        name: validate json files
+        exclude: tsconfig.*\.json$  # Exclude TypeScript config (uses JSON5)
+      - id: check-added-large-files
+        name: check for large files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+        name: check for merge conflicts
+      - id: detect-private-key
+        name: detect private keys
+      - id: mixed-line-ending
+        name: fix mixed line endings
+
+  # Security checks
+  - repo: local
+    hooks:
+      - id: bandit
+        name: security scan with bandit
+        entry: bash -c 'bandit -c pyproject.toml -r src/flock/ -ll || echo "⚠️  Low severity security issues found - please review"'
+        language: system
+        pass_filenames: false
+        files: ^src/flock/
+
+  # Frontend - TypeScript and React checks
+  - repo: local
+    hooks:
+      # TypeScript type checking
+      - id: tsc
+        name: typescript type check
+        entry: bash -c 'cd frontend && npm run type-check'
+        language: system
+        files: \.tsx?$
+        pass_filenames: false
+
+      # Frontend build check (ensures no build errors)
+      - id: frontend-build
+        name: frontend build check
+        entry: bash -c 'cd frontend && npm run build'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+        stages: [pre-push]  # Only on push, not on every commit
+
+  # Backend build check
+  - repo: local
+    hooks:
+      - id: uv-build
+        name: backend build check
+        entry: bash -c 'uv build'
+        language: system
+        files: ^(src/|pyproject\.toml|uv\.lock)
+        pass_filenames: false
+        stages: [pre-push]  # Only on push, not on every commit
+
+  # Version checks (pre-push only)
+  - repo: local
+    hooks:
+      - id: version-check
+        name: check if version bump needed
+        entry: python scripts/check_version_bump.py
+        language: system
+        stages: [pre-push]  # Only warn on push
+        pass_filenames: false
+        verbose: true
+
+# Performance configuration
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+# Faster execution
+fail_fast: false

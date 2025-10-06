@@ -1,0 +1,488 @@
+/**
+ * Flock Flow Dashboard Design System
+ * Generated from frontend/docs/DESIGN_SYSTEM.md
+ * Version: 1.0.0
+ */
+
+:root {
+  /* ========================================
+     COLORS - Foundation
+     ======================================== */
+
+  /* Background Layers */
+  --color-bg-base: #0a0a0b;
+  --color-bg-elevated: #121214;
+  --color-bg-surface: #1a1a1e;
+  --color-bg-overlay: #232329;
+  --color-bg-float: #2a2a32;
+
+  /* Primary Brand Colors */
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+
+  /* Secondary/Accent Colors */
+  --color-secondary-50: #fdf4ff;
+  --color-secondary-100: #fae8ff;
+  --color-secondary-200: #f5d0fe;
+  --color-secondary-300: #f0abfc;
+  --color-secondary-400: #e879f9;
+  --color-secondary-500: #d946ef;
+  --color-secondary-600: #c026d3;
+  --color-secondary-700: #a21caf;
+  --color-secondary-800: #86198f;
+  --color-secondary-900: #701a75;
+
+  /* Tertiary/Utility Colors */
+  --color-tertiary-50: #ecfeff;
+  --color-tertiary-100: #cffafe;
+  --color-tertiary-200: #a5f3fc;
+  --color-tertiary-300: #67e8f9;
+  --color-tertiary-400: #22d3ee;
+  --color-tertiary-500: #06b6d4;
+  --color-tertiary-600: #0891b2;
+  --color-tertiary-700: #0e7490;
+  --color-tertiary-800: #155e75;
+  --color-tertiary-900: #164e63;
+
+  /* ========================================
+     COLORS - Semantic
+     ======================================== */
+
+  /* Success */
+  --color-success-light: #6ee7b7;
+  --color-success: #10b981;
+  --color-success-dark: #047857;
+  --color-success-bg: rgba(16, 185, 129, 0.1);
+  --color-success-border: rgba(16, 185, 129, 0.3);
+
+  /* Warning */
+  --color-warning-light: #fbbf24;
+  --color-warning: #f59e0b;
+  --color-warning-dark: #d97706;
+  --color-warning-bg: rgba(245, 158, 11, 0.1);
+  --color-warning-border: rgba(245, 158, 11, 0.3);
+
+  /* Error */
+  --color-error-light: #f87171;
+  --color-error: #ef4444;
+  --color-error-dark: #dc2626;
+  --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-error-border: rgba(239, 68, 68, 0.3);
+
+  /* Info */
+  --color-info-light: #60a5fa;
+  --color-info: #3b82f6;
+  --color-info-dark: #2563eb;
+  --color-info-bg: rgba(59, 130, 246, 0.1);
+  --color-info-border: rgba(59, 130, 246, 0.3);
+
+  /* Running/Active */
+  --color-active-light: #818cf8;
+  --color-active: #6366f1;
+  --color-active-dark: #4f46e5;
+  --color-active-bg: rgba(99, 102, 241, 0.1);
+  --color-active-border: rgba(99, 102, 241, 0.3);
+
+  /* Idle/Neutral */
+  --color-idle-light: #94a3b8;
+  --color-idle: #64748b;
+  --color-idle-dark: #475569;
+  --color-idle-bg: rgba(100, 116, 139, 0.1);
+  --color-idle-border: rgba(100, 116, 139, 0.3);
+
+  /* ========================================
+     COLORS - Text
+     ======================================== */
+
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-tertiary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-disabled: #475569;
+  --color-text-on-primary: #ffffff;
+  --color-text-on-dark: #0f172a;
+
+  /* ========================================
+     COLORS - Borders & Dividers
+     ======================================== */
+
+  --color-border-subtle: #1e293b;
+  --color-border-default: #334155;
+  --color-border-strong: #475569;
+  --color-border-focus: #6366f1;
+  --color-border-error: #ef4444;
+  --color-divider: rgba(148, 163, 184, 0.1);
+
+  /* ========================================
+     COLORS - Graph Specific
+     ======================================== */
+
+  /* Agent Nodes */
+  --color-node-agent-bg: #1e293b;
+  --color-node-agent-border: #3b82f6;
+  --color-node-agent-border-selected: #6366f1;
+  --color-node-agent-text: #f8fafc;
+  --color-node-agent-badge: #334155;
+  --color-node-agent-badge-text: #94a3b8;
+
+  /* Message Nodes */
+  --color-node-message-bg: #422006;
+  --color-node-message-border: #f59e0b;
+  --color-node-message-border-selected: #d946ef;
+  --color-node-message-text: #fef3c7;
+  --color-node-message-metadata: #a16207;
+
+  /* Edges */
+  --color-edge-default: #475569;
+  --color-edge-active: #6366f1;
+  --color-edge-message: #f59e0b;
+  --color-edge-error: #ef4444;
+  --color-edge-label-bg: rgba(26, 26, 30, 0.95);
+  --color-edge-label-text: #cbd5e1;
+
+  /* ========================================
+     COLORS - Overlay & Glassmorphism
+     ======================================== */
+
+  --color-glass-bg: rgba(26, 26, 30, 0.8);
+  --color-glass-border: rgba(148, 163, 184, 0.1);
+  --color-overlay-backdrop: rgba(10, 10, 11, 0.7);
+  --color-modal-backdrop: rgba(10, 10, 11, 0.85);
+
+  /* ========================================
+     TYPOGRAPHY
+     ======================================== */
+
+  /* Font Families */
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+  --font-family-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Font Sizes - Display */
+  --font-size-display-2xl: 72px;
+  --font-size-display-xl: 60px;
+  --font-size-display-lg: 48px;
+  --font-size-display-md: 36px;
+
+  /* Font Sizes - Headings */
+  --font-size-h1: 32px;
+  --font-size-h2: 24px;
+  --font-size-h3: 20px;
+  --font-size-h4: 18px;
+  --font-size-h5: 16px;
+  --font-size-h6: 14px;
+
+  /* Font Sizes - Body */
+  --font-size-body-xl: 20px;
+  --font-size-body-lg: 18px;
+  --font-size-body: 16px;
+  --font-size-body-sm: 14px;
+  --font-size-body-xs: 12px;
+
+  /* Font Sizes - Utility */
+  --font-size-caption: 12px;
+  --font-size-overline: 10px;
+  --font-size-tiny: 10px;
+
+  /* Font Weights */
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line Heights */
+  --line-height-tight: 1.1;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  /* Letter Spacing */
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+  --letter-spacing-wider: 0.05em;
+  --letter-spacing-widest: 0.1em;
+
+  /* ========================================
+     SPACING SYSTEM
+     ======================================== */
+
+  /* Base Scale (8px grid) */
+  --spacing-0: 0;
+  --spacing-0-5: 2px;
+  --spacing-1: 4px;
+  --spacing-1-5: 6px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+  --spacing-20: 80px;
+  --spacing-24: 96px;
+  --spacing-32: 128px;
+  --spacing-40: 160px;
+  --spacing-48: 192px;
+  --spacing-56: 224px;
+  --spacing-64: 256px;
+
+  /* Semantic Spacing Tokens */
+  --space-component-xs: var(--spacing-2);
+  --space-component-sm: var(--spacing-3);
+  --space-component-md: var(--spacing-4);
+  --space-component-lg: var(--spacing-6);
+  --space-component-xl: var(--spacing-8);
+
+  --space-layout-xs: var(--spacing-4);
+  --space-layout-sm: var(--spacing-6);
+  --space-layout-md: var(--spacing-8);
+  --space-layout-lg: var(--spacing-12);
+  --space-layout-xl: var(--spacing-16);
+  --space-layout-2xl: var(--spacing-24);
+
+  --gap-xs: var(--spacing-1);
+  --gap-sm: var(--spacing-2);
+  --gap-md: var(--spacing-3);
+  --gap-lg: var(--spacing-4);
+  --gap-xl: var(--spacing-6);
+
+  /* ========================================
+     SHADOWS & ELEVATION
+     ======================================== */
+
+  /* Shadow Scale */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 4px -1px rgba(0, 0, 0, 0.5), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.6);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+
+  /* Glow Effects */
+  --shadow-glow-primary: 0 0 0 3px rgba(99, 102, 241, 0.3);
+  --shadow-glow-secondary: 0 0 0 3px rgba(217, 70, 239, 0.3);
+  --shadow-glow-success: 0 0 0 3px rgba(16, 185, 129, 0.3);
+  --shadow-glow-error: 0 0 0 3px rgba(239, 68, 68, 0.3);
+  --shadow-glow-warning: 0 0 0 3px rgba(245, 158, 11, 0.3);
+
+  /* Inner Shadows */
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
+  --shadow-inner-lg: inset 0 4px 8px 0 rgba(0, 0, 0, 0.6);
+
+  /* ========================================
+     BORDERS & RADIUS
+     ======================================== */
+
+  /* Border Widths */
+  --border-width-0: 0;
+  --border-width-1: 1px;
+  --border-width-2: 2px;
+  --border-width-3: 3px;
+  --border-width-4: 4px;
+
+  /* Border Radius */
+  --radius-none: 0;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+  --radius-full: 9999px;
+  --radius-circle: 50%;
+
+  /* Common Border Combinations */
+  --border-subtle: var(--border-width-1) solid var(--color-border-subtle);
+  --border-default: var(--border-width-1) solid var(--color-border-default);
+  --border-strong: var(--border-width-2) solid var(--color-border-strong);
+  --border-focus: var(--border-width-2) solid var(--color-border-focus);
+  --border-error: var(--border-width-2) solid var(--color-border-error);
+
+  /* ========================================
+     MOTION & TRANSITIONS
+     ======================================== */
+
+  /* Duration */
+  --duration-instant: 0ms;
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 400ms;
+  --duration-slowest: 500ms;
+
+  /* Easing Functions */
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.6, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-elastic: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-sharp: cubic-bezier(0.4, 0, 0.6, 1);
+
+  /* Common Transitions */
+  --transition-colors: color var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth);
+  --transition-opacity: opacity var(--duration-normal) var(--ease-out);
+  --transition-transform: transform var(--duration-normal) var(--ease-smooth);
+  --transition-shadow: box-shadow var(--duration-normal) var(--ease-out);
+  --transition-all: all var(--duration-normal) var(--ease-smooth);
+  --transition-base: var(--duration-normal) var(--ease-smooth);
+
+  /* ========================================
+     GLASSMORPHISM EFFECTS
+     ======================================== */
+
+  --blur-sm: 4px;
+  --blur-md: 8px;
+  --blur-lg: 12px;
+  --blur-xl: 16px;
+  --blur-2xl: 24px;
+}
+
+/* ========================================
+   GLOBAL RESETS & BASE STYLES
+   ======================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+h3 {
+  font-size: var(--font-size-h3);
+  line-height: var(--line-height-snug);
+}
+
+h4 {
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-snug);
+}
+
+h5, h6 {
+  font-size: var(--font-size-h5);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-secondary);
+}
+
+code, pre {
+  font-family: var(--font-family-mono);
+  font-size: 0.9em;
+  line-height: var(--line-height-relaxed);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ========================================
+   KEYFRAME ANIMATIONS
+   ======================================== */
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* ========================================
+   REACT FLOW CONTROLS STYLING
+   ======================================== */
+
+/* Make ReactFlow controls more visible with better contrast */
+.react-flow__controls {
+  background: var(--color-bg-surface) !important;
+  border: 1px solid var(--color-border-default) !important;
+}
+
+.react-flow__controls-button {
+  background: var(--color-bg-overlay) !important;
+  border: none !important;
+  border-bottom: 1px solid var(--color-border-subtle) !important;
+  color: var(--color-text-primary) !important;
+  transition: var(--transition-all) !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--color-primary-500) !important;
+  color: white !important;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* ========================================
+   ACCESSIBILITY - REDUCED MOTION
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

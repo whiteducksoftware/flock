@@ -1,0 +1,327 @@
+/* ========================================
+   Settings Panel Styles
+   Using Flock Flow Design System
+   ======================================== */
+
+.settings-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  z-index: 1000;
+
+  /* Glassmorphism */
+  background: var(--color-glass-bg);
+  backdrop-filter: blur(var(--blur-lg));
+  border-left: var(--border-default);
+  box-shadow: var(--shadow-xl);
+
+  /* Animation */
+  animation: slideInRight var(--duration-slow) var(--ease-smooth);
+}
+
+.settings-panel-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ========================================
+   Header
+   ======================================== */
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-layout-sm);
+  border-bottom: var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.settings-title {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.settings-close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition-all);
+}
+
+.settings-close-button:hover {
+  background: var(--color-bg-overlay);
+  color: var(--color-text-primary);
+}
+
+.settings-close-button:active {
+  background: var(--color-bg-surface);
+  transform: scale(0.95);
+}
+
+/* ========================================
+   Tabs
+   ======================================== */
+
+.settings-tabs {
+  display: flex;
+  gap: var(--gap-xs);
+  padding: var(--space-component-md);
+  border-bottom: var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  padding: var(--space-component-sm) var(--space-component-md);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: var(--transition-all);
+  position: relative;
+}
+
+.settings-tab svg {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-tab:hover {
+  background: var(--color-bg-overlay);
+  color: var(--color-text-primary);
+}
+
+.settings-tab.active {
+  background: var(--color-bg-surface);
+  color: var(--color-primary-500);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40%;
+  height: 2px;
+  background: var(--color-primary-500);
+  border-radius: var(--radius-full);
+}
+
+/* ========================================
+   Content Area
+   ======================================== */
+
+.settings-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-layout-sm);
+}
+
+/* Custom scrollbar */
+.settings-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+  background: var(--color-bg-base);
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+  background: var(--color-bg-overlay);
+  border-radius: var(--radius-full);
+}
+
+.settings-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-default);
+}
+
+/* ========================================
+   Footer
+   ======================================== */
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-component-md);
+  border-top: var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.settings-footer-left {
+  display: flex;
+  align-items: center;
+}
+
+.settings-reset-button {
+  padding: var(--space-component-sm) var(--space-component-md);
+  background: transparent;
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: var(--transition-all);
+}
+
+.settings-reset-button:hover {
+  background: var(--color-bg-overlay);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.settings-reset-button:active {
+  background: var(--color-bg-surface);
+  transform: scale(0.98);
+}
+
+/* ========================================
+   Form Elements (Shared by all tabs)
+   ======================================== */
+
+.settings-section {
+  margin-bottom: var(--space-layout-md);
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.settings-section-title {
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-component-md) 0;
+  padding-bottom: var(--space-component-sm);
+  border-bottom: var(--border-subtle);
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  margin-bottom: var(--space-component-lg);
+}
+
+.settings-label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.settings-description {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+.settings-select,
+.settings-input {
+  width: 100%;
+  padding: var(--space-component-sm) var(--space-component-md);
+  background: var(--color-bg-elevated);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body-sm);
+  font-family: var(--font-family-sans);
+  transition: var(--transition-all);
+}
+
+.settings-select:hover,
+.settings-input:hover {
+  border-color: var(--color-border-strong);
+}
+
+.settings-select:focus,
+.settings-input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.settings-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: var(--space-component-sm) 0;
+}
+
+.settings-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary-500);
+  cursor: pointer;
+}
+
+.settings-checkbox-label {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   Accessibility - Reduced Motion
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-panel {
+    animation-duration: 0.01ms !important;
+  }
+
+  .settings-tab,
+  .settings-close-button,
+  .settings-reset-button {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+@media (max-width: 768px) {
+  .settings-panel {
+    width: 100%;
+    left: 0;
+  }
+}

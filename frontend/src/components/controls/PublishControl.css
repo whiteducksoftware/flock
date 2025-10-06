@@ -1,0 +1,547 @@
+/* ========================================
+   PublishControl Panel Styles
+   Matching SettingsPanel Design
+   ======================================== */
+
+.publish-control-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  z-index: 1000;
+
+  /* Glassmorphism */
+  background: var(--color-glass-bg);
+  backdrop-filter: blur(var(--blur-lg));
+  border-left: var(--border-default);
+  box-shadow: var(--shadow-xl);
+
+  /* Animation */
+  animation: slideInRight var(--duration-slow) var(--ease-smooth);
+}
+
+.publish-control-panel-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ========================================
+   Header
+   ======================================== */
+
+.publish-control-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-layout-sm);
+  border-bottom: var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.publish-control-title {
+  /* Typography */
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.publish-control-close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition-all);
+}
+
+.publish-control-close-button:hover {
+  background: var(--color-bg-overlay);
+  color: var(--color-text-primary);
+}
+
+.publish-control-close-button:active {
+  background: var(--color-bg-surface);
+  transform: scale(0.95);
+}
+
+/* ========================================
+   Content Area
+   ======================================== */
+
+.publish-control-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-layout-sm);
+}
+
+/* Custom scrollbar */
+.publish-control-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.publish-control-content::-webkit-scrollbar-track {
+  background: var(--color-bg-base);
+}
+
+.publish-control-content::-webkit-scrollbar-thumb {
+  background: var(--color-bg-overlay);
+  border-radius: var(--radius-full);
+}
+
+.publish-control-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-default);
+}
+
+.publish-control__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-component-lg);
+}
+
+/* ========================================
+   Form Fields
+   ======================================== */
+
+.publish-control__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.publish-control__label {
+  /* Typography */
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+
+  /* Spacing */
+  margin: 0;
+}
+
+/* ========================================
+   Select Dropdown
+   ======================================== */
+
+.publish-control__select {
+  /* Layout */
+  width: 100%;
+  padding: var(--space-component-sm) var(--space-component-md);
+  padding-right: var(--spacing-8);
+  border-radius: var(--radius-md);
+
+  /* Typography */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-normal);
+
+  /* Colors */
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  border: var(--border-default);
+
+  /* Appearance */
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-3) center;
+
+  /* Effects */
+  cursor: pointer;
+  transition: var(--transition-colors), var(--transition-shadow);
+}
+
+.publish-control__select:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+.publish-control__select:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.publish-control__select:disabled {
+  background: var(--color-bg-base);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.publish-control__select--error {
+  border-color: var(--color-border-error);
+}
+
+.publish-control__select--error:focus {
+  box-shadow: var(--shadow-glow-error);
+}
+
+/* ========================================
+   Text Input
+   ======================================== */
+
+.publish-control__input {
+  /* Layout */
+  width: 100%;
+  padding: var(--space-component-sm) var(--space-component-md);
+  border-radius: var(--radius-md);
+
+  /* Typography */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-normal);
+
+  /* Colors */
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  border: var(--border-default);
+
+  /* Effects */
+  transition: var(--transition-colors), var(--transition-shadow);
+}
+
+.publish-control__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.publish-control__input:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+.publish-control__input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.publish-control__input:disabled {
+  background: var(--color-bg-base);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.publish-control__input--error {
+  border-color: var(--color-border-error);
+}
+
+.publish-control__input--error:focus {
+  box-shadow: var(--shadow-glow-error);
+}
+
+/* ========================================
+   Textarea
+   ======================================== */
+
+.publish-control__textarea {
+  /* Layout */
+  width: 100%;
+  padding: var(--space-component-sm) var(--space-component-md);
+  border-radius: var(--radius-md);
+  min-height: 180px;
+
+  /* Typography */
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-relaxed);
+
+  /* Colors */
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  border: var(--border-default);
+
+  /* Behavior */
+  resize: vertical;
+
+  /* Effects */
+  transition: var(--transition-colors), var(--transition-shadow);
+}
+
+.publish-control__textarea::placeholder {
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+}
+
+.publish-control__textarea:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+.publish-control__textarea:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.publish-control__textarea:disabled {
+  background: var(--color-bg-base);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.publish-control__textarea--error {
+  border-color: var(--color-border-error);
+}
+
+.publish-control__textarea--error:focus {
+  box-shadow: var(--shadow-glow-error);
+}
+
+/* ========================================
+   Checkbox
+   ======================================== */
+
+.publish-control__checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: var(--space-component-sm) 0;
+}
+
+.publish-control__checkbox {
+  /* Size */
+  width: 18px;
+  height: 18px;
+
+  /* Colors */
+  accent-color: var(--color-primary-500);
+
+  /* Effects */
+  cursor: pointer;
+  transition: var(--transition-colors);
+}
+
+.publish-control__checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.publish-control__checkbox:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.publish-control__checkbox-label {
+  /* Typography */
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+
+  /* Behavior */
+  cursor: pointer;
+  user-select: none;
+  margin: 0;
+}
+
+.publish-control__checkbox:disabled + .publish-control__checkbox-label {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ========================================
+   Submit Button
+   ======================================== */
+
+.publish-control__submit {
+  /* Layout */
+  width: 100%;
+  padding: var(--space-component-sm) var(--space-component-lg);
+  border-radius: var(--radius-md);
+  border: none;
+
+  /* Typography */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-normal);
+
+  /* Colors */
+  background: var(--color-primary-500);
+  color: var(--color-text-on-primary);
+
+  /* Effects */
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: var(--transition-colors), var(--transition-shadow);
+  user-select: none;
+}
+
+.publish-control__submit:hover:not(:disabled) {
+  background: var(--color-primary-600);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.publish-control__submit:active:not(:disabled) {
+  background: var(--color-primary-700);
+  box-shadow: var(--shadow-xs);
+  transform: translateY(0);
+}
+
+.publish-control__submit:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.publish-control__submit:disabled {
+  background: var(--color-bg-overlay);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  opacity: 0.6;
+}
+
+/* ========================================
+   Error Messages
+   ======================================== */
+
+.publish-control__error-text {
+  /* Typography */
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-normal);
+
+  /* Colors */
+  color: var(--color-error-light);
+
+  /* Spacing */
+  margin: 0;
+
+  /* Animation */
+  animation: slideDown var(--duration-fast) var(--ease-out);
+}
+
+/* ========================================
+   Success/Error Messages
+   ======================================== */
+
+.publish-control__message {
+  /* Layout */
+  padding: var(--space-component-md);
+  border-radius: var(--radius-md);
+
+  /* Typography */
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-normal);
+
+  /* Effects */
+  border: var(--border-width-1) solid;
+  animation: slideDown var(--duration-normal) var(--ease-out);
+}
+
+.publish-control__message--success {
+  background: var(--color-success-bg);
+  color: var(--color-success-light);
+  border-color: var(--color-success-border);
+}
+
+.publish-control__message--error {
+  background: var(--color-error-bg);
+  color: var(--color-error-light);
+  border-color: var(--color-error-border);
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   Hints and Helper Text
+   ======================================== */
+
+.publish-control__field-hint {
+  /* Typography */
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.publish-control__hint {
+  /* Typography */
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+
+  /* Spacing */
+  margin: 0;
+  padding: var(--space-component-md);
+
+  /* Visual */
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* ========================================
+   Accessibility - Reduced Motion
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .publish-control-panel {
+    animation-duration: 0.01ms !important;
+  }
+
+  .publish-control__submit,
+  .publish-control__select,
+  .publish-control__input,
+  .publish-control__textarea,
+  .publish-control__checkbox,
+  .publish-control__message,
+  .publish-control__error-text,
+  .publish-control-close-button {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .publish-control__submit:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+@media (max-width: 768px) {
+  .publish-control-panel {
+    width: 100%;
+    left: 0;
+  }
+}

@@ -1,0 +1,91 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.presetButtons {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
+}
+
+.presetButton {
+  padding: var(--spacing-2) var(--spacing-4);
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-family-sans);
+  transition: var(--transition-colors);
+  white-space: nowrap;
+}
+
+.presetButton:hover {
+  background-color: var(--color-bg-overlay);
+  border-color: var(--color-border-strong);
+}
+
+.presetButton.active {
+  background-color: var(--color-primary-600);
+  color: var(--color-text-on-primary);
+  border-color: var(--color-primary-600);
+}
+
+.presetButton.active:hover {
+  background-color: var(--color-primary-700);
+  border-color: var(--color-primary-700);
+}
+
+.customRange {
+  display: flex;
+  gap: var(--spacing-3);
+  align-items: center;
+  padding: var(--spacing-2);
+  background-color: var(--color-bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.dateInputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.dateLabel {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+}
+
+.dateInput {
+  padding: var(--spacing-1-5) var(--spacing-2);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body-sm);
+  font-family: var(--font-family-sans);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: var(--transition-colors), box-shadow var(--duration-normal) var(--ease-smooth);
+}
+
+.dateInput:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-glow-primary);
+}
+
+/* Custom styling for date input calendar icon */
+.dateInput::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.7);
+  transition: var(--transition-opacity);
+}
+
+.dateInput::-webkit-calendar-picker-indicator:hover {
+  filter: invert(1);
+}
