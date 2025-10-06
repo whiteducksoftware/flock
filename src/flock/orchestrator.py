@@ -331,7 +331,7 @@ class Flock:
         correlation_id: str | None = None,
         partition_key: str | None = None,
         tags: set[str] | None = None,
-        is_dashboard: bool = False
+        is_dashboard: bool = False,
     ) -> Artifact:
         """Publish an artifact to the blackboard (event-driven).
 

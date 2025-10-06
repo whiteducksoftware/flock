@@ -278,7 +278,9 @@ class DashboardHTTPService(BlackboardHTTPService):
                 correlation_id = str(uuid4())
 
                 # Publish to orchestrator
-                artifact = await orchestrator.publish(instance, correlation_id=correlation_id, is_dashboard=True)
+                artifact = await orchestrator.publish(
+                    instance, correlation_id=correlation_id, is_dashboard=True
+                )
 
                 # Phase 11 Fix: Emit message_published event for dashboard visibility
                 # This enables virtual "orchestrator" agent to appear in both Agent View and Blackboard View
