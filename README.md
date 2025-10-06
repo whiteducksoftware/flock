@@ -53,6 +53,10 @@ workflow.add_edge("agent_b", "agent_c")  # Predefined flow!
 
 ## The Blackboard Alternative: How Experts Actually Collaborate
 
+<p align="center">
+  <img alt="Flock Blackboard" src="docs/img/flock_ui_blackboard_view.png" width="600">
+</p>
+
 Watch a team of specialists solve a complex problem:
 
 1. **Radiologist** posts X-ray analysis on the whiteboard
@@ -515,6 +519,8 @@ curl -X POST http://localhost:8000/api/control/publish \
 ---
 
 ## 🚀 Enterprise Use Cases
+
+
 
 ### Financial Services: Real-Time Risk Monitoring
 
