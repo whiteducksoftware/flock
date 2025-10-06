@@ -14,18 +14,18 @@ loguru==0.7.3
     # via flock-flow (pyproject.toml)
 mcp==1.16.0
     # via flock-flow (pyproject.toml)
-opentelemetry-api==1.37.0
-    # via flock-flow (pyproject.toml)
+opentelemetry-api==1.30.0
+    # via flock-core (pyproject.toml)
 opentelemetry-exporter-jaeger==1.21.0
-    # via flock-flow (pyproject.toml)
+    # via flock-core (pyproject.toml)
 opentelemetry-exporter-jaeger-proto-grpc==1.21.0
-    # via flock-flow (pyproject.toml)
-opentelemetry-exporter-otlp==1.37.0
-    # via flock-flow (pyproject.toml)
-opentelemetry-instrumentation-logging==0.58b0
-    # via flock-flow (pyproject.toml)
-opentelemetry-sdk==1.37.0
-    # via flock-flow (pyproject.toml)
+    # via flock-core (pyproject.toml)
+opentelemetry-exporter-otlp==1.30.0
+    # via flock-core (pyproject.toml)
+opentelemetry-instrumentation-logging==0.51b0
+    # via flock-core (pyproject.toml)
+opentelemetry-sdk==1.30.0
+    # via flock-core (pyproject.toml)
 poethepoet==0.37.0
     # via flock-flow (pyproject.toml)
 pydantic==2.11.10
