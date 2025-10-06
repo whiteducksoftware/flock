@@ -1,0 +1,15 @@
+/* Import design system variables */
+@import './variables.css';
+
+/* Import themed scrollbar styles */
+@import './scrollbar.css';
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

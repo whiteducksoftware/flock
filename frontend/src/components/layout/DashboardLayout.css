@@ -1,0 +1,407 @@
+/* ========================================
+   Dashboard Layout - Premium Dark Theme
+   Uses design system from frontend/src/styles/variables.css
+   ======================================== */
+
+/* Layout Container */
+.dashboard-layout {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-base);
+  overflow: hidden;
+}
+
+/* ========================================
+   Header
+   ======================================== */
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-layout-md);
+  padding: var(--space-component-md) var(--space-layout-sm);
+  background: var(--color-bg-surface);
+  border-bottom: var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  z-index: 100;
+}
+
+.dashboard-title {
+  margin: 0;
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: var(--letter-spacing-tight);
+  white-space: nowrap;
+}
+
+/* ========================================
+   View Toggle - Premium Pill Design
+   ======================================== */
+
+.view-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  flex: 1;
+  justify-content: center;
+}
+
+.view-toggle-label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  font-size: var(--font-size-caption);
+}
+
+.view-toggle-group {
+  display: inline-flex;
+  background: var(--color-bg-elevated);
+  padding: var(--spacing-1);
+  border-radius: var(--radius-full);
+  border: var(--border-subtle);
+  box-shadow: var(--shadow-inner);
+  gap: var(--gap-xs);
+}
+
+.view-toggle-button {
+  position: relative;
+  padding: var(--space-component-sm) var(--space-component-lg);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: var(--transition-colors), var(--transition-transform);
+  white-space: nowrap;
+}
+
+.view-toggle-button:hover:not(.active) {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-overlay);
+}
+
+.view-toggle-button.active {
+  background: var(--color-primary-500);
+  color: var(--color-text-on-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.view-toggle-button:active {
+  transform: scale(0.98);
+}
+
+.view-toggle-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-glow-primary);
+}
+
+/* ========================================
+   Dashboard Actions
+   ======================================== */
+
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+}
+
+/* Icon Button - Subtle, Icon-based Clear Button */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: var(--spacing-2);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-colors), var(--transition-transform);
+}
+
+.icon-button:hover {
+  background: var(--color-bg-overlay);
+  color: var(--color-text-secondary);
+}
+
+.icon-button:active {
+  transform: scale(0.95);
+}
+
+.icon-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.help-button:hover {
+  color: var(--color-primary-500);
+  background: var(--color-primary-50);
+}
+
+.help-button:focus-visible {
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.clear-button:hover {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+}
+
+.clear-button:focus-visible {
+  box-shadow: var(--shadow-glow-error);
+}
+
+/* Controls Toggle - Elegant Premium Button */
+.controls-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: var(--space-component-sm) var(--space-component-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: var(--transition-colors), var(--transition-shadow), var(--transition-transform);
+  white-space: nowrap;
+}
+
+/* Primary variant - for important actions like Publish */
+.controls-toggle.primary {
+  background: var(--color-primary-500);
+  color: var(--color-text-on-primary);
+  border-color: var(--color-primary-500);
+  box-shadow: var(--shadow-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.controls-toggle.primary:hover {
+  background: var(--color-primary-600);
+  border-color: var(--color-primary-600);
+  box-shadow: var(--shadow-lg);
+}
+
+.controls-toggle.primary.active {
+  background: var(--color-primary-700);
+  border-color: var(--color-primary-700);
+}
+
+.controls-toggle:hover {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.controls-toggle.active {
+  background: var(--color-success);
+  color: var(--color-text-on-primary);
+  border-color: var(--color-success);
+  box-shadow: var(--shadow-sm);
+}
+
+.controls-toggle.active:hover {
+  background: var(--color-success-dark);
+  border-color: var(--color-success-dark);
+}
+
+.controls-toggle:active {
+  transform: scale(0.98);
+}
+
+.controls-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.controls-toggle.active:focus-visible {
+  box-shadow: var(--shadow-glow-success);
+}
+
+.controls-toggle svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  transition: var(--transition-transform);
+}
+
+.controls-toggle.active svg {
+  transform: rotate(45deg);
+}
+
+/* ========================================
+   Main Content Area
+   ======================================== */
+
+.dashboard-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.graph-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ========================================
+   Controls Sidebar - Premium Glassmorphism
+   ======================================== */
+
+.controls-sidebar {
+  width: 400px;
+  background: var(--color-glass-bg);
+  backdrop-filter: blur(var(--blur-lg));
+  -webkit-backdrop-filter: blur(var(--blur-lg));
+  border-left: var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+  animation: slideInRight var(--duration-slow) var(--ease-smooth);
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.controls-sidebar-inner {
+  padding: var(--space-layout-sm);
+}
+
+.controls-title {
+  margin: 0 0 var(--space-layout-sm) 0;
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.control-section {
+  margin-bottom: var(--space-layout-md);
+}
+
+.control-section-title {
+  margin: 0 0 var(--space-component-md) 0;
+  font-size: var(--font-size-h5);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+/* ========================================
+   Scrollbar Styling
+   ======================================== */
+
+.controls-sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.controls-sidebar::-webkit-scrollbar-track {
+  background: var(--color-bg-elevated);
+}
+
+.controls-sidebar::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-full);
+  transition: var(--transition-colors);
+}
+
+.controls-sidebar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+@media (max-width: 1024px) {
+  .dashboard-header {
+    flex-wrap: wrap;
+    gap: var(--gap-md);
+  }
+
+  .view-toggle-container {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .controls-sidebar {
+    width: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-title {
+    font-size: var(--font-size-h4);
+  }
+
+  .view-toggle-button {
+    padding: var(--spacing-2) var(--spacing-4);
+    font-size: var(--font-size-caption);
+  }
+
+  .controls-toggle span {
+    display: none;
+  }
+
+  .controls-sidebar {
+    width: 280px;
+  }
+}
+
+/* ========================================
+   Accessibility - Reduced Motion
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .controls-sidebar {
+    animation: none;
+  }
+
+  .view-toggle-button,
+  .icon-button,
+  .controls-toggle {
+    transition: none;
+  }
+
+  .controls-toggle svg {
+    transition: none;
+  }
+}
+
+/* ========================================
+   Print Styles
+   ======================================== */
+
+@media print {
+  .dashboard-header,
+  .controls-sidebar {
+    display: none;
+  }
+
+  .dashboard-main {
+    flex: 1;
+  }
+}

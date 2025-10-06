@@ -1,0 +1,29 @@
+.filterBar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-layout-sm);
+  padding: var(--space-layout-sm) var(--space-layout-md);
+  background-color: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.filterControls {
+  display: flex;
+  gap: var(--space-layout-sm);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.filterLabel {
+  font-size: var(--font-size-overline);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wider);
+}

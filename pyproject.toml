@@ -1,75 +1,73 @@
 [project]
-name = "flock-core"
-version = "0.5.0b28"
-description = "Declarative LLM Orchestration at Scale"
+name = "flock-flow"
+version = "0.1.20"
+description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "Andre Ratzenberger", email = "andre.ratzenberger@whiteduck.de" },
-]
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
+    { name = "Andre Ratzenberger", email = "andre.ratzenberger@whiteduck.de" }
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "cloudpickle>=3.1.1",
-    "devtools>=0.12.2",
-    "dspy>=3.0.0",
-    "fastapi>=0.115.8",
+    "dspy==3.0.0",
+    "litellm==1.75.3",
+    "fastapi>=0.117.1",
     "httpx>=0.28.1",
-    "litellm>=1.75.3",
-    "loguru>=0.7.3",
-    "mcp>=1.7.1",
-    "msgpack>=1.1.0",
+    "pydantic[email]>=2.11.9",
+    "rich>=14.1.0",
+    "typer>=0.19.2",
+    "uvicorn>=0.37.0",
     "opentelemetry-api>=1.30.0",
     "opentelemetry-exporter-jaeger>=1.21.0",
     "opentelemetry-exporter-jaeger-proto-grpc>=1.21.0",
     "opentelemetry-exporter-otlp>=1.30.0",
     "opentelemetry-instrumentation-logging>=0.51b0",
     "opentelemetry-sdk>=1.30.0",
-    "openai==1.75.0",
-    "pandas>=2.2.3",
-    "pillow>=10.4.0",
-    "prometheus-client>=0.21.1",
-    "psutil>=6.1.1",
-    "pydantic>=2.10.5",
-    "pydantic-settings>=2.7.1",
-    "python-box>=7.3.2",
-    "python-decouple>=3.8",
-    "python-dotenv>=1.0.1",
-    "pyyaml>=6.0",
-    "questionary>=2.1.0",
-    "rich>=13.7.0",
-    "temporalio>=1.9.0",
-    "thefuzz>=0.22.1",
-    "tiktoken>=0.8.0",
+    "loguru>=0.7.3",
+    "mcp>=1.7.1",
     "toml>=0.10.2",
-    "tqdm>=4.60.1",
-    "uvicorn>=0.29.0",
-    "aiosqlite>=0.21.0",
-    "markdown2>=2.5.3",
-    "wd-di>=0.2.14",
-    "websockets>=13.0.1",
-    "opik>=1.7.26",
-    "azure-data-tables>=12.7.0",
-    "croniter>=6.0.0",
-    "werkzeug>=3.1.3",
-    "chromadb>=0.6.3",
-    "datasets>=3.2.0",
-    "rouge-score>=0.1.2",
-    "sentence-transformers>=3.4.1",
-    "neo4j>=5.28.1",
-    "azure-storage-blob>=12.25.1",
-    "xlsxwriter>=3.2.3",
+    "poethepoet>=0.30.0",
+    "devtools>=0.12.2",
+    "websockets>=15.0.1",
 ]
 
-[project.optional-dependencies]
-memory = [
-    "zep-python>=2.0.2",
-    "mem0ai[graph]>=0.1.101",
-    "matplotlib>=3.10.0",
+[project.scripts]
+flock-flow = "flock_flow:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flock_flow"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/flock_flow"]
+omit = [
+    "tests/*",
+    "examples/*",
+    "*/themes/*",
+    "*/__pycache__/*",
+    "*/logging/*",
+    "*/utilities.py"
 ]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstract",
+]
+precision = 2
+show_missing = true
 
 [dependency-groups]
 dev = [
@@ -79,7 +77,6 @@ dev = [
     "pytest-sugar>=1.0.0",
     "ruff>=0.7.2",
     "pytest-asyncio>=0.24.0",
-    "poethepoet>=0.30.0",
     "pytest-mock>=3.14.0",
     "httpx>=0.28.1",
     "respx>=0.22.0",
@@ -87,78 +84,8 @@ dev = [
     "mkdocs-material>=9.6.3",
     "mkdocstrings[python]>=0.28.0",
     "mypy>=1.15.0",
-]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/flock"]
-
-[project.scripts]
-flock = "flock:main"
-
-
-[tool.ruff]
-cache-dir = ".cache/ruff"
-line-length = 80
-
-## formatting
-format.quote-style = "double"
-format.indent-style = "space"
-format.skip-magic-trailing-comma = false
-format.line-ending = "auto"
-format.docstring-code-format = true
-format.docstring-code-line-length = "dynamic"
-## linting
-lint.select = [
-    'D',   #pydocstyle
-    'E',
-    'W',   # pycodestyle
-    'F',   #pyflakes
-    'I',   # sort imports
-    'UP',  #pyupgrade
-    "RUF", # ruff dev's own rules
-    "SIM", # pyflakes simplicity
-    "C90", # more complexity rules
-]
-lint.ignore = ["E203", "E266", "E501", "F541", "D417"]
-lint.exclude = ["logs/", "data/", "tests/", "docs/", "dump/"]
-lint.pydocstyle.convention = "google"
-lint.isort.combine-as-imports = true
-include = ["src/"]
-exclude = [
-    "logs/",
-    "data/",
-    "tests/",
-    "docs/",
-    "src/templates/",
-    "dump/",
-    "src/frontend/",
-    "examples/",
-]
-
-[tool.pytest.ini_options]
-addopts = " -v"
-minversion = "6.0"
-python_files = "test_*.py"
-python_classes = "Test"
-python_functions = "test"
-verbosity_test_cases = 2
-testpaths = ["tests"]
-asyncio_mode = "strict"
-asyncio_default_fixture_loop_scope = "function"
-markers = [
-    "p0: must-have, fast, deterministic",
-    "integration: cross-module/local engine/web api smoke",
-    "temporal: temporal integration tests (opt-in)",
-    "mcp: MCP integration tests (opt-in)",
-    "web: extended UI tests (opt-in)",
-    "otel: telemetry span tests (opt-in)",
-    "perf: performance baselines (non-blocking)",
-    "slow: slow tests",
-    "network: requires network access",
+    "pre-commit>=4.3.0",
+    "bandit[toml]>=1.8.6",
 ]
 
 
@@ -166,34 +93,318 @@ markers = [
 _sync = "uv sync --dev --all-groups --all-extras"
 _build = "uv build"
 _install = "uv pip install -e ."
-_init = ["_ensure-uv", "_sync-submodules"]
+_init = ["_ensure-uv"]
 _ensure-uv = "python scripts/ensure_uv.py"
-_sync-submodules = "git submodule update --init --recursive"
 _docs-serve = "mkdocs serve"
 _docs-build = "mkdocs build"
-install-showcase = "uv pip install -r examples/requirements.txt"
-update-showcase = "git submodule update --remote examples"
 
-
-install = ["_init", "build", "update-showcase", "install-showcase"]
+install = ["_init", "build"]
 build = ["_sync", "_build", "_install"]
-collect-code = "python scripts/code_collector.py"
-lint = "ruff check src/flock/* tests/*"
-format = "ruff format src/flock/* tests/*"
+lint = "ruff check src/flock_flow/"
+format = "ruff format src/flock_flow/"
 docs = ["_docs-build", "_docs-serve"]
 
-# Testing tasks
-test = "uv run pytest -q -m 'p0 or (integration and not otel)' --cov=flock.core.flock --cov=flock.core.flock_agent --cov=flock.core.registry --cov=flock.core.context --cov=flock.core.orchestration.flock_execution --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under=80"
-test-all = "uv run pytest -m 'p0 or integration or temporal or mcp or web or perf'"
+# Testing tasks (Constitutional compliance: 75%+ overall, 100% critical paths)
+test = "uv run pytest -v"
+test-cov = "uv run pytest --cov=src/flock_flow --cov-branch --cov-report=term-missing --cov-report=html"
+test-cov-fail = "uv run pytest --cov=src/flock_flow --cov-branch --cov-report=term --cov-fail-under=75"
+test-critical = "uv run pytest tests/test_orchestrator.py tests/test_subscription.py tests/test_visibility.py tests/test_agent.py --cov=flock_flow.orchestrator --cov=flock_flow.subscription --cov=flock_flow.visibility --cov=flock_flow.agent --cov-fail-under=100"
+test-watch = "uv run pytest --watch"
+test-determinism = "for i in {1..10}; do uv run pytest -q || exit 1; done"
 
+# Version management tasks (smart bumping based on changed files)
+version-patch = "python scripts/bump_version.py patch"
+version-minor = "python scripts/bump_version.py minor"
+version-major = "python scripts/bump_version.py major"
+version-check = "python scripts/bump_version.py patch --check"
 
 [tool.poe.tasks.clean]
 script = "poethepoet.scripts:rm('dist', 'htmlcov', 'logs','metrics','.mypy_cache', '.pytest_cache', './**/__pycache__')"
 
-[tool.uv.sources]
-torch = { index = "pytorch" }
+# ============================================================================
+# Bandit Configuration - Security linting
+# ============================================================================
+[tool.bandit]
+exclude_dirs = ["tests/", "examples/"]
+skips = ["B113"]  # Skip "request without timeout" (acceptable in tests)
 
-[[tool.uv.index]]
-name = "pytorch"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
+# ============================================================================
+# Ruff Configuration - Production-grade linting and formatting
+# ============================================================================
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+indent-width = 4
+
+# Exclude build artifacts, caches, and generated files
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "dist",
+    "build",
+    "htmlcov",
+    "logs",
+    "metrics",
+    "*.egg-info",
+    "frontend/",
+    "docs/",
+]
+
+[tool.ruff.lint]
+# Enable comprehensive rule sets for production code
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort (import sorting)
+    "N",      # pep8-naming
+    "UP",     # pyupgrade (modernize Python code)
+    "YTT",    # flake8-2020 (misuse of sys.version)
+    "ASYNC",  # flake8-async (async/await best practices)
+    "BLE",    # flake8-blind-except
+    "B",      # flake8-bugbear (common bugs)
+    "A",      # flake8-builtins
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez (timezone awareness)
+    "T10",    # flake8-debugger
+    "EXE",    # flake8-executable
+    "ISC",    # flake8-implicit-str-concat
+    "ICN",    # flake8-import-conventions
+    "G",      # flake8-logging-format
+    "PIE",    # flake8-pie (misc lints)
+    "PYI",    # flake8-pyi (type stub files)
+    "PT",     # flake8-pytest-style
+    "Q",      # flake8-quotes
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "SLF",    # flake8-self (private member access)
+    "SIM",    # flake8-simplify
+    "TID",    # flake8-tidy-imports
+    "TCH",    # flake8-type-checking
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented out code)
+    "PL",     # pylint
+    "TRY",    # tryceratops (exception handling)
+    "RUF",    # ruff-specific rules
+]
+
+# Rules to ignore or customize
+ignore = [
+    "E501",    # line-too-long (handled by formatter)
+    "PLR0913", # too-many-arguments (common in configs/APIs)
+    "PLR2004", # magic-value-comparison (overly strict)
+    "PLR0915", # too-many-statements (complex logic is acceptable)
+    "PLR0912", # too-many-branches (complex logic is acceptable)
+    "TRY003",  # raise-vanilla-args (too strict for app code)
+    "TRY300",  # try-consider-else (overly pedantic)
+    "TRY002",  # raise-vanilla-exception (acceptable patterns)
+    "TRY301",  # raise-within-try (acceptable error handling)
+    "TRY401",  # verbose-log-message (detailed logging is good)
+    "ISC001",  # single-line-implicit-string-concatenation (conflicts with formatter)
+    "G004",    # logging-f-string (f-strings are fine in modern Python)
+    "G201",    # logging-exception-exc-info (both patterns acceptable)
+    "PLC0415", # import-outside-top-level (lazy imports for performance)
+    "N817",    # camelcase-imported-as-acronym (common abbreviations)
+    "ERA001",  # commented-out-code (intentional architecture comments)
+    "BLE001",  # blind-except (acceptable with proper logging)
+    "B904",    # raise-without-from-inside-except (acceptable patterns)
+    "N806",    # non-lowercase-variable-in-function (acceptable for type vars)
+    "ARG001",  # unused-function-argument (callbacks, hooks)
+    "ARG002",  # unused-method-argument (hook/plugin signatures)
+    "PTH123",  # builtin-open (pathlib not always better)
+    "E402",    # module-import-not-at-top-of-file (conditional imports)
+    "SLF001",  # private-member-access (acceptable for framework code)
+    "A002",    # builtin-argument-shadowing (acceptable in limited contexts)
+    "PLW0603", # global-statement (acceptable for singletons)
+    "PLW2901", # redefined-loop-name (acceptable patterns)
+    "SIM105",  # suppressible-exception (explicit is better)
+    "SIM108",  # if-else-block-instead-of-if-exp (clarity over terseness)
+    "SIM113",  # enumerate-for-loop (not always clearer)
+    "SIM117",  # multiple-with-statements (acceptable)
+    "SIM118",  # in-dict-keys (acceptable)
+    "TC001",   # typing-only-first-party-import (acceptable)
+    "TC003",   # typing-only-standard-library-import (acceptable)
+    "UP007",   # non-pep604-annotation (Python 3.10 compatibility)
+    "RUF002",  # ambiguous-unicode-character-docstring (acceptable)
+    "RUF003",  # ambiguous-unicode-character-comment (acceptable)
+    "RUF012",  # mutable-class-default (acceptable for singletons)
+    "RUF100",  # unused-noqa (acceptable during refactoring)
+    "EXE001",  # shebang-not-executable (scripts not meant to be run)
+    "PLW0602", # global-variable-not-assigned (read-only global access)
+    "PLC0206", # dict-iter-missing-items (explicit iteration is clear)
+    "B008",    # function-call-in-default-argument (acceptable patterns)
+    "ARG003",  # unused-class-method-argument (protocol/interface methods)
+    "DTZ003",  # datetime-without-timezone (acceptable in tests/internals)
+]
+
+# Allow autofix for safe rules
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when prefixed with underscore
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use private members, assert statements, magic values
+"tests/**/*.py" = [
+    "S101",    # assert-used
+    "PLR2004", # magic-value-comparison
+    "PLR0912", # too-many-branches (acceptable in tests)
+    "SLF001",  # private-member-access
+    "ARG001",  # unused-function-argument (fixtures)
+    "ARG002",  # unused-method-argument (mock methods)
+    "ARG005",  # unused-lambda-argument (test lambdas)
+    "PT011",   # pytest-raises-too-broad
+    "E402",    # module-import-not-at-top-of-file (test setup)
+    "F841",    # unused-variable (test fixtures)
+    "B904",    # raise-without-from-inside-except (test error handling)
+    "TRY301",  # raise-within-try (acceptable in tests)
+    "TRY401",  # verbose-log-message (detailed test logging)
+    "PTH123",  # builtin-open (pathlib not required in tests)
+    "E721",    # type-comparison (acceptable in type tests)
+    "A002",    # builtin-argument-shadowing (common in test params)
+    "SIM105",  # suppressible-exception (acceptable test patterns)
+    "SIM108",  # if-else-block-instead-of-if-exp (clarity in tests)
+    "SIM113",  # enumerate-for-loop (acceptable test patterns)
+    "PLW0603", # global-statement (acceptable in test setup)
+    "RUF059",  # asyncio-dangling-task (acceptable in async tests)
+    "PT017",   # pytest-assert-in-except (acceptable pattern)
+    "RUF043",  # regex-match-unescaped-metacharacters (acceptable in tests)
+    "B018",    # useless-expression (acceptable in chained builder tests)
+    "PT012",   # pytest-raises-too-broad-multiple-statements (acceptable)
+    "E741",    # ambiguous-variable-name (acceptable short vars in tests)
+    "PLE1205", # too-many-format-args (testing error cases)
+    "F811",    # redefined-unused-name (fixture overrides)
+    "PT015",   # pytest-fail-without-message (assert False is clear)
+    "B011",    # assert-false (acceptable in test error paths)
+    "RSE102",  # unnecessary-paren-on-raise-exception (acceptable)
+]
+
+# Examples can be less strict
+"examples/**/*.py" = [
+    "T201",    # print-used
+    "ARG001",  # unused-function-argument
+    "PLR2004", # magic-value-comparison
+]
+
+# Init files can re-export
+"__init__.py" = [
+    "F401",    # unused-import
+    "E402",    # module-import-not-at-top-of-file
+]
+
+[tool.ruff.lint.isort]
+# Configure import sorting to match project structure
+known-first-party = ["flock_flow"]
+force-single-line = false
+lines-after-imports = 2
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.mccabe]
+# Max cyclomatic complexity
+max-complexity = 10
+
+[tool.ruff.lint.pydocstyle]
+# Use Google-style docstrings
+convention = "google"
+
+[tool.ruff.format]
+# Formatting rules (Black-compatible)
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# ============================================================================
+# MyPy Configuration - Strict type checking for production code
+# ============================================================================
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+extra_checks = true
+check_untyped_defs = true
+disallow_untyped_decorators = false  # Needed for FastAPI/Pydantic decorators
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = false       # Too strict for third-party libs
+disallow_incomplete_defs = false     # Gradual typing - allow incomplete defs
+disallow_untyped_defs = false        # Gradual typing - allow untyped defs
+no_implicit_reexport = true
+strict_optional = true
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+
+# Platform configuration
+platform = "linux"
+
+# Exclude patterns
+exclude = [
+    "^frontend/",
+    "^docs/",
+    "^build/",
+    "^dist/",
+]
+
+# Plugin support for Pydantic
+plugins = [
+    "pydantic.mypy"
+]
+
+# Per-module configurations
+[[tool.mypy.overrides]]
+# Third-party libraries without stubs
+module = [
+    "dspy.*",
+    "litellm.*",
+    "mcp.*",
+    "opentelemetry.*",
+    "loguru.*",
+    "devtools.*",
+    "toml.*",
+    "fastapi.*",
+    "rich.*",
+    "typer.*",
+    "uvicorn.*",
+    "httpx.*",
+    "websockets.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Tests can be less strict
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+
+[[tool.mypy.overrides]]
+# Examples can be less strict
+module = "examples.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+
+[tool.pydantic-mypy]
+# Pydantic mypy plugin configuration
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
