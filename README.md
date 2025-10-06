@@ -353,6 +353,10 @@ await orchestrator.run_until_idle()  # Waits for all agents
 
 ## 🔥 What You Get With Flock 0.5
 
+<p align="center">
+  <img alt="Flock Banner" src="docs/img/flock_ui_agent_view.png" width="1000">
+</p>
+
 ### ✅ Production Safety Built-In
 
 ```python
