@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="Flock Banner" src="https://raw.githubusercontent.com/whiteducksoftware/flock/master/docs/assets/images/flock.png" width="600">
+  <img alt="Flock Banner" src="https://raw.githubusercontent.com/whiteducksoftware/flock/master/docs/assets/images/flock.png" width="800">
 </p>
 <p align="center">
   <a href="https://pypi.org/project/flock-core/" target="_blank"><img alt="PyPI Version" src="https://img.shields.io/pypi/v/flock-core?style=for-the-badge&logo=pypi&label=pip%20version"></a>
@@ -73,7 +73,7 @@ pizza_master = (
 **Hard-binding type contracts will even work with GPT-4729.**
 
 <p align="center">
-  <img alt="Flock Blackboard" src="docs/img/pizza.png" width="600">
+  <img alt="Flock Blackboard" src="docs/img/pizza.png" width="1000">
 </p>
 
 ### ✅ Key Advantages
@@ -125,7 +125,7 @@ workflow.add_edge("agent_b", "agent_c")  # Predefined flow!
 ### The Blackboard Alternative: How Experts Actually Collaborate
 
 <p align="center">
-  <img alt="Flock Blackboard" src="docs/img/flock_ui_blackboard_view.png" width="600">
+  <img alt="Flock Blackboard" src="docs/img/flock_ui_blackboard_view.png" width="1000">
 </p>
 
 Watch a team of specialists solve a complex problem:
@@ -352,6 +352,10 @@ await orchestrator.run_until_idle()  # Waits for all agents
 ---
 
 ## 🔥 What You Get With Flock 0.5
+
+<p align="center">
+  <img alt="Flock Banner" src="docs/img/flock_ui_agent_view.png" width="1000">
+</p>
 
 ### ✅ Production Safety Built-In
 
