@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 # Frontend directory location (adjacent to this dashboard package)
-FRONTEND_DIR = Path(__file__).parent.parent.parent.parent / "frontend"
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 
 class DashboardLauncher:

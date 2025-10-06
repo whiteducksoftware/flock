@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.0b50"
+version = "0.5.0b51"
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -38,7 +38,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/flock"]
+packages = ["src/flock","frontend/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
