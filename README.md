@@ -635,6 +635,10 @@ Flock includes **production-ready distributed tracing** powered by OpenTelemetry
 
 **Why DuckDB?** It's a columnar analytical database **10-100x faster than SQLite** for trace analytics. No external services, no Docker—just a single embedded database file.
 
+> **📊 Production Status**: 85% Production-Ready | [View Assessment](docs/TRACING_PRODUCTION_READINESS.md)
+>
+> ✅ Complete architecture • ✅ Zero-config storage • ✅ Comprehensive UI • ⚠️ Add auth before production
+
 ### Enable Tracing
 
 ```bash
@@ -673,14 +677,22 @@ export FLOCK_TRACE_IGNORE='["DashboardEventCollector.set_websocket_manager"]'
   <img alt="Trace Viewer" src="docs/img/trace_viewer.png" width="1000">
 </p>
 
-The dashboard includes a **Jaeger-style trace viewer** with:
+The dashboard includes a **production-ready trace viewer** with **7 powerful view modes**:
 
-- **Timeline View**: Waterfall visualization of span hierarchies
-- **Statistics View**: Tabular view with durations and status codes
-- **Full I/O Capture**: Complete input/output data for every operation
-- **JSON Viewer**: Collapsible, syntax-highlighted JSON with expand/collapse all
-- **Service Colors**: Visual distinction between services
+- 📅 **Timeline**: Waterfall visualization showing execution flow and span hierarchies
+- 📊 **Statistics**: Sortable table view with durations, span counts, and error tracking
+- 🔴 **RED Metrics**: Rate, Errors, Duration monitoring for service health
+- 🔗 **Dependencies**: Service-to-service communication with operation-level drill-down
+- 🗄️ **DuckDB SQL**: Interactive SQL query editor with CSV export for custom analytics
+- ⚙️ **Configuration**: Real-time service/operation filtering without restarts
+- 📚 **Guide**: Built-in documentation and query examples
+
+**Additional Features:**
+- **Smart Sorting**: Sort traces by date, span count, or duration with visual indicators
+- **CSV Export**: Download query results for offline analysis and reporting
+- **Maximize Mode**: Full-screen view for deep data exploration
 - **Multi-Trace Support**: Open and compare multiple traces simultaneously
+- **Full I/O Capture**: Complete input/output data with collapsible JSON viewer
 
 ### AI-Powered Debugging
 

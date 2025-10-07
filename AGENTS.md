@@ -1097,6 +1097,92 @@ python examples/showcase/01_declarative_pizza.py
 # Traces stored in: .flock/traces.duckdb
 ```
 
+### 🆕 Unified Tracing with traced_run()
+
+**New in v0.5.0**: Wrap entire workflows in a single parent trace for better observability!
+
+**The Problem**: By default, each top-level operation (`publish()`, `run_until_idle()`) creates separate root traces, making it difficult to see the complete workflow.
+
+**The Solution**: Use `traced_run()` context manager to group all operations under one parent trace:
+
+```python
+# ❌ Before: Separate traces
+await flock.publish(pizza_idea)      # ← Trace 1
+await flock.run_until_idle()         # ← Trace 2
+
+# ✅ After: Unified trace
+async with flock.traced_run("pizza_workflow"):
+    await flock.publish(pizza_idea)  # ← Part of "pizza_workflow"
+    await flock.run_until_idle()     # ← Part of "pizza_workflow"
+```
+
+**Result**: Single trace with proper hierarchy:
+```
+pizza_workflow (5319ms) ← ROOT
+├─ Flock.publish (3ms)
+│  └─ Agent.execute (5218ms)
+└─ Flock.run_until_idle (5268ms)
+```
+
+**Key Features**:
+- ✅ Single `trace_id` for entire workflow
+- ✅ Proper parent-child span hierarchy
+- ✅ Custom workflow names
+- ✅ Add custom attributes
+- ✅ Nested workflow support
+- ✅ 100% backward compatible (opt-in)
+
+**Advanced Usage**:
+```python
+# Custom attributes
+async with flock.traced_run("ml_pipeline") as span:
+    span.set_attribute("pipeline.version", "2.0")
+    span.set_attribute("dataset.size", 10000)
+    await flock.publish(training_data)
+    await flock.run_until_idle()
+
+# Nested workflows
+async with flock.traced_run("outer_workflow"):
+    await flock.publish(data)
+    async with flock.traced_run("inner_task"):
+        await flock.publish(sub_data)
+        await flock.run_until_idle()
+    await flock.run_until_idle()
+```
+
+📖 **Full documentation**: [docs/UNIFIED_TRACING.md](docs/UNIFIED_TRACING.md)
+
+### 🗑️ Clearing Traces
+
+Clear trace database for fresh debug sessions:
+
+```python
+# Clear all traces
+result = Flock.clear_traces()
+print(f"Deleted {result['deleted_count']} spans")
+
+# Custom database path
+result = Flock.clear_traces(".flock/custom_traces.duckdb")
+
+# Check success
+if result['success']:
+    print("✅ Traces cleared!")
+else:
+    print(f"❌ Error: {result['error']}")
+```
+
+**What it does**:
+- Deletes all spans from DuckDB
+- Runs VACUUM to reclaim disk space
+- Preserves table schema
+- Returns detailed operation result
+
+**Use cases**:
+- Resetting debug sessions
+- Cleaning up test data
+- Reducing database file size
+- Starting fresh trace analysis
+
 ### Filtering: Control What Gets Traced
 
 **Important:** Use filtering to avoid tracing noisy operations (especially streaming tokens) which can cause performance issues.
@@ -1530,6 +1616,20 @@ cd frontend && npm test -- test_name
 await orchestrator.serve(dashboard=True)
 ```
 
+### Q: How do I use unified tracing?
+
+```python
+# Wrap workflows in a single trace
+async with flock.traced_run("workflow_name"):
+    await flock.publish(data)
+    await flock.run_until_idle()
+
+# Clear traces for fresh debug session
+result = Flock.clear_traces()
+```
+
+See [docs/UNIFIED_TRACING.md](docs/UNIFIED_TRACING.md) for complete guide.
+
 ### Q: Where should I add new tests?
 
 Add to existing test file if relevant, or create new file following naming convention `test_<module>.py` for backend, `<name>.test.tsx` for frontend.
@@ -1595,6 +1695,17 @@ agent = (
 await orchestrator.arun(agent, input_data)
 ```
 
+**Unified tracing:**
+```python
+# Wrap workflow in single trace
+async with flock.traced_run("workflow_name"):
+    await flock.publish(data)
+    await flock.run_until_idle()
+
+# Clear traces
+Flock.clear_traces()
+```
+
 **Start dashboard:**
 ```python
 await orchestrator.serve(dashboard=True)
@@ -1610,6 +1721,7 @@ await orchestrator.serve(dashboard=True)
 - **Versioning Guide:** [`docs/VERSIONING.md`](docs/VERSIONING.md) - Smart version bumping
 - **Pre-commit Hooks:** [`docs/PRE_COMMIT_HOOKS.md`](docs/PRE_COMMIT_HOOKS.md) - Quality automation
 - **Architecture:** [`docs/patterns/core-architecture.md`](docs/patterns/core-architecture.md)
+- **Unified Tracing:** [`docs/UNIFIED_TRACING.md`](docs/UNIFIED_TRACING.md) - Workflow tracing & trace management
 - **Examples:** [`examples/`](examples/) - Working code examples
 - **Analysis Documents:** [`docs/patterns/`](docs/patterns/)
 
@@ -1619,5 +1731,5 @@ await orchestrator.serve(dashboard=True)
 
 ---
 
-*Last updated: October 5, 2025*
+*Last updated: October 7, 2025*
 *This file follows the modern AGENTS.md format for AI coding agents.*

@@ -7,8 +7,20 @@ AZURE_API_VERSION="2024-12-01-preview"
 # ============================================================================
 
 # Enable auto-tracing for all agents and operations
-# Set to "true" to enable tracing (stores in .flock/traces.duckdb)
+# Set to "true" to enable OpenTelemetry distributed tracing
+# Traces are stored in DuckDB for fast analytical queries
+FLOCK_AUTO_TRACE=true
+
+# Store traces in DuckDB database (recommended for production)
+# Creates .flock/traces.duckdb with full input/output capture
+# Set to "true" to enable DuckDB storage
 FLOCK_TRACE_FILE=true
+
+# 🆕 Unified Workflow Tracing (v0.5.0+)
+# Automatically wrap operations in workflow traces for better observability
+# When disabled (default), use explicit `async with flock.traced_run("name")`
+# Set to "true" to enable automatic workflow trace detection
+# FLOCK_AUTO_WORKFLOW_TRACE=true
 
 # Filter: Trace only specific services (whitelist)
 # Format: JSON array of service names (case-insensitive)
@@ -29,5 +41,28 @@ FLOCK_TRACE_IGNORE=["DashboardEventCollector.set_websocket_manager"]
 # Set to empty or comment out to keep traces forever
 # Example: FLOCK_TRACE_TTL_DAYS=30
 FLOCK_TRACE_TTL_DAYS=30
+
+# ============================================================================
+# Unified Tracing Usage (Code-based approach - RECOMMENDED)
+# ============================================================================
+#
+# Instead of using FLOCK_AUTO_WORKFLOW_TRACE, use explicit traced_run():
+#
+#   async with flock.traced_run("workflow_name"):
+#       await flock.publish(data)
+#       await flock.run_until_idle()
+#
+# Benefits:
+#   ✅ Single trace for entire workflow (all operations share trace_id)
+#   ✅ Proper parent-child span hierarchy
+#   ✅ Custom workflow names for better organization
+#   ✅ Add custom attributes: span.set_attribute("key", "value")
+#   ✅ Nested workflow support
+#
+# Clearing traces for fresh debug sessions:
+#   result = Flock.clear_traces()  # Deletes all spans, runs VACUUM
+#
+# See docs/UNIFIED_TRACING.md for complete guide
+# ============================================================================
 
 OPENAI_API_KEY=xxx

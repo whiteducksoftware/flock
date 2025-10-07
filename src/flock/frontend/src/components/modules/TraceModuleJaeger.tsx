@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ModuleContext } from './ModuleRegistry';
 import JsonAttributeRenderer from './JsonAttributeRenderer';
+import TracingSettings from '../settings/TracingSettings';
 
 interface Span {
   name: string;
@@ -67,7 +68,7 @@ interface DependencyEdge {
   operations: Map<string, OperationMetrics>; // parent.operation -> child.operation
 }
 
-type ViewMode = 'timeline' | 'statistics' | 'metrics' | 'dependencies';
+type ViewMode = 'timeline' | 'statistics' | 'metrics' | 'dependencies' | 'sql' | 'configuration' | 'guide';
 
 const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
   const [traces, setTraces] = useState<Span[]>([]);
@@ -81,8 +82,49 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
   const [focusedSpanId, setFocusedSpanId] = useState<string | null>(null);
   const [expandedDeps, setExpandedDeps] = useState<Set<string>>(new Set());
 
+  // SQL query state
+  const [sqlQuery, setSqlQuery] = useState('SELECT * FROM spans LIMIT 10');
+  const [sqlResults, setSqlResults] = useState<any[] | null>(null);
+  const [sqlColumns, setSqlColumns] = useState<string[]>([]);
+  const [sqlLoading, setSqlLoading] = useState(false);
+  const [sqlError, setSqlError] = useState<string | null>(null);
+
+  // Sort state for timeline/statistics
+  type SortField = 'date' | 'spans' | 'duration';
+  type SortOrder = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc'); // newest first by default
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastTraceCountRef = useRef<number>(0);
+
+  // Execute SQL query
+  const executeSqlQuery = async () => {
+    setSqlLoading(true);
+    setSqlError(null);
+    try {
+      const response = await fetch('/api/traces/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sqlQuery }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Query failed');
+      }
+
+      const data = await response.json();
+      setSqlResults(data.results);
+      setSqlColumns(data.columns);
+    } catch (err) {
+      setSqlError(err instanceof Error ? err.message : 'Unknown error');
+      setSqlResults(null);
+      setSqlColumns([]);
+    } finally {
+      setSqlLoading(false);
+    }
+  };
 
   // Service colors - assign consistent colors per service or span type
   const serviceColors = useMemo(() => {
@@ -216,8 +258,25 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
       );
     }
 
-    return result.sort((a, b) => b.startTime - a.startTime);
-  }, [traceGroups, searchQuery]);
+    // Apply sorting
+    return [...result].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'date':
+          comparison = a.startTime - b.startTime;
+          break;
+        case 'spans':
+          comparison = a.spanCount - b.spanCount;
+          break;
+        case 'duration':
+          comparison = a.duration - b.duration;
+          break;
+      }
+
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [traceGroups, searchQuery, sortField, sortOrder]);
 
   // Calculate RED metrics per service
   const serviceMetrics = useMemo<ServiceMetrics[]>(() => {
@@ -760,30 +819,16 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
       flexDirection: 'column',
       background: 'var(--color-bg-surface)',
     }}>
+      {/* Two-row header */}
       <div style={{
         padding: 'var(--space-component-md)',
         borderBottom: '1px solid var(--color-border-subtle)',
         display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--gap-md)',
+        flexDirection: 'column',
+        gap: 'var(--gap-sm)',
       }}>
-        <input
-          type="text"
-          placeholder="🔎 Find traces (Jaeger style)"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{
-            flex: 1,
-            padding: 'var(--space-component-sm)',
-            border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--color-bg-base)',
-            color: 'var(--color-text-primary)',
-            fontSize: 'var(--font-size-body-sm)',
-          }}
-        />
-
-        <div style={{ display: 'flex', gap: '8px' }}>
+        {/* Row 1: View mode buttons */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
             onClick={() => setViewMode('timeline')}
             style={{
@@ -797,7 +842,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            Timeline
+            📅 Timeline
           </button>
           <button
             onClick={() => setViewMode('statistics')}
@@ -812,7 +857,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            Statistics
+            📊 Statistics
           </button>
           <button
             onClick={() => setViewMode('metrics')}
@@ -827,7 +872,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            RED Metrics
+            🔴 RED Metrics
           </button>
           <button
             onClick={() => setViewMode('dependencies')}
@@ -842,16 +887,132 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            Dependencies
+            🔗 Dependencies
           </button>
+          <button
+            onClick={() => setViewMode('sql')}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              background: viewMode === 'sql' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
+              color: viewMode === 'sql' ? 'white' : 'var(--color-text-primary)',
+              fontSize: 'var(--font-size-body-sm)',
+              cursor: 'pointer',
+              fontWeight: 'var(--font-weight-medium)',
+            }}
+          >
+            🗄️ DuckDB SQL
+          </button>
+          <button
+            onClick={() => setViewMode('configuration')}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              background: viewMode === 'configuration' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
+              color: viewMode === 'configuration' ? 'white' : 'var(--color-text-primary)',
+              fontSize: 'var(--font-size-body-sm)',
+              cursor: 'pointer',
+              fontWeight: 'var(--font-weight-medium)',
+            }}
+          >
+            ⚙️ Configuration
+          </button>
+          <button
+            onClick={() => setViewMode('guide')}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              background: viewMode === 'guide' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
+              color: viewMode === 'guide' ? 'white' : 'var(--color-text-primary)',
+              fontSize: 'var(--font-size-body-sm)',
+              cursor: 'pointer',
+              fontWeight: 'var(--font-weight-medium)',
+            }}
+          >
+            📚 Guide
+          </button>
+
+          {/* Trace count */}
+          {(viewMode === 'timeline' || viewMode === 'statistics') && (
+            <div style={{
+              fontSize: 'var(--font-size-body-xs)',
+              color: 'var(--color-text-secondary)',
+              marginLeft: 'auto',
+            }}>
+              {filteredTraces.length} trace{filteredTraces.length !== 1 ? 's' : ''}
+            </div>
+          )}
         </div>
 
+        {/* Row 2: Search box */}
+        <input
+          type="text"
+          placeholder="🔎 Find traces (Jaeger style) - Search by service, operation, trace ID, correlation ID, or error"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: '100%',
+            padding: 'var(--space-component-sm)',
+            border: '1px solid var(--color-border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--color-bg-base)',
+            color: 'var(--color-text-primary)',
+            fontSize: 'var(--font-size-body-sm)',
+          }}
+        />
+
+        {/* Sort buttons for Timeline and Statistics */}
         {(viewMode === 'timeline' || viewMode === 'statistics') && (
           <div style={{
+            display: 'flex',
+            gap: 'var(--gap-xs)',
+            alignItems: 'center',
             fontSize: 'var(--font-size-body-xs)',
-            color: 'var(--color-text-secondary)',
           }}>
-            {filteredTraces.length} trace{filteredTraces.length !== 1 ? 's' : ''}
+            <span style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }}>Sort:</span>
+            {(['date', 'spans', 'duration'] as SortField[]).map((field) => {
+              const isActive = sortField === field;
+              const labels = { date: 'Date', spans: 'Spans', duration: 'Duration' };
+
+              return (
+                <button
+                  key={field}
+                  onClick={() => {
+                    if (sortField === field) {
+                      // Toggle order if same field
+                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                    } else {
+                      // Switch field, use default order
+                      setSortField(field);
+                      setSortOrder(field === 'date' ? 'desc' : 'asc');
+                    }
+                  }}
+                  style={{
+                    padding: '4px 10px',
+                    background: isActive ? 'var(--color-accent)' : 'var(--color-bg-elevated)',
+                    color: isActive ? 'white' : 'var(--color-text-secondary)',
+                    border: isActive ? 'none' : '1px solid var(--color-border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 'var(--font-size-body-xs)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontWeight: isActive ? 'var(--font-weight-medium)' : 'normal',
+                  }}
+                >
+                  <span>{labels[field]}</span>
+                  {isActive && (
+                    <span style={{ fontSize: '10px' }}>
+                      {sortOrder === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -1138,6 +1299,524 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Configuration View */}
+        {viewMode === 'configuration' && (
+          <div>
+            <TracingSettings />
+          </div>
+        )}
+
+        {/* Guide View */}
+        {viewMode === 'guide' && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--gap-lg)',
+            padding: 'var(--space-component-md)',
+          }}>
+            <div>
+              <h3 style={{
+                fontSize: 'var(--font-size-heading-sm)',
+                fontWeight: 'var(--font-weight-bold)',
+                color: 'var(--color-text-primary)',
+                marginBottom: 'var(--gap-md)',
+              }}>
+                🚀 Quick Start Guide
+              </h3>
+              <div style={{
+                display: 'grid',
+                gap: 'var(--gap-md)',
+                color: 'var(--color-text-secondary)',
+                fontSize: 'var(--font-size-body-sm)',
+              }}>
+                <p>
+                  The Trace Viewer provides comprehensive observability for your Flock applications using OpenTelemetry distributed tracing.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{
+                fontSize: 'var(--font-size-body-md)',
+                fontWeight: 'var(--font-weight-bold)',
+                color: 'var(--color-text-primary)',
+                marginBottom: 'var(--gap-sm)',
+              }}>
+                📊 View Modes
+              </h4>
+              <div style={{
+                display: 'grid',
+                gap: 'var(--gap-sm)',
+              }}>
+                {[
+                  { icon: '📅', name: 'Timeline', desc: 'Waterfall view of spans showing execution flow and dependencies' },
+                  { icon: '📈', name: 'Statistics', desc: 'Aggregated metrics including duration, error rates, and call counts' },
+                  { icon: '🔴', name: 'RED Metrics', desc: 'Rate, Errors, Duration metrics for service health monitoring' },
+                  { icon: '🔗', name: 'Dependencies', desc: 'Service-to-service communication patterns and operation drill-down' },
+                  { icon: '🗄️', name: 'DuckDB SQL', desc: 'Write custom SQL queries against the trace database for advanced analysis' },
+                  { icon: '⚙️', name: 'Configuration', desc: 'Configure tracing settings, service filters, and operation blacklists' },
+                ].map((mode) => (
+                  <div
+                    key={mode.name}
+                    style={{
+                      padding: 'var(--space-component-sm)',
+                      background: 'var(--color-bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--color-border-subtle)',
+                    }}
+                  >
+                    <div style={{ fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)', marginBottom: '4px' }}>
+                      {mode.icon} {mode.name}
+                    </div>
+                    <div style={{ fontSize: 'var(--font-size-body-xs)', color: 'var(--color-text-tertiary)' }}>
+                      {mode.desc}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{
+                fontSize: 'var(--font-size-body-md)',
+                fontWeight: 'var(--font-weight-bold)',
+                color: 'var(--color-text-primary)',
+                marginBottom: 'var(--gap-sm)',
+              }}>
+                🔍 Search Tips
+              </h4>
+              <div style={{
+                padding: 'var(--space-component-sm)',
+                background: 'var(--color-bg-surface)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border-subtle)',
+                fontSize: 'var(--font-size-body-xs)',
+                color: 'var(--color-text-secondary)',
+              }}>
+                <p style={{ marginBottom: 'var(--gap-xs)' }}>
+                  The search box performs text matching across:
+                </p>
+                <ul style={{ marginLeft: '20px', marginBottom: 'var(--gap-xs)' }}>
+                  <li>Trace IDs</li>
+                  <li>Span names and operation names</li>
+                  <li>Span attributes (key-value pairs)</li>
+                </ul>
+                <p style={{ fontStyle: 'italic', color: 'var(--color-text-tertiary)' }}>
+                  For advanced queries, use the DuckDB SQL tab to write custom queries.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{
+                fontSize: 'var(--font-size-body-md)',
+                fontWeight: 'var(--font-weight-bold)',
+                color: 'var(--color-text-primary)',
+                marginBottom: 'var(--gap-sm)',
+              }}>
+                💡 DuckDB SQL Examples
+              </h4>
+              <div style={{
+                display: 'grid',
+                gap: 'var(--gap-sm)',
+              }}>
+                {[
+                  { title: 'Find slow operations', query: 'SELECT service_name, name, duration_ms FROM spans WHERE duration_ms > 1000 ORDER BY duration_ms DESC LIMIT 10' },
+                  { title: 'Error rate by service', query: 'SELECT service_name, COUNT(*) as total, SUM(CASE WHEN status_code = \'ERROR\' THEN 1 ELSE 0 END) as errors FROM spans GROUP BY service_name' },
+                  { title: 'Recent traces', query: 'SELECT DISTINCT trace_id, MIN(timestamp) as start_time FROM spans GROUP BY trace_id ORDER BY start_time DESC LIMIT 20' },
+                  { title: 'Operation hotspots', query: 'SELECT name, COUNT(*) as call_count, AVG(duration_ms) as avg_duration FROM spans GROUP BY name ORDER BY call_count DESC LIMIT 10' },
+                ].map((example) => (
+                  <div
+                    key={example.title}
+                    style={{
+                      padding: 'var(--space-component-sm)',
+                      background: 'var(--color-bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--color-border-subtle)',
+                    }}
+                  >
+                    <div style={{
+                      fontWeight: 'var(--font-weight-medium)',
+                      color: 'var(--color-text-primary)',
+                      marginBottom: '4px',
+                      fontSize: 'var(--font-size-body-xs)',
+                    }}>
+                      {example.title}
+                    </div>
+                    <code style={{
+                      display: 'block',
+                      padding: '8px',
+                      background: 'var(--color-bg-elevated)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--font-size-body-xs)',
+                      fontFamily: 'var(--font-family-mono)',
+                      color: 'var(--color-text-secondary)',
+                      overflowX: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                    }}>
+                      {example.query}
+                    </code>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{
+                fontSize: 'var(--font-size-body-md)',
+                fontWeight: 'var(--font-weight-bold)',
+                color: 'var(--color-text-primary)',
+                marginBottom: 'var(--gap-sm)',
+              }}>
+                ⚡ Best Practices
+              </h4>
+              <div style={{
+                display: 'grid',
+                gap: 'var(--gap-xs)',
+                fontSize: 'var(--font-size-body-xs)',
+                color: 'var(--color-text-secondary)',
+              }}>
+                {[
+                  'Use service filters to focus on specific components',
+                  'Blacklist noisy operations to reduce clutter',
+                  'Check RED metrics for quick health overview',
+                  'Use Dependencies view to understand service communication',
+                  'Write SQL queries for custom analysis and reporting',
+                  'Monitor error traces to identify failure patterns',
+                ].map((tip, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '8px 12px',
+                      background: 'var(--color-bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--color-border-subtle)',
+                    }}
+                  >
+                    ✓ {tip}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{
+              padding: 'var(--space-component-sm)',
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid #3b82f6',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 'var(--font-size-body-xs)',
+              color: 'var(--color-text-secondary)',
+            }}>
+              <div style={{ fontWeight: 'var(--font-weight-bold)', color: '#3b82f6', marginBottom: '4px' }}>
+                📚 Full Documentation
+              </div>
+              For comprehensive tracing guides, see <code style={{ fontFamily: 'var(--font-family-mono)' }}>docs/how_to_use_tracing_effectively.md</code>
+            </div>
+          </div>
+        )}
+
+        {/* SQL Query View */}
+        {viewMode === 'sql' && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--gap-sm)',
+            height: '100%',
+          }}>
+            {/* Compact SQL Editor */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--gap-xs)',
+              flexShrink: 0,
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 'var(--gap-sm)',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  gap: 'var(--gap-xs)',
+                  flexWrap: 'wrap',
+                  flex: 1,
+                  alignItems: 'center',
+                }}>
+                  <span style={{
+                    fontSize: 'var(--font-size-body-xs)',
+                    color: 'var(--color-text-tertiary)',
+                    flexShrink: 0,
+                  }}>
+                    Quick:
+                  </span>
+                  {[
+                    { label: 'All', query: 'SELECT * FROM spans LIMIT 10' },
+                    { label: 'By Service', query: 'SELECT service_name, COUNT(*) FROM spans GROUP BY service_name' },
+                    { label: 'Errors', query: 'SELECT * FROM spans WHERE status_code = \'ERROR\'' },
+                    { label: 'Avg Duration', query: 'SELECT service_name, AVG(duration_ms) FROM spans GROUP BY service_name' },
+                  ].map((example) => (
+                    <button
+                      key={example.label}
+                      onClick={() => setSqlQuery(example.query)}
+                      style={{
+                        padding: '4px 8px',
+                        background: 'var(--color-bg-elevated)',
+                        color: 'var(--color-text-secondary)',
+                        border: '1px solid var(--color-border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: 'var(--font-size-body-xs)',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {example.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={executeSqlQuery}
+                  disabled={sqlLoading}
+                  style={{
+                    padding: '6px 12px',
+                    background: sqlLoading ? 'var(--color-bg-surface)' : 'var(--color-accent)',
+                    color: sqlLoading ? 'var(--color-text-tertiary)' : 'white',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--font-size-body-xs)',
+                    fontWeight: 'var(--font-weight-medium)',
+                    cursor: sqlLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flexShrink: 0,
+                  }}
+                >
+                  {sqlLoading ? (
+                    <>
+                      <span>⏳</span>
+                      <span>Running...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>▶️</span>
+                      <span>Run (Cmd+Enter)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <textarea
+                value={sqlQuery}
+                onChange={(e) => setSqlQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    executeSqlQuery();
+                  }
+                }}
+                placeholder="SELECT * FROM spans WHERE service_name = 'my-service' LIMIT 100"
+                style={{
+                  width: '100%',
+                  minHeight: '60px',
+                  maxHeight: '120px',
+                  padding: '8px 12px',
+                  fontFamily: 'var(--font-family-mono)',
+                  fontSize: 'var(--font-size-body-xs)',
+                  background: 'var(--color-bg-surface)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border-subtle)',
+                  borderRadius: 'var(--radius-md)',
+                  resize: 'vertical',
+                  lineHeight: '1.5',
+                }}
+              />
+            </div>
+
+            {/* Error Display */}
+            {sqlError && (
+              <div style={{
+                padding: '8px 12px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid #ef4444',
+                borderRadius: 'var(--radius-md)',
+                color: '#ef4444',
+                fontSize: 'var(--font-size-body-xs)',
+                fontFamily: 'var(--font-family-mono)',
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'center',
+                flexShrink: 0,
+              }}>
+                <span>❌</span>
+                <span>{sqlError}</span>
+              </div>
+            )}
+
+            {/* Results Table */}
+            {sqlResults && sqlResults.length > 0 && (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--gap-xs)',
+                minHeight: 0,
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <div style={{
+                    fontSize: 'var(--font-size-body-sm)',
+                    fontWeight: 'var(--font-weight-medium)',
+                    color: 'var(--color-text-secondary)',
+                  }}>
+                    Results ({sqlResults.length} row{sqlResults.length !== 1 ? 's' : ''}, {sqlColumns.length} column{sqlColumns.length !== 1 ? 's' : ''})
+                  </div>
+                  <button
+                    onClick={() => {
+                      // Generate CSV
+                      const csv = [
+                        sqlColumns.join(','), // Header
+                        ...sqlResults.map(row =>
+                          sqlColumns.map(col => {
+                            const val = row[col];
+                            if (val === null || val === undefined) return '';
+                            const str = String(val);
+                            // Escape quotes and wrap in quotes if contains comma, quote, or newline
+                            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                              return `"${str.replace(/"/g, '""')}"`;
+                            }
+                            return str;
+                          }).join(',')
+                        )
+                      ].join('\n');
+
+                      // Download CSV
+                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement('a');
+                      const url = URL.createObjectURL(blob);
+                      link.setAttribute('href', url);
+                      link.setAttribute('download', `trace-query-${new Date().toISOString().split('T')[0]}.csv`);
+                      link.style.visibility = 'hidden';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      background: 'var(--color-bg-elevated)',
+                      color: 'var(--color-text-secondary)',
+                      border: '1px solid var(--color-border-subtle)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--font-size-body-xs)',
+                      fontWeight: 'var(--font-weight-medium)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span>📥</span>
+                    <span>Export CSV</span>
+                  </button>
+                </div>
+
+                <div style={{
+                  flex: 1,
+                  overflow: 'auto',
+                  background: 'var(--color-bg-surface)',
+                  border: '1px solid var(--color-border-subtle)',
+                  borderRadius: 'var(--radius-md)',
+                }}>
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: 'var(--font-size-body-xs)',
+                  }}>
+                    <thead style={{
+                      position: 'sticky',
+                      top: 0,
+                      background: 'var(--color-bg-elevated)',
+                      borderBottom: '2px solid var(--color-border-subtle)',
+                      zIndex: 1,
+                    }}>
+                      <tr>
+                        {sqlColumns.map((col) => (
+                          <th
+                            key={col}
+                            style={{
+                              padding: '10px 12px',
+                              textAlign: 'left',
+                              fontWeight: 'var(--font-weight-bold)',
+                              color: 'var(--color-text-secondary)',
+                              whiteSpace: 'nowrap',
+                              borderRight: '1px solid var(--color-border-subtle)',
+                            }}
+                          >
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sqlResults.map((row, idx) => (
+                        <tr
+                          key={idx}
+                          style={{
+                            borderBottom: '1px solid var(--color-border-subtle)',
+                            background: idx % 2 === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.02)',
+                          }}
+                        >
+                          {sqlColumns.map((col) => (
+                            <td
+                              key={col}
+                              style={{
+                                padding: '8px 12px',
+                                color: 'var(--color-text-primary)',
+                                fontFamily: typeof row[col] === 'string' && row[col].length > 50 ? 'var(--font-family-mono)' : 'inherit',
+                                maxWidth: '400px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                borderRight: '1px solid var(--color-border-subtle)',
+                              }}
+                              title={String(row[col])}
+                            >
+                              {row[col] === null || row[col] === undefined ? (
+                                <span style={{ color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>null</span>
+                              ) : (
+                                String(row[col])
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!sqlLoading && !sqlError && (!sqlResults || sqlResults.length === 0) && (
+              <div style={{
+                textAlign: 'center',
+                padding: 'var(--space-component-xl)',
+                color: 'var(--color-text-secondary)',
+              }}>
+                <div style={{ fontSize: '32px', marginBottom: 'var(--gap-md)', opacity: 0.5 }}>📊</div>
+                <div>Run a query to see results</div>
+                <div style={{ fontSize: 'var(--font-size-body-xs)', marginTop: 'var(--gap-xs)', opacity: 0.7 }}>
+                  Try one of the example queries above
+                </div>
               </div>
             )}
           </div>

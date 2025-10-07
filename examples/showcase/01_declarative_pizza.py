@@ -1,6 +1,6 @@
 import asyncio
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from flock.orchestrator import Flock
 from flock.registry import flock_type
@@ -24,19 +24,28 @@ class Pizza(BaseModel):
 flock = Flock("openai/gpt-4.1")
 
 # 3. Define agent with 0 natural language
-pizza_master = (
-    flock.agent("pizza_master")
-    .consumes(MyDreamPizza)
-    .publishes(Pizza)
-)
+pizza_master = flock.agent("pizza_master").consumes(MyDreamPizza).publishes(Pizza)
 
 
-# 4. Run!
+# 4. Run with unified tracing!
 async def main():
-    pizza_idea = MyDreamPizza(pizza_idea="the ultimate spicy pepperoni pizza")
-    await flock.publish(pizza_idea)
-    await flock.run_until_idle()
+    # Option 1: Explicit unified tracing (RECOMMENDED)
+    # All operations will be in a single trace called "pizza_workflow"
+    async with flock.traced_run("pizza_workflow"):
+        pizza_idea = MyDreamPizza(pizza_idea="the ultimate spicy pepperoni pizza")
+        await flock.publish(pizza_idea)
+        await flock.run_until_idle()
     print("✅ Pizza recipe generated!")
+
+    # Option 2: Without traced_run (old behavior - separate traces)
+    # Uncomment to see the difference:
+    # pizza_idea = MyDreamPizza(pizza_idea="the ultimate spicy pepperoni pizza")
+    # await flock.publish(pizza_idea)  # ← Separate trace
+    # await flock.run_until_idle()     # ← Separate trace
+
+    # Bonus: Clear traces for a fresh debug session
+    # result = Flock.clear_traces()
+    # print(f"🗑️  Cleared {result['deleted_count']} trace spans")
 
 
 asyncio.run(main(), debug=True)

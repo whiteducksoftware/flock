@@ -6,7 +6,7 @@
 
 - [Introduction: Why Tracing Matters for Blackboard Systems](#introduction-why-tracing-matters-for-blackboard-systems)
 - [Getting Started: Your First Trace](#getting-started-your-first-trace)
-- [The Four Views: Timeline, Statistics, RED Metrics, Dependencies](#the-four-views-timeline-statistics-red-metrics-dependencies)
+- [The Seven Views: Complete Observability](#the-seven-views-complete-observability)
 - [Real-World Debugging Scenarios](#real-world-debugging-scenarios)
 - [Advanced Techniques](#advanced-techniques)
 - [Production Best Practices](#production-best-practices)
@@ -96,7 +96,33 @@ Flock.publish          [0.00ms - 0.50ms]   ━━━━━━━━━━━━�
 
 ---
 
-## The Four Views: Timeline, Statistics, RED Metrics, Dependencies
+## The Seven Views: Complete Observability
+
+The Trace Viewer provides **7 specialized view modes** for different analysis needs:
+
+### Quick Reference
+
+| View | Icon | Purpose | When to Use |
+|------|------|---------|-------------|
+| Timeline | 📅 | Waterfall execution flow | Debug sequence and timing |
+| Statistics | 📊 | Sortable tabular data | Compare traces, find patterns |
+| RED Metrics | 🔴 | Service health monitoring | Production dashboards |
+| Dependencies | 🔗 | Service communication | Understand architecture |
+| DuckDB SQL | 🗄️ | Custom analytics | Advanced queries, reports |
+| Configuration | ⚙️ | Runtime filtering | Fine-tune tracing |
+| Guide | 📚 | Documentation & examples | Learn and reference |
+
+### Feature Highlights
+
+**NEW in this version:**
+- ✨ **Smart Sorting**: Sort traces by date (newest first), span count, or total duration
+- 📥 **CSV Export**: Download SQL query results for Excel/analysis
+- 🖥️ **Maximize Mode**: Full-screen view for all modules
+- 🎨 **Modern UI**: Emoji-enhanced toolbar for better visual scanning
+
+---
+
+## View Modes Explained
 
 ### Timeline View: The Waterfall
 
@@ -277,6 +303,65 @@ Shows service-to-service dependencies with operation-level drill-down:
    - `Agent.execute → DSPyEngine.evaluate` has P95 of 7.8s
    - Most calls are fast, but some timeout
    - Solution: Implement circuit breaker
+
+### Configuration View: Tracing Settings
+
+**Use case**: "Configure tracing without editing .env files"
+
+**⚠ NEW IN v0.5.0** - All tracing configuration is now accessible directly in the Trace Viewer!
+
+The Configuration view provides a visual interface for all tracing settings:
+
+**Core Tracing Toggles**:
+- ✅ **Enable auto-tracing** (`FLOCK_AUTO_TRACE`)
+- ✅ **Store in DuckDB** (`FLOCK_TRACE_FILE`)
+- ✅ **Unified workflow tracing** (`FLOCK_AUTO_WORKFLOW_TRACE`)
+- ✅ **Trace TTL** (`FLOCK_TRACE_TTL_DAYS`)
+
+**Service Whitelist** (`FLOCK_TRACE_SERVICES`):
+- Multi-select with autocomplete
+- Populated from actual traced services in database
+- Only trace specific services (improves performance)
+- Example: `["flock", "agent", "dspyengine"]`
+
+**Operation Blacklist** (`FLOCK_TRACE_IGNORE`):
+- Multi-select with autocomplete
+- Exclude noisy operations (e.g., health checks)
+- Format: `Service.method`
+- Example: `["DashboardEventCollector.set_websocket_manager"]`
+
+**Database Statistics**:
+```
+┌─────────────────────────────────────────┐
+│ Trace Database Statistics              │
+├─────────────────────────────────────────┤
+│ Total Spans:      12,456               │
+│ Total Traces:     3,421                │
+│ Services Traced:  8                    │
+│ Database Size:    24.5 MB              │
+│ Oldest Trace:     Oct 1, 09:15 AM     │
+│ Newest Trace:     Oct 7, 21:20 PM     │
+└─────────────────────────────────────────┘
+```
+
+**Clear Traces**:
+- One-click database clearing
+- Confirmation dialog prevents accidents
+- Runs VACUUM to reclaim disk space
+- Shows deleted span count
+
+**Why Configuration lives in Trace Viewer**:
+- ✅ Settings stay with the data viewer (logical grouping)
+- ✅ See immediate impact of filter changes on statistics
+- ✅ Access during debugging workflow (no context switch)
+- ✅ Separate from UI preferences (Settings panel = appearance/graph only)
+
+**Example Workflow**:
+1. Open **Trace Viewer** → **Configuration** tab
+2. Check database statistics → 50,000 spans, 2.5 GB
+3. Enable service whitelist → Select only `["agent", "dspyengine"]`
+4. Clear old traces → Confirmation → 45,000 spans deleted
+5. Return to **Timeline** view → Much faster with filtered data!
 
 ---
 
