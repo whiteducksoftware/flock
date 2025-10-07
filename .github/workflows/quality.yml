@@ -76,18 +76,18 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: src/flock/frontend/package-lock.json
 
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
 
       - name: Type check
-        working-directory: frontend
+        working-directory: src/flock/frontend
         run: npm run type-check
 
       - name: Run tests
-        working-directory: frontend
+        working-directory: src/flock/frontend
         run: npm test
 
       # Coverage disabled until vitest.config.ts is properly configured
@@ -99,7 +99,7 @@ jobs:
       #     name: frontend-coverage
 
       - name: Frontend build check
-        working-directory: frontend
+        working-directory: src/flock/frontend
         run: npm run build
 
   # Security scanning
