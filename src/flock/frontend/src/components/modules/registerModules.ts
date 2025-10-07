@@ -1,5 +1,6 @@
 import { moduleRegistry } from './ModuleRegistry';
 import EventLogModuleWrapper from './EventLogModuleWrapper';
+import TraceModuleJaegerWrapper from './TraceModuleJaegerWrapper';
 
 /**
  * Register all available modules
@@ -13,6 +14,15 @@ export function registerModules(): void {
     description: 'View and filter system events',
     icon: '📋',
     component: EventLogModuleWrapper,
+  });
+
+  // Register Trace Viewer with Timeline, Statistics, RED Metrics, and Dependencies
+  moduleRegistry.register({
+    id: 'traceViewerJaeger',
+    name: 'Trace Viewer',
+    description: 'Timeline, Statistics, RED Metrics, and Dependencies',
+    icon: '🔎',
+    component: TraceModuleJaegerWrapper,
   });
 
   // Future modules can be registered here

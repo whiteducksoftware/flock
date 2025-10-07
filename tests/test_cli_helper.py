@@ -40,7 +40,7 @@ class TestVersionHandling:
             import flock.helper.cli_helper
 
             # Should have fallen back to default version
-            assert flock.helper.cli_helper.__version__ == "0.2.0"
+            assert flock.helper.cli_helper.__version__ == "0.5.0b"
 
 
 class TestDisplayHummingbird:

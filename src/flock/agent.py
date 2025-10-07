@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 from flock.artifacts import Artifact, ArtifactSpec
+from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
 from flock.registry import function_registry, type_registry
 from flock.runtime import Context, EvalInputs, EvalResult
@@ -50,8 +51,11 @@ class AgentOutput:
         )
 
 
-class Agent:
-    """Executable agent constructed via `AgentBuilder`."""
+class Agent(metaclass=AutoTracedMeta):
+    """Executable agent constructed via `AgentBuilder`.
+
+    All public methods are automatically traced via OpenTelemetry.
+    """
 
     def __init__(self, name: str, *, orchestrator: Flock) -> None:
         self.name = name

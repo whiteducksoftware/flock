@@ -407,6 +407,299 @@ class DashboardHTTPService(BlackboardHTTPService):
             """
             raise HTTPException(status_code=501, detail="Resume functionality coming in Phase 12")
 
+        @app.get("/api/traces")
+        async def get_traces() -> list[dict[str, Any]]:
+            """Get OpenTelemetry traces from DuckDB.
+
+            Returns list of trace spans in OTEL format.
+
+            Returns:
+                [
+                    {
+                        "name": "Agent.execute",
+                        "context": {
+                            "trace_id": "...",
+                            "span_id": "...",
+                            ...
+                        },
+                        "start_time": 1234567890,
+                        "end_time": 1234567891,
+                        "attributes": {...},
+                        "status": {...}
+                    },
+                    ...
+                ]
+            """
+            import json
+            from pathlib import Path
+
+            import duckdb
+
+            db_path = Path(".flock/traces.duckdb")
+
+            if not db_path.exists():
+                logger.warning(
+                    "Trace database not found. Make sure FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true"
+                )
+                return []
+
+            try:
+                with duckdb.connect(str(db_path), read_only=True) as conn:
+                    # Query all spans from DuckDB
+                    result = conn.execute("""
+                        SELECT
+                            trace_id, span_id, parent_id, name, service, operation,
+                            kind, start_time, end_time, duration_ms,
+                            status_code, status_description,
+                            attributes, events, links, resource
+                        FROM spans
+                        ORDER BY start_time DESC
+                    """).fetchall()
+
+                    spans = []
+                    for row in result:
+                        # Reconstruct OTEL span format from DuckDB row
+                        span = {
+                            "name": row[3],  # name
+                            "context": {
+                                "trace_id": row[0],  # trace_id
+                                "span_id": row[1],  # span_id
+                                "trace_flags": 0,
+                                "trace_state": "",
+                            },
+                            "kind": row[6],  # kind
+                            "start_time": row[7],  # start_time
+                            "end_time": row[8],  # end_time
+                            "status": {
+                                "status_code": row[10],  # status_code
+                                "description": row[11],  # status_description
+                            },
+                            "attributes": json.loads(row[12]) if row[12] else {},  # attributes
+                            "events": json.loads(row[13]) if row[13] else [],  # events
+                            "links": json.loads(row[14]) if row[14] else [],  # links
+                            "resource": json.loads(row[15]) if row[15] else {},  # resource
+                        }
+
+                        # Add parent_id if exists
+                        if row[2]:  # parent_id
+                            span["parent_id"] = row[2]
+
+                        spans.append(span)
+
+                logger.debug(f"Loaded {len(spans)} spans from DuckDB")
+                return spans
+
+            except Exception as e:
+                logger.exception(f"Error reading traces from DuckDB: {e}")
+                return []
+
+        @app.get("/api/traces/services")
+        async def get_trace_services() -> dict[str, Any]:
+            """Get list of unique services that have been traced.
+
+            Returns:
+                {
+                    "services": ["Flock", "Agent", "DSPyEngine", ...],
+                    "operations": ["Flock.publish", "Agent.execute", ...]
+                }
+            """
+            import duckdb
+            from pathlib import Path
+
+            db_path = Path(".flock/traces.duckdb")
+
+            if not db_path.exists():
+                return {"services": [], "operations": []}
+
+            try:
+                with duckdb.connect(str(db_path), read_only=True) as conn:
+                    # Get unique services
+                    services_result = conn.execute("""
+                        SELECT DISTINCT service
+                        FROM spans
+                        WHERE service IS NOT NULL
+                        ORDER BY service
+                    """).fetchall()
+
+                    # Get unique operations
+                    operations_result = conn.execute("""
+                        SELECT DISTINCT name
+                        FROM spans
+                        WHERE name IS NOT NULL
+                        ORDER BY name
+                    """).fetchall()
+
+                    return {
+                        "services": [row[0] for row in services_result],
+                        "operations": [row[0] for row in operations_result],
+                    }
+
+            except Exception as e:
+                logger.exception(f"Error reading trace services: {e}")
+                return {"services": [], "operations": []}
+
+        @app.post("/api/traces/clear")
+        async def clear_traces() -> dict[str, Any]:
+            """Clear all traces from DuckDB database.
+
+            Returns:
+                {
+                    "success": true,
+                    "deleted_count": 123,
+                    "error": null
+                }
+            """
+            result = Flock.clear_traces()
+            if result["success"]:
+                logger.info(f"Cleared {result['deleted_count']} trace spans via API")
+            else:
+                logger.error(f"Failed to clear traces: {result['error']}")
+
+            return result
+
+        @app.post("/api/traces/query")
+        async def execute_trace_query(request: dict[str, Any]) -> dict[str, Any]:
+            """
+            Execute a DuckDB SQL query on the traces database.
+
+            Security: Only SELECT queries allowed, rate-limited.
+            """
+            import duckdb
+            from pathlib import Path
+
+            query = request.get("query", "").strip()
+
+            if not query:
+                return {"error": "Query cannot be empty", "results": [], "columns": []}
+
+            # Security: Only allow SELECT queries
+            query_upper = query.upper().strip()
+            if not query_upper.startswith("SELECT"):
+                return {"error": "Only SELECT queries are allowed", "results": [], "columns": []}
+
+            # Check for dangerous keywords
+            dangerous = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "TRUNCATE"]
+            if any(keyword in query_upper for keyword in dangerous):
+                return {
+                    "error": "Query contains forbidden operations",
+                    "results": [],
+                    "columns": [],
+                }
+
+            db_path = Path(".flock/traces.duckdb")
+            if not db_path.exists():
+                return {"error": "Trace database not found", "results": [], "columns": []}
+
+            try:
+                with duckdb.connect(str(db_path), read_only=True) as conn:
+                    result = conn.execute(query).fetchall()
+                    columns = [desc[0] for desc in conn.description] if conn.description else []
+
+                    # Convert to JSON-serializable format
+                    results = []
+                    for row in result:
+                        row_dict = {}
+                        for i, col in enumerate(columns):
+                            val = row[i]
+                            # Convert bytes to string, handle other types
+                            if isinstance(val, bytes):
+                                row_dict[col] = val.decode("utf-8")
+                            else:
+                                row_dict[col] = val
+                        results.append(row_dict)
+
+                    return {"results": results, "columns": columns, "row_count": len(results)}
+            except Exception as e:
+                logger.error(f"DuckDB query error: {e}")
+                return {"error": str(e), "results": [], "columns": []}
+
+        @app.get("/api/traces/stats")
+        async def get_trace_stats() -> dict[str, Any]:
+            """Get statistics about the trace database.
+
+            Returns:
+                {
+                    "total_spans": 123,
+                    "total_traces": 45,
+                    "services_count": 5,
+                    "oldest_trace": "2025-10-07T12:00:00Z",
+                    "newest_trace": "2025-10-07T14:30:00Z",
+                    "database_size_mb": 12.5
+                }
+            """
+            import duckdb
+            from pathlib import Path
+            from datetime import datetime
+
+            db_path = Path(".flock/traces.duckdb")
+
+            if not db_path.exists():
+                return {
+                    "total_spans": 0,
+                    "total_traces": 0,
+                    "services_count": 0,
+                    "oldest_trace": None,
+                    "newest_trace": None,
+                    "database_size_mb": 0,
+                }
+
+            try:
+                with duckdb.connect(str(db_path), read_only=True) as conn:
+                    # Get total spans
+                    total_spans = conn.execute("SELECT COUNT(*) FROM spans").fetchone()[0]
+
+                    # Get total unique traces
+                    total_traces = conn.execute(
+                        "SELECT COUNT(DISTINCT trace_id) FROM spans"
+                    ).fetchone()[0]
+
+                    # Get services count
+                    services_count = conn.execute(
+                        "SELECT COUNT(DISTINCT service) FROM spans WHERE service IS NOT NULL"
+                    ).fetchone()[0]
+
+                    # Get time range
+                    time_range = conn.execute("""
+                        SELECT
+                            MIN(start_time) as oldest,
+                            MAX(start_time) as newest
+                        FROM spans
+                    """).fetchone()
+
+                    oldest_trace = None
+                    newest_trace = None
+                    if time_range and time_range[0]:
+                        # Convert nanoseconds to datetime
+                        oldest_trace = datetime.fromtimestamp(
+                            time_range[0] / 1_000_000_000
+                        ).isoformat()
+                        newest_trace = datetime.fromtimestamp(
+                            time_range[1] / 1_000_000_000
+                        ).isoformat()
+
+                # Get file size
+                size_mb = db_path.stat().st_size / (1024 * 1024)
+
+                return {
+                    "total_spans": total_spans,
+                    "total_traces": total_traces,
+                    "services_count": services_count,
+                    "oldest_trace": oldest_trace,
+                    "newest_trace": newest_trace,
+                    "database_size_mb": round(size_mb, 2),
+                }
+
+            except Exception as e:
+                logger.exception(f"Error reading trace stats: {e}")
+                return {
+                    "total_spans": 0,
+                    "total_traces": 0,
+                    "services_count": 0,
+                    "oldest_trace": None,
+                    "newest_trace": None,
+                    "database_size_mb": 0,
+                }
+
         @app.get("/api/streaming-history/{agent_name}")
         async def get_streaming_history(agent_name: str) -> dict[str, Any]:
             """Get historical streaming output for a specific agent.

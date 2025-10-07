@@ -12,6 +12,9 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from flock.logging.span_middleware.baggage_span_processor import (
     BaggageAttributeSpanProcessor,
 )
+from flock.logging.telemetry_exporter.duckdb_exporter import (
+    DuckDBSpanExporter,
+)
 
 # with workflow.unsafe.imports_passed_through():
 from flock.logging.telemetry_exporter.file_exporter import (
@@ -40,9 +43,12 @@ class TelemetryConfig:
         local_logging_dir: str | None = None,
         file_export_name: str | None = None,
         sqlite_db_name: str | None = None,
+        duckdb_name: str | None = None,
+        duckdb_ttl_days: int | None = None,
         enable_jaeger: bool = True,
         enable_file: bool = True,
         enable_sql: bool = True,
+        enable_duckdb: bool = True,
         enable_otlp: bool = True,
         otlp_protocol: str = "grpc",
         otlp_endpoint: str = "http://localhost:4317",
@@ -53,6 +59,7 @@ class TelemetryConfig:
         :param jaeger_endpoint: The Jaeger collector gRPC endpoint (e.g., "localhost:14250").
         :param file_export_path: If provided, spans will be written to this file.
         :param sqlite_db_path: If provided, spans will be stored in this SQLite DB.
+        :param duckdb_ttl_days: Delete traces older than this many days (default: None = keep forever).
         :param batch_processor_options: Dict of options for BatchSpanProcessor (e.g., {"max_export_batch_size": 10}).
         """
         self.service_name = service_name
@@ -60,11 +67,14 @@ class TelemetryConfig:
         self.jaeger_transport = jaeger_transport
         self.file_export_name = file_export_name
         self.sqlite_db_name = sqlite_db_name
+        self.duckdb_name = duckdb_name
+        self.duckdb_ttl_days = duckdb_ttl_days
         self.local_logging_dir = local_logging_dir
         self.batch_processor_options = batch_processor_options or {}
         self.enable_jaeger = enable_jaeger
         self.enable_file = enable_file
         self.enable_sql = enable_sql
+        self.enable_duckdb = enable_duckdb
         self.enable_otlp = enable_otlp
         self.otlp_protocol = otlp_protocol
         self.otlp_endpoint = otlp_endpoint
@@ -165,6 +175,13 @@ class TelemetryConfig:
         if self.sqlite_db_name and self.enable_sql:
             sqlite_exporter = SqliteTelemetryExporter(self.local_logging_dir, self.sqlite_db_name)
             span_processors.append(SimpleSpanProcessor(sqlite_exporter))
+
+        # If a DuckDB database path is provided, add the DuckDB exporter.
+        if self.duckdb_name and self.enable_duckdb:
+            duckdb_exporter = DuckDBSpanExporter(
+                self.local_logging_dir, self.duckdb_name, ttl_days=self.duckdb_ttl_days
+            )
+            span_processors.append(SimpleSpanProcessor(duckdb_exporter))
 
         # Register all span processors with the provider.
         for processor in span_processors:

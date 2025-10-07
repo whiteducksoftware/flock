@@ -2,6 +2,67 @@ AZURE_API_KEY=xxx
 AZURE_API_BASE=https://xxx-foundry.cognitiveservices.azure.com/
 AZURE_API_VERSION="2024-12-01-preview"
 
+# ============================================================================
+# OpenTelemetry Tracing Configuration
+# ============================================================================
 
+# Enable auto-tracing for all agents and operations
+# Set to "true" to enable OpenTelemetry distributed tracing
+# Traces are stored in DuckDB for fast analytical queries
+FLOCK_AUTO_TRACE=true
+
+# Store traces in DuckDB database (recommended for production)
+# Creates .flock/traces.duckdb with full input/output capture
+# Set to "true" to enable DuckDB storage
+FLOCK_TRACE_FILE=true
+
+# 🆕 Unified Workflow Tracing (v0.5.0+)
+# Automatically wrap operations in workflow traces for better observability
+# When disabled (default), use explicit `async with flock.traced_run("name")`
+# Set to "true" to enable automatic workflow trace detection
+# FLOCK_AUTO_WORKFLOW_TRACE=true
+
+# Filter: Trace only specific services (whitelist)
+# Format: JSON array of service names (case-insensitive)
+# If not set or empty, all services are traced
+# Recommended: Trace core services, avoid streaming token overhead
+# Example: FLOCK_TRACE_SERVICES=["flock", "agent", "dspyengine", "outpututilitycomponent"]
+FLOCK_TRACE_SERVICES=["flock", "agent", "dspyengine", "outpututilitycomponent"]
+
+# Filter: Ignore specific operations (blacklist)
+# Format: JSON array of operation names in "Service.method" format
+# Use this to exclude noisy or low-value operations from traces
+# Example: FLOCK_TRACE_IGNORE=["DashboardEventCollector.set_websocket_manager"]
+FLOCK_TRACE_IGNORE=["DashboardEventCollector.set_websocket_manager"]
+
+# Trace Time-To-Live (TTL): Auto-delete old traces
+# Deletes traces older than specified days on application startup
+# Keeps database size manageable and removes stale debugging data
+# Set to empty or comment out to keep traces forever
+# Example: FLOCK_TRACE_TTL_DAYS=30
+FLOCK_TRACE_TTL_DAYS=30
+
+# ============================================================================
+# Unified Tracing Usage (Code-based approach - RECOMMENDED)
+# ============================================================================
+#
+# Instead of using FLOCK_AUTO_WORKFLOW_TRACE, use explicit traced_run():
+#
+#   async with flock.traced_run("workflow_name"):
+#       await flock.publish(data)
+#       await flock.run_until_idle()
+#
+# Benefits:
+#   ✅ Single trace for entire workflow (all operations share trace_id)
+#   ✅ Proper parent-child span hierarchy
+#   ✅ Custom workflow names for better organization
+#   ✅ Add custom attributes: span.set_attribute("key", "value")
+#   ✅ Nested workflow support
+#
+# Clearing traces for fresh debug sessions:
+#   result = Flock.clear_traces()  # Deletes all spans, runs VACUUM
+#
+# See docs/UNIFIED_TRACING.md for complete guide
+# ============================================================================
 
 OPENAI_API_KEY=xxx

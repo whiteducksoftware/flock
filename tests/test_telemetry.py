@@ -4,8 +4,24 @@ import os
 from unittest.mock import Mock, patch
 
 import pytest
+from opentelemetry import trace
 
 from flock.logging.telemetry import TelemetryConfig
+
+
+@pytest.fixture(autouse=True)
+def reset_tracer_provider():
+    """Reset the global tracer provider before each test."""
+    # Store original provider
+    original_provider = trace._TRACER_PROVIDER
+
+    # Reset to default ProxyTracerProvider
+    trace._TRACER_PROVIDER = None
+
+    yield
+
+    # Restore original provider after test
+    trace._TRACER_PROVIDER = original_provider
 
 
 class TestTelemetryConfig:
@@ -325,9 +341,7 @@ class TestTelemetryConfigSetupTracing:
         mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
         mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
         mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch(
-            "flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
-        )
+        mocker.patch("flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor)
         mocker.patch("flock.logging.telemetry.sys")
 
         # Mock the FileSpanExporter
@@ -361,9 +375,7 @@ class TestTelemetryConfigSetupTracing:
         mocker.patch("flock.logging.telemetry.TracerProvider", return_value=mock_provider)
         mocker.patch("flock.logging.telemetry.trace.get_tracer", return_value=mock_tracer)
         mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
-        mocker.patch(
-            "flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
-        )
+        mocker.patch("flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor)
         mocker.patch("flock.logging.telemetry.sys")
 
         # Mock the SqliteTelemetryExporter
