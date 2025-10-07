@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from flock.agent import Agent, AgentBuilder
 from flock.artifacts import Artifact
 from flock.helper.cli_helper import init_console
+from flock.logging.auto_trace import AutoTracedMeta
 from flock.mcp import (
     FlockMCPClientManager,
     FlockMCPConfiguration,
@@ -48,7 +49,12 @@ class BoardHandle:
         return await self._orchestrator.store.list()
 
 
-class Flock:
+class Flock(metaclass=AutoTracedMeta):
+    """Main orchestrator for blackboard-based agent coordination.
+
+    All public methods are automatically traced via OpenTelemetry.
+    """
+
     def _patch_litellm_proxy_imports(self) -> None:
         """Stub litellm proxy_server to avoid optional proxy deps when not used.
 
