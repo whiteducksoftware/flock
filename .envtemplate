@@ -2,6 +2,8 @@ AZURE_API_KEY=xxx
 AZURE_API_BASE=https://xxx-foundry.cognitiveservices.azure.com/
 AZURE_API_VERSION="2024-12-01-preview"
 
-
+# Enable OpenTelemetry tracing
+# Set to "true" to enable auto-tracing for agents
+FLOCK_TRACE_FILE=true
 
 OPENAI_API_KEY=xxx
