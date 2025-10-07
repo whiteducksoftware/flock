@@ -407,6 +407,55 @@ class DashboardHTTPService(BlackboardHTTPService):
             """
             raise HTTPException(status_code=501, detail="Resume functionality coming in Phase 12")
 
+        @app.get("/api/traces")
+        async def get_traces() -> list[dict[str, Any]]:
+            """Get OpenTelemetry traces from trace file.
+
+            Returns list of trace spans in OTEL format.
+
+            Returns:
+                [
+                    {
+                        "name": "Agent.execute",
+                        "context": {
+                            "trace_id": "...",
+                            "span_id": "...",
+                            ...
+                        },
+                        "start_time": 1234567890,
+                        "end_time": 1234567891,
+                        "attributes": {...},
+                        "status": {...}
+                    },
+                    ...
+                ]
+            """
+            import json
+            from pathlib import Path
+
+            trace_file = Path(".flock/traces.jsonl")
+
+            if not trace_file.exists():
+                logger.warning(
+                    "Trace file not found. Make sure FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true"
+                )
+                return []
+
+            try:
+                spans = []
+                with open(trace_file) as f:
+                    for line in f:
+                        if line.strip():
+                            span = json.loads(line)
+                            spans.append(span)
+
+                logger.debug(f"Loaded {len(spans)} spans from trace file")
+                return spans
+
+            except Exception as e:
+                logger.exception(f"Error reading trace file: {e}")
+                return []
+
         @app.get("/api/streaming-history/{agent_name}")
         async def get_streaming_history(agent_name: str) -> dict[str, Any]:
             """Get historical streaming output for a specific agent.

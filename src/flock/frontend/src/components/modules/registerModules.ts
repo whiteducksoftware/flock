@@ -1,5 +1,6 @@
 import { moduleRegistry } from './ModuleRegistry';
 import EventLogModuleWrapper from './EventLogModuleWrapper';
+import TraceModuleWrapper from './TraceModuleWrapper';
 
 /**
  * Register all available modules
@@ -13,6 +14,15 @@ export function registerModules(): void {
     description: 'View and filter system events',
     icon: '📋',
     component: EventLogModuleWrapper,
+  });
+
+  // Register Trace Viewer module
+  moduleRegistry.register({
+    id: 'traceViewer',
+    name: 'Trace Viewer',
+    description: 'OpenTelemetry traces with waterfall visualization',
+    icon: '🔍',
+    component: TraceModuleWrapper,
   });
 
   // Future modules can be registered here
