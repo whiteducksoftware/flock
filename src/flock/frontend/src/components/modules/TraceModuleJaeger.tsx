@@ -42,7 +42,32 @@ interface TraceGroup {
   services: Set<string>;
 }
 
-type ViewMode = 'timeline' | 'statistics';
+interface ServiceMetrics {
+  service: string;
+  totalSpans: number;
+  errorSpans: number;
+  avgDuration: number;
+  p95Duration: number;
+  p99Duration: number;
+  rate: number;
+}
+
+interface OperationMetrics {
+  operation: string;
+  service: string;
+  totalCalls: number;
+  errorCalls: number;
+  avgDuration: number;
+  p95Duration: number;
+}
+
+interface DependencyEdge {
+  from: string; // parent service
+  to: string;   // child service
+  operations: Map<string, OperationMetrics>; // parent.operation -> child.operation
+}
+
+type ViewMode = 'timeline' | 'statistics' | 'metrics' | 'dependencies';
 
 const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
   const [traces, setTraces] = useState<Span[]>([]);
@@ -54,6 +79,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('timeline');
   const [focusedSpanId, setFocusedSpanId] = useState<string | null>(null);
+  const [expandedDeps, setExpandedDeps] = useState<Set<string>>(new Set());
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastTraceCountRef = useRef<number>(0);
@@ -192,6 +218,115 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
 
     return result.sort((a, b) => b.startTime - a.startTime);
   }, [traceGroups, searchQuery]);
+
+  // Calculate RED metrics per service
+  const serviceMetrics = useMemo<ServiceMetrics[]>(() => {
+    const metricsMap = new Map<string, ServiceMetrics>();
+
+    traces.forEach(span => {
+      const service = span.name.split('.')[0] || 'unknown';
+      if (!metricsMap.has(service)) {
+        metricsMap.set(service, {
+          service,
+          totalSpans: 0,
+          errorSpans: 0,
+          avgDuration: 0,
+          p95Duration: 0,
+          p99Duration: 0,
+          rate: 0,
+        });
+      }
+
+      const metrics = metricsMap.get(service)!;
+      metrics.totalSpans++;
+      if (span.status.status_code === 'ERROR') {
+        metrics.errorSpans++;
+      }
+    });
+
+    // Calculate durations and rate
+    metricsMap.forEach((metrics, service) => {
+      const serviceSpans = traces.filter(s => (s.name.split('.')[0] || 'unknown') === service);
+      const durations = serviceSpans.map(s => (s.end_time - s.start_time) / 1_000_000).sort((a, b) => a - b);
+
+      metrics.avgDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length || 0;
+      metrics.p95Duration = durations[Math.floor(durations.length * 0.95)] || 0;
+      metrics.p99Duration = durations[Math.floor(durations.length * 0.99)] || 0;
+
+      // Calculate rate (spans per second)
+      if (serviceSpans.length > 1) {
+        const timeSpan = (Math.max(...serviceSpans.map(s => s.end_time)) -
+                         Math.min(...serviceSpans.map(s => s.start_time))) / 1_000_000_000;
+        metrics.rate = serviceSpans.length / Math.max(timeSpan, 1);
+      }
+    });
+
+    return Array.from(metricsMap.values()).sort((a, b) => b.totalSpans - a.totalSpans);
+  }, [traces]);
+
+  // Build service dependency graph with operation-level drill-down
+  const serviceDependencies = useMemo(() => {
+    const deps = new Map<string, DependencyEdge>();
+
+    traceGroups.forEach(trace => {
+      trace.spans.forEach(span => {
+        if (span.parent_id) {
+          const parent = trace.spans.find(s => s.context.span_id === span.parent_id);
+          if (parent) {
+            const parentService = parent.name.split('.')[0] || 'unknown';
+            const childService = span.name.split('.')[0] || 'unknown';
+
+            // Only track cross-service dependencies
+            if (parentService !== childService) {
+              const key = `${parentService}->${childService}`;
+
+              if (!deps.has(key)) {
+                deps.set(key, {
+                  from: parentService,
+                  to: childService,
+                  operations: new Map(),
+                });
+              }
+
+              const edge = deps.get(key)!;
+              const opKey = `${parent.name} → ${span.name}`;
+
+              if (!edge.operations.has(opKey)) {
+                edge.operations.set(opKey, {
+                  operation: opKey,
+                  service: childService,
+                  totalCalls: 0,
+                  errorCalls: 0,
+                  avgDuration: 0,
+                  p95Duration: 0,
+                });
+              }
+
+              const opMetrics = edge.operations.get(opKey)!;
+              opMetrics.totalCalls++;
+              if (span.status.status_code === 'ERROR') {
+                opMetrics.errorCalls++;
+              }
+            }
+          }
+        }
+      });
+    });
+
+    // Calculate operation metrics
+    deps.forEach(edge => {
+      edge.operations.forEach((opMetrics, opKey) => {
+        const childOp = opKey.split(' → ')[1];
+        const relevantSpans = traces.filter(s => s.name === childOp);
+        const durations = relevantSpans.map(s => (s.end_time - s.start_time) / 1_000_000).sort((a, b) => a - b);
+
+        opMetrics.avgDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length || 0;
+        opMetrics.p95Duration = durations[Math.floor(durations.length * 0.95)] || 0;
+      });
+    });
+
+    return Array.from(deps.values());
+  }, [traceGroups, traces]);
 
   const buildSpanTree = (spans: Span[]): SpanNode[] => {
     const spanMap = new Map<string, SpanNode>();
@@ -679,31 +814,349 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
           >
             Statistics
           </button>
+          <button
+            onClick={() => setViewMode('metrics')}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              background: viewMode === 'metrics' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
+              color: viewMode === 'metrics' ? 'white' : 'var(--color-text-primary)',
+              fontSize: 'var(--font-size-body-sm)',
+              cursor: 'pointer',
+              fontWeight: 'var(--font-weight-medium)',
+            }}
+          >
+            RED Metrics
+          </button>
+          <button
+            onClick={() => setViewMode('dependencies')}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              background: viewMode === 'dependencies' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
+              color: viewMode === 'dependencies' ? 'white' : 'var(--color-text-primary)',
+              fontSize: 'var(--font-size-body-sm)',
+              cursor: 'pointer',
+              fontWeight: 'var(--font-weight-medium)',
+            }}
+          >
+            Dependencies
+          </button>
         </div>
 
-        <div style={{
-          fontSize: 'var(--font-size-body-xs)',
-          color: 'var(--color-text-secondary)',
-        }}>
-          {filteredTraces.length} trace{filteredTraces.length !== 1 ? 's' : ''}
-        </div>
+        {(viewMode === 'timeline' || viewMode === 'statistics') && (
+          <div style={{
+            fontSize: 'var(--font-size-body-xs)',
+            color: 'var(--color-text-secondary)',
+          }}>
+            {filteredTraces.length} trace{filteredTraces.length !== 1 ? 's' : ''}
+          </div>
+        )}
       </div>
 
       <div
         ref={scrollContainerRef}
         style={{ flex: 1, overflow: 'auto', padding: 'var(--space-component-md)' }}
       >
-        {filteredTraces.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: 'var(--space-component-xl)',
-            color: 'var(--color-text-secondary)',
-          }}>
-            <div style={{ fontSize: '32px', marginBottom: 'var(--gap-md)', opacity: 0.5 }}>🔎</div>
-            <div>No traces found</div>
+        {/* RED Metrics View */}
+        {viewMode === 'metrics' && (
+          <div>
+            <div style={{
+              fontSize: 'var(--font-size-body-md)',
+              fontWeight: 'var(--font-weight-medium)',
+              color: 'var(--color-text-primary)',
+              marginBottom: 'var(--space-component-md)',
+            }}>
+              RED Metrics by Service
+            </div>
+            {serviceMetrics.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 'var(--space-component-xl)', color: 'var(--color-text-tertiary)' }}>
+                No metrics data available
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 'var(--gap-md)' }}>
+                {serviceMetrics.map(metrics => {
+                  const serviceColor = serviceColors.colorMap.get(metrics.service) || '#6366f1';
+                  const errorRate = metrics.totalSpans > 0 ? (metrics.errorSpans / metrics.totalSpans) * 100 : 0;
+
+                  return (
+                    <div
+                      key={metrics.service}
+                      style={{
+                        padding: 'var(--space-component-md)',
+                        background: 'var(--color-bg-elevated)',
+                        borderRadius: 'var(--radius-lg)',
+                        border: '1px solid var(--color-border-subtle)',
+                        borderLeft: `4px solid ${serviceColor}`,
+                      }}
+                    >
+                      <div style={{
+                        fontSize: 'var(--font-size-body-lg)',
+                        fontWeight: 'var(--font-weight-bold)',
+                        color: serviceColor,
+                        marginBottom: 'var(--space-component-sm)',
+                      }}>
+                        {metrics.service}
+                      </div>
+
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                        gap: 'var(--gap-md)',
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 'var(--font-size-body-xs)', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                            Rate
+                          </div>
+                          <div style={{ fontSize: 'var(--font-size-body-lg)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
+                            {metrics.rate.toFixed(2)} req/s
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 'var(--font-size-body-xs)', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                            Error Rate
+                          </div>
+                          <div style={{
+                            fontSize: 'var(--font-size-body-lg)',
+                            fontWeight: 'var(--font-weight-medium)',
+                            color: errorRate > 0 ? '#ef4444' : '#10b981',
+                          }}>
+                            {errorRate.toFixed(1)}%
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 'var(--font-size-body-xs)', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                            Avg Duration
+                          </div>
+                          <div style={{ fontSize: 'var(--font-size-body-lg)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
+                            {metrics.avgDuration.toFixed(2)}ms
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 'var(--font-size-body-xs)', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                            P95 Duration
+                          </div>
+                          <div style={{ fontSize: 'var(--font-size-body-lg)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
+                            {metrics.p95Duration.toFixed(2)}ms
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 'var(--font-size-body-xs)', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                            P99 Duration
+                          </div>
+                          <div style={{ fontSize: 'var(--font-size-body-lg)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
+                            {metrics.p99Duration.toFixed(2)}ms
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 'var(--font-size-body-xs)', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                            Total Spans
+                          </div>
+                          <div style={{ fontSize: 'var(--font-size-body-lg)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
+                            {metrics.totalSpans}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        ) : (
-          filteredTraces.map((trace) => (
+        )}
+
+        {/* Dependencies View */}
+        {viewMode === 'dependencies' && (
+          <div>
+            <div style={{
+              fontSize: 'var(--font-size-body-md)',
+              fontWeight: 'var(--font-weight-medium)',
+              color: 'var(--color-text-primary)',
+              marginBottom: 'var(--space-component-md)',
+            }}>
+              Service Dependencies with Operation Drill-down
+            </div>
+            {serviceDependencies.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 'var(--space-component-xl)', color: 'var(--color-text-tertiary)' }}>
+                No service dependencies detected
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 'var(--gap-md)' }}>
+                {serviceDependencies.map(dep => {
+                  const depKey = `${dep.from}->${dep.to}`;
+                  const isExpanded = expandedDeps.has(depKey);
+                  const fromColor = serviceColors.colorMap.get(dep.from) || '#6366f1';
+                  const toColor = serviceColors.colorMap.get(dep.to) || '#6366f1';
+
+                  return (
+                    <div
+                      key={depKey}
+                      style={{
+                        padding: 'var(--space-component-md)',
+                        background: 'var(--color-bg-elevated)',
+                        borderRadius: 'var(--radius-lg)',
+                        border: '1px solid var(--color-border-subtle)',
+                      }}
+                    >
+                      <div
+                        onClick={() => {
+                          setExpandedDeps(prev => {
+                            const newSet = new Set(prev);
+                            if (newSet.has(depKey)) {
+                              newSet.delete(depKey);
+                            } else {
+                              newSet.add(depKey);
+                            }
+                            return newSet;
+                          });
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--gap-md)',
+                          cursor: 'pointer',
+                          marginBottom: isExpanded ? 'var(--space-component-md)' : 0,
+                        }}
+                      >
+                        <div style={{ fontSize: '14px', opacity: 0.5 }}>
+                          {isExpanded ? '▼' : '►'}
+                        </div>
+
+                        <div
+                          style={{
+                            padding: '6px 16px',
+                            borderRadius: 'var(--radius-md)',
+                            background: fromColor,
+                            color: 'white',
+                            fontSize: 'var(--font-size-body-sm)',
+                            fontWeight: 'var(--font-weight-bold)',
+                          }}
+                        >
+                          {dep.from}
+                        </div>
+
+                        <div style={{ fontSize: 'var(--font-size-body-lg)', color: 'var(--color-text-tertiary)' }}>
+                          →
+                        </div>
+
+                        <div
+                          style={{
+                            padding: '6px 16px',
+                            borderRadius: 'var(--radius-md)',
+                            background: toColor,
+                            color: 'white',
+                            fontSize: 'var(--font-size-body-sm)',
+                            fontWeight: 'var(--font-weight-bold)',
+                          }}
+                        >
+                          {dep.to}
+                        </div>
+
+                        <div style={{
+                          fontSize: 'var(--font-size-body-xs)',
+                          color: 'var(--color-text-tertiary)',
+                          marginLeft: 'auto',
+                        }}>
+                          {dep.operations.size} operation{dep.operations.size !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+
+                      {/* Operation-level drill-down */}
+                      {isExpanded && (
+                        <div style={{
+                          display: 'grid',
+                          gap: 'var(--gap-sm)',
+                          paddingLeft: '30px',
+                        }}>
+                          {Array.from(dep.operations.values()).map(opMetrics => {
+                            const errorRate = opMetrics.totalCalls > 0 ? (opMetrics.errorCalls / opMetrics.totalCalls) * 100 : 0;
+
+                            return (
+                              <div
+                                key={opMetrics.operation}
+                                style={{
+                                  padding: 'var(--space-component-sm)',
+                                  background: 'var(--color-bg-surface)',
+                                  borderRadius: 'var(--radius-md)',
+                                  border: '1px solid var(--color-border-subtle)',
+                                }}
+                              >
+                                <div style={{
+                                  fontSize: 'var(--font-size-body-xs)',
+                                  fontFamily: 'var(--font-family-mono)',
+                                  color: 'var(--color-text-secondary)',
+                                  marginBottom: 'var(--gap-xs)',
+                                }}>
+                                  {opMetrics.operation}
+                                </div>
+
+                                <div style={{
+                                  display: 'flex',
+                                  gap: 'var(--gap-lg)',
+                                  fontSize: 'var(--font-size-body-xs)',
+                                }}>
+                                  <div>
+                                    <span style={{ color: 'var(--color-text-tertiary)' }}>Calls: </span>
+                                    <span style={{ color: 'var(--color-text-primary)', fontWeight: 'var(--font-weight-medium)' }}>
+                                      {opMetrics.totalCalls}
+                                    </span>
+                                  </div>
+
+                                  <div>
+                                    <span style={{ color: 'var(--color-text-tertiary)' }}>Errors: </span>
+                                    <span style={{ color: errorRate > 0 ? '#ef4444' : '#10b981', fontWeight: 'var(--font-weight-medium)' }}>
+                                      {errorRate.toFixed(1)}%
+                                    </span>
+                                  </div>
+
+                                  <div>
+                                    <span style={{ color: 'var(--color-text-tertiary)' }}>Avg: </span>
+                                    <span style={{ color: 'var(--color-text-primary)', fontWeight: 'var(--font-weight-medium)' }}>
+                                      {opMetrics.avgDuration.toFixed(2)}ms
+                                    </span>
+                                  </div>
+
+                                  <div>
+                                    <span style={{ color: 'var(--color-text-tertiary)' }}>P95: </span>
+                                    <span style={{ color: 'var(--color-text-primary)', fontWeight: 'var(--font-weight-medium)' }}>
+                                      {opMetrics.p95Duration.toFixed(2)}ms
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Traces View (Timeline & Statistics) */}
+        {(viewMode === 'timeline' || viewMode === 'statistics') && (
+          <>
+            {filteredTraces.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: 'var(--space-component-xl)',
+                color: 'var(--color-text-secondary)',
+              }}>
+                <div style={{ fontSize: '32px', marginBottom: 'var(--gap-md)', opacity: 0.5 }}>🔎</div>
+                <div>No traces found</div>
+              </div>
+            ) : (
+              filteredTraces.map((trace) => (
             <div
               key={trace.traceId}
               style={{
@@ -731,44 +1184,92 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                   background: trace.hasError ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-bg-surface)',
                   cursor: 'pointer',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                  flexDirection: 'column',
+                  gap: 'var(--gap-sm)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-md)' }}>
+                {/* Top row: Status, Duration, Services */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--gap-md)',
+                }}>
                   <div style={{ fontSize: '14px', opacity: 0.5 }}>
                     {selectedTraceIds.has(trace.traceId) ? '▼' : '►'}
                   </div>
-                  <div>
-                    <div style={{
-                      fontSize: 'var(--font-size-body-sm)',
-                      fontFamily: 'var(--font-family-mono)',
-                      color: 'var(--color-text-primary)',
-                      fontWeight: 'var(--font-weight-medium)',
-                    }}>
-                      {trace.traceId.slice(0, 16)}...
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      gap: 'var(--gap-sm)',
-                      fontSize: 'var(--font-size-body-xs)',
-                      color: 'var(--color-text-tertiary)',
-                      marginTop: '4px',
-                    }}>
-                      <span>{trace.spanCount} spans</span>
-                      <span>•</span>
-                      <span>{trace.services.size} service{trace.services.size !== 1 ? 's' : ''}</span>
-                      <span>•</span>
-                      <span>{new Date(trace.startTime / 1_000_000).toLocaleTimeString()}</span>
-                    </div>
+
+                  {/* Status indicator */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: 'var(--font-size-body-sm)',
+                    fontWeight: 'var(--font-weight-medium)',
+                    color: trace.hasError ? '#ef4444' : '#10b981',
+                  }}>
+                    <span>{trace.hasError ? '✗' : '✓'}</span>
+                    <span>{trace.hasError ? 'ERROR' : 'OK'}</span>
+                  </div>
+
+                  {/* Duration */}
+                  <div style={{
+                    fontSize: 'var(--font-size-body-sm)',
+                    fontWeight: 'var(--font-weight-medium)',
+                    color: 'var(--color-text-primary)',
+                  }}>
+                    {trace.duration.toFixed(2)}ms
+                  </div>
+
+                  {/* Service badges */}
+                  <div style={{
+                    display: 'flex',
+                    gap: '6px',
+                    flex: 1,
+                    flexWrap: 'wrap',
+                  }}>
+                    {Array.from(trace.services).map(service => {
+                      const serviceColor = serviceColors.colorMap.get(service) || '#6366f1';
+                      return (
+                        <div
+                          key={service}
+                          style={{
+                            padding: '4px 12px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: serviceColor,
+                            color: 'white',
+                            fontSize: 'var(--font-size-body-xs)',
+                            fontWeight: 'var(--font-weight-medium)',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {service}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+
+                {/* Bottom row: Trace ID, Span count, Timestamp */}
                 <div style={{
-                  fontSize: 'var(--font-size-body-lg)',
-                  fontWeight: 'var(--font-weight-bold)',
-                  color: trace.hasError ? '#ef4444' : 'var(--color-text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--gap-md)',
+                  paddingLeft: '30px',
+                  fontSize: 'var(--font-size-body-xs)',
+                  color: 'var(--color-text-tertiary)',
                 }}>
-                  {trace.duration.toFixed(2)}ms
+                  <div style={{
+                    fontFamily: 'var(--font-family-mono)',
+                    color: 'var(--color-text-secondary)',
+                  }}>
+                    {trace.traceId.slice(0, 16)}...
+                  </div>
+                  <span>•</span>
+                  <span>{trace.spanCount} spans</span>
+                  <span>•</span>
+                  <span>{trace.services.size} service{trace.services.size !== 1 ? 's' : ''}</span>
+                  <span>•</span>
+                  <span>{new Date(trace.startTime / 1_000_000).toLocaleTimeString()}</span>
                 </div>
               </div>
 
@@ -779,7 +1280,9 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                 </div>
               )}
             </div>
-          ))
+              ))
+            )}
+          </>
         )}
       </div>
     </div>
