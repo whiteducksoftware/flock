@@ -14,6 +14,41 @@ logger = get_logger("tools")
 tracer = trace.get_tracer(__name__)
 
 
+# Global trace filter configuration
+class TraceFilterConfig:
+    """Configuration for filtering which operations get traced."""
+
+    def __init__(self):
+        self.services: set[str] | None = None  # Whitelist: only trace these services
+        self.ignore_operations: set[str] = set()  # Blacklist: never trace these operations
+
+    def should_trace(self, service: str, operation: str) -> bool:
+        """Check if an operation should be traced based on filters.
+
+        Args:
+            service: Service name (e.g., "Flock", "Agent")
+            operation: Full operation name (e.g., "Flock.publish")
+
+        Returns:
+            True if should trace, False otherwise
+        """
+        # Check blacklist first (highest priority)
+        if operation in self.ignore_operations:
+            return False
+
+        # Check whitelist if configured
+        if self.services is not None:
+            service_lower = service.lower()
+            if service_lower not in self.services:
+                return False
+
+        return True
+
+
+# Global instance
+_trace_filter_config = TraceFilterConfig()
+
+
 def _serialize_value(value, max_depth=10, current_depth=0):
     """Serialize a value to JSON-compatible format for span attributes.
 
@@ -176,6 +211,12 @@ def traced_and_logged(func):
         async def async_wrapper(*args, **kwargs):
             attributes, span_name = _extract_span_attributes(func, args, kwargs)
 
+            # Check if we should trace this operation
+            service_name = span_name.split(".")[0] if "." in span_name else span_name
+            if not _trace_filter_config.should_trace(service_name, span_name):
+                # Skip tracing, just call the function
+                return await func(*args, **kwargs)
+
             with tracer.start_as_current_span(span_name) as span:
                 # Set all extracted attributes
                 for key, value in attributes.items():
@@ -218,6 +259,12 @@ def traced_and_logged(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         attributes, span_name = _extract_span_attributes(func, args, kwargs)
+
+        # Check if we should trace this operation
+        service_name = span_name.split(".")[0] if "." in span_name else span_name
+        if not _trace_filter_config.should_trace(service_name, span_name):
+            # Skip tracing, just call the function
+            return func(*args, **kwargs)
 
         with tracer.start_as_current_span(span_name) as span:
             # Set all extracted attributes

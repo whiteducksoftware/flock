@@ -2,8 +2,32 @@ AZURE_API_KEY=xxx
 AZURE_API_BASE=https://xxx-foundry.cognitiveservices.azure.com/
 AZURE_API_VERSION="2024-12-01-preview"
 
-# Enable OpenTelemetry tracing
-# Set to "true" to enable auto-tracing for agents
+# ============================================================================
+# OpenTelemetry Tracing Configuration
+# ============================================================================
+
+# Enable auto-tracing for all agents and operations
+# Set to "true" to enable tracing (stores in .flock/traces.duckdb)
 FLOCK_TRACE_FILE=true
+
+# Filter: Trace only specific services (whitelist)
+# Format: JSON array of service names (case-insensitive)
+# If not set or empty, all services are traced
+# Recommended: Trace core services, avoid streaming token overhead
+# Example: FLOCK_TRACE_SERVICES=["flock", "agent", "dspyengine", "outpututilitycomponent"]
+FLOCK_TRACE_SERVICES=["flock", "agent", "dspyengine", "outpututilitycomponent"]
+
+# Filter: Ignore specific operations (blacklist)
+# Format: JSON array of operation names in "Service.method" format
+# Use this to exclude noisy or low-value operations from traces
+# Example: FLOCK_TRACE_IGNORE=["DashboardEventCollector.set_websocket_manager"]
+FLOCK_TRACE_IGNORE=["DashboardEventCollector.set_websocket_manager"]
+
+# Trace Time-To-Live (TTL): Auto-delete old traces
+# Deletes traces older than specified days on application startup
+# Keeps database size manageable and removes stale debugging data
+# Set to empty or comment out to keep traces forever
+# Example: FLOCK_TRACE_TTL_DAYS=30
+FLOCK_TRACE_TTL_DAYS=30
 
 OPENAI_API_KEY=xxx

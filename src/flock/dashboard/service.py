@@ -409,7 +409,7 @@ class DashboardHTTPService(BlackboardHTTPService):
 
         @app.get("/api/traces")
         async def get_traces() -> list[dict[str, Any]]:
-            """Get OpenTelemetry traces from trace file.
+            """Get OpenTelemetry traces from DuckDB.
 
             Returns list of trace spans in OTEL format.
 
@@ -433,27 +433,64 @@ class DashboardHTTPService(BlackboardHTTPService):
             import json
             from pathlib import Path
 
-            trace_file = Path(".flock/traces.jsonl")
+            import duckdb
 
-            if not trace_file.exists():
+            db_path = Path(".flock/traces.duckdb")
+
+            if not db_path.exists():
                 logger.warning(
-                    "Trace file not found. Make sure FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true"
+                    "Trace database not found. Make sure FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true"
                 )
                 return []
 
             try:
-                spans = []
-                with open(trace_file) as f:
-                    for line in f:
-                        if line.strip():
-                            span = json.loads(line)
-                            spans.append(span)
+                with duckdb.connect(str(db_path), read_only=True) as conn:
+                    # Query all spans from DuckDB
+                    result = conn.execute("""
+                        SELECT
+                            trace_id, span_id, parent_id, name, service, operation,
+                            kind, start_time, end_time, duration_ms,
+                            status_code, status_description,
+                            attributes, events, links, resource
+                        FROM spans
+                        ORDER BY start_time DESC
+                    """).fetchall()
 
-                logger.debug(f"Loaded {len(spans)} spans from trace file")
+                    spans = []
+                    for row in result:
+                        # Reconstruct OTEL span format from DuckDB row
+                        span = {
+                            "name": row[3],  # name
+                            "context": {
+                                "trace_id": row[0],  # trace_id
+                                "span_id": row[1],  # span_id
+                                "trace_flags": 0,
+                                "trace_state": "",
+                            },
+                            "kind": row[6],  # kind
+                            "start_time": row[7],  # start_time
+                            "end_time": row[8],  # end_time
+                            "status": {
+                                "status_code": row[10],  # status_code
+                                "description": row[11],  # status_description
+                            },
+                            "attributes": json.loads(row[12]) if row[12] else {},  # attributes
+                            "events": json.loads(row[13]) if row[13] else [],  # events
+                            "links": json.loads(row[14]) if row[14] else [],  # links
+                            "resource": json.loads(row[15]) if row[15] else {},  # resource
+                        }
+
+                        # Add parent_id if exists
+                        if row[2]:  # parent_id
+                            span["parent_id"] = row[2]
+
+                        spans.append(span)
+
+                logger.debug(f"Loaded {len(spans)} spans from DuckDB")
                 return spans
 
             except Exception as e:
-                logger.exception(f"Error reading trace file: {e}")
+                logger.exception(f"Error reading traces from DuckDB: {e}")
                 return []
 
         @app.get("/api/streaming-history/{agent_name}")

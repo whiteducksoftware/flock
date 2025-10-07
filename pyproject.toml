@@ -28,6 +28,7 @@ dependencies = [
     "poethepoet>=0.30.0",
     "devtools>=0.12.2",
     "websockets>=15.0.1",
+    "duckdb>=1.1.0",
 ]
 
 [project.scripts]

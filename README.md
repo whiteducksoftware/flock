@@ -20,18 +20,18 @@
 
 ## The Problem You Know Too Well
 
-🤯 **Prompt Hell**: Brittle 500-line prompts that break with every model update  
-💥 **System Failures**: One bad LLM response crashes your entire workflow  
-🧪 **Testing Nightmares**: "How do I unit test a prompt?" (You don't.)  
-📏 **Measuring Quality**: "How do I know my prompts are optimal?" (You also don't.)  
-📄 **Output Chaos**: Parsing unstructured LLM responses into reliable data  
-⛓️ **Orchestration Limits**: Graph-based frameworks create rigid, tightly-coupled systems  
-🚀 **Production Gap**: Jupyter notebooks don't scale to enterprise systems  
-🔓 **No Security Model**: Every agent sees everything—no access controls  
+🤯 **Prompt Hell**: Brittle 500-line prompts that break with every model update
+💥 **System Failures**: One bad LLM response crashes your entire workflow
+🧪 **Testing Nightmares**: "How do I unit test a prompt?" (You don't.)
+📏 **Measuring Quality**: "How do I know my prompts are optimal?" (You also don't.)
+📄 **Output Chaos**: Parsing unstructured LLM responses into reliable data
+⛓️ **Orchestration Limits**: Graph-based frameworks create rigid, tightly-coupled systems
+🚀 **Production Gap**: Jupyter notebooks don't scale to enterprise systems
+🔓 **No Security Model**: Every agent sees everything—no access controls
 
 **The tooling is fundamentally broken. It's time for a better approach.**
 
-Most issues are solvable, because decades of experience with micro services tought us hard lessons about decoupling, orchestration and reliability. 
+Most issues are solvable, because decades of experience with micro services tought us hard lessons about decoupling, orchestration and reliability.
 
 **Let's introduce these learnings to AI agents!**
 
@@ -78,13 +78,13 @@ pizza_master = (
 
 ### ✅ Key Advantages
 
-✅ **Declarative Contracts**: Define inputs/outputs with Pydantic models. Flock handles the LLM complexity.  
-⚡ **Built-in Resilience**: Blackboard persists context—agents crash? They recover and resume.  
-🧪 **Actually Testable**: Clear contracts make agents unit-testable like any other code  
-🔐 **Zero-Trust Security**: 5 built-in visibility types (Public, Private, Tenant, Label-based, Time-delayed)  
-🚀 **Dynamic Workflows**: Self-correcting loops, conditional routing, intelligent decision-making  
-🔧 **Production-Ready**: Real-time dashboard, WebSocket streaming, 743 passing tests  
-📊 **True Observability**: Agent View + Blackboard View with full data lineage  
+✅ **Declarative Contracts**: Define inputs/outputs with Pydantic models. Flock handles the LLM complexity.
+⚡ **Built-in Resilience**: Blackboard persists context—agents crash? They recover and resume.
+🧪 **Actually Testable**: Clear contracts make agents unit-testable like any other code
+🔐 **Zero-Trust Security**: 5 built-in visibility types (Public, Private, Tenant, Label-based, Time-delayed)
+🚀 **Dynamic Workflows**: Self-correcting loops, conditional routing, intelligent decision-making
+🔧 **Production-Ready**: Real-time dashboard, WebSocket streaming, 743 passing tests
+📊 **True Observability**: Agent View + Blackboard View with full data lineage
 
 ---
 
@@ -627,9 +627,165 @@ recommender = orchestrator.agent("recommender").consumes(
 
 ---
 
+## 🔍 Observability & Debugging
+
+### Built-in OpenTelemetry Tracing with DuckDB
+
+Flock includes **production-ready distributed tracing** powered by OpenTelemetry and DuckDB—enabling AI-assisted debugging and performance analysis.
+
+**Why DuckDB?** It's a columnar analytical database **10-100x faster than SQLite** for trace analytics. No external services, no Docker—just a single embedded database file.
+
+### Enable Tracing
+
+```bash
+# Enable auto-tracing for all agents
+export FLOCK_AUTO_TRACE=true
+export FLOCK_TRACE_FILE=true
+
+# Run your application
+python your_app.py
+
+# Traces stored in: .flock/traces.duckdb
+```
+
+### Filtering: Control What Gets Traced
+
+Use whitelist/blacklist filtering to reduce overhead and avoid tracing noisy operations like streaming tokens:
+
+```bash
+# Trace only core services (recommended for production)
+export FLOCK_TRACE_SERVICES='["flock", "agent", "dspyengine", "outpututilitycomponent"]'
+
+# Exclude specific noisy operations
+export FLOCK_TRACE_IGNORE='["DashboardEventCollector.set_websocket_manager"]'
+```
+
+**How filtering works:**
+- **Whitelist** (`FLOCK_TRACE_SERVICES`): Only trace specified classes (case-insensitive)
+- **Blacklist** (`FLOCK_TRACE_IGNORE`): Never trace specific operations (exact match)
+- Filtering happens **before** span creation for near-zero overhead
+
+📖 **Full documentation:** [docs/AUTO_TRACING.md](docs/AUTO_TRACING.md)
+
+### Real-Time Trace Viewer
+
+<p align="center">
+  <img alt="Trace Viewer" src="docs/img/trace_viewer.png" width="1000">
+</p>
+
+The dashboard includes a **Jaeger-style trace viewer** with:
+
+- **Timeline View**: Waterfall visualization of span hierarchies
+- **Statistics View**: Tabular view with durations and status codes
+- **Full I/O Capture**: Complete input/output data for every operation
+- **JSON Viewer**: Collapsible, syntax-highlighted JSON with expand/collapse all
+- **Service Colors**: Visual distinction between services
+- **Multi-Trace Support**: Open and compare multiple traces simultaneously
+
+### AI-Powered Debugging
+
+**AI agents (including Claude Code) can query your traces directly:**
+
+```python
+import duckdb
+
+conn = duckdb.connect('.flock/traces.duckdb', read_only=True)
+
+# Find slow operations
+slow_ops = conn.execute("""
+    SELECT name, AVG(duration_ms) as avg_duration
+    FROM spans
+    WHERE duration_ms > 1000
+    GROUP BY name
+    ORDER BY avg_duration DESC
+""").fetchall()
+
+# Find errors with their inputs
+errors = conn.execute("""
+    SELECT name, status_description,
+           json_extract(attributes, '$.input.message') as input
+    FROM spans
+    WHERE status_code = 'ERROR'
+""").fetchall()
+
+# Performance analysis by service
+perf = conn.execute("""
+    SELECT service,
+           COUNT(*) as calls,
+           AVG(duration_ms) as avg_ms,
+           MAX(duration_ms) as max_ms,
+           PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_ms
+    FROM spans
+    GROUP BY service
+""").fetchall()
+```
+
+**Example AI-assisted debugging:**
+```
+You: "My pizza agent is slow, help me find why"
+AI: [queries DuckDB] "The DSPyEngine.evaluate span takes 23s on average.
+     Checking input attributes... You're passing 50KB of conversation history.
+     Recommendation: Limit context window to last 5 messages."
+```
+
+### What Gets Traced
+
+**Every operation is automatically traced with:**
+
+✅ Full input arguments (with JSON serialization)
+✅ Complete output values
+✅ Duration and timestamps
+✅ Parent-child span relationships
+✅ Service and operation names
+✅ Error messages and stack traces
+✅ Agent metadata (name, description)
+✅ Correlation IDs for request tracking
+
+**No manual instrumentation required—just enable `FLOCK_AUTO_TRACE=true`.**
+
+### Performance Analytics
+
+```sql
+-- Find bottlenecks
+SELECT name, service, duration_ms
+FROM spans
+WHERE duration_ms > 5000
+ORDER BY start_time DESC;
+
+-- Track P95 latency by operation
+SELECT operation,
+       PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95
+FROM spans
+WHERE service = 'DSPyEngine'
+GROUP BY operation;
+
+-- Error rate by service
+SELECT service,
+       COUNT(*) as total,
+       SUM(CASE WHEN status_code = 'ERROR' THEN 1 ELSE 0 END) as errors,
+       (errors * 100.0 / total) as error_rate
+FROM spans
+GROUP BY service;
+```
+
+### Production Monitoring
+
+Deploy Flock with **OTEL exporters** to send traces to your observability platform:
+
+```bash
+# Send to Grafana Tempo/Loki
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://tempo:4317"
+export FLOCK_AUTO_TRACE=true
+
+# Or use local DuckDB + periodic exports
+export FLOCK_TRACE_FILE=true
+```
+
+---
+
 ## 🤝 Contributing
 
-We're building Flock 0.5 in the open! See [`AGENTS.md`](AGENTS.md) for development setup.
+We're building Flock 0.5 in the open! See [`AGENTS.md`](AGENTS.md) for development setup and debugging guide.
 
 ```bash
 git clone https://github.com/whiteducksoftware/flock-flow.git

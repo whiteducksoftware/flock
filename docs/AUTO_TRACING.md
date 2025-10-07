@@ -27,14 +27,20 @@ export FLOCK_AUTO_TRACE=true
 python your_agent.py
 ```
 
-### Export to File
+### Export to DuckDB
 
 ```bash
-# Export traces to .flock/traces.jsonl
+# Export traces to .flock/traces.duckdb
 export FLOCK_AUTO_TRACE=true
 export FLOCK_TRACE_FILE=true
 python your_agent.py
 ```
+
+Traces are stored in a DuckDB database, which provides:
+- ✅ **10-100x faster** queries than JSON/SQLite
+- ✅ Built-in trace viewer UI in the Flock dashboard
+- ✅ SQL analytics for debugging and monitoring
+- ✅ Efficient columnar storage
 
 ### Export to Grafana/Jaeger (OTLP)
 
@@ -50,6 +56,165 @@ python your_agent.py
 ```bash
 export FLOCK_AUTO_TRACE=false
 python your_agent.py
+```
+
+## Filtering: Whitelist and Blacklist
+
+Control which operations get traced to reduce overhead and noise. This is especially important to **avoid tracing streaming token operations** which can cause performance issues.
+
+### How Filtering Works: Two-Stage Process
+
+#### Stage 1: Wrapping Methods with `@traced_and_logged`
+
+Methods must first be wrapped with the tracing decorator. This happens automatically via metaclasses:
+
+- **`AutoTracedMeta`**: Wraps all public methods in `Agent` and `Flock` classes
+- **`TracedModelMeta`**: Wraps all public methods in `AgentComponent` subclasses
+
+Classes using these metaclasses:
+- `Agent` (from agent.py)
+- `Flock` (from orchestrator.py)
+- `AgentComponent` and all subclasses:
+  - `EngineComponent` (DSPyEngine, ClaudeEngine, etc.)
+  - `OutputUtilityComponent`
+  - `DashboardEventCollector`
+  - `MetricsUtility`, `LoggingUtility`
+  - All custom components
+
+#### Stage 2: Filter Check (Whitelist/Blacklist)
+
+**Only wrapped methods** reach the filter. Before creating an OTEL span, the decorator checks:
+
+```python
+service_name = span_name.split('.')[0]  # Extract class name
+# Example: "Agent.execute" → service_name = "Agent"
+
+if not should_trace(service_name, span_name):
+    return func(*args, **kwargs)  # Skip span creation entirely
+```
+
+**Key Point**: Methods that are not wrapped (e.g., plain functions, non-component classes) are never traced, regardless of whitelist/blacklist settings.
+
+### Whitelist: FLOCK_TRACE_SERVICES
+
+**Filters by CLASS NAME** (case-insensitive). Only trace methods from specified classes.
+
+```bash
+# Only trace Agent and Flock classes
+export FLOCK_TRACE_SERVICES='["agent", "flock"]'
+```
+
+**Behavior**:
+- If set: Only traces methods from listed classes
+- If empty/unset: Traces **ALL** wrapped classes
+- Case-insensitive: `"agent"`, `"Agent"`, `"AGENT"` all match `Agent` class
+
+**Example**:
+```bash
+FLOCK_TRACE_SERVICES='["agent", "flock", "dspyengine"]'
+```
+
+**Result**:
+- ✅ `Agent.execute` - traced (Agent in whitelist)
+- ✅ `Flock.publish` - traced (Flock in whitelist)
+- ✅ `DSPyEngine.evaluate` - traced (DSPyEngine in whitelist)
+- ❌ `OutputUtilityComponent.on_post_evaluate` - NOT traced (not in whitelist)
+- ❌ `DashboardEventCollector.collect_event` - NOT traced (not in whitelist)
+
+### Blacklist: FLOCK_TRACE_IGNORE
+
+**Filters by FULL OPERATION NAME** (exact match). Never trace specific methods.
+
+```bash
+# Never trace these specific methods
+export FLOCK_TRACE_IGNORE='["DashboardEventCollector.set_websocket_manager", "Agent.get_identity"]'
+```
+
+**Behavior**:
+- Exact match on `ClassName.method_name`
+- Takes priority over whitelist
+- Use this to exclude noisy or low-value operations
+
+**Example**:
+```bash
+FLOCK_TRACE_SERVICES='["agent", "dashboardeventcollector"]'
+FLOCK_TRACE_IGNORE='["DashboardEventCollector.set_websocket_manager"]'
+```
+
+**Result**:
+- ✅ `Agent.execute` - traced (in whitelist, not in blacklist)
+- ✅ `DashboardEventCollector.collect_event` - traced (in whitelist, not in blacklist)
+- ❌ `DashboardEventCollector.set_websocket_manager` - NOT traced (in blacklist)
+
+### Filter Priority
+
+1. **Blacklist** (highest priority) - If in `FLOCK_TRACE_IGNORE`, never trace
+2. **Whitelist** - If `FLOCK_TRACE_SERVICES` is set, only trace listed services
+3. **Default** - If no filters set, trace everything that's wrapped
+
+### Recommended Configuration
+
+Add to your `.env` file:
+
+```bash
+# Trace core agent execution, avoid streaming token overhead
+FLOCK_TRACE_SERVICES=["flock", "agent", "dspyengine", "outpututilitycomponent"]
+
+# Exclude noisy operations
+FLOCK_TRACE_IGNORE=["DashboardEventCollector.set_websocket_manager"]
+
+# Auto-delete traces older than 30 days
+FLOCK_TRACE_TTL_DAYS=30
+```
+
+**Why these defaults?**
+- `flock` - Core orchestration (publish, scheduling)
+- `agent` - Agent lifecycle and execution
+- `dspyengine` - LLM calls and responses
+- `outpututilitycomponent` - Output formatting
+- Excludes dashboard/streaming operations to avoid performance issues
+- TTL keeps database size manageable by removing old debugging data
+
+### Trace Time-To-Live (TTL)
+
+Control database size by automatically deleting old traces:
+
+```bash
+# Delete traces older than 30 days
+export FLOCK_TRACE_TTL_DAYS=30
+```
+
+**How it works:**
+- Cleanup runs **on application startup** (when DuckDB exporter initializes)
+- Uses the `created_at` timestamp field from the spans table
+- Deletes all spans older than the specified number of days
+- Prints a summary: `[DuckDB TTL] Deleted 1234 spans older than 30 days`
+
+**When to use TTL:**
+- ✅ Development environments - Keep database small, remove old debugging sessions
+- ✅ Production - Retain recent traces for debugging, delete historical data
+- ✅ CI/CD - Clean up test traces automatically
+- ❌ Long-term analytics - If you need historical trace data, disable TTL or export to separate storage
+
+**Performance impact:**
+- Cleanup uses indexed `created_at` field for fast deletion
+- Runs only once per application startup
+- Near-zero runtime overhead
+
+**Example scenarios:**
+
+```bash
+# Development: Keep last 7 days only
+FLOCK_TRACE_TTL_DAYS=7
+
+# Production: Keep last 30 days
+FLOCK_TRACE_TTL_DAYS=30
+
+# Long-term retention: Keep last 90 days
+FLOCK_TRACE_TTL_DAYS=90
+
+# No cleanup: Keep all traces forever
+# FLOCK_TRACE_TTL_DAYS=  (leave empty or comment out)
 ```
 
 ## What Gets Captured
@@ -210,33 +375,64 @@ python your_agent.py
 
 ## Skipping Methods from Tracing
 
-Use `@skip_trace` decorator to exclude specific methods:
+### Option 1: Use Filtering (Recommended)
+
+Use environment variables to control tracing at runtime without code changes:
+
+```bash
+# Exclude specific operations
+export FLOCK_TRACE_IGNORE='["MyComponent.noisy_helper"]'
+```
+
+This is preferred because:
+- ✅ No code changes required
+- ✅ Can be adjusted per environment (dev/staging/prod)
+- ✅ Easy to add/remove without modifying source
+
+### Option 2: Use `@skip_trace` Decorator
+
+For methods that should **never** be traced in any environment:
 
 ```python
 from flock.logging.auto_trace import skip_trace
 
 class MyComponent(AgentComponent):
     def important_method(self):
-        # This will be traced
+        # This will be traced (if class is whitelisted)
         pass
 
     @skip_trace
     def noisy_helper(self):
-        # This will NOT be traced
+        # This will NEVER be traced, even if whitelisted
         pass
 ```
+
+**When to use `@skip_trace`**:
+- Methods called thousands of times per second
+- Methods with sensitive data you never want logged
+- Internal helpers that provide no debugging value
 
 ## Performance Considerations
 
 - **Overhead**: Each span adds ~0.1-0.5ms overhead
 - **Console logging**: DEBUG logs can slow down execution significantly
-- **File export**: Minimal overhead (~0.01ms per span)
+- **DuckDB export**: Minimal overhead (~0.01ms per span)
 - **OTLP export**: Batched, minimal overhead (~0.02ms per span)
+- **Filtering**: Filter check happens **before** span creation, so filtered operations have near-zero overhead
 
 For production:
-- Disable auto-tracing or set to WARNING level
-- Use sampling (export 1% of traces)
-- Use OTLP with batching
+- **Use filtering** to trace only core services (recommended)
+- Use DuckDB export instead of OTLP for lower overhead
+- Disable DEBUG console logging
+- Use blacklist to exclude high-frequency operations
+
+**Example production config**:
+```bash
+export FLOCK_AUTO_TRACE=true
+export FLOCK_TRACE_FILE=true  # DuckDB only, no console spam
+export FLOCK_TRACE_SERVICES='["agent", "flock"]'  # Core services only
+export FLOCK_TRACE_IGNORE='["DashboardEventCollector.set_websocket_manager"]'
+```
 
 ## Troubleshooting
 
@@ -260,17 +456,40 @@ For production:
 
 ## Architecture
 
-Auto-tracing uses:
-- **Metaclass**: `AutoTracedMeta` wraps all public methods at class creation time
-- **Decorator**: `@traced_and_logged` creates OTEL spans with proper context propagation
+Auto-tracing uses a two-stage approach:
+
+### Stage 1: Method Wrapping (Compile Time)
+- **Metaclasses**: `AutoTracedMeta` and `TracedModelMeta` wrap all public methods at class creation time
+- **Decorator**: `@traced_and_logged` added to each public method
+- Applied to:
+  - `Agent` (agent.py) - via `AutoTracedMeta`
+  - `Flock` (orchestrator.py) - via `AutoTracedMeta`
+  - `AgentComponent` (components.py) - via `TracedModelMeta`
+  - All their subclasses inherit the metaclass
+
+### Stage 2: Filter Check (Runtime)
+- **Filter Configuration**: `TraceFilterConfig` loaded from environment variables at startup
+- **Filter Check**: Before creating spans, decorator checks `should_trace(service, operation)`
+- **Early Exit**: Filtered operations skip span creation entirely (near-zero overhead)
+
+### OTEL Span Creation
 - **Context Propagation**: Uses OTEL's `start_as_current_span` for parent-child relationships
 - **Attribute Extraction**: Automatically extracts agent name, correlation ID, etc. from method arguments
+- **Error Handling**: Records exceptions and sets span status
+- **Output Capture**: Serializes return values to JSON for debugging
 
-Applied to:
-- `Agent` (agent.py)
-- `Flock` (orchestrator.py)
-- `AgentComponent` (components.py)
-- All their subclasses
+### Data Flow
+```
+Method Call
+  → Filter Check (whitelist/blacklist)
+    → If filtered: Execute method directly (no tracing)
+    → If not filtered: Create OTEL span
+      → Extract attributes (class, agent.name, correlation_id, etc.)
+      → Execute method
+      → Capture output
+      → Set span status
+      → Export to DuckDB/OTLP
+```
 
 ## Why This Matters for AI Development
 

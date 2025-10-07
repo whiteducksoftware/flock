@@ -184,7 +184,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
         trace.spans.some(span =>
           span.name.toLowerCase().includes(query) ||
           Object.values(span.attributes).some(val =>
-            val.toLowerCase().includes(query)
+            typeof val === 'string' && val.toLowerCase().includes(query)
           )
         )
       );

@@ -1,6 +1,7 @@
 import { moduleRegistry } from './ModuleRegistry';
 import EventLogModuleWrapper from './EventLogModuleWrapper';
 import TraceModuleJaegerWrapper from './TraceModuleJaegerWrapper';
+import TraceModuleGrafanaWrapper from './TraceModuleGrafanaWrapper';
 
 /**
  * Register all available modules
@@ -19,10 +20,19 @@ export function registerModules(): void {
   // Register Jaeger-style Trace Viewer
   moduleRegistry.register({
     id: 'traceViewerJaeger',
-    name: 'Trace Viewer',
-    description: 'OpenTelemetry traces with timeline and statistics',
+    name: 'Trace Viewer (Jaeger)',
+    description: 'Timeline and statistics with JSON viewer',
     icon: '🔎',
     component: TraceModuleJaegerWrapper,
+  });
+
+  // Register Grafana-style Trace Viewer
+  moduleRegistry.register({
+    id: 'traceViewerGrafana',
+    name: 'Trace Viewer (Grafana)',
+    description: 'RED metrics, dependencies, and advanced filters',
+    icon: '📊',
+    component: TraceModuleGrafanaWrapper,
   });
 
   // Future modules can be registered here

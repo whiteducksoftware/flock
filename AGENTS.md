@@ -1080,6 +1080,415 @@ def pytest_collection_modifyitems(config, items):
 
 ---
 
+## 🔍 Observability & Debugging with OpenTelemetry + DuckDB
+
+Flock includes **production-grade distributed tracing** that captures every operation with full input/output data—enabling both human and AI-assisted debugging.
+
+### Quick Start: Enable Tracing
+
+```bash
+# Enable auto-tracing (add to .env or export)
+FLOCK_AUTO_TRACE=true      # Enable tracing for all operations
+FLOCK_TRACE_FILE=true      # Store traces in DuckDB
+
+# Run your application
+python examples/showcase/01_declarative_pizza.py
+
+# Traces stored in: .flock/traces.duckdb
+```
+
+### Filtering: Control What Gets Traced
+
+**Important:** Use filtering to avoid tracing noisy operations (especially streaming tokens) which can cause performance issues.
+
+```bash
+# Recommended: Trace only core services
+FLOCK_TRACE_SERVICES=["flock", "agent", "dspyengine", "outpututilitycomponent"]
+
+# Exclude specific operations
+FLOCK_TRACE_IGNORE=["DashboardEventCollector.set_websocket_manager"]
+```
+
+**How Filtering Works (Two-Stage Process):**
+
+1. **Stage 1 (Compile Time):** Metaclasses (`AutoTracedMeta`, `TracedModelMeta`) wrap all public methods
+   - Applied to: `Agent`, `Flock`, `AgentComponent` and all subclasses
+   - Methods NOT wrapped (plain functions, non-component classes) are never traced
+
+2. **Stage 2 (Runtime):** Filter check before span creation
+   - **Whitelist** (`FLOCK_TRACE_SERVICES`): Only trace specified classes (case-insensitive)
+   - **Blacklist** (`FLOCK_TRACE_IGNORE`): Never trace specific operations (exact match)
+   - Filter check happens **before** span creation → near-zero overhead for filtered ops
+
+**Example:** With `FLOCK_TRACE_SERVICES=["agent", "flock"]`:
+- ✅ `Agent.execute` - traced (in whitelist)
+- ✅ `Flock.publish` - traced (in whitelist)
+- ❌ `DSPyEngine.evaluate` - NOT traced (not in whitelist)
+- ❌ `OutputUtilityComponent.on_post_evaluate` - NOT traced (not in whitelist)
+
+📖 **Full filtering documentation:** [docs/AUTO_TRACING.md](docs/AUTO_TRACING.md)
+
+### Why DuckDB for Traces?
+
+**DuckDB is 10-100x faster than SQLite for analytical queries:**
+- ✅ **Columnar storage** optimized for OLAP workloads
+- ✅ **Zero configuration** - single embedded file, no external services
+- ✅ **SQL interface** - AI agents can query traces directly
+- ✅ **Out-of-the-box** - no Docker, no complex setup
+- ✅ **Analytical queries** - aggregations, p95/p99, time-series analysis
+
+**File-based storage (JSONL) vs DuckDB:**
+```python
+# ❌ Old way (JSONL)
+with open('traces.jsonl') as f:
+    for line in f:
+        span = json.loads(line)
+        if span['duration_ms'] > 1000:  # Manual filtering
+            slow_spans.append(span)
+
+# ✅ New way (DuckDB)
+conn.execute("""
+    SELECT name, AVG(duration_ms), COUNT(*)
+    FROM spans
+    WHERE duration_ms > 1000
+    GROUP BY name
+""").fetchall()
+```
+
+### Trace Viewer UI
+
+The dashboard includes a **Jaeger-style trace viewer** at `http://localhost:8000`:
+
+**Features:**
+- 🔍 **Timeline View**: Waterfall visualization with span hierarchies
+- 📊 **Statistics View**: Tabular view with durations, status codes
+- 📥 **Full I/O Capture**: Complete input/output data for every operation
+- 🎨 **JSON Viewer**: Collapsible, syntax-highlighted with expand/collapse all
+- 🎨 **Service Colors**: Visual distinction between services
+- 🔀 **Multi-Trace Support**: Compare multiple traces side-by-side
+
+### AI-Powered Debugging
+
+**AI agents (including Claude Code) can analyze traces with SQL:**
+
+```python
+import duckdb
+
+conn = duckdb.connect('.flock/traces.duckdb', read_only=True)
+
+# Example 1: Find slow operations
+slow_ops = conn.execute("""
+    SELECT name, AVG(duration_ms) as avg_ms, COUNT(*) as count
+    FROM spans
+    WHERE duration_ms > 1000
+    GROUP BY name
+    ORDER BY avg_ms DESC
+""").fetchall()
+
+# Example 2: Find errors with their inputs
+errors = conn.execute("""
+    SELECT
+        name,
+        status_description,
+        json_extract(attributes, '$.input.message') as input_msg,
+        json_extract(attributes, '$.input.artifacts') as input_artifacts
+    FROM spans
+    WHERE status_code = 'ERROR'
+    ORDER BY start_time DESC
+""").fetchall()
+
+# Example 3: Performance by service
+perf = conn.execute("""
+    SELECT
+        service,
+        COUNT(*) as total_calls,
+        AVG(duration_ms) as avg_ms,
+        MAX(duration_ms) as max_ms,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_ms,
+        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms) as p99_ms
+    FROM spans
+    GROUP BY service
+    ORDER BY avg_ms DESC
+""").fetchall()
+
+# Example 4: Trace full execution path
+trace_path = conn.execute("""
+    SELECT
+        name,
+        duration_ms,
+        status_code,
+        json_extract(attributes, '$.correlation_id') as correlation_id
+    FROM spans
+    WHERE trace_id = '<trace_id_here>'
+    ORDER BY start_time ASC
+""").fetchall()
+
+conn.close()
+```
+
+### Common Debugging Scenarios
+
+#### Scenario 1: "Agent is slow, why?"
+
+```python
+# Find which operations are bottlenecks
+import duckdb
+conn = duckdb.connect('.flock/traces.duckdb', read_only=True)
+
+# Analyze average duration by operation
+result = conn.execute("""
+    SELECT
+        service,
+        operation,
+        COUNT(*) as calls,
+        AVG(duration_ms) as avg_ms,
+        MAX(duration_ms) as max_ms
+    FROM spans
+    WHERE service = 'DSPyEngine'  -- Focus on LLM engine
+    GROUP BY service, operation
+    ORDER BY avg_ms DESC
+""").fetchall()
+
+print("Slowest operations:")
+for row in result:
+    print(f"  {row[1]}: {row[3]:.1f}ms avg ({row[2]} calls)")
+```
+
+**AI-assisted analysis:**
+```
+You: "My pizza agent is slow"
+AI Agent: [queries DuckDB]
+  "Found bottleneck: DSPyEngine.evaluate takes 23s on average.
+   Checking input data... You're passing 50KB conversation history.
+   Recommendation: Limit context to last 5 messages using:
+   agent.consumes(Message, where=lambda m: m.created_at > recent_time)"
+```
+
+#### Scenario 2: "Agent crashed, what input caused it?"
+
+```python
+# Find the error and its input
+conn.execute("""
+    SELECT
+        name,
+        status_description,
+        json_extract(attributes, '$.input.message') as input,
+        json_extract(attributes, '$.input.artifacts') as artifacts
+    FROM spans
+    WHERE status_code = 'ERROR'
+      AND name LIKE '%pizza_master%'
+    ORDER BY start_time DESC
+    LIMIT 1
+""").fetchone()
+```
+
+#### Scenario 3: "Performance regression after code change"
+
+```python
+# Compare before/after performance
+baseline_start = 1728000000000000000  # nanoseconds
+current_start = 1728086400000000000
+
+baseline = conn.execute("""
+    SELECT AVG(duration_ms) as avg_ms
+    FROM spans
+    WHERE start_time BETWEEN ? AND ?
+      AND name = 'DSPyEngine.evaluate'
+""", [baseline_start, baseline_start + 3600000000000]).fetchone()
+
+current = conn.execute("""
+    SELECT AVG(duration_ms) as avg_ms
+    FROM spans
+    WHERE start_time BETWEEN ? AND ?
+      AND name = 'DSPyEngine.evaluate'
+""", [current_start, current_start + 3600000000000]).fetchone()
+
+print(f"Baseline: {baseline[0]:.1f}ms")
+print(f"Current: {current[0]:.1f}ms")
+print(f"Change: {((current[0] / baseline[0]) - 1) * 100:+.1f}%")
+```
+
+#### Scenario 4: "Which agents are called most frequently?"
+
+```python
+# Agent execution frequency
+conn.execute("""
+    SELECT
+        service,
+        COUNT(*) as executions,
+        AVG(duration_ms) as avg_duration,
+        SUM(CASE WHEN status_code = 'ERROR' THEN 1 ELSE 0 END) as errors
+    FROM spans
+    WHERE name LIKE '%.execute'  -- Agent execution spans
+    GROUP BY service
+    ORDER BY executions DESC
+""").fetchall()
+```
+
+### DuckDB Schema Reference
+
+**Spans Table:**
+```sql
+CREATE TABLE spans (
+    trace_id VARCHAR NOT NULL,           -- Trace identifier
+    span_id VARCHAR PRIMARY KEY,         -- Unique span ID
+    parent_id VARCHAR,                   -- Parent span ID (for hierarchy)
+    name VARCHAR NOT NULL,               -- Operation name (e.g., "Flock.publish")
+    service VARCHAR,                     -- Service name (e.g., "Flock")
+    operation VARCHAR,                   -- Operation name (e.g., "publish")
+    kind VARCHAR,                        -- Span kind (INTERNAL, CLIENT, etc.)
+    start_time BIGINT NOT NULL,          -- Start timestamp (nanoseconds)
+    end_time BIGINT NOT NULL,            -- End timestamp (nanoseconds)
+    duration_ms DOUBLE NOT NULL,         -- Duration in milliseconds
+    status_code VARCHAR NOT NULL,        -- Status (OK, ERROR, UNSET)
+    status_description VARCHAR,          -- Error message if failed
+    attributes JSON,                     -- All span attributes (input/output)
+    events JSON,                         -- Span events
+    links JSON,                          -- Span links
+    resource JSON,                       -- Resource attributes
+    created_at TIMESTAMP DEFAULT NOW()  -- Database insert time
+);
+
+-- Indexes for fast queries
+CREATE INDEX idx_trace_id ON spans(trace_id);
+CREATE INDEX idx_service ON spans(service);
+CREATE INDEX idx_start_time ON spans(start_time);
+CREATE INDEX idx_name ON spans(name);
+```
+
+**Attributes JSON Structure:**
+```json
+{
+  "function": "publish",
+  "module": "flock.orchestrator",
+  "class": "Flock",
+  "input.obj": "{\"__class__\": \"MyDreamPizza\", \"pizza_idea\": \"...\"}"
+,
+  "input.correlation_id": "null",
+  "output.value": "{\"__class__\": \"Artifact\", \"id\": \"...\", ...}",
+  "output.type": "Artifact",
+  "correlation_id": "d1da07d1-9f73-4ff9-ac86-ddea29c8cc06"
+}
+```
+
+### Advanced Query Examples
+
+**1. Find longest trace execution:**
+```sql
+SELECT
+    trace_id,
+    COUNT(*) as span_count,
+    MIN(start_time) as trace_start,
+    MAX(end_time) as trace_end,
+    (MAX(end_time) - MIN(start_time)) / 1000000.0 as total_duration_ms
+FROM spans
+GROUP BY trace_id
+ORDER BY total_duration_ms DESC
+LIMIT 10;
+```
+
+**2. Analyze input sizes (detect large payloads):**
+```sql
+SELECT
+    name,
+    AVG(LENGTH(attributes->>'input.message')) as avg_input_size,
+    MAX(LENGTH(attributes->>'input.message')) as max_input_size
+FROM spans
+WHERE attributes->>'input.message' IS NOT NULL
+GROUP BY name
+ORDER BY max_input_size DESC;
+```
+
+**3. Error patterns by time of day:**
+```sql
+SELECT
+    strftime(TIMESTAMP 'epoch' + (start_time / 1000000000) * INTERVAL '1 second', '%H') as hour,
+    COUNT(*) as total_spans,
+    SUM(CASE WHEN status_code = 'ERROR' THEN 1 ELSE 0 END) as errors,
+    (errors * 100.0 / total_spans) as error_rate
+FROM spans
+GROUP BY hour
+ORDER BY hour;
+```
+
+**4. Agent dependency graph (what consumes what):**
+```sql
+WITH agent_outputs AS (
+    SELECT DISTINCT
+        service as producer,
+        json_extract(attributes, '$.output.type') as artifact_type
+    FROM spans
+    WHERE attributes->>'output.type' IS NOT NULL
+),
+agent_inputs AS (
+    SELECT DISTINCT
+        service as consumer,
+        json_extract(attributes, '$.input.artifacts[0].type') as artifact_type
+    FROM spans
+    WHERE attributes->>'input.artifacts' IS NOT NULL
+)
+SELECT
+    ao.producer,
+    ao.artifact_type,
+    ai.consumer
+FROM agent_outputs ao
+JOIN agent_inputs ai ON ao.artifact_type = ai.artifact_type
+ORDER BY ao.producer, ai.consumer;
+```
+
+### Integration with External Tools
+
+**Export to Parquet for BigQuery/Snowflake:**
+```python
+import duckdb
+
+conn = duckdb.connect('.flock/traces.duckdb')
+conn.execute("""
+    COPY (SELECT * FROM spans)
+    TO 'traces.parquet' (FORMAT PARQUET)
+""")
+```
+
+**Send to Grafana Tempo/Jaeger:**
+```bash
+# Use OTLP exporter instead of DuckDB
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://tempo:4317"
+export FLOCK_AUTO_TRACE=true
+# Don't set FLOCK_TRACE_FILE=true
+```
+
+### Performance Tips
+
+1. **Limit trace retention:**
+```sql
+DELETE FROM spans WHERE start_time < (EXTRACT(EPOCH FROM NOW()) * 1000000000) - 604800000000000;  -- Keep 7 days
+```
+
+2. **Vacuum database periodically:**
+```python
+conn.execute("VACUUM")
+```
+
+3. **Use read-only connections for queries:**
+```python
+conn = duckdb.connect('.flock/traces.duckdb', read_only=True)
+```
+
+### Debugging Checklist
+
+When debugging a Flock application:
+
+- [ ] **Enable tracing:** `FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true`
+- [ ] **Reproduce the issue** to capture trace data
+- [ ] **Open trace viewer:** Visit `http://localhost:8000` → Trace Viewer tab
+- [ ] **Check Timeline View:** Look for unusually long spans
+- [ ] **Check Statistics View:** Sort by duration to find bottlenecks
+- [ ] **Examine I/O data:** Expand JSON attributes to see full inputs/outputs
+- [ ] **Query DuckDB:** Use SQL for deeper analysis
+- [ ] **Ask AI agent:** Provide trace_id and description, let AI query and diagnose
+
+---
+
 ## ❓ FAQ for AI Agents
 
 ### Q: Where should I save new files?
