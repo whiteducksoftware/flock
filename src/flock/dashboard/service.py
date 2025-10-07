@@ -580,7 +580,11 @@ class DashboardHTTPService(BlackboardHTTPService):
             # Check for dangerous keywords
             dangerous = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "TRUNCATE"]
             if any(keyword in query_upper for keyword in dangerous):
-                return {"error": "Query contains forbidden operations", "results": [], "columns": []}
+                return {
+                    "error": "Query contains forbidden operations",
+                    "results": [],
+                    "columns": [],
+                }
 
             db_path = Path(".flock/traces.duckdb")
             if not db_path.exists():
@@ -599,16 +603,12 @@ class DashboardHTTPService(BlackboardHTTPService):
                             val = row[i]
                             # Convert bytes to string, handle other types
                             if isinstance(val, bytes):
-                                row_dict[col] = val.decode('utf-8')
+                                row_dict[col] = val.decode("utf-8")
                             else:
                                 row_dict[col] = val
                         results.append(row_dict)
 
-                    return {
-                        "results": results,
-                        "columns": columns,
-                        "row_count": len(results)
-                    }
+                    return {"results": results, "columns": columns, "row_count": len(results)}
             except Exception as e:
                 logger.error(f"DuckDB query error: {e}")
                 return {"error": str(e), "results": [], "columns": []}
