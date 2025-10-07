@@ -73,6 +73,8 @@ class Agent:
         self.prevent_self_trigger: bool = True  # T065: Prevent infinite feedback loops
         # MCP integration
         self.mcp_server_names: set[str] = set()
+        self.mcp_mount_points: list[str] = []  # Deprecated: Use mcp_server_mounts instead
+        self.mcp_server_mounts: dict[str, list[str]] = {}  # Server-specific mount points
 
     @property
     def identity(self) -> AgentIdentity:
@@ -133,13 +135,12 @@ class Agent:
             # Get the MCP manager from orchestrator
             manager = self._orchestrator.get_mcp_manager()
 
-            # Import tool wrapper
-
             # Fetch tools from all assigned servers
             tools_dict = await manager.get_tools_for_agent(
                 agent_id=self.name,
                 run_id=ctx.task_id,
                 server_names=self.mcp_server_names,
+                server_mounts=self.mcp_server_mounts,  # Pass server-specific mounts
             )
 
             # Convert to DSPy tool callables
@@ -445,14 +446,20 @@ class AgentBuilder:
         self._agent.tools.update(funcs)
         return self
 
-    def with_mcps(self, server_names: Iterable[str]) -> AgentBuilder:
-        """Assign MCP servers to this agent.
+    def with_mcps(
+        self,
+        servers: Iterable[str] | dict[str, list[str]] | list[str | dict[str, list[str]]]
+    ) -> AgentBuilder:
+        """Assign MCP servers to this agent with optional server-specific mount points.
 
         Architecture Decision: AD001 - Two-Level Architecture
         Agents reference servers registered at orchestrator level.
 
         Args:
-            server_names: Names of MCP servers this agent should use
+            servers: One of:
+                - List of server names (strings) - no specific mounts
+                - Dict mapping server names to mount points
+                - Mixed list of strings and dicts for flexibility
 
         Returns:
             self for method chaining
@@ -460,15 +467,52 @@ class AgentBuilder:
         Raises:
             ValueError: If any server name is not registered with orchestrator
 
-        Example:
-            >>> agent = (
-            ...     orchestrator.agent("file_agent")
-            ...     .with_mcps(["filesystem", "github"])
-            ...     .build()
-            ... )
+        Examples:
+            >>> # Simple: no mount restrictions
+            >>> agent.with_mcps(["filesystem", "github"])
+
+            >>> # Server-specific mounts
+            >>> agent.with_mcps({
+            ...     "filesystem": ["/workspace/src", "/data"],
+            ...     "github": []  # No mounts for github
+            ... })
+
+            >>> # Mixed: backward compatible
+            >>> agent.with_mcps([
+            ...     "github",  # No mounts
+            ...     {"filesystem": ["/workspace/src"]}  # With mounts
+            ... ])
         """
-        # Convert to set for efficient lookup
-        server_set = set(server_names)
+        # Parse input into server_names and mounts
+        server_set: set[str] = set()
+        server_mounts: dict[str, list[str]] = {}
+
+        if isinstance(servers, dict):
+            # Dict format: {"server": ["mount1", "mount2"]}
+            for server_name, mounts in servers.items():
+                server_set.add(server_name)
+                if mounts:
+                    server_mounts[server_name] = list(mounts)
+        elif isinstance(servers, list):
+            # List format: can be mixed
+            for item in servers:
+                if isinstance(item, str):
+                    # Simple server name
+                    server_set.add(item)
+                elif isinstance(item, dict):
+                    # Dict with mounts
+                    for server_name, mounts in item.items():
+                        server_set.add(server_name)
+                        if mounts:
+                            server_mounts[server_name] = list(mounts)
+                else:
+                    raise TypeError(
+                        f"Invalid server specification: {item}. "
+                        f"Expected string or dict, got {type(item).__name__}"
+                    )
+        else:
+            # Assume it's an iterable of strings (backward compatibility)
+            server_set = set(servers)
 
         # Validate all servers exist in orchestrator
         registered_servers = set(self._orchestrator._mcp_configs.keys())
@@ -484,6 +528,58 @@ class AgentBuilder:
 
         # Store in agent
         self._agent.mcp_server_names = server_set
+        self._agent.mcp_server_mounts = server_mounts
+
+        return self
+
+    def mount(self, paths: str | list[str], *, validate: bool = False) -> AgentBuilder:
+        """Mount agent in specific directories for MCP root access.
+
+        .. deprecated:: 0.2.0
+            Use `.with_mcps({"server_name": ["/path"]})` instead for server-specific mounts.
+            This method applies mounts globally to all MCP servers.
+
+        This sets the filesystem roots that MCP servers will operate under for this agent.
+        Paths are cumulative across multiple calls.
+
+        Args:
+            paths: Single path or list of paths to mount
+            validate: If True, validate that paths exist (default: False)
+
+        Returns:
+            AgentBuilder for method chaining
+
+        Example:
+            >>> # Old way (deprecated)
+            >>> agent.with_mcps(["filesystem"]).mount("/workspace/src")
+            >>>
+            >>> # New way (recommended)
+            >>> agent.with_mcps({"filesystem": ["/workspace/src"]})
+        """
+        import warnings
+        warnings.warn(
+            "Agent.mount() is deprecated. Use .with_mcps({'server': ['/path']}) "
+            "for server-specific mounts instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
+        if isinstance(paths, str):
+            paths = [paths]
+        if validate:
+            from pathlib import Path
+            for path in paths:
+                if not Path(path).exists():
+                    raise ValueError(f"Mount path does not exist: {path}")
+
+        # Add to agent's mount points (cumulative) - for backward compatibility
+        self._agent.mcp_mount_points.extend(paths)
+
+        # Also add to all configured servers for backward compatibility
+        for server_name in self._agent.mcp_server_names:
+            if server_name not in self._agent.mcp_server_mounts:
+                self._agent.mcp_server_mounts[server_name] = []
+            self._agent.mcp_server_mounts[server_name].extend(paths)
 
         return self
 
