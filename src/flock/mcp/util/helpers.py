@@ -17,7 +17,7 @@ def get_default_env() -> dict[str, str]:
 
 def cache_key_generator(agent_id: str, run_id: str, *args, **kwargs) -> str:
     """Helper function to generate cache keys for Flock MCP caches."""
-    args_digest = hashlib.md5(
-        json.dumps(kwargs, sort_keys=True).encode(), usedforsecurity=False
-    ).hexdigest()
+    # merge args and kwargs into a single string
+    merged = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True)
+    args_digest = hashlib.md5(merged.encode(), usedforsecurity=False).hexdigest()
     return f"{agent_id}:{run_id}:{args_digest}"
