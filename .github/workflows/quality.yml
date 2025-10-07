@@ -6,7 +6,7 @@ name: Quality Gates
 
 on:
   push:
-    branches: 
+    branches:
       - main # Replace with your default branch
       - 0.5.0b
   pull_request:
@@ -79,7 +79,7 @@ jobs:
           cache-dependency-path: src/flock/frontend/package-lock.json
 
       - name: Install dependencies
-        working-directory: frontend
+        working-directory: src/flock/frontend
         run: npm ci
 
       - name: Type check
