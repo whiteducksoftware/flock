@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.0b56"
+version = "0.5.0b57"
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -87,6 +87,11 @@ dev = [
     "mypy>=1.15.0",
     "pre-commit>=4.3.0",
     "bandit[toml]>=1.8.6",
+    "jupyter>=1.1.1",
+    "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.5",
+    "notebook>=7.2.2",
+    "jupyterlab>=4.3.3",
 ]
 
 comparison = [
@@ -393,6 +398,11 @@ module = [
     "uvicorn.*",
     "httpx.*",
     "websockets.*",
+    "jupyter.*",
+    "ipykernel.*",
+    "ipywidgets.*",
+    "notebook.*",
+    "jupyterlab.*",
 ]
 ignore_missing_imports = true
 

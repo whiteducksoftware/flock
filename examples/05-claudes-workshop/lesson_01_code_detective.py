@@ -193,10 +193,10 @@ async def main():
     await flock.run_until_idle()
 
     # 📊 Retrieve the diagnosis from the blackboard
-    diagnoses = await flock.store.get_artifacts_by_type("BugDiagnosis")
+    diagnoses = await flock.store.get_by_type(BugDiagnosis)
 
     if diagnoses:
-        diagnosis = diagnoses[-1].obj  # Get the most recent diagnosis
+        diagnosis = diagnoses[-1]  # Get the most recent diagnosis
 
         print("=" * 70)
         print("🎯 DIAGNOSIS COMPLETE!")
