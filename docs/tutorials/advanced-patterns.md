@@ -425,7 +425,7 @@ You've completed the entire Flock tutorial series!
 1. **Build your own multi-agent system**
 2. **Explore [User Guides](../guides/index.md)** for advanced patterns
 3. **Check [Use Cases](../guides/use-cases.md)** for production examples
-4. **Read [API Reference](../reference/api/index.md)** for complete documentation
+4. **Read [API Reference](../reference/api.md)** for complete documentation
 
 **Welcome to the future of AI orchestration!** 🚀
 
@@ -433,5 +433,5 @@ You've completed the entire Flock tutorial series!
 
 - [Patterns Guide](../guides/patterns.md) - All architectural patterns
 - [Use Cases](../guides/use-cases.md) - Production examples
-- [API Reference](../reference/api/index.md) - Complete API documentation
+- [API Reference](../reference/api.md) - Complete API documentation
 - [Tracing Guide](../guides/tracing/index.md) - Debugging with traces

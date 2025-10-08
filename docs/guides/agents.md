@@ -604,6 +604,162 @@ analyzer = flock.agent("analyzer").consumes(
 
 ---
 
+## MCP Tools Integration {#mcp-tools}
+
+**Model Context Protocol (MCP)** extends agents with external tool capabilities—web browsing, file systems, databases, and more.
+
+### What is MCP?
+
+MCP is a standardized protocol for giving LLMs access to external tools and data. Think of it as **"function calling on steroids"**—instead of defining functions manually, you connect to MCP servers that provide pre-built tool suites.
+
+### Adding MCP to Agents
+
+```python
+from flock import Flock
+
+# Register MCP server
+flock = Flock(
+    "openai/gpt-4.1",
+    enable_tools_feature=True,  # Enable MCP support
+    mcp_servers={
+        "browse_web": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@playwright/mcp@latest"
+            ]
+        }
+    }
+)
+
+# Agent with MCP tools
+researcher = (
+    flock.agent("researcher")
+    .description("Research agent with web browsing")
+    .consumes(ResearchQuery)
+    .publishes(ResearchReport)
+    .with_mcps(["browse_web"])  # Grant access to Playwright tools
+)
+```
+
+### How It Works
+
+1. **MCP server** - External process providing tools (Playwright, Filesystem, etc.)
+2. **Flock integration** - Manages server lifecycle and tool exposure
+3. **Agent access** - `.with_mcps()` grants specific agents access to specific servers
+4. **LLM uses tools** - The LLM can invoke tools as needed during execution
+
+### Available MCP Servers
+
+**Popular MCP servers:**
+
+- **@playwright/mcp** - Web browsing, screenshots, form filling
+- **@modelcontextprotocol/server-filesystem** - File operations
+- **@modelcontextprotocol/server-postgres** - Database queries
+- **@modelcontextprotocol/server-github** - GitHub API access
+- **@modelcontextprotocol/server-slack** - Slack integration
+
+See the [MCP Registry](https://github.com/modelcontextprotocol) for more servers.
+
+### Security Model
+
+**MCP access is explicit:**
+
+```python
+# ❌ Default: No tools
+agent1 = flock.agent("agent1").consumes(Input).publishes(Output)
+
+# ✅ Explicit: Specific tools only
+agent2 = (
+    flock.agent("agent2")
+    .consumes(Input)
+    .publishes(Output)
+    .with_mcps(["browse_web"])  # Only Playwright
+)
+
+agent3 = (
+    flock.agent("agent3")
+    .consumes(Input)
+    .publishes(Output)
+    .with_mcps(["browse_web", "filesystem"])  # Multiple servers
+)
+```
+
+**Why explicit?** Security. You control exactly which agents can access which external systems.
+
+### Complete Example
+
+```python
+import asyncio
+from pydantic import BaseModel
+from flock import Flock, flock_type
+
+@flock_type
+class ResearchQuery(BaseModel):
+    topic: str
+    urls: list[str]
+
+@flock_type
+class ResearchReport(BaseModel):
+    summary: str
+    key_findings: list[str]
+    sources: list[str]
+
+# Setup with Playwright MCP
+flock = Flock(
+    "openai/gpt-4.1",
+    enable_tools_feature=True,
+    mcp_servers={
+        "browse_web": {
+            "command": "npx",
+            "args": ["-y", "@playwright/mcp@latest"]
+        }
+    }
+)
+
+# Researcher agent with web browsing
+researcher = (
+    flock.agent("researcher")
+    .description("Gathers information from websites")
+    .consumes(ResearchQuery)
+    .publishes(ResearchReport)
+    .with_mcps(["browse_web"])
+)
+
+async def main():
+    await flock.publish(ResearchQuery(
+        topic="AI agent frameworks",
+        urls=["https://example.com/ai-agents"]
+    ))
+    await flock.run_until_idle()
+
+    reports = await flock.store.get_by_type(ResearchReport)
+    print(reports[0].summary)
+
+asyncio.run(main())
+```
+
+### Best Practices
+
+**✅ Do:**
+- Use MCP for capabilities beyond LLM knowledge (web, databases, files)
+- Grant minimal required access (principle of least privilege)
+- Test MCP agents thoroughly (tools can fail)
+- Handle tool errors gracefully
+
+**❌ Don't:**
+- Give all agents access to all tools
+- Assume tool calls always succeed
+- Use MCP for simple tasks (type contracts are often better)
+
+### Learn More
+
+- **[Conditional Routing Tutorial](../tutorials/conditional-routing.md)** - Complete MCP walkthrough
+- **[Advanced Patterns](../tutorials/advanced-patterns.md)** - MCP in production
+- **[MCP Documentation](https://modelcontextprotocol.io)** - Official MCP docs
+
+---
+
 ## Next Steps
 
 - **[Blackboard Architecture](blackboard.md)** - Understand the shared workspace

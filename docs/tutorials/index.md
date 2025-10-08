@@ -127,7 +127,7 @@ By the end of this tutorial series, you'll be able to:
 Once you've completed these tutorials, explore:
 
 - **[User Guides](../guides/index.md)** - Deep dives into specific features
-- **[API Reference](../reference/api/index.md)** - Complete API documentation
+- **[API Reference](../reference/api.md)** - Complete API documentation
 - **[Patterns Guide](../guides/patterns.md)** - Common architectural patterns
 - **[Use Cases](../guides/use-cases.md)** - Real-world production examples
 

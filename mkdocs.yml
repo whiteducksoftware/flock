@@ -215,6 +215,7 @@ nav:
     - Dashboard: guides/dashboard.md
     - Patterns: guides/patterns.md
     - Use Cases: guides/use-cases.md
+    - Testing Strategies: guides/testing.md
     - Distributed Tracing:
       - Overview: guides/tracing/index.md
       - Quick Start: guides/tracing/tracing-quickstart.md
@@ -234,6 +235,11 @@ nav:
     - Showcase: https://github.com/whiteducksoftware/flock/tree/main/examples/showcase
     - Features: https://github.com/whiteducksoftware/flock/tree/main/examples/features
     - Dashboard: https://github.com/whiteducksoftware/flock/tree/main/examples/03-the-dashboard
+
+  - ℹ️ About:
+    - Roadmap: about/roadmap.md
+    - Contributing: about/contributing.md
+    - Changelog: about/changelog.md
 
   - 💬 Community:
     - GitHub: https://github.com/whiteducksoftware/flock

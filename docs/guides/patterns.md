@@ -602,7 +602,7 @@ mega_agent.consumes(A, B, C, D).publishes(X, Y, Z)
 
 - **[Tutorials](../tutorials/index.md)** - Learn patterns hands-on
 - **[Use Cases](use-cases.md)** - See patterns in production
-- **[API Reference](../reference/api/index.md)** - Complete API documentation
+- **[API Reference](../reference/api.md)** - Complete API documentation
 - **[Examples](https://github.com/whiteducksoftware/flock/tree/main/examples)** - Working code
 
 ---
