@@ -366,6 +366,28 @@ Before creating a PR, verify:
 - [ ] Frontend version bumped in `package.json` (if any UI changes)
 - [ ] Version bump committed (separate commit is fine)
 - [ ] Pre-commit hooks pass
+- [ ] **PR targets `0.5.0b` branch (NOT `main`!)** ⚠️
+
+#### ⚠️ CRITICAL: PR Base Branch
+
+**ALL pull requests MUST target the `0.5.0b` branch, NOT `main`!**
+
+```bash
+# ✅ CORRECT: PR into 0.5.0b branch
+gh pr create --base 0.5.0b --title "..." --body "..."
+
+# ❌ WRONG: PR into main branch
+gh pr create --base main --title "..." --body "..."
+```
+
+**Why this matters:**
+- The `0.5.0b` branch is the active development branch for the 0.5.0 beta release
+- PRs into `main` bypass the beta testing process
+- Features need to be validated in beta before reaching `main`
+
+**If you accidentally create a PR against `main`:**
+1. Close the incorrect PR: `gh pr close <number>`
+2. Recreate against `0.5.0b`: `gh pr create --base 0.5.0b ...`
 
 **Remember: It's better to increment versions too often than too rarely. Each meaningful change should get a version bump!**
 
