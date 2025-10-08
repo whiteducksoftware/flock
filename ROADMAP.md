@@ -2,7 +2,9 @@
 
 **Building Enterprise Infrastructure for AI Agents**
 
-This roadmap outlines Flock's path from v0.5.0 (production-ready core) to v1.0 (enterprise-complete) by Q3 2025.
+This roadmap outlines Flock's path from v0.5.0 (production-ready core) to v1.0 (enterprise-complete) by Q4 2025.
+
+We're confident to deliver all enterprise features in a single release: **Flock 1.0 in Q4 2025**.
 
 ---
 
@@ -15,6 +17,7 @@ This roadmap outlines Flock's path from v0.5.0 (production-ready core) to v1.0 (
 - [x] Zero-trust security (5 visibility types)
 - [x] Circuit breakers and feedback loop prevention
 - [x] 743 tests with 77.65% coverage (86-100% on critical paths)
+- [x] Type-safe retrieval API (`get_by_type()`)
 
 ### Observability
 - [x] OpenTelemetry distributed tracing
@@ -22,6 +25,7 @@ This roadmap outlines Flock's path from v0.5.0 (production-ready core) to v1.0 (
 - [x] Real-time dashboard with WebSocket streaming
 - [x] 7-mode trace viewer (Timeline, RED metrics, Dependencies, SQL)
 - [x] Service filtering and CSV export
+- [x] Full I/O capture with JSON viewer
 
 ### Developer Experience
 - [x] MCP integration (Model Context Protocol)
@@ -30,14 +34,17 @@ This roadmap outlines Flock's path from v0.5.0 (production-ready core) to v1.0 (
 - [x] Batch processing and join operations
 - [x] Conditional consumption (`where=lambda`)
 - [x] Rich console output and FastAPI service
+- [x] Keyboard shortcuts (WCAG 2.1 AA compliant)
 
 ---
 
-## 🚀 Q1 2025: Production Hardening
+## 🚀 Flock 1.0 - Q4 2025 Release
 
-**Target: End of Q1 2025 (January - March)**
+**Target: Q4 2025 (October - December)**
 
-### 🔴 Priority 1: Enterprise Persistence
+All enterprise features will ship together in Flock 1.0. We're confident to deliver the complete production-ready package by end of year.
+
+### 🏢 Enterprise Persistence
 
 **Problem:** The blackboard currently lives in memory. Production systems need durable state.
 
@@ -71,11 +78,9 @@ flock = Flock(
 - Compliance? Full audit trail in RDBMS
 - Analytics? SQL queries on artifact history
 
-**Target:** Redis by end of January, Postgres by mid-February
-
 ---
 
-### 🔴 Priority 1: Retry & Error Handling
+### 🔄 Advanced Retry & Error Handling
 
 **Problem:** Production systems fail. Flock needs sophisticated retry mechanisms.
 
@@ -117,11 +122,9 @@ agent = flock.agent("flaky_service").circuit_breaker(
 - Cascading failures auto-recover
 - Full observability of failure modes
 
-**Target:** Mid-February
-
 ---
 
-### 🔴 Priority 1: Aggregation Patterns
+### 🤝 Aggregation Patterns
 
 **Problem:** Common pattern missing from v0.5: "Run N agents, aggregate results."
 
@@ -165,15 +168,9 @@ selector = flock.agent("selector").aggregates(
 - Voting for content moderation
 - Quality-based selection
 
-**Target:** End of February
-
 ---
 
-## 🚀 Q2 2025: Enterprise Infrastructure
-
-**Target: End of Q2 2025 (April - June)**
-
-### 🟡 Priority 2: Kafka Event Backbone
+### 📨 Kafka Event Backbone
 
 **Problem:** Need to decouple producers from consumers. Enable event replay and time-travel debugging.
 
@@ -210,11 +207,9 @@ await flock.restore_checkpoint("workflow_123", timestamp=datetime(2025, 1, 15, 1
 - Multi-region replication
 - Backfill new agents with historical data
 
-**Target:** End of March
-
 ---
 
-### 🟡 Priority 2: Kubernetes-Native Deployment
+### ☸️ Kubernetes-Native Deployment
 
 **Problem:** Agents should deploy like microservices.
 
@@ -255,11 +250,9 @@ spec:
 - Zero-downtime deployments
 - Production-grade health checks and readiness probes
 
-**Target:** Mid-April
-
 ---
 
-### 🟡 Priority 2: Authentication & Authorization
+### 🔐 Authentication & Authorization
 
 **Problem:** Multi-tenant SaaS needs real auth.
 
@@ -297,15 +290,9 @@ async def dangerous_operation():
 - Compliance (SOC2, HIPAA)
 - API security
 
-**Target:** End of April
-
 ---
 
-## 🚀 Q3 2025: Advanced Orchestration
-
-**Target: End of Q3 2025 (July - September)**
-
-### 🟢 Priority 3: Human-in-the-Loop Approval Patterns
+### 👤 Human-in-the-Loop Approval Patterns
 
 **Problem:** Some workflows need human oversight.
 
@@ -338,11 +325,9 @@ trader = flock.agent("trader").publishes(
 - Compliance requirements
 - Training mode (review before automation)
 
-**Target:** End of July
-
 ---
 
-### 🟢 Priority 3: Fan-Out / Fan-In Patterns
+### 🔀 Fan-Out / Fan-In Patterns
 
 **Problem:** Distribute work, collect results.
 
@@ -375,11 +360,9 @@ collector = flock.agent("collector").fan_in(
 - Map-reduce over LLM operations
 - Sharding for scale
 
-**Target:** End of August
-
 ---
 
-### 🟢 Priority 3: Time-Based Scheduling
+### ⏰ Time-Based Scheduling
 
 **Problem:** Not all workflows are event-driven.
 
@@ -416,11 +399,9 @@ flock.agent("stale_checker").consumes(
 - SLA monitoring
 - Data freshness checks
 
-**Target:** End of September
-
 ---
 
-## 🔮 Beyond 1.0: The Vision
+## 🔮 Beyond 1.0: Future Vision
 
 **Post-1.0 ideas (not committed):**
 
@@ -435,9 +416,9 @@ flock.agent("stale_checker").consumes(
 - Cost optimization (cheapest agent that meets SLA)
 
 ### Migration Tools
-- Auto-convert from LangGraph (AST-based)
-- CrewAI migration assistant
-- AutoGen compatibility layer
+- Auto-convert from graph-based frameworks (AST-based)
+- Migration assistants for popular frameworks
+- Compatibility layers for existing agent systems
 
 ### Developer Experience
 - VS Code extension (visual blackboard debugger)
@@ -446,9 +427,9 @@ flock.agent("stale_checker").consumes(
 
 ---
 
-## 📊 Production Readiness Timeline
+## 📊 Production Readiness: v0.5.0 → v1.0
 
-| Feature | v0.5.0 (Now) | v1.0 (Q3 2025) |
+| Feature | v0.5.0 (Now) | v1.0 (Q4 2025) |
 |---------|--------------|----------------|
 | **Core Orchestration** | ✅ Complete | ✅ Complete |
 | **Type Safety** | ✅ Complete | ✅ Complete |
@@ -460,6 +441,7 @@ flock.agent("stale_checker").consumes(
 | **Kubernetes** | ⚠️ Manual YAML | ✅ Helm chart + HPA |
 | **Authentication** | ❌ No auth | ✅ OAuth/API keys |
 | **Human-in-Loop** | ❌ DIY | ✅ Built-in |
+| **Fan-Out/Fan-In** | ❌ DIY | ✅ Built-in |
 | **Time-Based Jobs** | ❌ DIY | ✅ Built-in |
 | **Test Coverage** | ✅ 743 tests, 77% | ✅ 1000+ tests, 85% |
 
@@ -467,18 +449,21 @@ flock.agent("stale_checker").consumes(
 
 ## 🎯 Release Criteria for v1.0
 
-**v1.0 will ship when:**
+**v1.0 will ship when all of these are complete:**
 
 1. ✅ **Production Persistence** - Redis + Postgres backends stable
 2. ✅ **Advanced Error Handling** - Retry, circuit breakers, DLQ working
 3. ✅ **Aggregation Patterns** - Map-reduce, voting, consensus implemented
-4. ✅ **Kubernetes Native** - Helm chart with auto-scaling
-5. ✅ **Authentication** - OAuth/OIDC + API key auth
-6. ✅ **Event Replay** - Kafka integration with time-travel debugging
-7. ✅ **85%+ Test Coverage** - 1000+ tests passing
-8. ✅ **Production Validation** - At least 3 companies running in production
+4. ✅ **Kafka Event Backbone** - Replay and time-travel debugging
+5. ✅ **Kubernetes Native** - Helm chart with auto-scaling
+6. ✅ **Authentication** - OAuth/OIDC + API key auth
+7. ✅ **Human-in-the-Loop** - Approval patterns implemented
+8. ✅ **Fan-Out/Fan-In** - Distributed processing patterns
+9. ✅ **Time-Based Scheduling** - Cron + sliding windows
+10. ✅ **85%+ Test Coverage** - 1000+ tests passing
+11. ✅ **Production Validation** - Deployed at 3+ companies
 
-**Target Date:** September 30, 2025
+**Target Date:** Q4 2025
 
 ---
 
@@ -499,9 +484,11 @@ This roadmap is informed by:
 ---
 
 **Last Updated:** October 8, 2025
-**Version:** Roadmap v1.0
-**Status:** Commitments through Q3 2025
+**Version:** Roadmap v2.0
+**Status:** All features committed for Q4 2025 release
 
 ---
 
 **"We're not building a toy framework. We're building enterprise infrastructure for AI agents."**
+
+**Flock 1.0 - All enterprise features, one release, Q4 2025.**
