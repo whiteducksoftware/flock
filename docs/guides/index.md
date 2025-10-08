@@ -184,4 +184,4 @@ Can't find what you're looking for?
 
 ---
 
-**Start with the basics** → [Getting Started](../getting-started/){ .md-button .md-button--primary }
+**Start with the basics** → [Getting Started](../getting-started/index.md){ .md-button .md-button--primary }

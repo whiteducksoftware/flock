@@ -49,7 +49,7 @@ New to Flock? Follow this recommended learning path:
 3. **[Core Concepts](concepts.md)** (15 minutes)
    Understand how Flock's blackboard architecture works
 
-4. **[User Guides](../guides/)** (ongoing)
+4. **[User Guides](../guides/index.md)** (ongoing)
    Dive deep into agents, blackboard patterns, and advanced features
 
 ---
@@ -107,7 +107,7 @@ Agents automatically execute when their input types appear on the blackboard. No
 
     Monitor and debug with OpenTelemetry and DuckDB.
 
-    [:octicons-arrow-right-24: Tracing Guide](../guides/tracing/)
+    [:octicons-arrow-right-24: Tracing Guide](../guides/tracing/tracing-quickstart.md)
 
 </div>
 

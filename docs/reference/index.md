@@ -317,8 +317,8 @@ See [Changelog](https://github.com/whiteducksoftware/flock/releases) for complet
 
 ## Related Documentation
 
-- **[Getting Started](../getting-started/)** - Installation and quick start
-- **[User Guides](../guides/)** - Comprehensive guides
+- **[Getting Started](../getting-started/index.md)** - Installation and quick start
+- **[User Guides](../guides/index.md)** - Comprehensive guides
 - **[Examples](https://github.com/whiteducksoftware/flock/tree/main/examples)** - Working code examples
 
 ---

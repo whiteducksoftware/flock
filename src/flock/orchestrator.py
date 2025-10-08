@@ -286,7 +286,7 @@ class Flock(metaclass=AutoTracedMeta):
     # Unified Tracing ------------------------------------------------------
 
     @asynccontextmanager
-    async def traced_run(self, name: str = "workflow"):
+    async def traced_run(self, name: str = "workflow") -> AsyncGenerator[Any, None]:
         """Context manager for wrapping an entire execution in a single unified trace.
 
         This creates a parent span that encompasses all operations (publish, run_until_idle, etc.)
@@ -670,7 +670,7 @@ class Flock(metaclass=AutoTracedMeta):
         return artifact
 
     async def publish_many(
-        self, objects: Iterable[BaseModel | dict | Artifact], **kwargs
+        self, objects: Iterable[BaseModel | dict | Artifact], **kwargs: Any
     ) -> list[Artifact]:
         """Publish multiple artifacts at once (event-driven).
 

@@ -818,7 +818,7 @@ class DashboardHTTPService(BlackboardHTTPService):
         await self.websocket_manager.shutdown()
         logger.info("DashboardHTTPService stopped")
 
-    def get_app(self):
+    def get_app(self) -> Any:
         """Get FastAPI application instance.
 
         Returns:

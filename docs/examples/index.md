@@ -306,8 +306,8 @@ Have you built something cool with Flock? Share it!
 ## Related Documentation
 
 - **[Getting Started](../getting-started/index.md)** - Installation and quick start
-- **[User Guides](../guides/)** - Comprehensive guides
-- **[API Reference](../reference/)** - Complete API docs
+- **[User Guides](../guides/index.md)** - Comprehensive guides
+- **[API Reference](../reference/index.md)** - Complete API docs
 
 ---
 

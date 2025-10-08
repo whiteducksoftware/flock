@@ -196,6 +196,7 @@ extra:
 nav:
   - 🏠 Home: index.md
   - 🚀 Getting Started:
+    - Overview: getting-started/index.md
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quick-start.md
     - Core Concepts: getting-started/concepts.md
@@ -208,6 +209,7 @@ nav:
     - Advanced Patterns: tutorials/advanced-patterns.md
 
   - 📚 User Guides:
+    - Overview: guides/index.md
     - Agents: guides/agents.md
     - Agent Components: guides/components.md
     - Blackboard: guides/blackboard.md
@@ -231,7 +233,8 @@ nav:
     - Configuration: reference/configuration.md
 
   - 💡 Examples:
-    - Overview: https://github.com/whiteducksoftware/flock/tree/main/examples
+    - Overview: examples/index.md
+    - GitHub Examples: https://github.com/whiteducksoftware/flock/tree/main/examples
     - Showcase: https://github.com/whiteducksoftware/flock/tree/main/examples/showcase
     - Features: https://github.com/whiteducksoftware/flock/tree/main/examples/features
     - Dashboard: https://github.com/whiteducksoftware/flock/tree/main/examples/03-the-dashboard
@@ -242,6 +245,7 @@ nav:
     - Changelog: about/changelog.md
 
   - 💬 Community:
+    - Overview: community/index.md
     - GitHub: https://github.com/whiteducksoftware/flock
     - Issues: https://github.com/whiteducksoftware/flock/issues
     - Discussions: https://github.com/whiteducksoftware/flock/discussions
