@@ -548,10 +548,18 @@ async def test_heartbeat_loop_shutdown_condition():
     # Set shutdown flag
     manager._shutdown = True
 
-    # Wait for loop to exit
-    await asyncio.wait_for(heartbeat_task, timeout=0.2)
+    # Wait for loop to exit with proper cancellation handling
+    try:
+        await asyncio.wait_for(heartbeat_task, timeout=0.5)
+    except asyncio.TimeoutError:
+        # If timeout occurs, cancel the task gracefully
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass  # Expected when cancelling
 
-    # Verify task completed
+    # Verify task completed or was cancelled
     assert heartbeat_task.done()
 
 

@@ -1,0 +1,254 @@
+site_name: Flock
+site_description: A declarative blackboard multi-agent framework
+site_author: white duck GmbH
+site_url: https://github.com/whiteducksoftware/flock
+
+repo_name: whiteducksoftware/flock
+repo_url: https://github.com/whiteducksoftware/flock
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2025 white duck GmbH
+
+theme:
+  name: material
+  # logo: assets/logo.svg  # Uncomment when logo is added
+  # favicon: assets/favicon.png  # Uncomment when favicon is added
+  palette:
+    # Dark mode (default)
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light mode
+    # Light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to dark mode
+
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - toc.follow
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.tabs.link
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - content.action.view
+
+  icon:
+    repo: fontawesome/brands/github
+    admonition:
+      note: octicons/tag-16
+      abstract: octicons/checklist-16
+      info: octicons/info-16
+      tip: octicons/squirrel-16
+      success: octicons/check-16
+      question: octicons/question-16
+      warning: octicons/alert-16
+      failure: octicons/x-circle-16
+      danger: octicons/zap-16
+      bug: octicons/bug-16
+      example: octicons/beaker-16
+      quote: octicons/quote-16
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - tags
+  - social:
+      cards: true
+      cards_layout_options:
+        background_color: "#4f46e5"
+        color: "#ffffff"
+  - gen-files:
+      scripts:
+        - scripts/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - mkdocstrings:
+      enabled: !ENV [ENABLE_MKDOCSTRINGS, true]
+      default_handler: python
+      handlers:
+        python:
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://docs.pydantic.dev/latest/objects.inv
+          options:
+            docstring_style: google
+            docstring_section_style: table
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_root_toc_entry: true
+            show_object_full_path: false
+            show_category_heading: true
+            show_if_no_docstring: false
+            show_signature_annotations: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
+            separate_signature: true
+            merge_init_into_class: true
+            members_order: source
+            group_by_category: true
+            heading_level: 2
+            annotations_path: brief
+            line_length: 80
+            unwrap_annotated: true
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+      cache_safe: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+  - glightbox:
+      touchNavigation: true
+      loop: false
+      effect: zoom
+      slide_effect: slide
+      width: 100%
+      height: auto
+      zoomable: true
+      draggable: true
+      auto_caption: true
+      caption_position: bottom
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: whiteducksoftware
+      repo: flock
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Exclude internal documentation from build
+exclude_docs: |
+  internal/
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/whiteducksoftware/flock
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/flock-core/
+    - icon: fontawesome/solid/building
+      link: https://whiteduck.de
+
+  version:
+    provider: mike
+
+# Navigation structure
+nav:
+  - 🏠 Home: index.md
+  - 🚀 Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+    - Core Concepts: getting-started/concepts.md
+
+  - 📖 Tutorials:
+    - Overview: tutorials/index.md
+    - Your First Agent: tutorials/your-first-agent.md
+    - Multi-Agent Workflow: tutorials/multi-agent-workflow.md
+    - Conditional Routing: tutorials/conditional-routing.md
+    - Advanced Patterns: tutorials/advanced-patterns.md
+
+  - 📚 User Guides:
+    - Agents: guides/agents.md
+    - Agent Components: guides/components.md
+    - Blackboard: guides/blackboard.md
+    - Visibility Controls: guides/visibility.md
+    - Dashboard: guides/dashboard.md
+    - Patterns: guides/patterns.md
+    - Use Cases: guides/use-cases.md
+    - Testing Strategies: guides/testing.md
+    - Distributed Tracing:
+      - Overview: guides/tracing/index.md
+      - Quick Start: guides/tracing/tracing-quickstart.md
+      - Auto-Tracing: guides/tracing/auto-tracing.md
+      - Unified Tracing: guides/tracing/unified-tracing.md
+      - Using Tracing Effectively: guides/tracing/how_to_use_tracing_effectively.md
+      - Production Tracing: guides/tracing/tracing-production.md
+      - Trace Module Reference: guides/tracing/trace-module.md
+
+  - 📖 Reference:
+    - Overview: reference/index.md
+    - API Reference: reference/api/
+    - Configuration: reference/configuration.md
+
+  - 💡 Examples:
+    - Overview: https://github.com/whiteducksoftware/flock/tree/main/examples
+    - Showcase: https://github.com/whiteducksoftware/flock/tree/main/examples/showcase
+    - Features: https://github.com/whiteducksoftware/flock/tree/main/examples/features
+    - Dashboard: https://github.com/whiteducksoftware/flock/tree/main/examples/03-the-dashboard
+
+  - ℹ️ About:
+    - Roadmap: about/roadmap.md
+    - Contributing: about/contributing.md
+    - Changelog: about/changelog.md
+
+  - 💬 Community:
+    - GitHub: https://github.com/whiteducksoftware/flock
+    - Issues: https://github.com/whiteducksoftware/flock/issues
+    - Discussions: https://github.com/whiteducksoftware/flock/discussions
+    - PyPI: https://pypi.org/project/flock-core/
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js
