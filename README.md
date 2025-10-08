@@ -647,83 +647,18 @@ All planned for v1.0
 
 ## Roadmap to 1.0
 
-We're not building a toy framework. We're building enterprise infrastructure for AI agents.
+We're building enterprise infrastructure for AI agents and tracking the work publicly. Check [ROADMAP.md](ROADMAP.md) for deep dives and status updates.
 
-**See [ROADMAP.md](ROADMAP.md) for the complete roadmap with detailed code examples.**
+### 0.5.0 Beta (In Flight)
+- **Core data & governance:** [#271](https://github.com/whiteducksoftware/flock/issues/271), [#274](https://github.com/whiteducksoftware/flock/issues/274), [#273](https://github.com/whiteducksoftware/flock/issues/273), [#281](https://github.com/whiteducksoftware/flock/issues/281)
+- **Execution patterns & scheduling:** [#282](https://github.com/whiteducksoftware/flock/issues/282), [#283](https://github.com/whiteducksoftware/flock/issues/283)
+- **REST access & integrations:** [#286](https://github.com/whiteducksoftware/flock/issues/286), [#287](https://github.com/whiteducksoftware/flock/issues/287), [#288](https://github.com/whiteducksoftware/flock/issues/288), [#289](https://github.com/whiteducksoftware/flock/issues/289), [#290](https://github.com/whiteducksoftware/flock/issues/290), [#291](https://github.com/whiteducksoftware/flock/issues/291), [#292](https://github.com/whiteducksoftware/flock/issues/292), [#293](https://github.com/whiteducksoftware/flock/issues/293)
+- **Docs & onboarding:** [#270](https://github.com/whiteducksoftware/flock/issues/270), [#269](https://github.com/whiteducksoftware/flock/issues/269)
 
-### Flock 1.0 - Q4 2025 Release
-
-**We're confident we can deliver all enterprise features by Q4 2025:**
-
-**🏢 Enterprise Persistence**
-- Redis and PostgreSQL backends for durable blackboard state
-- Agent crashes? State persists, agents resume automatically
-- Multi-region deployments with shared blackboard
-- SQL queries on artifact history for analytics and compliance
-
-**🔄 Advanced Error Handling**
-- Exponential backoff with jitter for transient failures
-- Dead letter queues for poison messages
-- Per-agent circuit breakers with auto-recovery
-- Full observability of all failure modes
-
-**🤝 Aggregation Patterns**
-- Map-reduce pattern for parallel processing → aggregation
-- Voting/consensus for multi-agent decision making
-- Best-result selection with custom scoring functions
-
-**📨 Kafka Event Backbone**
-- Event replay for debugging production issues in development
-- Time-travel debugging with checkpoint restoration
-- Immutable audit logs for regulatory compliance
-- Backfill new agents with historical data
-
-**☸️ Kubernetes-Native Deployment**
-- Helm charts for production deployments
-- Horizontal auto-scaling based on blackboard queue depth
-- Zero-downtime deployments with health checks
-- Production-grade readiness probes
-
-**🔐 OAuth/RBAC**
-- OAuth2/OIDC authentication for multi-tenant SaaS
-- API key authentication for programmatic access
-- Role-based access control with agent-level permissions
-- Complete audit trails for compliance (SOC2, HIPAA)
-
-**👤 Human-in-the-Loop**
-- Approval patterns for high-value transactions
-- Dashboard integration for pending approvals
-- Slack/email notifications with audit trails
-- Training mode with review-before-automation
-
-**🔀 Fan-Out/Fan-In Patterns**
-- Dynamic work distribution based on runtime data
-- Result collection and aggregation
-- Map-reduce over LLM operations
-- Sharding for horizontal scale
-
-**⏰ Time-Based Scheduling**
-- Cron-like triggers for periodic workflows
-- Sliding window patterns for real-time analytics
-- Hybrid event+time based triggers
-- SLA monitoring and data freshness checks
-
-### Release Criteria for v1.0
-
-**v1.0 will ship when all of these are complete:**
-1. ✅ Production persistence (Redis + Postgres backends stable)
-2. ✅ Advanced error handling (retry, circuit breakers, DLQ working)
-3. ✅ Aggregation patterns (map-reduce, voting, consensus implemented)
-4. ✅ Kafka event backbone (replay and time-travel debugging)
-5. ✅ Kubernetes native (Helm chart with auto-scaling)
-6. ✅ Authentication (OAuth/OIDC + API key auth)
-7. ✅ Human-in-the-loop (approval patterns implemented)
-8. ✅ Fan-out/fan-in (distributed processing patterns)
-9. ✅ Time-based scheduling (cron + sliding windows)
-10. ✅ 85%+ test coverage (1000+ tests passing)
-11. ✅ Production validation (deployed at 3+ companies)
-
-**Target Date:** Q4 2025
+### 1.0 Release Goals (Target Q4 2025)
+- **Reliability & operations:** [#277](https://github.com/whiteducksoftware/flock/issues/277), [#278](https://github.com/whiteducksoftware/flock/issues/278), [#279](https://github.com/whiteducksoftware/flock/issues/279), [#294](https://github.com/whiteducksoftware/flock/issues/294)
+- **Platform validation & quality:** [#275](https://github.com/whiteducksoftware/flock/issues/275), [#276](https://github.com/whiteducksoftware/flock/issues/276), [#284](https://github.com/whiteducksoftware/flock/issues/284), [#285](https://github.com/whiteducksoftware/flock/issues/285)
+- **Security & access:** [#280](https://github.com/whiteducksoftware/flock/issues/280)
 
 ---
 
