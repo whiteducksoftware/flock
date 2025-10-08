@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.0b54"
+version = "0.5.0b55"
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -87,6 +87,13 @@ dev = [
     "mypy>=1.15.0",
     "pre-commit>=4.3.0",
     "bandit[toml]>=1.8.6",
+]
+
+comparison = [
+    "langgraph>=0.6.8",
+    "langchain-openai>=0.2.0",
+    "autogen-agentchat>=0.7.5",
+    "autogen-ext>=0.7.4",
 ]
 
 

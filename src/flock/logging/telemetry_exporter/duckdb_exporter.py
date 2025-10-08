@@ -87,12 +87,12 @@ class DuckDBSpanExporter(TelemetryExporter):
         try:
             with duckdb.connect(str(self.db_path)) as conn:
                 # Delete spans older than TTL
+                # Note: DuckDB doesn't support ? placeholders inside INTERVAL expressions
                 result = conn.execute(
-                    """
+                    f"""
                     DELETE FROM spans
-                    WHERE created_at < CURRENT_TIMESTAMP - INTERVAL ? DAYS
-                """,
-                    (self.ttl_days,),
+                    WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '{self.ttl_days} DAYS'
+                """
                 )
 
                 deleted_count = result.fetchall()[0][0] if result else 0
