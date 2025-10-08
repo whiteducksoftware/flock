@@ -200,12 +200,21 @@ nav:
     - Quick Start: getting-started/quick-start.md
     - Core Concepts: getting-started/concepts.md
 
+  - 📖 Tutorials:
+    - Overview: tutorials/index.md
+    - Your First Agent: tutorials/your-first-agent.md
+    - Multi-Agent Workflow: tutorials/multi-agent-workflow.md
+    - Conditional Routing: tutorials/conditional-routing.md
+    - Advanced Patterns: tutorials/advanced-patterns.md
+
   - 📚 User Guides:
     - Agents: guides/agents.md
     - Agent Components: guides/components.md
     - Blackboard: guides/blackboard.md
     - Visibility Controls: guides/visibility.md
     - Dashboard: guides/dashboard.md
+    - Patterns: guides/patterns.md
+    - Use Cases: guides/use-cases.md
     - Distributed Tracing:
       - Overview: guides/tracing/index.md
       - Quick Start: guides/tracing/tracing-quickstart.md

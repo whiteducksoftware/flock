@@ -1017,7 +1017,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.5.0b59"
+version = "0.5.0b60"
 source = { editable = "." }
 dependencies = [
     { name = "devtools" },
