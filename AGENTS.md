@@ -970,6 +970,180 @@ await orchestrator.run_until_idle()
 
 **Rule of thumb:** Start with `publish_outputs=False` for tests, only enable publication if you specifically need cascade behavior.
 
+---
+
+### ⚡ Batching Pattern: publish() + run_until_idle() Separation = Parallel Power
+
+**Why `run_until_idle()` is separate from `publish()` - it's not a bug, it's a feature!**
+
+#### The Design Decision
+
+You might wonder: "Why not just auto-run after every `publish()`?" This was considered early on, but the **separation is intentional** and enables a powerful batching pattern that other frameworks lack.
+
+#### Sequential vs Parallel Execution
+
+**❌ If `run_until_idle()` was built into `publish()`:**
+```python
+# Hypothetical auto-run design
+await flock.publish(review1)  # Publishes AND waits for completion
+await flock.publish(review2)  # Publishes AND waits for completion
+await flock.publish(review3)  # Publishes AND waits for completion
+
+# Result: SEQUENTIAL processing
+# review2 doesn't start until review1 is fully processed
+# Total time: 3x single review processing time
+```
+
+**✅ With current design (separated):**
+```python
+# Queue up multiple artifacts
+await flock.publish(review1)  # Schedules agents
+await flock.publish(review2)  # Schedules agents
+await flock.publish(review3)  # Schedules agents
+
+# Now trigger execution
+await flock.run_until_idle()  # All independent agents run in PARALLEL!
+
+# Result: PARALLEL processing
+# All sentiment_analyzer agents can run concurrently
+# Total time: ~1x single review processing time (if agents are independent)
+```
+
+#### Real-World Example: Processing 100 Customer Reviews
+
+```python
+@flock_type
+class CustomerReview(BaseModel):
+    review_id: str
+    text: str
+    rating: int
+
+@flock_type
+class SentimentAnalysis(BaseModel):
+    review_id: str
+    sentiment: str
+    confidence: float
+
+# Agent that processes reviews
+sentiment_analyzer = (
+    flock.agent("sentiment_analyzer")
+    .consumes(CustomerReview)
+    .publishes(SentimentAnalysis)
+)
+
+# ✅ EFFICIENT: Batch publish, then run
+async def process_reviews(reviews: list[CustomerReview]):
+    # Publish all reviews (fast - just scheduling)
+    for review in reviews:
+        await flock.publish(review)
+
+    # Now process all in parallel
+    await flock.run_until_idle()
+
+    # Get results
+    analyses = await flock.store.get_by_type(SentimentAnalysis)
+    return analyses
+
+# ❌ INEFFICIENT: If run_until_idle() was automatic
+async def process_reviews_slow(reviews: list[CustomerReview]):
+    # Each publish would block until complete
+    for review in reviews:
+        await flock.publish(review)  # Waits for completion!
+        # Next review can't start until this one finishes
+
+    analyses = await flock.store.get_by_type(SentimentAnalysis)
+    return analyses
+```
+
+#### When Batching Matters Most
+
+**High Impact Scenarios:**
+- ✅ **Multiple inputs of same type** (e.g., 100 reviews → 100 parallel sentiment analyses)
+- ✅ **Multiple inputs of different types** (e.g., publish XRay + LabResults → both trigger different agents in parallel)
+- ✅ **Fan-out patterns** (one artifact triggers multiple independent agents)
+- ✅ **Bulk data processing** (batch imports, migrations, bulk operations)
+
+**Low Impact Scenarios:**
+- ⚠️ **Single artifact publish** (no batching benefit, but no harm either)
+- ⚠️ **Deeply sequential workflows** (agent_a → agent_b → agent_c with dependencies)
+
+#### Comparison to Other Frameworks
+
+**LangGraph:**
+```python
+# Must process sequentially - graph execution is linear
+result1 = graph.invoke(input1)
+result2 = graph.invoke(input2)
+result3 = graph.invoke(input3)
+# No built-in batching mechanism
+```
+
+**AutoGen:**
+```python
+# Conversation-based - inherently sequential
+team.run(task1)  # Must complete before next
+team.run(task2)
+team.run(task3)
+# Round-robin conversation prevents parallel processing
+```
+
+**Flock:**
+```python
+# Designed for batching from day one
+await flock.publish(input1)
+await flock.publish(input2)
+await flock.publish(input3)
+await flock.run_until_idle()  # All process in parallel!
+```
+
+#### Best Practices
+
+**✅ DO: Batch when possible**
+```python
+# Good: Batch-publish customer reviews
+for review in customer_reviews:
+    await flock.publish(review)
+await flock.run_until_idle()
+```
+
+**✅ DO: Use for multi-type workflows**
+```python
+# Good: Publish different types, let agents run in parallel
+await flock.publish(XRayImage(...))
+await flock.publish(LabResults(...))
+await flock.publish(PatientHistory(...))
+await flock.run_until_idle()  # Radiologist, lab_tech, historian run concurrently
+```
+
+**⚠️ CAREFUL: Don't batch across logical workflow boundaries**
+```python
+# Questionable: Mixing unrelated workflows
+await flock.publish(review_workflow_input)
+await flock.publish(order_workflow_input)
+await flock.run_until_idle()  # Both workflows interleaved - may be confusing
+
+# Better: Separate workflows explicitly
+async with flock.traced_run("review_workflow"):
+    await flock.publish(review_workflow_input)
+    await flock.run_until_idle()
+
+async with flock.traced_run("order_workflow"):
+    await flock.publish(order_workflow_input)
+    await flock.run_until_idle()
+```
+
+#### Key Takeaway
+
+The separation of `publish()` and `run_until_idle()` gives you **control over execution timing and batching**. This enables:
+- ⚡ **Parallel execution** when agents are independent
+- 🎛️ **Fine-grained control** over when execution happens
+- 📊 **Better performance** for bulk operations
+- 🔍 **Clearer workflow boundaries** with `traced_run()`
+
+**This is not a bug or oversight - it's a fundamental design choice that enables patterns other frameworks can't easily support.**
+
+---
+
 ### 🔒 Test Isolation and Mock Cleanup - The Contamination Trap
 
 **We fixed 32 failing tests caused by test contamination - here's what we learned:**

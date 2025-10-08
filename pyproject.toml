@@ -89,6 +89,13 @@ dev = [
     "bandit[toml]>=1.8.6",
 ]
 
+comparison = [
+    "langgraph>=0.6.8",
+    "langchain-openai>=0.2.0",
+    "autogen-agentchat>=0.7.5",
+    "autogen-ext>=0.7.4",
+]
+
 
 [tool.poe.tasks]
 _sync = "uv sync --dev --all-groups --all-extras"
