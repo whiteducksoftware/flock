@@ -1,0 +1,131 @@
+name: "Discovery / Research"
+description: "Time-boxed investigation or spike to gather information before committing to implementation."
+title: "DISCOVERY: <topic>"
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 🔍 Discovery / Research Task
+        Use this when the goal is to answer questions or validate approach, not ship production code.
+  - type: input
+    id: owner
+    attributes:
+      label: Owner
+      description: GitHub handle responsible for the investigation.
+      placeholder: "@handle"
+    validations:
+      required: true
+  - type: input
+    id: partners
+    attributes:
+      label: Collaborators / Reviewers
+      description: Folks who should be looped in (design, infra, product, etc.).
+      placeholder: "@collab1, @collab2"
+    validations:
+      required: false
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis / Questions to Answer
+      description: What do we hope to learn? Which assumptions are we validating or refuting?
+      placeholder: |
+        - Hypothesis: ...
+        - Questions:
+          - ...
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope & Timebox
+      description: Define what will be explored, constraints, and the time budget.
+      placeholder: |
+        - **In scope:** ...
+        - **Out of scope:** ...
+        - **Timebox:** X days (start/end dates)
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: Approach / Plan
+      description: Outline the steps, experiments, interviews, or research actions you will take.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: data_sources
+    attributes:
+      label: Data Sources & References
+      description: Docs, logs, repositories, stakeholders to consult.
+      placeholder: |
+        - Source 1: ...
+        - Source 2: ...
+    validations:
+      required: false
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / Constraints
+      description: Known risks in the research or limitations of the investigation.
+      placeholder: |
+        - **Risk:** ...
+          - **Mitigation:** ...
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Exit Criteria / Deliverables
+      description: Define what must be produced (summary doc, decision, prototype) to consider the spike done.
+      placeholder: |
+        - Deliverable: 1-page summary doc
+        - Deliverable: Decision on technology X vs Y
+    validations:
+      required: true
+  - type: textarea
+    id: timeline
+    attributes:
+      label: Timeline
+      description: Start/end dates, checkpoints, syncs.
+      placeholder: |
+        - Start: YYYY-MM-DD
+        - First checkpoint: YYYY-MM-DD
+        - End / readout: YYYY-MM-DD
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Status Updates / Findings
+      description: Add dated notes as the discovery progresses.
+      placeholder: |
+        - 2025-10-08 – Kickoff, plan shared.
+        - 2025-10-10 – Interviewed stakeholder X.
+    validations:
+      required: false
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome & Recommendations
+      description: Summarize findings, decisions, and recommended next steps.
+      placeholder: |
+        - Key finding: ...
+        - Decision: ...
+        - Next steps: ...
+    validations:
+      required: true
+  - type: textarea
+    id: followups
+    attributes:
+      label: Follow-Up Actions
+      description: List new issues or tasks spawned by the discovery work (create them immediately if possible).
+      placeholder: |
+        - [ ] Create implementation task for ...
+    validations:
+      required: true

@@ -1,0 +1,222 @@
+name: "Implementation Task"
+description: "Standard template for implementation sub-issues (fill every section)."
+title: "TASK: <short summary>"
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 📌 Context
+        Fill out every field below. Remove nothing.
+  - type: input
+    id: parent_issue
+    attributes:
+      label: Parent Issue
+      description: e.g., #271
+      placeholder: "#271"
+    validations:
+      required: true
+  - type: input
+    id: phase
+    attributes:
+      label: Phase
+      description: e.g., Phase 1 – Schema Foundation
+      placeholder: "Phase X – ..."
+    validations:
+      required: true
+  - type: input
+    id: task_id
+    attributes:
+      label: Task ID
+      description: e.g., Task 1
+      placeholder: "Task N"
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: Owner
+      description: GitHub handle responsible
+      placeholder: "@handle"
+    validations:
+      required: true
+  - type: textarea
+    id: problem_statement
+    attributes:
+      label: Problem Statement
+      description: One short paragraph describing the gap—no solutions yet.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope & Boundaries
+      description: |
+        Use bullet lists.
+        - In scope:
+        - Out of scope / defer:
+      placeholder: |
+        - **In scope:**
+          - ...
+        - **Out of scope / defer:**
+          - ...
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### ✅ Acceptance Criteria"
+  - type: checkboxes
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria (add/remove as needed)
+      options:
+        - label: Criterion 1 – describe a concrete pass/fail check
+        - label: Criterion 2
+        - label: Criterion 3
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### Definition of Done Checklist"
+  - type: checkboxes
+    id: definition_of_done
+    attributes:
+      label: Confirm each item when complete
+      options:
+        - label: Code implemented following repository style guides
+        - label: Tests added/updated (unit + integration as relevant)
+        - label: All tests green locally (note commands in updates)
+        - label: Documentation updated (docs/, README, CHANGELOG, etc.)
+        - label: Version bump assessed (if touching release surfaces)
+        - label: Security/privacy review complete (if handling data)
+        - label: Demo/validation evidence attached (screenshots, logs, links)
+        - label: Mentioned in weekly status if customer-facing change
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### 🛠️ Implementation Plan"
+  - type: textarea
+    id: implementation_steps
+    attributes:
+      label: Step-by-step Plan
+      description: Enumerate actionable steps; include owners if shared.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: technical_notes
+    attributes:
+      label: Technical Notes
+      description: Architectural constraints, file paths, functions, risks.
+      placeholder: "- ..."
+    validations:
+      required: false
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies & Blocks
+      description: Upstream issues, external approvals, or “None”.
+      placeholder: "- None."
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### 🧪 Validation Strategy"
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation Strategy
+      description: Automated tests, manual verification, monitoring/rollback.
+      placeholder: |
+        - **Automated tests:** …
+        - **Manual verification:** …
+        - **Monitoring / rollback:** …
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### 📎 Artifacts"
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Links & Attachments
+      description: Design docs, test logs, screenshots, related PRs (or N/A).
+      placeholder: |
+        - Design doc: …
+        - Test logs: …
+        - Screenshots / recordings: …
+        - Relevant PRs: …
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: "### 📅 Timeline"
+  - type: input
+    id: kickoff
+    attributes:
+      label: Kickoff Date
+      placeholder: "YYYY-MM-DD"
+    validations:
+      required: true
+  - type: input
+    id: target_completion
+    attributes:
+      label: Target Completion Date
+      placeholder: "YYYY-MM-DD"
+    validations:
+      required: true
+  - type: textarea
+    id: reviewers
+    attributes:
+      label: Reviewers
+      description: GitHub handles of required reviewers.
+      placeholder: "@reviewer1, @reviewer2"
+    validations:
+      required: true
+  - type: textarea
+    id: status_updates
+    attributes:
+      label: Status Updates
+      description: Add dated entries as work progresses.
+      placeholder: |
+        - 2025-10-08 – Kickoff, plan shared.
+        - 2025-10-10 – …
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: "### 🧭 Risk & Mitigation"
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks & Mitigations
+      description: List risks and mitigation plans.
+      placeholder: |
+        - **Risk:** …
+          - **Mitigation:** …
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### 🔄 Follow-Ups"
+  - type: textarea
+    id: followups
+    attributes:
+      label: Follow-Up Work
+      description: List follow-on items (create issues immediately if known) or state “None.”
+      placeholder: "- [ ] …"
+    validations:
+      required: true

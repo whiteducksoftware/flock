@@ -1,0 +1,143 @@
+name: "Feature Spec"
+description: "Define the problem, scope, and success metrics before implementation begins."
+title: "SPEC: <concise feature name>"
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 🧭 Feature Specification
+        Document the intent of the feature. Complete every section before kickoff.
+  - type: input
+    id: owner
+    attributes:
+      label: Feature Owner
+      description: GitHub handle accountable for delivery
+      placeholder: "@handle"
+    validations:
+      required: true
+  - type: input
+    id: sponsors
+    attributes:
+      label: Stakeholders / Reviewers
+      description: List product/engineering stakeholders to involve
+      placeholder: "@stakeholder1, @stakeholder2"
+    validations:
+      required: true
+  - type: textarea
+    id: problem_statement
+    attributes:
+      label: Problem Statement
+      description: Describe the user/customer problem this feature solves. No solutions yet.
+    validations:
+      required: true
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals & Success Metrics
+      description: Quantify success (KPIs, OKRs, leading indicators). Include how you will measure them.
+      placeholder: |
+        - Goal: ...
+          - Metric / target: ...
+    validations:
+      required: true
+  - type: textarea
+    id: user_story
+    attributes:
+      label: User Stories / Personas / Narrative
+      description: Capture the narrative, workflows, and personas impacted.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope Definition
+      description: Explicitly state what is in scope and out of scope.
+      placeholder: |
+        - **In scope:**
+          - ...
+        - **Out of scope:**
+          - ...
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Functional Requirements
+      description: Enumerate key behaviors, inputs/outputs, edge cases.
+    validations:
+      required: true
+  - type: textarea
+    id: nfr
+    attributes:
+      label: Non-Functional Requirements
+      description: Performance, security, privacy, compliance, reliability expectations.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies & Constraints
+      description: Upstream systems, libraries, design work, approvals, or assumptions.
+      placeholder: |
+        - Dependency: ... (owner, ETA)
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks & Open Questions
+      description: Known risks, unanswered questions, mitigation ideas.
+      placeholder: |
+        - **Risk:** ...
+          - **Mitigation:** ...
+        - **Open question:** ... (owner, due date)
+    validations:
+      required: true
+  - type: textarea
+    id: rollout
+    attributes:
+      label: Rollout & Communication Plan
+      description: Feature flags, migration steps, documentation, comms plan.
+      placeholder: |
+        - Launch stages: ...
+        - Docs/training: ...
+        - Metrics to watch: ...
+    validations:
+      required: true
+  - type: textarea
+    id: timeline
+    attributes:
+      label: High-Level Timeline & Milestones
+      description: Proposed phases, checkpoints, target dates.
+      placeholder: |
+        - Milestone 1 (date): ...
+        - Milestone 2 (date): ...
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation Strategy
+      description: How will you validate the feature end-to-end (tests, pilots, analytics)?
+    validations:
+      required: true
+  - type: textarea
+    id: followups
+    attributes:
+      label: Follow-Up Work / Future Enhancements
+      description: Work anticipated after initial launch. Create issues when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes / References
+      description: Link to design docs, prototypes, data, related issues.
+      placeholder: |
+        - Design doc: ...
+        - Research: ...
+        - Related issues: ...
+    validations:
+      required: false

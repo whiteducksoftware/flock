@@ -1,0 +1,167 @@
+name: "Phase Plan"
+description: "Break a feature into a managed phase with clear objectives and exit criteria."
+title: "PHASE: <feature name> – Phase X"
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 🧱 Phase Plan
+        Use this template to plan and track a phase under a feature specification.
+  - type: input
+    id: parent_feature
+    attributes:
+      label: Parent Feature Issue
+      description: Link to the feature spec (e.g., #271)
+      placeholder: "#<feature issue>"
+    validations:
+      required: true
+  - type: input
+    id: phase_number
+    attributes:
+      label: Phase Identifier
+      description: e.g., Phase 1 – Infrastructure
+      placeholder: "Phase X – ..."
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: Phase Owner
+      description: GitHub handle accountable for this phase
+      placeholder: "@handle"
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective & Outcomes
+      description: Summarize what this phase delivers and how it advances the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: Bullet list of tangible outputs (APIs, docs, dashboards, etc.).
+      placeholder: |
+        - Deliverable 1
+        - Deliverable 2
+    validations:
+      required: true
+  - type: textarea
+    id: entry_exit
+    attributes:
+      label: Entry & Exit Criteria
+      description: Preconditions to start and conditions to complete the phase.
+      placeholder: |
+        - **Entry criteria:**
+          - ...
+        - **Exit criteria:**
+          - ...
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope Clarifications
+      description: In/out of scope specifics unique to this phase.
+      placeholder: |
+        - **In scope:**
+          - ...
+        - **Out of scope:**
+          - ...
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies & Blocks
+      description: Upstream tasks/issues, external approvals, or risks blocking progress.
+      placeholder: |
+        - Dependency: ... (owner, ETA)
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks & Mitigations
+      description: Major risks impacting this phase and planned mitigations.
+      placeholder: |
+        - **Risk:** ...
+          - **Mitigation:** ...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Phase Acceptance Criteria
+      description: High-level checks that must be satisfied before the phase can close.
+      placeholder: |
+        - Criterion 1
+        - Criterion 2
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation Strategy
+      description: Tests, demos, or checkpoints to prove the phase is complete.
+      placeholder: |
+        - Automated tests: ...
+        - Manual validation: ...
+        - Observability: ...
+    validations:
+      required: true
+  - type: textarea
+    id: timeline
+    attributes:
+      label: Timeline & Milestones
+      description: Target dates for kickoff, reviews, completion.
+      placeholder: |
+        - Kickoff: YYYY-MM-DD
+        - Design review: YYYY-MM-DD
+        - Completion: YYYY-MM-DD
+    validations:
+      required: true
+  - type: textarea
+    id: communication
+    attributes:
+      label: Communication Plan
+      description: Stand-ups, async updates, demos, or status reporting expectations.
+      placeholder: |
+        - Weekly sync on ...
+        - Status update cadence ...
+    validations:
+      required: true
+  - type: textarea
+    id: status_updates
+    attributes:
+      label: Status Updates Log
+      description: Add dated notes as work progresses.
+      placeholder: |
+        - 2025-10-08 – Kickoff complete.
+        - 2025-10-12 – ...
+    validations:
+      required: false
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Key Artifacts & References
+      description: Link to designs, docs, spreadsheets, dashboards relevant to this phase.
+      placeholder: |
+        - Design doc: ...
+        - Dashboard: ...
+        - Related issues: ...
+    validations:
+      required: false
+  - type: textarea
+    id: followups
+    attributes:
+      label: Follow-Up Work
+      description: Work that should move to a later phase or future backlog items.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
