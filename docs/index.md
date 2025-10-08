@@ -38,7 +38,7 @@ class Diagnosis(BaseModel):
     fix_suggestion: str
 
 # Create orchestrator
-flock = Flock("openai/gpt-4o-mini")
+flock = Flock("openai/gpt-4.1")
 
 # Declare agent with type contracts
 flock.agent("diagnostician") \

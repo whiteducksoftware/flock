@@ -57,7 +57,7 @@ class BugReport(BaseModel):
 async def test_bug_detector_finds_null_pointer():
     """Unit test: Bug detector identifies null pointer issues."""
     # Arrange
-    flock = Flock("openai/gpt-4o-mini", temperature=0)
+    flock = Flock("openai/gpt-4.1", temperature=0)
     bug_detector = flock.agent("bug_detector").consumes(CodeSnippet).publishes(BugReport)
 
     test_code = CodeSnippet(
@@ -93,7 +93,7 @@ Test multiple agents working together.
 async def test_code_review_workflow():
     """Integration test: Full code review with bug detection and security audit."""
     # Arrange
-    flock = Flock("openai/gpt-4o-mini", temperature=0)
+    flock = Flock("openai/gpt-4.1", temperature=0)
 
     @flock_type
     class CodeSubmission(BaseModel):
@@ -166,7 +166,7 @@ class StrictAnalysis(BaseModel):
 @pytest.mark.asyncio
 async def test_analysis_respects_constraints():
     """Contract test: Agent outputs respect field constraints."""
-    flock = Flock("openai/gpt-4o-mini", temperature=0)
+    flock = Flock("openai/gpt-4.1", temperature=0)
 
     @flock_type
     class Input(BaseModel):
@@ -212,7 +212,7 @@ Test agents with `where` clauses.
 @pytest.mark.asyncio
 async def test_conditional_consumption():
     """Test agent only processes high-severity items."""
-    flock = Flock("openai/gpt-4o-mini")
+    flock = Flock("openai/gpt-4.1")
 
     @flock_type
     class Alert(BaseModel):
@@ -254,7 +254,7 @@ from flock.subscription import BatchSpec
 @pytest.mark.asyncio
 async def test_batch_processing():
     """Test agent batches multiple events."""
-    flock = Flock("openai/gpt-4o-mini")
+    flock = Flock("openai/gpt-4.1")
 
     @flock_type
     class Event(BaseModel):
@@ -296,7 +296,7 @@ from flock.identity import AgentIdentity
 @pytest.mark.asyncio
 async def test_private_visibility_access_control():
     """Test private visibility restricts access."""
-    flock = Flock("openai/gpt-4o-mini")
+    flock = Flock("openai/gpt-4.1")
 
     @flock_type
     class SensitiveData(BaseModel):
@@ -376,7 +376,7 @@ async def test_agent_behavior():
 @pytest.mark.asyncio
 async def test_severity_routing(severity, expected_action):
     """Test different severity levels route correctly."""
-    flock = Flock("openai/gpt-4o-mini")
+    flock = Flock("openai/gpt-4.1")
 
     @flock_type
     class Alert(BaseModel):
@@ -401,7 +401,7 @@ async def test_severity_routing(severity, expected_action):
 @pytest.fixture
 async def code_review_flock():
     """Reusable flock setup for code review tests."""
-    flock = Flock("openai/gpt-4o-mini", temperature=0)
+    flock = Flock("openai/gpt-4.1", temperature=0)
 
     @flock_type
     class CodeSubmission(BaseModel):
@@ -444,7 +444,7 @@ async def test_agent_with_mocked_api(mock_call):
     """Test agent that calls external API."""
     mock_call.return_value = {"result": "mocked_response"}
 
-    flock = Flock("openai/gpt-4o-mini")
+    flock = Flock("openai/gpt-4.1")
     # ... rest of test
 ```
 
@@ -454,7 +454,7 @@ async def test_agent_with_mocked_api(mock_call):
 @pytest.mark.asyncio
 async def test_circuit_breaker_prevents_runaway():
     """Test circuit breaker stops infinite loops."""
-    flock = Flock("openai/gpt-4o-mini", max_agent_iterations=100)
+    flock = Flock("openai/gpt-4.1", max_agent_iterations=100)
 
     @flock_type
     class Trigger(BaseModel):
@@ -480,7 +480,7 @@ async def test_with_tracing():
     import os
     os.environ["FLOCK_AUTO_TRACE"] = "true"
 
-    flock = Flock("openai/gpt-4o-mini")
+    flock = Flock("openai/gpt-4.1")
 
     async with flock.traced_run("test_workflow"):
         # ... test code
@@ -539,10 +539,10 @@ poe test-e2e
 
 ```python
 # ❌ Flaky test
-flock = Flock("openai/gpt-4o-mini")  # Default temperature=1.0
+flock = Flock("openai/gpt-4.1")  # Default temperature=1.0
 
 # ✅ Deterministic test
-flock = Flock("openai/gpt-4o-mini", temperature=0)
+flock = Flock("openai/gpt-4.1", temperature=0)
 ```
 
 ### 2. Forgetting to Await `run_until_idle()`
@@ -614,7 +614,7 @@ async def test_unauthorized_access_blocked():
 
 ```python
 # ✅ Use small models for tests
-flock = Flock("openai/gpt-4o-mini")  # Faster than gpt-4.1
+flock = Flock("openai/gpt-4.1")
 
 # ✅ Use minimal data
 test_input = CodeSnippet(code="def foo(): pass")  # Not 1000 lines

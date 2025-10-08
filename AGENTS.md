@@ -4,7 +4,7 @@
 
 This is Flock Flow, a production-grade blackboard-first AI agent orchestration framework. This guide gets you up to speed quickly on the current project state and development patterns.
 
-**Current Version:** 0.1.16
+**Current Version:** Backend: 0.5.0b62 • Frontend: 0.1.4
 **Architecture:** Hybrid Python/TypeScript with real-time dashboard
 **Package Manager:** UV (NOT pip!)
 **Status:** Production-ready with comprehensive monitoring
@@ -51,7 +51,7 @@ A blackboard architecture framework where specialized AI agents collaborate thro
 
 - **Python 3.10+** (we use modern async features)
 - **UV package manager** (faster than pip, handles virtual envs)
-- **Node.js 22+** (for dashboard frontend)
+- **Node.js 18+** (22+ recommended) for dashboard frontend
 - **OpenAI API key** (for running examples)
 
 ### Installation
@@ -66,7 +66,7 @@ poe install  # Equivalent to: uv sync --dev --all-groups --all-extras
 
 # Set up environment
 export OPENAI_API_KEY="sk-..."
-export DEFAULT_MODEL="openai/gpt-4o-mini"
+export DEFAULT_MODEL="openai/gpt-4.1"
 
 # Verify installation
 uv run python -c "from flock import Flock; print('✅ Ready!')"
@@ -75,14 +75,14 @@ uv run python -c "from flock import Flock; print('✅ Ready!')"
 ### Run Examples
 
 ```bash
-# Showcase examples (workshops & demos)
-uv run python examples/showcase/01_hello_flock.py
-uv run python examples/showcase/02_blog_review.py
-uv run python examples/showcase/04_dashboard.py
+# Core examples
+uv run python examples/01-the-declarative-way/01_declarative_pizza.py
+uv run python examples/01-the-declarative-way/02_input_and_output.py
 
-# Feature examples (with assertions)
-uv run python examples/features/feedback_prevention.py
-uv run python examples/features/visibility/public_visibility.py
+# Dashboard examples
+uv run python examples/03-the-dashboard/01_declarative_pizza.py
+uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py
+uv run python examples/03-the-dashboard/03-scale-test-100-agents.py
 ```
 
 ---
@@ -91,45 +91,37 @@ uv run python examples/features/visibility/public_visibility.py
 
 For deep dives into specific topics, see:
 
-- **[Architecture Guide](docs/ai-agents/architecture.md)** - Core architecture, project structure, code style
-- **[Development Workflow](docs/ai-agents/development.md)** - Testing, quality standards, versioning, pre-commit hooks
-- **[Frontend Guide](docs/ai-agents/frontend.md)** - Dashboard usage, frontend development, React/TypeScript
-- **[Dependencies Guide](docs/ai-agents/dependencies.md)** - Package management, UV commands, adding dependencies
-- **[Common Tasks](docs/ai-agents/common-tasks.md)** - Adding agents/components, performance tips, security
+- **[Architecture & Blackboard](docs/guides/blackboard.md)** - Core pattern, structure, and behavior
+- **[Development Workflow](docs/about/contributing.md)** - Testing, quality, versioning, pre-commit
+- **[Frontend/Dashboard](docs/guides/dashboard.md)** - Dashboard usage and development
+- **[Configuration & Dependencies](docs/reference/configuration.md)** - Environment and setup
+- **[Patterns & Common Tasks](docs/guides/patterns.md)** - Recipes, performance, security
 
 ---
 
 ## 🚨 CRITICAL PATTERNS (Learn from Our Experience)
 
-### ⚡ invoke() vs run_until_idle() - The Double Execution Trap
+### ⚡ invoke() vs run_until_idle() - Execution Control (no double-run by default)
 
 **This pattern cost us hours of debugging - learn from our pain!**
 
-#### The Problem
-After API migration from `arun()` to `invoke()`, tests started executing component hooks **twice**:
+#### The Goal
+Choose between isolated agent execution and event-driven cascades.
+
+#### How it works
+`invoke()` behavior depends on `publish_outputs`:
 
 ```python
-# Expected: ['A', 'B', 'C']
-# Actual: ['A', 'B', 'C', 'A', 'B', 'C']  # Double execution!
-```
-
-#### Root Cause Analysis
-`invoke()` method behavior depends on `publish_outputs` parameter:
-
-```python
-# invoke() with default publish_outputs=True:
-await orchestrator.invoke(agent, input_artifact)
-await orchestrator.run_until_idle()  # ❌ Triggers SECOND execution!
-
-# invoke() with publish_outputs=False:
+# Isolated: execute agent only (no cascade)
 await orchestrator.invoke(agent, input_artifact, publish_outputs=False)
-# ✅ No double execution - just direct agent execution
+
+# Cascading: execute and publish outputs, then run downstream agents
+await orchestrator.invoke(agent, input_artifact, publish_outputs=True)
+await orchestrator.run_until_idle()  # processes downstream agents
 ```
 
-**Why this happens:**
-1. `invoke(..., publish_outputs=True)` executes agent AND publishes results to blackboard
-2. `run_until_idle()` processes published artifacts, triggering agent execution again
-3. Component hooks fire on BOTH executions → double execution
+Notes:
+- By default, agents have `prevent_self_trigger=True`, so an agent will not re-run on its own outputs when you call `run_until_idle()`. Downstream agents that subscribe to the output types will run.
 
 #### When to Use Which Pattern
 
@@ -161,12 +153,12 @@ assert len(output_artifacts) == 3
 #### Quick Reference
 
 | Scenario | invoke() call | run_until_idle() | Result |
-|----------|---------------|------------------|---------|
-| Unit test | `invoke(..., publish_outputs=False)` | No | ✅ Single execution |
-| Integration test | `invoke(..., publish_outputs=True)` | Yes | ✅ Cascade execution |
-| Bug we fixed | `invoke(..., publish_outputs=True)` | Yes | ❌ Double execution |
+|----------|---------------|------------------|--------|
+| Unit test | `invoke(..., publish_outputs=False)` | No | Single execution |
+| Integration test | `invoke(..., publish_outputs=True)` | Yes | Cascade to downstream agents |
+| Common mistake | `invoke(..., publish_outputs=True)` | Yes | Not a double-run; downstream agents run |
 
-**Rule of thumb:** Start with `publish_outputs=False` for tests, only enable publication if you specifically need cascade behavior.
+Rule of thumb: start with `publish_outputs=False` for unit tests; enable publication only when you want cascades.
 
 ---
 
@@ -297,7 +289,7 @@ The automated PyPI release pipeline checks if the version in `pyproject.toml` ha
 
 #### What to Bump
 
-**Backend version (REQUIRED for ALL changes):**
+**Backend version (REQUIRED for backend code changes):**
 ```toml
 # pyproject.toml
 [project]
@@ -317,14 +309,15 @@ version = "0.5.0b56"  # Increment this! e.g., "0.5.0b57"
 **✅ ALWAYS bump backend version for:**
 - Any Python code changes in `src/flock/`
 - Bug fixes, features, refactors
-- Documentation changes (increment patch)
-- Any commit that will be pushed to a branch
+- Commits that modify backend behavior
+
+Docs-only changes (in `docs/`, `README.md`) do not require a version bump.
 
 **✅ ALWAYS bump frontend version for:**
 - Dashboard UI changes
 - React/TypeScript component updates
 - CSS/styling changes
-- Any changes in `src/flock/frontend/src/`
+- Any changes in `src/flock/frontend/`
 
 #### Versioning Pattern
 
@@ -940,7 +933,7 @@ Always use the appropriate subdirectory:
 - **Source Code**: `/src/flock` - Production code only
 - **Documentation**: `/docs` - Documentation only
 - **Examples**: `/examples` - Example scripts only
-- **Frontend**: `/frontend/src` - React components and frontend code
+- **Frontend**: `src/flock/frontend/src` - React components and frontend code
 
 **Never create files in the root directory** - it should only contain configuration files like `pyproject.toml`, `README.md`, etc.
 

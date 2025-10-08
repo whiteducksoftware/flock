@@ -301,7 +301,7 @@ class Agent(metaclass=AutoTracedMeta):
             return []
 
         default_engine = DSPyEngine(
-            model=self._orchestrator.model or os.getenv("DEFAULT_MODEL", "openai/gpt-4o-mini"),
+            model=self._orchestrator.model or os.getenv("DEFAULT_MODEL", "openai/gpt-4.1"),
             instructions=self.description,
         )
         self.engines = [default_engine]

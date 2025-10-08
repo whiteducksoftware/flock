@@ -79,7 +79,7 @@ repos:
         name: frontend build check
         entry: bash -c 'cd src/flock/frontend && npm run build'
         language: system
-        files: ^frontend/
+        files: ^src/flock/frontend/
         pass_filenames: false
         stages: [pre-push]  # Only on push, not on every commit
 

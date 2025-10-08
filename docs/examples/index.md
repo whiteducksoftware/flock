@@ -6,30 +6,24 @@ Learn by example! Explore working code samples demonstrating Flock's features an
 
 ## 🎯 Example Categories
 
-### Showcase Examples
+### Core Examples
 **Production-ready demonstrations of core features**
 
-Visit the [showcase examples](https://github.com/whiteducksoftware/flock/tree/main/examples/showcase) to see:
+Explore the numbered example folders in this repository:
 
-- **Hello Flock** - Minimal working example
-- **Blog Review** - Multi-agent content review workflow
-- **Pizza Ordering** - Type-driven agent coordination
-- **Dashboard Demo** - Real-time visualization
+- **01 — The Declarative Way** (`examples/01-the-declarative-way`) — minimal and focused
+- **02 — The Blackboard** (`examples/02-the-blackboard`) — architecture overview
+- **03 — The Dashboard** (`examples/03-the-dashboard`) — real-time monitoring
 
 ### Feature Examples
 **Focused examples for specific capabilities**
 
-Browse [feature examples](https://github.com/whiteducksoftware/flock/tree/main/examples/features) for:
-
-- **Feedback Prevention** - Avoid agent feedback loops
-- **Visibility Controls** - Public, private, and tenant-based access
-- **Custom Components** - Build your own plugins
-- **Custom Engines** - Beyond DSPy evaluation
+Feature-focused examples are integrated into the folders above (e.g., dashboard edge cases). Additional feature demos may be added over time.
 
 ### Dashboard Examples
 **Interactive dashboard demonstrations**
 
-Check out [dashboard examples](https://github.com/whiteducksoftware/flock/tree/main/examples/03-the-dashboard) to explore:
+Check out `examples/03-the-dashboard` to explore:
 
 - **Declarative Pizza** - Single-agent dashboard demo
 - **Edge Cases** - Multi-agent cascades and filtering
@@ -47,7 +41,7 @@ pip install "flock-core[all]"
 
 # Set your API key
 export OPENAI_API_KEY="sk-..."
-export DEFAULT_MODEL="openai/gpt-4o-mini"
+export DEFAULT_MODEL="openai/gpt-4.1"
 ```
 
 ### Run an Example
@@ -57,11 +51,11 @@ export DEFAULT_MODEL="openai/gpt-4o-mini"
 git clone https://github.com/whiteducksoftware/flock.git
 cd flock
 
-# Run a showcase example
-python examples/showcase/01_hello_flock.py
+# Run a minimal example
+python examples/01-the-declarative-way/01_declarative_pizza.py
 
 # Run with dashboard
-python examples/showcase/04_dashboard.py
+python examples/03-the-dashboard/01_declarative_pizza.py
 ```
 
 ---
@@ -84,7 +78,7 @@ class Greeting(BaseModel):
 class Response(BaseModel):
     message: str
 
-flock = Flock("openai/gpt-4o-mini")
+flock = Flock("openai/gpt-4.1")
 
 greeter = (
     flock.agent("greeter")
@@ -101,22 +95,15 @@ async def main():
 asyncio.run(main())
 ```
 
-**[View full example →](https://github.com/whiteducksoftware/flock/blob/main/examples/showcase/01_hello_flock.py)**
+Run it locally: `python examples/01-the-declarative-way/01_declarative_pizza.py`
 
 ---
 
-### 2. Blog Review (Multi-Agent)
+### 2. Dashboard Edge Cases
 
-**What it demonstrates:** Agent cascades and type-driven coordination
+**What it demonstrates:** Agent cascades, filtering, and real-time updates
 
-**Agents:**
-- `writer` - Consumes BlogIdea → Publishes BlogPost
-- `reviewer` - Consumes BlogPost → Publishes Review
-- `editor` - Consumes Review → Publishes FinalPost
-
-**Key concept:** No explicit connections. Agents react to type availability.
-
-**[View full example →](https://github.com/whiteducksoftware/flock/blob/main/examples/showcase/02_blog_review.py)**
+Run: `python examples/03-the-dashboard/02-dashboard-edge-cases.py`
 
 ---
 
@@ -137,29 +124,16 @@ await orchestrator.serve(
 )
 ```
 
-**[View full example →](https://github.com/whiteducksoftware/flock/blob/main/examples/showcase/04_dashboard.py)**
+Run: `python examples/03-the-dashboard/01_declarative_pizza.py`
 
 ---
 
 ### 4. Feedback Prevention
 
-**What it demonstrates:** Preventing agent feedback loops
+**What it demonstrates:** Preventing agent feedback loops using built-in safeguards
 
-**Problem:** Agent A publishes type T, which triggers Agent B, which publishes type T, which triggers Agent A again...
-
-**Solution:** Use label-based visibility to break cycles
-
-```python
-await flock.publish(
-    artifact,
-    visibility=LabelVisibility(
-        allowed_agents=["agent_b"],
-        denied_agents=["agent_a"]  # Prevent feedback
-    )
-)
-```
-
-**[View full example →](https://github.com/whiteducksoftware/flock/blob/main/examples/features/feedback_prevention.py)**
+- Default safeguard: `prevent_self_trigger=True` (agents won’t re-trigger on their own outputs)
+- Use label/tenant visibility for finer control (see Visibility guide)
 
 ---
 
@@ -174,7 +148,7 @@ Examples for:
 - **Label** - Fine-grained control
 - **Time** - Temporal constraints
 
-**[Browse visibility examples →](https://github.com/whiteducksoftware/flock/tree/main/examples/features/visibility)**
+See: Docs → User Guides → Visibility Controls
 
 ---
 

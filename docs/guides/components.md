@@ -201,7 +201,7 @@ from openai import AsyncOpenAI
 class ChatEngine(EngineComponent):
     """Simple chat-based LLM engine."""
 
-    def __init__(self, model: str = "gpt-4o-mini", temperature: float = 0.7):
+    def __init__(self, model: str = "openai/gpt-4.1", temperature: float = 0.7):
         super().__init__(name="chat_engine")
         self.client = AsyncOpenAI()
         self.model = model
