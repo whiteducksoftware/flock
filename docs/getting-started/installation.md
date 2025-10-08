@@ -95,7 +95,7 @@ export COHERE_API_KEY="..."
 ### Configure Default Model
 
 ```bash
-export DEFAULT_MODEL="openai/gpt-4o-mini"
+export DEFAULT_MODEL="openai/gpt-4.1"
 ```
 
 Flock uses [LiteLLM](https://docs.litellm.ai/docs/) for provider abstraction, supporting 100+ LLM providers.

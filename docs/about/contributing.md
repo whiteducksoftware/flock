@@ -30,7 +30,7 @@ pre-commit install --hook-type pre-push
 
 # 4. Verify setup
 poe test
-cd frontend && npm test
+cd src/flock/frontend && npm test
 
 # You're ready to contribute! 🚀
 ```
@@ -41,7 +41,7 @@ cd frontend && npm test
 
 - **Python 3.10+** - Modern Python with async features
 - **UV Package Manager** - Fast, reliable dependency management (NOT pip!)
-- **Node.js 22+** - For frontend development
+- **Node.js 18+** (22+ recommended) - For frontend development
 - **Git** - Version control
 
 ### Recommended Tools
@@ -72,7 +72,7 @@ poe install
 
 # Or manually:
 uv sync --dev --all-groups --all-extras  # Install Python deps
-cd frontend && npm install                # Install frontend deps
+cd src/flock/frontend && npm install      # Install frontend deps
 ```
 
 ### 3. Set Up Environment Variables
@@ -83,7 +83,7 @@ cp .envtemplate .env
 
 # Edit .env and add your API keys
 export OPENAI_API_KEY="sk-..."
-export DEFAULT_MODEL="openai/gpt-4o-mini"
+export DEFAULT_MODEL="openai/gpt-4.1"
 ```
 
 ### 4. Install Pre-commit Hooks
@@ -134,7 +134,7 @@ poe version-check  # See what would be bumped
 poe version-minor  # Bump version
 
 # 7. Commit version bump
-git add pyproject.toml frontend/package.json
+   git add pyproject.toml src/flock/frontend/package.json
 git commit -m "chore: bump version to 0.2.0"
 
 # 8. Push (build checks run)
@@ -193,7 +193,7 @@ poe test-cov-fail
 poe test-critical
 
 # Frontend tests
-cd frontend && npm test
+cd src/flock/frontend && npm test
 
 # E2E tests
 poe test-e2e
@@ -219,7 +219,7 @@ from flock import Flock
 async def test_your_feature():
     """Test description following docstring conventions."""
     # Arrange
-    orchestrator = Flock("openai/gpt-4o-mini")
+    orchestrator = Flock("openai/gpt-4.1")
 
     # Act
     result = await orchestrator.do_something()
@@ -454,10 +454,10 @@ git diff package-lock.json
 
 ```bash
 # Terminal 1: Backend
-uv run python examples/showcase/04_dashboard.py
+uv run python examples/03-the-dashboard/01_declarative_pizza.py
 
 # Terminal 2: Frontend (if developing)
-cd frontend
+cd src/flock/frontend
 npm run dev
 
 # Dashboard opens at http://localhost:8000
@@ -497,7 +497,7 @@ poe docs
 **Solution**: Install dependencies
 ```bash
 poe install
-cd frontend && npm install
+cd src/flock/frontend && npm install
 ```
 
 ### UV not found

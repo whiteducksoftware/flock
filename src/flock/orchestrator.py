@@ -87,7 +87,7 @@ class Flock(metaclass=AutoTracedMeta):
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
         Args:
-            model: Default LLM model for agents (e.g., "openai/gpt-4o-mini").
+            model: Default LLM model for agents (e.g., "openai/gpt-4.1").
                 Can be overridden per-agent. If None, uses DEFAULT_MODEL env var.
             store: Custom blackboard storage backend. Defaults to InMemoryBlackboardStore.
             max_agent_iterations: Circuit breaker limit to prevent runaway agent loops.
@@ -95,7 +95,7 @@ class Flock(metaclass=AutoTracedMeta):
 
         Examples:
             >>> # Basic initialization with default model
-            >>> flock = Flock("openai/gpt-4o-mini")
+            >>> flock = Flock("openai/gpt-4.1")
 
             >>> # Custom storage backend
             >>> flock = Flock(
@@ -105,7 +105,7 @@ class Flock(metaclass=AutoTracedMeta):
 
             >>> # Circuit breaker configuration
             >>> flock = Flock(
-            ...     "openai/gpt-4o-mini",
+            ...     "openai/gpt-4.1",
             ...     max_agent_iterations=500
             ... )
         """
@@ -461,7 +461,7 @@ class Flock(metaclass=AutoTracedMeta):
 
         Examples:
             >>> # Test a single agent
-            >>> flock = Flock("openai/gpt-4o-mini")
+            >>> flock = Flock("openai/gpt-4.1")
             >>> pizza_agent = flock.agent("pizza").consumes(Idea).publishes(Pizza)
             >>> results = await flock.arun(pizza_agent, Idea(topic="Margherita"))
 

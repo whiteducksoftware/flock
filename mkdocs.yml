@@ -230,8 +230,8 @@ nav:
   - 💡 Examples:
     - Overview: examples/index.md
     - GitHub Examples: https://github.com/whiteducksoftware/flock/tree/main/examples
-    - Showcase: https://github.com/whiteducksoftware/flock/tree/main/examples/showcase
-    - Features: https://github.com/whiteducksoftware/flock/tree/main/examples/features
+    - 01 — The Declarative Way: https://github.com/whiteducksoftware/flock/tree/main/examples/01-the-declarative-way
+    - 02 — The Blackboard: https://github.com/whiteducksoftware/flock/tree/main/examples/02-the-blackboard
     - Dashboard: https://github.com/whiteducksoftware/flock/tree/main/examples/03-the-dashboard
 
   - ℹ️ About:

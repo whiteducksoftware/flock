@@ -63,7 +63,7 @@ Complete technical reference for Flock Flow API and configuration.
 #### Model Configuration
 ```bash
 # Default LLM model (LiteLLM format)
-DEFAULT_MODEL="openai/gpt-4o-mini"
+DEFAULT_MODEL="openai/gpt-4.1"
 
 # API keys for providers
 OPENAI_API_KEY="sk-..."
@@ -99,7 +99,7 @@ FLOCK_DASHBOARD_HOST="0.0.0.0"
 #### `.flock/config.yaml`
 ```yaml
 # Default model
-model: "openai/gpt-4o-mini"
+model: "openai/gpt-4.1"
 
 # Tracing settings
 tracing:
