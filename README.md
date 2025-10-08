@@ -148,7 +148,7 @@ agent.consumes(BugReport).publishes(BugDiagnosis)
 ```
 
 <p align="center">
-  <img alt="Flock Banner" src="docs/img/bug_diagnosis.png" width="1000">
+  <img alt="Flock Banner" src="docs/assets/images/bug_diagnosis.png" width="1000">
 </p>
 
 **Why this matters:**
@@ -407,7 +407,7 @@ await flock.serve(dashboard=True)
 The dashboard provides comprehensive real-time visibility into your agent system with professional UI/UX:
 
 <p align="center">
-  <img alt="Flock Agent View" src="docs/img/flock_ui_agent_view.png" width="1000">
+  <img alt="Flock Agent View" src="docs/assets/images/flock_ui_agent_view.png" width="1000">
   <i>Agent View: See agent communication patterns and message flows in real-time</i>
 </p>
 
@@ -418,7 +418,7 @@ The dashboard provides comprehensive real-time visibility into your agent system
   - **Blackboard View** - Messages as nodes with data transformations as edges
 
 <p align="center">
-  <img alt="Flock Blackboard View" src="docs/img/flock_ui_blackboard_view.png" width="1000">
+  <img alt="Flock Blackboard View" src="docs/assets/images/flock_ui_blackboard_view.png" width="1000">
   <i>Blackboard View: Track data lineage and transformations across the system</i>
 </p>
 
@@ -458,7 +458,7 @@ The dashboard provides comprehensive real-time visibility into your agent system
 The dashboard includes a **Jaeger-style trace viewer** with 7 powerful visualization modes:
 
 <p align="center">
-  <img alt="Trace Viewer" src="docs/img/trace_1.png" width="1000">
+  <img alt="Trace Viewer" src="docs/assets/images/trace_1.png" width="1000">
   <i>Trace Viewer: Timeline view showing span hierarchies and execution flow</i>
 </p>
 
@@ -481,7 +481,7 @@ The dashboard includes a **Jaeger-style trace viewer** with 7 powerful visualiza
 - **CSV Export** - Download query results for offline analysis
 
 <p align="center">
-  <img alt="Trace Viewer" src="docs/img/trace_2.png" width="1000">
+  <img alt="Trace Viewer" src="docs/assets/images/trace_2.png" width="1000">
   <i>Trace Viewer: Dependency Analysis</i>
 </p>
 
@@ -535,7 +535,7 @@ AI: [queries DuckDB]
 **Why DuckDB?** 10-100x faster than SQLite for analytical queries. Zero configuration. AI agents can debug your AI agents.
 
 <p align="center">
-  <img alt="Trace Viewer" src="docs/img/trace_3.png" width="1000">
+  <img alt="Trace Viewer" src="docs/assets/images/trace_3.png" width="1000">
   <i>Trace Viewer: DuckDB Query</i>
 </p>
 
