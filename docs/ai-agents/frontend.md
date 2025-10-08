@@ -59,6 +59,12 @@ asyncio.run(orchestrator.serve(dashboard=True))
 **Controls:**
 - **Publish Control** - Publish artifacts with auto-filtering
 - **Invoke Control** - Invoke agents by name
+- **Auto Layout** - Right-click canvas → Auto Layout submenu with 5 layout algorithms:
+  - Hierarchical (Vertical/Horizontal) - Dagre-based flow layouts
+  - Circular - Nodes arranged in a circle
+  - Grid - Organized grid layout
+  - Random - Random placement with collision detection
+  - All layouts use smart 200px spacing and center around viewport
 - **EventLog Module** - Right-click → Add Module → EventLog
 
 **Keyboard Shortcuts:** ⌨️

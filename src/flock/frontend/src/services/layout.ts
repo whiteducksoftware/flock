@@ -65,7 +65,7 @@ export function applyHierarchicalLayout(
   }
 
   // Calculate dynamic spacing based on actual node sizes
-  // This ensures 100px minimum clearance regardless of node dimensions
+  // This ensures 200px minimum clearance regardless of node dimensions
   let maxWidth = 0;
   let maxHeight = 0;
 
@@ -75,9 +75,9 @@ export function applyHierarchicalLayout(
     maxHeight = Math.max(maxHeight, height);
   });
 
-  // Spacing = half of max node size + 100px minimum clearance
-  const nodeSpacing = options.nodeSpacing ?? (maxWidth / 2 + 100);
-  const rankSpacing = options.rankSpacing ?? (maxHeight / 2 + 100);
+  // Spacing = half of max node size + 200px minimum clearance
+  const nodeSpacing = options.nodeSpacing ?? (maxWidth / 2 + 200);
+  const rankSpacing = options.rankSpacing ?? (maxHeight / 2 + 200);
 
   // Create a new directed graph
   const graph = new dagre.graphlib.Graph();
@@ -138,6 +138,200 @@ export function applyHierarchicalLayout(
     edges,
     width: graphWidth,
     height: graphHeight,
+  };
+}
+
+/**
+ * Apply circular layout - nodes arranged in a circle
+ */
+export function applyCircularLayout(
+  nodes: Node[],
+  edges: Edge[],
+  options: LayoutOptions = {}
+): LayoutResult {
+  const { center } = options;
+
+  if (nodes.length === 0) {
+    return { nodes: [], edges, width: 0, height: 0 };
+  }
+
+  // Calculate radius based on number of nodes and their sizes
+  let maxWidth = 0;
+  let maxHeight = 0;
+  nodes.forEach((node) => {
+    const { width, height } = getNodeDimensions(node);
+    maxWidth = Math.max(maxWidth, width);
+    maxHeight = Math.max(maxHeight, height);
+  });
+
+  const minSpacing = 200; // 200px minimum clearance
+  const nodeSize = Math.max(maxWidth, maxHeight);
+  const circumference = nodes.length * (nodeSize + minSpacing);
+  const radius = circumference / (2 * Math.PI);
+
+  const centerX = center?.x ?? 0;
+  const centerY = center?.y ?? 0;
+
+  const layoutedNodes = nodes.map((node, index) => {
+    const angle = (2 * Math.PI * index) / nodes.length;
+    const { width, height } = getNodeDimensions(node);
+
+    return {
+      ...node,
+      position: {
+        x: centerX + radius * Math.cos(angle) - width / 2,
+        y: centerY + radius * Math.sin(angle) - height / 2,
+      },
+    };
+  });
+
+  const graphWidth = radius * 2 + maxWidth;
+  const graphHeight = radius * 2 + maxHeight;
+
+  return {
+    nodes: layoutedNodes,
+    edges,
+    width: graphWidth,
+    height: graphHeight,
+  };
+}
+
+/**
+ * Apply grid layout - nodes arranged in a grid
+ */
+export function applyGridLayout(
+  nodes: Node[],
+  edges: Edge[],
+  options: LayoutOptions = {}
+): LayoutResult {
+  const { center } = options;
+
+  if (nodes.length === 0) {
+    return { nodes: [], edges, width: 0, height: 0 };
+  }
+
+  // Calculate grid dimensions
+  const cols = Math.ceil(Math.sqrt(nodes.length));
+  const rows = Math.ceil(nodes.length / cols);
+
+  let maxWidth = 0;
+  let maxHeight = 0;
+  nodes.forEach((node) => {
+    const { width, height } = getNodeDimensions(node);
+    maxWidth = Math.max(maxWidth, width);
+    maxHeight = Math.max(maxHeight, height);
+  });
+
+  const minSpacing = 200;
+  const cellWidth = maxWidth + minSpacing;
+  const cellHeight = maxHeight + minSpacing;
+
+  const graphWidth = cols * cellWidth;
+  const graphHeight = rows * cellHeight;
+
+  const startX = center ? center.x - graphWidth / 2 : 0;
+  const startY = center ? center.y - graphHeight / 2 : 0;
+
+  const layoutedNodes = nodes.map((node, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const { width, height } = getNodeDimensions(node);
+
+    return {
+      ...node,
+      position: {
+        x: startX + col * cellWidth + (cellWidth - width) / 2,
+        y: startY + row * cellHeight + (cellHeight - height) / 2,
+      },
+    };
+  });
+
+  return {
+    nodes: layoutedNodes,
+    edges,
+    width: graphWidth,
+    height: graphHeight,
+  };
+}
+
+/**
+ * Apply random layout - nodes placed randomly with minimum spacing
+ */
+export function applyRandomLayout(
+  nodes: Node[],
+  edges: Edge[],
+  options: LayoutOptions = {}
+): LayoutResult {
+  const { center } = options;
+
+  if (nodes.length === 0) {
+    return { nodes: [], edges, width: 0, height: 0 };
+  }
+
+  let maxWidth = 0;
+  let maxHeight = 0;
+  nodes.forEach((node) => {
+    const { width, height } = getNodeDimensions(node);
+    maxWidth = Math.max(maxWidth, width);
+    maxHeight = Math.max(maxHeight, height);
+  });
+
+  const minSpacing = 200;
+  const spreadFactor = 1.5; // How much to spread nodes apart
+  const areaSize = Math.sqrt(nodes.length) * (maxWidth + maxHeight + minSpacing) * spreadFactor;
+
+  const centerX = center?.x ?? 0;
+  const centerY = center?.y ?? 0;
+
+  // Place nodes randomly, checking for collisions
+  const layoutedNodes: Node[] = [];
+  const maxAttempts = 100;
+
+  nodes.forEach((node) => {
+    const { width, height } = getNodeDimensions(node);
+    let placed = false;
+    let attempts = 0;
+
+    while (!placed && attempts < maxAttempts) {
+      const x = centerX + (Math.random() - 0.5) * areaSize - width / 2;
+      const y = centerY + (Math.random() - 0.5) * areaSize - height / 2;
+
+      // Check if this position collides with existing nodes
+      const collides = layoutedNodes.some((existingNode) => {
+        const exDims = getNodeDimensions(existingNode);
+        const dx = Math.abs(x - existingNode.position.x);
+        const dy = Math.abs(y - existingNode.position.y);
+        return dx < (width + exDims.width) / 2 + minSpacing &&
+               dy < (height + exDims.height) / 2 + minSpacing;
+      });
+
+      if (!collides) {
+        layoutedNodes.push({
+          ...node,
+          position: { x, y },
+        });
+        placed = true;
+      }
+      attempts++;
+    }
+
+    // If we couldn't place it without collision, just place it anyway
+    if (!placed) {
+      layoutedNodes.push({
+        ...node,
+        position: {
+          x: centerX + (Math.random() - 0.5) * areaSize - width / 2,
+          y: centerY + (Math.random() - 0.5) * areaSize - height / 2,
+        },
+      });
+    }
+  });
+
+  return {
+    nodes: layoutedNodes,
+    edges,
+    width: areaSize,
+    height: areaSize,
   };
 }
 

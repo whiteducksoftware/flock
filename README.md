@@ -375,7 +375,11 @@ The dashboard provides comprehensive real-time visibility into your agent system
 - **Interactive Graph:**
   - Drag nodes, zoom, pan, and explore topology
   - Double-click nodes to open detail windows
-  - Right-click for context menu and modules
+  - Right-click for context menu with auto-layout options:
+    - **5 Layout Algorithms**: Hierarchical (Vertical/Horizontal), Circular, Grid, and Random
+    - **Smart Spacing**: Dynamic 200px minimum clearance based on node dimensions
+    - **Viewport Centering**: Layouts always center around current viewport
+  - Add modules dynamically from context menu
 
 - **Advanced Filtering:**
   - Correlation ID tracking for workflow tracing
