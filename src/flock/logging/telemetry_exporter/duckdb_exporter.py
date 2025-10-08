@@ -89,8 +89,8 @@ class DuckDBSpanExporter(TelemetryExporter):
                 # Delete spans older than TTL
                 # Note: DuckDB doesn't support ? placeholders inside INTERVAL expressions
                 # Safe: ttl_days is guaranteed to be an int, no injection risk
-                result = conn.execute(  # nosec B608
-                    f"""
+                result = conn.execute(
+                    f"""  # nosec B608
                     DELETE FROM spans
                     WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '{self.ttl_days} DAYS'
                 """
