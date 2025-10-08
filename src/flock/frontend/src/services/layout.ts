@@ -15,6 +15,7 @@ export interface LayoutOptions {
   direction?: 'TB' | 'LR' | 'BT' | 'RL';
   nodeSpacing?: number;
   rankSpacing?: number;
+  center?: { x: number; y: number };  // Optional center point for layout
 }
 
 export interface LayoutResult {
@@ -29,10 +30,6 @@ const DEFAULT_NODE_WIDTH = 200;
 const DEFAULT_NODE_HEIGHT = 80;
 const MESSAGE_NODE_WIDTH = 150;
 const MESSAGE_NODE_HEIGHT = 60;
-
-// Default spacing (increased by 50% for better label visibility)
-const DEFAULT_NODE_SPACING = 75;  // Was 50
-const DEFAULT_RANK_SPACING = 150; // Was 100
 
 /**
  * Get node dimensions based on node type
@@ -59,14 +56,28 @@ export function applyHierarchicalLayout(
 ): LayoutResult {
   const {
     direction = 'TB',
-    nodeSpacing = DEFAULT_NODE_SPACING,
-    rankSpacing = DEFAULT_RANK_SPACING,
+    center,
   } = options;
 
   // Handle empty graph
   if (nodes.length === 0) {
     return { nodes: [], edges, width: 0, height: 0 };
   }
+
+  // Calculate dynamic spacing based on actual node sizes
+  // This ensures 100px minimum clearance regardless of node dimensions
+  let maxWidth = 0;
+  let maxHeight = 0;
+
+  nodes.forEach((node) => {
+    const { width, height } = getNodeDimensions(node);
+    maxWidth = Math.max(maxWidth, width);
+    maxHeight = Math.max(maxHeight, height);
+  });
+
+  // Spacing = half of max node size + 100px minimum clearance
+  const nodeSpacing = options.nodeSpacing ?? (maxWidth / 2 + 100);
+  const rankSpacing = options.rankSpacing ?? (maxHeight / 2 + 100);
 
   // Create a new directed graph
   const graph = new dagre.graphlib.Graph();
@@ -97,6 +108,15 @@ export function applyHierarchicalLayout(
   // Run the layout algorithm
   dagre.layout(graph);
 
+  // Get graph dimensions first to calculate offset
+  const graphConfig = graph.graph();
+  const graphWidth = (graphConfig.width || 0) + 40; // Add margin
+  const graphHeight = (graphConfig.height || 0) + 40; // Add margin
+
+  // Calculate offset to center the layout around viewport center (or 0,0 if no center provided)
+  const offsetX = center ? center.x - graphWidth / 2 : 0;
+  const offsetY = center ? center.y - graphHeight / 2 : 0;
+
   // Extract positioned nodes
   const layoutedNodes = nodes.map((node) => {
     const nodeWithPosition = graph.node(node.id);
@@ -107,22 +127,17 @@ export function applyHierarchicalLayout(
     return {
       ...node,
       position: {
-        x: nodeWithPosition.x - width / 2,
-        y: nodeWithPosition.y - height / 2,
+        x: nodeWithPosition.x - width / 2 + offsetX,
+        y: nodeWithPosition.y - height / 2 + offsetY,
       },
     };
   });
 
-  // Get graph dimensions
-  const graphConfig = graph.graph();
-  const width = (graphConfig.width || 0) + 40; // Add margin
-  const height = (graphConfig.height || 0) + 40; // Add margin
-
   return {
     nodes: layoutedNodes,
     edges,
-    width,
-    height,
+    width: graphWidth,
+    height: graphHeight,
   };
 }
 
@@ -135,12 +150,14 @@ export function applyDagreLayout(
   edges: Edge[],
   direction: 'TB' | 'LR' = 'TB',
   nodeSpacing?: number,
-  rankSpacing?: number
+  rankSpacing?: number,
+  center?: { x: number; y: number }
 ): Node[] {
   const result = applyHierarchicalLayout(nodes, edges, {
     direction,
     nodeSpacing,
-    rankSpacing
+    rankSpacing,
+    center
   });
   return result.nodes;
 }

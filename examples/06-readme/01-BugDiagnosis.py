@@ -59,7 +59,6 @@ code_detective = (
 
 
 async def main():
-    await flock.serve(dashboard=True)
     # 🐛 Create a bug report (this is our input)
     bug = BugReport(
         title="App crashes when uploading large images",

@@ -26,7 +26,7 @@ import { usePersistence } from '../../hooks/usePersistence';
 import { v4 as uuidv4 } from 'uuid';
 
 const GraphCanvas: React.FC = () => {
-  const { fitView, getIntersectingNodes } = useReactFlow();
+  const { fitView, getIntersectingNodes, screenToFlowPosition } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
@@ -115,7 +115,28 @@ const GraphCanvas: React.FC = () => {
   const handleAutoLayout = useCallback(() => {
     const nodeSpacing = useSettingsStore.getState().advanced.nodeSpacing;
     const rankSpacing = useSettingsStore.getState().advanced.rankSpacing;
-    const layoutedNodes = applyDagreLayout(nodes, edges, layoutDirection || 'TB', nodeSpacing, rankSpacing);
+
+    // Get the React Flow pane element to find its actual center
+    const pane = document.querySelector('.react-flow__pane');
+    let viewportCenter = { x: 0, y: 0 };
+
+    if (pane) {
+      const rect = pane.getBoundingClientRect();
+      // Convert screen center of the pane to flow coordinates
+      viewportCenter = screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+    }
+
+    const layoutedNodes = applyDagreLayout(
+      nodes,
+      edges,
+      layoutDirection || 'TB',
+      nodeSpacing,
+      rankSpacing,
+      viewportCenter
+    );
 
     // Update nodes with new positions
     layoutedNodes.forEach((node) => {
@@ -125,7 +146,7 @@ const GraphCanvas: React.FC = () => {
     useGraphStore.setState({ nodes: layoutedNodes });
     setContextMenu(null);
     setShowModuleSubmenu(false);
-  }, [nodes, edges, layoutDirection, updateNodePosition]);
+  }, [nodes, edges, layoutDirection, updateNodePosition, screenToFlowPosition]);
 
   // Auto-zoom handler
   const handleAutoZoom = useCallback(() => {

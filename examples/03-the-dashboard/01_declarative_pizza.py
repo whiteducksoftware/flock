@@ -102,30 +102,7 @@ pizza_master = (
 
 
 async def main():
-    """
-    The execution is simple:
-    1. Create your input (a pizza idea)
-    2. Publish it to the blackboard
-    3. Let Flock run until all agents are done
-    4. Marvel at the type-safe output
-    """
-
-    # Create a pizza idea (go wild! The agent can handle it)
-    pizza_idea = MyDreamPizza(pizza_idea="pizza with tartufo")
-
-    print(f"🎯 Ordering: {pizza_idea.pizza_idea}")
-    print("👨‍🍳 Pizza master is working...\n")
-
-    # Publish to the blackboard (agents subscribed to MyDreamPizza will trigger)
-    await flock.publish(pizza_idea)
-
-    # Wait for all agents to finish processing
-    await flock.run_until_idle()
-
-    # 🎉 Done! The Pizza artifact is now on the blackboard
-    # (We'll learn how to retrieve it in the next example)
-    print("✅ Pizza recipe generated!")
-    print("💡 TIP: Check your console - you'll see the structured Pizza output!")
+    await flock.serve(dashboard=True)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
