@@ -84,6 +84,31 @@ class Flock(metaclass=AutoTracedMeta):
         store: BlackboardStore | None = None,
         max_agent_iterations: int = 1000,
     ) -> None:
+        """Initialize the Flock orchestrator for blackboard-based agent coordination.
+
+        Args:
+            model: Default LLM model for agents (e.g., "openai/gpt-4o-mini").
+                Can be overridden per-agent. If None, uses DEFAULT_MODEL env var.
+            store: Custom blackboard storage backend. Defaults to InMemoryBlackboardStore.
+            max_agent_iterations: Circuit breaker limit to prevent runaway agent loops.
+                Defaults to 1000 iterations per agent before reset.
+
+        Examples:
+            >>> # Basic initialization with default model
+            >>> flock = Flock("openai/gpt-4o-mini")
+
+            >>> # Custom storage backend
+            >>> flock = Flock(
+            ...     "openai/gpt-4o",
+            ...     store=CustomBlackboardStore()
+            ... )
+
+            >>> # Circuit breaker configuration
+            >>> flock = Flock(
+            ...     "openai/gpt-4o-mini",
+            ...     max_agent_iterations=500
+            ... )
+        """
         self._patch_litellm_proxy_imports()
         self.model = model
         self.store: BlackboardStore = store or InMemoryBlackboardStore()
@@ -113,6 +138,34 @@ class Flock(metaclass=AutoTracedMeta):
     # Agent management -----------------------------------------------------
 
     def agent(self, name: str) -> AgentBuilder:
+        """Create a new agent using the fluent builder API.
+
+        Args:
+            name: Unique identifier for the agent. Used for visibility controls and metrics.
+
+        Returns:
+            AgentBuilder for fluent configuration
+
+        Raises:
+            ValueError: If an agent with this name already exists
+
+        Examples:
+            >>> # Basic agent
+            >>> pizza_agent = (
+            ...     flock.agent("pizza_master")
+            ...     .description("Creates delicious pizza recipes")
+            ...     .consumes(DreamPizza)
+            ...     .publishes(Pizza)
+            ... )
+
+            >>> # Advanced agent with filtering
+            >>> critic = (
+            ...     flock.agent("critic")
+            ...     .consumes(Movie, where=lambda m: m.rating >= 8)
+            ...     .publishes(Review)
+            ...     .with_utilities(RateLimiter(max_calls=10))
+            ... )
+        """
         if name in self._agents:
             raise ValueError(f"Agent '{name}' already registered.")
         return AgentBuilder(self, name)
@@ -346,6 +399,32 @@ class Flock(metaclass=AutoTracedMeta):
     # Runtime --------------------------------------------------------------
 
     async def run_until_idle(self) -> None:
+        """Wait for all scheduled agent tasks to complete.
+
+        This method blocks until the blackboard reaches a stable state where no
+        agents are queued for execution. Essential for batch processing and ensuring
+        all agent cascades complete before continuing.
+
+        Note:
+            Automatically resets circuit breaker counters and shuts down MCP connections
+            when idle. Used with publish() for event-driven workflows.
+
+        Examples:
+            >>> # Event-driven workflow (recommended)
+            >>> await flock.publish(task1)
+            >>> await flock.publish(task2)
+            >>> await flock.run_until_idle()  # Wait for all cascades
+            >>> # All agents have finished processing
+
+            >>> # Parallel batch processing
+            >>> await flock.publish_many([task1, task2, task3])
+            >>> await flock.run_until_idle()  # All tasks processed in parallel
+
+        See Also:
+            - publish(): Event-driven artifact publishing
+            - publish_many(): Batch publishing for parallel execution
+            - invoke(): Direct agent invocation without cascade
+        """
         while self._tasks:
             await asyncio.sleep(0.01)
             pending = {task for task in self._tasks if not task.done()}
@@ -368,11 +447,59 @@ class Flock(metaclass=AutoTracedMeta):
         return await agent.execute(ctx, artifacts)
 
     async def arun(self, agent_builder: AgentBuilder, *inputs: BaseModel) -> list[Artifact]:
+        """Execute an agent with inputs and wait for all cascades to complete (async).
+
+        Convenience method that combines direct agent invocation with run_until_idle().
+        Useful for testing and synchronous request-response patterns.
+
+        Args:
+            agent_builder: Agent to execute (from flock.agent())
+            *inputs: Input objects (BaseModel instances)
+
+        Returns:
+            Artifacts produced by the agent and any triggered cascades
+
+        Examples:
+            >>> # Test a single agent
+            >>> flock = Flock("openai/gpt-4o-mini")
+            >>> pizza_agent = flock.agent("pizza").consumes(Idea).publishes(Pizza)
+            >>> results = await flock.arun(pizza_agent, Idea(topic="Margherita"))
+
+            >>> # Multiple inputs
+            >>> results = await flock.arun(
+            ...     task_agent,
+            ...     Task(name="deploy"),
+            ...     Task(name="test")
+            ... )
+
+        Note:
+            For event-driven workflows, prefer publish() + run_until_idle() for better
+            control over execution timing and parallel processing.
+        """
         artifacts = await self.direct_invoke(agent_builder.agent, list(inputs))
         await self.run_until_idle()
         return artifacts
 
     def run(self, agent_builder: AgentBuilder, *inputs: BaseModel) -> list[Artifact]:
+        """Synchronous wrapper for arun() - executes agent and waits for completion.
+
+        Args:
+            agent_builder: Agent to execute (from flock.agent())
+            *inputs: Input objects (BaseModel instances)
+
+        Returns:
+            Artifacts produced by the agent and any triggered cascades
+
+        Examples:
+            >>> # Synchronous execution (blocks until complete)
+            >>> flock = Flock("openai/gpt-4o-mini")
+            >>> agent = flock.agent("analyzer").consumes(Data).publishes(Report)
+            >>> results = flock.run(agent, Data(value=42))
+
+        Warning:
+            Cannot be called from within an async context. Use arun() instead
+            if already in an async function.
+        """
         return asyncio.run(self.arun(agent_builder, *inputs))
 
     async def shutdown(self) -> None:

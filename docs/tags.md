@@ -12,10 +12,10 @@ Browse documentation by topic using tags.
 
 ### Core Concepts
 Find documentation about Flock's fundamental building blocks:
-- [agents](getting-started/concepts.md#agents)
-- [blackboard](getting-started/concepts.md#blackboard)
-- [artifacts](getting-started/concepts.md#artifacts)
-- [orchestration](getting-started/concepts.md#flock)
+- [agents](getting-started/concepts.md#2-agent-the-worker)
+- [blackboard](getting-started/concepts.md#4-blackboard-the-shared-workspace)
+- [artifacts](getting-started/concepts.md#3-artifact-the-data)
+- [orchestration](getting-started/concepts.md#1-flock-the-orchestrator)
 
 ### Features
 Explore Flock's capabilities:

@@ -76,6 +76,42 @@ plugins:
       cards_layout_options:
         background_color: "#4f46e5"
         color: "#ffffff"
+  - gen-files:
+      scripts:
+        - scripts/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - mkdocstrings:
+      enabled: !ENV [ENABLE_MKDOCSTRINGS, true]
+      default_handler: python
+      handlers:
+        python:
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://docs.pydantic.dev/latest/objects.inv
+          options:
+            docstring_style: google
+            docstring_section_style: table
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_root_toc_entry: true
+            show_object_full_path: false
+            show_category_heading: true
+            show_if_no_docstring: false
+            show_signature_annotations: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
+            separate_signature: true
+            merge_init_into_class: true
+            members_order: source
+            group_by_category: true
+            heading_level: 2
+            annotations_path: brief
+            line_length: 80
+            unwrap_annotated: true
   - minify:
       minify_html: true
       minify_js: true
@@ -166,6 +202,7 @@ nav:
 
   - 📚 User Guides:
     - Agents: guides/agents.md
+    - Agent Components: guides/components.md
     - Blackboard: guides/blackboard.md
     - Visibility Controls: guides/visibility.md
     - Dashboard: guides/dashboard.md
@@ -179,7 +216,8 @@ nav:
       - Trace Module Reference: guides/tracing/trace-module.md
 
   - 📖 Reference:
-    - API Reference: reference/api.md
+    - Overview: reference/index.md
+    - API Reference: reference/api/
     - Configuration: reference/configuration.md
 
   - 💡 Examples:

@@ -105,20 +105,20 @@ Comprehensive observability with OpenTelemetry and DuckDB.
 ## Guide Categories
 
 ### Agent Development
-- **[Creating Agents](agents.md#creating-agents)** - Basic agent setup
-- **[Type Subscriptions](agents.md#type-subscriptions)** - Consume and publish patterns
-- **[Lifecycle Hooks](agents.md#lifecycle-hooks)** - on_initialize, on_terminate
-- **[Custom Evaluation](agents.md#custom-evaluation)** - Beyond LLM engines
+- **[Creating Agents](agents.md)** - Basic agent setup and configuration
+- **[Declaring Consumption](agents.md#declaring-consumption)** - Type subscriptions and patterns
+- **[Advanced Subscriptions](agents.md#advanced-subscriptions)** - Conditional consumption and filtering
+- **[Agent Builder API](agents.md#agent-builder-api)** - Complete reference
 
 ### Blackboard Patterns
-- **[Publishing Artifacts](blackboard.md#publishing-artifacts)** - Add data to blackboard
-- **[Batching](blackboard.md#batching-pattern)** - Parallel execution optimization
-- **[Artifact Flows](blackboard.md#artifact-flow-patterns)** - Multi-agent pipelines
-- **[Querying](blackboard.md#querying-artifacts)** - Search and filter artifacts
+- **[Publishing to Blackboard](blackboard.md)** - Add artifacts and data flows
+- **[Batching Pattern](blackboard.md)** - Parallel execution optimization
+- **[Multi-Agent Coordination](blackboard.md)** - Pipeline architectures
+- **[Artifact Lifecycle](blackboard.md)** - Data flow and management
 
 ### Visibility & Security
-- **[Public Visibility](visibility.md#public-visibility)** - Shared artifacts
-- **[Private Visibility](visibility.md#private-visibility)** - Agent-specific data
+- **[Visibility Overview](visibility.md)** - Understanding visibility controls
+- **[Public Artifacts](visibility.md#1-publicvisibility-default)** - Shared across all agents
 - **[Tenant Isolation](visibility.md#3-tenantvisibility-multi-tenancy)** - Multi-tenant systems
 - **[Label-Based Access](visibility.md#4-labelledvisibility-rbac)** - Fine-grained control
 - **[Time-Based Access](visibility.md#5-aftervisibility-time-delayed)** - Temporal constraints
@@ -135,12 +135,12 @@ Comprehensive observability with OpenTelemetry and DuckDB.
 
 Looking for specific tasks? Here are quick links:
 
-- **Create a new agent** → [Agent Guide](agents.md#creating-agents)
-- **Enable parallel execution** → [Batching Pattern](blackboard.md#batching-pattern)
+- **Create a new agent** → [Agent Guide](agents.md)
+- **Enable parallel execution** → [Batching Pattern](blackboard.md)
 - **Debug agent execution** → [Tracing Effectively](tracing/how_to_use_tracing_effectively.md)
 - **Add real-time monitoring** → [Dashboard Guide](dashboard.md)
 - **Implement multi-tenancy** → [Tenant Visibility](visibility.md#3-tenantvisibility-multi-tenancy)
-- **Query artifacts** → [Blackboard Queries](blackboard.md#querying-artifacts)
+- **Query artifacts** → [Blackboard Guide](blackboard.md)
 
 ---
 
