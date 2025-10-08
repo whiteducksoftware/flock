@@ -71,11 +71,6 @@ plugins:
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - tags
-  - social:
-      cards: true
-      cards_layout_options:
-        background_color: "#4f46e5"
-        color: "#ffffff"
   - gen-files:
       scripts:
         - scripts/gen_ref_pages.py
