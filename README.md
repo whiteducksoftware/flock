@@ -32,7 +32,8 @@ prompt = """You are an expert code reviewer. When you receive code, you should..
 
 # 500-line prompt that breaks when models update
 
-# How do I know that there isn't an even better prompt (you don't) -> proof of 'best possible performane' impossible
+# How do I know that there isn't an even better prompt (you don't)
+# -> proof of 'best possible performane' impossible
 ```
 
 **🧪 Testing Nightmares**
@@ -58,7 +59,8 @@ workflow.add_edge("agent_b", "agent_c")
 **🧠 God object anti-pattern:**
 ```python
 # One orchestrator needs domain knowledge of 20+ agents to route correctly
-# Orchestrator 'guesses' next agent based on a natural language description. Hardly fit for critical systems.
+# Orchestrator 'guesses' next agent based on a natural language description.
+# Hardly fit for critical systems.
 ```
 
 These aren't framework limitations, they're **architectural choices** that don't scale.
@@ -75,8 +77,51 @@ Flock takes a different path, combining two proven patterns:
 
 **Traditional approach:**
 ```python
-prompt = "Analyze this bug report and return JSON with severity, category, hypothesis..."
-result = llm.invoke(prompt)  # Hope it works
+prompt = """You are an expert software engineer and bug analyst. Your task is to analyze bug reports and provide structured diagnostic information.
+
+INSTRUCTIONS:
+1. Read the bug report carefully
+2. Determine the severity level (must be exactly one of: Critical, High, Medium, Low)
+3. Classify the bug category (e.g., "performance", "security", "UI", "data corruption")
+4. Formulate a root cause hypothesis (minimum 50 characters)
+5. Assign a confidence score between 0.0 and 1.0
+
+OUTPUT FORMAT:
+You MUST return valid JSON with this exact structure:
+{
+  "severity": "string (Critical|High|Medium|Low)",
+  "category": "string",
+  "root_cause_hypothesis": "string (minimum 50 characters)",
+  "confidence_score": "number (0.0 to 1.0)"
+}
+
+VALIDATION RULES:
+- severity: Must be exactly one of: Critical, High, Medium, Low (case-sensitive)
+- category: Must be a single word or short phrase describing the bug type
+- root_cause_hypothesis: Must be at least 50 characters long and explain the likely cause
+- confidence_score: Must be a decimal number between 0.0 and 1.0 inclusive
+
+EXAMPLES:
+Input: "App crashes when user clicks submit button"
+Output: {"severity": "Critical", "category": "crash", "root_cause_hypothesis": "Null pointer exception in form validation logic when required fields are empty", "confidence_score": 0.85}
+
+Input: "Login button has wrong color"
+Output: {"severity": "Low", "category": "UI", "root_cause_hypothesis": "CSS class override not applied correctly in the theme configuration", "confidence_score": 0.9}
+
+IMPORTANT:
+- Do NOT include any explanatory text before or after the JSON
+- Do NOT use markdown code blocks (no ```json```)
+- Do NOT add comments in the JSON
+- Ensure the JSON is valid and parseable
+- If you cannot determine something, use your best judgment
+- Never return null values
+
+Now analyze this bug report:
+{bug_report_text}"""
+
+result = llm.invoke(prompt)  # 500-line prompt that breaks when models update
+# Then parse and hope it's valid JSON
+data = json.loads(result.content)  # Crashes in production 🔥
 ```
 
 **The Flock way:**
