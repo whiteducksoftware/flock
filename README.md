@@ -14,7 +14,7 @@
 
 > **Stop engineering prompts. Start declaring contracts.**
 
-Flock is a production-focused framework for orchestrating AI agents through **declarative type contracts** and **blackboard architecture**, proven patterns from distributed systems, decades of engaging with micro-service landscapes and classical AI, now applied to modern LLMs.
+Flock is a production-focused framework for orchestrating AI agents through **declarative type contracts** and **blackboard architecture**—proven patterns from distributed systems, decades of experience with microservice architectures, and classical AI—now applied to modern LLMs.
 
 
 
@@ -32,8 +32,8 @@ prompt = """You are an expert code reviewer. When you receive code, you should..
 
 # 500-line prompt that breaks when models update
 
-# How do I know that there isn't an even better prompt (you don't)
-# -> proof of 'best possible performane' impossible
+# How do I know that there isn't an even better prompt? (you don't)
+# -> proving 'best possible performance' is impossible
 ```
 
 **🧪 Testing Nightmares**
@@ -60,12 +60,12 @@ workflow.add_edge("agent_b", "agent_c")
 ```python
 # One orchestrator needs domain knowledge of 20+ agents to route correctly
 # Orchestrator 'guesses' next agent based on a natural language description.
-# Hardly fit for critical systems.
+# Not suitable for critical systems.
 ```
 
 These aren't framework limitations, they're **architectural choices** that don't scale.
 
-Most issues are solvable, because decades of experience with micro services taught us hard lessons about decoupling, orchestration and reliability already. Let's use these learnings!
+These challenges are solvable—decades of experience with microservices have taught us hard lessons about decoupling, orchestration, and reliability. Let's apply those lessons!
 
 ---
 
@@ -175,7 +175,7 @@ performance = flock.agent("perf").consumes(Scan).publishes(PerfAnalysis)
 - ✅ **Loose coupling** - Agents don't know about each other, just data types
 - ✅ **Scalable** - O(n) complexity, not O(n²) edges
 
-**This is not a new idea.** Blackboard architecture powered groundbreaking AI systems since the 1970s (Hearsay-II, HASP/SIAP, BB1). We're applying proven patterns to modern LLMs.
+**This is not a new idea.** Blackboard architecture has powered groundbreaking AI systems since the 1970s (Hearsay-II, HASP/SIAP, BB1). We're applying proven patterns to modern LLMs.
 
 ---
 
@@ -597,7 +597,7 @@ Flock uses a fundamentally different coordination pattern than most multi-agent 
 ### What Works Today (v0.5.0)
 
 **✅ Production-ready core:**
-- more than 700 tests, with >75% coverage (>90% on critical paths)
+- More than 700 tests, with >75% coverage (>90% on critical paths)
 - Blackboard orchestrator with typed artifacts
 - Parallel + sequential execution (automatic)
 - Zero-trust security (5 visibility types)
@@ -643,7 +643,7 @@ We're not building a toy framework. We're building enterprise infrastructure for
 
 ### Flock 1.0 - Q4 2025 Release
 
-**We're confident to deliver all enterprise features by Q4 2025:**
+**We're confident we can deliver all enterprise features by Q4 2025:**
 
 **🏢 Enterprise Persistence**
 - Redis and PostgreSQL backends for durable blackboard state
