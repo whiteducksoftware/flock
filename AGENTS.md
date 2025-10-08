@@ -4,7 +4,7 @@
 
 This is Flock Flow, a production-grade blackboard-first AI agent orchestration framework. This guide gets you up to speed quickly on the current project state and development patterns.
 
-**Current Version:** Backend: 0.5.0b62 • Frontend: 0.1.4
+**Current Version:** Backend: 0.5.0b63 • Frontend: 0.1.4
 **Architecture:** Hybrid Python/TypeScript with real-time dashboard
 **Package Manager:** UV (NOT pip!)
 **Status:** Production-ready with comprehensive monitoring
