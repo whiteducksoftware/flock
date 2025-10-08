@@ -69,296 +69,9 @@
   min-height: 2.8rem !important;
 }
 
-/* Hide the logo/emoji completely */
-.md-header__button.md-logo,
-.md-logo {
-  display: none !important;
-}
-
-/* Make site title container flexible for subtitle */
-.md-header__title {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1;
-  gap: 0.25rem;
-  margin-left: 0 !important;
-  padding: 0 !important;
-}
-
-/* Always show "Flock" as title, hide page title */
-.md-header__title .md-header__ellipsis {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: flex-start !important;
-  gap: 0.25rem !important;
-  overflow: visible !important;
-}
-
-/* Replace page title with "Flock" */
-.md-header__title .md-header__ellipsis .md-ellipsis {
-  display: none !important;
-}
-
-.md-header__title .md-header__ellipsis::before {
-  content: 'Flock';
-  display: inline-block;
-  font-weight: 800;
-  font-size: 1.6rem;
-  letter-spacing: 0.05em;
-  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 0 20px rgba(224, 242, 254, 0.2);
-  line-height: 1;
-  margin-top: 5px;
-}
-
-@keyframes shimmer {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-/* Add subtitle after site title - below */
-.md-header__title .md-header__ellipsis::after {
-  content: 'A declarative blackboard multi-agent framework';
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 400;
-  opacity: 0.75;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.9);
-  line-height: 1;
-}
-
-/* ============================================
-   SMOOTH SCROLLING & PERFORMANCE
-   ============================================ */
-
-html {
-  scroll-behavior: smooth;
-  scroll-padding-top: 4rem; /* Account for fixed header */
-}
-
-/* Optimize animations for performance */
-@media (prefers-reduced-motion: no-preference) {
-  * {
-    scroll-behavior: smooth;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* ============================================
-   CUSTOM SCROLLBAR (MODERN & SLEEK)
-   ============================================ */
-
-::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--flock-gradient-start), var(--flock-gradient-end));
-  border-radius: 6px;
-  border: 3px solid transparent;
-  background-clip: content-box;
-  transition: background var(--flock-transition-base);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, var(--flock-gradient-end), var(--flock-gradient-start));
-  background-clip: content-box;
-}
-
-/* Firefox scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--flock-gradient-start) transparent;
-}
-
-/* ============================================
-   READING PROGRESS BAR
-   ============================================ */
-
-.reading-progress-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 0%;
-  height: 3px;
-  background: linear-gradient(90deg, var(--flock-gradient-start), var(--flock-gradient-end));
-  z-index: 1000;
-  transition: width var(--flock-transition-fast);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ============================================
-   ENHANCED CODE BLOCKS
-   ============================================ */
-
-/* Improved code block styling */
-.highlight {
-  border-radius: 8px;
-  box-shadow: var(--flock-shadow-md);
-  transition: transform var(--flock-transition-base), box-shadow var(--flock-transition-base);
-  position: relative;
-  overflow: hidden;
-}
-
-.highlight:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--flock-shadow-lg);
-}
-
-/* Inline code enhancement */
-code:not(.highlight code) {
-  padding: 0.15em 0.4em;
-  border-radius: 4px;
-  font-size: 0.875em;
-  font-weight: 500;
-  transition: background-color var(--flock-transition-fast);
-}
-
-/* Copy button enhancement */
-.md-clipboard {
-  transition: all var(--flock-transition-base);
-  border-radius: 6px;
-}
-
-.md-clipboard:hover {
-  transform: scale(1.1);
-  background-color: var(--flock-accent) !important;
-}
-
-.md-clipboard:active {
-  transform: scale(0.95);
-}
-
-/* ============================================
-   ENHANCED TABLES
-   ============================================ */
-
-.md-typeset table:not([class]) {
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: var(--flock-shadow-sm);
-  transition: box-shadow var(--flock-transition-base);
-}
-
-.md-typeset table:not([class]):hover {
-  box-shadow: var(--flock-shadow-md);
-}
-
-.md-typeset table:not([class]) th {
-  background: linear-gradient(135deg, var(--flock-gradient-start), var(--flock-gradient-end));
-  color: white;
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  padding: 1rem;
-}
-
-.md-typeset table:not([class]) tr {
-  transition: background-color var(--flock-transition-fast);
-}
-
-.md-typeset table:not([class]) tr:hover {
-  background-color: rgba(79, 70, 229, 0.05);
-}
-
-/* ============================================
-   IMPROVED ADMONITIONS
-   ============================================ */
-
-.md-typeset .admonition {
-  border-radius: 8px;
-  border-left-width: 4px;
-  box-shadow: var(--flock-shadow-sm);
-  transition: transform var(--flock-transition-base), box-shadow var(--flock-transition-base);
-}
-
-.md-typeset .admonition:hover {
-  transform: translateX(4px);
-  box-shadow: var(--flock-shadow-md);
-}
-
-.md-typeset .admonition-title {
-  font-weight: 700;
-  letter-spacing: 0.025em;
-}
-
-/* ============================================
-   ENHANCED NAVIGATION
-   ============================================ */
-
-/* Hide the "Home" text in the left sidebar that covers content */
-.md-nav--primary .md-nav__item--active > .md-nav__link {
-  display: none !important;
-}
-
-/* Also hide by href and title containing Home emoji */
-.md-nav--primary .md-nav__link[href="/"],
-.md-nav--primary .md-nav__link[href="./"],
-.md-nav__link[title="🏠 Home"],
-.md-nav__link[title="Home"] {
-  display: none !important;
-}
-
-/* Adjust spacing when "Home" is hidden */
-.md-nav--primary > .md-nav__list > .md-nav__item > .md-nav {
-  margin-top: 0;
-}
-
-/* Sidebar navigation improvements */
-.md-nav__link {
-  transition: all var(--flock-transition-fast);
-  border-radius: 6px;
-  margin: 2px 0;
-}
-
-.md-nav__link:hover {
-  transform: translateX(4px);
-  background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.1));
-}
-
-.md-nav__link--active {
-  font-weight: 600;
-  background: linear-gradient(90deg, rgba(79, 70, 229, 0.1), transparent);
-  border-left: 3px solid var(--flock-accent);
-  padding-left: calc(0.6rem + 3px);
-}
-
-/* Tab navigation enhancement */
 .md-tabs {
-  overflow-x: auto !important;
-  overflow-y: visible !important;
-  -webkit-mask-image: none !important;
-  mask-image: none !important;
-  margin-top: 0 !important;
   background: var(--flock-primary-600) !important;
-  padding: 0 !important;
-  height: 60px !important;
-  display: flex !important;
-  align-items: center !important;
+  align-items: baseline !important;
 }
 
 .md-tabs__list {
@@ -410,7 +123,7 @@ code:not(.highlight code) {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #06b6d4, #10b981);
+  background: var(--flock-primary-400);
   transform: scaleX(0);
   transition: transform var(--flock-transition-base);
   border-radius: 2px 2px 0 0;
@@ -424,6 +137,108 @@ code:not(.highlight code) {
 
 .md-tabs__link--active {
   background: rgba(255, 255, 255, 0.05);
+}
+
+/* Hide the logo/emoji completely */
+.md-header__button.md-logo,
+.md-logo {
+  display: none !important;
+}
+
+/* Make site title container flexible for subtitle */
+.md-header__title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1;
+  gap: 0.25rem;
+  margin-left: 0 !important;
+  padding: 0 !important;
+}
+
+/* Always show "Flock" as title, hide page title */
+.md-header__title .md-header__ellipsis {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 0.25rem !important;
+  overflow: visible !important;
+}
+
+/* Replace page title with "Flock" */
+.md-header__title .md-header__ellipsis .md-ellipsis {
+  display: none !important;
+}
+
+/* Sidebar navigation improvements */
+/* .md-nav__link {
+  transition: all var(--flock-transition-fast);
+  border-radius: 6px;
+  margin: 2px 0;
+} */
+
+.md-nav__link:hover {
+  transform: translateX(4px);
+  background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.1));
+}
+
+.md-nav__link--active {
+  font-weight: 600;
+  background: linear-gradient(90deg, rgba(79, 70, 229, 0.1), transparent);
+  border-left: 3px solid var(--flock-accent);
+  padding-left: calc(0.6rem + 3px);
+}
+
+.md-header__title .md-header__ellipsis::before {
+  content: 'Flock';
+  display: inline-block;
+  font-weight: 800;
+  font-size: 1.6rem;
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 20px rgba(224, 242, 254, 0.2);
+  line-height: 1;
+  margin-top: 5px;
+}
+
+@keyframes shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Add subtitle after site title - below */
+.md-header__title .md-header__ellipsis::after {
+  content: 'A declarative blackboard multi-agent framework';
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.75;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1;
+}
+
+/* ============================================
+   READING PROGRESS BAR
+   ============================================ */
+
+.reading-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--flock-gradient-start), var(--flock-gradient-end));
+  z-index: 1000;
+  transition: width var(--flock-transition-fast);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* ============================================
@@ -444,48 +259,6 @@ code:not(.highlight code) {
   border-radius: 24px;
 }
 
-/* ============================================
-   ENHANCED BUTTONS & LINKS
-   ============================================ */
-
-.md-button {
-  border-radius: 8px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: all var(--flock-transition-base);
-  box-shadow: var(--flock-shadow-sm);
-}
-
-.md-button:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--flock-shadow-md);
-}
-
-.md-button--primary {
-  background: linear-gradient(135deg, var(--flock-gradient-start), var(--flock-gradient-end));
-}
-
-/* Enhanced link hover effects */
-.md-typeset a {
-  transition: all var(--flock-transition-fast);
-  position: relative;
-}
-
-.md-typeset a:not(.md-button)::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--flock-gradient-start), var(--flock-gradient-end));
-  transition: width var(--flock-transition-base);
-}
-
-.md-typeset a:not(.md-button):hover::after {
-  width: 100%;
-}
 
 /* ============================================
    IMPROVED HEADINGS
@@ -528,12 +301,137 @@ code:not(.highlight code) {
 }
 
 /* ============================================
-   BACK TO TOP BUTTON REMOVED
+   CUSTOM SCROLLBAR (MODERN & SLEEK)
    ============================================ */
 
-.md-top {
-  display: none !important;
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
 }
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--flock-gradient-start), var(--flock-gradient-end));
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  transition: background var(--flock-transition-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--flock-gradient-end), var(--flock-gradient-start));
+  background-clip: content-box;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--flock-gradient-start) transparent;
+}
+
+
+/* ============================================
+   ENHANCED CODE BLOCKS
+   ============================================ */
+
+/* Improved code block styling */
+.highlight {
+  border-radius: 8px;
+  box-shadow: var(--flock-shadow-md);
+  transition: transform var(--flock-transition-base), box-shadow var(--flock-transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.highlight:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--flock-shadow-lg);
+}
+
+/* Inline code enhancement */
+code:not(.highlight code) {
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.875em;
+  font-weight: 500;
+  transition: background-color var(--flock-transition-fast);
+}
+
+/* Copy button enhancement */
+.md-clipboard {
+  transition: all var(--flock-transition-base);
+  border-radius: 6px;
+}
+
+.md-clipboard:hover {
+  transform: scale(1.1);
+  background-color: var(--flock-accent) !important;
+}
+
+.md-clipboard:active {
+  transform: scale(0.95);
+}
+
+
+/* ============================================
+   ENHANCED TABLES
+   ============================================ */
+
+.md-typeset table:not([class]) {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--flock-shadow-sm);
+  transition: box-shadow var(--flock-transition-base);
+}
+
+.md-typeset table:not([class]):hover {
+  box-shadow: var(--flock-shadow-md);
+}
+
+.md-typeset table:not([class]) th {
+  background: var(--flock-primary-400);
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  padding: 0.5rem;
+}
+
+.md-typeset table:not([class]) tr {
+  transition: background-color var(--flock-transition-fast);
+}
+
+.md-typeset table:not([class]) tr:hover {
+  background-color: rgba(79, 70, 229, 0.05);
+}
+
+
+/* ============================================
+   IMPROVED ADMONITIONS
+   ============================================ */
+
+.md-typeset .admonition {
+  border-radius: 8px;
+  border-left-width: 4px;
+  box-shadow: var(--flock-shadow-sm);
+  transition: transform var(--flock-transition-base), box-shadow var(--flock-transition-base);
+}
+
+.md-typeset .admonition:hover {
+  transform: translateX(4px);
+  box-shadow: var(--flock-shadow-md);
+}
+
+.md-typeset .admonition-title {
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+
 
 /* ============================================
    FOOTER NAVIGATION ENHANCEMENT
