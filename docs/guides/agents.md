@@ -266,6 +266,110 @@ Time 2: reviewer waits for both...
 Time 3: reviewer executes when both complete ✅
 ```
 
+### Agent Lifecycle
+
+Here's what happens inside an agent from start to finish:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Initialization
+
+    Initialization: 🔧 Agent Initialization
+    note right of Initialization
+        - Register with orchestrator
+        - Setup subscriptions
+        - Initialize components
+        Hook: on_initialize()
+    end note
+
+    Initialization --> Waiting
+
+    Waiting: ⏳ Waiting for Artifacts
+    note right of Waiting
+        - Monitor blackboard
+        - Match subscriptions
+        - Check filters (where clause)
+    end note
+
+    Waiting --> Triggered: Matching artifact published
+
+    Triggered: 🎯 Agent Triggered
+    note right of Triggered
+        - Artifact matches subscription
+        - Visibility checks pass
+        - Filters satisfied
+        Hook: on_pre_consume()
+    end note
+
+    Triggered --> Evaluation
+
+    Evaluation: 🧠 LLM Evaluation
+    note right of Evaluation
+        - Build prompt from schema
+        - Call LLM engine
+        - Parse response
+        Hook: on_pre_evaluate()
+        Hook: on_post_evaluate()
+    end note
+
+    Evaluation --> Validation
+
+    Validation: ✅ Output Validation
+    note right of Validation
+        - Pydantic schema validation
+        - Type checking
+        - Field constraints
+    end note
+
+    Validation --> Publishing: Valid
+    Validation --> Error: Invalid
+
+    Publishing: 📤 Publish Results
+    note right of Publishing
+        - Apply visibility controls
+        - Write to blackboard
+        - Trigger downstream agents
+        Hook: on_post_publish()
+    end note
+
+    Publishing --> Waiting: Continue processing
+    Publishing --> Termination: No more work
+
+    Error: ❌ Error Handling
+    note right of Error
+        - Circuit breaker check
+        - Retry logic
+        - Dead letter queue
+        Hook: on_error()
+    end note
+
+    Error --> Waiting: Retry
+    Error --> Termination: Fatal error
+
+    Termination: 🛑 Agent Termination
+    note right of Termination
+        - Cleanup resources
+        - Flush metrics
+        - Close connections
+        Hook: on_terminate()
+    end note
+
+    Termination --> [*]
+```
+
+**Key Lifecycle Stages:**
+
+1. **Initialization** - Agent registers with orchestrator, sets up subscriptions
+2. **Waiting** - Agent monitors blackboard for matching artifacts
+3. **Triggered** - Matching artifact found, visibility checks pass
+4. **Evaluation** - LLM processes input and generates output
+5. **Validation** - Pydantic validates output against schema
+6. **Publishing** - Valid output published to blackboard
+7. **Error Handling** - Handles validation failures or execution errors
+8. **Termination** - Agent cleanup when workflow completes
+
+**Component Hooks:** Each stage can have custom components (see [Agent Components Guide](components.md))
+
 ### invoke() vs run_until_idle()
 
 **Two ways to execute agents:**

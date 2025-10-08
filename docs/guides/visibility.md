@@ -23,6 +23,90 @@ Flock Flow's **visibility system** provides zero-trust security for multi-agent 
 
 ## The Five Visibility Types
 
+Here's how visibility controls work:
+
+```mermaid
+graph TB
+    subgraph "📤 Artifact Published"
+        Artifact[📋 Artifact<br/>with Visibility Control]
+    end
+
+    subgraph "🔐 Visibility Check"
+        Check{Visibility Type?}
+    end
+
+    subgraph "🟢 Public Visibility"
+        Public[✅ All agents can access]
+        A1[Agent 1] & A2[Agent 2] & A3[Agent 3]
+    end
+
+    subgraph "🔵 Private Visibility"
+        Private[✅ Only allowlist agents]
+        A4[Agent X ✅<br/>in allowlist]
+        A5[Agent Y ❌<br/>blocked]
+    end
+
+    subgraph "🟡 Tenant Visibility"
+        Tenant[✅ Only same tenant]
+        A6[Agent A<br/>tenant: customer-1 ✅]
+        A7[Agent B<br/>tenant: customer-2 ❌]
+    end
+
+    subgraph "🟣 Labelled Visibility"
+        Labels[✅ Must have required labels]
+        A8[Agent with<br/>role:admin ✅]
+        A9[Agent without<br/>labels ❌]
+    end
+
+    subgraph "🔴 Time Visibility"
+        Time[✅ Only within time window]
+        A10[Agent<br/>within window ✅]
+        A11[Agent<br/>window expired ❌]
+    end
+
+    Artifact --> Check
+
+    Check -->|PublicVisibility| Public
+    Public --> A1 & A2 & A3
+
+    Check -->|PrivateVisibility| Private
+    Private --> A4
+    Private -.blocks.-> A5
+
+    Check -->|TenantVisibility| Tenant
+    Tenant --> A6
+    Tenant -.blocks.-> A7
+
+    Check -->|LabelledVisibility| Labels
+    Labels --> A8
+    Labels -.blocks.-> A9
+
+    Check -->|TimeVisibility| Time
+    Time --> A10
+    Time -.blocks.-> A11
+
+    style Artifact fill:#60a5fa,stroke:#333,stroke-width:3px,color:#000
+    style Check fill:#4f46e5,stroke:#333,stroke-width:2px,color:#fff
+    style Public fill:#10b981,stroke:#333,stroke-width:2px,color:#000
+    style Private fill:#3b82f6,stroke:#333,stroke-width:2px,color:#fff
+    style Tenant fill:#eab308,stroke:#333,stroke-width:2px,color:#000
+    style Labels fill:#8b5cf6,stroke:#333,stroke-width:2px,color:#fff
+    style Time fill:#ef4444,stroke:#333,stroke-width:2px,color:#fff
+```
+
+**Access Control Flow:**
+
+1. **Artifact Published** - Producer sets visibility type
+2. **Visibility Check** - Orchestrator validates access for each potential consumer
+3. **Allowed Agents** - Only authorized agents receive the artifact
+4. **Blocked Agents** - Unauthorized agents never see the artifact (zero-trust)
+
+**Key Security Properties:**
+- ✅ **Producer-Controlled** - Publishing agent sets access rules
+- ✅ **Automatic Enforcement** - No manual checks needed
+- ✅ **Zero-Trust** - Explicit allow, not implicit deny
+- ✅ **Audit Trail** - All access checks logged in traces
+
 ### 1. PublicVisibility (Default)
 
 **Everyone can see the artifact.**

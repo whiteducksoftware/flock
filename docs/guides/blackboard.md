@@ -58,6 +58,65 @@ Blackboard architecture isn't new—it's been solving complex AI problems since 
 
 ## How It Works
 
+Here's a visual representation of the blackboard pattern:
+
+```mermaid
+flowchart LR
+    subgraph "📤 Publishers"
+        Agent1[🤖 Agent 1<br/>publishes: A]
+        Agent2[🤖 Agent 2<br/>publishes: B]
+        Agent3[🤖 Agent 3<br/>publishes: C]
+    end
+
+    subgraph "🗂️ Blackboard"
+        Blackboard[(Shared Artifact Store)]
+        ArtifactA[📋 Artifact A]
+        ArtifactB[📋 Artifact B]
+        ArtifactC[📋 Artifact C]
+    end
+
+    subgraph "📥 Subscribers"
+        Agent4[🤖 Agent 4<br/>consumes: A]
+        Agent5[🤖 Agent 5<br/>consumes: A,B]
+        Agent6[🤖 Agent 6<br/>consumes: C]
+    end
+
+    Agent1 -->|writes| ArtifactA
+    Agent2 -->|writes| ArtifactB
+    Agent3 -->|writes| ArtifactC
+
+    ArtifactA --> Blackboard
+    ArtifactB --> Blackboard
+    ArtifactC --> Blackboard
+
+    Blackboard -->|triggers| Agent4
+    Blackboard -->|triggers when<br/>both available| Agent5
+    Blackboard -->|triggers| Agent6
+
+    Agent4 -->|reads| ArtifactA
+    Agent5 -->|reads| ArtifactA
+    Agent5 -->|reads| ArtifactB
+    Agent6 -->|reads| ArtifactC
+
+    style Blackboard fill:#10b981,stroke:#333,stroke-width:3px,color:#fff
+    style ArtifactA fill:#60a5fa,stroke:#333,stroke-width:2px,color:#000
+    style ArtifactB fill:#60a5fa,stroke:#333,stroke-width:2px,color:#000
+    style ArtifactC fill:#60a5fa,stroke:#333,stroke-width:2px,color:#000
+    style Agent1 fill:#f59e0b,stroke:#333,stroke-width:2px,color:#000
+    style Agent2 fill:#f59e0b,stroke:#333,stroke-width:2px,color:#000
+    style Agent3 fill:#f59e0b,stroke:#333,stroke-width:2px,color:#000
+    style Agent4 fill:#8b5cf6,stroke:#333,stroke-width:2px,color:#fff
+    style Agent5 fill:#8b5cf6,stroke:#333,stroke-width:2px,color:#fff
+    style Agent6 fill:#8b5cf6,stroke:#333,stroke-width:2px,color:#fff
+```
+
+**Key Points:**
+- **Decoupled Communication** - Publishers don't know about subscribers
+- **Type-Based Matching** - Agents trigger based on artifact types, not explicit edges
+- **Multi-Consumer** - Multiple agents can consume the same artifact (Agent 4 and 5 both read A)
+- **Multi-Input** - Agents can wait for multiple artifacts (Agent 5 needs both A and B)
+- **No Central Orchestration** - The blackboard doesn't decide who does what
+
 ### 1. Publish Artifacts
 
 Agents publish typed artifacts to the blackboard:
@@ -120,6 +179,65 @@ reporter = flock.agent("reporter").consumes(BugAnalysis).publishes(Report)
 ```
 
 **The workflow emerges from type subscriptions—no graph edges needed!**
+
+### Type-Driven Auto-Chaining
+
+Here's how agents automatically chain through type matching:
+
+```mermaid
+graph LR
+    subgraph "Type Definitions"
+        Input[📋 CodeSubmission<br/>code: str<br/>language: str]
+        Middle1[📋 BugAnalysis<br/>bugs: list<br/>severity: str]
+        Middle2[📋 SecurityAnalysis<br/>vulnerabilities: list<br/>risk_score: float]
+        Output[📋 FinalReport<br/>summary: str<br/>recommendations: list]
+    end
+
+    subgraph "Agent Declarations"
+        A1[🤖 bug_detector<br/>.consumes CodeSubmission<br/>.publishes BugAnalysis]
+        A2[🤖 security_auditor<br/>.consumes CodeSubmission<br/>.publishes SecurityAnalysis]
+        A3[🤖 report_generator<br/>.consumes BugAnalysis, SecurityAnalysis<br/>.publishes FinalReport]
+    end
+
+    subgraph "Execution Flow ⚡"
+        E1[1️⃣ Publish CodeSubmission]
+        E2[2️⃣ Triggers bug_detector + security_auditor<br/>parallel execution]
+        E3[3️⃣ Both publish analyses]
+        E4[4️⃣ Triggers report_generator<br/>waits for both inputs]
+        E5[5️⃣ Publishes FinalReport]
+    end
+
+    Input -->|type match| A1
+    Input -->|type match| A2
+    A1 -->|publishes| Middle1
+    A2 -->|publishes| Middle2
+    Middle1 -->|type match| A3
+    Middle2 -->|type match| A3
+    A3 -->|publishes| Output
+
+    E1 --> E2
+    E2 --> E3
+    E3 --> E4
+    E4 --> E5
+
+    style Input fill:#60a5fa,stroke:#333,stroke-width:2px,color:#000
+    style Middle1 fill:#60a5fa,stroke:#333,stroke-width:2px,color:#000
+    style Middle2 fill:#60a5fa,stroke:#333,stroke-width:2px,color:#000
+    style Output fill:#60a5fa,stroke:#333,stroke-width:2px,color:#000
+    style A1 fill:#f59e0b,stroke:#333,stroke-width:2px,color:#000
+    style A2 fill:#f59e0b,stroke:#333,stroke-width:2px,color:#000
+    style A3 fill:#8b5cf6,stroke:#333,stroke-width:2px,color:#fff
+```
+
+**Key Insights:**
+
+1. **No Explicit Edges** - Agents don't reference each other
+2. **Type-Based Routing** - CodeSubmission automatically routes to bug_detector and security_auditor
+3. **Automatic Parallelization** - Multiple consumers execute concurrently
+4. **Dependency Resolution** - report_generator waits for both analyses automatically
+5. **O(n) Complexity** - Adding new agents doesn't require rewiring (vs O(n²) in graphs)
+
+**This is what makes Flock scalable:** Add a 4th analyzer? Just `.consumes(CodeSubmission)`. No graph updates needed!
 
 ---
 

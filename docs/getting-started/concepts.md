@@ -54,6 +54,77 @@ flock = Flock("openai/gpt-4.1")  # Create with your LLM
 
 **You create one `Flock` instance per application.**
 
+#### How the Orchestrator Works
+
+Here's how the Flock orchestrates everything:
+
+```mermaid
+graph TD
+    subgraph "📥 Input"
+        User[👤 User Code] -->|1. publish artifact| Orchestrator
+    end
+
+    subgraph "🎯 Orchestrator Flock"
+        Orchestrator[🎯 Flock Orchestrator]
+        Registry[📋 Agent Registry]
+        Subscriptions[🔗 Subscription Matcher]
+        Blackboard[(🗂️ Blackboard<br/>Artifact Store)]
+
+        Orchestrator -->|manages| Registry
+        Orchestrator -->|maintains| Blackboard
+        Orchestrator -->|uses| Subscriptions
+
+        Subscriptions -->|reads| Registry
+        Subscriptions -->|queries| Blackboard
+    end
+
+    subgraph "🤖 Agent Pool"
+        A1[Agent A<br/>consumes: X<br/>publishes: Y]
+        A2[Agent B<br/>consumes: X<br/>publishes: Z]
+        A3[Agent C<br/>consumes: Y,Z<br/>publishes: W]
+    end
+
+    Orchestrator -->|2. find matching agents| Subscriptions
+    Subscriptions -->|3. return matches| Orchestrator
+    Orchestrator -->|4. trigger in parallel| A1
+    Orchestrator -->|4. trigger in parallel| A2
+
+    A1 -->|5a. read input| Blackboard
+    A2 -->|5b. read input| Blackboard
+
+    A1 -->|6a. write output Y| Blackboard
+    A2 -->|6b. write output Z| Blackboard
+
+    Blackboard -->|7. notify new artifacts| Orchestrator
+    Orchestrator -->|8. find next matches| Subscriptions
+    Subscriptions -->|9. Agent C matches Y+Z| Orchestrator
+    Orchestrator -->|10. trigger Agent C| A3
+
+    A3 -->|11. read Y+Z| Blackboard
+    A3 -->|12. write W| Blackboard
+
+    Blackboard -->|13. all agents idle| Orchestrator
+    Orchestrator -->|14. return results| User
+
+    style Orchestrator fill:#4f46e5,stroke:#333,stroke-width:3px,color:#fff
+    style Blackboard fill:#10b981,stroke:#333,stroke-width:2px,color:#fff
+    style A1 fill:#f59e0b,stroke:#333,stroke-width:2px,color:#000
+    style A2 fill:#f59e0b,stroke:#333,stroke-width:2px,color:#000
+    style A3 fill:#f59e0b,stroke:#333,stroke-width:2px,color:#000
+```
+
+**Orchestration Flow:**
+
+1. **Artifact Published** - User publishes artifact to blackboard
+2. **Subscription Matching** - Orchestrator finds agents subscribed to that type
+3. **Parallel Execution** - All matching agents triggered simultaneously (A1 + A2)
+4. **Agents Process** - Agents read inputs, transform data, write outputs
+5. **Cascade Trigger** - New artifacts (Y, Z) trigger next wave of agents
+6. **Dependency Resolution** - Agent C waits until both Y and Z are available
+7. **Completion** - When no more work remains, orchestrator returns results
+
+**Key Insight:** The orchestrator doesn't know the workflow structure upfront. It emerges from type subscriptions!
+
 ### 2. Agent (The Worker)
 
 **Agents are autonomous workers that transform data.** Each agent subscribes to input types and publishes output types.

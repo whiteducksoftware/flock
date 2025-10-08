@@ -35,37 +35,53 @@ Components implement hooks that fire at specific points during agent execution:
 
 ### Lifecycle Flow
 
+```mermaid
+flowchart TD
+    Start([Agent Execution Starts]) --> Init[🔧 on_initialize<br/>Component setup,<br/>resource allocation]
+
+    Init --> PreConsume[📥 on_pre_consume<br/>Filter/transform<br/>input artifacts]
+
+    PreConsume --> PreEval[⚙️ on_pre_evaluate<br/>Modify inputs<br/>before engine call]
+
+    PreEval --> Evaluate{🧠 evaluate<br/>LLM Engine or<br/>Custom Logic}
+
+    Evaluate -->|Success| PostEval[✅ on_post_evaluate<br/>Transform results,<br/>validate output]
+    Evaluate -->|Error| Error[❌ on_error<br/>Handle failures,<br/>attempt recovery]
+
+    PostEval --> PostPublish[📤 on_post_publish<br/>React to published<br/>artifacts, metrics]
+
+    PostPublish --> Terminate[🛑 on_terminate<br/>Cleanup resources,<br/>final metrics]
+
+    Error --> Terminate
+
+    Terminate --> End([Agent Execution Complete])
+
+    style Init fill:#10b981,stroke:#333,stroke-width:2px,color:#000
+    style PreConsume fill:#60a5fa,stroke:#333,stroke-width:2px,color:#000
+    style PreEval fill:#8b5cf6,stroke:#333,stroke-width:2px,color:#fff
+    style Evaluate fill:#f59e0b,stroke:#333,stroke-width:3px,color:#000
+    style PostEval fill:#8b5cf6,stroke:#333,stroke-width:2px,color:#fff
+    style PostPublish fill:#60a5fa,stroke:#333,stroke-width:2px,color:#000
+    style Terminate fill:#ef4444,stroke:#333,stroke-width:2px,color:#fff
+    style Error fill:#dc2626,stroke:#333,stroke-width:2px,color:#fff
 ```
-┌─────────────────┐
-│ on_initialize   │  ← Component setup (once per execution)
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│ on_pre_consume  │  ← Transform/filter input artifacts
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│ on_pre_evaluate │  ← Modify inputs before LLM call
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│   evaluate()    │  ← Engine executes (LLM call or custom logic)
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│on_post_evaluate │  ← Transform LLM results
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│ on_post_publish │  ← React to published artifacts
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│  on_terminate   │  ← Cleanup (always runs)
-└─────────────────┘
-         │
-     on_error  ← Runs if any step fails
-```
+
+**Execution Order:**
+
+1. **on_initialize** - Setup phase (once per agent execution)
+2. **on_pre_consume** - Process/filter input artifacts
+3. **on_pre_evaluate** - Prepare data for engine call
+4. **evaluate()** - Core agent logic (LLM call or custom)
+5. **on_post_evaluate** - Transform engine output
+6. **on_post_publish** - React to published artifacts
+7. **on_terminate** - Always runs (cleanup, metrics)
+8. **on_error** - Only on failures (error handling)
+
+**Key Points:**
+- ✅ **Sequential Execution** - Hooks run in strict order
+- ✅ **Context Passing** - Each hook receives agent context
+- ✅ **Error Handling** - on_error catches failures, on_terminate always runs
+- ✅ **Multiple Components** - Hooks from all components execute in registration order
 
 ### Available Hooks
 
