@@ -284,6 +284,93 @@ def dashboard_service_with_mocks(orchestrator):
 
 ---
 
+### 📦 Version Bumping - Don't Break PyPI Releases!
+
+**⚠️ CRITICAL FOR ALL CODE CHANGES:** Always increment version numbers when making changes that will be committed and pushed. Forgetting this breaks the PyPI publishing workflow!
+
+#### Why This Matters
+
+The automated PyPI release pipeline checks if the version in `pyproject.toml` has been incremented. If you push code changes without bumping the version:
+- ❌ PyPI publish workflow fails
+- ❌ Users can't get your fixes/features via `pip install`
+- ❌ Other developers get confused about which version has which features
+
+#### What to Bump
+
+**Backend version (REQUIRED for ALL changes):**
+```toml
+# pyproject.toml
+[project]
+version = "0.5.0b56"  # Increment this! e.g., "0.5.0b57"
+```
+
+**Frontend version (REQUIRED for dashboard/UI changes):**
+```json
+// src/flock/frontend/package.json
+{
+  "version": "0.1.2"  // Increment this! e.g., "0.1.3"
+}
+```
+
+#### When to Bump
+
+**✅ ALWAYS bump backend version for:**
+- Any Python code changes in `src/flock/`
+- Bug fixes, features, refactors
+- Documentation changes (increment patch)
+- Any commit that will be pushed to a branch
+
+**✅ ALWAYS bump frontend version for:**
+- Dashboard UI changes
+- React/TypeScript component updates
+- CSS/styling changes
+- Any changes in `src/flock/frontend/src/`
+
+#### Versioning Pattern
+
+We use **semantic versioning with beta tags**:
+- `0.5.0b56` → `0.5.0b57` for regular changes (increment beta number)
+- `0.1.2` → `0.1.3` for frontend changes (increment patch)
+
+#### How to Bump
+
+```bash
+# 1. Make your code changes
+# 2. Bump versions BEFORE committing
+# Edit pyproject.toml: version = "0.5.0b57"
+# Edit package.json: "version": "0.1.3"
+
+# 3. Commit version bumps with your changes OR as separate commit
+git add pyproject.toml src/flock/frontend/package.json
+git commit -m "chore: bump version to 0.5.0b57"
+
+# 4. Push (pre-commit hook will verify versions were bumped)
+git push
+```
+
+#### Pre-commit Hook Protection
+
+The repository has a pre-commit hook that **checks if versions were bumped**. If you forget, it will warn you:
+
+```bash
+check if version bump needed.............................................Failed
+- hook id: version-check
+
+❌ No version changes detected in modified Python/frontend files
+```
+
+#### Quick Checklist for PRs
+
+Before creating a PR, verify:
+- [ ] Backend version bumped in `pyproject.toml` (if any Python changes)
+- [ ] Frontend version bumped in `package.json` (if any UI changes)
+- [ ] Version bump committed (separate commit is fine)
+- [ ] Pre-commit hooks pass
+
+**Remember: It's better to increment versions too often than too rarely. Each meaningful change should get a version bump!**
+
+---
+
 ## 🔍 Observability & Debugging with OpenTelemetry + DuckDB
 
 Flock includes **production-grade distributed tracing** that captures every operation with full input/output data—enabling both human and AI-assisted debugging.
