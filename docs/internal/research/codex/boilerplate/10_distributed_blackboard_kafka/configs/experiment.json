@@ -1,0 +1,5 @@
+{
+  "name": "Distributed Blackboard (Kafka/Pulsar)",
+  "runs": 30,
+  "batch": 10
+}

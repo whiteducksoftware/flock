@@ -1,0 +1,5 @@
+{
+  "name": "MCP-Native Evaluation",
+  "runs": 30,
+  "batch": 10
+}

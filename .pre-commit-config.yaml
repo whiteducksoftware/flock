@@ -37,6 +37,7 @@ repos:
         name: fix end of files
       - id: check-yaml
         name: validate yaml files
+        args: [--unsafe]  # Allow custom YAML tags (needed for mkdocs.yml)
       - id: check-toml
         name: validate toml files
       - id: check-json

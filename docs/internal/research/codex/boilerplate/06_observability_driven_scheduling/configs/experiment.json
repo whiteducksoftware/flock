@@ -1,0 +1,5 @@
+{
+  "name": "Observability-Driven Scheduling",
+  "runs": 30,
+  "batch": 10
+}
