@@ -671,8 +671,19 @@ class DSPyEngine(EngineComponent):
 
                 if isinstance(value, ModelResponseStream):
                     chunk = value
-                    token = chunk.choices[0].delta.content or ""
+                    delta = chunk.choices[0].delta
+                    token = delta.content or ""
                     signature_field = getattr(value, "signature_field_name", None)
+
+                    # Check for tool calls in the delta
+                    tool_call_delta = getattr(delta, "tool_calls", None)
+                    has_tool_call = tool_call_delta is not None and len(tool_call_delta) > 0
+
+                    # Debug logging for tool calls
+                    if has_tool_call:
+                        logger.debug(f"[STREAMING] Tool call detected in delta: {tool_call_delta}")
+                    if not token and not has_tool_call:
+                        logger.debug("[STREAMING] Empty delta received (no content, no tool calls)")
 
                     # Determine output type based on signature field
                     output_type = "llm_token"  # if signature_field and signature_field != "description" else "log"
@@ -686,9 +697,54 @@ class DSPyEngine(EngineComponent):
                             display_data["payload"]["_streaming"] = "".join(
                                 stream_buffers[buffer_key]
                             )
+                        elif has_tool_call:
+                            # Handle tool call streaming
+                            tool_call = tool_call_delta[0]
+                            tool_name = getattr(tool_call.function, "name", None) if hasattr(tool_call, "function") else None
+                            tool_args = getattr(tool_call.function, "arguments", None) if hasattr(tool_call, "function") else None
+
+                            # Display tool call activity in status
+                            if tool_name:
+                                tool_status = f"\n🔧 Calling tool: {tool_name}"
+                                stream_buffers[status_field].append(tool_status)
+                                display_data["status"] = "".join(stream_buffers[status_field])
+
+                                # Emit tool call event
+                                if ws_manager:
+                                    try:
+                                        event = StreamingOutputEvent(
+                                            correlation_id=str(ctx.correlation_id)
+                                            if ctx and ctx.correlation_id
+                                            else "",
+                                            agent_name=agent.name,
+                                            run_id=ctx.task_id if ctx else "",
+                                            output_type="log",
+                                            content=tool_status,
+                                            sequence=stream_sequence,
+                                            is_final=False,
+                                        )
+                                        await ws_manager.broadcast(event)
+                                        stream_sequence += 1
+                                    except Exception as e:
+                                        logger.warning(f"Failed to emit tool call event: {e}")
+
+                            # Accumulate tool arguments as they stream
+                            if tool_args:
+                                stream_buffers[buffer_key].append(str(tool_args))
+                                display_data["payload"]["_streaming"] = "".join(
+                                    stream_buffers[buffer_key]
+                                )
                     elif token:
                         stream_buffers[status_field].append(str(token))
                         display_data["status"] = "".join(stream_buffers[status_field])
+                    elif has_tool_call:
+                        # Handle tool call in status field when no signature field
+                        tool_call = tool_call_delta[0]
+                        tool_name = getattr(tool_call.function, "name", None) if hasattr(tool_call, "function") else None
+                        if tool_name:
+                            tool_status = f"\n🔧 Calling tool: {tool_name}"
+                            stream_buffers[status_field].append(tool_status)
+                            display_data["status"] = "".join(stream_buffers[status_field])
 
                     # Emit to WebSocket
                     if ws_manager and token:

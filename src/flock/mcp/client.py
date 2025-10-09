@@ -369,7 +369,6 @@ class FlockMCPClient(BaseModel, ABC):
             return result
 
         async def _get_tools_internal() -> list[FlockMCPTool]:
-            # TODO: Crash
             response: ListToolsResult = await self.session.list_tools()
             flock_tools = []
 
