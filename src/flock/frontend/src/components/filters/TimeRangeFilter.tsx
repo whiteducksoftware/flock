@@ -41,6 +41,7 @@ const TimeRangeFilter: React.FC = () => {
   };
 
   const presets: { preset: TimeRangePreset; label: string }[] = [
+    { preset: 'all', label: 'All' },
     { preset: 'last5min', label: 'Last 5 min' },
     { preset: 'last10min', label: 'Last 10 min' },
     { preset: 'last1hour', label: 'Last hour' },
@@ -54,7 +55,11 @@ const TimeRangeFilter: React.FC = () => {
           <button
             key={preset}
             onClick={() => handlePresetClick(preset)}
-            className={`${styles.presetButton} ${timeRange.preset === preset ? styles.active : ''}`}
+            className={[
+              styles.presetButton,
+              preset === 'all' ? styles.presetButtonAll : '',
+              timeRange.preset === preset ? styles.active : '',
+            ].filter(Boolean).join(' ')}
           >
             {label}
           </button>

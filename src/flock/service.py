@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
 from flock.registry import type_registry
+from flock.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 
 
 if TYPE_CHECKING:
@@ -27,8 +28,11 @@ class BlackboardHTTPService:
         app = self.app
         orchestrator = self.orchestrator
 
-        def _serialize_artifact(artifact) -> dict[str, Any]:
-            return {
+        def _serialize_artifact(
+            artifact,
+            consumptions: list[ConsumptionRecord] | None = None,
+        ) -> dict[str, Any]:
+            data = {
                 "id": str(artifact.id),
                 "type": artifact.type,
                 "payload": artifact.payload,
@@ -41,6 +45,19 @@ class BlackboardHTTPService:
                 "tags": sorted(artifact.tags),
                 "version": artifact.version,
             }
+            if consumptions is not None:
+                data["consumptions"] = [
+                    {
+                        "artifact_id": str(record.artifact_id),
+                        "consumer": record.consumer,
+                        "run_id": record.run_id,
+                        "correlation_id": record.correlation_id,
+                        "consumed_at": record.consumed_at.isoformat(),
+                    }
+                    for record in consumptions
+                ]
+                data["consumed_by"] = sorted({record.consumer for record in consumptions})
+            return data
 
         def _parse_datetime(value: str | None, label: str) -> datetime | None:
             if value is None:
@@ -49,6 +66,25 @@ class BlackboardHTTPService:
                 return datetime.fromisoformat(value)
             except ValueError as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=f"Invalid {label}: {value}") from exc
+
+        def _make_filter_config(
+            type_names: list[str] | None,
+            produced_by: list[str] | None,
+            correlation_id: str | None,
+            tags: list[str] | None,
+            visibility: list[str] | None,
+            start: str | None,
+            end: str | None,
+        ) -> FilterConfig:
+            return FilterConfig(
+                type_names=set(type_names) if type_names else None,
+                produced_by=set(produced_by) if produced_by else None,
+                correlation_id=correlation_id,
+                tags=set(tags) if tags else None,
+                visibility=set(visibility) if visibility else None,
+                start=_parse_datetime(start, "from"),
+                end=_parse_datetime(end, "to"),
+            )
 
         @app.post("/api/v1/artifacts")
         async def publish_artifact(body: dict[str, Any]) -> dict[str, str]:
@@ -64,7 +100,7 @@ class BlackboardHTTPService:
 
         @app.get("/api/v1/artifacts")
         async def list_artifacts(
-            type_name: str | None = Query(None, alias="type"),
+            type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
             correlation_id: str | None = None,
             tag: list[str] | None = Query(None),
@@ -73,31 +109,37 @@ class BlackboardHTTPService:
             visibility: list[str] | None = Query(None),
             limit: int = Query(50, ge=1, le=500),
             offset: int = Query(0, ge=0),
+            embed_meta: bool = Query(False, alias="embed_meta"),
         ) -> dict[str, Any]:
-            tags = set(tag) if tag else None
-            start_dt = _parse_datetime(start, "from")
-            end_dt = _parse_datetime(end, "to")
-            visibility_filter = set(visibility) if visibility else None
-            producer_filter = set(produced_by) if produced_by else None
+            filters = _make_filter_config(
+                type_names,
+                produced_by,
+                correlation_id,
+                tag,
+                visibility,
+                start,
+                end,
+            )
             artifacts, total = await orchestrator.store.query_artifacts(
-                type_name=type_name,
-                produced_by=producer_filter,
-                correlation_id=correlation_id,
-                tags=tags,
-                visibility=visibility_filter,
-                start=start_dt,
-                end=end_dt,
+                filters,
                 limit=limit,
                 offset=offset,
+                embed_meta=embed_meta,
             )
+            items: list[dict[str, Any]] = []
+            for artifact in artifacts:
+                if isinstance(artifact, ArtifactEnvelope):
+                    items.append(_serialize_artifact(artifact.artifact, artifact.consumptions))
+                else:
+                    items.append(_serialize_artifact(artifact))
             return {
-                "items": [_serialize_artifact(artifact) for artifact in artifacts],
+                "items": items,
                 "pagination": {"limit": limit, "offset": offset, "total": total},
             }
 
         @app.get("/api/v1/artifacts/summary")
         async def summarize_artifacts(
-            type_name: str | None = Query(None, alias="type"),
+            type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
             correlation_id: str | None = None,
             tag: list[str] | None = Query(None),
@@ -105,20 +147,16 @@ class BlackboardHTTPService:
             end: str | None = Query(None, alias="to"),
             visibility: list[str] | None = Query(None),
         ) -> dict[str, Any]:
-            tags = set(tag) if tag else None
-            start_dt = _parse_datetime(start, "from")
-            end_dt = _parse_datetime(end, "to")
-            visibility_filter = set(visibility) if visibility else None
-            producer_filter = set(produced_by) if produced_by else None
-            summary = await orchestrator.store.summarize_artifacts(
-                type_name=type_name,
-                produced_by=producer_filter,
-                correlation_id=correlation_id,
-                tags=tags,
-                visibility=visibility_filter,
-                start=start_dt,
-                end=end_dt,
+            filters = _make_filter_config(
+                type_names,
+                produced_by,
+                correlation_id,
+                tag,
+                visibility,
+                start,
+                end,
             )
+            summary = await orchestrator.store.summarize_artifacts(filters)
             return {"summary": summary}
 
         @app.get("/api/v1/artifacts/{artifact_id}")
@@ -185,6 +223,29 @@ class BlackboardHTTPService:
                     for agent in orchestrator.agents
                 ]
             }
+
+        @app.get("/api/v1/agents/{agent_id}/history-summary")
+        async def agent_history(
+            agent_id: str,
+            type_names: list[str] | None = Query(None, alias="type"),
+            produced_by: list[str] | None = Query(None),
+            correlation_id: str | None = None,
+            tag: list[str] | None = Query(None),
+            start: str | None = Query(None, alias="from"),
+            end: str | None = Query(None, alias="to"),
+            visibility: list[str] | None = Query(None),
+        ) -> dict[str, Any]:
+            filters = _make_filter_config(
+                type_names,
+                produced_by,
+                correlation_id,
+                tag,
+                visibility,
+                start,
+                end,
+            )
+            summary = await orchestrator.store.agent_history_summary(agent_id, filters)
+            return {"agent_id": agent_id, "summary": summary}
 
         @app.get("/health")
         async def health() -> dict[str, str]:  # pragma: no cover - trivial

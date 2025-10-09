@@ -28,6 +28,7 @@ export interface Message {
   version?: number;
   isStreaming?: boolean; // True while streaming, false when complete
   streamingText?: string; // Accumulated streaming text (raw)
+  consumedBy?: string[];
 }
 
 export interface AgentNodeData extends Record<string, unknown> {

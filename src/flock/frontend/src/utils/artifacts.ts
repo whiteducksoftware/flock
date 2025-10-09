@@ -2,6 +2,10 @@ import type { ArtifactListItem } from '../services/api';
 import type { Message } from '../types/graph';
 
 export function mapArtifactToMessage(item: ArtifactListItem): Message {
+  const consumedBy =
+    item.consumed_by ??
+    (item.consumptions ? Array.from(new Set(item.consumptions.map((record) => record.consumer))) : []);
+
   return {
     id: item.id,
     type: item.type,
@@ -15,5 +19,6 @@ export function mapArtifactToMessage(item: ArtifactListItem): Message {
     version: item.version ?? 1,
     isStreaming: false,
     streamingText: '',
+    consumedBy,
   };
 }

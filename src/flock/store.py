@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 
-"""Blackboard storage primitives."""
+"""Blackboard storage primitives and metadata envelopes.
+
+Future backends should read the docstrings on :class:`FilterConfig`,
+:class:`ConsumptionRecord`, and :class:`BlackboardStore` to understand the
+contract expected by the REST layer and dashboard.
+"""
 
 import asyncio
 import json
@@ -9,7 +14,8 @@ import re
 from asyncio import Lock
 from collections import defaultdict
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, TypeVar
 from uuid import UUID
@@ -71,6 +77,38 @@ def _deserialize_visibility(data: Any) -> Visibility:
     return PublicVisibility()
 
 
+@dataclass(slots=True)
+class ConsumptionRecord:
+    """Historical record describing which agent consumed an artifact."""
+
+    artifact_id: UUID
+    consumer: str
+    run_id: str | None = None
+    correlation_id: str | None = None
+    consumed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass(slots=True)
+class FilterConfig:
+    """Shared filter configuration used by all stores."""
+
+    type_names: set[str] | None = None
+    produced_by: set[str] | None = None
+    correlation_id: str | None = None
+    tags: set[str] | None = None
+    visibility: set[str] | None = None
+    start: datetime | None = None
+    end: datetime | None = None
+
+
+@dataclass(slots=True)
+class ArtifactEnvelope:
+    """Wrapper returned when ``embed_meta`` is requested."""
+
+    artifact: Artifact
+    consumptions: list[ConsumptionRecord] = field(default_factory=list)
+
+
 class BlackboardStore:
     async def publish(self, artifact: Artifact) -> None:
         raise NotImplementedError
@@ -99,34 +137,37 @@ class BlackboardStore:
         """
         raise NotImplementedError
 
+    async def record_consumptions(
+        self,
+        records: Iterable[ConsumptionRecord],
+    ) -> None:
+        """Persist one or more consumption events."""
+        raise NotImplementedError
+
     async def query_artifacts(
         self,
+        filters: FilterConfig | None = None,
         *,
-        type_name: str | None = None,
-        produced_by: set[str] | None = None,
-        correlation_id: str | None = None,
-        tags: set[str] | None = None,
-        visibility: set[str] | None = None,
-        start: datetime | None = None,
-        end: datetime | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list[Artifact], int]:
+        embed_meta: bool = False,
+    ) -> tuple[list[Artifact | ArtifactEnvelope], int]:
         """Search artifacts with filtering and pagination."""
         raise NotImplementedError
 
     async def summarize_artifacts(
         self,
-        *,
-        type_name: str | None = None,
-        produced_by: set[str] | None = None,
-        correlation_id: str | None = None,
-        tags: set[str] | None = None,
-        visibility: set[str] | None = None,
-        start: datetime | None = None,
-        end: datetime | None = None,
+        filters: FilterConfig | None = None,
     ) -> dict[str, Any]:
         """Return aggregate artifact statistics for the given filters."""
+        raise NotImplementedError
+
+    async def agent_history_summary(
+        self,
+        agent_id: str,
+        filters: FilterConfig | None = None,
+    ) -> dict[str, Any]:
+        """Return produced/consumed counts for the specified agent."""
         raise NotImplementedError
 
 
@@ -137,6 +178,7 @@ class InMemoryBlackboardStore(BlackboardStore):
         self._lock = Lock()
         self._by_id: dict[UUID, Artifact] = {}
         self._by_type: dict[str, list[Artifact]] = defaultdict(list)
+        self._consumptions_by_artifact: dict[UUID, list[ConsumptionRecord]] = defaultdict(list)
 
     async def publish(self, artifact: Artifact) -> None:
         async with self._lock:
@@ -157,133 +199,126 @@ class InMemoryBlackboardStore(BlackboardStore):
             return list(self._by_type.get(canonical, []))
 
     async def get_by_type(self, artifact_type: type[T]) -> list[T]:
-        """Get artifacts by Pydantic type, returning data already cast.
-
-        Args:
-            artifact_type: The Pydantic model class (e.g., BugAnalysis)
-
-        Returns:
-            List of data objects of the specified type (not Artifact wrappers)
-        """
         async with self._lock:
-            # Get canonical name from the type
             canonical = type_registry.resolve_name(artifact_type.__name__)
             artifacts = self._by_type.get(canonical, [])
-            # Reconstruct Pydantic models from payload dictionaries
             return [artifact_type(**artifact.payload) for artifact in artifacts]  # type: ignore
 
     async def extend(self, artifacts: Iterable[Artifact]) -> None:  # pragma: no cover - helper
         for artifact in artifacts:
             await self.publish(artifact)
 
+    async def record_consumptions(
+        self,
+        records: Iterable[ConsumptionRecord],
+    ) -> None:
+        async with self._lock:
+            for record in records:
+                self._consumptions_by_artifact[record.artifact_id].append(record)
+
     async def query_artifacts(
         self,
+        filters: FilterConfig | None = None,
         *,
-        type_name: str | None = None,
-        produced_by: set[str] | None = None,
-        correlation_id: str | None = None,
-        tags: set[str] | None = None,
-        visibility: set[str] | None = None,
-        start: datetime | None = None,
-        end: datetime | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list[Artifact], int]:
+        embed_meta: bool = False,
+    ) -> tuple[list[Artifact | ArtifactEnvelope], int]:
         async with self._lock:
             artifacts = list(self._by_id.values())
 
-        canonical: str | None = None
-        if type_name is not None:
-            canonical = type_registry.resolve_name(type_name)
+        filters = filters or FilterConfig()
+        canonical: set[str] | None = None
+        if filters.type_names:
+            canonical = {type_registry.resolve_name(name) for name in filters.type_names}
 
-        visibility_filter = visibility or set()
+        visibility_filter = filters.visibility or set()
 
-        filtered = [
-            artifact
-            for artifact in artifacts
-            if (
-                (canonical is None or artifact.type == canonical)
-                and (produced_by is None or artifact.produced_by in produced_by)
-                and (
-                    correlation_id is None
-                    or (
-                        artifact.correlation_id is not None
-                        and str(artifact.correlation_id) == correlation_id
-                    )
-                )
-                and (tags is None or tags.issubset(artifact.tags))
-                and (not visibility_filter or artifact.visibility.kind in visibility_filter)
-                and (start is None or artifact.created_at >= start)
-                and (end is None or artifact.created_at <= end)
-            )
-        ]
+        def _matches(artifact: Artifact) -> bool:
+            if canonical and artifact.type not in canonical:
+                return False
+            if filters.produced_by and artifact.produced_by not in filters.produced_by:
+                return False
+            if filters.correlation_id and (
+                artifact.correlation_id is None
+                or str(artifact.correlation_id) != filters.correlation_id
+            ):
+                return False
+            if filters.tags and not filters.tags.issubset(artifact.tags):
+                return False
+            if visibility_filter and artifact.visibility.kind not in visibility_filter:
+                return False
+            if filters.start and artifact.created_at < filters.start:
+                return False
+            if filters.end and artifact.created_at > filters.end:
+                return False
+            return True
+
+        filtered = [artifact for artifact in artifacts if _matches(artifact)]
+        filtered.sort(key=lambda a: (a.created_at, a.id))
 
         total = len(filtered)
         offset = max(offset, 0)
-        if limit <= 0:
-            sliced: list[Artifact] = []
-        else:
-            sliced = filtered[offset : offset + limit]
-        return sliced, total
+        page = filtered[offset : offset + limit] if limit > 0 else []
+
+        if not embed_meta:
+            return page, total
+
+        envelopes = [
+            ArtifactEnvelope(
+                artifact=artifact,
+                consumptions=list(self._consumptions_by_artifact.get(artifact.id, [])),
+            )
+            for artifact in page
+        ]
+        return envelopes, total
 
     async def summarize_artifacts(
         self,
-        *,
-        type_name: str | None = None,
-        produced_by: set[str] | None = None,
-        correlation_id: str | None = None,
-        tags: set[str] | None = None,
-        visibility: set[str] | None = None,
-        start: datetime | None = None,
-        end: datetime | None = None,
+        filters: FilterConfig | None = None,
     ) -> dict[str, Any]:
+        filters = filters or FilterConfig()
         artifacts, total = await self.query_artifacts(
-            type_name=type_name,
-            produced_by=produced_by,
-            correlation_id=correlation_id,
-            tags=tags,
-            visibility=visibility,
-            start=start,
-            end=end,
+            filters=filters,
             limit=0,
             offset=0,
+            embed_meta=False,
         )
-
-        if not artifacts and total > 0:
-            artifacts, _ = await self.query_artifacts(
-                type_name=type_name,
-                produced_by=produced_by,
-                correlation_id=correlation_id,
-                tags=tags,
-                visibility=visibility,
-                start=start,
-                end=end,
-                limit=total,
-                offset=0,
-            )
 
         by_type: dict[str, int] = {}
         by_producer: dict[str, int] = {}
         by_visibility: dict[str, int] = {}
         tag_counts: dict[str, int] = {}
-        earliest = None
-        latest = None
+        earliest: datetime | None = None
+        latest: datetime | None = None
 
         for artifact in artifacts:
+            assert isinstance(artifact, Artifact)
             by_type[artifact.type] = by_type.get(artifact.type, 0) + 1
             by_producer[artifact.produced_by] = by_producer.get(artifact.produced_by, 0) + 1
             kind = getattr(artifact.visibility, "kind", "Unknown")
             by_visibility[kind] = by_visibility.get(kind, 0) + 1
             for tag in artifact.tags:
                 tag_counts[tag] = tag_counts.get(tag, 0) + 1
-            earliest = (
-                artifact.created_at
-                if earliest is None or artifact.created_at < earliest
-                else earliest
-            )
-            latest = (
-                artifact.created_at if latest is None or artifact.created_at > latest else latest
-            )
+            if earliest is None or artifact.created_at < earliest:
+                earliest = artifact.created_at
+            if latest is None or artifact.created_at > latest:
+                latest = artifact.created_at
+
+        if earliest and latest:
+            span = latest - earliest
+            if span.days >= 2:
+                span_label = f"{span.days} days"
+            elif span.total_seconds() >= 3600:
+                hours = span.total_seconds() / 3600
+                span_label = f"{hours:.1f} hours"
+            elif span.total_seconds() > 0:
+                minutes = max(1, int(span.total_seconds() / 60))
+                span_label = f"{minutes} minutes"
+            else:
+                span_label = "moments"
+        else:
+            span_label = "empty"
 
         return {
             "total": total,
@@ -293,6 +328,42 @@ class InMemoryBlackboardStore(BlackboardStore):
             "tag_counts": tag_counts,
             "earliest_created_at": earliest.isoformat() if earliest else None,
             "latest_created_at": latest.isoformat() if latest else None,
+            "is_full_window": filters.start is None and filters.end is None,
+            "window_span_label": span_label,
+        }
+
+    async def agent_history_summary(
+        self,
+        agent_id: str,
+        filters: FilterConfig | None = None,
+    ) -> dict[str, Any]:
+        filters = filters or FilterConfig()
+        envelopes, _ = await self.query_artifacts(
+            filters=filters,
+            limit=0,
+            offset=0,
+            embed_meta=True,
+        )
+
+        produced_total = 0
+        produced_by_type: dict[str, int] = defaultdict(int)
+        consumed_total = 0
+        consumed_by_type: dict[str, int] = defaultdict(int)
+
+        for envelope in envelopes:
+            assert isinstance(envelope, ArtifactEnvelope)
+            artifact = envelope.artifact
+            if artifact.produced_by == agent_id:
+                produced_total += 1
+                produced_by_type[artifact.type] += 1
+            for consumption in envelope.consumptions:
+                if consumption.consumer == agent_id:
+                    consumed_total += 1
+                    consumed_by_type[artifact.type] += 1
+
+        return {
+            "produced": {"total": produced_total, "by_type": dict(produced_by_type)},
+            "consumed": {"total": consumed_total, "by_type": dict(consumed_by_type)},
         }
 
 
@@ -306,7 +377,7 @@ __all__ = [
 class SQLiteBlackboardStore(BlackboardStore):
     """SQLite-backed implementation of :class:`BlackboardStore`."""
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
     def __init__(self, db_path: str, *, timeout: float = 5.0) -> None:
         self._db_path = Path(db_path)
@@ -385,6 +456,40 @@ class SQLiteBlackboardStore(BlackboardStore):
                         created_at=excluded.created_at
                     """,
                     record,
+                )
+                await conn.commit()
+
+    async def record_consumptions(  # type: ignore[override]
+        self,
+        records: Iterable[ConsumptionRecord],
+    ) -> None:
+        with tracer.start_as_current_span("sqlite_store.record_consumptions"):
+            rows = [
+                (
+                    str(record.artifact_id),
+                    record.consumer,
+                    record.run_id,
+                    record.correlation_id,
+                    record.consumed_at.isoformat(),
+                )
+                for record in records
+            ]
+            if not rows:
+                return
+
+            conn = await self._get_connection()
+            async with self._write_lock:
+                await conn.executemany(
+                    """
+                    INSERT OR REPLACE INTO artifact_consumptions (
+                        artifact_id,
+                        consumer,
+                        run_id,
+                        correlation_id,
+                        consumed_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    rows,
                 )
                 await conn.commit()
 
@@ -492,39 +597,26 @@ class SQLiteBlackboardStore(BlackboardStore):
 
     async def query_artifacts(
         self,
+        filters: FilterConfig | None = None,
         *,
-        type_name: str | None = None,
-        produced_by: set[str] | None = None,
-        correlation_id: str | None = None,
-        tags: set[str] | None = None,
-        visibility: set[str] | None = None,
-        start: datetime | None = None,
-        end: datetime | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list[Artifact], int]:
+        embed_meta: bool = False,
+    ) -> tuple[list[Artifact | ArtifactEnvelope], int]:
+        filters = filters or FilterConfig()
         conn = await self._get_connection()
-        where_clause, params = self._build_filters(
-            type_name=type_name,
-            produced_by=produced_by,
-            correlation_id=correlation_id,
-            tags=tags,
-            visibility=visibility,
-            start=start,
-            end=end,
-        )
 
+        where_clause, params = self._build_filters(filters)
         cursor = await conn.execute(
-            f"SELECT COUNT(*) FROM artifacts{where_clause}",
-            params,
+            f"SELECT COUNT(*) AS total FROM artifacts{where_clause}",
+            tuple(params),
         )
         total_row = await cursor.fetchone()
         await cursor.close()
-        total = total_row[0] if total_row else 0
+        total = total_row["total"] if total_row else 0
 
         if limit <= 0:
-            return [], total
-        offset = max(offset, 0)
+            return ([], total)
 
         cursor = await conn.execute(
             f"""
@@ -545,37 +637,69 @@ class SQLiteBlackboardStore(BlackboardStore):
             ORDER BY created_at ASC, rowid ASC
             LIMIT ? OFFSET ?
             """,
-            (*params, limit, offset),
+            (*params, limit, max(offset, 0)),
         )
         rows = await cursor.fetchall()
         await cursor.close()
-        return [self._row_to_artifact(row) for row in rows], total
+        artifacts = [self._row_to_artifact(row) for row in rows]
+
+        if not embed_meta or not artifacts:
+            return artifacts, total
+
+        artifact_ids = [str(artifact.id) for artifact in artifacts]
+        placeholders = ", ".join("?" for _ in artifact_ids)
+        cursor = await conn.execute(
+            f"""
+            SELECT
+                artifact_id,
+                consumer,
+                run_id,
+                correlation_id,
+                consumed_at
+            FROM artifact_consumptions
+            WHERE artifact_id IN ({placeholders})
+            ORDER BY consumed_at ASC
+            """,
+            artifact_ids,
+        )
+        consumption_rows = await cursor.fetchall()
+        await cursor.close()
+
+        consumptions_map: dict[UUID, list[ConsumptionRecord]] = defaultdict(list)
+        for row in consumption_rows:
+            artifact_uuid = UUID(row["artifact_id"])
+            consumptions_map[artifact_uuid].append(
+                ConsumptionRecord(
+                    artifact_id=artifact_uuid,
+                    consumer=row["consumer"],
+                    run_id=row["run_id"],
+                    correlation_id=row["correlation_id"],
+                    consumed_at=datetime.fromisoformat(row["consumed_at"]),
+                )
+            )
+
+        envelopes: list[ArtifactEnvelope] = [
+            ArtifactEnvelope(
+                artifact=artifact,
+                consumptions=consumptions_map.get(artifact.id, []),
+            )
+            for artifact in artifacts
+        ]
+        return envelopes, total
 
     async def summarize_artifacts(
         self,
-        *,
-        type_name: str | None = None,
-        produced_by: set[str] | None = None,
-        correlation_id: str | None = None,
-        tags: set[str] | None = None,
-        visibility: set[str] | None = None,
-        start: datetime | None = None,
-        end: datetime | None = None,
+        filters: FilterConfig | None = None,
     ) -> dict[str, Any]:
+        filters = filters or FilterConfig()
         conn = await self._get_connection()
-        where_clause, params = self._build_filters(
-            type_name=type_name,
-            produced_by=produced_by,
-            correlation_id=correlation_id,
-            tags=tags,
-            visibility=visibility,
-            start=start,
-            end=end,
-        )
+
+        where_clause, params = self._build_filters(filters)
+        params_tuple = tuple(params)
 
         cursor = await conn.execute(
-            f"SELECT COUNT(*) as total FROM artifacts{where_clause}",
-            params,
+            f"SELECT COUNT(*) AS total FROM artifacts{where_clause}",
+            params_tuple,
         )
         total_row = await cursor.fetchone()
         await cursor.close()
@@ -588,7 +712,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             {where_clause}
             GROUP BY canonical_type
             """,
-            params,
+            params_tuple,
         )
         by_type_rows = await cursor.fetchall()
         await cursor.close()
@@ -601,7 +725,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             {where_clause}
             GROUP BY produced_by
             """,
-            params,
+            params_tuple,
         )
         by_producer_rows = await cursor.fetchall()
         await cursor.close()
@@ -614,7 +738,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             {where_clause}
             GROUP BY json_extract(visibility, '$.kind')
             """,
-            params,
+            params_tuple,
         )
         by_visibility_rows = await cursor.fetchall()
         await cursor.close()
@@ -630,7 +754,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             {where_clause}
             GROUP BY json_each.value
             """,
-            params,
+            params_tuple,
         )
         tag_rows = await cursor.fetchall()
         await cursor.close()
@@ -642,7 +766,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             FROM artifacts
             {where_clause}
             """,
-            params,
+            params_tuple,
         )
         range_row = await cursor.fetchone()
         await cursor.close()
@@ -657,6 +781,68 @@ class SQLiteBlackboardStore(BlackboardStore):
             "tag_counts": tag_counts,
             "earliest_created_at": earliest,
             "latest_created_at": latest,
+        }
+
+    async def agent_history_summary(
+        self,
+        agent_id: str,
+        filters: FilterConfig | None = None,
+    ) -> dict[str, Any]:
+        filters = filters or FilterConfig()
+        conn = await self._get_connection()
+
+        produced_total = 0
+        produced_by_type: dict[str, int] = {}
+
+        if filters.produced_by and agent_id not in filters.produced_by:
+            produced_total = 0
+        else:
+            produced_filter = FilterConfig(
+                type_names=set(filters.type_names) if filters.type_names else None,
+                produced_by={agent_id},
+                correlation_id=filters.correlation_id,
+                tags=set(filters.tags) if filters.tags else None,
+                visibility=set(filters.visibility) if filters.visibility else None,
+                start=filters.start,
+                end=filters.end,
+            )
+            where_clause, params = self._build_filters(produced_filter)
+            cursor = await conn.execute(
+                f"""
+                SELECT canonical_type, COUNT(*) AS count
+                FROM artifacts
+                {where_clause}
+                GROUP BY canonical_type
+                """,
+                tuple(params),
+            )
+            rows = await cursor.fetchall()
+            await cursor.close()
+            produced_by_type = {row["canonical_type"]: row["count"] for row in rows}
+            produced_total = sum(produced_by_type.values())
+
+        where_clause, params = self._build_filters(filters, table_alias="a")
+        params_with_consumer = (*params, agent_id)
+        cursor = await conn.execute(
+            f"""
+            SELECT a.canonical_type AS canonical_type, COUNT(*) AS count
+            FROM artifact_consumptions c
+            JOIN artifacts a ON a.artifact_id = c.artifact_id
+            {where_clause}
+            {"AND" if where_clause else "WHERE"} c.consumer = ?
+            GROUP BY a.canonical_type
+            """,
+            params_with_consumer,
+        )
+        consumption_rows = await cursor.fetchall()
+        await cursor.close()
+
+        consumed_by_type = {row["canonical_type"]: row["count"] for row in consumption_rows}
+        consumed_total = sum(consumed_by_type.values())
+
+        return {
+            "produced": {"total": produced_total, "by_type": produced_by_type},
+            "consumed": {"total": consumed_total, "by_type": consumed_by_type},
         }
 
     async def ensure_schema(self) -> None:
@@ -771,59 +957,87 @@ class SQLiteBlackboardStore(BlackboardStore):
                 ON artifacts(partition_key)
                 """
             )
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS artifact_consumptions (
+                    artifact_id TEXT NOT NULL,
+                    consumer TEXT NOT NULL,
+                    run_id TEXT,
+                    correlation_id TEXT,
+                    consumed_at TEXT NOT NULL,
+                    PRIMARY KEY (artifact_id, consumer, consumed_at)
+                )
+                """
+            )
+            await conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_consumptions_artifact
+                ON artifact_consumptions(artifact_id)
+                """
+            )
+            await conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_consumptions_consumer
+                ON artifact_consumptions(consumer)
+                """
+            )
+            await conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_consumptions_correlation
+                ON artifact_consumptions(correlation_id)
+                """
+            )
             await conn.commit()
             self._schema_ready = True
 
     def _build_filters(
         self,
+        filters: FilterConfig,
         *,
-        type_name: str | None,
-        produced_by: set[str] | None,
-        correlation_id: str | None,
-        tags: set[str] | None,
-        visibility: set[str] | None,
-        start: datetime | None,
-        end: datetime | None,
-    ) -> tuple[str, tuple[Any, ...]]:
+        table_alias: str | None = None,
+    ) -> tuple[str, list[Any]]:
+        prefix = f"{table_alias}." if table_alias else ""
         conditions: list[str] = []
         params: list[Any] = []
 
-        if type_name is not None:
-            canonical = type_registry.resolve_name(type_name)
-            conditions.append("canonical_type = ?")
-            params.append(canonical)
+        if filters.type_names:
+            canonical = {type_registry.resolve_name(name) for name in filters.type_names}
+            placeholders = ", ".join("?" for _ in canonical)
+            conditions.append(f"{prefix}canonical_type IN ({placeholders})")
+            params.extend(sorted(canonical))
 
-        if produced_by:
-            placeholders = ", ".join(["?"] * len(produced_by))
-            conditions.append(f"produced_by IN ({placeholders})")
-            params.extend(sorted(produced_by))
+        if filters.produced_by:
+            placeholders = ", ".join("?" for _ in filters.produced_by)
+            conditions.append(f"{prefix}produced_by IN ({placeholders})")
+            params.extend(sorted(filters.produced_by))
 
-        if correlation_id is not None:
-            conditions.append("correlation_id = ?")
-            params.append(correlation_id)
+        if filters.correlation_id:
+            conditions.append(f"{prefix}correlation_id = ?")
+            params.append(filters.correlation_id)
 
-        if visibility:
-            placeholders = ", ".join(["?"] * len(visibility))
-            conditions.append(f"json_extract(visibility, '$.kind') IN ({placeholders})")
-            params.extend(sorted(visibility))
+        if filters.visibility:
+            placeholders = ", ".join("?" for _ in filters.visibility)
+            conditions.append(f"json_extract({prefix}visibility, '$.kind') IN ({placeholders})")
+            params.extend(sorted(filters.visibility))
 
-        if start is not None:
-            conditions.append("created_at >= ?")
-            params.append(start.isoformat())
+        if filters.start is not None:
+            conditions.append(f"{prefix}created_at >= ?")
+            params.append(filters.start.isoformat())
 
-        if end is not None:
-            conditions.append("created_at <= ?")
-            params.append(end.isoformat())
+        if filters.end is not None:
+            conditions.append(f"{prefix}created_at <= ?")
+            params.append(filters.end.isoformat())
 
-        if tags:
-            for tag in tags:
+        if filters.tags:
+            column = f"{prefix}tags" if table_alias else "artifacts.tags"
+            for tag in sorted(filters.tags):
                 conditions.append(
-                    "EXISTS (SELECT 1 FROM json_each(artifacts.tags) WHERE json_each.value = ?)"
+                    f"EXISTS (SELECT 1 FROM json_each({column}) WHERE json_each.value = ?)"
                 )
                 params.append(tag)
 
         where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
-        return where_clause, tuple(params)
+        return where_clause, params
 
     def _row_to_artifact(self, row: Any) -> Artifact:
         payload = json.loads(row["payload"])

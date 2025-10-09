@@ -62,16 +62,20 @@ interface FilterState {
 
 const defaultTimeRange: TimeRange = { preset: 'last10min' };
 
-const formatTimeRange = (range: TimeRange): string => {
+export const formatTimeRange = (range: TimeRange): string => {
   if (range.preset === 'last5min') return 'Last 5 min';
   if (range.preset === 'last10min') return 'Last 10 min';
   if (range.preset === 'last1hour') return 'Last hour';
+  if (range.preset === 'all') return 'All time';
   if (range.preset === 'custom' && range.start && range.end) {
     const startDate = new Date(range.start).toLocaleString();
     const endDate = new Date(range.end).toLocaleString();
     return `${startDate} - ${endDate}`;
   }
-  return 'Unknown';
+  if (range.preset === 'custom') {
+    return 'Custom range';
+  }
+  return 'Last 10 min';
 };
 
 const uniqueSorted = (items: string[]) => Array.from(new Set(items)).sort((a, b) => a.localeCompare(b));
@@ -159,6 +163,7 @@ export const useFilterStore = create<FilterState>()(
         }),
 
       getActiveFilters: () => {
+        console.debug('[filterStore] computing active filters', { correlationId: get().correlationId, timeRange: get().timeRange });
         const state = get();
         const filters: ActiveFilter[] = [];
 
@@ -170,13 +175,11 @@ export const useFilterStore = create<FilterState>()(
           });
         }
 
-        if (state.timeRange.preset !== 'last10min') {
-          filters.push({
-            type: 'timeRange',
-            value: state.timeRange,
-            label: `Time: ${formatTimeRange(state.timeRange)}`,
-          });
-        }
+        filters.push({
+          type: 'timeRange',
+          value: state.timeRange,
+          label: `Time: ${formatTimeRange(state.timeRange)}`,
+        });
 
         state.selectedArtifactTypes.forEach((type) => {
           filters.push({

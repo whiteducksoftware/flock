@@ -1,4 +1,4 @@
-export type TimeRangePreset = 'last5min' | 'last10min' | 'last1hour' | 'custom';
+export type TimeRangePreset = 'last5min' | 'last10min' | 'last1hour' | 'custom' | 'all';
 
 export interface TimeRange {
   preset: TimeRangePreset;

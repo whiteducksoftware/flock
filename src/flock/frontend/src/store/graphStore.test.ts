@@ -9,6 +9,8 @@ describe('graphStore', () => {
       agents: new Map(),
       messages: new Map(),
       events: [],
+      runs: new Map(),
+      consumptions: new Map(),
       nodes: [],
       edges: [],
     });
@@ -182,5 +184,22 @@ describe('graphStore', () => {
     expect(nodes.length).toBe(2);
     expect(nodes[0]?.type).toBe('agent');
     expect(edges.length).toBeGreaterThan(0);
+  });
+
+  it('should hydrate consumptions from message payload', () => {
+    const message: Message = {
+      id: 'msg-embed',
+      type: 'Recipe',
+      payload: {},
+      timestamp: Date.now(),
+      correlationId: 'corr-embed',
+      producedBy: 'chef',
+      consumedBy: ['critic'],
+    };
+
+    useGraphStore.getState().batchUpdate({ messages: [message] });
+
+    const state = useGraphStore.getState();
+    expect(state.consumptions.get('msg-embed')).toEqual(['critic']);
   });
 });

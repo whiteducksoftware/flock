@@ -61,6 +61,16 @@ export interface ArtifactListItem {
   visibility: { kind: string; [key: string]: any };
   visibility_kind?: string;
   version?: number;
+  consumptions?: ArtifactConsumption[];
+  consumed_by?: string[];
+}
+
+export interface ArtifactConsumption {
+  artifact_id: string;
+  consumer: string;
+  run_id: string | null;
+  correlation_id: string | null;
+  consumed_at: string;
 }
 
 export interface ArtifactListResponse {
@@ -86,6 +96,7 @@ export interface ArtifactQueryOptions {
   to?: string;
   limit?: number;
   offset?: number;
+  embedMeta?: boolean;
 }
 
 export interface ErrorResponse {
@@ -275,6 +286,9 @@ const buildArtifactQuery = (options: ArtifactQueryOptions): string => {
   }
   if (typeof options.offset === 'number') {
     params.append('offset', String(options.offset));
+  }
+  if (options.embedMeta) {
+    params.append('embed_meta', 'true');
   }
 
   return params.toString();

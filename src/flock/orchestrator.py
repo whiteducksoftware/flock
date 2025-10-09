@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from asyncio import Task
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -27,7 +29,7 @@ from flock.mcp import (
 )
 from flock.registry import type_registry
 from flock.runtime import Context
-from flock.store import BlackboardStore, InMemoryBlackboardStore
+from flock.store import BlackboardStore, ConsumptionRecord, InMemoryBlackboardStore
 from flock.visibility import AgentIdentity, PublicVisibility, Visibility
 
 
@@ -110,6 +112,7 @@ class Flock(metaclass=AutoTracedMeta):
             ... )
         """
         self._patch_litellm_proxy_imports()
+        self._logger = logging.getLogger(__name__)
         self.model = model
         self.store: BlackboardStore = store or InMemoryBlackboardStore()
         self._agents: dict[str, Agent] = {}
@@ -861,6 +864,25 @@ class Flock(metaclass=AutoTracedMeta):
         )
         self._record_agent_run(agent)
         await agent.execute(ctx, artifacts)
+
+        if artifacts:
+            try:
+                timestamp = datetime.now(timezone.utc)
+                records = [
+                    ConsumptionRecord(
+                        artifact_id=artifact.id,
+                        consumer=agent.name,
+                        run_id=ctx.task_id,
+                        correlation_id=str(correlation_id) if correlation_id else None,
+                        consumed_at=timestamp,
+                    )
+                    for artifact in artifacts
+                ]
+                await self.store.record_consumptions(records)
+            except NotImplementedError:
+                pass
+            except Exception as exc:  # pragma: no cover - defensive logging
+                self._logger.exception("Failed to record artifact consumption: %s", exc)
 
     # Helpers --------------------------------------------------------------
 

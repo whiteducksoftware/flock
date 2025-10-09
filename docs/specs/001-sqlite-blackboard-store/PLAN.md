@@ -53,7 +53,7 @@ If implementation cannot follow specification exactly:
 
 **Implementation Context**:
 
-- Commands to run: `uv run pytest tests/test_store.py tests/contract/test_artifact_storage_contract.py`, `uv run pytest tests/dashboard -k artifact` (after adding cases), `uv run playwright test` for dashboard validation.
+- Commands to run: `uv run pytest tests/test_store.py tests/contract/test_artifact_storage_contract.py`, `uv run pytest tests/dashboard -k artifact` (after adding cases), `uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py` followed by manual validation with `playwright-mcp`.
 - Patterns to follow: `docs/internal/sqlite-blackboard-store/patterns.md` (schema, write/read paths, concurrency, migrations).
 - Interfaces to implement: `docs/internal/sqlite-blackboard-store/interfaces.md` (REST endpoints for historical artifacts, dashboard UX enhancements).
 
@@ -103,18 +103,34 @@ If implementation cannot follow specification exactly:
     - [x] **Prime Context**: `docs/internal/sqlite-blackboard-store/interfaces.md`, dashboard filter implementation (`src/flock/frontend/src/store/filterStore.ts`, `src/flock/frontend/src/services/indexeddb.ts`)
         - [x] Review required filter additions (artifact type, producer, tags, visibility) `[ref: docs/internal/sqlite-blackboard-store/interfaces.md]`
         - [x] Inspect IndexedDB schema alignment for saved filters/pagination `[ref: src/flock/frontend/src/services/indexeddb.ts]`
-    - [ ] **Write Tests**: Outline UI regression coverage `[activity: design-tests]`
+    - [x] **Write Tests**: Outline UI regression coverage `[activity: design-tests]`
         - [x] Add unit tests for new filter store state, filters UI, and saved preset persistence `[activity: add-tests]`
-        - [ ] Extend Playwright scenarios for historical blackboard view and pagination `[activity: add-tests]`
+        - [x] Document manual playwright-mcp flow for historical blackboard view and pagination `[ref: docs/internal/sqlite-blackboard-store/dashboard-playwright-mcp.md; activity: add-tests]`
     - [ ] **Implement**: Dashboard data ingestion `[activity: implement-frontend]`
-        - [ ] Fetch historical artifact pages on load before WebSocket subscription, hydrate IndexedDB caches `[activity: implement-frontend]`
-        - [ ] Add multi-select filters (type, producer, tags, visibility) and saved presets UI `[activity: implement-frontend]`
+        - [x] Fetch historical artifact pages on load before WebSocket subscription, hydrate IndexedDB caches `[activity: implement-frontend]`
+        - [x] Add multi-select filters (type, producer, tags, visibility) and saved presets UI `[activity: implement-frontend]`
+        - [x] Provide persistent data seeding example (`examples/02-the-blackboard/01_persistent_pizza.py`) `[activity: implement-frontend]`
+        - [x] Backend follow-up: expose embedded consumption metadata via store API and REST (see discussion note)
     - [ ] **Implement**: New historical view & affordances `[activity: implement-frontend]`
-        - [ ] Create paginated “Historical Blackboard” table/timeline with virtualization `[activity: implement-frontend]`
-        - [ ] Surface retention messaging and “Load older output” interactions tied to SQLite limits `[activity: implement-frontend]`
-    - [ ] **Validate**: UX & performance gates
-        - [ ] Run frontend unit tests and Playwright suite `[activity: run-tests]` *(unit tests passing; Playwright runner currently blocks on CSS module parsing — see latest execution notes)*
-        - [ ] Perform manual UX review using dashboard examples (`uv run python examples/03-the-dashboard/01_declarative_pizza.py`) `[activity: manual-test]`
+        - [x] Create paginated “Historical Blackboard” table/timeline with virtualization `[activity: implement-frontend]`
+        - [x] Surface retention messaging and “Load older output” interactions tied to SQLite limits `[activity: implement-frontend]`
+        - [x] Add payload detail viewer using shared JSON component
+        - [x] Remove legacy Event Log module once payload viewer shipped
+    - [x] **Implement**: Historical backend API enhancements `[activity: implement-backend]`
+    - [x] Add consumption history persistence (`artifact_consumptions` or equivalent)
+    - [x] Update store interface (`FilterConfig`, `embed_meta`) and document requirements for future stores
+    - [x] Extend REST endpoints (`/api/v1/artifacts`, `/summary`, `/agents/{id}/history-summary`) to surface metadata
+    - [x] Ensure in-memory store honours new interface semantics for parity
+    - [ ] Document design rationale (embedded metadata, consumption joins, normalization)
+
+- [ ] **Validate**: Store/REST integration `[activity: run-tests]`
+    - [x] Add unit tests for store consumption queries and filters
+    - [x] Add integration tests for new REST endpoints and envelopes
+    - [x] Verify frontend agent counters/edges consume enriched envelopes
+
+- [ ] **Validate**: UX & performance gates
+        - [ ] Run frontend unit tests and manual dashboard verification with `playwright-mcp` following `docs/internal/sqlite-blackboard-store/dashboard-playwright-mcp.md` (`uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py`) `[activity: run-tests]` *(unit tests passing; Playwright runner currently blocks on CSS module parsing — see latest execution notes)*
+        - [ ] Perform manual UX review of persistent history flow (`uv run python examples/03-the-dashboard/04_persistent_pizza_dashboard.py`) before dashboard checks `[activity: manual-test]`
         - [ ] Confirm accessibility checks (keyboard navigation, screen-reader labels) for new components `[activity: accessibility-review]`
 
 - [ ] **Integration & End-to-End Validation**
@@ -140,3 +156,14 @@ If implementation cannot follow specification exactly:
     - [ ] [Build and deployment verification]
     - [ ] [All PRD requirements implemented]
     - [ ] [Implementation follows SDD design]
+
+### 📝 Phase 3 Design Notes (Added after implementation review)
+
+During integration we discovered the front-end needs richer metadata than the original research anticipated:
+
+- Agent counters and graph edges require historical consumption data; this led us to design `artifact_consumptions` persistence and an `embed_meta` path in the store interface.
+- Stores (in-memory & SQLite) will expose filtering through a shared `FilterConfig` and can return either lean `ArtifactRecord` objects or enriched envelopes with consumption/run metadata.
+- REST endpoints will surface the enriched envelopes directly so clients do not reimplement the joins. A dedicated `/api/v1/agents/{id}/history-summary` endpoint will provide filtered produced/consumed counts.
+- Historical Blackboard replaces the Event Log. Payload viewing will use the shared JSON inspector component.
+
+These tasks are tracked in Phase 3 to guide future contributors implementing new stores (e.g., PostgresStore, RedisStore).

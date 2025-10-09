@@ -33,11 +33,6 @@ const App: React.FC = () => {
       }
     });
 
-    // Initialize WebSocket connection
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
-    const wsClient = initializeWebSocket(wsUrl);
-    wsClient.connect();
-
     const loadHistoricalData = async () => {
       try {
         await indexedDBService.initialize();
@@ -55,13 +50,16 @@ const App: React.FC = () => {
           visibilities: Object.keys(summary.by_visibility),
         });
 
-        const artifactResponse = await fetchArtifacts({ limit: 200 });
+        const artifactResponse = await fetchArtifacts({ limit: 200, embedMeta: true });
         const messages = artifactResponse.items.map(mapArtifactToMessage);
         if (messages.length > 0) {
           graphStore.batchUpdate({ messages });
           if (uiStore.mode === 'blackboard') {
             graphStore.generateBlackboardViewGraph();
+          } else {
+            graphStore.generateAgentViewGraph();
           }
+          graphStore.applyFilters();
 
           const correlationMetadata = new Map<string, { correlation_id: string; first_seen: number; artifact_count: number; run_count: number }>();
           artifactResponse.items.forEach((item) => {
@@ -115,11 +113,26 @@ const App: React.FC = () => {
       }
     };
 
-    loadHistoricalData();
-    loadInitialAgents();
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+    const wsClient = initializeWebSocket(wsUrl);
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      await loadHistoricalData();
+      await loadInitialAgents();
+
+      if (!cancelled) {
+        wsClient.connect();
+      }
+    };
+
+    bootstrap().catch((error) => {
+      console.error('[App] Bootstrap failed:', error);
+    });
 
     // Cleanup on unmount
     return () => {
+      cancelled = true;
       wsClient.disconnect();
     };
   }, []);

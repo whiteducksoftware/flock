@@ -1,5 +1,6 @@
 """Extended tests for BlackboardHTTPService."""
 
+from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from flock.artifacts import Artifact
 from flock.registry import flock_type
 from flock.service import BlackboardHTTPService
+from flock.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 
 
 @flock_type(name="ServiceTestInput")
@@ -35,8 +37,16 @@ def mock_orchestrator():
             "total": 0,
             "by_type": {},
             "by_producer": {},
+            "by_visibility": {},
+            "tag_counts": {},
             "earliest_created_at": None,
             "latest_created_at": None,
+        }
+    )
+    orchestrator.store.agent_history_summary = AsyncMock(
+        return_value={
+            "produced": {"total": 0, "by_type": {}},
+            "consumed": {"total": 0, "by_type": {}},
         }
     )
     orchestrator.agents = []
@@ -244,13 +254,47 @@ async def test_list_artifacts_endpoint(service, mock_orchestrator):
     assert payload["pagination"]["total"] == 5
     assert len(payload["items"]) == 1
     mock_orchestrator.store.query_artifacts.assert_awaited_once()
-    kwargs = mock_orchestrator.store.query_artifacts.await_args.kwargs
-    assert kwargs["type_name"] == "TypeA"
-    assert kwargs["produced_by"] == {"agent1"}
-    assert kwargs["correlation_id"] == "abc"
-    assert kwargs["tags"] == {"alpha", "beta"}
-    assert kwargs["limit"] == 10
-    assert kwargs["offset"] == 2
+    call = mock_orchestrator.store.query_artifacts.await_args
+    filters = call.args[0]
+    assert isinstance(filters, FilterConfig)
+    assert filters.type_names == {"TypeA"}
+    assert filters.produced_by == {"agent1"}
+    assert filters.correlation_id == "abc"
+    assert filters.tags == {"alpha", "beta"}
+    assert filters.start == datetime.fromisoformat("2025-01-01T00:00:00+00:00")
+    assert filters.end == datetime.fromisoformat("2025-12-31T23:59:59+00:00")
+    assert call.kwargs["limit"] == 10
+    assert call.kwargs["offset"] == 2
+    assert call.kwargs["embed_meta"] is False
+
+
+@pytest.mark.asyncio
+async def test_list_artifacts_with_embed_meta(service, mock_orchestrator):
+    artifact = Artifact(type="TypeA", payload={"value": 1}, produced_by="agent1")
+    consumption = ConsumptionRecord(
+        artifact_id=artifact.id,
+        consumer="agent2",
+        run_id="run-1",
+        correlation_id="corr-99",
+    )
+    mock_orchestrator.store.query_artifacts.return_value = (
+        [ArtifactEnvelope(artifact=artifact, consumptions=[consumption])],
+        1,
+    )
+
+    transport = ASGITransport(app=service.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/artifacts", params={"embed_meta": "true"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["pagination"]["total"] == 1
+    item = payload["items"][0]
+    assert item["produced_by"] == "agent1"
+    assert len(item["consumptions"]) == 1
+    assert item["consumptions"][0]["consumer"] == "agent2"
+    call = mock_orchestrator.store.query_artifacts.await_args
+    assert call.kwargs["embed_meta"] is True
 
 
 @pytest.mark.asyncio
@@ -260,6 +304,8 @@ async def test_artifact_summary_endpoint(service, mock_orchestrator):
         "total": 3,
         "by_type": {"TypeA": 2, "TypeB": 1},
         "by_producer": {"agent1": 3},
+        "by_visibility": {"Public": 3},
+        "tag_counts": {"alpha": 2},
         "earliest_created_at": "2025-01-01T00:00:00+00:00",
         "latest_created_at": "2025-01-02T00:00:00+00:00",
     }
@@ -273,6 +319,44 @@ async def test_artifact_summary_endpoint(service, mock_orchestrator):
     assert summary["total"] == 3
     assert "TypeA" in summary["by_type"]
     mock_orchestrator.store.summarize_artifacts.assert_awaited_once()
+    call = mock_orchestrator.store.summarize_artifacts.await_args
+    filters = call.args[0]
+    assert isinstance(filters, FilterConfig)
+    assert filters.type_names == {"TypeA"}
+
+
+@pytest.mark.asyncio
+async def test_agent_history_summary_endpoint(service, mock_orchestrator):
+    """Ensure agent history summary delegates to store."""
+
+    transport = ASGITransport(app=service.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/api/v1/agents/pizza/history-summary",
+            params={
+                "type": ["Recipe"],
+                "produced_by": ["pizza_master"],
+                "correlation_id": "corr-1",
+                "tag": ["dough"],
+                "from": "2025-01-01T00:00:00+00:00",
+                "to": "2025-01-02T00:00:00+00:00",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["agent_id"] == "pizza"
+    mock_orchestrator.store.agent_history_summary.assert_awaited_once()
+    call = mock_orchestrator.store.agent_history_summary.await_args
+    assert call.args[0] == "pizza"
+    filters = call.args[1]
+    assert isinstance(filters, FilterConfig)
+    assert filters.type_names == {"Recipe"}
+    assert filters.produced_by == {"pizza_master"}
+    assert filters.correlation_id == "corr-1"
+    assert filters.tags == {"dough"}
+    assert filters.start == datetime.fromisoformat("2025-01-01T00:00:00+00:00")
+    assert filters.end == datetime.fromisoformat("2025-01-02T00:00:00+00:00")
 
 
 @pytest.mark.asyncio

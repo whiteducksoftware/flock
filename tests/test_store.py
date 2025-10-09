@@ -8,7 +8,13 @@ from pydantic import BaseModel
 
 from flock.artifacts import Artifact
 from flock.registry import flock_type, type_registry
-from flock.store import InMemoryBlackboardStore, SQLiteBlackboardStore
+from flock.store import (
+    ArtifactEnvelope,
+    ConsumptionRecord,
+    FilterConfig,
+    InMemoryBlackboardStore,
+    SQLiteBlackboardStore,
+)
 from flock.visibility import PublicVisibility
 
 
@@ -269,8 +275,10 @@ async def test_store_query_and_summary(store):
 
     # Filter by canonical type and tags
     filtered, total = await store.query_artifacts(
-        type_name="TypeA",
-        tags={"alpha"},
+        FilterConfig(
+            type_names={type_registry.name_for(TypeA)},
+            tags={"alpha"},
+        ),
         limit=10,
         offset=0,
     )
@@ -280,7 +288,7 @@ async def test_store_query_and_summary(store):
 
     # Pagination
     paged, total = await store.query_artifacts(
-        type_name="TypeA",
+        FilterConfig(type_names={type_registry.name_for(TypeA)}),
         limit=1,
         offset=1,
     )
@@ -290,7 +298,7 @@ async def test_store_query_and_summary(store):
 
     # Time range filter to limit to latest artifact
     recent_only, total = await store.query_artifacts(
-        start=base_time + timedelta(minutes=2),
+        FilterConfig(start=base_time + timedelta(minutes=2)),
         limit=10,
     )
     assert total == 1
@@ -301,3 +309,80 @@ async def test_store_query_and_summary(store):
     assert any(key.endswith("TypeA") and value == 2 for key, value in summary["by_type"].items())
     assert summary["by_producer"]["agent1"] == 2
     assert summary["earliest_created_at"].startswith("2025-01-01T12:00:00")
+
+
+@pytest.mark.asyncio
+async def test_query_artifacts_embed_meta_returns_consumptions(store):
+    now = datetime.now(timezone.utc)
+    artifact = Artifact(
+        type=type_registry.name_for(TypeA),
+        payload={"value": "embedded"},
+        produced_by="agent_source",
+        tags={"history"},
+        correlation_id=uuid4(),
+        created_at=now,
+    )
+    await store.publish(artifact)
+
+    await store.record_consumptions(
+        [
+            ConsumptionRecord(
+                artifact_id=artifact.id,
+                consumer="agent_consumer",
+                run_id="run-123",
+                correlation_id="corr-embedded",
+                consumed_at=now,
+            )
+        ]
+    )
+
+    results, total = await store.query_artifacts(
+        FilterConfig(type_names={artifact.type}),
+        limit=10,
+        offset=0,
+        embed_meta=True,
+    )
+
+    assert total == 1
+    assert len(results) == 1
+
+    envelope = results[0]
+    assert isinstance(envelope, ArtifactEnvelope)
+    assert len(envelope.consumptions) == 1
+    assert envelope.consumptions[0].consumer == "agent_consumer"
+    assert envelope.consumptions[0].correlation_id == "corr-embedded"
+
+
+@pytest.mark.asyncio
+async def test_agent_history_summary_counts(store):
+    now = datetime.now(timezone.utc)
+    artifact = Artifact(
+        type=type_registry.name_for(TypeA),
+        payload={"value": "summary"},
+        produced_by="agent_producer",
+        tags={"summary"},
+        correlation_id=uuid4(),
+        created_at=now,
+    )
+    await store.publish(artifact)
+
+    await store.record_consumptions(
+        [
+            ConsumptionRecord(
+                artifact_id=artifact.id,
+                consumer="agent_consumer",
+                run_id="run-456",
+                correlation_id="corr-summary",
+                consumed_at=now,
+            )
+        ]
+    )
+
+    producer_summary = await store.agent_history_summary("agent_producer", FilterConfig())
+    assert producer_summary["produced"]["total"] == 1
+    assert producer_summary["produced"]["by_type"][artifact.type] == 1
+    assert producer_summary["consumed"]["total"] == 0
+
+    consumer_summary = await store.agent_history_summary("agent_consumer", FilterConfig())
+    assert consumer_summary["consumed"]["total"] == 1
+    assert consumer_summary["consumed"]["by_type"][artifact.type] == 1

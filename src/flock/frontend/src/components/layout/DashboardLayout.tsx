@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import GraphCanvas from '../graph/GraphCanvas';
 import DetailWindowContainer from '../details/DetailWindowContainer';
-import FilterBar from '../filters/FilterBar';
+import FilterFlyout from '../filters/FilterFlyout';
+import FilterPills from '../filters/FilterPills';
 import PublishControl from '../controls/PublishControl';
 import ModuleWindow from '../modules/ModuleWindow';
 import SettingsPanel from '../settings/SettingsPanel';
@@ -261,8 +262,12 @@ const DashboardLayout: React.FC = () => {
         </div>
       </header>
 
-      {/* Filter Bar - Collapsible */}
-      {showFilters && <FilterBar />}
+      <div className="filter-pills-bar">
+        <FilterPills />
+      </div>
+
+      {/* Filter Flyout */}
+      {showFilters && <FilterFlyout onClose={() => setShowFilters(false)} />}
 
       {/* Main Content */}
       <div className="dashboard-main">

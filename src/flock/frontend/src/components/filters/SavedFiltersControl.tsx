@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { indexedDBService } from '../../services/indexeddb';
 import { useFilterStore } from '../../store/filterStore';
 import styles from './SavedFiltersControl.module.css';
@@ -15,12 +15,29 @@ const SavedFiltersControl: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  if (import.meta.env.DEV) {
+    console.debug('[SavedFilters] render', {
+      renderCount: renderCountRef.current,
+      savedCount: savedFilters.length,
+      loading,
+      selectedId
+    });
+  }
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
+        if (import.meta.env.DEV) {
+          console.debug('[SavedFilters] initializing IndexedDB');
+        }
         await indexedDBService.initialize();
         const presets = await indexedDBService.getAllFilterPresets();
+        if (import.meta.env.DEV) {
+          console.debug('[SavedFilters] loaded presets', { count: presets.length });
+        }
         if (!mounted) return;
         setSavedFilters(presets);
         if (presets.length > 0) {

@@ -29,6 +29,19 @@
   z-index: 100;
 }
 
+.filter-pills-bar {
+  position: relative;
+  padding: var(--spacing-1-5) var(--space-layout-md);
+  background: color-mix(in srgb, var(--color-bg-overlay) 65%, transparent);
+  border-bottom: var(--border-subtle);
+  backdrop-filter: blur(var(--blur-sm));
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  z-index: 90;
+}
+
 .dashboard-title {
   margin: 0;
   font-size: var(--font-size-h3);

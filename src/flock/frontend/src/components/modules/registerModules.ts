@@ -1,5 +1,4 @@
 import { moduleRegistry } from './ModuleRegistry';
-import EventLogModuleWrapper from './EventLogModuleWrapper';
 import TraceModuleJaegerWrapper from './TraceModuleJaegerWrapper';
 import HistoricalArtifactsModuleWrapper from './HistoricalArtifactsModuleWrapper';
 
@@ -8,15 +7,6 @@ import HistoricalArtifactsModuleWrapper from './HistoricalArtifactsModuleWrapper
  * This should be called during application initialization
  */
 export function registerModules(): void {
-  // Register EventLog module
-  moduleRegistry.register({
-    id: 'eventLog',
-    name: 'Event Log',
-    description: 'View and filter system events',
-    icon: '📋',
-    component: EventLogModuleWrapper,
-  });
-
   // Register Trace Viewer with Timeline, Statistics, RED Metrics, and Dependencies
   moduleRegistry.register({
     id: 'traceViewerJaeger',
