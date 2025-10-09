@@ -7,9 +7,10 @@ import asyncio
 import json
 from asyncio import Lock
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 from uuid import UUID
 
 import aiosqlite
@@ -19,9 +20,6 @@ from flock.artifacts import Artifact
 from flock.registry import type_registry
 from flock.visibility import ensure_visibility
 
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
 
 T = TypeVar("T")
 tracer = trace.get_tracer(__name__)
@@ -53,6 +51,34 @@ class BlackboardStore:
             bug_analyses = await store.get_by_type(BugAnalysis)
             # Returns list[BugAnalysis] directly, no .data access needed
         """
+        raise NotImplementedError
+
+    async def query_artifacts(
+        self,
+        *,
+        type_name: str | None = None,
+        produced_by: str | None = None,
+        correlation_id: str | None = None,
+        tags: set[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Artifact], int]:
+        """Search artifacts with filtering and pagination."""
+        raise NotImplementedError
+
+    async def summarize_artifacts(
+        self,
+        *,
+        type_name: str | None = None,
+        produced_by: str | None = None,
+        correlation_id: str | None = None,
+        tags: set[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Return aggregate artifact statistics for the given filters."""
         raise NotImplementedError
 
 
@@ -101,6 +127,110 @@ class InMemoryBlackboardStore(BlackboardStore):
     async def extend(self, artifacts: Iterable[Artifact]) -> None:  # pragma: no cover - helper
         for artifact in artifacts:
             await self.publish(artifact)
+
+    async def query_artifacts(
+        self,
+        *,
+        type_name: str | None = None,
+        produced_by: str | None = None,
+        correlation_id: str | None = None,
+        tags: set[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Artifact], int]:
+        async with self._lock:
+            artifacts = list(self._by_id.values())
+
+        canonical: str | None = None
+        if type_name is not None:
+            canonical = type_registry.resolve_name(type_name)
+
+        filtered = [
+            artifact
+            for artifact in artifacts
+            if (
+                (canonical is None or artifact.type == canonical)
+                and (produced_by is None or artifact.produced_by == produced_by)
+                and (
+                    correlation_id is None
+                    or (
+                        artifact.correlation_id is not None
+                        and str(artifact.correlation_id) == correlation_id
+                    )
+                )
+                and (tags is None or tags.issubset(artifact.tags))
+                and (start is None or artifact.created_at >= start)
+                and (end is None or artifact.created_at <= end)
+            )
+        ]
+
+        total = len(filtered)
+        offset = max(offset, 0)
+        if limit <= 0:
+            sliced: list[Artifact] = []
+        else:
+            sliced = filtered[offset : offset + limit]
+        return sliced, total
+
+    async def summarize_artifacts(
+        self,
+        *,
+        type_name: str | None = None,
+        produced_by: str | None = None,
+        correlation_id: str | None = None,
+        tags: set[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> dict[str, Any]:
+        artifacts, total = await self.query_artifacts(
+            type_name=type_name,
+            produced_by=produced_by,
+            correlation_id=correlation_id,
+            tags=tags,
+            start=start,
+            end=end,
+            limit=0,
+            offset=0,
+        )
+
+        if not artifacts and total > 0:
+            artifacts, _ = await self.query_artifacts(
+                type_name=type_name,
+                produced_by=produced_by,
+                correlation_id=correlation_id,
+                tags=tags,
+                start=start,
+                end=end,
+                limit=total,
+                offset=0,
+            )
+
+        by_type: dict[str, int] = {}
+        by_producer: dict[str, int] = {}
+        earliest = None
+        latest = None
+
+        for artifact in artifacts:
+            by_type[artifact.type] = by_type.get(artifact.type, 0) + 1
+            by_producer[artifact.produced_by] = by_producer.get(artifact.produced_by, 0) + 1
+            earliest = (
+                artifact.created_at
+                if earliest is None or artifact.created_at < earliest
+                else earliest
+            )
+            latest = (
+                artifact.created_at if latest is None or artifact.created_at > latest else latest
+            )
+
+        return {
+            "total": total,
+            "by_type": by_type,
+            "by_producer": by_producer,
+            "earliest_created_at": earliest.isoformat() if earliest else None,
+            "latest_created_at": latest.isoformat() if latest else None,
+        }
 
 
 __all__ = [
@@ -297,6 +427,140 @@ class SQLiteBlackboardStore(BlackboardStore):
                 results.append(artifact_type(**payload))  # type: ignore[arg-type]
             return results
 
+    async def query_artifacts(
+        self,
+        *,
+        type_name: str | None = None,
+        produced_by: str | None = None,
+        correlation_id: str | None = None,
+        tags: set[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Artifact], int]:
+        conn = await self._get_connection()
+        where_clause, params = self._build_filters(
+            type_name=type_name,
+            produced_by=produced_by,
+            correlation_id=correlation_id,
+            tags=tags,
+            start=start,
+            end=end,
+        )
+
+        cursor = await conn.execute(
+            f"SELECT COUNT(*) FROM artifacts{where_clause}",
+            params,
+        )
+        total_row = await cursor.fetchone()
+        await cursor.close()
+        total = total_row[0] if total_row else 0
+
+        if limit <= 0:
+            return [], total
+        offset = max(offset, 0)
+
+        cursor = await conn.execute(
+            f"""
+            SELECT
+                artifact_id,
+                type,
+                canonical_type,
+                produced_by,
+                payload,
+                version,
+                visibility,
+                tags,
+                correlation_id,
+                partition_key,
+                created_at
+            FROM artifacts
+            {where_clause}
+            ORDER BY created_at ASC, rowid ASC
+            LIMIT ? OFFSET ?
+            """,
+            (*params, limit, offset),
+        )
+        rows = await cursor.fetchall()
+        await cursor.close()
+        return [self._row_to_artifact(row) for row in rows], total
+
+    async def summarize_artifacts(
+        self,
+        *,
+        type_name: str | None = None,
+        produced_by: str | None = None,
+        correlation_id: str | None = None,
+        tags: set[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> dict[str, Any]:
+        conn = await self._get_connection()
+        where_clause, params = self._build_filters(
+            type_name=type_name,
+            produced_by=produced_by,
+            correlation_id=correlation_id,
+            tags=tags,
+            start=start,
+            end=end,
+        )
+
+        cursor = await conn.execute(
+            f"SELECT COUNT(*) as total FROM artifacts{where_clause}",
+            params,
+        )
+        total_row = await cursor.fetchone()
+        await cursor.close()
+        total = total_row["total"] if total_row else 0
+
+        cursor = await conn.execute(
+            f"""
+            SELECT canonical_type, COUNT(*) AS count
+            FROM artifacts
+            {where_clause}
+            GROUP BY canonical_type
+            """,
+            params,
+        )
+        by_type_rows = await cursor.fetchall()
+        await cursor.close()
+        by_type = {row["canonical_type"]: row["count"] for row in by_type_rows}
+
+        cursor = await conn.execute(
+            f"""
+            SELECT produced_by, COUNT(*) AS count
+            FROM artifacts
+            {where_clause}
+            GROUP BY produced_by
+            """,
+            params,
+        )
+        by_producer_rows = await cursor.fetchall()
+        await cursor.close()
+        by_producer = {row["produced_by"]: row["count"] for row in by_producer_rows}
+
+        cursor = await conn.execute(
+            f"""
+            SELECT MIN(created_at) AS earliest, MAX(created_at) AS latest
+            FROM artifacts
+            {where_clause}
+            """,
+            params,
+        )
+        range_row = await cursor.fetchone()
+        await cursor.close()
+        earliest = range_row["earliest"] if range_row and range_row["earliest"] else None
+        latest = range_row["latest"] if range_row and range_row["latest"] else None
+
+        return {
+            "total": total,
+            "by_type": by_type,
+            "by_producer": by_producer,
+            "earliest_created_at": earliest,
+            "latest_created_at": latest,
+        }
+
     async def ensure_schema(self) -> None:
         conn = await self._ensure_connection()
         await self._apply_schema(conn)
@@ -412,10 +676,56 @@ class SQLiteBlackboardStore(BlackboardStore):
             await conn.commit()
             self._schema_ready = True
 
+    def _build_filters(
+        self,
+        *,
+        type_name: str | None,
+        produced_by: str | None,
+        correlation_id: str | None,
+        tags: set[str] | None,
+        start: datetime | None,
+        end: datetime | None,
+    ) -> tuple[str, tuple[Any, ...]]:
+        conditions: list[str] = []
+        params: list[Any] = []
+
+        if type_name is not None:
+            canonical = type_registry.resolve_name(type_name)
+            conditions.append("canonical_type = ?")
+            params.append(canonical)
+
+        if produced_by is not None:
+            conditions.append("produced_by = ?")
+            params.append(produced_by)
+
+        if correlation_id is not None:
+            conditions.append("correlation_id = ?")
+            params.append(correlation_id)
+
+        if start is not None:
+            conditions.append("created_at >= ?")
+            params.append(start.isoformat())
+
+        if end is not None:
+            conditions.append("created_at <= ?")
+            params.append(end.isoformat())
+
+        if tags:
+            for tag in tags:
+                conditions.append(
+                    "EXISTS (SELECT 1 FROM json_each(artifacts.tags) WHERE json_each.value = ?)"
+                )
+                params.append(tag)
+
+        where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+        return where_clause, tuple(params)
+
     def _row_to_artifact(self, row: Any) -> Artifact:
         payload = json.loads(row["payload"])
         visibility_data = json.loads(row["visibility"])
         tags = json.loads(row["tags"])
+        correlation_raw = row["correlation_id"]
+        correlation = UUID(correlation_raw) if correlation_raw else None
         return Artifact(
             id=UUID(row["artifact_id"]),
             type=row["type"],
@@ -423,7 +733,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             produced_by=row["produced_by"],
             visibility=ensure_visibility(visibility_data),
             tags=set(tags),
-            correlation_id=row["correlation_id"],
+            correlation_id=correlation,
             partition_key=row["partition_key"],
             created_at=datetime.fromisoformat(row["created_at"]),
             version=row["version"],

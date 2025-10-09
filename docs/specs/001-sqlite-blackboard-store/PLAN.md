@@ -80,23 +80,23 @@ If implementation cannot follow specification exactly:
         - [x] Execute concurrency stress test (async gather publish) against SQLite backend `[activity: run-tests]`
         - [x] Review schema artefacts for adherence to domain rules and document retention defaults `[activity: review-docs]`
 
-- [ ] **Phase 2**: Orchestrator & service integration
+- [x] **Phase 2**: Orchestrator & service integration
 
-    - [ ] **Prime Context**: `docs/internal/sqlite-blackboard-store/interfaces.md`, orchestrator/service modules (`src/flock/orchestrator.py`, `src/flock/service.py`)
-        - [ ] Map new store into orchestrator lifecycle & dependency injection `[ref: docs/internal/sqlite-blackboard-store/interfaces.md]`
-        - [ ] Review API expansion requirements for artifact history `[ref: docs/internal/sqlite-blackboard-store/interfaces.md]`
-    - [ ] **Write Tests**: Define acceptance tests for new endpoints & configuration `[activity: design-tests]`
-        - [ ] Add API contract tests for paginated artifact listing (`/api/v1/artifacts`) and summaries `[activity: add-tests]`
-        - [ ] Create integration test ensuring `Flock(store=SQLiteBlackboardStore(...))` publishes/reads successfully `[activity: add-tests]`
-    - [ ] **Implement**: Wiring the store into runtime `[activity: implement-backend]`
-        - [ ] Allow `Flock` to accept SQLite store via configuration/CLI, update CLI helpers and documentation `[activity: implement-backend]`
-        - [ ] Extend FastAPI service with historical artifact endpoints (pagination, filtering, summaries) `[activity: implement-backend]`
-    - [ ] **Implement**: Migration & configuration tooling `[activity: implement-backend]`
-        - [ ] Provide CLI commands or scripts to initialise database, run migrations, and configure retention `[activity: implement-backend]`
-    - [ ] **Validate**: Cross-check orchestration guarantees
-        - [ ] Run FastAPI endpoint tests and contract suites `[activity: run-tests]`
-        - [ ] Smoke test CLI/orchestrator flows using SQLite backend (publish/list) `[activity: run-tests]`
-        - [ ] Verify metrics/tracing capture database operations as required `[activity: review-logs]`
+    - [x] **Prime Context**: `docs/internal/sqlite-blackboard-store/interfaces.md`, orchestrator/service modules (`src/flock/orchestrator.py`, `src/flock/service.py`)
+        - [x] Map new store into orchestrator lifecycle & dependency injection `[ref: docs/internal/sqlite-blackboard-store/interfaces.md]`
+        - [x] Review API expansion requirements for artifact history `[ref: docs/internal/sqlite-blackboard-store/interfaces.md]`
+    - [x] **Write Tests**: Define acceptance tests for new endpoints & configuration `[activity: design-tests]`
+        - [x] Add API contract tests for paginated artifact listing (`/api/v1/artifacts`) and summaries `[activity: add-tests]`
+        - [x] Create integration test ensuring `Flock(store=SQLiteBlackboardStore(...))` publishes/reads successfully `[activity: add-tests]`
+    - [x] **Implement**: Wiring the store into runtime `[activity: implement-backend]`
+        - [x] Allow `Flock` to accept SQLite store via configuration/CLI, update CLI helpers and documentation `[activity: implement-backend]`
+        - [x] Extend FastAPI service with historical artifact endpoints (pagination, filtering, summaries) `[activity: implement-backend]`
+    - [x] **Implement**: Migration & configuration tooling `[activity: implement-backend]`
+        - [x] Provide CLI commands or scripts to initialise database, run migrations, and configure retention `[activity: implement-backend]`
+    - [x] **Validate**: Cross-check orchestration guarantees
+        - [x] Run FastAPI endpoint tests and contract suites `[activity: run-tests]`
+        - [x] Smoke test CLI/orchestrator flows using SQLite backend (publish/list) `[activity: run-tests]`
+        - [x] Verify metrics/tracing capture database operations as required `[activity: review-logs]`
 
 - [ ] **Phase 3**: Dashboard & UX enhancements for historical data
 

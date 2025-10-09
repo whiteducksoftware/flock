@@ -29,6 +29,16 @@ def mock_orchestrator():
     orchestrator.store = Mock()
     orchestrator.store.list = AsyncMock(return_value=[])
     orchestrator.store.publish = AsyncMock()
+    orchestrator.store.query_artifacts = AsyncMock(return_value=([], 0))
+    orchestrator.store.summarize_artifacts = AsyncMock(
+        return_value={
+            "total": 0,
+            "by_type": {},
+            "by_producer": {},
+            "earliest_created_at": None,
+            "latest_created_at": None,
+        }
+    )
     orchestrator.agents = []
     orchestrator.metrics = {"agent_runs": 5, "artifacts_published": 10}
     orchestrator.direct_invoke = AsyncMock(return_value=[])
@@ -205,6 +215,64 @@ async def test_create_artifact_invalid_type(service, mock_orchestrator):
 
     # Should handle gracefully
     assert response.status_code in [400, 422, 500]
+
+
+@pytest.mark.asyncio
+async def test_list_artifacts_endpoint(service, mock_orchestrator):
+    """Verify paginated list delegates to store query."""
+    artifact = Artifact(type="TypeA", payload={"value": 1}, produced_by="agent1")
+    mock_orchestrator.store.query_artifacts.return_value = ([artifact], 5)
+
+    transport = ASGITransport(app=service.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/api/v1/artifacts",
+            params={
+                "type": "TypeA",
+                "produced_by": "agent1",
+                "correlation_id": "abc",
+                "tag": ["alpha", "beta"],
+                "from": "2025-01-01T00:00:00+00:00",
+                "to": "2025-12-31T23:59:59+00:00",
+                "limit": 10,
+                "offset": 2,
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["pagination"]["total"] == 5
+    assert len(payload["items"]) == 1
+    mock_orchestrator.store.query_artifacts.assert_awaited_once()
+    kwargs = mock_orchestrator.store.query_artifacts.await_args.kwargs
+    assert kwargs["type_name"] == "TypeA"
+    assert kwargs["produced_by"] == "agent1"
+    assert kwargs["correlation_id"] == "abc"
+    assert kwargs["tags"] == {"alpha", "beta"}
+    assert kwargs["limit"] == 10
+    assert kwargs["offset"] == 2
+
+
+@pytest.mark.asyncio
+async def test_artifact_summary_endpoint(service, mock_orchestrator):
+    """Verify summary endpoint returns aggregates."""
+    mock_orchestrator.store.summarize_artifacts.return_value = {
+        "total": 3,
+        "by_type": {"TypeA": 2, "TypeB": 1},
+        "by_producer": {"agent1": 3},
+        "earliest_created_at": "2025-01-01T00:00:00+00:00",
+        "latest_created_at": "2025-01-02T00:00:00+00:00",
+    }
+
+    transport = ASGITransport(app=service.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/artifacts/summary", params={"type": "TypeA"})
+
+    assert response.status_code == 200
+    summary = response.json()["summary"]
+    assert summary["total"] == 3
+    assert "TypeA" in summary["by_type"]
+    mock_orchestrator.store.summarize_artifacts.assert_awaited_once()
 
 
 @pytest.mark.asyncio

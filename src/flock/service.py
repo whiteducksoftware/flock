@@ -3,10 +3,11 @@ from __future__ import annotations
 
 """HTTP control plane for the blackboard orchestrator."""
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
 from flock.registry import type_registry
@@ -26,6 +27,28 @@ class BlackboardHTTPService:
         app = self.app
         orchestrator = self.orchestrator
 
+        def _serialize_artifact(artifact) -> dict[str, Any]:
+            return {
+                "id": str(artifact.id),
+                "type": artifact.type,
+                "payload": artifact.payload,
+                "produced_by": artifact.produced_by,
+                "visibility": artifact.visibility.model_dump(mode="json"),
+                "created_at": artifact.created_at.isoformat(),
+                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
+                "partition_key": artifact.partition_key,
+                "tags": sorted(artifact.tags),
+                "version": artifact.version,
+            }
+
+        def _parse_datetime(value: str | None, label: str) -> datetime | None:
+            if value is None:
+                return None
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError as exc:  # pragma: no cover - FastAPI converts
+                raise HTTPException(status_code=400, detail=f"Invalid {label}: {value}") from exc
+
         @app.post("/api/v1/artifacts")
         async def publish_artifact(body: dict[str, Any]) -> dict[str, str]:
             type_name = body.get("type")
@@ -38,19 +61,63 @@ class BlackboardHTTPService:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             return {"status": "accepted"}
 
+        @app.get("/api/v1/artifacts")
+        async def list_artifacts(
+            type_name: str | None = Query(None, alias="type"),
+            produced_by: str | None = None,
+            correlation_id: str | None = None,
+            tag: list[str] | None = Query(None),
+            start: str | None = Query(None, alias="from"),
+            end: str | None = Query(None, alias="to"),
+            limit: int = Query(50, ge=1, le=500),
+            offset: int = Query(0, ge=0),
+        ) -> dict[str, Any]:
+            tags = set(tag) if tag else None
+            start_dt = _parse_datetime(start, "from")
+            end_dt = _parse_datetime(end, "to")
+            artifacts, total = await orchestrator.store.query_artifacts(
+                type_name=type_name,
+                produced_by=produced_by,
+                correlation_id=correlation_id,
+                tags=tags,
+                start=start_dt,
+                end=end_dt,
+                limit=limit,
+                offset=offset,
+            )
+            return {
+                "items": [_serialize_artifact(artifact) for artifact in artifacts],
+                "pagination": {"limit": limit, "offset": offset, "total": total},
+            }
+
+        @app.get("/api/v1/artifacts/summary")
+        async def summarize_artifacts(
+            type_name: str | None = Query(None, alias="type"),
+            produced_by: str | None = None,
+            correlation_id: str | None = None,
+            tag: list[str] | None = Query(None),
+            start: str | None = Query(None, alias="from"),
+            end: str | None = Query(None, alias="to"),
+        ) -> dict[str, Any]:
+            tags = set(tag) if tag else None
+            start_dt = _parse_datetime(start, "from")
+            end_dt = _parse_datetime(end, "to")
+            summary = await orchestrator.store.summarize_artifacts(
+                type_name=type_name,
+                produced_by=produced_by,
+                correlation_id=correlation_id,
+                tags=tags,
+                start=start_dt,
+                end=end_dt,
+            )
+            return {"summary": summary}
+
         @app.get("/api/v1/artifacts/{artifact_id}")
         async def get_artifact(artifact_id: UUID) -> dict[str, Any]:
             artifact = await orchestrator.store.get(artifact_id)
             if artifact is None:
                 raise HTTPException(status_code=404, detail="artifact not found")
-            return {
-                "id": str(artifact.id),
-                "type": artifact.type,
-                "payload": artifact.payload,
-                "produced_by": artifact.produced_by,
-                "visibility": artifact.visibility.model_dump(mode="json"),
-                "created_at": artifact.created_at.isoformat(),
-            }
+            return _serialize_artifact(artifact)
 
         @app.post("/api/v1/agents/{name}/run")
         async def run_agent(name: str, body: dict[str, Any]) -> dict[str, Any]:

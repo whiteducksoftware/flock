@@ -1,12 +1,13 @@
 """Tests for Store functionality."""
 
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel
 
 from flock.artifacts import Artifact
-from flock.registry import flock_type
+from flock.registry import flock_type, type_registry
 from flock.store import InMemoryBlackboardStore, SQLiteBlackboardStore
 from flock.visibility import PublicVisibility
 
@@ -226,3 +227,77 @@ async def test_sqlite_store_schema_idempotent(tmp_path):
     await store.ensure_schema()
     await store.ensure_schema()  # run twice for idempotency
     await store.close()
+
+
+@pytest.mark.asyncio
+async def test_store_query_and_summary(store):
+    """Verify filtering, pagination, and summaries across backends."""
+    base_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    artifacts = [
+        Artifact(
+            id=uuid4(),
+            type=type_registry.name_for(TypeA),
+            payload={"data": "alpha-1"},
+            produced_by="agent1",
+            tags={"alpha", "beta"},
+            correlation_id=uuid4(),
+            created_at=base_time,
+        ),
+        Artifact(
+            id=uuid4(),
+            type=type_registry.name_for(TypeA),
+            payload={"data": "alpha-2"},
+            produced_by="agent1",
+            tags={"alpha"},
+            correlation_id=uuid4(),
+            created_at=base_time + timedelta(minutes=1),
+        ),
+        Artifact(
+            id=uuid4(),
+            type=type_registry.name_for(TypeB),
+            payload={"data": "beta"},
+            produced_by="agent2",
+            tags={"beta"},
+            correlation_id=uuid4(),
+            created_at=base_time + timedelta(minutes=2),
+        ),
+    ]
+
+    for artifact in artifacts:
+        await store.publish(artifact)
+
+    # Filter by canonical type and tags
+    filtered, total = await store.query_artifacts(
+        type_name="TypeA",
+        tags={"alpha"},
+        limit=10,
+        offset=0,
+    )
+    assert total == 2
+    assert len(filtered) == 2
+    assert all(item.type == type_registry.name_for(TypeA) for item in filtered)
+
+    # Pagination
+    paged, total = await store.query_artifacts(
+        type_name="TypeA",
+        limit=1,
+        offset=1,
+    )
+    assert total == 2
+    assert len(paged) == 1
+    assert paged[0].payload["data"] == "alpha-2"
+
+    # Time range filter to limit to latest artifact
+    recent_only, total = await store.query_artifacts(
+        start=base_time + timedelta(minutes=2),
+        limit=10,
+    )
+    assert total == 1
+    assert recent_only[0].type == type_registry.name_for(TypeB)
+
+    summary = await store.summarize_artifacts()
+    assert summary["total"] == 3
+    assert any(key.endswith("TypeA") and value == 2 for key, value in summary["by_type"].items())
+    assert summary["by_producer"]["agent1"] == 2
+    assert summary["earliest_created_at"].startswith("2025-01-01T12:00:00")
