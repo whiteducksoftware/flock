@@ -77,7 +77,6 @@ flock.add_mcp(
     enable_tools_feature=True,
     # Prevent all agents that are using this server from modifying files.
     # By allowing only the tools that allow an agent to read files but not writing them.
-    allow_all_tools=False,
     tool_whitelist=[
         "list_directory",
         "list_directory_with_sizes",

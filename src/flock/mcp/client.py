@@ -378,7 +378,7 @@ class FlockMCPClient(BaseModel, ABC):
                 # IF a whitelist is present
                 if (
                     tool_whitelist is not None
-                    and isinstance(list, tool_whitelist)
+                    and isinstance(tool_whitelist, list)
                     and len(tool_whitelist) > 0 
                     and tool.name not in tool_whitelist
                 ):

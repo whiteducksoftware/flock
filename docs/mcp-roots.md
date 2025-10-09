@@ -132,42 +132,63 @@ flock.add_mcp(name="github", connection_params=..., enable_roots_feature=True)
 
 ## API Reference
 
+### MCPServerConfig (TypedDict)
+
+```python
+class MCPServerConfig(TypedDict, total=False):
+    """Configuration for MCP server assignment to an agent.
+
+    All fields are optional. If omitted, no restrictions apply.
+
+    Attributes:
+        roots: Filesystem paths this server can access.
+               Empty list or omitted = no mount restrictions.
+        tool_whitelist: Tool names the agent can use from this server.
+                       Empty list or omitted = all tools available.
+    """
+    roots: list[str]
+    tool_whitelist: list[str]
+```
+
 ### AgentBuilder.with_mcps()
 
 ```python
 def with_mcps(
     self,
-    servers: Iterable[str] | dict[str, list[str]] | list[str | dict[str, list[str]]]
+    servers: Iterable[str] | dict[str, MCPServerConfig] | list[str | dict[str, MCPServerConfig]]
 ) -> AgentBuilder:
     """Assign MCP servers to agent with optional server-specific mount points.
-    
+
     Args:
         servers: One of:
             - List of server names (strings) - no specific mounts
-            - Dict mapping server names to mount points
+            - Dict mapping server names to MCPServerConfig - with restrictions
             - Mixed list of strings and dicts for flexibility
-        
+
     Returns:
         AgentBuilder for method chaining
-        
+
     Raises:
         ValueError: If any server name is not registered
         TypeError: If invalid server specification format
-        
+
     Examples:
         # Simple: no mount restrictions
         agent.with_mcps(["filesystem", "github"])
-        
-        # Server-specific mounts
+
+        # Server-specific mounts and tool whitelist
         agent.with_mcps({
-            "filesystem": ["/workspace/src", "/data"],
-            "github": []  # No mounts for github
+            "filesystem": {
+                "roots": ["/workspace/src", "/data"],
+                "tool_whitelist": ["read_file", "write_file"]
+            },
+            "github": {}  # No restrictions for github
         })
-        
+
         # Mixed format
         agent.with_mcps([
             "github",  # No mounts
-            {"filesystem": ["/workspace/src"]}  # With mounts
+            {"filesystem": {"roots": ["/workspace/src"]}}  # With mounts
         ])
     """
 ```

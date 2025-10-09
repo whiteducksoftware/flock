@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from pydantic import BaseModel
 
@@ -24,6 +24,37 @@ if TYPE_CHECKING:  # pragma: no cover - type hints only
 
     from flock.components import AgentComponent, EngineComponent
     from flock.orchestrator import Flock
+
+
+class MCPServerConfig(TypedDict, total=False):
+    """Configuration for MCP server assignment to an agent.
+
+    All fields are optional. If omitted, no restrictions apply.
+
+    Attributes:
+        roots: Filesystem paths this server can access.
+               Empty list or omitted = no mount restrictions.
+        tool_whitelist: Tool names the agent can use from this server.
+                       Empty list or omitted = all tools available.
+
+    Examples:
+        >>> # No restrictions
+        >>> config: MCPServerConfig = {}
+
+        >>> # Mount restrictions only
+        >>> config: MCPServerConfig = {"roots": ["/workspace/data"]}
+
+        >>> # Tool whitelist only
+        >>> config: MCPServerConfig = {"tool_whitelist": ["read_file", "write_file"]}
+
+        >>> # Both restrictions
+        >>> config: MCPServerConfig = {
+        ...     "roots": ["/workspace/data"],
+        ...     "tool_whitelist": ["read_file"]
+        ... }
+    """
+    roots: list[str]
+    tool_whitelist: list[str]
 
 
 @dataclass
@@ -75,6 +106,7 @@ class Agent:
         self.mcp_server_names: set[str] = set()
         self.mcp_mount_points: list[str] = []  # Deprecated: Use mcp_server_mounts instead
         self.mcp_server_mounts: dict[str, list[str]] = {}  # Server-specific mount points
+        self.tool_whitelist: list[str] | None = None
 
     @property
     def identity(self) -> AgentIdentity:
@@ -142,6 +174,22 @@ class Agent:
                 server_names=self.mcp_server_names,
                 server_mounts=self.mcp_server_mounts,  # Pass server-specific mounts
             )
+
+            # Whitelisting logic
+            tool_whitelist = self.tool_whitelist
+            if (
+                tool_whitelist is not None
+                and isinstance(list, tool_whitelist)
+                and len(tool_whitelist) > 0
+            ):
+                for tool_key, tool_entry in tools_dict.items():
+                    if isinstance(tool_entry, dict):
+                        original_name = tool_entry.get("original_name", None)
+                        if (
+                            original_name is not None
+                            and original_name in tool_whitelist
+                        ):
+                            tools_dict.pop(tool_key)
 
             # Convert to DSPy tool callables
             dspy_tools = []
@@ -448,7 +496,11 @@ class AgentBuilder:
 
     def with_mcps(
         self,
-        servers: Iterable[str] | dict[str, dict[str, list[str]]] | list[str | dict[str, dict[str, list[str]]]]
+        servers: (
+            Iterable[str]
+            | dict[str, MCPServerConfig | list[str]]  # Support both new and old format
+            | list[str | dict[str, MCPServerConfig | list[str]]]
+        ),
     ) -> AgentBuilder:
         """Assign MCP servers to this agent with optional server-specific mount points.
 
@@ -458,7 +510,7 @@ class AgentBuilder:
         Args:
             servers: One of:
                 - List of server names (strings) - no specific mounts
-                - Dict mapping server names to mount points
+                - Dict mapping server names to MCPServerConfig or list[str] (backward compatible)
                 - Mixed list of strings and dicts for flexibility
 
         Returns:
@@ -471,29 +523,58 @@ class AgentBuilder:
             >>> # Simple: no mount restrictions
             >>> agent.with_mcps(["filesystem", "github"])
 
-            >>> # Server-specific mounts
+            >>> # New format: Server-specific config with roots and tool whitelist
             >>> agent.with_mcps({
-            ...     "filesystem": {"roots": ["/workspace/dir/data"]},
-            ...     "github": {}  # No mounts for github
+            ...     "filesystem": {"roots": ["/workspace/dir/data"], "tool_whitelist": ["read_file"]},
+            ...     "github": {}  # No restrictions for github
+            ... })
+
+            >>> # Old format: Direct list (backward compatible)
+            >>> agent.with_mcps({
+            ...     "filesystem": ["/workspace/dir/data"],  # Old format still works
             ... })
 
             >>> # Mixed: backward compatible
             >>> agent.with_mcps([
             ...     "github",  # No mounts
-            ...     {"filesystem": {"roots": ["mount1", "mount2"] } }  # With mounts
+            ...     {"filesystem": {"roots": ["mount1", "mount2"] } }
+```
             ... ])
         """
         # Parse input into server_names and mounts
         server_set: set[str] = set()
         server_mounts: dict[str, list[str]] = {}
+        whitelist = None
 
         if isinstance(servers, dict):
-            # Dict format: {"server": {"mounts": ["mount1", "mount2"]}
+            # Dict format: supports both old and new formats
+            # Old: {"server": ["/path1", "/path2"]}
+            # New: {"server": {"roots": ["/path1"], "tool_whitelist": ["tool1"]}}
             for server_name, server_config in servers.items():
                 server_set.add(server_name)
-                mounts = server_config.get("roots", None)
-                if mounts:
-                    server_mounts[server_name] = list(mounts)
+
+                # Check if it's the old format (direct list) or new format (MCPServerConfig dict)
+                if isinstance(server_config, list):
+                    # Old format: direct list of paths (backward compatibility)
+                    if len(server_config) > 0:
+                        server_mounts[server_name] = list(server_config)
+                elif isinstance(server_config, dict):
+                    # New format: MCPServerConfig with optional roots and tool_whitelist
+                    mounts = server_config.get("roots", None)
+                    if (
+                        mounts is not None
+                        and isinstance(mounts, list)
+                        and len(mounts) > 0
+                    ):
+                        server_mounts[server_name] = list(mounts)
+
+                    config_whitelist = server_config.get("tool_whitelist", None)
+                    if (
+                        config_whitelist is not None
+                        and isinstance(config_whitelist, list)
+                        and len(config_whitelist) > 0
+                    ):
+                        whitelist = config_whitelist
         elif isinstance(servers, list):
             # List format: can be mixed
             for item in servers:
@@ -530,6 +611,7 @@ class AgentBuilder:
         # Store in agent
         self._agent.mcp_server_names = server_set
         self._agent.mcp_server_mounts = server_mounts
+        self._agent.tool_whitelist = whitelist
 
         return self
 
