@@ -23,7 +23,12 @@ This trilogy of examples teaches you the core superpower of Flock:
 - MCP (Model Context Protocol) integration
 - Custom Python tools with `@flock_tool`
 - Agents that interact with the real world
-- Zero prompt engineering, maximum capability
+- Zero prompt engineering, maximum 
+
+**📂 Example 04: FileAnalyst** (5 min)
+- MCP (Model Context Protocol) Roots integration
+- How to give Agents access to directories and filesystems
+- How to filter tools to enhance security
 
 **Total time: ~30 minutes** | **Difficulty: ⭐ Beginner-friendly**
 

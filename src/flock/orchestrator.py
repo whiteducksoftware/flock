@@ -7,7 +7,7 @@ import os
 from asyncio import Task
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 from uuid import uuid4
 
 from opentelemetry import trace

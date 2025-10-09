@@ -98,7 +98,7 @@ class Agent(metaclass=AutoTracedMeta):
         self.engines: list[EngineComponent] = []
         self.best_of_n: int = 1
         self.best_of_score: Callable[[EvalResult], float] | None = None
-        self.max_concurrency: int = 1
+        self.max_concurrency: int = 2
         self._semaphore = asyncio.Semaphore(self.max_concurrency)
         self.calls_func: Callable[..., Any] | None = None
         self.tools: set[Callable[..., Any]] = set()
@@ -183,9 +183,10 @@ class Agent(metaclass=AutoTracedMeta):
             tool_whitelist = self.tool_whitelist
             if (
                 tool_whitelist is not None
-                and isinstance(list, tool_whitelist)
+                and isinstance(tool_whitelist, list)
                 and len(tool_whitelist) > 0
             ):
+                filtered_tools: dict[str, Any] = {}
                 for tool_key, tool_entry in tools_dict.items():
                     if isinstance(tool_entry, dict):
                         original_name = tool_entry.get("original_name", None)
@@ -193,7 +194,9 @@ class Agent(metaclass=AutoTracedMeta):
                             original_name is not None
                             and original_name in tool_whitelist
                         ):
-                            tools_dict.pop(tool_key)
+                            filtered_tools[tool_key] = tool_entry
+
+                tools_dict = filtered_tools
 
             # Convert to DSPy tool callables
             dspy_tools = []
