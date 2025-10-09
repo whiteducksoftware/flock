@@ -68,7 +68,9 @@ class FlockMCPClientManager:
         self._pool: dict[tuple[str, str], dict[str, FlockMCPClient]] = {}
         self._lock = asyncio.Lock()
 
-    async def get_client(self, server_name: str, agent_id: str, run_id: str) -> FlockMCPClient:
+    async def get_client(
+        self, server_name: str, agent_id: str, run_id: str, mount_points: list[str] | None = None
+    ) -> FlockMCPClient:
         """Get or create an MCP client for the given context.
 
         Architecture Decision: AD005 - Lazy Connection Establishment
@@ -105,6 +107,24 @@ class FlockMCPClientManager:
                     f"(agent={agent_id}, run={run_id})"
                 )
                 config = self._configs[server_name]
+                # MCP-ROOTS: Override mount points if provided
+                if mount_points:
+                    from flock.mcp.types import MCPRoot
+
+                    # Create MCPRoot objects from paths
+                    roots = [
+                        MCPRoot(uri=f"file://{path}", name=path.split("/")[-1])
+                        for path in mount_points
+                    ]
+                    logger.info(
+                        f"Setting {len(roots)} mount point(s) for server '{server_name}' "
+                        f"(agent={agent_id}, run={run_id}): {[r.uri for r in roots]}"
+                    )
+                    # Clone config with new mount points
+                    from copy import deepcopy
+
+                    config = deepcopy(config)
+                    config.connection_config.mount_points = roots
 
                 # Instantiate the correct concrete client class based on transport type
                 # Lazy import to avoid requiring all dependencies
@@ -145,7 +165,11 @@ class FlockMCPClientManager:
             return self._pool[key][server_name]
 
     async def get_tools_for_agent(
-        self, agent_id: str, run_id: str, server_names: set[str]
+        self,
+        agent_id: str,
+        run_id: str,
+        server_names: set[str],
+        server_mounts: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         """Get all tools from specified servers for an agent.
 
@@ -156,6 +180,7 @@ class FlockMCPClientManager:
             agent_id: Agent requesting tools
             run_id: Current run identifier
             server_names: Set of MCP server names to fetch tools from
+            server_mounts: Optional dict mapping server names to mount points
 
         Returns:
             Dictionary mapping namespaced tool names to tool definitions
@@ -166,10 +191,16 @@ class FlockMCPClientManager:
             other servers rather than failing the entire operation.
         """
         tools = {}
+        server_mounts = server_mounts or {}
 
         for server_name in server_names:
             try:
-                client = await self.get_client(server_name, agent_id, run_id)
+                # Get mount points specific to this server
+                mount_points = server_mounts.get(server_name)
+
+                client = await self.get_client(
+                    server_name, agent_id, run_id, mount_points=mount_points
+                )
                 server_tools = await client.get_tools(agent_id, run_id)
 
                 # Apply namespacing: AD003

@@ -252,7 +252,7 @@ class TestFlockMCPClientManager:
         assert tools["test_server__test_tool"]["client"] == mock_client
 
         # Verify get_client was called
-        manager.get_client.assert_called_once_with("test_server", "agent_1", "run_1")
+        manager.get_client.assert_called_once_with("test_server", "agent_1", "run_1", mount_points=None)
 
     @pytest.mark.asyncio
     async def test_get_tools_for_agent_graceful_degradation(self, manager, mocker):
@@ -294,7 +294,7 @@ class TestFlockMCPClientManager:
         mock_client2.get_tools.return_value = [mock_tool2]
 
         # Mock get_client to return different clients
-        def mock_get_client(server_name, agent_id, run_id):
+        def mock_get_client(server_name, agent_id, run_id, mount_points=None):
             if server_name == "test_server":
                 return mock_client1
             return mock_client2
@@ -332,7 +332,7 @@ class TestFlockMCPClientManager:
         mock_client1.get_tools.return_value = [mock_tool1]
 
         # Mock get_client - first succeeds, second fails
-        def mock_get_client(server_name, agent_id, run_id):
+        def mock_get_client(server_name, agent_id, run_id, mount_points=None):
             if server_name == "test_server":
                 return mock_client1
             raise Exception("Connection failed")

@@ -7,7 +7,7 @@ import os
 from asyncio import Task
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 from uuid import uuid4
 
 from opentelemetry import trace
@@ -193,8 +193,8 @@ class Flock(metaclass=AutoTracedMeta):
         enable_prompts_feature: bool = True,
         enable_sampling_feature: bool = True,
         enable_roots_feature: bool = True,
+        mount_points: list[str] | None = None,
         tool_whitelist: list[str] | None = None,
-        allow_all_tools: bool = True,
         read_timeout_seconds: float = 300,
         max_retries: int = 3,
         **kwargs,
@@ -212,7 +212,6 @@ class Flock(metaclass=AutoTracedMeta):
             enable_sampling_feature: Enable LLM sampling requests
             enable_roots_feature: Enable filesystem roots
             tool_whitelist: Optional list of tool names to allow
-            allow_all_tools: If True, allow all tools (subject to whitelist)
             read_timeout_seconds: Timeout for server communications
             max_retries: Connection retry attempts
 
@@ -244,12 +243,43 @@ class Flock(metaclass=AutoTracedMeta):
         else:
             transport_type = "custom"
 
+        mcp_roots = None
+        if mount_points:
+            from pathlib import Path as PathLib
+
+            from flock.mcp.types import MCPRoot
+
+            mcp_roots = []
+            for path in mount_points:
+                # Normalize the path
+                if path.startswith("file://"):
+                    # Already a file URI
+                    uri = path
+                    # Extract path from URI for name
+                    path_str = path.replace("file://", "")
+                # the test:// path-prefix is used by testing servers such as the mcp-everything server.
+                elif path.startswith("test://"):
+                    # Already a test URI
+                    uri = path
+                    # Extract path from URI for name
+                    path_str = path.replace("test://", "")
+                else:
+                    # Convert to absolute path and create URI
+                    abs_path = PathLib(path).resolve()
+                    uri = f"file://{abs_path}"
+                    path_str = str(abs_path)
+
+                # Extract a meaningful name (last component of path)
+                name = PathLib(path_str).name or path_str.rstrip("/").split("/")[-1] or "root"
+                mcp_roots.append(MCPRoot(uri=uri, name=name))
+
         # Build configuration
         connection_config = FlockMCPConnectionConfiguration(
             max_retries=max_retries,
             connection_parameters=connection_params,
             transport_type=transport_type,
             read_timeout_seconds=read_timeout_seconds,
+            mount_points=mcp_roots,
         )
 
         feature_config = FlockMCPFeatureConfiguration(
@@ -262,7 +292,6 @@ class Flock(metaclass=AutoTracedMeta):
 
         mcp_config = FlockMCPConfiguration(
             name=name,
-            allow_all_tools=allow_all_tools,
             connection_config=connection_config,
             feature_config=feature_config,
         )
