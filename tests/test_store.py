@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from flock.artifacts import Artifact
 from flock.registry import flock_type
-from flock.store import InMemoryBlackboardStore
+from flock.store import InMemoryBlackboardStore, SQLiteBlackboardStore
 from flock.visibility import PublicVisibility
 
 
@@ -21,10 +21,19 @@ class TypeB(BaseModel):
     data: str
 
 
-@pytest.fixture
-def store():
-    """Create an InMemoryBlackboardStore instance."""
-    return InMemoryBlackboardStore()
+@pytest.fixture(params=["memory", "sqlite"], ids=["memory", "sqlite"])
+async def store(tmp_path, request):
+    """Create a store instance for the given backend."""
+    if request.param == "memory":
+        yield InMemoryBlackboardStore()
+    else:
+        db_path = tmp_path / "blackboard.db"
+        store = SQLiteBlackboardStore(str(db_path))
+        await store.ensure_schema()
+        try:
+            yield store
+        finally:
+            await store.close()
 
 
 @pytest.fixture
@@ -176,11 +185,9 @@ async def test_store_duplicate_artifacts(store):
 
 
 @pytest.mark.asyncio
-async def test_store_thread_safety():
+async def test_store_thread_safety(store):
     """Test that store operations are thread-safe."""
     import asyncio
-
-    store = InMemoryBlackboardStore()
 
     async def add_artifacts(agent_name: str, count: int):
         for i in range(count):
@@ -210,3 +217,12 @@ async def test_store_thread_safety():
     assert agent1_count == 10
     assert agent2_count == 10
     assert agent3_count == 10
+
+
+@pytest.mark.asyncio
+async def test_sqlite_store_schema_idempotent(tmp_path):
+    """Ensure SQLite schema creation can run multiple times without error."""
+    store = SQLiteBlackboardStore(str(tmp_path / "schema.db"))
+    await store.ensure_schema()
+    await store.ensure_schema()  # run twice for idempotency
+    await store.close()
