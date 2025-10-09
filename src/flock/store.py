@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from asyncio import Lock
 from collections import defaultdict
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, TypeVar
 from uuid import UUID
@@ -18,11 +19,56 @@ from opentelemetry import trace
 
 from flock.artifacts import Artifact
 from flock.registry import type_registry
-from flock.visibility import ensure_visibility
+from flock.visibility import (
+    AfterVisibility,
+    LabelledVisibility,
+    PrivateVisibility,
+    PublicVisibility,
+    TenantVisibility,
+    Visibility,
+)
 
 
 T = TypeVar("T")
 tracer = trace.get_tracer(__name__)
+
+ISO_DURATION_RE = re.compile(
+    r"^P(?:T?(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)$"
+)
+
+
+def _parse_iso_duration(value: str | None) -> timedelta:
+    if not value:
+        return timedelta(0)
+    match = ISO_DURATION_RE.match(value)
+    if not match:
+        return timedelta(0)
+    hours = int(match.group("hours") or 0)
+    minutes = int(match.group("minutes") or 0)
+    seconds = int(match.group("seconds") or 0)
+    return timedelta(hours=hours, minutes=minutes, seconds=seconds)
+
+
+def _deserialize_visibility(data: Any) -> Visibility:
+    if isinstance(data, Visibility):
+        return data
+    if not data:
+        return PublicVisibility()
+    kind = data.get("kind") if isinstance(data, dict) else None
+    if kind == "Public":
+        return PublicVisibility()
+    if kind == "Private":
+        return PrivateVisibility(agents=set(data.get("agents", [])))
+    if kind == "Labelled":
+        return LabelledVisibility(required_labels=set(data.get("required_labels", [])))
+    if kind == "Tenant":
+        return TenantVisibility(tenant_id=data.get("tenant_id"))
+    if kind == "After":
+        ttl = _parse_iso_duration(data.get("ttl"))
+        then_data = data.get("then") if isinstance(data, dict) else None
+        then_visibility = _deserialize_visibility(then_data) if then_data else None
+        return AfterVisibility(ttl=ttl, then=then_visibility)
+    return PublicVisibility()
 
 
 class BlackboardStore:
@@ -57,9 +103,10 @@ class BlackboardStore:
         self,
         *,
         type_name: str | None = None,
-        produced_by: str | None = None,
+        produced_by: set[str] | None = None,
         correlation_id: str | None = None,
         tags: set[str] | None = None,
+        visibility: set[str] | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
         limit: int = 50,
@@ -72,9 +119,10 @@ class BlackboardStore:
         self,
         *,
         type_name: str | None = None,
-        produced_by: str | None = None,
+        produced_by: set[str] | None = None,
         correlation_id: str | None = None,
         tags: set[str] | None = None,
+        visibility: set[str] | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
     ) -> dict[str, Any]:
@@ -132,9 +180,10 @@ class InMemoryBlackboardStore(BlackboardStore):
         self,
         *,
         type_name: str | None = None,
-        produced_by: str | None = None,
+        produced_by: set[str] | None = None,
         correlation_id: str | None = None,
         tags: set[str] | None = None,
+        visibility: set[str] | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
         limit: int = 50,
@@ -147,12 +196,14 @@ class InMemoryBlackboardStore(BlackboardStore):
         if type_name is not None:
             canonical = type_registry.resolve_name(type_name)
 
+        visibility_filter = visibility or set()
+
         filtered = [
             artifact
             for artifact in artifacts
             if (
                 (canonical is None or artifact.type == canonical)
-                and (produced_by is None or artifact.produced_by == produced_by)
+                and (produced_by is None or artifact.produced_by in produced_by)
                 and (
                     correlation_id is None
                     or (
@@ -161,6 +212,7 @@ class InMemoryBlackboardStore(BlackboardStore):
                     )
                 )
                 and (tags is None or tags.issubset(artifact.tags))
+                and (not visibility_filter or artifact.visibility.kind in visibility_filter)
                 and (start is None or artifact.created_at >= start)
                 and (end is None or artifact.created_at <= end)
             )
@@ -178,9 +230,10 @@ class InMemoryBlackboardStore(BlackboardStore):
         self,
         *,
         type_name: str | None = None,
-        produced_by: str | None = None,
+        produced_by: set[str] | None = None,
         correlation_id: str | None = None,
         tags: set[str] | None = None,
+        visibility: set[str] | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
     ) -> dict[str, Any]:
@@ -189,6 +242,7 @@ class InMemoryBlackboardStore(BlackboardStore):
             produced_by=produced_by,
             correlation_id=correlation_id,
             tags=tags,
+            visibility=visibility,
             start=start,
             end=end,
             limit=0,
@@ -201,6 +255,7 @@ class InMemoryBlackboardStore(BlackboardStore):
                 produced_by=produced_by,
                 correlation_id=correlation_id,
                 tags=tags,
+                visibility=visibility,
                 start=start,
                 end=end,
                 limit=total,
@@ -209,12 +264,18 @@ class InMemoryBlackboardStore(BlackboardStore):
 
         by_type: dict[str, int] = {}
         by_producer: dict[str, int] = {}
+        by_visibility: dict[str, int] = {}
+        tag_counts: dict[str, int] = {}
         earliest = None
         latest = None
 
         for artifact in artifacts:
             by_type[artifact.type] = by_type.get(artifact.type, 0) + 1
             by_producer[artifact.produced_by] = by_producer.get(artifact.produced_by, 0) + 1
+            kind = getattr(artifact.visibility, "kind", "Unknown")
+            by_visibility[kind] = by_visibility.get(kind, 0) + 1
+            for tag in artifact.tags:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
             earliest = (
                 artifact.created_at
                 if earliest is None or artifact.created_at < earliest
@@ -228,6 +289,8 @@ class InMemoryBlackboardStore(BlackboardStore):
             "total": total,
             "by_type": by_type,
             "by_producer": by_producer,
+            "by_visibility": by_visibility,
+            "tag_counts": tag_counts,
             "earliest_created_at": earliest.isoformat() if earliest else None,
             "latest_created_at": latest.isoformat() if latest else None,
         }
@@ -431,9 +494,10 @@ class SQLiteBlackboardStore(BlackboardStore):
         self,
         *,
         type_name: str | None = None,
-        produced_by: str | None = None,
+        produced_by: set[str] | None = None,
         correlation_id: str | None = None,
         tags: set[str] | None = None,
+        visibility: set[str] | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
         limit: int = 50,
@@ -445,6 +509,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             produced_by=produced_by,
             correlation_id=correlation_id,
             tags=tags,
+            visibility=visibility,
             start=start,
             end=end,
         )
@@ -490,9 +555,10 @@ class SQLiteBlackboardStore(BlackboardStore):
         self,
         *,
         type_name: str | None = None,
-        produced_by: str | None = None,
+        produced_by: set[str] | None = None,
         correlation_id: str | None = None,
         tags: set[str] | None = None,
+        visibility: set[str] | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
     ) -> dict[str, Any]:
@@ -502,6 +568,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             produced_by=produced_by,
             correlation_id=correlation_id,
             tags=tags,
+            visibility=visibility,
             start=start,
             end=end,
         )
@@ -542,6 +609,35 @@ class SQLiteBlackboardStore(BlackboardStore):
 
         cursor = await conn.execute(
             f"""
+            SELECT json_extract(visibility, '$.kind') AS visibility_kind, COUNT(*) AS count
+            FROM artifacts
+            {where_clause}
+            GROUP BY json_extract(visibility, '$.kind')
+            """,
+            params,
+        )
+        by_visibility_rows = await cursor.fetchall()
+        await cursor.close()
+        by_visibility = {
+            (row["visibility_kind"] or "Unknown"): row["count"] for row in by_visibility_rows
+        }
+
+        cursor = await conn.execute(
+            f"""
+            SELECT json_each.value AS tag, COUNT(*) AS count
+            FROM artifacts
+            JOIN json_each(artifacts.tags)
+            {where_clause}
+            GROUP BY json_each.value
+            """,
+            params,
+        )
+        tag_rows = await cursor.fetchall()
+        await cursor.close()
+        tag_counts = {row["tag"]: row["count"] for row in tag_rows}
+
+        cursor = await conn.execute(
+            f"""
             SELECT MIN(created_at) AS earliest, MAX(created_at) AS latest
             FROM artifacts
             {where_clause}
@@ -557,6 +653,8 @@ class SQLiteBlackboardStore(BlackboardStore):
             "total": total,
             "by_type": by_type,
             "by_producer": by_producer,
+            "by_visibility": by_visibility,
+            "tag_counts": tag_counts,
             "earliest_created_at": earliest,
             "latest_created_at": latest,
         }
@@ -680,9 +778,10 @@ class SQLiteBlackboardStore(BlackboardStore):
         self,
         *,
         type_name: str | None,
-        produced_by: str | None,
+        produced_by: set[str] | None,
         correlation_id: str | None,
         tags: set[str] | None,
+        visibility: set[str] | None,
         start: datetime | None,
         end: datetime | None,
     ) -> tuple[str, tuple[Any, ...]]:
@@ -694,13 +793,19 @@ class SQLiteBlackboardStore(BlackboardStore):
             conditions.append("canonical_type = ?")
             params.append(canonical)
 
-        if produced_by is not None:
-            conditions.append("produced_by = ?")
-            params.append(produced_by)
+        if produced_by:
+            placeholders = ", ".join(["?"] * len(produced_by))
+            conditions.append(f"produced_by IN ({placeholders})")
+            params.extend(sorted(produced_by))
 
         if correlation_id is not None:
             conditions.append("correlation_id = ?")
             params.append(correlation_id)
+
+        if visibility:
+            placeholders = ", ".join(["?"] * len(visibility))
+            conditions.append(f"json_extract(visibility, '$.kind') IN ({placeholders})")
+            params.extend(sorted(visibility))
 
         if start is not None:
             conditions.append("created_at >= ?")
@@ -731,7 +836,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             type=row["type"],
             payload=payload,
             produced_by=row["produced_by"],
-            visibility=ensure_visibility(visibility_data),
+            visibility=_deserialize_visibility(visibility_data),
             tags=set(tags),
             correlation_id=correlation,
             partition_key=row["partition_key"],

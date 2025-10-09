@@ -34,6 +34,7 @@ class BlackboardHTTPService:
                 "payload": artifact.payload,
                 "produced_by": artifact.produced_by,
                 "visibility": artifact.visibility.model_dump(mode="json"),
+                "visibility_kind": getattr(artifact.visibility, "kind", "Unknown"),
                 "created_at": artifact.created_at.isoformat(),
                 "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
                 "partition_key": artifact.partition_key,
@@ -64,22 +65,26 @@ class BlackboardHTTPService:
         @app.get("/api/v1/artifacts")
         async def list_artifacts(
             type_name: str | None = Query(None, alias="type"),
-            produced_by: str | None = None,
+            produced_by: list[str] | None = Query(None),
             correlation_id: str | None = None,
             tag: list[str] | None = Query(None),
             start: str | None = Query(None, alias="from"),
             end: str | None = Query(None, alias="to"),
+            visibility: list[str] | None = Query(None),
             limit: int = Query(50, ge=1, le=500),
             offset: int = Query(0, ge=0),
         ) -> dict[str, Any]:
             tags = set(tag) if tag else None
             start_dt = _parse_datetime(start, "from")
             end_dt = _parse_datetime(end, "to")
+            visibility_filter = set(visibility) if visibility else None
+            producer_filter = set(produced_by) if produced_by else None
             artifacts, total = await orchestrator.store.query_artifacts(
                 type_name=type_name,
-                produced_by=produced_by,
+                produced_by=producer_filter,
                 correlation_id=correlation_id,
                 tags=tags,
+                visibility=visibility_filter,
                 start=start_dt,
                 end=end_dt,
                 limit=limit,
@@ -93,20 +98,24 @@ class BlackboardHTTPService:
         @app.get("/api/v1/artifacts/summary")
         async def summarize_artifacts(
             type_name: str | None = Query(None, alias="type"),
-            produced_by: str | None = None,
+            produced_by: list[str] | None = Query(None),
             correlation_id: str | None = None,
             tag: list[str] | None = Query(None),
             start: str | None = Query(None, alias="from"),
             end: str | None = Query(None, alias="to"),
+            visibility: list[str] | None = Query(None),
         ) -> dict[str, Any]:
             tags = set(tag) if tag else None
             start_dt = _parse_datetime(start, "from")
             end_dt = _parse_datetime(end, "to")
+            visibility_filter = set(visibility) if visibility else None
+            producer_filter = set(produced_by) if produced_by else None
             summary = await orchestrator.store.summarize_artifacts(
                 type_name=type_name,
-                produced_by=produced_by,
+                produced_by=producer_filter,
                 correlation_id=correlation_id,
                 tags=tags,
+                visibility=visibility_filter,
                 start=start_dt,
                 end=end_dt,
             )

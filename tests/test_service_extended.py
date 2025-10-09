@@ -246,7 +246,7 @@ async def test_list_artifacts_endpoint(service, mock_orchestrator):
     mock_orchestrator.store.query_artifacts.assert_awaited_once()
     kwargs = mock_orchestrator.store.query_artifacts.await_args.kwargs
     assert kwargs["type_name"] == "TypeA"
-    assert kwargs["produced_by"] == "agent1"
+    assert kwargs["produced_by"] == {"agent1"}
     assert kwargs["correlation_id"] == "abc"
     assert kwargs["tags"] == {"alpha", "beta"}
     assert kwargs["limit"] == 10

@@ -5,9 +5,12 @@ import { measureRenderTime } from './utils/performance';
 import { initializeWebSocket } from './services/websocket';
 import { registerModules } from './components/modules/registerModules';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { fetchRegisteredAgents } from './services/api';
+import { fetchRegisteredAgents, fetchArtifactSummary, fetchArtifacts } from './services/api';
 import { useGraphStore } from './store/graphStore';
 import { useUIStore } from './store/uiStore';
+import { useFilterStore } from './store/filterStore';
+import { mapArtifactToMessage } from './utils/artifacts';
+import { indexedDBService } from './services/indexeddb';
 
 // Register modules once at module load time
 registerModules();
@@ -35,6 +38,57 @@ const App: React.FC = () => {
     const wsClient = initializeWebSocket(wsUrl);
     wsClient.connect();
 
+    const loadHistoricalData = async () => {
+      try {
+        await indexedDBService.initialize();
+
+        const filterStore = useFilterStore.getState();
+        const graphStore = useGraphStore.getState();
+        const uiStore = useUIStore.getState();
+
+        const summary = await fetchArtifactSummary();
+        filterStore.setSummary(summary);
+        filterStore.updateAvailableFacets({
+          artifactTypes: Object.keys(summary.by_type),
+          producers: Object.keys(summary.by_producer),
+          tags: Object.keys(summary.tag_counts),
+          visibilities: Object.keys(summary.by_visibility),
+        });
+
+        const artifactResponse = await fetchArtifacts({ limit: 200 });
+        const messages = artifactResponse.items.map(mapArtifactToMessage);
+        if (messages.length > 0) {
+          graphStore.batchUpdate({ messages });
+          if (uiStore.mode === 'blackboard') {
+            graphStore.generateBlackboardViewGraph();
+          }
+
+          const correlationMetadata = new Map<string, { correlation_id: string; first_seen: number; artifact_count: number; run_count: number }>();
+          artifactResponse.items.forEach((item) => {
+            if (!item.correlation_id) return;
+            const timestamp = new Date(item.created_at).getTime();
+            const existing = correlationMetadata.get(item.correlation_id);
+            if (existing) {
+              existing.artifact_count += 1;
+              existing.first_seen = Math.min(existing.first_seen, timestamp);
+            } else {
+              correlationMetadata.set(item.correlation_id, {
+                correlation_id: item.correlation_id,
+                first_seen: timestamp,
+                artifact_count: 1,
+                run_count: 0,
+              });
+            }
+          });
+          if (correlationMetadata.size > 0) {
+            filterStore.updateAvailableCorrelationIds(Array.from(correlationMetadata.values()));
+          }
+        }
+      } catch (error) {
+        console.error('[App] Failed to load historical artifacts:', error);
+      }
+    };
+
     // Load registered agents from orchestrator
     // This pre-populates the graph with all agent nodes before any events occur
     const loadInitialAgents = async () => {
@@ -61,6 +115,7 @@ const App: React.FC = () => {
       }
     };
 
+    loadHistoricalData();
     loadInitialAgents();
 
     // Cleanup on unmount

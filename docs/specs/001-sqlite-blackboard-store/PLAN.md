@@ -98,13 +98,13 @@ If implementation cannot follow specification exactly:
         - [x] Smoke test CLI/orchestrator flows using SQLite backend (publish/list) `[activity: run-tests]`
         - [x] Verify metrics/tracing capture database operations as required `[activity: review-logs]`
 
-- [ ] **Phase 3**: Dashboard & UX enhancements for historical data
+- [~] **Phase 3**: Dashboard & UX enhancements for historical data
 
-    - [ ] **Prime Context**: `docs/internal/sqlite-blackboard-store/interfaces.md`, dashboard filter implementation (`src/flock/frontend/src/store/filterStore.ts`, `src/flock/frontend/src/services/indexeddb.ts`)
-        - [ ] Review required filter additions (artifact type, producer, tags, visibility) `[ref: docs/internal/sqlite-blackboard-store/interfaces.md]`
-        - [ ] Inspect IndexedDB schema alignment for saved filters/pagination `[ref: src/flock/frontend/src/services/indexeddb.ts]`
+    - [x] **Prime Context**: `docs/internal/sqlite-blackboard-store/interfaces.md`, dashboard filter implementation (`src/flock/frontend/src/store/filterStore.ts`, `src/flock/frontend/src/services/indexeddb.ts`)
+        - [x] Review required filter additions (artifact type, producer, tags, visibility) `[ref: docs/internal/sqlite-blackboard-store/interfaces.md]`
+        - [x] Inspect IndexedDB schema alignment for saved filters/pagination `[ref: src/flock/frontend/src/services/indexeddb.ts]`
     - [ ] **Write Tests**: Outline UI regression coverage `[activity: design-tests]`
-        - [ ] Add unit tests for new filter store state and selectors `[activity: add-tests]`
+        - [x] Add unit tests for new filter store state, filters UI, and saved preset persistence `[activity: add-tests]`
         - [ ] Extend Playwright scenarios for historical blackboard view and pagination `[activity: add-tests]`
     - [ ] **Implement**: Dashboard data ingestion `[activity: implement-frontend]`
         - [ ] Fetch historical artifact pages on load before WebSocket subscription, hydrate IndexedDB caches `[activity: implement-frontend]`
@@ -113,7 +113,7 @@ If implementation cannot follow specification exactly:
         - [ ] Create paginated “Historical Blackboard” table/timeline with virtualization `[activity: implement-frontend]`
         - [ ] Surface retention messaging and “Load older output” interactions tied to SQLite limits `[activity: implement-frontend]`
     - [ ] **Validate**: UX & performance gates
-        - [ ] Run frontend unit tests and Playwright suite `[activity: run-tests]`
+        - [ ] Run frontend unit tests and Playwright suite `[activity: run-tests]` *(unit tests passing; Playwright runner currently blocks on CSS module parsing — see latest execution notes)*
         - [ ] Perform manual UX review using dashboard examples (`uv run python examples/03-the-dashboard/01_declarative_pizza.py`) `[activity: manual-test]`
         - [ ] Confirm accessibility checks (keyboard navigation, screen-reader labels) for new components `[activity: accessibility-review]`
 

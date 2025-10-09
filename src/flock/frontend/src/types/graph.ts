@@ -22,6 +22,10 @@ export interface Message {
   timestamp: number;
   correlationId: string;
   producedBy: string;
+  tags?: string[];
+  visibilityKind?: string;
+  partitionKey?: string | null;
+  version?: number;
   isStreaming?: boolean; // True while streaming, false when complete
   streamingText?: string; // Accumulated streaming text (raw)
 }
@@ -47,6 +51,8 @@ export interface MessageNodeData extends Record<string, unknown> {
   timestamp: number;
   isStreaming?: boolean; // True while streaming tokens
   streamingText?: string; // Raw streaming text
+  tags?: string[];
+  visibilityKind?: string;
 }
 
 export type AgentViewNode = Node<AgentNodeData, 'agent'>;

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Agent, Message } from '../../types/graph';
-import type { TimeRange } from '../../types/filters';
+import type { TimeRange, ArtifactSummary } from '../../types/filters';
 
 export interface ModuleContext {
   // Data access
@@ -12,7 +12,13 @@ export interface ModuleContext {
   filters: {
     correlationId: string | null;
     timeRange: TimeRange;
+    artifactTypes: string[];
+    producers: string[];
+    tags: string[];
+    visibility: string[];
   };
+
+  summary: ArtifactSummary | null;
 
   // Actions
   publish: (artifact: any) => void;

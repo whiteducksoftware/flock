@@ -1,6 +1,7 @@
 import { moduleRegistry } from './ModuleRegistry';
 import EventLogModuleWrapper from './EventLogModuleWrapper';
 import TraceModuleJaegerWrapper from './TraceModuleJaegerWrapper';
+import HistoricalArtifactsModuleWrapper from './HistoricalArtifactsModuleWrapper';
 
 /**
  * Register all available modules
@@ -23,6 +24,14 @@ export function registerModules(): void {
     description: 'Timeline, Statistics, RED Metrics, and Dependencies',
     icon: '🔎',
     component: TraceModuleJaegerWrapper,
+  });
+
+  moduleRegistry.register({
+    id: 'historicalArtifacts',
+    name: 'Historical Blackboard',
+    description: 'Browse persisted artifacts and retention metrics',
+    icon: '📚',
+    component: HistoricalArtifactsModuleWrapper,
   });
 
   // Future modules can be registered here

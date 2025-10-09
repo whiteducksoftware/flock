@@ -8,16 +8,16 @@
 }
 
 .filterControls {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-layout-sm);
   align-items: flex-start;
-  flex-wrap: wrap;
 }
 
 .filterGroup {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-md);
+  gap: var(--gap-sm);
 }
 
 .filterLabel {
@@ -26,4 +26,8 @@
   color: var(--color-text-tertiary);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wider);
+}
+
+.savedFilters {
+  grid-column: span 2;
 }

@@ -1,242 +1,162 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useFilterStore } from './filterStore';
+import type { FilterFacets, FilterSnapshot } from '../types/filters';
 
 describe('filterStore', () => {
   beforeEach(() => {
-    const store = useFilterStore.getState();
-    store.clearFilters();
-    store.updateAvailableCorrelationIds([]);
+    useFilterStore.setState({
+      correlationId: null,
+      timeRange: { preset: 'last10min' },
+      selectedArtifactTypes: [],
+      selectedProducers: [],
+      selectedTags: [],
+      selectedVisibility: [],
+      availableCorrelationIds: [],
+      availableArtifactTypes: [],
+      availableProducers: [],
+      availableTags: [],
+      availableVisibility: [],
+      summary: null,
+      savedFilters: [],
+    });
   });
 
-  describe('Initial State', () => {
-    it('should have no correlation ID selected', () => {
+  describe('initial state', () => {
+    it('should have defaults set', () => {
       const state = useFilterStore.getState();
       expect(state.correlationId).toBeNull();
-    });
-
-    it('should have default time range of last 10 minutes', () => {
-      const state = useFilterStore.getState();
       expect(state.timeRange).toEqual({ preset: 'last10min' });
-    });
-
-    it('should have empty available correlation IDs', () => {
-      const state = useFilterStore.getState();
+      expect(state.selectedArtifactTypes).toEqual([]);
       expect(state.availableCorrelationIds).toEqual([]);
     });
   });
 
-  describe('setCorrelationId', () => {
-    it('should set correlation ID', () => {
+  describe('mutators', () => {
+    it('should update correlation id and time range', () => {
       const store = useFilterStore.getState();
-      store.setCorrelationId('test-correlation-id');
-
-      expect(useFilterStore.getState().correlationId).toBe('test-correlation-id');
-    });
-
-    it('should clear correlation ID when set to null', () => {
-      const store = useFilterStore.getState();
-      store.setCorrelationId('test-id');
-      store.setCorrelationId(null);
-
-      expect(useFilterStore.getState().correlationId).toBeNull();
-    });
-  });
-
-  describe('setTimeRange', () => {
-    it('should set time range preset', () => {
-      const store = useFilterStore.getState();
+      store.setCorrelationId('abc');
       store.setTimeRange({ preset: 'last5min' });
-
+      expect(useFilterStore.getState().correlationId).toBe('abc');
       expect(useFilterStore.getState().timeRange).toEqual({ preset: 'last5min' });
     });
 
-    it('should set custom time range', () => {
+    it('should update multi-select filters', () => {
       const store = useFilterStore.getState();
-      const customRange = {
-        preset: 'custom' as const,
-        start: Date.now() - 3600000,
-        end: Date.now(),
-      };
-      store.setTimeRange(customRange);
+      store.setArtifactTypes(['TypeB', 'TypeA']);
+      store.setProducers(['b', 'a']);
+      store.setTags(['beta']);
+      store.setVisibility(['Private', 'Public']);
 
-      expect(useFilterStore.getState().timeRange).toEqual(customRange);
+      const state = useFilterStore.getState();
+      expect(state.selectedArtifactTypes).toEqual(['TypeA', 'TypeB']);
+      expect(state.selectedProducers).toEqual(['a', 'b']);
+      expect(state.selectedTags).toEqual(['beta']);
+      expect(state.selectedVisibility).toEqual(['Private', 'Public']);
     });
-  });
 
-  describe('clearFilters', () => {
-    it('should reset all filters to defaults', () => {
+    it('should clear filters to defaults', () => {
       const store = useFilterStore.getState();
-      store.setCorrelationId('test-id');
-      store.setTimeRange({ preset: 'last1hour' });
-
+      store.setCorrelationId('abc');
+      store.setArtifactTypes(['TypeA']);
+      store.setTags(['x']);
       store.clearFilters();
 
       const state = useFilterStore.getState();
       expect(state.correlationId).toBeNull();
+      expect(state.selectedArtifactTypes).toEqual([]);
+      expect(state.selectedTags).toEqual([]);
       expect(state.timeRange).toEqual({ preset: 'last10min' });
     });
-  });
 
-  describe('updateAvailableCorrelationIds', () => {
-    it('should update available correlation IDs with metadata', () => {
-      const store = useFilterStore.getState();
+    it('should update available correlation ids', () => {
       const now = Date.now();
-      const metadata = [
-        {
-          correlation_id: 'abc123',
-          first_seen: now - 120000,
-          artifact_count: 5,
-          run_count: 2,
-        },
-        {
-          correlation_id: 'def456',
-          first_seen: now - 60000,
-          artifact_count: 3,
-          run_count: 1,
-        },
-      ];
-
-      store.updateAvailableCorrelationIds(metadata);
-
+      useFilterStore
+        .getState()
+        .updateAvailableCorrelationIds([
+          { correlation_id: 'old', first_seen: now - 10_000, artifact_count: 1, run_count: 1 },
+          { correlation_id: 'new', first_seen: now - 1_000, artifact_count: 2, run_count: 2 },
+        ]);
       const state = useFilterStore.getState();
-      // Should be sorted by most recent first
-      expect(state.availableCorrelationIds).toHaveLength(2);
-      expect(state.availableCorrelationIds[0]?.correlation_id).toBe('def456');
-      expect(state.availableCorrelationIds[1]?.correlation_id).toBe('abc123');
+      expect(state.availableCorrelationIds.map((m) => m.correlation_id)).toEqual(['new', 'old']);
     });
 
-    it('should limit to 50 correlation IDs', () => {
-      const store = useFilterStore.getState();
-      const metadata = Array.from({ length: 100 }, (_, i) => ({
-        correlation_id: `id-${i}`,
-        first_seen: Date.now() - i * 1000,
-        artifact_count: i,
-        run_count: 1,
-      }));
-
-      store.updateAvailableCorrelationIds(metadata);
-
+    it('should update available facets', () => {
+      const facets: FilterFacets = {
+        artifactTypes: ['TypeB', 'TypeA'],
+        producers: ['b', 'a'],
+        tags: ['beta', 'alpha'],
+        visibilities: ['Private', 'Public'],
+      };
+      useFilterStore.getState().updateAvailableFacets(facets);
       const state = useFilterStore.getState();
-      expect(state.availableCorrelationIds).toHaveLength(50);
-    });
-
-    it('should sort by most recent first', () => {
-      const store = useFilterStore.getState();
-      const now = Date.now();
-      const metadata = [
-        {
-          correlation_id: 'oldest',
-          first_seen: now - 300000,
-          artifact_count: 1,
-          run_count: 1,
-        },
-        {
-          correlation_id: 'newest',
-          first_seen: now - 10000,
-          artifact_count: 2,
-          run_count: 1,
-        },
-        {
-          correlation_id: 'middle',
-          first_seen: now - 120000,
-          artifact_count: 3,
-          run_count: 1,
-        },
-      ];
-
-      store.updateAvailableCorrelationIds(metadata);
-
-      const state = useFilterStore.getState();
-      expect(state.availableCorrelationIds[0]?.correlation_id).toBe('newest');
-      expect(state.availableCorrelationIds[1]?.correlation_id).toBe('middle');
-      expect(state.availableCorrelationIds[2]?.correlation_id).toBe('oldest');
+      expect(state.availableArtifactTypes).toEqual(['TypeA', 'TypeB']);
+      expect(state.availableProducers).toEqual(['a', 'b']);
+      expect(state.availableTags).toEqual(['alpha', 'beta']);
+      expect(state.availableVisibility).toEqual(['Private', 'Public']);
     });
   });
 
-  describe('getActiveFilters', () => {
-    it('should return empty array when no filters active', () => {
+  describe('active filters', () => {
+    it('should return active filters across selections', () => {
       const store = useFilterStore.getState();
-      const activeFilters = store.getActiveFilters();
-      expect(activeFilters).toEqual([]);
-    });
-
-    it('should return correlation ID filter when set', () => {
-      const store = useFilterStore.getState();
-      store.setCorrelationId('test-123');
-
-      const activeFilters = store.getActiveFilters();
-      expect(activeFilters).toHaveLength(1);
-      expect(activeFilters[0]).toEqual({
-        type: 'correlationId',
-        value: 'test-123',
-        label: 'Correlation ID: test-123',
-      });
-    });
-
-    it('should return time range filter when not default', () => {
-      const store = useFilterStore.getState();
+      store.setCorrelationId('abc');
       store.setTimeRange({ preset: 'last5min' });
+      store.setArtifactTypes(['TypeA']);
+      store.setProducers(['agent1']);
+      store.setTags(['urgent']);
+      store.setVisibility(['Public']);
 
-      const activeFilters = store.getActiveFilters();
-      expect(activeFilters).toHaveLength(1);
-      expect(activeFilters[0]).toEqual({
-        type: 'timeRange',
-        value: { preset: 'last5min' },
-        label: 'Time: Last 5 min',
-      });
+      const active = store.getActiveFilters();
+      expect(active).toHaveLength(6);
+      expect(active.map((f) => f.type)).toContain('visibility');
     });
 
-    it('should return custom time range filter with formatted dates', () => {
+    it('should remove individual filters', () => {
       const store = useFilterStore.getState();
-      const start = Date.now() - 3600000;
-      const end = Date.now();
-      store.setTimeRange({ preset: 'custom', start, end });
+      store.setArtifactTypes(['TypeA', 'TypeB']);
 
-      const activeFilters = store.getActiveFilters();
-      expect(activeFilters).toHaveLength(1);
-      expect(activeFilters[0]?.type).toBe('timeRange');
-      expect(activeFilters[0]?.label).toMatch(/^Time: /);
-    });
+      const [firstFilter] = store.getActiveFilters().filter((f) => f.type === 'artifactTypes');
+      expect(firstFilter?.value).toBe('TypeA');
 
-    it('should return both filters when both are active', () => {
-      const store = useFilterStore.getState();
-      store.setCorrelationId('test-123');
-      store.setTimeRange({ preset: 'last1hour' });
-
-      const activeFilters = store.getActiveFilters();
-      expect(activeFilters).toHaveLength(2);
+      useFilterStore.getState().removeFilter(firstFilter!);
+      expect(useFilterStore.getState().selectedArtifactTypes).toEqual(['TypeB']);
     });
   });
 
-  describe('removeFilter', () => {
-    it('should remove correlation ID filter', () => {
+  describe('snapshots', () => {
+    it('should export and reapply filter snapshots', () => {
       const store = useFilterStore.getState();
-      store.setCorrelationId('test-123');
+      store.setCorrelationId('snapshot');
+      store.setArtifactTypes(['TypeA']);
 
-      store.removeFilter('correlationId');
-
-      expect(useFilterStore.getState().correlationId).toBeNull();
-    });
-
-    it('should reset time range filter to default', () => {
-      const store = useFilterStore.getState();
-      store.setTimeRange({ preset: 'last1hour' });
-
-      store.removeFilter('timeRange');
-
-      expect(useFilterStore.getState().timeRange).toEqual({ preset: 'last10min' });
-    });
-
-    it('should not affect other filters', () => {
-      const store = useFilterStore.getState();
-      store.setCorrelationId('test-123');
-      store.setTimeRange({ preset: 'last1hour' });
-
-      store.removeFilter('correlationId');
+      const snapshot = store.getFilterSnapshot();
+      useFilterStore.getState().clearFilters();
+      useFilterStore.getState().applyFilterSnapshot(snapshot);
 
       const state = useFilterStore.getState();
-      expect(state.correlationId).toBeNull();
-      expect(state.timeRange).toEqual({ preset: 'last1hour' });
+      expect(state.correlationId).toBe('snapshot');
+      expect(state.selectedArtifactTypes).toEqual(['TypeA']);
+    });
+
+    it('should manage saved filters list', () => {
+      const snapshot: FilterSnapshot = {
+        correlationId: null,
+        timeRange: { preset: 'last10min' },
+        artifactTypes: [],
+        producers: [],
+        tags: [],
+        visibility: [],
+      };
+      useFilterStore.getState().addSavedFilter({
+        filter_id: '1',
+        name: 'Default',
+        created_at: Date.now(),
+        filters: snapshot,
+      });
+
+      expect(useFilterStore.getState().savedFilters).toHaveLength(1);
+      useFilterStore.getState().removeSavedFilter('1');
+      expect(useFilterStore.getState().savedFilters).toHaveLength(0);
     });
   });
 });

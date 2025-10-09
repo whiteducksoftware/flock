@@ -289,6 +289,8 @@ export const useGraphStore = create<GraphState>()(
               timestamp: message.timestamp,
               isStreaming: message.isStreaming || false,
               streamingText: message.streamingText || '',
+              tags: message.tags || [],
+              visibilityKind: message.visibilityKind || 'Unknown',
             },
           });
         });
@@ -328,7 +330,14 @@ export const useGraphStore = create<GraphState>()(
 
       applyFilters: () => {
         const { nodes, edges, messages } = get();
-        const { correlationId, timeRange } = useFilterStore.getState();
+        const {
+          correlationId,
+          timeRange,
+          selectedArtifactTypes,
+          selectedProducers,
+          selectedTags,
+          selectedVisibility,
+        } = useFilterStore.getState();
 
         // Helper to calculate time range boundaries
         const getTimeRangeBoundaries = (): { start: number; end: number } => {
@@ -360,6 +369,41 @@ export const useGraphStore = create<GraphState>()(
           // Apply time range filter (in-memory)
           if (visible && (message.timestamp < timeStart || message.timestamp > timeEnd)) {
             visible = false;
+          }
+
+          if (
+            visible &&
+            selectedArtifactTypes.length > 0 &&
+            !selectedArtifactTypes.includes(message.type)
+          ) {
+            visible = false;
+          }
+
+          if (
+            visible &&
+            selectedProducers.length > 0 &&
+            !selectedProducers.includes(message.producedBy)
+          ) {
+            visible = false;
+          }
+
+          if (
+            visible &&
+            selectedVisibility.length > 0 &&
+            !selectedVisibility.includes(message.visibilityKind || 'Unknown')
+          ) {
+            visible = false;
+          }
+
+          if (
+            visible &&
+            selectedTags.length > 0
+          ) {
+            const messageTags = message.tags || [];
+            const hasAllTags = selectedTags.every((tag) => messageTags.includes(tag));
+            if (!hasAllTags) {
+              visible = false;
+            }
           }
 
           if (visible) {

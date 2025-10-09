@@ -1,0 +1,111 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-layout-sm);
+  height: 100%;
+  padding: var(--space-layout-sm);
+  background: var(--color-bg-surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+}
+
+.metrics {
+  display: flex;
+  gap: var(--gap-lg);
+  flex-wrap: wrap;
+}
+
+.metricLabel {
+  display: block;
+  font-size: var(--font-size-overline);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+.metricValue {
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.actions {
+  display: flex;
+  gap: var(--gap-sm);
+}
+
+.actions button {
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  background: rgba(99, 102, 241, 0.25);
+  color: var(--color-text-primary);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actions button:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.45);
+}
+
+.tableContainer {
+  display: flex;
+  flex-direction: column;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex: 1;
+}
+
+.headerRow,
+.dataRow {
+  display: grid;
+  grid-template-columns: 200px 140px 160px 180px 160px 120px;
+  gap: var(--gap-sm);
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-body-xs);
+  align-items: center;
+}
+
+.headerRow {
+  background: rgba(148, 163, 184, 0.1);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.dataRow {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.dataRow:nth-child(even) {
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.rows {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.emptyState,
+.loading,
+.error {
+  padding: var(--spacing-4);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.error {
+  color: var(--color-error);
+}

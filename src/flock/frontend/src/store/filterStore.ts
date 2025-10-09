@@ -1,35 +1,66 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { TimeRange, CorrelationIdMetadata } from '../types/filters';
+import {
+  TimeRange,
+  CorrelationIdMetadata,
+  FilterFacets,
+  ArtifactSummary,
+  SavedFilterMeta,
+  FilterSnapshot,
+} from '../types/filters';
+
+export type ActiveFilterType =
+  | 'correlationId'
+  | 'timeRange'
+  | 'artifactTypes'
+  | 'producers'
+  | 'tags'
+  | 'visibility';
 
 export interface ActiveFilter {
-  type: 'correlationId' | 'timeRange';
+  type: ActiveFilterType;
   value: string | TimeRange;
   label: string;
 }
 
 interface FilterState {
-  // Active filters
   correlationId: string | null;
   timeRange: TimeRange;
-
-  // Autocomplete data
+  selectedArtifactTypes: string[];
+  selectedProducers: string[];
+  selectedTags: string[];
+  selectedVisibility: string[];
   availableCorrelationIds: CorrelationIdMetadata[];
+  availableArtifactTypes: string[];
+  availableProducers: string[];
+  availableTags: string[];
+  availableVisibility: string[];
+  summary: ArtifactSummary | null;
+  savedFilters: SavedFilterMeta[];
 
-  // Actions
   setCorrelationId: (id: string | null) => void;
   setTimeRange: (range: TimeRange) => void;
+  setArtifactTypes: (types: string[]) => void;
+  setProducers: (producers: string[]) => void;
+  setTags: (tags: string[]) => void;
+  setVisibility: (visibility: string[]) => void;
   clearFilters: () => void;
 
-  // Update available IDs
   updateAvailableCorrelationIds: (metadata: CorrelationIdMetadata[]) => void;
+  updateAvailableFacets: (facets: FilterFacets) => void;
+  setSummary: (summary: ArtifactSummary | null) => void;
 
-  // Get active filters
+  setSavedFilters: (filters: SavedFilterMeta[]) => void;
+  addSavedFilter: (filter: SavedFilterMeta) => void;
+  removeSavedFilter: (filterId: string) => void;
+
   getActiveFilters: () => ActiveFilter[];
-
-  // Remove specific filter
-  removeFilter: (type: 'correlationId' | 'timeRange') => void;
+  removeFilter: (filter: ActiveFilter) => void;
+  getFilterSnapshot: () => FilterSnapshot;
+  applyFilterSnapshot: (snapshot: FilterSnapshot) => void;
 }
+
+const defaultTimeRange: TimeRange = { preset: 'last10min' };
 
 const formatTimeRange = (range: TimeRange): string => {
   if (range.preset === 'last5min') return 'Last 5 min';
@@ -43,28 +74,89 @@ const formatTimeRange = (range: TimeRange): string => {
   return 'Unknown';
 };
 
+const uniqueSorted = (items: string[]) => Array.from(new Set(items)).sort((a, b) => a.localeCompare(b));
+
 export const useFilterStore = create<FilterState>()(
   devtools(
     (set, get) => ({
       correlationId: null,
-      timeRange: { preset: 'last10min' },
+      timeRange: defaultTimeRange,
+      selectedArtifactTypes: [],
+      selectedProducers: [],
+      selectedTags: [],
+      selectedVisibility: [],
       availableCorrelationIds: [],
+      availableArtifactTypes: [],
+      availableProducers: [],
+      availableTags: [],
+      availableVisibility: [],
+      summary: null,
+      savedFilters: [],
 
       setCorrelationId: (id) => set({ correlationId: id }),
       setTimeRange: (range) => set({ timeRange: range }),
+      setArtifactTypes: (types) => set({ selectedArtifactTypes: uniqueSorted(types) }),
+      setProducers: (producers) => set({ selectedProducers: uniqueSorted(producers) }),
+      setTags: (tags) => set({ selectedTags: uniqueSorted(tags) }),
+      setVisibility: (visibility) => set({ selectedVisibility: uniqueSorted(visibility) }),
       clearFilters: () =>
         set({
           correlationId: null,
-          timeRange: { preset: 'last10min' },
+          timeRange: defaultTimeRange,
+          selectedArtifactTypes: [],
+          selectedProducers: [],
+          selectedTags: [],
+          selectedVisibility: [],
         }),
 
       updateAvailableCorrelationIds: (metadata) => {
-        // Sort by most recent first
         const sorted = [...metadata].sort((a, b) => b.first_seen - a.first_seen);
         set({
           availableCorrelationIds: sorted.slice(0, 50),
         });
       },
+
+      updateAvailableFacets: (facets) =>
+        set({
+          availableArtifactTypes: uniqueSorted(facets.artifactTypes),
+          availableProducers: uniqueSorted(facets.producers),
+          availableTags: uniqueSorted(facets.tags),
+          availableVisibility: uniqueSorted(facets.visibilities),
+        }),
+
+      setSummary: (summary) => set({ summary }),
+
+      setSavedFilters: (filters) => set({ savedFilters: filters }),
+      addSavedFilter: (filter) =>
+        set((state) => ({
+          savedFilters: [...state.savedFilters.filter((f) => f.filter_id !== filter.filter_id), filter],
+        })),
+      removeSavedFilter: (filterId) =>
+        set((state) => ({
+          savedFilters: state.savedFilters.filter((f) => f.filter_id !== filterId),
+        })),
+
+      getFilterSnapshot: () => {
+        const state = get();
+        return {
+          correlationId: state.correlationId,
+          timeRange: state.timeRange,
+          artifactTypes: [...state.selectedArtifactTypes],
+          producers: [...state.selectedProducers],
+          tags: [...state.selectedTags],
+          visibility: [...state.selectedVisibility],
+        };
+      },
+
+      applyFilterSnapshot: (snapshot) =>
+        set({
+          correlationId: snapshot.correlationId,
+          timeRange: snapshot.timeRange,
+          selectedArtifactTypes: uniqueSorted(snapshot.artifactTypes),
+          selectedProducers: uniqueSorted(snapshot.producers),
+          selectedTags: uniqueSorted(snapshot.tags),
+          selectedVisibility: uniqueSorted(snapshot.visibility),
+        }),
 
       getActiveFilters: () => {
         const state = get();
@@ -78,7 +170,6 @@ export const useFilterStore = create<FilterState>()(
           });
         }
 
-        // Only add time range if it's not the default
         if (state.timeRange.preset !== 'last10min') {
           filters.push({
             type: 'timeRange',
@@ -87,15 +178,68 @@ export const useFilterStore = create<FilterState>()(
           });
         }
 
+        state.selectedArtifactTypes.forEach((type) => {
+          filters.push({
+            type: 'artifactTypes',
+            value: type,
+            label: `Type: ${type}`,
+          });
+        });
+
+        state.selectedProducers.forEach((producer) => {
+          filters.push({
+            type: 'producers',
+            value: producer,
+            label: `Producer: ${producer}`,
+          });
+        });
+
+        state.selectedTags.forEach((tag) => {
+          filters.push({
+            type: 'tags',
+            value: tag,
+            label: `Tag: ${tag}`,
+          });
+        });
+
+        state.selectedVisibility.forEach((kind) => {
+          filters.push({
+            type: 'visibility',
+            value: kind,
+            label: `Visibility: ${kind}`,
+          });
+        });
+
         return filters;
       },
 
-      removeFilter: (type) => {
-        if (type === 'correlationId') {
+      removeFilter: (filter) => {
+        if (filter.type === 'correlationId') {
           set({ correlationId: null });
-        } else if (type === 'timeRange') {
-          set({ timeRange: { preset: 'last10min' } });
+          return;
         }
+        if (filter.type === 'timeRange') {
+          set({ timeRange: defaultTimeRange });
+          return;
+        }
+        if (typeof filter.value !== 'string') {
+          return;
+        }
+        set((state) => {
+          if (filter.type === 'artifactTypes') {
+            return { selectedArtifactTypes: state.selectedArtifactTypes.filter((item) => item !== filter.value) };
+          }
+          if (filter.type === 'producers') {
+            return { selectedProducers: state.selectedProducers.filter((item) => item !== filter.value) };
+          }
+          if (filter.type === 'tags') {
+            return { selectedTags: state.selectedTags.filter((item) => item !== filter.value) };
+          }
+          if (filter.type === 'visibility') {
+            return { selectedVisibility: state.selectedVisibility.filter((item) => item !== filter.value) };
+          }
+          return {};
+        });
       },
     }),
     { name: 'filterStore' }
