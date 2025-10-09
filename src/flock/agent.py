@@ -448,7 +448,7 @@ class AgentBuilder:
 
     def with_mcps(
         self,
-        servers: Iterable[str] | dict[str, list[str]] | list[str | dict[str, list[str]]]
+        servers: Iterable[str] | dict[str, dict[str, list[str]]] | list[str | dict[str, dict[str, list[str]]]]
     ) -> AgentBuilder:
         """Assign MCP servers to this agent with optional server-specific mount points.
 
@@ -473,14 +473,14 @@ class AgentBuilder:
 
             >>> # Server-specific mounts
             >>> agent.with_mcps({
-            ...     "filesystem": ["/workspace/src", "/data"],
-            ...     "github": []  # No mounts for github
+            ...     "filesystem": {"roots": ["/workspace/dir/data"]},
+            ...     "github": {}  # No mounts for github
             ... })
 
             >>> # Mixed: backward compatible
             >>> agent.with_mcps([
             ...     "github",  # No mounts
-            ...     {"filesystem": ["/workspace/src"]}  # With mounts
+            ...     {"filesystem": {"roots": ["mount1", "mount2"] } }  # With mounts
             ... ])
         """
         # Parse input into server_names and mounts
@@ -488,9 +488,10 @@ class AgentBuilder:
         server_mounts: dict[str, list[str]] = {}
 
         if isinstance(servers, dict):
-            # Dict format: {"server": ["mount1", "mount2"]}
-            for server_name, mounts in servers.items():
+            # Dict format: {"server": {"mounts": ["mount1", "mount2"]}
+            for server_name, server_config in servers.items():
                 server_set.add(server_name)
+                mounts = server_config.get("roots", None)
                 if mounts:
                     server_mounts[server_name] = list(mounts)
         elif isinstance(servers, list):

@@ -403,7 +403,6 @@ class TestFlockMCPConfiguration:
 
         assert config.name == "test_server"
         assert config.connection_config == connection_config
-        assert config.allow_all_tools is True  # default
         assert isinstance(config.caching_config, FlockMCPCachingConfiguration)
         assert isinstance(config.callback_config, FlockMCPCallbackConfiguration)
         assert isinstance(config.feature_config, FlockMCPFeatureConfiguration)
@@ -421,14 +420,12 @@ class TestFlockMCPConfiguration:
 
         config = FlockMCPConfiguration(
             name="test_server",
-            allow_all_tools=False,
             connection_config=connection_config,
             caching_config=caching_config,
             feature_config=feature_config,
         )
 
         assert config.name == "test_server"
-        assert config.allow_all_tools is False
         assert config.caching_config.tool_cache_max_size == 200
         assert config.feature_config.tools_enabled is False
         assert config.feature_config.tool_whitelist == ["allowed_tool"]
@@ -443,7 +440,6 @@ class TestFlockMCPConfiguration:
         result = config.to_dict()
 
         assert result["name"] == "test_server"
-        assert result["allow_all_tools"] is True
         assert "connection_config" in result
         assert "caching_config" in result
         assert "callback_config" in result
@@ -486,7 +482,6 @@ class TestFlockMCPConfiguration:
         """Test name extraction logic in from_dict."""
         data = {
             "name": "test_server_name",
-            "allow_all_tools": False,
             # connection_config missing - this should raise ValueError before name check
         }
 

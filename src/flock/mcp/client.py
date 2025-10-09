@@ -371,8 +371,18 @@ class FlockMCPClient(BaseModel, ABC):
         async def _get_tools_internal() -> list[FlockMCPTool]:
             response: ListToolsResult = await self.session.list_tools()
             flock_tools = []
+            tool_whitelist = self.config.feature_config.tool_whitelist
 
             for tool in response.tools:
+                # Skip tools that are not whitelisted
+                # IF a whitelist is present
+                if (
+                    tool_whitelist is not None
+                    and isinstance(list, tool_whitelist)
+                    and len(tool_whitelist) > 0 
+                    and tool.name not in tool_whitelist
+                ):
+                    continue
                 converted_tool = FlockMCPTool.from_mcp_tool(
                     tool,
                     agent_id=agent_id,

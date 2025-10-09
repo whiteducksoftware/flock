@@ -126,7 +126,6 @@ class Flock:
         enable_roots_feature: bool = True,
         mount_points: list[str] | None = None,
         tool_whitelist: list[str] | None = None,
-        allow_all_tools: bool = True,
         read_timeout_seconds: float = 300,
         max_retries: int = 3,
         **kwargs,
@@ -144,7 +143,6 @@ class Flock:
             enable_sampling_feature: Enable LLM sampling requests
             enable_roots_feature: Enable filesystem roots
             tool_whitelist: Optional list of tool names to allow
-            allow_all_tools: If True, allow all tools (subject to whitelist)
             read_timeout_seconds: Timeout for server communications
             max_retries: Connection retry attempts
 
@@ -225,7 +223,6 @@ class Flock:
 
         mcp_config = FlockMCPConfiguration(
             name=name,
-            allow_all_tools=allow_all_tools,
             connection_config=connection_config,
             feature_config=feature_config,
         )
