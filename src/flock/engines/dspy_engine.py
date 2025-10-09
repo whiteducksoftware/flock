@@ -625,6 +625,8 @@ class DSPyEngine(EngineComponent):
                                 stream_sequence += 1
                             except Exception as e:
                                 logger.warning(f"Failed to emit streaming event: {e}")
+                        else:
+                            logger.exception("NO WS_MANAGER PRESENT!!!!")
 
                         if formatter is not None:
                             _refresh_panel()
