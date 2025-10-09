@@ -69,11 +69,7 @@ class FlockMCPClientManager:
         self._lock = asyncio.Lock()
 
     async def get_client(
-        self,
-        server_name: str,
-        agent_id: str,
-        run_id: str,
-        mount_points: list[str] | None = None
+        self, server_name: str, agent_id: str, run_id: str, mount_points: list[str] | None = None
     ) -> FlockMCPClient:
         """Get or create an MCP client for the given context.
 
@@ -114,6 +110,7 @@ class FlockMCPClientManager:
                 # MCP-ROOTS: Override mount points if provided
                 if mount_points:
                     from flock.mcp.types import MCPRoot
+
                     # Create MCPRoot objects from paths
                     roots = [
                         MCPRoot(uri=f"file://{path}", name=path.split("/")[-1])
@@ -125,6 +122,7 @@ class FlockMCPClientManager:
                     )
                     # Clone config with new mount points
                     from copy import deepcopy
+
                     config = deepcopy(config)
                     config.connection_config.mount_points = roots
 
@@ -201,10 +199,7 @@ class FlockMCPClientManager:
                 mount_points = server_mounts.get(server_name)
 
                 client = await self.get_client(
-                    server_name,
-                    agent_id,
-                    run_id,
-                    mount_points=mount_points
+                    server_name, agent_id, run_id, mount_points=mount_points
                 )
                 server_tools = await client.get_tools(agent_id, run_id)
 

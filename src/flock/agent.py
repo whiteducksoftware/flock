@@ -54,6 +54,7 @@ class MCPServerConfig(TypedDict, total=False):
         ...     "tool_whitelist": ["read_file"]
         ... }
     """
+
     roots: list[str]
     tool_whitelist: list[str]
 
@@ -190,10 +191,7 @@ class Agent(metaclass=AutoTracedMeta):
                 for tool_key, tool_entry in tools_dict.items():
                     if isinstance(tool_entry, dict):
                         original_name = tool_entry.get("original_name", None)
-                        if (
-                            original_name is not None
-                            and original_name in tool_whitelist
-                        ):
+                        if original_name is not None and original_name in tool_whitelist:
                             filtered_tools[tool_key] = tool_entry
 
                 tools_dict = filtered_tools
@@ -692,42 +690,42 @@ class AgentBuilder:
     ) -> AgentBuilder:
         """Assign MCP servers to this agent with optional server-specific mount points.
 
-        Architecture Decision: AD001 - Two-Level Architecture
-        Agents reference servers registered at orchestrator level.
+                Architecture Decision: AD001 - Two-Level Architecture
+                Agents reference servers registered at orchestrator level.
 
-        Args:
-            servers: One of:
-                - List of server names (strings) - no specific mounts
-                - Dict mapping server names to MCPServerConfig or list[str] (backward compatible)
-                - Mixed list of strings and dicts for flexibility
+                Args:
+                    servers: One of:
+                        - List of server names (strings) - no specific mounts
+                        - Dict mapping server names to MCPServerConfig or list[str] (backward compatible)
+                        - Mixed list of strings and dicts for flexibility
 
-        Returns:
-            self for method chaining
+                Returns:
+                    self for method chaining
 
-        Raises:
-            ValueError: If any server name is not registered with orchestrator
+                Raises:
+                    ValueError: If any server name is not registered with orchestrator
 
-        Examples:
-            >>> # Simple: no mount restrictions
-            >>> agent.with_mcps(["filesystem", "github"])
+                Examples:
+                    >>> # Simple: no mount restrictions
+                    >>> agent.with_mcps(["filesystem", "github"])
 
-            >>> # New format: Server-specific config with roots and tool whitelist
-            >>> agent.with_mcps({
-            ...     "filesystem": {"roots": ["/workspace/dir/data"], "tool_whitelist": ["read_file"]},
-            ...     "github": {}  # No restrictions for github
-            ... })
+                    >>> # New format: Server-specific config with roots and tool whitelist
+                    >>> agent.with_mcps({
+                    ...     "filesystem": {"roots": ["/workspace/dir/data"], "tool_whitelist": ["read_file"]},
+                    ...     "github": {}  # No restrictions for github
+                    ... })
 
-            >>> # Old format: Direct list (backward compatible)
-            >>> agent.with_mcps({
-            ...     "filesystem": ["/workspace/dir/data"],  # Old format still works
-            ... })
+                    >>> # Old format: Direct list (backward compatible)
+                    >>> agent.with_mcps({
+                    ...     "filesystem": ["/workspace/dir/data"],  # Old format still works
+                    ... })
 
-            >>> # Mixed: backward compatible
-            >>> agent.with_mcps([
-            ...     "github",  # No mounts
-            ...     {"filesystem": {"roots": ["mount1", "mount2"] } }
-```
-            ... ])
+                    >>> # Mixed: backward compatible
+                    >>> agent.with_mcps([
+                    ...     "github",  # No mounts
+                    ...     {"filesystem": {"roots": ["mount1", "mount2"] } }
+        ```
+                    ... ])
         """
         # Parse input into server_names and mounts
         server_set: set[str] = set()
@@ -749,11 +747,7 @@ class AgentBuilder:
                 elif isinstance(server_config, dict):
                     # New format: MCPServerConfig with optional roots and tool_whitelist
                     mounts = server_config.get("roots", None)
-                    if (
-                        mounts is not None
-                        and isinstance(mounts, list)
-                        and len(mounts) > 0
-                    ):
+                    if mounts is not None and isinstance(mounts, list) and len(mounts) > 0:
                         server_mounts[server_name] = list(mounts)
 
                     config_whitelist = server_config.get("tool_whitelist", None)
@@ -828,17 +822,19 @@ class AgentBuilder:
             >>> agent.with_mcps({"filesystem": ["/workspace/src"]})
         """
         import warnings
+
         warnings.warn(
             "Agent.mount() is deprecated. Use .with_mcps({'server': ['/path']}) "
             "for server-specific mounts instead.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
 
         if isinstance(paths, str):
             paths = [paths]
         if validate:
             from pathlib import Path
+
             for path in paths:
                 if not Path(path).exists():
                     raise ValueError(f"Mount path does not exist: {path}")

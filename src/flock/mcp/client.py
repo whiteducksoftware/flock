@@ -379,7 +379,7 @@ class FlockMCPClient(BaseModel, ABC):
                 if (
                     tool_whitelist is not None
                     and isinstance(tool_whitelist, list)
-                    and len(tool_whitelist) > 0 
+                    and len(tool_whitelist) > 0
                     and tool.name not in tool_whitelist
                 ):
                     continue
@@ -615,7 +615,6 @@ class FlockMCPClient(BaseModel, ABC):
         init_report = f"Server: '{self.config.name}': Protocol-Version: {init.protocolVersion}, Instructions: {init.instructions or 'No specific instructions'}, MCP_Implementation: Name: {init.serverInfo.name}, Version: {init.serverInfo.version}, Capabilities: {init.capabilities}"
 
         logger.debug(init_report)
-
 
         # 2) if we already know our current roots, notify the server
         #    so that it will follow up with a ListRootsRequest

@@ -257,7 +257,7 @@ class Flock(metaclass=AutoTracedMeta):
                     uri = path
                     # Extract path from URI for name
                     path_str = path.replace("file://", "")
-                 # the test:// path-prefix is used by testing servers such as the mcp-everything server.
+                # the test:// path-prefix is used by testing servers such as the mcp-everything server.
                 elif path.startswith("test://"):
                     # Already a test URI
                     uri = path
