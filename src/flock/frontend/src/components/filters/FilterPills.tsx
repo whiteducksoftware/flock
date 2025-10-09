@@ -1,6 +1,6 @@
-import React from 'react';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useFilterStore, formatTimeRange } from '../../store/filterStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import styles from './FilterPills.module.css';
 
 const extractLabelParts = (label: string) => {
@@ -12,6 +12,8 @@ const extractLabelParts = (label: string) => {
 };
 
 const FilterPills: React.FC = () => {
+  const showFilters = useSettingsStore((state) => state.ui.showFilters);
+  const setShowFilters = useSettingsStore((state) => state.setShowFilters);
   const correlationId = useFilterStore((state) => state.correlationId);
   const timeRange = useFilterStore((state) => state.timeRange);
   const selectedArtifactTypes = useFilterStore((state) => state.selectedArtifactTypes);
@@ -77,6 +79,27 @@ const FilterPills: React.FC = () => {
 
   return (
     <div className={styles.wrapper}>
+      <button
+        type="button"
+        onClick={() => setShowFilters(!showFilters)}
+        className={`${styles.toggleButton} ${showFilters ? styles.toggleButtonActive : ''}`}
+        title={`${showFilters ? 'Hide' : 'Show'} filter panel (Ctrl+Shift+F)`}
+        aria-pressed={showFilters}
+        aria-label={showFilters ? 'Hide filter panel' : 'Show filter panel'}
+      >
+        <span className={styles.toggleIcon} aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M2.667 2.667h10.666L9.333 7v4.667l-2.666 1.333V7L2.667 2.667z"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <span className={styles.toggleLabel}>Filter</span>
+      </button>
       <div className={styles.container} role="list">
         {activeFilters.map((filter, index) => {
           const labelValue =

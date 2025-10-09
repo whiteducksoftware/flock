@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import FilterPills from './FilterPills';
 import { useFilterStore, formatTimeRange } from '../../store/filterStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import type { TimeRange } from '../../types/filters';
 
 vi.mock('../../store/filterStore', async () => {
@@ -12,8 +13,17 @@ vi.mock('../../store/filterStore', async () => {
   };
 });
 
+vi.mock('../../store/settingsStore', async () => {
+  const actual = await vi.importActual<typeof import('../../store/settingsStore')>('../../store/settingsStore');
+  return {
+    ...actual,
+    useSettingsStore: vi.fn(),
+  };
+});
+
 describe('FilterPills', () => {
   const mockRemoveFilter = vi.fn();
+  const mockSetShowFilters = vi.fn();
 
   type MockFilterState = {
     correlationId: string | null;
@@ -39,6 +49,13 @@ describe('FilterPills', () => {
       };
       return selector(state);
     });
+
+    vi.mocked(useSettingsStore).mockImplementation((selector: any) =>
+      selector({
+        ui: { showFilters: false },
+        setShowFilters: mockSetShowFilters,
+      })
+    );
   };
 
   beforeEach(() => {
@@ -49,6 +66,7 @@ describe('FilterPills', () => {
     setupStore();
 
     render(<FilterPills />);
+    expect(screen.getByRole('button', { name: /filter panel/i })).toBeInTheDocument();
     expect(screen.getByText('Time')).toBeInTheDocument();
     expect(screen.getByText('Last 10 min')).toBeInTheDocument();
   });
@@ -73,6 +91,15 @@ describe('FilterPills', () => {
     const pill = screen.getByRole('listitem');
     expect(within(pill).getByText('Time')).toBeInTheDocument();
     expect(within(pill).getByText('Last 5 min')).toBeInTheDocument();
+  });
+
+  it('should toggle filters when toggle button is clicked', () => {
+    setupStore();
+
+    render(<FilterPills />);
+    fireEvent.click(screen.getByRole('button', { name: /filter panel/i }));
+
+    expect(mockSetShowFilters).toHaveBeenCalledWith(true);
   });
 
   it('should render multiple filter pills', () => {
