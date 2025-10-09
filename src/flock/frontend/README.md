@@ -34,8 +34,94 @@ The dashboard offers two complementary visualization modes:
 ### Extensible Module System
 - **Custom Visualizations**: Add specialized views via the module system
 - **Event Log Module**: Built-in table view for detailed event inspection
+- **Trace Viewer Module**: Jaeger-style distributed tracing with timeline and statistics
 - **Context Menu Integration**: Right-click to add modules at any location
 - **Persistent Layout**: Module positions and sizes are saved across sessions
+
+### Trace Viewer Module 🔍
+
+The **Trace Viewer** provides production-grade distributed tracing powered by OpenTelemetry and DuckDB, enabling deep debugging and performance analysis.
+
+#### Features
+
+- **Timeline View**: Waterfall visualization showing span hierarchies and execution order
+  - Parent-child relationships with visual indentation
+  - Service-specific color coding for easy identification
+  - Duration bars proportional to execution time
+  - Hover tooltips with detailed timing information
+  - Expand/collapse nested spans
+
+- **Statistics View**: Tabular view with comprehensive metrics
+  - Sortable columns (name, duration, status)
+  - Quick filtering and search
+  - Status indicators (OK, ERROR)
+  - Export capabilities
+
+- **Full I/O Capture**: Complete input/output data for every operation
+  - All function arguments captured as JSON
+  - Return values fully serialized
+  - Automatic deep object serialization
+  - No truncation (except strings >5000 chars)
+
+- **JSON Viewer**: Beautiful, interactive JSON exploration
+  - Syntax highlighting with theme integration
+  - Collapsible tree structure
+  - **Expand All / Collapse All** buttons for quick navigation
+  - Supports nested objects and arrays
+  - Preserves data types (strings, numbers, booleans)
+
+- **Multi-Trace Support**: Open multiple traces simultaneously
+  - Compare execution patterns side-by-side
+  - Toggle traces on/off
+  - Independent expansion states
+
+- **Performance**: Built on DuckDB (10-100x faster than SQLite)
+  - Sub-millisecond query times
+  - Handles thousands of spans efficiently
+  - SQL-powered analytics backend
+
+#### Usage
+
+1. **Enable Tracing** in your Flock application:
+```bash
+export FLOCK_AUTO_TRACE=true
+export FLOCK_TRACE_FILE=true
+```
+
+2. **Run Your Application** to generate traces
+```bash
+python your_flock_app.py
+```
+
+3. **Open Trace Viewer** in the dashboard:
+   - Click "Add Module" or right-click canvas
+   - Select "Trace Viewer"
+   - Browse and select traces to visualize
+
+4. **Analyze Traces**:
+   - Click trace rows to expand timeline/statistics
+   - Use search to filter by operation name
+   - Expand JSON attributes to inspect I/O data
+   - Click "Expand All" to see complete JSON structures
+
+#### What Gets Traced
+
+Every traced operation captures:
+- ✅ **Input Arguments**: All function parameters (excluding `self`/`cls`)
+- ✅ **Output Values**: Complete return values
+- ✅ **Timing Data**: Start time, end time, duration in milliseconds
+- ✅ **Span Hierarchy**: Parent-child relationships for call stacks
+- ✅ **Service Names**: Automatically extracted from class names
+- ✅ **Status Codes**: OK, ERROR, UNSET with error messages
+- ✅ **Metadata**: Correlation IDs, agent names, context info
+
+#### Tips
+
+- **Finding Bottlenecks**: Sort Statistics view by duration (descending)
+- **Error Investigation**: Look for red ERROR status indicators
+- **I/O Debugging**: Expand JSON viewers to see exact inputs that caused issues
+- **Multi-Trace Comparison**: Open related traces to compare execution patterns
+- **JSON Navigation**: Use "Expand All" for complex nested structures
 
 ### Modern UI/UX
 - **Glassmorphism Design**: Modern dark theme with semi-transparent surfaces and blur effects

@@ -37,6 +37,7 @@ repos:
         name: fix end of files
       - id: check-yaml
         name: validate yaml files
+        args: [--unsafe]  # Allow custom YAML tags (needed for mkdocs.yml)
       - id: check-toml
         name: validate toml files
       - id: check-json
@@ -78,7 +79,7 @@ repos:
         name: frontend build check
         entry: bash -c 'cd src/flock/frontend && npm run build'
         language: system
-        files: ^frontend/
+        files: ^src/flock/frontend/
         pass_filenames: false
         stages: [pre-push]  # Only on push, not on every commit
 

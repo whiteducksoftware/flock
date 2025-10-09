@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from pydantic import BaseModel
 
 from flock.artifacts import Artifact, ArtifactSpec
+from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
 from flock.registry import function_registry, type_registry
 from flock.runtime import Context, EvalInputs, EvalResult
@@ -81,8 +82,11 @@ class AgentOutput:
         )
 
 
-class Agent:
-    """Executable agent constructed via `AgentBuilder`."""
+class Agent(metaclass=AutoTracedMeta):
+    """Executable agent constructed via `AgentBuilder`.
+
+    All public methods are automatically traced via OpenTelemetry.
+    """
 
     def __init__(self, name: str, *, orchestrator: Flock) -> None:
         self.name = name
@@ -346,7 +350,7 @@ class Agent:
             return []
 
         default_engine = DSPyEngine(
-            model=self._orchestrator.model or os.getenv("DEFAULT_MODEL", "openai/gpt-4o-mini"),
+            model=self._orchestrator.model or os.getenv("DEFAULT_MODEL", "openai/gpt-4.1"),
             instructions=self.description,
         )
         self.engines = [default_engine]
@@ -407,6 +411,22 @@ class AgentBuilder:
     # Fluent configuration -------------------------------------------------
 
     def description(self, text: str) -> AgentBuilder:
+        """Set the agent's description for documentation and tracing.
+
+        Args:
+            text: Human-readable description of what the agent does
+
+        Returns:
+            self for method chaining
+
+        Example:
+            >>> agent = (
+            ...     flock.agent("pizza_chef")
+            ...     .description("Creates authentic Italian pizza recipes")
+            ...     .consumes(Idea)
+            ...     .publishes(Recipe)
+            ... )
+        """
         self._agent.description = text
         return self
 
@@ -424,6 +444,59 @@ class AgentBuilder:
         mode: str = "both",
         priority: int = 0,
     ) -> AgentBuilder:
+        """Declare which artifact types this agent processes.
+
+        Sets up subscription rules that determine when the agent executes.
+        Supports type-based matching, conditional filters, batching, and joins.
+
+        Args:
+            *types: Artifact types (Pydantic models) to consume
+            where: Optional filter predicate(s). Agent only executes if predicate returns True.
+                Can be a single callable or sequence of callables (all must pass).
+            text: Optional semantic text filter using embedding similarity
+            min_p: Minimum probability threshold for text similarity (0.0-1.0)
+            from_agents: Only consume artifacts from specific agents
+            channels: Only consume artifacts with matching tags
+            join: Join specification for coordinating multiple artifact types
+            batch: Batch specification for processing multiple artifacts together
+            delivery: Delivery mode - "exclusive" (one agent) or "broadcast" (all matching)
+            mode: Processing mode - "both", "streaming", or "batch"
+            priority: Execution priority (higher = executes first)
+
+        Returns:
+            self for method chaining
+
+        Examples:
+            >>> # Basic type subscription
+            >>> agent.consumes(Task)
+
+            >>> # Multiple types
+            >>> agent.consumes(Task, Event, Command)
+
+            >>> # Conditional consumption (filtering)
+            >>> agent.consumes(Review, where=lambda r: r.score >= 8)
+
+            >>> # Multiple predicates (all must pass)
+            >>> agent.consumes(
+            ...     Order,
+            ...     where=[
+            ...         lambda o: o.total > 100,
+            ...         lambda o: o.status == "pending"
+            ...     ]
+            ... )
+
+            >>> # Consume from specific agents
+            >>> agent.consumes(Report, from_agents=["analyzer", "validator"])
+
+            >>> # Channel-based routing
+            >>> agent.consumes(Alert, channels={"critical", "security"})
+
+            >>> # Batch processing
+            >>> agent.consumes(
+            ...     Email,
+            ...     batch={"size": 10, "timeout": 5.0}
+            ... )
+        """
         predicates: Sequence[Callable[[BaseModel], bool]] | None
         if where is None:
             predicates = None
@@ -454,6 +527,48 @@ class AgentBuilder:
     def publishes(
         self, *types: type[BaseModel], visibility: Visibility | None = None
     ) -> PublishBuilder:
+        """Declare which artifact types this agent produces.
+
+        Configures the output types and default visibility controls for artifacts
+        published by this agent. Can chain with .where() for conditional publishing.
+
+        Args:
+            *types: Artifact types (Pydantic models) to publish
+            visibility: Default visibility control for all outputs. Defaults to PublicVisibility.
+                Can be overridden per-publish or with .where() chaining.
+
+        Returns:
+            PublishBuilder for conditional publishing configuration
+
+        Examples:
+            >>> # Basic output declaration
+            >>> agent.publishes(Report)
+
+            >>> # Multiple output types
+            >>> agent.publishes(Summary, DetailedReport, Alert)
+
+            >>> # Private outputs (only specific agents can see)
+            >>> agent.publishes(
+            ...     SecretData,
+            ...     visibility=PrivateVisibility(agents={"admin", "auditor"})
+            ... )
+
+            >>> # Tenant-isolated outputs
+            >>> agent.publishes(
+            ...     Invoice,
+            ...     visibility=TenantVisibility()
+            ... )
+
+            >>> # Conditional publishing with chaining
+            >>> (agent.publishes(Alert)
+            ...  .where(lambda result: result.severity == "critical"))
+
+        See Also:
+            - PublicVisibility: Default, visible to all agents
+            - PrivateVisibility: Allowlist-based access control
+            - TenantVisibility: Multi-tenant isolation
+            - LabelledVisibility: Role-based access control
+        """
         outputs = []
         for model in types:
             spec = ArtifactSpec.from_model(model)
@@ -465,10 +580,80 @@ class AgentBuilder:
         return PublishBuilder(self, outputs)
 
     def with_utilities(self, *components: AgentComponent) -> AgentBuilder:
+        """Add utility components to customize agent lifecycle and behavior.
+
+        Components are hooks that run at specific points in the agent execution
+        lifecycle. Common uses include rate limiting, budgets, metrics, caching,
+        and custom preprocessing/postprocessing.
+
+        Args:
+            *components: AgentComponent instances with lifecycle hooks
+
+        Returns:
+            self for method chaining
+
+        Examples:
+            >>> # Rate limiting
+            >>> agent.with_utilities(
+            ...     RateLimiter(max_calls=10, window=60)
+            ... )
+
+            >>> # Budget control
+            >>> agent.with_utilities(
+            ...     TokenBudget(max_tokens=10000)
+            ... )
+
+            >>> # Multiple components (executed in order)
+            >>> agent.with_utilities(
+            ...     RateLimiter(max_calls=5),
+            ...     MetricsCollector(),
+            ...     CacheLayer(ttl=3600)
+            ... )
+
+        See Also:
+            - AgentComponent: Base class for custom components
+            - Lifecycle hooks: on_initialize, on_pre_consume, on_post_publish, etc.
+        """
         self._agent.utilities.extend(components)
         return self
 
     def with_engines(self, *engines: EngineComponent) -> AgentBuilder:
+        """Configure LLM engines for agent evaluation.
+
+        Engines determine how agents process inputs. Default is DSPy with the
+        orchestrator's model. Custom engines enable different LLM backends,
+        non-LLM logic, or hybrid approaches.
+
+        Args:
+            *engines: EngineComponent instances for evaluation
+
+        Returns:
+            self for method chaining
+
+        Examples:
+            >>> # DSPy engine with specific model
+            >>> agent.with_engines(
+            ...     DSPyEngine(model="openai/gpt-4o")
+            ... )
+
+            >>> # Custom non-LLM engine
+            >>> agent.with_engines(
+            ...     RuleBasedEngine(rules=my_rules)
+            ... )
+
+            >>> # Hybrid approach (multiple engines)
+            >>> agent.with_engines(
+            ...     DSPyEngine(model="openai/gpt-4o-mini"),
+            ...     FallbackEngine()
+            ... )
+
+        Note:
+            If no engines specified, agent uses DSPy with the orchestrator's default model.
+
+        See Also:
+            - DSPyEngine: Default LLM-based evaluation
+            - EngineComponent: Base class for custom engines
+        """
         self._agent.engines.extend(engines)
         return self
 

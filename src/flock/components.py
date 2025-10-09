@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, create_model
+from pydantic._internal._model_construction import ModelMetaclass
 from typing_extensions import Self, TypeVar
+
+from flock.logging.auto_trace import AutoTracedMeta
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -16,6 +19,14 @@ if TYPE_CHECKING:  # pragma: no cover - type checking only
     from flock.runtime import Context, EvalInputs, EvalResult
 
 T = TypeVar("T", bound="AgentComponentConfig")
+
+
+class TracedModelMeta(ModelMetaclass, AutoTracedMeta):
+    """Combined metaclass for Pydantic models with auto-tracing.
+
+    This metaclass combines Pydantic's ModelMetaclass with AutoTracedMeta
+    to enable both Pydantic functionality and automatic method tracing.
+    """
 
 
 class AgentComponentConfig(BaseModel):
@@ -37,7 +48,12 @@ class AgentComponentConfig(BaseModel):
         return create_model(f"Dynamic{cls.__name__}", __base__=cls, **field_definitions)
 
 
-class AgentComponent(BaseModel):
+class AgentComponent(BaseModel, metaclass=TracedModelMeta):
+    """Base class for agent components with lifecycle hooks.
+
+    All public methods are automatically traced via OpenTelemetry.
+    """
+
     name: str | None = None
     config: AgentComponentConfig = Field(default_factory=AgentComponentConfig)
 

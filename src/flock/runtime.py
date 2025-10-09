@@ -66,7 +66,7 @@ class EvalResult(BaseModel):
         cls,
         obj: BaseModel,
         *,
-        agent,
+        agent: Any,
         state: dict | None = None,
         metrics: dict | None = None,
         errors: list[str] | None = None,
@@ -114,7 +114,7 @@ class EvalResult(BaseModel):
     def from_objects(
         cls,
         *objs: BaseModel,
-        agent,
+        agent: Any,
         state: dict | None = None,
         metrics: dict | None = None,
         errors: list[str] | None = None,

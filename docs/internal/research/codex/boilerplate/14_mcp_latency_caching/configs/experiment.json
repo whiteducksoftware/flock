@@ -1,0 +1,5 @@
+{
+  "name": "MCP Latency & Caching",
+  "runs": 30,
+  "batch": 10
+}

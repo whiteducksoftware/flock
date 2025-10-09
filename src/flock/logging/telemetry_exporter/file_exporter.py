@@ -29,7 +29,7 @@ class FileSpanExporter(TelemetryExporter):
         context = span.get_span_context()
         status = span.status or Status(StatusCode.UNSET)
 
-        return {
+        result = {
             "name": span.name,
             "context": {
                 "trace_id": format(context.trace_id, "032x"),
@@ -65,6 +65,12 @@ class FileSpanExporter(TelemetryExporter):
             ],
             "resource": dict(span.resource.attributes.items()),
         }
+
+        # Add parent_id if this span has a parent
+        if span.parent and span.parent.span_id != 0:
+            result["parent_id"] = format(span.parent.span_id, "016x")
+
+        return result
 
     def export(self, spans):
         """Write spans to a log file."""

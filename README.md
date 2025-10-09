@@ -2,162 +2,684 @@
   <img alt="Flock Banner" src="https://raw.githubusercontent.com/whiteducksoftware/flock/master/docs/assets/images/flock.png" width="800">
 </p>
 <p align="center">
+  <a href="https://docs.flock.whiteduck.de" target="_blank"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-blue?style=for-the-badge&logo=readthedocs"></a>
   <a href="https://pypi.org/project/flock-core/" target="_blank"><img alt="PyPI Version" src="https://img.shields.io/pypi/v/flock-core?style=for-the-badge&logo=pypi&label=pip%20version"></a>
   <img alt="Python Version" src="https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python">
-  <a href="https://github.com/whiteducksoftware/flock/blob/master/LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/pypi/l/flock-core?style=for-the-badge"></a>
+  <a href="LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/pypi/l/flock-core?style=for-the-badge"></a>
   <a href="https://whiteduck.de" target="_blank"><img alt="Built by white duck" src="https://img.shields.io/badge/Built%20by-white%20duck%20GmbH-white?style=for-the-badge&labelColor=black"></a>
-  <a href="https://www.linkedin.com/company/whiteduck" target="_blank"><img alt="LinkedIn" src="https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white&label=whiteduck"></a>
-  <a href="https://bsky.app/profile/whiteduck-gmbh.bsky.social" target="_blank"><img alt="Bluesky" src="https://img.shields.io/badge/bluesky-Follow-blue?style=for-the-badge&logo=bluesky&logoColor=%23fff&color=%23333&labelColor=%230285FF&label=whiteduck-gmbh"></a>
+  <img alt="Test Coverage" src="https://img.shields.io/badge/coverage-77%25-green?style=for-the-badge">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-743%20passing-brightgreen?style=for-the-badge">
 </p>
 
 ---
 
-# 🚀 Flock 0.5: Agent Systems Without the Graphs
+# Flock 0.5: Declarative Blackboard Multi-Agent Orchestration
 
-> **What if agents collaborated like experts at a whiteboard—not like nodes in a rigid workflow?**
+> **Stop engineering prompts. Start declaring contracts.**
 
----
+Flock is a production-focused framework for orchestrating AI agents through **declarative type contracts** and **blackboard architecture**—proven patterns from distributed systems, decades of experience with microservice architectures, and classical AI—now applied to modern LLMs.
 
-## The Problem You Know Too Well
+**📖 [Read the full documentation →](https://docs.flock.whiteduck.de)**
 
-🤯 **Prompt Hell**: Brittle 500-line prompts that break with every model update  
-💥 **System Failures**: One bad LLM response crashes your entire workflow  
-🧪 **Testing Nightmares**: "How do I unit test a prompt?" (You don't.)  
-📏 **Measuring Quality**: "How do I know my prompts are optimal?" (You also don't.)  
-📄 **Output Chaos**: Parsing unstructured LLM responses into reliable data  
-⛓️ **Orchestration Limits**: Graph-based frameworks create rigid, tightly-coupled systems  
-🚀 **Production Gap**: Jupyter notebooks don't scale to enterprise systems  
-🔓 **No Security Model**: Every agent sees everything—no access controls  
-
-**The tooling is fundamentally broken. It's time for a better approach.**
-
-Most issues are solvable, because decades of experience with micro services tought us hard lessons about decoupling, orchestration and reliability. 
-
-**Let's introduce these learnings to AI agents!**
+**Quick links:**
+- **[Getting Started](https://docs.flock.whiteduck.de/getting-started/installation/)** - Installation and first steps
+- **[Tutorials](https://docs.flock.whiteduck.de/tutorials/)** - Step-by-step learning path
+- **[User Guides](https://docs.flock.whiteduck.de/guides/)** - In-depth feature documentation
+- **[API Reference](https://docs.flock.whiteduck.de/reference/api/)** - Complete API documentation
+- **[Roadmap](https://docs.flock.whiteduck.de/about/roadmap/)** - What's coming in v1.0
 
 ---
 
-## The Flock Solution: Declarative + Blackboard Architecture
+## The Problem With Current Approaches
 
-**What if you could skip the 'prompt engineering' step AND avoid rigid workflow graphs?**
+Building production multi-agent systems today means dealing with:
 
-Flock 0.5 combines **declarative AI workflows** with **blackboard architecture**—the pattern that powered groundbreaking AI systems since the 1970s (Hearsay-II speech recognition at CMU).
+**🔥 Prompt Engineering Hell**
+```python
 
-### ✅ Declarative at Heart
+prompt = """You are an expert code reviewer. When you receive code, you should...
+[498 more lines of instructions that the LLM ignores half the time]"""
 
-**No natural language prompts. No brittle instructions. Just type-safe contracts.**
+# 500-line prompt that breaks when models update
+
+# How do I know that there isn't an even better prompt? (you don't)
+# -> proving 'best possible performance' is impossible
+```
+
+**🧪 Testing Nightmares**
+```python
+# How do you unit test this?
+result = llm.invoke(prompt)  # Hope for valid JSON
+data = json.loads(result.content)  # Crashes in production
+```
+
+**📐 Rigid topology and tight coupling**
+```python
+# Want to add a new agent? Rewrite the entire graph.
+workflow.add_edge("agent_a", "agent_b")
+workflow.add_edge("agent_b", "agent_c")
+# Add agent_d? Start rewiring...
+```
+
+**💀 Single point of failure: Orchestrator dies? Everything dies.**
+```python
+# Orchestrator dies? Everything dies.
+```
+
+**🧠 God object anti-pattern:**
+```python
+# One orchestrator needs domain knowledge of 20+ agents to route correctly
+# Orchestrator 'guesses' next agent based on a natural language description.
+# Not suitable for critical systems.
+```
+
+These aren't framework limitations, they're **architectural choices** that don't scale.
+
+These challenges are solvable—decades of experience with microservices have taught us hard lessons about decoupling, orchestration, and reliability. Let's apply those lessons!
+
+---
+
+## The Flock Approach
+
+Flock takes a different path, combining two proven patterns:
+
+### 1. Declarative Type Contracts (Not Prompts)
+
+**Traditional approach:**
+```python
+prompt = """You are an expert software engineer and bug analyst. Your task is to analyze bug reports and provide structured diagnostic information.
+
+INSTRUCTIONS:
+1. Read the bug report carefully
+2. Determine the severity level (must be exactly one of: Critical, High, Medium, Low)
+3. Classify the bug category (e.g., "performance", "security", "UI", "data corruption")
+4. Formulate a root cause hypothesis (minimum 50 characters)
+5. Assign a confidence score between 0.0 and 1.0
+
+OUTPUT FORMAT:
+You MUST return valid JSON with this exact structure:
+{
+  "severity": "string (Critical|High|Medium|Low)",
+  "category": "string",
+  "root_cause_hypothesis": "string (minimum 50 characters)",
+  "confidence_score": "number (0.0 to 1.0)"
+}
+
+VALIDATION RULES:
+- severity: Must be exactly one of: Critical, High, Medium, Low (case-sensitive)
+- category: Must be a single word or short phrase describing the bug type
+- root_cause_hypothesis: Must be at least 50 characters long and explain the likely cause
+- confidence_score: Must be a decimal number between 0.0 and 1.0 inclusive
+
+EXAMPLES:
+Input: "App crashes when user clicks submit button"
+Output: {"severity": "Critical", "category": "crash", "root_cause_hypothesis": "Null pointer exception in form validation logic when required fields are empty", "confidence_score": 0.85}
+
+Input: "Login button has wrong color"
+Output: {"severity": "Low", "category": "UI", "root_cause_hypothesis": "CSS class override not applied correctly in the theme configuration", "confidence_score": 0.9}
+
+IMPORTANT:
+- Do NOT include any explanatory text before or after the JSON
+- Do NOT use markdown code blocks (no ```json```)
+- Do NOT add comments in the JSON
+- Ensure the JSON is valid and parseable
+- If you cannot determine something, use your best judgment
+- Never return null values
+
+Now analyze this bug report:
+{bug_report_text}"""
+
+result = llm.invoke(prompt)  # 500-line prompt that breaks when models update
+# Then parse and hope it's valid JSON
+data = json.loads(result.content)  # Crashes in production 🔥
+```
+
+**The Flock way:**
+```python
+@flock_type
+class BugDiagnosis(BaseModel):
+    severity: str = Field(pattern="^(Critical|High|Medium|Low)$")
+    category: str = Field(description="Bug category")
+    root_cause_hypothesis: str = Field(min_length=50)
+    confidence_score: float = Field(ge=0.0, le=1.0)
+
+# The schema IS the instruction. No 500-line prompt needed.
+agent.consumes(BugReport).publishes(BugDiagnosis)
+```
+
+<p align="center">
+  <img alt="Flock Banner" src="docs/assets/images/bug_diagnosis.png" width="1000">
+</p>
+
+**Why this matters:**
+- ✅ **Survives model upgrades** - GPT-6 will still understand Pydantic schemas
+- ✅ **Runtime validation** - Errors caught at parse time, not in production
+- ✅ **Testable** - Mock inputs/outputs with concrete types
+- ✅ **Self-documenting** - The code tells you what agents do
+
+### 2. Blackboard Architecture (Not Directed Graphs)
+
+**Graph-based approach:**
+```python
+# Explicit workflow with hardcoded edges
+workflow.add_edge("radiologist", "diagnostician")
+workflow.add_edge("lab_tech", "diagnostician")
+# Add performance_analyzer? Rewrite the graph.
+```
+
+**The Flock way (blackboard):**
+```python
+# Agents subscribe to types, workflows emerge
+radiologist = flock.agent("radiologist").consumes(Scan).publishes(XRayAnalysis)
+lab_tech = flock.agent("lab_tech").consumes(Scan).publishes(LabResults)
+diagnostician = flock.agent("diagnostician").consumes(XRayAnalysis, LabResults).publishes(Diagnosis)
+
+# Add performance_analyzer? Just subscribe it:
+performance = flock.agent("perf").consumes(Scan).publishes(PerfAnalysis)
+# Done. No graph rewiring. Diagnostician can optionally consume it.
+```
+
+**What just happened:**
+- ✅ **Parallel execution** - Radiologist and lab_tech run concurrently (automatic)
+- ✅ **Dependency resolution** - Diagnostician waits for both inputs (automatic)
+- ✅ **Loose coupling** - Agents don't know about each other, just data types
+- ✅ **Scalable** - O(n) complexity, not O(n²) edges
+
+**This is not a new idea.** Blackboard architecture has powered groundbreaking AI systems since the 1970s (Hearsay-II, HASP/SIAP, BB1). We're applying proven patterns to modern LLMs.
+
+---
+
+## Quick Start (60 Seconds)
+
+```bash
+pip install flock-core
+export OPENAI_API_KEY="sk-..."
+# Optional: export DEFAULT_MODEL (falls back to hard-coded default if unset)
+export DEFAULT_MODEL="openai/gpt-4.1"
+```
+
+```python
+import os
+import asyncio
+from pydantic import BaseModel, Field
+from flock import Flock, flock_type
+
+# 1. Define typed artifacts
+@flock_type
+class CodeSubmission(BaseModel):
+    code: str
+    language: str
+
+@flock_type
+class BugAnalysis(BaseModel):
+    bugs_found: list[str]
+    severity: str = Field(pattern="^(Critical|High|Medium|Low|None)$")
+    confidence: float = Field(ge=0.0, le=1.0)
+
+@flock_type
+class SecurityAnalysis(BaseModel):
+    vulnerabilities: list[str]
+    risk_level: str = Field(pattern="^(Critical|High|Medium|Low|None)$")
+
+@flock_type
+class FinalReview(BaseModel):
+    overall_assessment: str = Field(pattern="^(Approve|Approve with Changes|Reject)$")
+    action_items: list[str]
+
+# 2. Create the blackboard
+flock = Flock(os.getenv("DEFAULT_MODEL", "openai/gpt-4.1"))
+
+# 3. Agents subscribe to types (NO graph wiring!)
+bug_detector = flock.agent("bug_detector").consumes(CodeSubmission).publishes(BugAnalysis)
+security_auditor = flock.agent("security_auditor").consumes(CodeSubmission).publishes(SecurityAnalysis)
+
+# This agent AUTOMATICALLY waits for both analyses
+final_reviewer = flock.agent("final_reviewer").consumes(BugAnalysis, SecurityAnalysis).publishes(FinalReview)
+
+# 4. Run with real-time dashboard
+async def main():
+    await flock.serve(dashboard=True)
+
+asyncio.run(main())
+```
+
+**What happened:**
+- Bug detector and security auditor ran **in parallel** (both consume CodeSubmission)
+- Final reviewer **automatically waited** for both
+- **Zero prompts written** - types defined the behavior
+- **Zero graph edges** - subscriptions created the workflow
+- **Full type safety** - Pydantic validates all outputs
+
+---
+
+## Core Concepts
+
+### Typed Artifacts (The Vocabulary)
+
+Every piece of data on the blackboard is a validated Pydantic model:
 
 ```python
 @flock_type
-class MyDreamPizza(BaseModel):
-    pizza_idea: str
+class PatientDiagnosis(BaseModel):
+    condition: str = Field(min_length=10)
+    confidence: float = Field(ge=0.0, le=1.0)
+    recommended_treatment: list[str] = Field(min_length=1)
+    follow_up_required: bool
+```
 
-@flock_type
-class Pizza(BaseModel):
-    ingredients: list[str]
-    size: str
-    crust_type: str
-    step_by_step_instructions: list[str]
+**Benefits:**
+- Runtime validation ensures quality
+- Field constraints prevent bad outputs
+- Self-documenting data structures
+- Version-safe (types survive model updates)
 
-# Create orchestrator
-flock = Flock("openai/gpt-4o")
+### Agent Subscriptions (The Rules)
 
-# Define agent with ZERO natural language
-pizza_master = (
-    flock.agent("pizza_master")
-    .consumes(MyDreamPizza)
-    .publishes(Pizza)
+Agents declare what they consume and produce:
+
+```python
+analyzer = (
+    flock.agent("analyzer")
+    .description("Analyzes patient scans")  # Optional: improves multi-agent coordination
+    .consumes(PatientScan)                   # What triggers this agent
+    .publishes(PatientDiagnosis)             # What it produces
 )
 ```
 
-**Hard-binding type contracts will even work with GPT-4729.**
-
-<p align="center">
-  <img alt="Flock Blackboard" src="docs/img/pizza.png" width="1000">
-</p>
-
-### ✅ Key Advantages
-
-✅ **Declarative Contracts**: Define inputs/outputs with Pydantic models. Flock handles the LLM complexity.  
-⚡ **Built-in Resilience**: Blackboard persists context—agents crash? They recover and resume.  
-🧪 **Actually Testable**: Clear contracts make agents unit-testable like any other code  
-🔐 **Zero-Trust Security**: 5 built-in visibility types (Public, Private, Tenant, Label-based, Time-delayed)  
-🚀 **Dynamic Workflows**: Self-correcting loops, conditional routing, intelligent decision-making  
-🔧 **Production-Ready**: Real-time dashboard, WebSocket streaming, 743 passing tests  
-📊 **True Observability**: Agent View + Blackboard View with full data lineage  
-
----
-
-## Why Graphs Fail (and Blackboards Win)
-
-### The Problem with Graph-Based Frameworks
-
-**LangGraph. CrewAI. AutoGen.** They all make the same fundamental mistake: **treating agent collaboration as a directed graph**.
+**Advanced subscriptions:**
 
 ```python
-# ❌ The Graph-Based Way (LangGraph, CrewAI, etc.)
-workflow.add_edge("agent_a", "agent_b")  # Tight coupling!
-workflow.add_edge("agent_b", "agent_c")  # Predefined flow!
+# Conditional consumption - only high-severity cases
+urgent_care = flock.agent("urgent").consumes(
+    Diagnosis,
+    where=lambda d: d.severity in ["Critical", "High"]
+)
 
-# What happens when you need to:
-# - Add agent_d that consumes data from agent_a?
-# - Run agent_b and agent_c in parallel?
-# - Route conditionally based on agent_a's output quality?
-# Answer: Rewrite the graph. Again. And again.
+# Batch processing - wait for 10 items
+batch_processor = flock.agent("batch").consumes(
+    Event,
+    batch=BatchSpec(size=10, timeout=timedelta(seconds=30))
+)
+
+# Join operations - wait for multiple types within time window
+correlator = flock.agent("correlator").consumes(
+    SignalA,
+    SignalB,
+    join=JoinSpec(within=timedelta(minutes=5))
+)
 ```
 
-**Why graphs fail at scale:**
+### Visibility Controls (The Security)
 
-- 🔗 **Tight coupling**: Agents hardcode their successors
-- 📐 **Rigid topology**: Adding an agent means rewiring the graph
-- 🐌 **Sequential thinking**: Even independent agents wait in line
-- 🧪 **Testing nightmare**: Can't test agents in isolation
-- 🔓 **No security model**: Every agent sees everything
-- 📈 **Doesn't scale**: 20+ agents = spaghetti graph
-- 💀 **Single point of failure**: Orchestrator dies? Everything dies.
-- 🧠 **God object anti-pattern**: One orchestrator needs domain knowledge of 20+ agents to route correctly
-- 📦 **No context resilience**: Agent crashes? Context disappears. No recovery.
-
-**This is workflow orchestration dressed up as "agent systems."**
-
----
-
-### The Blackboard Alternative: How Experts Actually Collaborate
-
-<p align="center">
-  <img alt="Flock Blackboard" src="docs/img/flock_ui_blackboard_view.png" width="1000">
-</p>
-
-Watch a team of specialists solve a complex problem:
-
-1. **Radiologist** posts X-ray analysis on the whiteboard
-2. **Lab tech** sees it, adds blood work results
-3. **Diagnostician** waits for BOTH, then posts diagnosis
-4. **Pharmacist** reacts to diagnosis, suggests treatment
-
-**No one manages the workflow.** No directed graph. Just specialists reacting to relevant information appearing on a shared workspace.
-
-**This is the blackboard pattern—proven since the 1970s (Hearsay-II speech recognition system at CMU).**
-
-**Why this matters:**
-- **Context IS the blackboard**: All state lives in one place, not scattered across agents
-- **Crash resilience**: Agent dies? Blackboard persists. Restart agent, it picks up where it left off.
-- **100% decoupled**: Agents don't know about each other. They only know data types.
-- **Microservices lessons applied**: We learned in the 2000s that tight coupling kills scalability. Blackboards apply that wisdom to AI agents.
-
----
-
-## 🎯 Flock 0.5: Blackboard-First Architecture
+**Unlike other frameworks, Flock has zero-trust security built-in:**
 
 ```python
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
+# Multi-tenancy (SaaS isolation)
+agent.publishes(CustomerData, visibility=TenantVisibility(tenant_id="customer_123"))
+
+# Explicit allowlist (HIPAA compliance)
+agent.publishes(MedicalRecord, visibility=PrivateVisibility(agents={"physician", "nurse"}))
+
+# Role-based access control
+agent.identity(AgentIdentity(name="analyst", labels={"clearance:secret"}))
+agent.publishes(IntelReport, visibility=LabelledVisibility(required_labels={"clearance:secret"}))
+
+# Time-delayed release (embargo periods)
+artifact.visibility = AfterVisibility(ttl=timedelta(hours=24), then=PublicVisibility())
+
+# Public (default)
+agent.publishes(PublicReport, visibility=PublicVisibility())
+```
+
+**Why this matters:** Financial services, healthcare, defense, SaaS platforms all need this for compliance. Other frameworks make you build it yourself.
+
+### Batching Pattern: Parallel Execution Control
+
+**A key differentiator:** The separation of `publish()` and `run_until_idle()` enables parallel execution.
+
+```python
+# ✅ EFFICIENT: Batch publish, then run in parallel
+for review in customer_reviews:
+    await flock.publish(review)  # Just scheduling work
+
+await flock.run_until_idle()  # All sentiment_analyzer agents run concurrently!
+
+# Get all results
+analyses = await flock.store.get_by_type(SentimentAnalysis)
+# 100 analyses completed in ~1x single review processing time!
+```
+
+**Why this separation matters:**
+- ⚡ **Parallel execution** - Process 100 customer reviews concurrently
+- 🎯 **Batch control** - Publish multiple artifacts, execute once
+- 🔄 **Multi-type workflows** - Publish different types, trigger different agents in parallel
+- 📊 **Better performance** - Process 1000 items in the time it takes to process 1
+
+**Comparison to other patterns:**
+```python
+# ❌ If run_until_idle() was automatic (like most frameworks):
+for review in customer_reviews:
+    await flock.publish(review)  # Would wait for completion each time!
+# Total time: 100x single execution (sequential)
+
+# ✅ With explicit batching:
+for review in customer_reviews:
+    await flock.publish(review)  # Fast: just queuing
+await flock.run_until_idle()
+# Total time: ~1x single execution (parallel)
+```
+
+### Production Safety Features
+
+**Built-in safeguards prevent common production failures:**
+
+```python
+# Circuit breakers prevent runaway costs
+flock = Flock("openai/gpt-4.1", max_agent_iterations=1000)
+
+# Feedback loop protection
+critic = (
+    flock.agent("critic")
+    .consumes(Essay)
+    .publishes(Critique)
+    .prevent_self_trigger(True)  # Won't trigger itself infinitely
+)
+
+# Best-of-N execution (run 5x, pick best)
+agent.best_of(5, score=lambda result: result.metrics["confidence"])
+
+# Configuration validation
+agent.best_of(150, ...)  # ⚠️ Warns: "best_of(150) is very high - high LLM costs"
+```
+
+---
+
+## Production-Ready Observability
+
+### Real-Time Dashboard
+
+**Start the dashboard with one line:**
+
+```python
+await flock.serve(dashboard=True)
+```
+
+The dashboard provides comprehensive real-time visibility into your agent system with professional UI/UX:
+
+<p align="center">
+  <img alt="Flock Agent View" src="docs/assets/images/flock_ui_agent_view.png" width="1000">
+  <i>Agent View: See agent communication patterns and message flows in real-time</i>
+</p>
+
+**Key Features:**
+
+- **Dual Visualization Modes:**
+  - **Agent View** - Agents as nodes with message flows as edges
+  - **Blackboard View** - Messages as nodes with data transformations as edges
+
+<p align="center">
+  <img alt="Flock Blackboard View" src="docs/assets/images/flock_ui_blackboard_view.png" width="1000">
+  <i>Blackboard View: Track data lineage and transformations across the system</i>
+</p>
+
+- **Real-Time Updates:**
+  - WebSocket streaming with 2-minute heartbeat
+  - Live agent activation and message publication
+  - Auto-layout with Dagre algorithm
+
+- **Interactive Graph:**
+  - Drag nodes, zoom, pan, and explore topology
+  - Double-click nodes to open detail windows
+  - Right-click for context menu with auto-layout options:
+    - **5 Layout Algorithms**: Hierarchical (Vertical/Horizontal), Circular, Grid, and Random
+    - **Smart Spacing**: Dynamic 200px minimum clearance based on node dimensions
+    - **Viewport Centering**: Layouts always center around current viewport
+  - Add modules dynamically from context menu
+
+- **Advanced Filtering:**
+  - Correlation ID tracking for workflow tracing
+  - Time range filtering (last 5/10/60 minutes or custom)
+  - Active filter pills with one-click removal
+  - Autocomplete search with metadata preview
+
+- **Control Panel:**
+  - Publish artifacts from the UI
+  - Invoke agents manually
+  - Monitor system health
+
+- **Keyboard Shortcuts:**
+  - `Ctrl+M` - Toggle view mode
+  - `Ctrl+F` - Focus filter
+  - `Ctrl+/` - Show shortcuts help
+  - WCAG 2.1 AA compliant accessibility
+
+### Production-Grade Trace Viewer
+
+The dashboard includes a **Jaeger-style trace viewer** with 7 powerful visualization modes:
+
+<p align="center">
+  <img alt="Trace Viewer" src="docs/assets/images/trace_1.png" width="1000">
+  <i>Trace Viewer: Timeline view showing span hierarchies and execution flow</i>
+</p>
+
+**7 Trace Viewer Modes:**
+
+1. **Timeline** - Waterfall visualization with parent-child relationships
+2. **Statistics** - Sortable table view with durations and error tracking
+3. **RED Metrics** - Rate, Errors, Duration monitoring for service health
+4. **Dependencies** - Service-to-service communication analysis
+5. **DuckDB SQL** - Interactive SQL query editor with CSV export
+6. **Configuration** - Real-time service/operation filtering
+7. **Guide** - Built-in documentation and query examples
+
+**Additional Features:**
+
+- **Full I/O Capture** - Complete input/output data for every operation
+- **JSON Viewer** - Collapsible tree structure with expand all/collapse all
+- **Multi-Trace Support** - Open and compare multiple traces simultaneously
+- **Smart Sorting** - Sort by date, span count, or duration
+- **CSV Export** - Download query results for offline analysis
+
+<p align="center">
+  <img alt="Trace Viewer" src="docs/assets/images/trace_2.png" width="1000">
+  <i>Trace Viewer: Dependency Analysis</i>
+</p>
+
+
+### OpenTelemetry + DuckDB Tracing
+
+**One environment variable enables comprehensive tracing:**
+
+```bash
+export FLOCK_AUTO_TRACE=true
+export FLOCK_TRACE_FILE=true
+
+python your_app.py
+# Traces stored in .flock/traces.duckdb
+```
+
+**AI-queryable debugging:**
+
+```python
+import duckdb
+conn = duckdb.connect('.flock/traces.duckdb', read_only=True)
+
+# Find bottlenecks
+slow_ops = conn.execute("""
+    SELECT name, AVG(duration_ms) as avg_ms, COUNT(*) as count
+    FROM spans
+    WHERE duration_ms > 1000
+    GROUP BY name
+    ORDER BY avg_ms DESC
+""").fetchall()
+
+# Find errors with full context
+errors = conn.execute("""
+    SELECT name, status_description,
+           json_extract(attributes, '$.input') as input,
+           json_extract(attributes, '$.output') as output
+    FROM spans
+    WHERE status_code = 'ERROR'
+""").fetchall()
+```
+
+**Real debugging session:**
+```
+You: "My pizza agent is slow"
+AI: [queries DuckDB]
+    "DSPyEngine.evaluate takes 23s on average.
+     Input size: 50KB of conversation history.
+     Recommendation: Limit context to last 5 messages."
+```
+
+**Why DuckDB?** 10-100x faster than SQLite for analytical queries. Zero configuration. AI agents can debug your AI agents.
+
+<p align="center">
+  <img alt="Trace Viewer" src="docs/assets/images/trace_3.png" width="1000">
+  <i>Trace Viewer: DuckDB Query</i>
+</p>
+
+---
+
+## Framework Comparison
+
+### Architectural Differences
+
+Flock uses a fundamentally different coordination pattern than most multi-agent frameworks:
+
+| Dimension | Graph-Based Frameworks | Chat-Based Frameworks | Flock (Blackboard) |
+|-----------|------------------------|----------------------|-------------------|
+| **Core Pattern** | Directed graph with explicit edges | Round-robin conversation | Blackboard subscriptions |
+| **Coordination** | Manual edge wiring | Message passing | Type-based subscriptions |
+| **Parallelism** | Manual (split/join nodes) | Sequential turn-taking | Automatic (concurrent consumers) |
+| **Type Safety** | Varies (often TypedDict) | Text-based messages | Pydantic + runtime validation |
+| **Coupling** | Tight (hardcoded successors) | Medium (conversation context) | Loose (type subscriptions only) |
+| **Adding Agents** | Rewrite graph topology | Update conversation flow | Just subscribe to types |
+| **Testing** | Requires full graph | Requires full group | Individual agent isolation |
+| **Security Model** | DIY implementation | DIY implementation | Built-in (5 visibility types) |
+| **Scalability** | O(n²) edge complexity | Limited by turn-taking | O(n) subscription complexity |
+
+### When Flock Wins
+
+**✅ Use Flock when you need:**
+
+- **Parallel agent execution** - Agents consuming the same type run concurrently automatically
+- **Type-safe outputs** - Pydantic validation catches errors at runtime
+- **Minimal prompt engineering** - Schemas define behavior, not natural language
+- **Dynamic agent addition** - Subscribe new agents without rewiring existing workflows
+- **Testing in isolation** - Unit test individual agents with mock inputs
+- **Built-in security** - 5 visibility types for compliance (HIPAA, SOC2, multi-tenancy)
+- **10+ agents** - Linear complexity stays manageable at scale
+
+### When Alternatives Win
+
+**⚠️ Consider graph-based frameworks when:**
+- You need extensive ecosystem integration with existing tools
+- Your workflow is inherently sequential (no parallelism needed)
+- You want battle-tested maturity (larger communities, more documentation)
+- Your team has existing expertise with those frameworks
+
+**⚠️ Consider chat-based frameworks when:**
+- You prefer conversation-based development patterns
+- Your use case maps naturally to turn-taking dialogue
+- You need features specific to those ecosystems
+
+### Honest Trade-offs
+
+**You trade:**
+- Ecosystem maturity (established frameworks have larger communities)
+- Extensive documentation (we're catching up)
+- Battle-tested age (newer architecture means less production history)
+
+**You gain:**
+- Better scalability (O(n) vs O(n²) complexity)
+- Type safety (runtime validation vs hope)
+- Cleaner architecture (loose coupling vs tight graphs)
+- Production safety (circuit breakers, feedback prevention built-in)
+- Security model (5 visibility types vs DIY)
+
+**Different frameworks for different priorities. Choose based on what matters to your team.**
+
+---
+
+## Production Readiness
+
+### What Works Today (v0.5.0)
+
+**✅ Production-ready core:**
+- More than 700 tests, with >75% coverage (>90% on critical paths)
+- Blackboard orchestrator with typed artifacts
+- Parallel + sequential execution (automatic)
+- Zero-trust security (5 visibility types)
+- Circuit breakers and feedback loop prevention
+- OpenTelemetry distributed tracing with DuckDB storage
+- Real-time dashboard with 7-mode trace viewer
+- MCP integration (Model Context Protocol)
+- Best-of-N execution, batch processing, join operations
+- Type-safe retrieval API (`get_by_type()`)
+
+**⚠️ What's missing for large-scale production:**
+- **Persistent blackboard** - Currently in-memory only
+- **Advanced retry logic** - Basic only
+- **Event replay** - No Kafka integration yet
+- **Kubernetes-native deployment** - No Helm chart yet
+- **OAuth/RBAC** - Dashboard has no auth
+
+All planned for v1.0
+
+### Recommended Use Cases Today
+
+**✅ Good fit right now:**
+- **Startups/MVPs** - Fast iteration, type safety, built-in observability
+- **Internal tools** - Where in-memory blackboard is acceptable
+- **Research/prototyping** - Rapid experimentation with clean architecture
+- **Medium-scale systems** (10-50 agents, 1000s of artifacts)
+
+**⚠️ Wait for 1.0 if you need:**
+- **Enterprise persistence** (multi-region, high availability)
+- **Compliance auditing** (immutable event logs)
+- **Multi-tenancy SaaS** (with OAuth/SSO)
+- **Mission-critical systems** with 99.99% uptime requirements
+
+**Flock 0.5.0 is production-ready for the right use cases. Know your requirements.**
+
+---
+
+## Roadmap to 1.0
+
+We're building enterprise infrastructure for AI agents and tracking the work publicly. Check [ROADMAP.md](ROADMAP.md) for deep dives and status updates.
+
+### 0.5.0 Beta (In Flight)
+- **Core data & governance:** [#271](https://github.com/whiteducksoftware/flock/issues/271), [#274](https://github.com/whiteducksoftware/flock/issues/274), [#273](https://github.com/whiteducksoftware/flock/issues/273), [#281](https://github.com/whiteducksoftware/flock/issues/281)
+- **Execution patterns & scheduling:** [#282](https://github.com/whiteducksoftware/flock/issues/282), [#283](https://github.com/whiteducksoftware/flock/issues/283)
+- **REST access & integrations:** [#286](https://github.com/whiteducksoftware/flock/issues/286), [#287](https://github.com/whiteducksoftware/flock/issues/287), [#288](https://github.com/whiteducksoftware/flock/issues/288), [#289](https://github.com/whiteducksoftware/flock/issues/289), [#290](https://github.com/whiteducksoftware/flock/issues/290), [#291](https://github.com/whiteducksoftware/flock/issues/291), [#292](https://github.com/whiteducksoftware/flock/issues/292), [#293](https://github.com/whiteducksoftware/flock/issues/293)
+- **Docs & onboarding:** [#270](https://github.com/whiteducksoftware/flock/issues/270), [#269](https://github.com/whiteducksoftware/flock/issues/269)
+
+### 1.0 Release Goals (Target Q4 2025)
+- **Reliability & operations:** [#277](https://github.com/whiteducksoftware/flock/issues/277), [#278](https://github.com/whiteducksoftware/flock/issues/278), [#279](https://github.com/whiteducksoftware/flock/issues/279), [#294](https://github.com/whiteducksoftware/flock/issues/294)
+- **Platform validation & quality:** [#275](https://github.com/whiteducksoftware/flock/issues/275), [#276](https://github.com/whiteducksoftware/flock/issues/276), [#284](https://github.com/whiteducksoftware/flock/issues/284), [#285](https://github.com/whiteducksoftware/flock/issues/285)
+- **Security & access:** [#280](https://github.com/whiteducksoftware/flock/issues/280)
+
+---
+
+## Example: Multi-Modal Clinical Decision Support
+
+```python
+import os
+from flock import Flock, flock_type
+from flock.visibility import PrivateVisibility, TenantVisibility, LabelledVisibility
+from flock.identity import AgentIdentity
 from pydantic import BaseModel
 
-# 1. Define typed artifacts (what goes on the blackboard)
+@flock_type
+class PatientScan(BaseModel):
+    patient_id: str
+    scan_type: str
+    image_data: bytes
+
 @flock_type
 class XRayAnalysis(BaseModel):
-    finding: str
+    findings: list[str]
     confidence: float
 
 @flock_type
@@ -168,513 +690,204 @@ class LabResults(BaseModel):
 class Diagnosis(BaseModel):
     condition: str
     reasoning: str
+    confidence: float
 
-# 2. Create orchestrator (the blackboard)
-orchestrator = Flock("openai/gpt-4o")
+# Create HIPAA-compliant blackboard
+flock = Flock(os.getenv("DEFAULT_MODEL", "openai/gpt-4.1"))
 
-# 3. Agents subscribe to what they care about (NO explicit workflow!)
+# Radiologist with privacy controls
 radiologist = (
-    orchestrator.agent("radiologist")
+    flock.agent("radiologist")
     .consumes(PatientScan)
-    .publishes(XRayAnalysis)
+    .publishes(
+        XRayAnalysis,
+        visibility=PrivateVisibility(agents={"diagnostician"})  # HIPAA!
+    )
 )
 
+# Lab tech with multi-tenancy
 lab_tech = (
-    orchestrator.agent("lab_tech")
+    flock.agent("lab_tech")
     .consumes(PatientScan)
-    .publishes(LabResults)
+    .publishes(
+        LabResults,
+        visibility=TenantVisibility(tenant_id="patient_123")  # Isolation!
+    )
 )
 
+# Diagnostician with explicit access
 diagnostician = (
-    orchestrator.agent("diagnostician")
-    .consumes(XRayAnalysis, LabResults)  # Waits for BOTH!
-    .publishes(Diagnosis)
+    flock.agent("diagnostician")
+    .identity(AgentIdentity(name="diagnostician", labels={"role:physician"}))
+    .consumes(XRayAnalysis, LabResults)  # Waits for BOTH
+    .publishes(
+        Diagnosis,
+        visibility=LabelledVisibility(required_labels={"role:physician"})
+    )
 )
 
-# 4. Publish input, agents react opportunistically
-await orchestrator.publish(PatientScan(patient_id="12345", ...))
-await orchestrator.run_until_idle()
+# Run with tracing
+async with flock.traced_run("patient_123_diagnosis"):
+    await flock.publish(PatientScan(patient_id="123", ...))
+    await flock.run_until_idle()
+
+    # Get diagnosis (type-safe retrieval)
+    diagnoses = await flock.store.get_by_type(Diagnosis)
+    # Returns list[Diagnosis] directly - no .data access, no casting
 ```
 
-**What just happened:**
-- Radiologist and lab_tech ran **in parallel** (both consume PatientScan)
-- Diagnostician **automatically waited** for both to finish
-- **No workflow graph.** No `.add_edge()`. Just subscriptions.
-- Add new agents? Just subscribe them. No rewiring.
-
-**Resilience built-in:**
-- Lab agent crashes? Blackboard still has XRayAnalysis. Restart lab agent, it processes the scan again.
-- No "orchestrator god object" deciding which agent runs when—agents decide themselves based on what's on the blackboard.
-- Context lives on the blackboard, not in memory. Agents are stateless and recoverable.
+**What this demonstrates:**
+- Multi-modal data fusion (images + labs + history)
+- Built-in access controls (HIPAA compliance)
+- Parallel agent execution (radiology + labs run concurrently)
+- Automatic dependency resolution (diagnostician waits for both)
+- Full audit trail (traced_run + DuckDB storage)
+- Type-safe data retrieval (no Artifact wrappers)
 
 ---
 
-## 🔥 Why Blackboard Beats Graphs
+## Production Use Cases
 
-| Dimension | Graph-Based (LangGraph, CrewAI) | Blackboard (Flock 0.5) |
-|-----------|--------------------------------|------------------------|
-| **Add new agent** | Rewrite graph, update edges | Just subscribe to types |
-| **Parallel execution** | Manual (split nodes, join nodes) | Automatic (multiple consumers) |
-| **Conditional routing** | Complex graph branches | `where=lambda x: x.score > 8` |
-| **Testing** | Need full graph setup | Test agents in isolation |
-| **Security** | Add-on (if exists) | Built-in (5 visibility types) |
-| **Coupling** | Tight (agents know successors) | Loose (agents know types) |
-| **Scalability** | O(n²) edges at 20+ agents | O(n) subscriptions |
-| **Mental model** | "Draw the workflow" | "What data triggers this?" |
-| **Context management** | Scattered across agents | **Blackboard IS the context** |
-| **Resilience** | Agent crash = data loss | **Blackboard persists, agents recover** |
-| **Orchestrator pattern** | **God object with domain knowledge** | **Agents decide autonomously** |
-| **Single point of failure** | Orchestrator dies = everything dies | **Agents independent, blackboard survives** |
-| **Architecture wisdom** | Ignores 20 years of microservices | **Applies decoupling lessons learned** |
+Flock's architecture shines in production scenarios requiring parallel execution, security, and observability. Here are common patterns:
+
+### Financial Services: Multi-Signal Trading
+
+**The Challenge:** Analyze multiple market signals in parallel, correlate them within time windows, maintain SEC-compliant audit trails.
+
+**The Solution:** 20+ signal analyzers run concurrently, join operations correlate signals, DuckDB provides complete audit trails.
+
+```python
+# Parallel signal analyzers
+volatility = flock.agent("volatility").consumes(MarketData).publishes(VolatilityAlert)
+sentiment = flock.agent("sentiment").consumes(NewsArticle).publishes(SentimentAlert)
+
+# Trade execution waits for CORRELATED signals (within 5min window)
+trader = flock.agent("trader").consumes(
+    VolatilityAlert, SentimentAlert,
+    join=JoinSpec(within=timedelta(minutes=5))
+).publishes(TradeOrder)
+```
+
+### Healthcare: HIPAA-Compliant Diagnostics
+
+**The Challenge:** Multi-modal data fusion with strict access controls, complete audit trails, zero-trust security.
+
+**The Solution:** Built-in visibility controls for HIPAA compliance, automatic parallel execution, full data lineage tracking.
+
+```python
+# Privacy controls built-in
+radiology.publishes(XRayAnalysis, visibility=PrivateVisibility(agents={"diagnostician"}))
+lab.publishes(LabResults, visibility=TenantVisibility(tenant_id="patient_123"))
+
+# Diagnostician waits for BOTH inputs with role-based access
+diagnostician = flock.agent("diagnostician").consumes(XRayAnalysis, LabResults).publishes(Diagnosis)
+```
+
+### E-Commerce: 50-Agent Personalization
+
+**The Challenge:** Analyze dozens of independent signals, support dynamic signal addition, process millions of events daily.
+
+**The Solution:** O(n) scaling to 50+ analyzers, batch processing for efficiency, zero graph rewiring when adding signals.
+
+```python
+# 50+ signal analyzers (all run in parallel!)
+for signal in ["browsing", "purchase", "cart", "reviews", "email", "social"]:
+    flock.agent(f"{signal}_analyzer").consumes(UserEvent).publishes(Signal)
+
+# Recommender batches signals for efficient LLM calls
+recommender = flock.agent("recommender").consumes(Signal, batch=BatchSpec(size=50))
+```
+
+### Multi-Tenant SaaS: Content Moderation
+
+**The Challenge:** Complete data isolation between tenants, multi-agent consensus, full audit trails.
+
+**The Solution:** Tenant visibility ensures zero cross-tenant leakage, parallel checks provide diverse signals, traces show complete reasoning.
+
+**See [USECASES.md](USECASES.md) for complete code examples and production metrics.**
 
 ---
 
-## 💡 Core Concepts: Rethinking Agent Coordination
-
-### 1. Typed Artifacts (Not Unstructured Messages)
-
-**Graph frameworks:** Agents pass dictionaries or unstructured text.
-
-```python
-# ❌ LangGraph/CrewAI style
-agent_a.output = {"result": "some text", "score": 8}  # What's the schema?
-```
-
-**Flock 0.5:** Every artifact is a validated Pydantic model.
-
-```python
-# ✅ Flock 0.5 style
-@flock_type
-class Review(BaseModel):
-    text: str = Field(max_length=1000)
-    score: int = Field(ge=1, le=10)
-    confidence: float = Field(ge=0.0, le=1.0)
-
-# Type errors caught at definition time, not runtime!
-```
-
-**Benefits:**
-- ✅ **Debuggable**: Strong typing catches errors at development time
-- ✅ **Measurable**: Validate outputs against explicit schemas
-- ✅ **Migratable**: Type contracts survive model upgrades (GPT-4 → GPT-6)
-- ✅ **Testable**: Mock inputs/outputs with concrete types
-
----
-
-### 2. Subscriptions (Not Edges)
-
-**Graph frameworks:** Explicit edges define flow.
-
-```python
-# ❌ LangGraph style
-graph.add_edge("review_agent", "high_quality_handler")
-graph.add_edge("review_agent", "low_quality_handler")  # How to route?
-```
-
-**Flock 0.5:** Declarative subscriptions define reactions.
-
-```python
-# ✅ Flock 0.5 style
-high_quality = orchestrator.agent("high_quality").consumes(
-    Review,
-    where=lambda r: r.score > 8  # Conditional routing!
-)
-
-low_quality = orchestrator.agent("low_quality").consumes(
-    Review,
-    where=lambda r: r.score <= 8
-)
-
-# Both subscribe to Review, predicate determines who fires
-```
-
----
-
-### 3. Visibility Controls (Not Open Access)
-
-**Graph frameworks:** Any agent can see any data.
-
-**Flock 0.5:** Producer-controlled access to artifacts.
-
-```python
-# Multi-tenancy (customer data isolation)
-agent.publishes(
-    CustomerData,
-    visibility=TenantVisibility(tenant_id="customer_123")
-)
-
-# Private (allowlist)
-agent.publishes(
-    SensitiveData,
-    visibility=PrivateVisibility(agents={"compliance_agent"})
-)
-
-# Time-delayed (embargo periods)
-artifact.visibility = AfterVisibility(
-    ttl=timedelta(hours=24),
-    then=PublicVisibility()
-)
-
-# Label-based RBAC
-artifact.visibility = LabelledVisibility(
-    required_labels={"clearance:secret"}
-)
-```
-
-**Why this matters:** Financial services, healthcare, SaaS platforms NEED this for compliance.
-
----
-
-### 4. Opportunistic Execution (Not Sequential Workflows)
-
-**Graph frameworks:** Define start node, execute path.
-
-```python
-# ❌ LangGraph style
-result = graph.invoke({"input": "..."}, config={"start": "node_a"})
-# Executes: node_a → node_b → node_c (even if b and c are independent!)
-```
-
-**Flock 0.5:** Publish data, all matching agents fire (in parallel if independent).
-
-```python
-# ✅ Flock 0.5 style
-await orchestrator.publish(Review(text="Great product!", score=9))
-
-# Three agents all consume Review, run concurrently:
-# - sentiment_analyzer
-# - rating_validator
-# - summary_generator
-
-await orchestrator.run_until_idle()  # Waits for all agents
-```
-
----
-
-## 🔥 What You Get With Flock 0.5
-
-<p align="center">
-  <img alt="Flock Banner" src="docs/img/flock_ui_agent_view.png" width="1000">
-</p>
-
-### ✅ Production Safety Built-In
-
-```python
-# Prevent infinite feedback loops
-agent = (
-    orchestrator.agent("processor")
-    .consumes(Document)
-    .publishes(Document)  # Could trigger itself!
-    .prevent_self_trigger(True)  # But won't! ✅
-)
-
-# Circuit breaker for runaway agents
-orchestrator = Flock(max_agent_iterations=1000)  # Automatic failsafe
-
-# Configuration validation
-agent.best_of(150, ...)  # ⚠️ Warns: "best_of(150) is very high"
-```
-
-**Graph frameworks:** No built-in loop prevention. No circuit breakers. Silent failures.
-
----
-
-### ✅ Real-Time Observability
-
-```python
-# One line to activate dashboard
-await orchestrator.serve(dashboard=True)
-```
-
-**What you get:**
-- 🎯 **Agent View**: Live graph of agents and message flows
-- 📋 **Blackboard View**: Transformation edges showing data lineage
-- 🎛️ **Control Panel**: Publish artifacts and invoke agents from UI
-- 📊 **EventLog Module**: Searchable, sortable event history
-- ⌨️ **Keyboard Shortcuts**: Full accessibility (Ctrl+/ for help)
-- 🔍 **Auto-Filter**: Correlation ID tracking
-
-**Graph frameworks:** Basic logging at best. No real-time visualization.
-
----
-
-### ✅ Advanced Execution Strategies
-
-```python
-# Best-of-N execution (run agent 5x, pick best)
-agent.best_of(5, score=lambda r: r.metrics["confidence"])
-
-# Exclusive delivery (lease-based, exactly-once)
-agent.consumes(Task, delivery="exclusive")
-
-# Batch processing (accumulate 10 items before triggering)
-agent.consumes(Event, batch=BatchSpec(size=10, timeout=timedelta(seconds=30)))
-
-# Join operations (wait for multiple artifact types)
-agent.consumes(Review, Rating, join=JoinSpec(within=timedelta(minutes=5)))
-```
-
-**Graph frameworks:** None of these patterns exist.
-
----
-
-## ⚡ Quick Start
+## Getting Started
 
 ```bash
 # Install
-pip install flock-flow
+pip install flock-core
 
 # Set API key
 export OPENAI_API_KEY="sk-..."
-export DEFAULT_MODEL="openai/gpt-4o"
-```
 
-**Your First Blackboard System (60 seconds):**
-
-```python
-import asyncio
-from pydantic import BaseModel, Field
-from flock_flow.orchestrator import Flock
-from flock_flow.registry import flock_type
-
-# 1. Define typed artifacts
-@flock_type
-class Idea(BaseModel):
-    topic: str
-    genre: str
-
-@flock_type
-class Movie(BaseModel):
-    title: str = Field(description="Title in CAPS")
-    runtime: int = Field(ge=60, le=400)
-    synopsis: str
-
-@flock_type
-class Tagline(BaseModel):
-    line: str
-
-# 2. Create orchestrator (the blackboard)
-orchestrator = Flock("openai/gpt-4o")
-
-# 3. Agents subscribe to types (NO workflow graph!)
-movie = (
-    orchestrator.agent("movie")
-    .description("Generate a compelling movie concept.")
-    .consumes(Idea)
-    .publishes(Movie)
-)
-
-tagline = (
-    orchestrator.agent("tagline")
-    .description("Write a one-sentence marketing tagline.")
-    .consumes(Movie)  # Auto-chains after movie!
-    .publishes(Tagline)
-)
-
-# 4. Run with real-time dashboard
-async def main():
-    await orchestrator.serve(dashboard=True)
-
-asyncio.run(main())
-```
-
-**Publish an artifact:**
-```bash
-curl -X POST http://localhost:8000/api/control/publish \
-  -H "Content-Type: application/json" \
-  -d '{"type_name": "Idea", "payload": {"topic": "AI cats", "genre": "comedy"}}'
-```
-
-**Watch it execute:**
-1. `movie` agent consumes `Idea`, publishes `Movie`
-2. `tagline` agent automatically reacts (subscribed to `Movie`)
-3. Dashboard shows live execution with full lineage
-4. No graph wiring. Just subscriptions.
-
----
-
-## 🚀 Enterprise Use Cases
-
-### Financial Services: Real-Time Risk Monitoring
-
-```python
-# 20+ agents monitoring different market signals
-volatility = orchestrator.agent("volatility").consumes(
-    MarketData,
-    where=lambda m: m.volatility > 0.5
-).publishes(VolatilityAlert)
-
-sentiment = orchestrator.agent("sentiment").consumes(
-    NewsArticle,
-    text="market crash",
-    min_p=0.9
-).publishes(SentimentAlert)
-
-# Execution agent waits for BOTH signals
-execute = orchestrator.agent("execute").consumes(
-    VolatilityAlert,
-    SentimentAlert,
-    join=JoinSpec(within=timedelta(minutes=5))
-).publishes(TradeOrder)
-
-# Complete audit trail for regulators ✅
-# Multi-agent decision making ✅
-# Real-time risk correlation ✅
-```
-
----
-
-### Healthcare: Multi-Modal Clinical Decision Support
-
-```python
-# Different specialists contribute to diagnosis
-radiology.publishes(
-    XRayAnalysis,
-    visibility=PrivateVisibility(agents=["diagnosis_agent"])  # HIPAA!
-)
-
-lab.publishes(
-    LabResults,
-    visibility=TenantVisibility(tenant_id="patient_123")  # Multi-tenancy!
-)
-
-# Diagnostician waits for both inputs
-diagnosis.consumes(XRayAnalysis, LabResults).publishes(
-    Diagnosis,
-    visibility=PrivateVisibility(agents=["physician", "pharmacist"])
-)
-
-# Built-in access controls ✅
-# Full data lineage ✅
-# Compliance-ready ✅
-```
-
----
-
-### E-Commerce: 50-Agent Personalization Engine
-
-```python
-# Parallel signal analysis (all run concurrently!)
-for signal in ["browsing", "purchase", "reviews", "social", "email", ...]:
-    orchestrator.agent(f"{signal}_analyzer").consumes(UserEvent).publishes(Signal)
-
-# Recommendation engine consumes ALL signals (batched)
-recommender = orchestrator.agent("recommender").consumes(
-    Signal,
-    batch=BatchSpec(size=50, timeout=timedelta(seconds=1))
-).publishes(Recommendation)
-
-# Add new signal? Just create agent, no graph rewiring ✅
-# Scale to 100+ agents? Linear complexity ✅
-```
-
----
-
-## 🗺️ Roadmap
-
-**✅ Phase 1: Core Framework (DONE - v0.5.00)**
-- [x] Blackboard orchestrator with typed artifacts
-- [x] Sequential + parallel execution
-- [x] Visibility controls (5 types)
-- [x] Real-time dashboard with WebSocket streaming
-- [x] Safety features (circuit breaker, feedback prevention)
-- [x] 743 tests, 77.65% coverage
-
-**🚧 Phase 2: Roadmap to 1.0 (Q1 2026)**
-- [ ] **YAML/JSON Serialization** - Export/import full orchestrators
-- [ ] **LLM-Powered Routing** - AI agent selection based on context
-- [ ] **Batch API** - Process DataFrames/CSV files
-- [ ] **Advanced Predicates** - Complex subscription logic
-- [ ] **CLI Tool** - Management console
-- [ ] Persistent blackboard (Redis/Postgres)
-- [ ] Event log replay (Kafka)
-- [ ] Distributed orchestration (multi-region)
-- [ ] OAuth/SSO for dashboard
-- [ ] Audit trail export (compliance)
-
-**📅 Phase 3: Post 1.0 ideas**
-- [ ] Migration tool (auto-convert from LangGraph/CrewAI)
-- [ ] Template marketplace
-- [ ] VS Code extension
-
----
-
-## 📚 What's Built-In
-
-✅ **LLM Provider Support** - LiteLLM (OpenAI, Anthropic, Azure, Google, etc.)
-✅ **DSPy Integration** - Prompt optimization and structured outputs
-✅ **MCP Protocol** - Model Context Protocol servers
-✅ **Tool System** - Function calling with any LLM
-✅ **Pydantic Models** - Type validation with Field constraints
-✅ **Rich Output** - Beautiful console themes
-✅ **FastAPI Service** - Production-grade HTTP API
-✅ **Streaming** - Real-time LLM output
-✅ **Async-First** - True concurrent execution
-
----
-
-## 🔬 Production Quality
-
-| Metric | Graph Frameworks | Flock 0.5 |
-|--------|------------------|-----------|
-| Test Coverage | Varies | **77.65%** (743 tests) |
-| Critical Path Coverage | Unknown | **86-100%** |
-| E2E Tests | Few | 6 comprehensive scenarios |
-| Safety Features | None/Manual | Circuit breaker, feedback prevention |
-| Real-time Monitoring | None/Basic | WebSocket streaming dashboard |
-| Security | Add-on | 5 built-in visibility types |
-| Documentation | Good | Excellent (AGENTS.md + examples) |
-
----
-
-## 🤝 Contributing
-
-We're building Flock 0.5 in the open! See [`AGENTS.md`](AGENTS.md) for development setup.
-
-```bash
+# Try the workshop
 git clone https://github.com/whiteducksoftware/flock-flow.git
 cd flock-flow
-uv sync
-uv run pytest  # 743 tests pass!
+uv run python examples/05-claudes-workshop/lesson_01_code_detective.py
 ```
 
----
-
-## 💬 Community & Support
-
-- **GitHub Issues:** [Report bugs or request features](https://github.com/whiteducksoftware/flock-flow/issues)
-- **Discussions:** [Ask questions or share ideas](https://github.com/whiteducksoftware/flock-flow/discussions)
-- **Documentation:** [Full docs and examples](https://whiteducksoftware.github.io/flock/)
-- **Email:** [support@whiteduck.de](mailto:support@whiteduck.de)
+**Learn by doing:**
+- 📚 [7-Lesson Workshop](examples/05-claudes-workshop/) - Progressive lessons from basics to advanced
+- 🆚 [The Blackboard](examples/02-the-blackboard/) - See data-driven orchestration without graphs
+- 🎯 [Declarative Basics](examples/01-the-declarative-way/) - Understanding declarative programming
+- 📖 [Documentation](https://docs.flock.whiteduck.de) - Complete online documentation
+- 📘 [AGENTS.md](AGENTS.md) - Development guide
 
 ---
 
-## 🌟 Why "0.5"?
+## Contributing
+
+We're building Flock in the open. See **[Contributing Guide](https://docs.flock.whiteduck.de/about/contributing/)** for development setup, or check [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) locally.
+
+**We welcome:**
+- Bug reports and feature requests
+- Documentation improvements
+- Example contributions
+- Architecture discussions
+
+**Quality standards:**
+- All tests must pass
+- Coverage requirements met
+- Code formatted with Ruff
+
+---
+
+## Why "0.5"?
 
 We're calling this 0.5 to signal:
 
-1. **It's production-ready** - 743 tests, enterprise features, dashboard
-2. **It's still evolving** - Some advanced features coming in Q1/Q2 2026
-3. **It's the future** - Blackboard architecture scales better than graphs
+1. **Core is production-ready** - real-world client deployments, comprehensive features
+2. **Ecosystem is evolving** - Documentation growing, community building, features maturing
+3. **Architecture is proven** - Blackboard pattern is 50+ years old, declarative contracts are sound
+4. **Enterprise features are coming** - Persistence, auth, Kubernetes deployment in roadmap
 
-**1.0 will arrive** when we've added advanced routing, serialization, and enterprise persistence.
+**1.0 will arrive** when we've delivered persistence, advanced error handling, and enterprise deployment patterns (targeting Q4 2025).
 
 ---
 
-## 🔖 The Bottom Line
+## The Bottom Line
 
-**Graph-based frameworks** treat agents like nodes in a workflow. Rigid. Sequential. Hard to scale.
+**Flock is different because it makes different architectural choices:**
 
-**Flock 0.5** combines **declarative AI workflows** with **blackboard architecture**:
-- ✅ No brittle prompts (type-safe contracts)
-- ✅ No rigid graphs (opportunistic execution)
-- ✅ No testing nightmares (unit-testable agents)
-- ✅ No security gaps (5 visibility types)
-- ✅ No production fears (743 tests, real-time monitoring)
+**Instead of:**
+- ❌ Prompt engineering → ✅ Declarative type contracts
+- ❌ Workflow graphs → ✅ Blackboard subscriptions
+- ❌ Manual parallelization → ✅ Automatic concurrent execution
+- ❌ Bolt-on security → ✅ Zero-trust visibility controls
+- ❌ Hope-based debugging → ✅ AI-queryable distributed traces
 
-**The future of AI agents isn't workflows—it's declarative blackboards.**
+**These aren't marketing slogans. They're architectural decisions with real tradeoffs.**
 
-**Try it. You'll never go back to graphs.**
+**You trade:**
+- Ecosystem maturity (established frameworks have larger communities)
+- Extensive documentation (we're catching up)
+- Battle-tested age (newer architecture means less production history)
+
+**You gain:**
+- Better scalability (O(n) vs O(n²) complexity)
+- Type safety (runtime validation vs hope)
+- Cleaner architecture (loose coupling vs tight graphs)
+- Production safety (circuit breakers, feedback prevention built-in)
+- Security model (5 visibility types vs DIY)
+
+**Different frameworks for different priorities. Choose based on what matters to your team.**
 
 ---
 
@@ -682,37 +895,14 @@ We're calling this 0.5 to signal:
 
 **Built with ❤️ by white duck GmbH**
 
-**"Agents are just microservices. Let's treat them that way."**
+**"Declarative contracts eliminate prompt hell. Blackboard architecture eliminates graph spaghetti. Proven patterns applied to modern LLMs."**
 
-[⭐ Star us on GitHub](https://github.com/whiteducksoftware/flock-flow) | [📖 Read the Docs](https://whiteducksoftware.github.io/flock/) | [🚀 Try Examples](examples/)
+[⭐ Star on GitHub](https://github.com/whiteducksoftware/flock-flow) | [📖 Documentation](https://docs.flock.whiteduck.de) | [🚀 Try Examples](examples/) | [💼 Enterprise Support](mailto:support@whiteduck.de)
 
 </div>
 
 ---
 
-## 📊 Framework Comparison
-
-| | LangGraph | CrewAI | AutoGen | Flock 0.5 |
-|-|-----------|---------|---------|-----------|
-| **Pattern** | Directed Graph | Sequential Tasks | Chat-Based | Blackboard |
-| **Coordination** | Explicit edges | Task context | Messages | Subscriptions |
-| **Parallelism** | Manual (split/join) | None | None | Automatic |
-| **Type Safety** | TypedDict | None | None | Pydantic |
-| **Security** | None | None | None | 5 visibility types |
-| **Conditional** | Route functions | Manual | Manual | `where=lambda` |
-| **Testing** | Full graph | Full crew | Full group | Isolated agents |
-| **Real-time UI** | None | None | None | WebSocket streaming |
-| **Feedback Prevention** | Manual | Manual | Manual | Automatic |
-| **Add Agent** | Rewrite graph | Rewrite tasks | Rewrite group | Just subscribe |
-| **Learning Curve** | Medium | Easy | Easy | Medium |
-| **Scalability** | 10-20 agents | 5-10 agents | 5-10 agents | 100+ agents |
-
----
-
-**Last Updated:** October 6, 2025
-**Version:** Flock 0.5.0 (Blackboard Edition) / flock-flow 0.1.20
-**Status:** Production-Ready, Active Development
-
----
-
-**"The blackboard pattern has been battle-tested for 50 years. Declarative contracts eliminate prompt hell. Together, they're the future of AI agents."**
+**Last Updated:** October 8, 2025
+**Version:** Flock 0.5.0 (Blackboard Edition)
+**Status:** Production-Ready Core, Enterprise Features Roadmapped

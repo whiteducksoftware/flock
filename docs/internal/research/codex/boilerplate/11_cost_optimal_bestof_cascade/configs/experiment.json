@@ -1,0 +1,5 @@
+{
+  "name": "Cost-Optimal Best-of/Cascade",
+  "runs": 30,
+  "batch": 10
+}

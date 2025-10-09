@@ -1,0 +1,5 @@
+{
+  "name": "Trace Dataset & Compression",
+  "runs": 30,
+  "batch": 10
+}

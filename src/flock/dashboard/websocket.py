@@ -103,9 +103,9 @@ class WebSocketManager:
         # Store streaming output events for history (always, even if no clients)
         if isinstance(event, StreamingOutputEvent):
             self._streaming_history[event.agent_name].append(event)
-            logger.debug(
-                f"Stored streaming event for {event.agent_name}, history size: {len(self._streaming_history[event.agent_name])}"
-            )
+            # logger.debug(
+            #     f"Stored streaming event for {event.agent_name}, history size: {len(self._streaming_history[event.agent_name])}"
+            # )
 
         # If no clients, still log but don't broadcast
         if not self.clients:
@@ -115,11 +115,11 @@ class WebSocketManager:
             return
 
         # Log broadcast attempt
-        logger.debug(f"Broadcasting {type(event).__name__} to {len(self.clients)} client(s)")
+        # logger.debug(f"Broadcasting {type(event).__name__} to {len(self.clients)} client(s)")
 
         # Serialize event to JSON using Pydantic's model_dump_json
         message = event.model_dump_json()
-        logger.debug(f"Event JSON: {message[:200]}...")  # Log first 200 chars
+        # logger.debug(f"Event JSON: {message[:200]}...")  # Log first 200 chars
 
         # Broadcast to all clients concurrently
         # Use return_exceptions=True to handle client failures gracefully

@@ -20,6 +20,28 @@ const ModuleWindow: React.FC<ModuleWindowProps> = memo(({ instanceId }) => {
     removeModule(instanceId);
   }, [instanceId, removeModule]);
 
+  const handleMaximize = useCallback(() => {
+    if (!instance) return;
+
+    if (instance.maximized) {
+      // Restore to previous size/position
+      updateModule(instanceId, {
+        maximized: false,
+        position: instance.preMaximizePosition || instance.position,
+        size: instance.preMaximizeSize || instance.size,
+      });
+    } else {
+      // Maximize to full viewport
+      updateModule(instanceId, {
+        maximized: true,
+        preMaximizePosition: instance.position,
+        preMaximizeSize: instance.size,
+        position: { x: 0, y: 0 },
+        size: { width: window.innerWidth, height: window.innerHeight },
+      });
+    }
+  }, [instanceId, instance, updateModule]);
+
   // Don't render if instance doesn't exist or is not visible
   if (!instance || !instance.visible) return null;
 
@@ -37,6 +59,8 @@ const ModuleWindow: React.FC<ModuleWindowProps> = memo(({ instanceId }) => {
     <Rnd
       position={position}
       size={size}
+      disableDragging={instance.maximized}
+      enableResizing={!instance.maximized}
       onDragStop={(_e, d) => {
         updateModule(instanceId, {
           position: { x: d.x, y: d.y },
@@ -86,7 +110,7 @@ const ModuleWindow: React.FC<ModuleWindowProps> = memo(({ instanceId }) => {
             padding: 'var(--space-component-md) var(--space-component-lg)',
             background: 'rgba(42, 42, 50, 0.5)',
             borderBottom: 'var(--border-width-1) solid var(--color-border-subtle)',
-            cursor: 'move',
+            cursor: instance.maximized ? 'default' : 'move',
             userSelect: 'none',
           }}
         >
@@ -105,34 +129,78 @@ const ModuleWindow: React.FC<ModuleWindowProps> = memo(({ instanceId }) => {
               {moduleDefinition.name}
             </span>
           </div>
-          <button
-            onClick={handleClose}
-            aria-label="Close window"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--font-size-h3)',
-              cursor: 'pointer',
-              padding: 'var(--spacing-1) var(--spacing-2)',
-              lineHeight: 1,
-              borderRadius: 'var(--radius-md)',
-              transition: 'var(--transition-colors)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--color-error)';
-              e.currentTarget.style.background = 'var(--color-error-bg)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--color-text-secondary)';
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            ×
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--gap-xs)' }}>
+            {/* Maximize/Restore button */}
+            <button
+              onClick={handleMaximize}
+              aria-label={instance.maximized ? 'Restore window' : 'Maximize window'}
+              title={instance.maximized ? 'Restore' : 'Maximize'}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--color-text-secondary)',
+                fontSize: '16px',
+                cursor: 'pointer',
+                padding: 'var(--spacing-1) var(--spacing-2)',
+                lineHeight: 1,
+                borderRadius: 'var(--radius-md)',
+                transition: 'var(--transition-colors)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-primary)';
+                e.currentTarget.style.background = 'var(--color-bg-elevated)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              {instance.maximized ? (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="4" y="4" width="6" height="6" />
+                  <path d="M2 2h4v4M12 12H8V8" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="2" y="2" width="10" height="10" />
+                </svg>
+              )}
+            </button>
+
+            {/* Close button */}
+            <button
+              onClick={handleClose}
+              aria-label="Close window"
+              title="Close"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--color-text-secondary)',
+                fontSize: 'var(--font-size-h3)',
+                cursor: 'pointer',
+                padding: 'var(--spacing-1) var(--spacing-2)',
+                lineHeight: 1,
+                borderRadius: 'var(--radius-md)',
+                transition: 'var(--transition-colors)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-error)';
+                e.currentTarget.style.background = 'var(--color-error-bg)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {/* Module Content */}

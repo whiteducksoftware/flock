@@ -21,16 +21,20 @@ import { useUIStore } from '../../store/uiStore';
 import { useModuleStore } from '../../store/moduleStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { moduleRegistry } from '../modules/ModuleRegistry';
-import { applyDagreLayout } from '../../services/layout';
+import {
+  applyHierarchicalLayout,
+  applyCircularLayout,
+  applyGridLayout,
+  applyRandomLayout
+} from '../../services/layout';
 import { usePersistence } from '../../hooks/usePersistence';
 import { v4 as uuidv4 } from 'uuid';
 
 const GraphCanvas: React.FC = () => {
-  const { fitView, getIntersectingNodes } = useReactFlow();
+  const { fitView, getIntersectingNodes, screenToFlowPosition } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
-  const layoutDirection = useSettingsStore((state) => state.advanced.layoutDirection);
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
   const agents = useGraphStore((state) => state.agents);
@@ -48,6 +52,7 @@ const GraphCanvas: React.FC = () => {
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
+  const [showLayoutSubmenu, setShowLayoutSubmenu] = useState(false);
 
   // Persistence hook - loads positions on mount and handles saves
   const { saveNodePosition } = usePersistence();
@@ -111,21 +116,52 @@ const GraphCanvas: React.FC = () => {
     [edges]
   );
 
-  // Auto-layout handler
-  const handleAutoLayout = useCallback(() => {
-    const nodeSpacing = useSettingsStore.getState().advanced.nodeSpacing;
-    const rankSpacing = useSettingsStore.getState().advanced.rankSpacing;
-    const layoutedNodes = applyDagreLayout(nodes, edges, layoutDirection || 'TB', nodeSpacing, rankSpacing);
+  // Generic layout handler
+  const applyLayout = useCallback((layoutType: string) => {
+    // Get the React Flow pane element to find its actual center
+    const pane = document.querySelector('.react-flow__pane');
+    let viewportCenter = { x: 0, y: 0 };
+
+    if (pane) {
+      const rect = pane.getBoundingClientRect();
+      // Convert screen center of the pane to flow coordinates
+      viewportCenter = screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+    }
+
+    let result;
+    switch (layoutType) {
+      case 'hierarchical-vertical':
+        result = applyHierarchicalLayout(nodes, edges, { direction: 'TB', center: viewportCenter });
+        break;
+      case 'hierarchical-horizontal':
+        result = applyHierarchicalLayout(nodes, edges, { direction: 'LR', center: viewportCenter });
+        break;
+      case 'circular':
+        result = applyCircularLayout(nodes, edges, { center: viewportCenter });
+        break;
+      case 'grid':
+        result = applyGridLayout(nodes, edges, { center: viewportCenter });
+        break;
+      case 'random':
+        result = applyRandomLayout(nodes, edges, { center: viewportCenter });
+        break;
+      default:
+        result = applyHierarchicalLayout(nodes, edges, { direction: 'TB', center: viewportCenter });
+    }
 
     // Update nodes with new positions
-    layoutedNodes.forEach((node) => {
+    result.nodes.forEach((node) => {
       updateNodePosition(node.id, node.position);
     });
 
-    useGraphStore.setState({ nodes: layoutedNodes });
+    useGraphStore.setState({ nodes: result.nodes });
     setContextMenu(null);
     setShowModuleSubmenu(false);
-  }, [nodes, edges, layoutDirection, updateNodePosition]);
+    setShowLayoutSubmenu(false);
+  }, [nodes, edges, updateNodePosition, screenToFlowPosition]);
 
   // Auto-zoom handler
   const handleAutoZoom = useCallback(() => {
@@ -163,6 +199,7 @@ const GraphCanvas: React.FC = () => {
   const onPaneClick = useCallback(() => {
     setContextMenu(null);
     setShowModuleSubmenu(false);
+    setShowLayoutSubmenu(false);
   }, []);
 
   // Node drag handler - prevent overlaps with collision detection
@@ -270,29 +307,170 @@ const GraphCanvas: React.FC = () => {
             minWidth: 180,
           }}
         >
-          <button
-            onClick={handleAutoLayout}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: 'var(--spacing-2) var(--spacing-4)',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: 'var(--font-size-body-sm)',
-              color: 'var(--color-text-primary)',
-              transition: 'var(--transition-colors)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--color-bg-overlay)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            Auto Layout
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              onMouseEnter={() => setShowLayoutSubmenu(true)}
+              onMouseLeave={(e) => {
+                const relatedTarget = e.relatedTarget as HTMLElement;
+                if (!relatedTarget || !relatedTarget.closest('.layout-submenu')) {
+                  setShowLayoutSubmenu(false);
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                padding: 'var(--spacing-2) var(--spacing-4)',
+                border: 'none',
+                background: showLayoutSubmenu ? 'var(--color-bg-overlay)' : 'transparent',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontSize: 'var(--font-size-body-sm)',
+                color: 'var(--color-text-primary)',
+                transition: 'var(--transition-colors)',
+              }}
+            >
+              <span>Auto Layout</span>
+              <span style={{ marginLeft: 'var(--spacing-2)' }}>▶</span>
+            </button>
+
+            {/* Layout Submenu */}
+            {showLayoutSubmenu && (
+              <div
+                className="layout-submenu"
+                onMouseEnter={() => setShowLayoutSubmenu(true)}
+                onMouseLeave={() => setShowLayoutSubmenu(false)}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: '100%',
+                  background: 'var(--color-bg-surface)',
+                  border: 'var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: 'var(--shadow-lg)',
+                  zIndex: 1001,
+                  minWidth: 180,
+                }}
+              >
+                <button
+                  onClick={() => applyLayout('hierarchical-vertical')}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: 'var(--spacing-2) var(--spacing-4)',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontSize: 'var(--font-size-body-sm)',
+                    color: 'var(--color-text-primary)',
+                    transition: 'var(--transition-colors)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  Hierarchical (Vertical)
+                </button>
+                <button
+                  onClick={() => applyLayout('hierarchical-horizontal')}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: 'var(--spacing-2) var(--spacing-4)',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontSize: 'var(--font-size-body-sm)',
+                    color: 'var(--color-text-primary)',
+                    transition: 'var(--transition-colors)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  Hierarchical (Horizontal)
+                </button>
+                <button
+                  onClick={() => applyLayout('circular')}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: 'var(--spacing-2) var(--spacing-4)',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontSize: 'var(--font-size-body-sm)',
+                    color: 'var(--color-text-primary)',
+                    transition: 'var(--transition-colors)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  Circular
+                </button>
+                <button
+                  onClick={() => applyLayout('grid')}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: 'var(--spacing-2) var(--spacing-4)',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontSize: 'var(--font-size-body-sm)',
+                    color: 'var(--color-text-primary)',
+                    transition: 'var(--transition-colors)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  Grid
+                </button>
+                <button
+                  onClick={() => applyLayout('random')}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: 'var(--spacing-2) var(--spacing-4)',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontSize: 'var(--font-size-body-sm)',
+                    color: 'var(--color-text-primary)',
+                    transition: 'var(--transition-colors)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  Random
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             onClick={handleAutoZoom}

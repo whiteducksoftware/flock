@@ -1,0 +1,5 @@
+{
+  "name": "Structured Generation Safety",
+  "runs": 30,
+  "batch": 10
+}

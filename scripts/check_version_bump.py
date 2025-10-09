@@ -114,7 +114,7 @@ def main():
     frontend_changed = False
 
     backend_paths = ["src/", "tests/", "pyproject.toml"]
-    frontend_paths = ["frontend/src/", "frontend/package.json"]
+    frontend_paths = ["src/flock/frontend/src/", "src/flock/frontend/package.json"]
     excluded_paths = ["docs/", "README.md", "AGENTS.md", ".github/", "LICENSE"]
 
     for file in changed_files:

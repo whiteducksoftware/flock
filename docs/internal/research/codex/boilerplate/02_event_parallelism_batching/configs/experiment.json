@@ -1,0 +1,5 @@
+{
+  "name": "Event Parallelism via Batching",
+  "runs": 30,
+  "batch": 10
+}

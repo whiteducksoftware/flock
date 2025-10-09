@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from asyncio import Lock
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from flock.registry import type_registry
 
@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from flock.artifacts import Artifact
+
+T = TypeVar("T")
 
 
 class BlackboardStore:
@@ -29,6 +31,21 @@ class BlackboardStore:
         raise NotImplementedError
 
     async def list_by_type(self, type_name: str) -> builtins.list[Artifact]:
+        raise NotImplementedError
+
+    async def get_by_type(self, artifact_type: type[T]) -> builtins.list[T]:
+        """Get artifacts by Pydantic type, returning data already cast.
+
+        Args:
+            artifact_type: The Pydantic model class (e.g., BugAnalysis)
+
+        Returns:
+            List of data objects of the specified type (not Artifact wrappers)
+
+        Example:
+            bug_analyses = await store.get_by_type(BugAnalysis)
+            # Returns list[BugAnalysis] directly, no .data access needed
+        """
         raise NotImplementedError
 
 
@@ -57,6 +74,22 @@ class InMemoryBlackboardStore(BlackboardStore):
         async with self._lock:
             canonical = type_registry.resolve_name(type_name)
             return list(self._by_type.get(canonical, []))
+
+    async def get_by_type(self, artifact_type: type[T]) -> builtins.list[T]:
+        """Get artifacts by Pydantic type, returning data already cast.
+
+        Args:
+            artifact_type: The Pydantic model class (e.g., BugAnalysis)
+
+        Returns:
+            List of data objects of the specified type (not Artifact wrappers)
+        """
+        async with self._lock:
+            # Get canonical name from the type
+            canonical = type_registry.resolve_name(artifact_type.__name__)
+            artifacts = self._by_type.get(canonical, [])
+            # Reconstruct Pydantic models from payload dictionaries
+            return [artifact_type(**artifact.payload) for artifact in artifacts]  # type: ignore
 
     async def extend(self, artifacts: Iterable[Artifact]) -> None:  # pragma: no cover - helper
         for artifact in artifacts:
