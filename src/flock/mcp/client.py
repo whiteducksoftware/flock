@@ -153,6 +153,9 @@ class FlockMCPClient(BaseModel, ABC):
     class _SessionProxy:
         def __init__(self, client: Any):
             self._client = client
+            # Check if roots are specified in the config
+            if not self.current_roots and self.config.connection_config.mount_points:
+                self.current_roots = self.config.connection_config.mount_points
 
         def __getattr__(self, name: str):
             # return an async function that auto-reconnects, then calls through.
@@ -366,11 +369,20 @@ class FlockMCPClient(BaseModel, ABC):
             return result
 
         async def _get_tools_internal() -> list[FlockMCPTool]:
-            # TODO: Crash
             response: ListToolsResult = await self.session.list_tools()
             flock_tools = []
+            tool_whitelist = self.config.feature_config.tool_whitelist
 
             for tool in response.tools:
+                # Skip tools that are not whitelisted
+                # IF a whitelist is present
+                if (
+                    tool_whitelist is not None
+                    and isinstance(tool_whitelist, list)
+                    and len(tool_whitelist) > 0
+                    and tool.name not in tool_whitelist
+                ):
+                    continue
                 converted_tool = FlockMCPTool.from_mcp_tool(
                     tool,
                     agent_id=agent_id,
@@ -421,6 +433,14 @@ class FlockMCPClient(BaseModel, ABC):
         """
         async with self.lock:
             return self.current_roots
+
+    def _get_roots_no_lock(self) -> list[MCPRoot] | None:
+        """Get the currently set roots without acquiring a lock.
+
+        WARNING: Only use this internally when you're sure there's no race condition.
+        This is primarily for use during initialization when the lock is already held.
+        """
+        return self.current_roots
 
     async def set_roots(self, new_roots: list[MCPRoot]) -> None:
         """Set the current roots of the client.
@@ -599,6 +619,10 @@ class FlockMCPClient(BaseModel, ABC):
         # 2) if we already know our current roots, notify the server
         #    so that it will follow up with a ListRootsRequest
         if self.current_roots and self.config.feature_config.roots_enabled:
+            logger.debug(
+                f"Notifying server '{self.config.name}' of {len(self.current_roots)} root(s): "
+                f"{[r.uri for r in self.current_roots]}"
+            )
             await self.client_session.send_roots_list_changed()
 
         # 3) Tell the server, what logging level we would like to use
