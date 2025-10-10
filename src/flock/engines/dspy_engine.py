@@ -395,10 +395,46 @@ class DSPyEngine(EngineComponent):
         if isinstance(raw, BaseModel):
             return raw.model_dump()
         if isinstance(raw, str):
-            try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return {"text": raw}
+            text = raw.strip()
+            candidates: list[str] = []
+
+            # Primary attempt - full string
+            if text:
+                candidates.append(text)
+
+            # Handle DSPy streaming markers like `[[ ## output ## ]]`
+            if text.startswith("[[") and "]]" in text:
+                _, remainder = text.split("]]", 1)
+                remainder = remainder.strip()
+                if remainder:
+                    candidates.append(remainder)
+
+            # Handle Markdown-style fenced blocks
+            if text.startswith("```") and text.endswith("```"):
+                fenced = text.strip("`").strip()
+                if fenced:
+                    candidates.append(fenced)
+
+            # Extract first JSON-looking segment if present
+            for opener, closer in (("{", "}"), ("[", "]")):
+                start = text.find(opener)
+                end = text.rfind(closer)
+                if start != -1 and end != -1 and end > start:
+                    segment = text[start : end + 1].strip()
+                    if segment:
+                        candidates.append(segment)
+
+            seen: set[str] = set()
+            for candidate in candidates:
+                if candidate in seen:
+                    continue
+                seen.add(candidate)
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    continue
+
+            return {"text": text}
         if isinstance(raw, Mapping):
             return dict(raw)
         return {"value": raw}

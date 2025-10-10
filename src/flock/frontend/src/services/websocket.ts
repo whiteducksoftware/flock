@@ -1,6 +1,7 @@
 import { useWSStore } from '../store/wsStore';
 import { useGraphStore } from '../store/graphStore';
 import { useFilterStore } from '../store/filterStore';
+import { useUIStore } from '../store/uiStore';
 
 interface WebSocketMessage {
   event_type: 'agent_activated' | 'message_published' | 'streaming_output' | 'agent_completed' | 'agent_error';
@@ -324,6 +325,14 @@ export class WebSocketClient {
       }
 
       this.updateFilterStateFromPublishedMessage(data);
+
+      // Ensure blackboard graph reflects the newly published artifact immediately
+      const mode = useUIStore.getState().mode;
+      if (mode === 'blackboard') {
+        useGraphStore.getState().generateBlackboardViewGraph();
+      } else if (mode === 'agent') {
+        useGraphStore.getState().generateAgentViewGraph();
+      }
     });
 
     // Handler for streaming_output: update live output (Phase 6)

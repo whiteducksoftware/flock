@@ -85,6 +85,12 @@ function toDashboardState(
   const makeBucketKey = (agentId: string, correlationId: string) =>
     `${agentId}::${correlationId || 'uncorrelated'}`;
 
+  // Track (agent, correlation) pairs that already have explicit run data
+  const existingRunBuckets = new Set<string>();
+  runs.forEach((run) => {
+    existingRunBuckets.add(makeBucketKey(run.agent_name, run.correlation_id));
+  });
+
   messages.forEach((message) => {
     artifacts.set(message.id, messageToArtifact(message, consumptions));
 
@@ -116,6 +122,10 @@ function toDashboardState(
     }
     const producedSet = producedBuckets.get(key);
     if (!producedSet || producedSet.size === 0) {
+      return;
+    }
+
+    if (existingRunBuckets.has(key)) {
       return;
     }
 
@@ -503,15 +513,16 @@ export const useGraphStore = create<GraphState>()(
           if (node.type === 'agent') {
             const produced = producedStats.get(node.id);
             const consumed = consumedStats.get(node.id);
+            const currentData = node.data as AgentNodeData;
             return {
               ...node,
               hidden: false,
               data: {
                 ...node.data,
-                sentCount: produced?.total ?? 0,
-                recvCount: consumed?.total ?? 0,
-                sentByType: produced?.byType ?? {},
-                receivedByType: consumed?.byType ?? {},
+                sentCount: produced?.total ?? currentData.sentCount ?? 0,
+                recvCount: consumed?.total ?? currentData.recvCount ?? 0,
+                sentByType: produced?.byType ?? currentData.sentByType ?? {},
+                receivedByType: consumed?.byType ?? currentData.receivedByType ?? {},
               },
             };
           }
