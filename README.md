@@ -252,6 +252,30 @@ asyncio.run(main())
 
 ---
 
+## Persistent Blackboard History
+
+The in-memory store is still great for local tinkering, but production teams now have a durable option. Plugging in `SQLiteBlackboardStore` turns the blackboard into a persistent event log with first-class ergonomics:
+
+- **Long-lived artifacts** — every field (payload, tags, partition keys, visibility) is stored for replay, audits, and postmortems
+- **Historical APIs** — `/api/v1/artifacts`, `/summary`, and `/agents/{agent_id}/history-summary` expose pagination, filtering, and consumption counts
+- **Dashboard module** — the new **Historical Blackboard** experience preloads persisted history, enriches the graph with consumer metadata, and highlights retention windows
+- **Operational tooling** — CLI helpers (`init-sqlite-store`, `sqlite-maintenance --delete-before ... --vacuum`) make schema setup and retention policies scriptable
+
+Quick start:
+
+```python
+from flock import Flock
+from flock.store import SQLiteBlackboardStore
+
+store = SQLiteBlackboardStore(".flock/blackboard.db")
+await store.ensure_schema()
+flock = Flock("openai/gpt-4.1", store=store)
+```
+
+Run `examples/02-the-blackboard/01_persistent_pizza.py` to generate history, then launch `examples/03-the-dashboard/04_persistent_pizza_dashboard.py` and explore previous runs, consumption trails, and retention banners inside the dashboard.
+
+---
+
 ## Core Concepts
 
 ### Typed Artifacts (The Vocabulary)

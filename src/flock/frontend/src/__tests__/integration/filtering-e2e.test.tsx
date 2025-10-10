@@ -329,9 +329,13 @@ describe('Filtering Integration E2E', () => {
 
       const state = useGraphStore.getState();
       const visibleNodes = state.nodes.filter((n) => !n.hidden);
-      // Only agent-1 should be visible
-      expect(visibleNodes).toHaveLength(1);
-      expect(visibleNodes[0]?.id).toBe('agent-1');
+
+      // Agent nodes remain visible but metrics reflect filtered artifacts
+      expect(visibleNodes).toHaveLength(2);
+      const agent1Node = visibleNodes.find((n) => n.id === 'agent-1');
+      const agent2Node = visibleNodes.find((n) => n.id === 'agent-2');
+      expect(agent1Node).toBeDefined();
+      expect(agent2Node).toBeDefined();
     });
   });
 

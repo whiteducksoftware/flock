@@ -79,9 +79,9 @@ async def bake_pizzas(flock: Flock, ideas: Iterable[str]) -> None:
     await flock.run_until_idle()
 
 
-async def show_recent_history(flock: Flock, limit: int = 5) -> None:
+async def show_recent_history(flock: Flock) -> None:
     """Print a preview of artifacts now persisted in SQLite."""
-    artifacts = await flock.store.list(limit=limit)  # type: ignore[arg-type]
+    artifacts = await flock.store.list()  # type: ignore[arg-type]
     print("\n🗂️  Persisted artifacts:")
     for artifact in artifacts:
         print(f" - {artifact.type} from {artifact.produced_by} @ {artifact.created_at}")
