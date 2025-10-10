@@ -92,7 +92,7 @@ async def main() -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     flock, store = build_orchestrator(db_path)
-    await flock.serve(dashboard=True)  # Start the dashboard (optional)
+    await flock.serve(dashboard_v2=True)  # Start the dashboard (optional)
     try:
         await store.ensure_schema()
 

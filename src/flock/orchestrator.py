@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from pathlib import Path
 from asyncio import Task
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
@@ -516,12 +517,18 @@ class Flock(metaclass=AutoTracedMeta):
         return self
 
     async def serve(
-        self, *, dashboard: bool = False, host: str = "127.0.0.1", port: int = 8000
+        self,
+        *,
+        dashboard: bool = False,
+        dashboard_v2: bool = False,
+        host: str = "127.0.0.1",
+        port: int = 8000,
     ) -> None:
         """Start HTTP service for the orchestrator (blocking).
 
         Args:
             dashboard: Enable real-time dashboard with WebSocket support (default: False)
+            dashboard_v2: Launch the new dashboard v2 frontend (implies dashboard=True)
             host: Host to bind to (default: "127.0.0.1")
             port: Port to bind to (default: 8000)
 
@@ -532,6 +539,9 @@ class Flock(metaclass=AutoTracedMeta):
             # With dashboard (WebSocket + browser launch) - runs until interrupted
             await orchestrator.serve(dashboard=True)
         """
+        if dashboard_v2:
+            dashboard = True
+
         if not dashboard:
             # Standard service without dashboard
             from flock.service import BlackboardHTTPService
@@ -548,8 +558,9 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Create dashboard components
         websocket_manager = WebSocketManager()
-        event_collector = DashboardEventCollector()
+        event_collector = DashboardEventCollector(store=self.store)
         event_collector.set_websocket_manager(websocket_manager)
+        await event_collector.load_persistent_snapshots()
 
         # Store collector reference for agents added later
         self._dashboard_collector = event_collector
@@ -560,7 +571,13 @@ class Flock(metaclass=AutoTracedMeta):
             agent.utilities.insert(0, event_collector)
 
         # Start dashboard launcher (npm process + browser)
-        launcher = DashboardLauncher(port=port)
+        launcher_kwargs: dict[str, Any] = {"port": port}
+        if dashboard_v2:
+            dashboard_pkg_dir = Path(__file__).parent / "dashboard"
+            launcher_kwargs["frontend_dir"] = dashboard_pkg_dir.parent / "frontend_v2"
+            launcher_kwargs["static_dir"] = dashboard_pkg_dir / "static_v2"
+
+        launcher = DashboardLauncher(**launcher_kwargs)
         launcher.start()
 
         # Create dashboard HTTP service
@@ -568,6 +585,7 @@ class Flock(metaclass=AutoTracedMeta):
             orchestrator=self,
             websocket_manager=websocket_manager,
             event_collector=event_collector,
+            use_v2=dashboard_v2,
         )
 
         # Store launcher for cleanup

@@ -40,7 +40,12 @@ class DashboardLauncher:
             pass  # Automatically cleaned up
     """
 
-    def __init__(self, port: int = 8000, frontend_dir: Path | None = None):
+    def __init__(
+        self,
+        port: int = 8000,
+        frontend_dir: Path | None = None,
+        static_dir: Path | None = None,
+    ):
         """Initialize dashboard launcher.
 
         Args:
@@ -49,6 +54,7 @@ class DashboardLauncher:
         """
         self.port = port
         self.frontend_dir = frontend_dir or FRONTEND_DIR
+        self.static_dir = static_dir or Path(__file__).parent / "static"
         self.dev_mode = os.getenv("DASHBOARD_DEV", "0") == "1"
         self._npm_process: subprocess.Popen | None = None
 
@@ -130,8 +136,7 @@ class DashboardLauncher:
         import shutil
 
         source_dir = self.frontend_dir / "dist"
-        # Dashboard directory is src/flock/dashboard
-        target_dir = Path(__file__).parent / "static"
+        target_dir = self.static_dir
 
         if not source_dir.exists():
             print(f"[Dashboard] Warning: Build output not found at {source_dir}")

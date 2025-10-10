@@ -18,6 +18,7 @@ from flock.agent import AgentIdentity
 from flock.artifacts import Artifact
 from flock.dashboard.collector import DashboardEventCollector
 from flock.orchestrator import Flock
+from flock.store import InMemoryBlackboardStore
 from flock.visibility import PublicVisibility
 
 
@@ -87,7 +88,7 @@ def fixed_uuid(mocker):
 @pytest.fixture
 def collector():
     """Create DashboardEventCollector instance for testing."""
-    return DashboardEventCollector()
+    return DashboardEventCollector(store=InMemoryBlackboardStore())
 
 
 @pytest.fixture

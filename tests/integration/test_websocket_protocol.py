@@ -15,6 +15,7 @@ import pytest
 
 from flock.artifacts import Artifact
 from flock.dashboard.collector import DashboardEventCollector
+from flock.store import InMemoryBlackboardStore
 from flock.dashboard.events import (
     AgentActivatedEvent,
     AgentErrorEvent,
@@ -28,7 +29,7 @@ from flock.visibility import PublicVisibility
 @pytest.fixture
 def collector():
     """Create DashboardEventCollector instance."""
-    return DashboardEventCollector()
+    return DashboardEventCollector(store=InMemoryBlackboardStore())
 
 
 @pytest.fixture

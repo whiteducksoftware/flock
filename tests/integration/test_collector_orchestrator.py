@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from flock.components import EngineComponent
 from flock.dashboard.collector import DashboardEventCollector
+from flock.store import InMemoryBlackboardStore
 from flock.dashboard.events import (
     AgentCompletedEvent,
     MessagePublishedEvent,
@@ -66,7 +67,7 @@ async def test_full_lifecycle_event_capture():
     """Test E2E lifecycle: agent activated → messages published → agent completed."""
     # Create orchestrator with collector
     orchestrator = Flock()
-    collector = DashboardEventCollector()
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
 
     # Create movie pipeline with collector attached
     movie_agent = (
@@ -119,7 +120,7 @@ async def test_full_lifecycle_event_capture():
 async def test_correlation_id_flow_through_pipeline():
     """Test that correlation_id flows through entire agent pipeline."""
     orchestrator = Flock()
-    collector = DashboardEventCollector()
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
 
     # Create pipeline
     movie_agent = (
@@ -154,7 +155,7 @@ async def test_correlation_id_flow_through_pipeline():
 async def test_error_event_capture():
     """Test that agent errors are captured correctly."""
     orchestrator = Flock()
-    collector = DashboardEventCollector()
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
 
     # Create engine that fails
     class FailingEngine(EngineComponent):
@@ -192,7 +193,7 @@ async def test_error_event_capture():
 async def test_multiple_runs_accumulate_events():
     """Test that multiple agent runs accumulate events in buffer."""
     orchestrator = Flock()
-    collector = DashboardEventCollector()
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
 
     # Create simple agent
     class EchoEngine(EngineComponent):
@@ -222,7 +223,7 @@ async def test_multiple_runs_accumulate_events():
 async def test_concurrent_agents_event_capture():
     """Test that concurrent agent executions are tracked correctly."""
     orchestrator = Flock()
-    collector = DashboardEventCollector()
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
 
     # Create two independent agents with higher concurrency
     class FastEngine(EngineComponent):
@@ -269,7 +270,7 @@ async def test_concurrent_agents_event_capture():
 async def test_message_published_contains_artifact_payload():
     """Test that message_published events contain complete artifact payload."""
     orchestrator = Flock()
-    collector = DashboardEventCollector()
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
 
     movie_agent = (
         orchestrator.agent("movie")

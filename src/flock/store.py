@@ -16,6 +16,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+import json
 from pathlib import Path
 from typing import Any, TypeVar
 from uuid import UUID
@@ -109,6 +110,20 @@ class ArtifactEnvelope:
     consumptions: list[ConsumptionRecord] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class AgentSnapshotRecord:
+    """Persistent metadata about an agent's behaviour."""
+
+    agent_name: str
+    description: str
+    subscriptions: list[str]
+    output_types: list[str]
+    labels: list[str]
+    first_seen: datetime
+    last_seen: datetime
+    signature: str
+
+
 class BlackboardStore:
     async def publish(self, artifact: Artifact) -> None:
         raise NotImplementedError
@@ -155,6 +170,29 @@ class BlackboardStore:
         """Search artifacts with filtering and pagination."""
         raise NotImplementedError
 
+    async def fetch_graph_artifacts(
+        self,
+        filters: FilterConfig | None = None,
+        *,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> tuple[list[ArtifactEnvelope], int]:
+        """Return artifact envelopes (artifact + consumptions) for graph assembly."""
+        artifacts, total = await self.query_artifacts(
+            filters=filters,
+            limit=limit,
+            offset=offset,
+            embed_meta=True,
+        )
+
+        envelopes: list[ArtifactEnvelope] = []
+        for item in artifacts:
+            if isinstance(item, ArtifactEnvelope):
+                envelopes.append(item)
+            elif isinstance(item, Artifact):
+                envelopes.append(ArtifactEnvelope(artifact=item))
+        return envelopes, total
+
     async def summarize_artifacts(
         self,
         filters: FilterConfig | None = None,
@@ -170,6 +208,18 @@ class BlackboardStore:
         """Return produced/consumed counts for the specified agent."""
         raise NotImplementedError
 
+    async def upsert_agent_snapshot(self, snapshot: AgentSnapshotRecord) -> None:
+        """Persist metadata describing an agent."""
+        raise NotImplementedError
+
+    async def load_agent_snapshots(self) -> list[AgentSnapshotRecord]:
+        """Return all persisted agent metadata records."""
+        raise NotImplementedError
+
+    async def clear_agent_snapshots(self) -> None:
+        """Remove all persisted agent metadata."""
+        raise NotImplementedError
+
 
 class InMemoryBlackboardStore(BlackboardStore):
     """Simple in-memory implementation suitable for local dev and tests."""
@@ -179,6 +229,7 @@ class InMemoryBlackboardStore(BlackboardStore):
         self._by_id: dict[UUID, Artifact] = {}
         self._by_type: dict[str, list[Artifact]] = defaultdict(list)
         self._consumptions_by_artifact: dict[UUID, list[ConsumptionRecord]] = defaultdict(list)
+        self._agent_snapshots: dict[str, AgentSnapshotRecord] = {}
 
     async def publish(self, artifact: Artifact) -> None:
         async with self._lock:
@@ -366,18 +417,31 @@ class InMemoryBlackboardStore(BlackboardStore):
             "consumed": {"total": consumed_total, "by_type": dict(consumed_by_type)},
         }
 
+    async def upsert_agent_snapshot(self, snapshot: AgentSnapshotRecord) -> None:
+        async with self._lock:
+            self._agent_snapshots[snapshot.agent_name] = snapshot
+
+    async def load_agent_snapshots(self) -> list[AgentSnapshotRecord]:
+        async with self._lock:
+            return list(self._agent_snapshots.values())
+
+    async def clear_agent_snapshots(self) -> None:
+        async with self._lock:
+            self._agent_snapshots.clear()
+
 
 __all__ = [
     "BlackboardStore",
     "InMemoryBlackboardStore",
     "SQLiteBlackboardStore",
+    "AgentSnapshotRecord",
 ]
 
 
 class SQLiteBlackboardStore(BlackboardStore):
     """SQLite-backed implementation of :class:`BlackboardStore`."""
 
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
 
     def __init__(self, db_path: str, *, timeout: float = 5.0) -> None:
         self._db_path = Path(db_path)
@@ -492,6 +556,20 @@ class SQLiteBlackboardStore(BlackboardStore):
                     rows,
                 )
                 await conn.commit()
+
+    async def fetch_graph_artifacts(  # type: ignore[override]
+        self,
+        filters: FilterConfig | None = None,
+        *,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> tuple[list[ArtifactEnvelope], int]:
+        with tracer.start_as_current_span("sqlite_store.fetch_graph_artifacts"):
+            return await super().fetch_graph_artifacts(
+                filters,
+                limit=limit,
+                offset=offset,
+            )
 
     async def get(self, artifact_id: UUID) -> Artifact | None:  # type: ignore[override]
         with tracer.start_as_current_span("sqlite_store.get"):
@@ -845,6 +923,78 @@ class SQLiteBlackboardStore(BlackboardStore):
             "consumed": {"total": consumed_total, "by_type": consumed_by_type},
         }
 
+    async def upsert_agent_snapshot(self, snapshot: AgentSnapshotRecord) -> None:
+        with tracer.start_as_current_span("sqlite_store.upsert_agent_snapshot"):
+            conn = await self._get_connection()
+            payload = {
+                "agent_name": snapshot.agent_name,
+                "description": snapshot.description,
+                "subscriptions": json.dumps(snapshot.subscriptions),
+                "output_types": json.dumps(snapshot.output_types),
+                "labels": json.dumps(snapshot.labels),
+                "first_seen": snapshot.first_seen.isoformat(),
+                "last_seen": snapshot.last_seen.isoformat(),
+                "signature": snapshot.signature,
+            }
+            async with self._write_lock:
+                await conn.execute(
+                    """
+                    INSERT INTO agent_snapshots (
+                        agent_name, description, subscriptions, output_types, labels,
+                        first_seen, last_seen, signature
+                    ) VALUES (
+                        :agent_name, :description, :subscriptions, :output_types, :labels,
+                        :first_seen, :last_seen, :signature
+                    )
+                    ON CONFLICT(agent_name) DO UPDATE SET
+                        description=excluded.description,
+                        subscriptions=excluded.subscriptions,
+                        output_types=excluded.output_types,
+                        labels=excluded.labels,
+                        first_seen=excluded.first_seen,
+                        last_seen=excluded.last_seen,
+                        signature=excluded.signature
+                    """,
+                    payload,
+                )
+                await conn.commit()
+
+    async def load_agent_snapshots(self) -> list[AgentSnapshotRecord]:
+        with tracer.start_as_current_span("sqlite_store.load_agent_snapshots"):
+            conn = await self._get_connection()
+            cursor = await conn.execute(
+                """
+                SELECT agent_name, description, subscriptions, output_types, labels,
+                       first_seen, last_seen, signature
+                FROM agent_snapshots
+                """
+            )
+            rows = await cursor.fetchall()
+            await cursor.close()
+
+            snapshots: list[AgentSnapshotRecord] = []
+            for row in rows:
+                snapshots.append(
+                    AgentSnapshotRecord(
+                        agent_name=row["agent_name"],
+                        description=row["description"],
+                        subscriptions=json.loads(row["subscriptions"] or "[]"),
+                        output_types=json.loads(row["output_types"] or "[]"),
+                        labels=json.loads(row["labels"] or "[]"),
+                        first_seen=datetime.fromisoformat(row["first_seen"]),
+                        last_seen=datetime.fromisoformat(row["last_seen"]),
+                        signature=row["signature"],
+                    )
+                )
+            return snapshots
+
+    async def clear_agent_snapshots(self) -> None:
+        with tracer.start_as_current_span("sqlite_store.clear_agent_snapshots"):
+            conn = await self._get_connection()
+            async with self._write_lock:
+                await conn.execute("DELETE FROM agent_snapshots")
+                await conn.commit()
+
     async def ensure_schema(self) -> None:
         conn = await self._ensure_connection()
         await self._apply_schema(conn)
@@ -986,6 +1136,24 @@ class SQLiteBlackboardStore(BlackboardStore):
                 CREATE INDEX IF NOT EXISTS idx_consumptions_correlation
                 ON artifact_consumptions(correlation_id)
                 """
+            )
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS agent_snapshots (
+                    agent_name TEXT PRIMARY KEY,
+                    description TEXT NOT NULL,
+                    subscriptions TEXT NOT NULL,
+                    output_types TEXT NOT NULL,
+                    labels TEXT NOT NULL,
+                    first_seen TEXT NOT NULL,
+                    last_seen TEXT NOT NULL,
+                    signature TEXT NOT NULL
+                )
+                """
+            )
+            await conn.execute(
+                "UPDATE schema_meta SET version=? WHERE id=1",
+                (self.SCHEMA_VERSION,),
             )
             await conn.commit()
             self._schema_ready = True

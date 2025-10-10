@@ -19,6 +19,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
 from flock.dashboard.collector import DashboardEventCollector
+from flock.dashboard.graph_builder import GraphAssembler
+from flock.dashboard.models.graph import GraphRequest, GraphSnapshot
 from flock.dashboard.events import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger
@@ -45,6 +47,8 @@ class DashboardHTTPService(BlackboardHTTPService):
         orchestrator: Flock,
         websocket_manager: WebSocketManager | None = None,
         event_collector: DashboardEventCollector | None = None,
+        *,
+        use_v2: bool = False,
     ) -> None:
         """Initialize DashboardHTTPService.
 
@@ -58,10 +62,18 @@ class DashboardHTTPService(BlackboardHTTPService):
 
         # Initialize WebSocket manager and event collector
         self.websocket_manager = websocket_manager or WebSocketManager()
-        self.event_collector = event_collector or DashboardEventCollector()
+        self.event_collector = event_collector or DashboardEventCollector(
+            store=self.orchestrator.store
+        )
+        self.use_v2 = use_v2
 
         # Integrate collector with WebSocket manager
         self.event_collector.set_websocket_manager(self.websocket_manager)
+
+        # Graph assembler powers both dashboards by default
+        self.graph_assembler: GraphAssembler | None = GraphAssembler(
+            self.orchestrator.store, self.event_collector, self.orchestrator
+        )
 
         # Configure CORS if DASHBOARD_DEV environment variable is set
         if os.environ.get("DASHBOARD_DEV") == "1":
@@ -122,13 +134,21 @@ class DashboardHTTPService(BlackboardHTTPService):
                 # Clean up: remove client from pool
                 await self.websocket_manager.remove_client(websocket)
 
-        # Serve static files for dashboard frontend
-        # Look for static files in dashboard directory
-        dashboard_dir = Path(__file__).parent
-        static_dir = dashboard_dir / "static"
+        if self.graph_assembler is not None:
+            @app.post("/api/dashboard/graph", response_model=GraphSnapshot)
+            async def get_dashboard_graph(request: GraphRequest) -> GraphSnapshot:
+                """Return server-side assembled dashboard graph snapshot."""
+                return await self.graph_assembler.build_snapshot(request)
 
-        # Also check for 'dist' or 'build' directories (common build output names)
-        possible_dirs = [static_dir, dashboard_dir / "dist", dashboard_dir / "build"]
+        dashboard_dir = Path(__file__).parent
+        frontend_root = dashboard_dir.parent / ("frontend_v2" if self.use_v2 else "frontend")
+        static_dir = dashboard_dir / ("static_v2" if self.use_v2 else "static")
+
+        possible_dirs = [
+            static_dir,
+            frontend_root / "dist",
+            frontend_root / "build",
+        ]
 
         for dir_path in possible_dirs:
             if dir_path.exists() and dir_path.is_dir():
@@ -142,9 +162,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                 break
         else:
             logger.warning(
-                f"No static directory found in {dashboard_dir}. "
-                "Dashboard frontend will not be served. "
-                "Expected directories: static/, dist/, or build/"
+                f"No static directory found for dashboard frontend (expected one of: {possible_dirs})."
             )
 
     def _register_control_routes(self) -> None:
