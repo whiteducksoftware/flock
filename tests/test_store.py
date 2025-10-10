@@ -1,13 +1,20 @@
 """Tests for Store functionality."""
 
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel
 
 from flock.artifacts import Artifact
-from flock.registry import flock_type
-from flock.store import InMemoryBlackboardStore
+from flock.registry import flock_type, type_registry
+from flock.store import (
+    ArtifactEnvelope,
+    ConsumptionRecord,
+    FilterConfig,
+    InMemoryBlackboardStore,
+    SQLiteBlackboardStore,
+)
 from flock.visibility import PublicVisibility
 
 
@@ -21,10 +28,19 @@ class TypeB(BaseModel):
     data: str
 
 
-@pytest.fixture
-def store():
-    """Create an InMemoryBlackboardStore instance."""
-    return InMemoryBlackboardStore()
+@pytest.fixture(params=["memory", "sqlite"], ids=["memory", "sqlite"])
+async def store(tmp_path, request):
+    """Create a store instance for the given backend."""
+    if request.param == "memory":
+        yield InMemoryBlackboardStore()
+    else:
+        db_path = tmp_path / "blackboard.db"
+        store = SQLiteBlackboardStore(str(db_path))
+        await store.ensure_schema()
+        try:
+            yield store
+        finally:
+            await store.close()
 
 
 @pytest.fixture
@@ -176,11 +192,9 @@ async def test_store_duplicate_artifacts(store):
 
 
 @pytest.mark.asyncio
-async def test_store_thread_safety():
+async def test_store_thread_safety(store):
     """Test that store operations are thread-safe."""
     import asyncio
-
-    store = InMemoryBlackboardStore()
 
     async def add_artifacts(agent_name: str, count: int):
         for i in range(count):
@@ -210,3 +224,165 @@ async def test_store_thread_safety():
     assert agent1_count == 10
     assert agent2_count == 10
     assert agent3_count == 10
+
+
+@pytest.mark.asyncio
+async def test_sqlite_store_schema_idempotent(tmp_path):
+    """Ensure SQLite schema creation can run multiple times without error."""
+    store = SQLiteBlackboardStore(str(tmp_path / "schema.db"))
+    await store.ensure_schema()
+    await store.ensure_schema()  # run twice for idempotency
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_store_query_and_summary(store):
+    """Verify filtering, pagination, and summaries across backends."""
+    base_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    artifacts = [
+        Artifact(
+            id=uuid4(),
+            type=type_registry.name_for(TypeA),
+            payload={"data": "alpha-1"},
+            produced_by="agent1",
+            tags={"alpha", "beta"},
+            correlation_id=uuid4(),
+            created_at=base_time,
+        ),
+        Artifact(
+            id=uuid4(),
+            type=type_registry.name_for(TypeA),
+            payload={"data": "alpha-2"},
+            produced_by="agent1",
+            tags={"alpha"},
+            correlation_id=uuid4(),
+            created_at=base_time + timedelta(minutes=1),
+        ),
+        Artifact(
+            id=uuid4(),
+            type=type_registry.name_for(TypeB),
+            payload={"data": "beta"},
+            produced_by="agent2",
+            tags={"beta"},
+            correlation_id=uuid4(),
+            created_at=base_time + timedelta(minutes=2),
+        ),
+    ]
+
+    for artifact in artifacts:
+        await store.publish(artifact)
+
+    # Filter by canonical type and tags
+    filtered, total = await store.query_artifacts(
+        FilterConfig(
+            type_names={type_registry.name_for(TypeA)},
+            tags={"alpha"},
+        ),
+        limit=10,
+        offset=0,
+    )
+    assert total == 2
+    assert len(filtered) == 2
+    assert all(item.type == type_registry.name_for(TypeA) for item in filtered)
+
+    # Pagination
+    paged, total = await store.query_artifacts(
+        FilterConfig(type_names={type_registry.name_for(TypeA)}),
+        limit=1,
+        offset=1,
+    )
+    assert total == 2
+    assert len(paged) == 1
+    assert paged[0].payload["data"] == "alpha-2"
+
+    # Time range filter to limit to latest artifact
+    recent_only, total = await store.query_artifacts(
+        FilterConfig(start=base_time + timedelta(minutes=2)),
+        limit=10,
+    )
+    assert total == 1
+    assert recent_only[0].type == type_registry.name_for(TypeB)
+
+    summary = await store.summarize_artifacts()
+    assert summary["total"] == 3
+    assert any(key.endswith("TypeA") and value == 2 for key, value in summary["by_type"].items())
+    assert summary["by_producer"]["agent1"] == 2
+    assert summary["earliest_created_at"].startswith("2025-01-01T12:00:00")
+
+
+@pytest.mark.asyncio
+async def test_query_artifacts_embed_meta_returns_consumptions(store):
+    now = datetime.now(timezone.utc)
+    artifact = Artifact(
+        type=type_registry.name_for(TypeA),
+        payload={"value": "embedded"},
+        produced_by="agent_source",
+        tags={"history"},
+        correlation_id=uuid4(),
+        created_at=now,
+    )
+    await store.publish(artifact)
+
+    await store.record_consumptions(
+        [
+            ConsumptionRecord(
+                artifact_id=artifact.id,
+                consumer="agent_consumer",
+                run_id="run-123",
+                correlation_id="corr-embedded",
+                consumed_at=now,
+            )
+        ]
+    )
+
+    results, total = await store.query_artifacts(
+        FilterConfig(type_names={artifact.type}),
+        limit=10,
+        offset=0,
+        embed_meta=True,
+    )
+
+    assert total == 1
+    assert len(results) == 1
+
+    envelope = results[0]
+    assert isinstance(envelope, ArtifactEnvelope)
+    assert len(envelope.consumptions) == 1
+    assert envelope.consumptions[0].consumer == "agent_consumer"
+    assert envelope.consumptions[0].correlation_id == "corr-embedded"
+
+
+@pytest.mark.asyncio
+async def test_agent_history_summary_counts(store):
+    now = datetime.now(timezone.utc)
+    artifact = Artifact(
+        type=type_registry.name_for(TypeA),
+        payload={"value": "summary"},
+        produced_by="agent_producer",
+        tags={"summary"},
+        correlation_id=uuid4(),
+        created_at=now,
+    )
+    await store.publish(artifact)
+
+    await store.record_consumptions(
+        [
+            ConsumptionRecord(
+                artifact_id=artifact.id,
+                consumer="agent_consumer",
+                run_id="run-456",
+                correlation_id="corr-summary",
+                consumed_at=now,
+            )
+        ]
+    )
+
+    producer_summary = await store.agent_history_summary("agent_producer", FilterConfig())
+    assert producer_summary["produced"]["total"] == 1
+    assert producer_summary["produced"]["by_type"][artifact.type] == 1
+    assert producer_summary["consumed"]["total"] == 0
+
+    consumer_summary = await store.agent_history_summary("agent_consumer", FilterConfig())
+    assert consumer_summary["consumed"]["total"] == 1
+    assert consumer_summary["consumed"]["by_type"][artifact.type] == 1

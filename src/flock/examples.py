@@ -18,6 +18,7 @@ from flock.components import EngineComponent
 from flock.orchestrator import Flock
 from flock.registry import flock_tool, flock_type, type_registry
 from flock.runtime import EvalInputs, EvalResult
+from flock.store import BlackboardStore
 from flock.utilities import LoggingUtility, MetricsUtility
 
 
@@ -75,8 +76,10 @@ class TaglineEngine(EngineComponent):
 
 def create_demo_orchestrator(
     model: str | None = None,
+    *,
+    store: BlackboardStore | None = None,
 ) -> tuple[Flock, dict[str, AgentBuilder]]:
-    orchestrator = Flock(model)
+    orchestrator = Flock(model, store=store)
 
     movie = (
         orchestrator.agent("movie")

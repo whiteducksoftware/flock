@@ -76,14 +76,79 @@ function toDashboardState(
   consumptions: Map<string, string[]>
 ): DashboardState {
   const artifacts = new Map<string, Artifact>();
+  const syntheticRuns = new Map(runs);
+
+  const producedBuckets = new Map<string, Set<string>>();
+  const consumedBuckets = new Map<string, Set<string>>();
+
+  // Helper to build bucket keys based on agent + correlation
+  const makeBucketKey = (agentId: string, correlationId: string) =>
+    `${agentId}::${correlationId || 'uncorrelated'}`;
+
+  // Track (agent, correlation) pairs that already have explicit run data
+  const existingRunBuckets = new Set<string>();
+  runs.forEach((run) => {
+    existingRunBuckets.add(makeBucketKey(run.agent_name, run.correlation_id));
+  });
 
   messages.forEach((message) => {
     artifacts.set(message.id, messageToArtifact(message, consumptions));
+
+    if (message.producedBy) {
+      const key = makeBucketKey(message.producedBy, message.correlationId);
+      if (!producedBuckets.has(key)) {
+        producedBuckets.set(key, new Set());
+      }
+      producedBuckets.get(key)!.add(message.id);
+    }
+  });
+
+  consumptions.forEach((consumerIds, artifactId) => {
+    const message = messages.get(artifactId);
+    const correlationId = message?.correlationId ?? '';
+    consumerIds.forEach((consumerId) => {
+      const key = makeBucketKey(consumerId, correlationId);
+      if (!consumedBuckets.has(key)) {
+        consumedBuckets.set(key, new Set());
+      }
+      consumedBuckets.get(key)!.add(artifactId);
+    });
+  });
+
+  let syntheticCounter = 0;
+  consumedBuckets.forEach((consumedSet, key) => {
+    if (consumedSet.size === 0) {
+      return;
+    }
+    const producedSet = producedBuckets.get(key);
+    if (!producedSet || producedSet.size === 0) {
+      return;
+    }
+
+    if (existingRunBuckets.has(key)) {
+      return;
+    }
+
+    const [agentIdRaw, correlationPartRaw] = key.split('::');
+    const agentId = agentIdRaw || 'unknown-agent';
+    const correlationPart = correlationPartRaw || 'uncorrelated';
+    const runId = `historic_${agentId}_${correlationPart}_${syntheticCounter++}`;
+
+    if (!syntheticRuns.has(runId)) {
+      syntheticRuns.set(runId, {
+        run_id: runId,
+        agent_name: agentId,
+        correlation_id: correlationPart === 'uncorrelated' ? '' : correlationPart,
+        status: 'completed',
+        consumed_artifacts: Array.from(consumedSet),
+        produced_artifacts: Array.from(producedSet),
+      });
+    }
   });
 
   return {
     artifacts,
-    runs,
+    runs: syntheticRuns,
     consumptions, // Phase 11: Pass actual consumption data for filtered count calculation
   };
 }
@@ -251,6 +316,8 @@ export const useGraphStore = create<GraphState>()(
         const edges = deriveAgentViewEdges(dashboardState);
 
         set({ nodes, edges });
+        // Re-apply active filters so newly generated nodes respect current selections
+        useGraphStore.getState().applyFilters();
       },
 
       generateBlackboardViewGraph: () => {
@@ -289,6 +356,8 @@ export const useGraphStore = create<GraphState>()(
               timestamp: message.timestamp,
               isStreaming: message.isStreaming || false,
               streamingText: message.streamingText || '',
+              tags: message.tags || [],
+              visibilityKind: message.visibilityKind || 'Unknown',
             },
           });
         });
@@ -298,6 +367,8 @@ export const useGraphStore = create<GraphState>()(
         const edges = deriveBlackboardViewEdges(dashboardState);
 
         set({ nodes, edges });
+        // Ensure filters are reapplied after regeneration
+        useGraphStore.getState().applyFilters();
       },
 
       batchUpdate: (update) =>
@@ -312,9 +383,16 @@ export const useGraphStore = create<GraphState>()(
 
           if (update.messages) {
             const messages = new Map(state.messages);
-            update.messages.forEach((m) => messages.set(m.id, m));
+            const consumptions = new Map(state.consumptions);
+            update.messages.forEach((m) => {
+              messages.set(m.id, m);
+              if (m.consumedBy && m.consumedBy.length > 0) {
+                consumptions.set(m.id, Array.from(new Set(m.consumedBy)));
+              }
+            });
             newState.messages = messages;
             newState.events = [...update.messages, ...state.events].slice(0, 100);
+            newState.consumptions = consumptions;
           }
 
           if (update.runs) {
@@ -327,8 +405,15 @@ export const useGraphStore = create<GraphState>()(
         }),
 
       applyFilters: () => {
-        const { nodes, edges, messages } = get();
-        const { correlationId, timeRange } = useFilterStore.getState();
+        const { nodes, edges, messages, consumptions } = get();
+        const {
+          correlationId,
+          timeRange,
+          selectedArtifactTypes,
+          selectedProducers,
+          selectedTags,
+          selectedVisibility,
+        } = useFilterStore.getState();
 
         // Helper to calculate time range boundaries
         const getTimeRangeBoundaries = (): { start: number; end: number } => {
@@ -342,64 +427,118 @@ export const useGraphStore = create<GraphState>()(
           } else if (timeRange.preset === 'custom' && timeRange.start && timeRange.end) {
             return { start: timeRange.start, end: timeRange.end };
           }
-          return { start: now - 10 * 60 * 1000, end: now };
+          return { start: Number.NEGATIVE_INFINITY, end: Number.POSITIVE_INFINITY };
         };
 
         const { start: timeStart, end: timeEnd } = getTimeRangeBoundaries();
 
-        // Filter messages based on correlation ID and time range
         const visibleMessageIds = new Set<string>();
+        const producedStats = new Map<string, { total: number; byType: Record<string, number> }>();
+        const consumedStats = new Map<string, { total: number; byType: Record<string, number> }>();
+
+        const incrementStat = (
+          map: Map<string, { total: number; byType: Record<string, number> }>,
+          key: string,
+          type: string
+        ) => {
+          if (!map.has(key)) {
+            map.set(key, { total: 0, byType: {} });
+          }
+          const entry = map.get(key)!;
+          entry.total += 1;
+          entry.byType[type] = (entry.byType[type] || 0) + 1;
+        };
+
         messages.forEach((message) => {
           let visible = true;
 
-          // Apply correlation ID filter (selective)
           if (correlationId && message.correlationId !== correlationId) {
             visible = false;
           }
 
-          // Apply time range filter (in-memory)
           if (visible && (message.timestamp < timeStart || message.timestamp > timeEnd)) {
             visible = false;
           }
 
+          if (
+            visible &&
+            selectedArtifactTypes.length > 0 &&
+            !selectedArtifactTypes.includes(message.type)
+          ) {
+            visible = false;
+          }
+
+          if (
+            visible &&
+            selectedProducers.length > 0 &&
+            !selectedProducers.includes(message.producedBy)
+          ) {
+            visible = false;
+          }
+
+          if (
+            visible &&
+            selectedVisibility.length > 0 &&
+            !selectedVisibility.includes(message.visibilityKind || 'Unknown')
+          ) {
+            visible = false;
+          }
+
+          if (visible && selectedTags.length > 0) {
+            const messageTags = message.tags || [];
+            const hasAllTags = selectedTags.every((tag) => messageTags.includes(tag));
+            if (!hasAllTags) {
+              visible = false;
+            }
+          }
+
           if (visible) {
             visibleMessageIds.add(message.id);
+            incrementStat(producedStats, message.producedBy, message.type);
+
+            const consumers = consumptions.get(message.id) || [];
+            consumers.forEach((consumerId) => {
+              incrementStat(consumedStats, consumerId, message.type);
+            });
           }
         });
 
-        // Update nodes visibility
         const updatedNodes = nodes.map((node) => {
           if (node.type === 'message') {
-            // For message nodes, check if message is visible
             return {
               ...node,
               hidden: !visibleMessageIds.has(node.id),
             };
-          } else if (node.type === 'agent') {
-            // For agent nodes, show if any visible messages involve this agent
-            let hasVisibleMessages = false;
-            messages.forEach((message) => {
-              if (visibleMessageIds.has(message.id)) {
-                if (message.producedBy === node.id) {
-                  hasVisibleMessages = true;
-                }
-              }
-            });
+          }
+          if (node.type === 'agent') {
+            const produced = producedStats.get(node.id);
+            const consumed = consumedStats.get(node.id);
+            const currentData = node.data as AgentNodeData;
             return {
               ...node,
-              hidden: !hasVisibleMessages,
+              hidden: false,
+              data: {
+                ...node.data,
+                sentCount: produced?.total ?? currentData.sentCount ?? 0,
+                recvCount: consumed?.total ?? currentData.recvCount ?? 0,
+                sentByType: produced?.byType ?? currentData.sentByType ?? {},
+                receivedByType: consumed?.byType ?? currentData.receivedByType ?? {},
+              },
             };
           }
           return node;
         });
 
-        // Update edges visibility
         const updatedEdges = edges.map((edge) => {
-          // Hide edge if either source or target node is hidden
-          const sourceNode = updatedNodes.find((n) => n.id === edge.source);
-          const targetNode = updatedNodes.find((n) => n.id === edge.target);
-          const hidden = sourceNode?.hidden || targetNode?.hidden || false;
-
+          let hidden = edge.hidden ?? false;
+          const data: any = edge.data;
+          if (data && Array.isArray(data.artifactIds) && data.artifactIds.length > 0) {
+            hidden = data.artifactIds.every((artifactId: string) => !visibleMessageIds.has(artifactId));
+          } else {
+            const sourceNode = updatedNodes.find((n) => n.id === edge.source);
+            const targetNode = updatedNodes.find((n) => n.id === edge.target);
+            hidden = !!(sourceNode?.hidden || targetNode?.hidden);
+          }
           return {
             ...edge,
             hidden,

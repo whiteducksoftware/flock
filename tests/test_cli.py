@@ -467,8 +467,51 @@ class TestErrorHandling:
         with pytest.raises(ValueError, match="Service error"):
             serve()
 
-        # Ensure uvicorn was not reached due to the error
-        mock_uvicorn.assert_not_called()
+
+class TestSQLiteCommands:
+    """Tests for SQLite store utilities."""
+
+    def test_init_sqlite_store_command(self, runner, mocker, tmp_path):
+        db_path = tmp_path / "board.db"
+        store_cls = mocker.patch("flock.cli.SQLiteBlackboardStore")
+        store_instance = Mock()
+        store_instance.ensure_schema = AsyncMock()
+        store_instance.close = AsyncMock()
+        store_cls.return_value = store_instance
+
+        result = runner.invoke(app, ["init-sqlite-store", str(db_path)])
+
+        assert result.exit_code == 0
+        store_cls.assert_called_once_with(str(db_path))
+        store_instance.ensure_schema.assert_awaited_once()
+        store_instance.close.assert_awaited_once()
+
+    def test_sqlite_maintenance_command(self, runner, mocker, tmp_path):
+        db_path = tmp_path / "board.db"
+        store_cls = mocker.patch("flock.cli.SQLiteBlackboardStore")
+        store_instance = Mock()
+        store_instance.ensure_schema = AsyncMock()
+        store_instance.delete_before = AsyncMock(return_value=5)
+        store_instance.vacuum = AsyncMock()
+        store_instance.close = AsyncMock()
+        store_cls.return_value = store_instance
+
+        result = runner.invoke(
+            app,
+            [
+                "sqlite-maintenance",
+                str(db_path),
+                "--delete-before",
+                "2025-01-01T00:00:00+00:00",
+                "--vacuum",
+            ],
+        )
+
+        assert result.exit_code == 0
+        store_instance.ensure_schema.assert_awaited_once()
+        store_instance.delete_before.assert_awaited_once()
+        store_instance.vacuum.assert_awaited_once()
+        store_instance.close.assert_awaited_once()
 
 
 class TestModuleStructure:

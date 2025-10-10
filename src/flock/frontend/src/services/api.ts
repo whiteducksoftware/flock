@@ -7,6 +7,8 @@
  * Base URL defaults to /api for same-origin requests.
  */
 
+import type { ArtifactSummary } from '../types/filters';
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export interface ArtifactType {
@@ -45,6 +47,56 @@ export interface ArtifactTypesResponse {
 
 export interface AgentsResponse {
   agents: Agent[];
+}
+
+export interface ArtifactListItem {
+  id: string;
+  type: string;
+  payload: Record<string, any>;
+  produced_by: string;
+  created_at: string;
+  correlation_id: string | null;
+  partition_key: string | null;
+  tags: string[];
+  visibility: { kind: string; [key: string]: any };
+  visibility_kind?: string;
+  version?: number;
+  consumptions?: ArtifactConsumption[];
+  consumed_by?: string[];
+}
+
+export interface ArtifactConsumption {
+  artifact_id: string;
+  consumer: string;
+  run_id: string | null;
+  correlation_id: string | null;
+  consumed_at: string;
+}
+
+export interface ArtifactListResponse {
+  items: ArtifactListItem[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+  };
+}
+
+export interface ArtifactSummaryResponse {
+  summary: ArtifactSummary;
+}
+
+export interface ArtifactQueryOptions {
+  types?: string[];
+  producers?: string[];
+  correlationId?: string | null;
+  tags?: string[];
+  visibility?: string[];
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+  embedMeta?: boolean;
 }
 
 export interface ErrorResponse {
@@ -204,6 +256,94 @@ export async function invokeAgent(agentName: string): Promise<InvokeResponse> {
     }
 
     return await response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new Error('Failed to connect to API server');
+  }
+}
+
+const buildArtifactQuery = (options: ArtifactQueryOptions): string => {
+  const params = new URLSearchParams();
+
+  options.types?.forEach((value) => params.append('type', value));
+  options.producers?.forEach((value) => params.append('produced_by', value));
+  options.tags?.forEach((value) => params.append('tag', value));
+  options.visibility?.forEach((value) => params.append('visibility', value));
+
+  if (options.correlationId) {
+    params.append('correlation_id', options.correlationId);
+  }
+  if (options.from) {
+    params.append('from', options.from);
+  }
+  if (options.to) {
+    params.append('to', options.to);
+  }
+  if (typeof options.limit === 'number') {
+    params.append('limit', String(options.limit));
+  }
+  if (typeof options.offset === 'number') {
+    params.append('offset', String(options.offset));
+  }
+  if (options.embedMeta) {
+    params.append('embed_meta', 'true');
+  }
+
+  return params.toString();
+};
+
+export async function fetchArtifacts(options: ArtifactQueryOptions = {}): Promise<ArtifactListResponse> {
+  const query = buildArtifactQuery(options);
+
+  try {
+    const response = await fetch(`${BASE_URL}/v1/artifacts${query ? `?${query}` : ''}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        error: 'Unknown error',
+        message: 'Failed to fetch artifacts',
+      }));
+      throw new ApiError(response.status, errorData);
+    }
+
+    const data: ArtifactListResponse = await response.json();
+    return data;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new Error('Failed to connect to API server');
+  }
+}
+
+export async function fetchArtifactSummary(options: ArtifactQueryOptions = {}): Promise<ArtifactSummary> {
+  const query = buildArtifactQuery(options);
+
+  try {
+    const response = await fetch(`${BASE_URL}/v1/artifacts/summary${query ? `?${query}` : ''}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        error: 'Unknown error',
+        message: 'Failed to fetch artifact summary',
+      }));
+      throw new ApiError(response.status, errorData);
+    }
+
+    const data: ArtifactSummaryResponse = await response.json();
+    return data.summary;
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;

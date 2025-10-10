@@ -39,6 +39,11 @@ export function useModules() {
   const events = useGraphStore((state) => state.events);
   const correlationId = useFilterStore((state) => state.correlationId);
   const timeRange = useFilterStore((state) => state.timeRange);
+  const artifactTypes = useFilterStore((state) => state.selectedArtifactTypes);
+  const producers = useFilterStore((state) => state.selectedProducers);
+  const tags = useFilterStore((state) => state.selectedTags);
+  const visibility = useFilterStore((state) => state.selectedVisibility);
+  const summary = useFilterStore((state) => state.summary);
 
   // Track previous instances to detect changes
   const prevInstancesRef = useRef<Map<string, any>>(new Map());
@@ -52,7 +57,12 @@ export function useModules() {
       filters: {
         correlationId,
         timeRange,
+        artifactTypes,
+        producers,
+        tags,
+        visibility,
       },
+      summary,
       publish: (artifact: any) => {
         // Placeholder: In production, this would dispatch to WebSocket
         console.log('[Module Context] Publish artifact:', artifact);
@@ -62,7 +72,7 @@ export function useModules() {
         console.log('[Module Context] Invoke agent:', agentName, 'with inputs:', inputs);
       },
     }),
-    [agents, messages, events, correlationId, timeRange]
+    [agents, messages, events, correlationId, timeRange, artifactTypes, producers, tags, visibility, summary]
   );
 
   /**

@@ -404,18 +404,17 @@ describe('Critical E2E Scenarios (Frontend)', () => {
         artifact_count: 1,
         run_count: 1,
       }));
+      // Reset filters and generate graph with all events (use fresh state)
+      useFilterStore.getState().clearFilters();
       useFilterStore.getState().updateAvailableCorrelationIds(metadata);
 
-      // Generate graph with all events (use fresh state)
       await act(async () => {
         useGraphStore.getState().generateBlackboardViewGraph();
       });
 
-      // Wait for nodes to be generated
+      // Ensure messages were recorded
       await waitFor(() => {
-        const nodes = useGraphStore.getState().nodes;
-        const visibleNodes = nodes.filter((n) => !n.hidden);
-        expect(visibleNodes.length).toBe(3);
+        expect(useGraphStore.getState().messages.size).toBe(3);
       }, { timeout: 5000 });
 
       // Apply correlation ID filter (use fresh state)

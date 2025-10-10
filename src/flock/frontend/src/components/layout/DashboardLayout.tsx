@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import GraphCanvas from '../graph/GraphCanvas';
 import DetailWindowContainer from '../details/DetailWindowContainer';
-import FilterBar from '../filters/FilterBar';
+import FilterFlyout from '../filters/FilterFlyout';
+import FilterPills from '../filters/FilterPills';
 import PublishControl from '../controls/PublishControl';
 import ModuleWindow from '../modules/ModuleWindow';
 import SettingsPanel from '../settings/SettingsPanel';
@@ -169,27 +170,6 @@ const DashboardLayout: React.FC = () => {
             <span>Agent Details</span>
           </button>
 
-          {/* Filter */}
-          <button
-            type="button"
-            onClick={() => setShowFilters(!showFilters)}
-            className={`controls-toggle ${showFilters ? 'active' : ''}`}
-            title={`${showFilters ? 'Hide' : 'Show'} filter panel (Ctrl+Shift+F)`}
-            aria-pressed={showFilters ? 'true' : 'false'}
-            aria-label={showFilters ? 'Filters shown' : 'Filters hidden'}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M2.667 2.667h10.666L9.333 7v4.667l-2.666 1.333V7L2.667 2.667z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span>Filter</span>
-          </button>
-
           {/* Settings */}
           <button
             type="button"
@@ -261,8 +241,12 @@ const DashboardLayout: React.FC = () => {
         </div>
       </header>
 
-      {/* Filter Bar - Collapsible */}
-      {showFilters && <FilterBar />}
+      <div className="filter-pills-bar">
+        <FilterPills />
+      </div>
+
+      {/* Filter Flyout */}
+      {showFilters && <FilterFlyout onClose={() => setShowFilters(false)} />}
 
       {/* Main Content */}
       <div className="dashboard-main">

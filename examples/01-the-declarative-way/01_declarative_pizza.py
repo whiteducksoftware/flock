@@ -109,7 +109,6 @@ async def main():
     3. Let Flock run until all agents are done
     4. Marvel at the type-safe output
     """
-
     # Create a pizza idea (go wild! The agent can handle it)
     pizza_idea = MyDreamPizza(pizza_idea="pizza with tartufo")
 

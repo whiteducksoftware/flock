@@ -6,6 +6,7 @@
 
 .presetButtons {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-2);
   align-items: center;
 }
@@ -38,6 +39,29 @@
 .presetButton.active:hover {
   background-color: var(--color-primary-700);
   border-color: var(--color-primary-700);
+}
+
+.presetButtonAll {
+  background: rgba(194, 65, 244, 0.15); /* secondary tint */
+  color: var(--color-secondary-200);
+  border-color: var(--color-secondary-500);
+}
+
+.presetButtonAll:hover {
+  background: rgba(194, 65, 244, 0.25);
+  border-color: var(--color-secondary-400);
+  color: var(--color-secondary-100);
+}
+
+.presetButtonAll.active {
+  background: var(--color-secondary-500);
+  border-color: var(--color-secondary-300);
+  color: var(--color-text-on-primary);
+}
+
+.presetButtonAll.active:hover {
+  background: var(--color-secondary-400);
+  border-color: var(--color-secondary-200);
 }
 
 .customRange {

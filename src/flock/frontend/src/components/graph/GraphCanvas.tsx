@@ -17,6 +17,7 @@ import MessageFlowEdge from './MessageFlowEdge';
 import TransformEdge from './TransformEdge';
 import MiniMap from './MiniMap';
 import { useGraphStore } from '../../store/graphStore';
+import { useFilterStore } from '../../store/filterStore';
 import { useUIStore } from '../../store/uiStore';
 import { useModuleStore } from '../../store/moduleStore';
 import { useSettingsStore } from '../../store/settingsStore';
@@ -44,6 +45,14 @@ const GraphCanvas: React.FC = () => {
   const generateBlackboardViewGraph = useGraphStore((state) => state.generateBlackboardViewGraph);
   const updateNodePosition = useGraphStore((state) => state.updateNodePosition);
   const addModule = useModuleStore((state) => state.addModule);
+  const applyFilters = useGraphStore((state) => state.applyFilters);
+
+  const correlationId = useFilterStore((state) => state.correlationId);
+  const timeRange = useFilterStore((state) => state.timeRange);
+  const selectedArtifactTypes = useFilterStore((state) => state.selectedArtifactTypes);
+  const selectedProducers = useFilterStore((state) => state.selectedProducers);
+  const selectedTags = useFilterStore((state) => state.selectedTags);
+  const selectedVisibility = useFilterStore((state) => state.selectedVisibility);
 
   // Graph settings from settings store
   const edgeType = useSettingsStore((state) => state.graph.edgeType);
@@ -92,6 +101,21 @@ const GraphCanvas: React.FC = () => {
       generateBlackboardViewGraph();
     }
   }, [edgeType, edgeStrokeWidth, edgeAnimation, mode, generateAgentViewGraph, generateBlackboardViewGraph]);
+
+  // Apply filters whenever filter store state changes
+  useEffect(() => {
+    applyFilters();
+  }, [
+    applyFilters,
+    correlationId,
+    timeRange.preset,
+    timeRange.start,
+    timeRange.end,
+    selectedArtifactTypes.join('|'),
+    selectedProducers.join('|'),
+    selectedTags.join('|'),
+    selectedVisibility.join('|'),
+  ]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {

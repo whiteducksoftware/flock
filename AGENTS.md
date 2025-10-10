@@ -234,6 +234,35 @@ The separation of `publish()` and `run_until_idle()` gives you **control over ex
 
 ---
 
+### 🗄️ Persistent Blackboard History (SQLite Store)
+
+**Production teams asked for auditability—now the blackboard can keep a full historical trail.**
+
+#### Why this matters
+- **Durable artifacts**: Everything on the blackboard (payloads, tags, visibility, correlation IDs) is stored on disk for replay, compliance, and debugging.
+- **Faster postmortems**: Query `/api/v1/artifacts` with filters (`type`, `produced_by`, `tags`, `visibility`, time windows) to reconstruct agent cascades after the fact.
+- **Operational dashboards**: The new **Historical Blackboard** module preloads persisted pages, exposes consumption metadata, and shows retention banners so operators know how far back they can scroll.
+- **Retention policies**: CLI helpers make maintenance routine—`flock sqlite-maintenance my.db --delete-before 2025-01-01T00:00:00Z --vacuum` prunes old artifacts and compacts the store.
+
+#### Quick start
+```python
+from flock import Flock
+from flock.store import SQLiteBlackboardStore
+
+store = SQLiteBlackboardStore(".flock/history.db")
+await store.ensure_schema()
+
+flock = Flock("openai/gpt-4.1", store=store)
+await flock.publish(MyDreamPizza(pizza_idea="fermented garlic delight"))
+await flock.run_until_idle()
+```
+
+Kick the tyres with `examples/02-the-blackboard/01_persistent_pizza.py`, then launch `examples/03-the-dashboard/04_persistent_pizza_dashboard.py` to inspect the retained history alongside live WebSocket updates.
+
+> **Heads-up:** The interface now returns `ArtifactEnvelope` objects when `embed_meta=True`. Future backends (Postgres, BigQuery, etc.) can implement the same contract to plug straight into the runtime and dashboard.
+
+---
+
 ### 🔒 Test Isolation and Mock Cleanup - The Contamination Trap
 
 **We fixed 32 failing tests caused by test contamination - here's what we learned:**

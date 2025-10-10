@@ -27,6 +27,8 @@
 // Note: idb library is available for production use, but we use raw IndexedDB API
 // for better compatibility with test mocks
 
+import type { FilterSnapshot } from '../types/filters';
+
 // Database constants
 const DB_NAME = 'flock_dashboard_v1';
 const DB_VERSION = 1;
@@ -128,8 +130,8 @@ interface SessionRecord {
 export interface FilterRecord {
   filter_id: string; // PRIMARY KEY
   name: string;
-  filters: Record<string, any>;
-  created_at: string;
+  filters: FilterSnapshot;
+  created_at: number;
 }
 
 // Helper to wrap IDBRequest in Promise
@@ -427,6 +429,58 @@ export class IndexedDBService {
     } catch (error) {
       console.error('[IndexedDB] Failed to query artifacts by time range:', error);
       return [];
+    }
+  }
+
+  // ============================================================================
+  // CRUD Operations - Filters Store
+  // ============================================================================
+
+  async saveFilterPreset(record: FilterRecord): Promise<void> {
+    if (!this.db) {
+      this.inMemoryStore.get('filters')?.set(record.filter_id, record);
+      return;
+    }
+
+    try {
+      const tx = this.db.transaction('filters', 'readwrite');
+      const store = tx.objectStore('filters');
+      await promisifyRequest(store.put(record));
+    } catch (error) {
+      console.error('[IndexedDB] Failed to save filter preset:', error);
+    }
+  }
+
+  async getAllFilterPresets(): Promise<FilterRecord[]> {
+    if (!this.db) {
+      const filters = this.inMemoryStore.get('filters');
+      if (!filters) return [];
+      return Array.from(filters.values()).sort((a, b) => b.created_at - a.created_at);
+    }
+
+    try {
+      const tx = this.db.transaction('filters', 'readonly');
+      const store = tx.objectStore('filters');
+      const records: FilterRecord[] = await promisifyRequest(store.getAll());
+      return records.sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      console.error('[IndexedDB] Failed to load filter presets:', error);
+      return [];
+    }
+  }
+
+  async deleteFilterPreset(filterId: string): Promise<void> {
+    if (!this.db) {
+      this.inMemoryStore.get('filters')?.delete(filterId);
+      return;
+    }
+
+    try {
+      const tx = this.db.transaction('filters', 'readwrite');
+      const store = tx.objectStore('filters');
+      await promisifyRequest(store.delete(filterId));
+    } catch (error) {
+      console.error('[IndexedDB] Failed to delete filter preset:', error);
     }
   }
 

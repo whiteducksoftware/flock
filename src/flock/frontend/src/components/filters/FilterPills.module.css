@@ -1,79 +1,220 @@
-.container {
+.wrapper {
   display: flex;
-  gap: var(--spacing-2);
+  align-items: center;
+  width: 100%;
+  gap: var(--gap-md);
+}
+
+.container {
+  display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.pill {
-  display: flex;
-  align-items: center;
   gap: var(--gap-md);
-  padding: var(--spacing-1-5) var(--spacing-3);
-  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
-  border: 1px solid var(--color-primary-500);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-body-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-on-primary);
-  box-shadow: var(--shadow-xs);
-  transition: var(--transition-all);
-  animation: slideIn var(--duration-normal) var(--ease-out);
+  pointer-events: auto;
+  margin-left: 0;
+  padding: 0;
+  max-width: 100%;
 }
 
-.pill:hover {
-  transform: translateY(-1px);
+.toggleButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-full);
+  border: var(--border-subtle);
+  background: color-mix(in srgb, var(--color-bg-surface) 80%, transparent);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: var(--transition-colors), var(--transition-transform), var(--transition-shadow);
+}
+
+.toggleButton:hover {
+  color: var(--color-text-primary);
+  border-color: color-mix(in srgb, var(--color-border-focus) 60%, transparent);
+  background: color-mix(in srgb, var(--color-bg-overlay) 75%, transparent);
+}
+
+.toggleButton:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-glow-primary);
+  color: var(--color-text-primary);
+}
+
+.toggleButton:active {
+  transform: scale(0.98);
+}
+
+.toggleButtonActive {
+  color: var(--color-text-on-primary);
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
+  border-color: color-mix(in srgb, var(--color-primary-400) 70%, transparent);
   box-shadow: var(--shadow-sm);
 }
 
-.pillSecondary {
-  background: linear-gradient(135deg, var(--color-secondary-600) 0%, var(--color-secondary-700) 100%);
-  border-color: var(--color-secondary-500);
+.toggleButtonActive:hover {
+  box-shadow: var(--shadow-md);
 }
 
-.pillLabel {
-  user-select: none;
+.toggleIcon {
+  display: inline-flex;
+  width: 1rem;
+  height: 1rem;
+}
+
+.toggleIcon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.toggleButtonActive .toggleIcon {
+  color: var(--color-text-on-primary);
+}
+
+.toggleLabel {
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.pill {
+  --pill-accent: var(--color-primary-500);
+  --pill-accent-soft: color-mix(in srgb, var(--color-bg-overlay) 88%, var(--pill-accent) 12%);
+  --pill-border: color-mix(in srgb, var(--pill-accent) 45%, transparent);
+  --pill-shadow: 0 12px 28px -18px color-mix(in srgb, var(--pill-accent) 40%, transparent);
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: var(--spacing-1-5) var(--spacing-3);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-overlay);
+  background: linear-gradient(135deg, var(--pill-accent-soft) 0%, color-mix(in srgb, var(--color-bg-surface) 92%, transparent) 100%);
+  border: 1px solid var(--pill-border);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-xs), var(--pill-shadow);
+  transition: var(--transition-transform), var(--transition-shadow), var(--transition-colors);
+  cursor: default;
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+.pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px -18px color-mix(in srgb, var(--pill-accent) 55%, transparent);
+}
+
+.pill:focus-within {
+  box-shadow:
+    0 16px 32px -18px color-mix(in srgb, var(--pill-accent) 55%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--pill-accent) 35%, transparent);
+}
+
+.pillAccent {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  background: var(--pill-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pill-accent) 25%, transparent);
+}
+
+.textGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.1;
+}
+
+.pillTitle {
+  font-size: var(--font-size-tiny);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.pillValue {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: 1.3;
 }
 
 .removeButton {
   background: none;
   border: none;
-  cursor: pointer;
-  padding: 0 var(--spacing-0-5);
-  font-size: 16px;
-  color: var(--color-text-on-primary);
-  line-height: 1;
-  display: flex;
+  margin-left: var(--gap-sm);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: var(--transition-transform);
-  opacity: 0.8;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-full);
+  color: var(--color-text-tertiary);
+  transition: var(--transition-transform), var(--transition-colors), var(--transition-shadow);
+  cursor: pointer;
 }
 
-.removeButton:hover {
-  opacity: 1;
-  transform: scale(1.2);
+.removeButton:hover,
+.removeButton:focus-visible {
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--pill-accent) 18%, transparent);
 }
 
-@keyframes slideIn {
+.removeButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pill-accent) 35%, transparent);
+}
+
+.removeButton:active {
+  transform: scale(0.92);
+}
+
+.removeIcon {
+  font-size: var(--font-size-body);
+  line-height: 1;
+}
+
+.pill[data-filter-type='timeRange'] {
+  --pill-accent: var(--color-tertiary-500);
+}
+
+.pill[data-filter-type='artifactTypes'] {
+  --pill-accent: var(--color-secondary-500);
+}
+
+.pill[data-filter-type='producers'] {
+  --pill-accent: var(--color-success);
+}
+
+.pill[data-filter-type='tags'] {
+  --pill-accent: var(--color-secondary-400);
+}
+
+.pill[data-filter-type='visibility'] {
+  --pill-accent: var(--color-info);
+}
+
+@media (max-width: 768px) {
+  .wrapper {
+    width: 100%;
+  }
+
+  .container {
+    border-radius: var(--radius-xl);
+    width: 100%;
+  }
+}
+
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateX(-10px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* Animation when pill is removed */
-.pill.removing {
-  animation: slideOut var(--duration-fast) var(--ease-in) forwards;
-}
-
-@keyframes slideOut {
-  to {
-    opacity: 0;
-    transform: scale(0.8) translateX(-10px);
+    transform: translateY(0);
   }
 }

@@ -1,5 +1,7 @@
 import { useWSStore } from '../store/wsStore';
 import { useGraphStore } from '../store/graphStore';
+import { useFilterStore } from '../store/filterStore';
+import { useUIStore } from '../store/uiStore';
 
 interface WebSocketMessage {
   event_type: 'agent_activated' | 'message_published' | 'streaming_output' | 'agent_completed' | 'agent_error';
@@ -49,6 +51,109 @@ export class WebSocketClient {
     // The heartbeat was closing connections every 2min when backend didn't respond to pings
     this.enableHeartbeat = false;
     this.setupEventHandlers();
+  }
+
+  private updateFilterStateFromPublishedMessage(data: any): void {
+    const filterStore = useFilterStore.getState();
+
+    const artifactType = typeof data.artifact_type === 'string' ? data.artifact_type : '';
+    const producer = typeof data.produced_by === 'string' ? data.produced_by : '';
+    const tags = Array.isArray(data.tags) ? data.tags.filter((tag: unknown) => typeof tag === 'string' && tag.length > 0) : [];
+    const visibilityKind =
+      (typeof data.visibility === 'object' && data.visibility && typeof data.visibility.kind === 'string'
+        ? data.visibility.kind
+        : undefined) ||
+      (typeof data.visibility_kind === 'string' ? data.visibility_kind : undefined) ||
+      (typeof data.visibility === 'string' ? data.visibility : undefined) ||
+      '';
+
+    const nextArtifactTypes = artifactType
+      ? [...filterStore.availableArtifactTypes, artifactType]
+      : [...filterStore.availableArtifactTypes];
+    const nextProducers = producer
+      ? [...filterStore.availableProducers, producer]
+      : [...filterStore.availableProducers];
+    const nextTags = tags.length > 0 ? [...filterStore.availableTags, ...tags] : [...filterStore.availableTags];
+    const nextVisibility = visibilityKind
+      ? [...filterStore.availableVisibility, visibilityKind]
+      : [...filterStore.availableVisibility];
+
+    filterStore.updateAvailableFacets({
+      artifactTypes: nextArtifactTypes,
+      producers: nextProducers,
+      tags: nextTags,
+      visibilities: nextVisibility,
+    });
+
+    const baseSummary =
+      filterStore.summary ?? {
+        total: 0,
+        by_type: {} as Record<string, number>,
+        by_producer: {} as Record<string, number>,
+        by_visibility: {} as Record<string, number>,
+        tag_counts: {} as Record<string, number>,
+        earliest_created_at: null as string | null,
+        latest_created_at: null as string | null,
+      };
+
+    const timestampIso =
+      (typeof data.timestamp === 'string' ? data.timestamp : undefined) ?? new Date().toISOString();
+
+    const updatedSummary = {
+      total: baseSummary.total + 1,
+      by_type: { ...baseSummary.by_type },
+      by_producer: { ...baseSummary.by_producer },
+      by_visibility: { ...baseSummary.by_visibility },
+      tag_counts: { ...baseSummary.tag_counts },
+      earliest_created_at:
+        baseSummary.earliest_created_at === null || timestampIso < baseSummary.earliest_created_at
+          ? timestampIso
+          : baseSummary.earliest_created_at,
+      latest_created_at:
+        baseSummary.latest_created_at === null || timestampIso > baseSummary.latest_created_at
+          ? timestampIso
+          : baseSummary.latest_created_at,
+    };
+
+    if (artifactType) {
+      updatedSummary.by_type[artifactType] = (updatedSummary.by_type[artifactType] || 0) + 1;
+    }
+    if (producer) {
+      updatedSummary.by_producer[producer] = (updatedSummary.by_producer[producer] || 0) + 1;
+    }
+    if (visibilityKind) {
+      updatedSummary.by_visibility[visibilityKind] = (updatedSummary.by_visibility[visibilityKind] || 0) + 1;
+    }
+    tags.forEach((tag: string) => {
+      updatedSummary.tag_counts[tag] = (updatedSummary.tag_counts[tag] || 0) + 1;
+    });
+
+    filterStore.setSummary(updatedSummary);
+
+    if (typeof data.correlation_id === 'string' && data.correlation_id.length > 0) {
+      const timestampMs =
+        typeof data.timestamp === 'string' ? new Date(data.timestamp).getTime() : Date.now();
+      const existing = filterStore.availableCorrelationIds.find(
+        (item) => item.correlation_id === data.correlation_id
+      );
+      const updatedRecord = existing
+        ? {
+            ...existing,
+            artifact_count: existing.artifact_count + 1,
+            first_seen: Math.min(existing.first_seen, timestampMs),
+          }
+        : {
+            correlation_id: data.correlation_id,
+            first_seen: timestampMs,
+            artifact_count: 1,
+            run_count: 0,
+          };
+      const nextMetadata = [
+        ...filterStore.availableCorrelationIds.filter((item) => item.correlation_id !== data.correlation_id),
+        updatedRecord,
+      ];
+      filterStore.updateAvailableCorrelationIds(nextMetadata);
+    }
   }
 
   private setupEventHandlers(): void {
@@ -117,11 +222,17 @@ export class WebSocketClient {
 
       if (existingMessage) {
         // Update existing streaming message with final data
+        const tags = Array.isArray(data.tags) ? data.tags : [];
+        const visibilityKind = data.visibility?.kind || data.visibility_kind || 'Unknown';
         const finalMessage = {
           ...existingMessage,
           id: data.artifact_id, // Replace temp ID with real artifact ID
           type: data.artifact_type,
           payload: data.payload,
+          tags,
+          visibilityKind,
+          partitionKey: data.partition_key ?? null,
+          version: data.version ?? 1,
           isStreaming: false, // Streaming complete
           streamingText: '', // Clear streaming text
         };
@@ -130,6 +241,8 @@ export class WebSocketClient {
         useGraphStore.getState().finalizeStreamingMessage(streamingMessageId, finalMessage);
       } else {
         // No streaming message - create new message directly
+        const tags = Array.isArray(data.tags) ? data.tags : [];
+        const visibilityKind = data.visibility?.kind || data.visibility_kind || 'Unknown';
         const message = {
           id: data.artifact_id,
           type: data.artifact_type,
@@ -137,6 +250,10 @@ export class WebSocketClient {
           timestamp: data.timestamp ? new Date(data.timestamp).getTime() : Date.now(),
           correlationId: data.correlation_id || '',
           producedBy: data.produced_by,
+          tags,
+          visibilityKind,
+          partitionKey: data.partition_key ?? null,
+          version: data.version ?? 1,
           isStreaming: false,
         };
         this.store.addMessage(message);
@@ -206,6 +323,16 @@ export class WebSocketClient {
           }
         }
       }
+
+      this.updateFilterStateFromPublishedMessage(data);
+
+      // Ensure blackboard graph reflects the newly published artifact immediately
+      const mode = useUIStore.getState().mode;
+      if (mode === 'blackboard') {
+        useGraphStore.getState().generateBlackboardViewGraph();
+      } else if (mode === 'agent') {
+        useGraphStore.getState().generateAgentViewGraph();
+      }
     });
 
     // Handler for streaming_output: update live output (Phase 6)
@@ -255,6 +382,8 @@ export class WebSocketClient {
             timestamp: data.timestamp ? new Date(data.timestamp).getTime() : Date.now(),
             correlationId: data.correlation_id || '',
             producedBy: data.agent_name,
+            tags: [],
+            visibilityKind: 'Unknown',
             isStreaming: true,
             streamingText: data.content,
           };
