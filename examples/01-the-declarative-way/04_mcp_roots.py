@@ -85,7 +85,7 @@ class FileAnalysisReport(BaseModel):
 # 🔌 STEP 2: Add Filesystem MCP with Roots Feature
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-flock = Flock(model="azure/gpt-4.1-swedencentral")
+flock = Flock(model="openai/gpt-4.1")
 
 # Get the current project directory
 current_dir = Path.cwd()

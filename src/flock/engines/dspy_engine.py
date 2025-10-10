@@ -669,7 +669,7 @@ class DSPyEngine(EngineComponent):
                             except Exception as e:
                                 logger.warning(f"Failed to emit streaming event: {e}")
                         else:
-                            logger.exception("NO WS_MANAGER PRESENT!!!!")
+                            logger.debug("No WebSocket manager present for streaming event.")
 
                         if formatter is not None:
                             _refresh_panel()
