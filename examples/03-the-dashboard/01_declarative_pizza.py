@@ -102,7 +102,7 @@ pizza_master = (
 
 
 async def main():
-    await flock.serve(dashboard=True)
+    await flock.serve(dashboard_v2=True)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
