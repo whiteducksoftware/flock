@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import MessageNode from './MessageNode';
-import { MessageNodeData } from '../../types/graph';
 import { NodeProps } from '@xyflow/react';
+
+// UI Optimization Migration (Phase 4.1 - Spec 002): MessageNodeData removed, use Record<string, any>
+type MessageNodeData = Record<string, any>;
 
 describe('MessageNode', () => {
   const createNodeProps = (data: MessageNodeData, selected = false): NodeProps =>

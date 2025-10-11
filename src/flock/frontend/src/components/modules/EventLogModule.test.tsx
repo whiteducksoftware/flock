@@ -2,8 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EventLogModule from './EventLogModule';
-import { Message, Agent } from '../../types/graph';
+import { Message } from '../../types/graph';
 import { TimeRange } from '../../types/filters';
+
+// UI Optimization Migration (Phase 4.1 - Spec 002): Agent type removed, use any
+type Agent = any;
 
 // Mock ModuleContext type based on the architecture spec
 interface ModuleContext {

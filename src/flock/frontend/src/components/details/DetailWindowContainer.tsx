@@ -9,9 +9,7 @@ import NodeDetailWindow from './NodeDetailWindow';
  */
 const DetailWindowContainer: React.FC = () => {
   const detailWindows = useUIStore((state) => state.detailWindows);
-  const mode = useUIStore((state) => state.mode);
-  const agents = useGraphStore((state) => state.agents);
-  const messages = useGraphStore((state) => state.messages);
+  const nodes = useGraphStore((state) => state.nodes);
 
   // Convert Map to array for rendering
   const windowEntries = Array.from(detailWindows.entries());
@@ -37,20 +35,9 @@ const DetailWindowContainer: React.FC = () => {
         }}
       >
         {windowEntries.map(([nodeId, _window]) => {
-          // Determine node type based on mode and what exists
-          let nodeType: 'agent' | 'message' = 'agent';
-
-          if (mode === 'agent') {
-            // In agent view, check if it's an agent
-            if (agents.has(nodeId)) {
-              nodeType = 'agent';
-            }
-          } else if (mode === 'blackboard') {
-            // In blackboard view, nodes are messages
-            if (messages.has(nodeId)) {
-              nodeType = 'message';
-            }
-          }
+          // UI Optimization Migration (Phase 4.1): Read node type from state.nodes
+          const node = nodes.find((n) => n.id === nodeId);
+          const nodeType: 'agent' | 'message' = node?.type === 'agent' ? 'agent' : 'message';
 
           return <NodeDetailWindow key={nodeId} nodeId={nodeId} nodeType={nodeType} />;
         })}

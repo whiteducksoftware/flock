@@ -374,8 +374,7 @@ describe('graphStore - NEW Simplified Architecture', () => {
         { id: 'agent1', type: 'agent', data: { name: 'agent1' }, position: { x: 0, y: 0 }, hidden: false },
       ];
 
-      const mockSavedPositions = new Map([['agent1', { x: 200, y: 300 }]]);
-
+      // Mock saved positions (200, 300) should be used by mergeNodePositions
       const mockMergedNodes: Node[] = [
         { id: 'agent1', type: 'agent', data: { name: 'agent1' }, position: { x: 200, y: 300 } } as Node,
       ];
@@ -413,7 +412,7 @@ describe('graphStore - NEW Simplified Architecture', () => {
 
       // Verify merged positions applied
       const state = useGraphStore.getState();
-      expect(state.nodes[0].position).toEqual({ x: 200, y: 300 });
+      expect(state.nodes[0]!.position).toEqual({ x: 200, y: 300 });
     });
 
     it('should overlay WebSocket state on merged nodes', async () => {
@@ -521,12 +520,14 @@ describe('graphStore - NEW Simplified Architecture', () => {
     it('should add events to event log', () => {
       const event = {
         id: 'msg1',
-        artifact_type: 'Pizza',
-        produced_by: 'pizza_master',
+        type: 'Pizza',
+        payload: {},
+        producedBy: 'pizza_master',
+        correlationId: 'corr-1',
         timestamp: Date.now(),
       };
 
-      useGraphStore.getState().addEvent(event);
+      useGraphStore.getState().addEvent(event as any);
 
       const state = useGraphStore.getState();
       expect(state.events).toHaveLength(1);
@@ -538,16 +539,18 @@ describe('graphStore - NEW Simplified Architecture', () => {
       for (let i = 0; i < 150; i++) {
         useGraphStore.getState().addEvent({
           id: `msg${i}`,
-          artifact_type: 'Pizza',
-          produced_by: 'pizza_master',
+          type: 'Pizza',
+          payload: {},
+          producedBy: 'pizza_master',
+          correlationId: 'corr-1',
           timestamp: Date.now() + i,
-        });
+        } as any);
       }
 
       const state = useGraphStore.getState();
       expect(state.events).toHaveLength(100);
       // Most recent should be first
-      expect(state.events[0].id).toBe('msg149');
+      expect(state.events[0]!.id).toBe('msg149');
     });
 
     it('should update view mode', () => {

@@ -15,53 +15,18 @@ interface MessageHistoryEntry {
   correlationId: string;
 }
 
-const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType }) => {
-  const messages = useGraphStore((state) => state.messages);
-  const agents = useGraphStore((state) => state.agents);
+const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType: _nodeType }) => {
+  const events = useGraphStore((state) => state.events);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
-  // Build message history based on node type
+  // UI Optimization Migration (Phase 4.1): Build message history from events array
+  // TODO: Re-implement with backend API for complete message history
   const messageHistory = useMemo(() => {
     const history: MessageHistoryEntry[] = [];
 
-    if (nodeType === 'agent') {
-      const agent = agents.get(nodeId);
-      if (!agent) return history;
-
-      // Get all messages
-      messages.forEach((message) => {
-        // Check if this agent consumed this message
-        const isConsumed = agent.subscriptions.includes(message.type);
-
-        // Check if this agent published this message
-        const isPublished = message.producedBy === nodeId;
-
-        if (isConsumed) {
-          history.push({
-            id: message.id,
-            type: message.type,
-            direction: 'consumed',
-            payload: message.payload,
-            timestamp: message.timestamp,
-            correlationId: message.correlationId,
-          });
-        }
-
-        if (isPublished) {
-          history.push({
-            id: `${message.id}-published`,
-            type: message.type,
-            direction: 'published',
-            payload: message.payload,
-            timestamp: message.timestamp,
-            correlationId: message.correlationId,
-          });
-        }
-      });
-    } else if (nodeType === 'message') {
-      // For message nodes, just show that single message
-      const message = messages.get(nodeId);
-      if (message) {
+    // Simple implementation: show events produced by this node
+    events.forEach((message: any) => {
+      if (message.producedBy === nodeId) {
         history.push({
           id: message.id,
           type: message.type,
@@ -71,11 +36,11 @@ const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType 
           correlationId: message.correlationId,
         });
       }
-    }
+    });
 
     // Sort by timestamp (most recent first)
     return history.sort((a, b) => b.timestamp - a.timestamp);
-  }, [nodeId, nodeType, messages, agents]);
+  }, [nodeId, events]);
 
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();

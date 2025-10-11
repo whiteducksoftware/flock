@@ -149,7 +149,7 @@ describe('graphService', () => {
       const result = mergeNodePositions(backendNodes, savedPositions, currentNodes);
 
       // Current position (300, 300) wins
-      expect(result[0].position).toEqual({ x: 300, y: 300 });
+      expect(result[0]!.position).toEqual({ x: 300, y: 300 });
     });
 
     it('should use backend position when saved and current are unavailable', () => {
@@ -163,7 +163,7 @@ describe('graphService', () => {
       const result = mergeNodePositions(backendNodes, savedPositions, currentNodes);
 
       // Backend position (100, 100) wins
-      expect(result[0].position).toEqual({ x: 100, y: 100 });
+      expect(result[0]!.position).toEqual({ x: 100, y: 100 });
     });
 
     it('should generate random position when backend has zero coordinates', () => {
@@ -177,13 +177,13 @@ describe('graphService', () => {
       const result = mergeNodePositions(backendNodes, savedPositions, currentNodes);
 
       // Random position should be generated (not 0, 0)
-      expect(result[0].position.x).toBeGreaterThan(0);
-      expect(result[0].position.y).toBeGreaterThan(0);
+      expect(result[0]!.position.x).toBeGreaterThan(0);
+      expect(result[0]!.position.y).toBeGreaterThan(0);
       // Random position range: x in [400, 600], y in [300, 500]
-      expect(result[0].position.x).toBeGreaterThanOrEqual(400);
-      expect(result[0].position.x).toBeLessThanOrEqual(600);
-      expect(result[0].position.y).toBeGreaterThanOrEqual(300);
-      expect(result[0].position.y).toBeLessThanOrEqual(500);
+      expect(result[0]!.position.x).toBeGreaterThanOrEqual(400);
+      expect(result[0]!.position.x).toBeLessThanOrEqual(600);
+      expect(result[0]!.position.y).toBeGreaterThanOrEqual(300);
+      expect(result[0]!.position.y).toBeLessThanOrEqual(500);
     });
 
     it('should handle multiple nodes with mixed position sources', () => {
@@ -202,12 +202,12 @@ describe('graphService', () => {
       const result = mergeNodePositions(backendNodes, savedPositions, currentNodes);
 
       // agent1: saved position wins
-      expect(result[0].position).toEqual({ x: 500, y: 500 });
+      expect(result[0]!.position).toEqual({ x: 500, y: 500 });
       // agent2: current position wins
-      expect(result[1].position).toEqual({ x: 300, y: 300 });
+      expect(result[1]!.position).toEqual({ x: 300, y: 300 });
       // agent3: random position (backend is 0,0)
-      expect(result[2].position.x).toBeGreaterThan(0);
-      expect(result[2].position.y).toBeGreaterThan(0);
+      expect(result[2]!.position.x).toBeGreaterThan(0);
+      expect(result[2]!.position.y).toBeGreaterThan(0);
     });
   });
 
@@ -227,7 +227,7 @@ describe('graphService', () => {
 
       const result = overlayWebSocketState(nodes, agentStatus, streamingTokens);
 
-      expect(result[0].data.status).toBe('running');
+      expect(result[0]!.data.status).toBe('running');
     });
 
     it('should overlay streaming tokens from WebSocket state', () => {
@@ -245,7 +245,7 @@ describe('graphService', () => {
 
       const result = overlayWebSocketState(nodes, agentStatus, streamingTokens);
 
-      expect(result[0].data.streamingTokens).toEqual(['token1', 'token2', 'token3']);
+      expect(result[0]!.data.streamingTokens).toEqual(['token1', 'token2', 'token3']);
     });
 
     it('should use backend status when WebSocket state is unavailable', () => {
@@ -264,9 +264,9 @@ describe('graphService', () => {
       const result = overlayWebSocketState(nodes, agentStatus, streamingTokens);
 
       // Backend status is preserved
-      expect(result[0].data.status).toBe('idle');
+      expect(result[0]!.data.status).toBe('idle');
       // Empty array for tokens
-      expect(result[0].data.streamingTokens).toEqual([]);
+      expect(result[0]!.data.streamingTokens).toEqual([]);
     });
 
     it('should not modify non-agent nodes', () => {
@@ -285,9 +285,9 @@ describe('graphService', () => {
       const result = overlayWebSocketState(nodes, agentStatus, streamingTokens);
 
       // Message node should not be modified
-      expect(result[0].data).toEqual({ type: 'Pizza', payload: {} });
-      expect(result[0].data.status).toBeUndefined();
-      expect(result[0].data.streamingTokens).toBeUndefined();
+      expect(result[0]!.data).toEqual({ type: 'Pizza', payload: {} });
+      expect(result[0]!.data.status).toBeUndefined();
+      expect(result[0]!.data.streamingTokens).toBeUndefined();
     });
 
     it('should handle multiple agent nodes with mixed WebSocket state', () => {
@@ -318,13 +318,13 @@ describe('graphService', () => {
       const result = overlayWebSocketState(nodes, agentStatus, streamingTokens);
 
       // agent1: status updated, no tokens
-      expect(result[0].data.status).toBe('running');
-      expect(result[0].data.streamingTokens).toEqual([]);
+      expect(result[0]!.data.status).toBe('running');
+      expect(result[0]!.data.streamingTokens).toEqual([]);
       // agent2: status from backend, tokens updated
-      expect(result[1].data.status).toBe('idle');
-      expect(result[1].data.streamingTokens).toEqual(['token1', 'token2']);
+      expect(result[1]!.data.status).toBe('idle');
+      expect(result[1]!.data.streamingTokens).toEqual(['token1', 'token2']);
       // message1: unchanged
-      expect(result[2].data).toEqual({ type: 'Pizza' });
+      expect(result[2]!.data).toEqual({ type: 'Pizza' });
     });
   });
 });

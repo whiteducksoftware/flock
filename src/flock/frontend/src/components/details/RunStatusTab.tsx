@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { useGraphStore } from '../../store/graphStore';
 
 interface RunStatusTabProps {
   nodeId: string;
@@ -20,18 +19,20 @@ interface RunStatusEntry {
   errorMessage?: string;
 }
 
-const RunStatusTab: React.FC<RunStatusTabProps> = ({ nodeId, nodeType }) => {
-  const runs = useGraphStore((state) => state.runs);
+const RunStatusTab: React.FC<RunStatusTabProps> = ({ nodeId, nodeType: _nodeType }) => {
+  // UI Optimization Migration (Phase 4.1): OLD runs Map removed in Phase 2
+  // TODO: Re-implement with backend API for agent run history
+  const runs = new Map<string, any>();
 
   // Build run history for this agent
   const runHistory = useMemo(() => {
     const history: RunStatusEntry[] = [];
 
-    if (nodeType !== 'agent') {
+    if (_nodeType !== 'agent') {
       return history;
     }
 
-    runs.forEach((run) => {
+    runs.forEach((run: any) => {
       // Filter runs for this agent
       if (run.agent_name === nodeId) {
         const startTime = run.started_at ? new Date(run.started_at).getTime() : Date.now();
@@ -61,7 +62,7 @@ const RunStatusTab: React.FC<RunStatusTabProps> = ({ nodeId, nodeType }) => {
 
     // Sort by start time (most recent first)
     return history.sort((a, b) => b.startTime - a.startTime);
-  }, [nodeId, nodeType, runs]);
+  }, [nodeId, _nodeType, runs]);
 
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();

@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import AgentNode from './AgentNode';
-import { AgentNodeData } from '../../types/graph';
 import { NodeProps } from '@xyflow/react';
+
+// UI Optimization Migration (Phase 4.1 - Spec 002): AgentNodeData removed, use Record<string, any>
+type AgentNodeData = Record<string, any>;
 
 describe('AgentNode', () => {
   const createNodeProps = (data: AgentNodeData, selected = false): NodeProps =>
