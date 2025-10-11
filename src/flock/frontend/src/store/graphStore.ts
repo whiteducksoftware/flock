@@ -126,6 +126,24 @@ async function loadPositionsFromDB(): Promise<Map<string, { x: number; y: number
 }
 
 /**
+ * Convert TimeRange (number timestamps) to TimeRangeFilter (ISO string timestamps)
+ */
+function convertTimeRange(range: { preset: string; start?: number; end?: number }): GraphRequest['filters']['time_range'] {
+  const result: GraphRequest['filters']['time_range'] = {
+    preset: range.preset as any,
+  };
+
+  if (range.start !== undefined) {
+    result.start = new Date(range.start).toISOString();
+  }
+  if (range.end !== undefined) {
+    result.end = new Date(range.end).toISOString();
+  }
+
+  return result;
+}
+
+/**
  * Build GraphRequest from current filter state
  */
 function buildGraphRequest(viewMode: 'agent' | 'blackboard'): GraphRequest {
@@ -135,7 +153,7 @@ function buildGraphRequest(viewMode: 'agent' | 'blackboard'): GraphRequest {
     viewMode,
     filters: {
       correlation_id: filterState.correlationId || null,
-      time_range: filterState.timeRange,
+      time_range: convertTimeRange(filterState.timeRange),
       artifactTypes: filterState.selectedArtifactTypes,
       producers: filterState.selectedProducers,
       tags: filterState.selectedTags,
@@ -180,7 +198,7 @@ export const useGraphStore = create<GraphState>()(
 
           set({
             nodes: finalNodes,
-            edges: snapshot.edges,
+            edges: snapshot.edges as Edge[],
             statistics: snapshot.statistics,
             isLoading: false,
           });
@@ -189,11 +207,20 @@ export const useGraphStore = create<GraphState>()(
           if (snapshot.statistics?.artifactSummary) {
             const summary = snapshot.statistics.artifactSummary;
             const filterState = useFilterStore.getState();
+
+            // Transform ArtifactSummary to FilterFacets format
+            const facets = {
+              artifactTypes: Object.keys(summary.by_type),
+              producers: Object.keys(summary.by_producer),
+              tags: Object.keys(summary.tag_counts),
+              visibilities: Object.keys(summary.by_visibility),
+            };
+
             // Support both updateAvailableFacets (production) and updateFacets (test mock)
             if ('updateAvailableFacets' in filterState && typeof filterState.updateAvailableFacets === 'function') {
-              filterState.updateAvailableFacets(summary);
+              filterState.updateAvailableFacets(facets);
             } else if ('updateFacets' in filterState && typeof (filterState as any).updateFacets === 'function') {
-              (filterState as any).updateFacets(summary);
+              (filterState as any).updateFacets(facets);
             }
           }
         } catch (error) {
@@ -223,7 +250,7 @@ export const useGraphStore = create<GraphState>()(
 
           set({
             nodes: finalNodes,
-            edges: snapshot.edges,
+            edges: snapshot.edges as Edge[],
             statistics: snapshot.statistics,
             isLoading: false,
           });
@@ -232,11 +259,20 @@ export const useGraphStore = create<GraphState>()(
           if (snapshot.statistics?.artifactSummary) {
             const summary = snapshot.statistics.artifactSummary;
             const filterState = useFilterStore.getState();
+
+            // Transform ArtifactSummary to FilterFacets format
+            const facets = {
+              artifactTypes: Object.keys(summary.by_type),
+              producers: Object.keys(summary.by_producer),
+              tags: Object.keys(summary.tag_counts),
+              visibilities: Object.keys(summary.by_visibility),
+            };
+
             // Support both updateAvailableFacets (production) and updateFacets (test mock)
             if ('updateAvailableFacets' in filterState && typeof filterState.updateAvailableFacets === 'function') {
-              filterState.updateAvailableFacets(summary);
+              filterState.updateAvailableFacets(facets);
             } else if ('updateFacets' in filterState && typeof (filterState as any).updateFacets === 'function') {
-              (filterState as any).updateFacets(summary);
+              (filterState as any).updateFacets(facets);
             }
           }
         } catch (error) {

@@ -1,11 +1,12 @@
 import { memo, useState, useEffect, useRef } from 'react';
 import { NodeProps, Handle, Position } from '@xyflow/react';
-import { AgentNodeData } from '../../types/graph';
 import { useUIStore } from '../../store/uiStore';
 import { useSettingsStore } from '../../store/settingsStore';
 
+// UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
+// Agent-specific properties populated by backend snapshot
 const AgentNode = memo(({ data, selected }: NodeProps) => {
-  const nodeData = data as AgentNodeData;
+  const nodeData = data as Record<string, any>;
   const name = nodeData.name;
   const status = nodeData.status;
   const sentCount = nodeData.sentCount;
@@ -19,14 +20,14 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   // Merge known types with actual counts - show all types even with 0 count
   // Start with actual counts, then add known types that haven't happened yet
   const displayReceivedByType: Record<string, number> = { ...receivedByType };
-  subscriptions.forEach(type => {
+  subscriptions.forEach((type: string) => {
     if (!(type in displayReceivedByType)) {
       displayReceivedByType[type] = 0;
     }
   });
 
   const displaySentByType: Record<string, number> = { ...sentByType };
-  outputTypes.forEach(type => {
+  outputTypes.forEach((type: string) => {
     if (!(type in displaySentByType)) {
       displaySentByType[type] = 0;
     }
@@ -43,10 +44,11 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
     const changedKeys = new Set<string>();
 
     Object.entries(allCounts).forEach(([key, count]) => {
-      if (prevCounts.current[key] !== undefined && prevCounts.current[key] !== count) {
+      const numCount = count as number;
+      if (prevCounts.current[key] !== undefined && prevCounts.current[key] !== numCount) {
         changedKeys.add(key);
       }
-      prevCounts.current[key] = count;
+      prevCounts.current[key] = numCount;
     });
 
     if (changedKeys.size > 0) {

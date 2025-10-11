@@ -1,6 +1,19 @@
-import { Agent, Message } from '../types/graph';
+import { Message } from '../types/graph';
 
-export const mockAgents: Agent[] = [
+// UI Optimization Migration (Phase 4.1 - Spec 002): OLD Phase 1 mock data (unused)
+// Kept for potential future testing, but Agent type no longer exists
+type LegacyAgent = {
+  id: string;
+  name: string;
+  status: string;
+  subscriptions: string[];
+  lastActive: number;
+  sentCount: number;
+  recvCount: number;
+  position: { x: number; y: number };
+};
+
+export const mockAgents: LegacyAgent[] = [
   {
     id: 'movie',
     name: 'movie',

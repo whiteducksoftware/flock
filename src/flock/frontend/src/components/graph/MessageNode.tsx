@@ -1,10 +1,11 @@
 import { memo } from 'react';
 import { NodeProps, Handle, Position } from '@xyflow/react';
 import JsonView from '@uiw/react-json-view';
-import { MessageNodeData } from '../../types/graph';
 
+// UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
+// Message/artifact-specific properties populated by backend snapshot
 const MessageNode = memo(({ data, selected }: NodeProps) => {
-  const nodeData = data as MessageNodeData;
+  const nodeData = data as Record<string, any>;
   const artifactType = nodeData.artifactType;
   const payload = nodeData.payload;
   const producedBy = nodeData.producedBy;

@@ -38,9 +38,6 @@ const GraphCanvas: React.FC = () => {
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
-  const agents = useGraphStore((state) => state.agents);
-  const messages = useGraphStore((state) => state.messages);
-  const runs = useGraphStore((state) => state.runs);
   const generateAgentViewGraph = useGraphStore((state) => state.generateAgentViewGraph);
   const generateBlackboardViewGraph = useGraphStore((state) => state.generateBlackboardViewGraph);
   const updateNodePosition = useGraphStore ((state) => state.updateNodePosition);
@@ -85,14 +82,15 @@ const GraphCanvas: React.FC = () => {
     []
   );
 
-  // Generate graph when mode changes OR when agents/messages/runs change
+  // UI Optimization Migration (Phase 4.1 - Spec 002): Generate graph when mode changes
+  // Backend snapshot includes ALL latest data, no need to watch OLD agents/messages/runs Maps
   useEffect(() => {
     if (mode === 'agent') {
       generateAgentViewGraph();
     } else {
       generateBlackboardViewGraph();
     }
-  }, [mode, agents, messages, runs, generateAgentViewGraph, generateBlackboardViewGraph]);
+  }, [mode, generateAgentViewGraph, generateBlackboardViewGraph]);
 
   // Regenerate graph when edge settings change to apply new edge styles
   useEffect(() => {

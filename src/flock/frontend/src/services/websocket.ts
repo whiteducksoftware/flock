@@ -1,7 +1,6 @@
 import { useWSStore } from '../store/wsStore';
 import { useGraphStore } from '../store/graphStore';
 import { useFilterStore } from '../store/filterStore';
-import { useUIStore } from '../store/uiStore';
 
 interface WebSocketMessage {
   event_type: 'agent_activated' | 'message_published' | 'streaming_output' | 'agent_completed' | 'agent_error';
@@ -9,14 +8,6 @@ interface WebSocketMessage {
   correlation_id: string;
   session_id: string;
   data: any;
-}
-
-interface StoreInterface {
-  addAgent: (agent: any) => void;
-  updateAgent: (id: string, updates: any) => void;
-  addMessage: (message: any) => void;
-  updateMessage: (id: string, updates: any) => void;
-  batchUpdate?: (update: any) => void;
 }
 
 export class WebSocketClient {
@@ -34,22 +25,14 @@ export class WebSocketClient {
   private heartbeatInterval: number | null = null;
   private heartbeatTimeout: number | null = null;
   private connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'disconnecting' | 'error' = 'disconnected';
-  private store: StoreInterface;
   private enableHeartbeat: boolean;
 
   // UI Optimization Migration (Phase 2 - Spec 002): Debounced graph refresh
   private refreshTimer: number | null = null;
   private refreshDebounceMs = 500; // 500ms batching window
 
-  constructor(url: string, mockStore?: StoreInterface) {
+  constructor(url: string) {
     this.url = url;
-    this.store = mockStore || {
-      addAgent: (agent: any) => useGraphStore.getState().addAgent(agent),
-      updateAgent: (id: string, updates: any) => useGraphStore.getState().updateAgent(id, updates),
-      addMessage: (message: any) => useGraphStore.getState().addMessage(message),
-      updateMessage: (id: string, updates: any) => useGraphStore.getState().updateMessage(id, updates),
-      batchUpdate: (update: any) => useGraphStore.getState().batchUpdate(update),
-    };
     // Phase 11 Fix: Disable heartbeat entirely - it causes unnecessary disconnects
     // WebSocket auto-reconnects on real network issues without needing heartbeat
     // The heartbeat was closing connections every 2min when backend didn't respond to pings

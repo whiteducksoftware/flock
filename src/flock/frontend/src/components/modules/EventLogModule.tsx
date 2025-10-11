@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Message, Agent } from '../../types/graph';
+import { Message } from '../../types/graph';
 import { TimeRange } from '../../types/filters';
 
+// UI Optimization Migration (Phase 4.1 - Spec 002): Use ModuleContext from ModuleRegistry
+// Removed local duplicate definition - ModuleContext is defined in ModuleRegistry.ts
 interface ModuleContext {
-  agents: Map<string, Agent>;
+  agents: Map<string, any>; // DEPRECATED - Phase 1 architecture
   messages: Map<string, Message>;
   events: Message[];
   filters: {
