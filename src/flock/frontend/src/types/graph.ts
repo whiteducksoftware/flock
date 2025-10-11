@@ -1,62 +1,77 @@
-import { Node, Edge } from '@xyflow/react';
+export interface GraphRequest {
+  viewMode: 'agent' | 'blackboard';
+  filters: GraphFilters;
+  options?: GraphRequestOptions;
+}
 
-export interface Agent {
+export interface GraphFilters {
+  correlation_id?: string | null;
+  time_range: TimeRangeFilter;
+  artifactTypes: string[];
+  producers: string[];
+  tags: string[];
+  visibility: string[];
+}
+
+export interface TimeRangeFilter {
+  preset: 'last10min' | 'last5min' | 'last1hour' | 'all' | 'custom';
+  start?: string | null;
+  end?: string | null;
+}
+
+export interface GraphRequestOptions {
+  include_statistics?: boolean;
+  label_offset_strategy?: 'stack' | 'none';
+  limit?: number;
+}
+
+export interface GraphSnapshot {
+  generatedAt: string;
+  viewMode: 'agent' | 'blackboard';
+  filters: GraphFilters;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  statistics: GraphStatistics | null;
+  totalArtifacts: number;
+  truncated: boolean;
+}
+
+export interface GraphNode {
   id: string;
-  name: string;
-  status: 'idle' | 'running' | 'error';
-  subscriptions: string[];
-  lastActive: number;
-  sentCount: number;
-  recvCount: number;
-  position?: { x: number; y: number };
-  outputTypes?: string[]; // Artifact types this agent produces
-  receivedByType?: Record<string, number>; // Count of messages received per type
-  sentByType?: Record<string, number>; // Count of messages sent per type
-  streamingTokens?: string[]; // Last 6 streaming tokens for news ticker effect
+  type: 'agent' | 'message';
+  data: Record<string, any>;
+  position: { x: number; y: number };
+  hidden: boolean;
 }
 
-export interface Message {
+export interface GraphEdge {
   id: string;
-  type: string;
-  payload: any;
-  timestamp: number;
-  correlationId: string;
-  producedBy: string;
-  tags?: string[];
-  visibilityKind?: string;
-  partitionKey?: string | null;
-  version?: number;
-  isStreaming?: boolean; // True while streaming, false when complete
-  streamingText?: string; // Accumulated streaming text (raw)
-  consumedBy?: string[];
+  source: string;
+  target: string;
+  type: 'message_flow' | 'transformation';
+  label?: string | null;
+  data: Record<string, any>;
+  markerEnd?: { type: string; width: number; height: number };
+  hidden: boolean;
 }
 
-export interface AgentNodeData extends Record<string, unknown> {
-  name: string;
-  status: 'idle' | 'running' | 'error';
-  subscriptions: string[];
-  outputTypes?: string[];
-  sentCount: number;
-  recvCount: number;
-  receivedByType?: Record<string, number>;
-  sentByType?: Record<string, number>;
-  streamingTokens?: string[]; // Last 6 streaming tokens for news ticker effect
+export interface GraphStatistics {
+  producedByAgent: Record<string, GraphAgentMetrics>;
+  consumedByAgent: Record<string, GraphAgentMetrics>;
+  artifactSummary: ArtifactSummary;
 }
 
-export interface MessageNodeData extends Record<string, unknown> {
-  artifactType: string;
-  payloadPreview: string;
-  payload: any; // Full payload for display
-  producedBy: string;
-  consumedBy: string[];
-  timestamp: number;
-  isStreaming?: boolean; // True while streaming tokens
-  streamingText?: string; // Raw streaming text
-  tags?: string[];
-  visibilityKind?: string;
+export interface GraphAgentMetrics {
+  total: number;
+  byType: Record<string, number>;
 }
 
-export type AgentViewNode = Node<AgentNodeData, 'agent'>;
-export type MessageViewNode = Node<MessageNodeData, 'message'>;
-export type GraphNode = AgentViewNode | MessageViewNode;
-export type GraphEdge = Edge;
+export interface ArtifactSummary {
+  total: number;
+  by_type: Record<string, number>;
+  by_producer: Record<string, number>;
+  by_visibility: Record<string, number>;
+  tag_counts: Record<string, number>;
+  earliest_created_at: string;
+  latest_created_at: string;
+}
