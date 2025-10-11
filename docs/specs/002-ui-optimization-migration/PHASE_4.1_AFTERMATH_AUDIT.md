@@ -85,55 +85,41 @@ const nodeType: 'agent' | 'message' = node?.type === 'agent' ? 'agent' : 'messag
 
 ## ⚠️ Identified Concerns (Phase 5 Action Items)
 
-### 1. **MessageHistoryTab - Incomplete Implementation**
-**File:** `src/components/details/MessageHistoryTab.tsx:23`
-**Issue:** Only shows messages **produced by** the node, missing **consumed** messages
+### 1. **MessageHistoryTab - Incomplete Implementation** ✅ FIXED
+**File:** `src/components/details/MessageHistoryTab.tsx`
+**Issue:** ~~Only shows messages **produced by** the node, missing **consumed** messages~~ **RESOLVED**
 
-**Current Implementation:**
-```typescript
-// Simple implementation: show events produced by this node
-events.forEach((message: any) => {
-  if (message.producedBy === nodeId) {  // <-- ONLY producer side
-    history.push({
-      id: message.id,
-      type: message.type,
-      direction: 'published',  // <-- ALWAYS published
-      ...
-    });
-  }
-});
-```
+**Fix Implemented (2025-10-11):**
+- ✅ Added backend endpoint: `GET /api/artifacts/history/{node_id}`
+- ✅ Backend queries both produced AND consumed messages
+- ✅ Frontend migrated to API fetch with loading/error states
+- ✅ Displays both directions (↑ Published, ↓ Consumed)
+- ✅ End-to-end validated with live dashboard
 
-**Why This Matters:**
-- Users can't see incoming messages to agents
-- "Consumed" direction is never shown
-- Events array doesn't have consumer tracking
+**Commit:** `feat(dashboard): implement Phase 4.1 feature gap fixes` (1bd0a6f)
 
-**Recommendation:** Backend API for `/api/artifacts/history/{nodeId}` including both directions
-
-**Priority:** 🔴 HIGH - Core feature gap
+**Priority:** ~~🔴 HIGH - Core feature gap~~ → ✅ RESOLVED
 
 ---
 
-### 2. **RunStatusTab - Empty State (Feature Gap)**
-**File:** `src/components/details/RunStatusTab.tsx:24`
-**Issue:** No run history data available - always shows "No previous runs"
+### 2. **RunStatusTab - Empty State (Feature Gap)** ✅ INFRASTRUCTURE READY
+**File:** `src/components/details/RunStatusTab.tsx`
+**Issue:** ~~No run history data available - always shows "No previous runs"~~ **INFRASTRUCTURE COMPLETE**
 
-**Current Implementation:**
-```typescript
-// UI Optimization Migration (Phase 4.1): OLD runs Map removed in Phase 2
-// TODO: Re-implement with backend API for agent run history
-const runs = new Map<string, any>();  // <-- Empty!
-```
+**Fix Implemented (2025-10-11):**
+- ✅ Added backend endpoint: `GET /api/agents/{agent_id}/runs`
+- ✅ Frontend migrated to API fetch with loading/error states
+- ✅ Status mapping and metrics display implemented
+- ✅ End-to-end validated with live dashboard
+- ⚠️ Backend returns empty array (orchestrator run tracking not yet implemented)
 
-**Why This Matters:**
-- Users can't see agent execution history
-- No metrics on token usage, cost, duration
-- No error message visibility
+**Future Work:**
+- Add run tracking to orchestrator (captures start/end times, metrics, errors)
+- Backend endpoint structure ready to receive run data when available
 
-**Recommendation:** Backend API for `/api/agents/{agentId}/runs` with pagination
+**Commit:** `feat(dashboard): implement Phase 4.1 feature gap fixes` (1bd0a6f)
 
-**Priority:** 🟡 MEDIUM - Nice-to-have feature (not critical path)
+**Priority:** ~~🟡 MEDIUM - Nice-to-have feature~~ → ✅ INFRASTRUCTURE READY (data source pending)
 
 ---
 
