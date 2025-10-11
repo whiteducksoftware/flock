@@ -522,7 +522,7 @@ class Flock(metaclass=AutoTracedMeta):
         dashboard: bool = False,
         dashboard_v2: bool = False,
         host: str = "127.0.0.1",
-        port: int = 8000,
+        port: int = 8344,
     ) -> None:
         """Start HTTP service for the orchestrator (blocking).
 
@@ -530,7 +530,7 @@ class Flock(metaclass=AutoTracedMeta):
             dashboard: Enable real-time dashboard with WebSocket support (default: False)
             dashboard_v2: Launch the new dashboard v2 frontend (implies dashboard=True)
             host: Host to bind to (default: "127.0.0.1")
-            port: Port to bind to (default: 8000)
+            port: Port to bind to (default: 8344)
 
         Examples:
             # Basic HTTP API (no dashboard) - runs until interrupted

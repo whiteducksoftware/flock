@@ -113,7 +113,7 @@ const App: React.FC = () => {
       }
     };
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8344/ws';
     const wsClient = initializeWebSocket(wsUrl);
     let cancelled = false;
 

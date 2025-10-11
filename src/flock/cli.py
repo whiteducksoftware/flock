@@ -63,7 +63,7 @@ def list_agents() -> None:
 @app.command()
 def serve(
     host: str = "127.0.0.1",
-    port: int = 8000,
+    port: int = 8344,
     sqlite_db: str | None = typer.Option(None, help="Path to SQLite blackboard store"),
 ) -> None:
     """Run the HTTP control plane bound to the demo orchestrator."""

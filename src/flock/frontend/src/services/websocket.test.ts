@@ -212,7 +212,7 @@ describe('WebSocketClient', () => {
 
     // Simulate failure, wait for fourth attempt (8s)
     (client.ws as MockWebSocket)?.simulateClose(1006);
-    await vi.advanceTimersByTimeAsync(8000);
+    await vi.advanceTimersByTimeAsync(8344);
     expect(reconnectTimes.length).toBe(4);
 
     // Verify max backoff (30s)

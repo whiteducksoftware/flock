@@ -210,7 +210,7 @@ describe('Critical E2E Scenarios (Frontend)', () => {
        */
 
       // Setup: Create WebSocket client
-      wsClient = new WebSocketClient('ws://localhost:8000/ws');
+      wsClient = new WebSocketClient('ws://localhost:8344/ws');
       wsClient.connect();
 
       await waitFor(() => expect(wsClient.isConnected()).toBe(true));
@@ -300,7 +300,7 @@ describe('Critical E2E Scenarios (Frontend)', () => {
        */
 
       // Step 1: Connect WebSocket client (using MockWebSocket)
-      wsClient = new WebSocketClient('ws://localhost:8000/ws');
+      wsClient = new WebSocketClient('ws://localhost:8344/ws');
       wsClient.connect();
 
       await waitFor(() => expect(wsClient.isConnected()).toBe(true), { timeout: 5000 });
@@ -329,7 +329,7 @@ describe('Critical E2E Scenarios (Frontend)', () => {
       // Backoff: 1s, 2s, 4s, 8s
       // Total time for 4 attempts: ~15s
       // We'll wait 8s to capture 3-4 attempts (1s + 2s + 4s = 7s + margin)
-      await new Promise((resolve) => setTimeout(resolve, 8000));
+      await new Promise((resolve) => setTimeout(resolve, 8344));
 
       // Verify reconnection attempts increased
       const attemptsAfterBackoff = useWSStore.getState().reconnectAttempts;
@@ -370,7 +370,7 @@ describe('Critical E2E Scenarios (Frontend)', () => {
        */
 
       // Setup: Connect WebSocket
-      wsClient = new WebSocketClient('ws://localhost:8000/ws');
+      wsClient = new WebSocketClient('ws://localhost:8344/ws');
       wsClient.connect();
       await waitFor(() => expect(wsClient.isConnected()).toBe(true));
       mockWs = wsClient.ws as any;

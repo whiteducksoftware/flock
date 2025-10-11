@@ -29,27 +29,27 @@ class DashboardLauncher:
     - Clean up npm processes on shutdown
 
     Usage:
-        launcher = DashboardLauncher(port=8000)
+        launcher = DashboardLauncher(port=8344)
         launcher.start()  # Starts npm and opens browser
         # ... orchestrator runs ...
         launcher.stop()  # Cleanup
 
     Or as context manager:
-        with DashboardLauncher(port=8000):
+        with DashboardLauncher(port=8344):
             # orchestrator.serve() runs
             pass  # Automatically cleaned up
     """
 
     def __init__(
         self,
-        port: int = 8000,
+        port: int = 8344,
         frontend_dir: Path | None = None,
         static_dir: Path | None = None,
     ):
         """Initialize dashboard launcher.
 
         Args:
-            port: HTTP port where dashboard will be served (default: 8000)
+            port: HTTP port where dashboard will be served (default: 8344)
             frontend_dir: Optional frontend directory path (defaults to FRONTEND_DIR)
         """
         self.port = port

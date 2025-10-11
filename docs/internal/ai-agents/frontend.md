@@ -46,7 +46,7 @@ asyncio.run(orchestrator.serve(dashboard=True))
 
 1. ✅ **Auto-Install** - Runs `npm install` if `node_modules` missing
 2. ✅ **Start Services** - Launches both Python API and React dev server
-3. ✅ **Open Browser** - Automatically opens http://localhost:8000
+3. ✅ **Open Browser** - Automatically opens http://localhost:8344
 4. ✅ **Inject Collectors** - Adds event collectors to all agents
 5. ✅ **Stream Events** - Real-time WebSocket connection for live updates
 

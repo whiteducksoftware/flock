@@ -46,7 +46,7 @@ export const mockMessages: Message[] = [
     id: 'msg-2',
     type: 'Movie',
     payload: { title: 'Inception', year: 2010, genre: 'Sci-Fi' },
-    timestamp: Date.now() - 8000,
+    timestamp: Date.now() - 8344,
     correlationId: 'corr-123',
     producedBy: 'movie',
   },

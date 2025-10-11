@@ -3,7 +3,7 @@
 **Date:** 2025-10-08
 **Status:** ✅ **100% COMPLETE**
 **Build Status:** ✅ **PASSING** (`mkdocs build --strict`)
-**Server Status:** ✅ **RUNNING** (http://localhost:8000)
+**Server Status:** ✅ **RUNNING** (http://localhost:8344)
 
 ---
 
@@ -110,11 +110,11 @@ INFO    -  Documentation built in 1.35 seconds
 $ mkdocs serve
 INFO    -  Building documentation...
 INFO    -  Cleaning site directory
-[I 251008 17:15:23 server:335] Serving on http://127.0.0.1:8000
+[I 251008 17:15:23 server:335] Serving on http://127.0.0.1:8344
 INFO    -  Documentation built in 1.42 seconds
 ```
 
-**Access at:** http://localhost:8000
+**Access at:** http://localhost:8344
 
 ---
 

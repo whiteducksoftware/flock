@@ -603,7 +603,7 @@ asyncio.run(orchestrator.serve(dashboard=True))
 
 1. ✅ **Auto-Install** - Runs `npm install` if `node_modules` missing
 2. ✅ **Start Services** - Launches both Python API and React dev server
-3. ✅ **Open Browser** - Automatically opens http://localhost:8000
+3. ✅ **Open Browser** - Automatically opens http://localhost:8344
 4. ✅ **Inject Collectors** - Adds event collectors to all agents
 5. ✅ **Stream Events** - Real-time WebSocket connection for live updates
 
@@ -1866,7 +1866,7 @@ conn.execute("""
 
 ### Trace Viewer UI
 
-The dashboard includes a **Jaeger-style trace viewer** at `http://localhost:8000`:
+The dashboard includes a **Jaeger-style trace viewer** at `http://localhost:8344`:
 
 **Features:**
 - 🔍 **Timeline View**: Waterfall visualization with span hierarchies
@@ -1995,7 +1995,7 @@ conn.execute("""
 
 ```python
 # Compare before/after performance
-baseline_start = 1728000000000000000  # nanoseconds
+baseline_start = 1728344000000000000  # nanoseconds
 current_start = 1728086400000000000
 
 baseline = conn.execute("""
@@ -2170,7 +2170,7 @@ export FLOCK_AUTO_TRACE=true
 
 1. **Limit trace retention:**
 ```sql
-DELETE FROM spans WHERE start_time < (EXTRACT(EPOCH FROM NOW()) * 1000000000) - 604800000000000;  -- Keep 7 days
+DELETE FROM spans WHERE start_time < (EXTRACT(EPOCH FROM NOW()) * 1000000000) - 604834400000000;  -- Keep 7 days
 ```
 
 2. **Vacuum database periodically:**
@@ -2189,7 +2189,7 @@ When debugging a Flock application:
 
 - [ ] **Enable tracing:** `FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true`
 - [ ] **Reproduce the issue** to capture trace data
-- [ ] **Open trace viewer:** Visit `http://localhost:8000` → Trace Viewer tab
+- [ ] **Open trace viewer:** Visit `http://localhost:8344` → Trace Viewer tab
 - [ ] **Check Timeline View:** Look for unusually long spans
 - [ ] **Check Statistics View:** Sort by duration to find bottlenecks
 - [ ] **Examine I/O data:** Expand JSON attributes to see full inputs/outputs

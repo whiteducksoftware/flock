@@ -1,6 +1,6 @@
 [rich]
 panel_style = "on #090909"
-table_header_style = "bold #ececec on #780002"
+table_header_style = "bold #ececec on #783442"
 table_title_style = "bold #cdcdcd"
 table_border_style = "#9fa9ff"
 panel_border_style = "#9fa9ff"
@@ -73,5 +73,5 @@ background = "#090909"
 foreground = "#cdcdcd"
 
 [colors.selection]
-background = "#780002"
+background = "#783442"
 text = "#ececec"

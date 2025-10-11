@@ -18,12 +18,12 @@ uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py
 Wait for the following log lines:
 
 - `[Dashboard] Production build completed`
-- `Uvicorn running on http://127.0.0.1:8000`
+- `Uvicorn running on http://127.0.0.1:8344`
 - `[Dashboard] Browser launched successfully`
 
 ## Manual Verification Steps (playwright-mcp)
 
-1. `mcp__playwright__browser_navigate(url="http://127.0.0.1:8000")`
+1. `mcp__playwright__browser_navigate(url="http://127.0.0.1:8344")`
    - Confirm Agent View renders all agents with idle status.
 2. Close the Publish panel (`mcp__playwright__browser_click` with `Close publish panel`) and switch to **Blackboard View**.
 3. Toggle the **Filters** panel and verify:

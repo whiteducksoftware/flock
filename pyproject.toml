@@ -116,7 +116,7 @@ format = "ruff format src/flock/"
 
 # Documentation tasks
 docs = "mkdocs serve"  # Alias for docs-serve (most common use case)
-docs-serve = "mkdocs serve"  # Serve docs locally at http://127.0.0.1:8000
+docs-serve = "mkdocs serve"  # Serve docs locally at http://127.0.0.1:8344
 docs-build = "mkdocs build"  # Build docs to site/ directory
 docs-deploy = "mkdocs gh-deploy --force"  # Deploy to GitHub Pages
 

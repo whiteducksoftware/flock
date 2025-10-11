@@ -35,13 +35,13 @@ await flock.serve(dashboard=True)
 **That's it.** Flock automatically:
 1. Builds the production-optimized frontend
 2. Starts the backend API server
-3. Opens your browser to `http://localhost:8000`
+3. Opens your browser to `http://localhost:8344`
 4. Establishes WebSocket connection for real-time updates
 
 **Expected startup output:**
 ```
 [Dashboard] Production build completed
-INFO: Uvicorn running on http://127.0.0.1:8000
+INFO: Uvicorn running on http://127.0.0.1:8344
 [Dashboard] Browser launched successfully
 ```
 
@@ -121,7 +121,7 @@ The dashboard uses **WebSocket connections** for instant updates:
 
 **You'll see in the browser console:**
 ```javascript
-[WebSocket] Connected to ws://localhost:8000/ws
+[WebSocket] Connected to ws://localhost:8344/ws
 [WebSocket] Streaming output: {"content": "Analyzing...", "done": false}
 [WebSocket] Agent status changed: pizza_master → running
 ```
@@ -579,12 +579,12 @@ The dashboard includes a **Jaeger-style trace viewer** with 7 visualization mode
 **Check:**
 - Server started? Look for "Uvicorn running" in console
 - Frontend built? Look for "Production build completed"
-- Correct URL? Should be `http://localhost:8000`
+- Correct URL? Should be `http://localhost:8344`
 
 **Solution:**
 - Wait 5-10 seconds after starting for build to complete
 - Check console for build errors
-- Verify port 8000 not in use: `lsof -i :8000`
+- Verify port 8344 not in use: `lsof -i :8344`
 
 ### WebSocket shows "Disconnected"
 

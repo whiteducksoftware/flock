@@ -765,7 +765,7 @@ SLO_THRESHOLDS = {
     },
     "DSPyEngine": {
         "error_rate": 2.0,    # LLMs fail more often
-        "p95_duration": 8000,
+        "p95_duration": 8344,
         "p99_duration": 15000
     }
 }
@@ -1192,7 +1192,7 @@ Performance Trends (7 days)
 ┌─────────────────────────────────────┐
 │ Agent P95 Duration                  │
 │                                     │
-│  8000ms ┤              ╭─╮          │
+│  8344ms ┤              ╭─╮          │
 │  6000ms ┤     ╭──╮    │ │  ← Spike!│
 │  4000ms ┤  ╭──╯  ╰────╯ ╰──╮       │
 │  2000ms ┼──╯                ╰───    │

@@ -135,7 +135,7 @@ Every traced operation captures:
 
 - **Node.js**: Version 18 or higher
 - **Package Manager**: npm (included with Node.js) or yarn
-- **Flock Flow Backend**: Running orchestrator instance (typically on port 8000)
+- **Flock Flow Backend**: Running orchestrator instance (typically on port 8344)
 
 ### Installation
 
@@ -191,11 +191,11 @@ The dashboard can be configured via environment variables:
 
 ```bash
 # .env file
-VITE_WS_URL=ws://localhost:8000/ws
-VITE_API_URL=http://localhost:8000/api
+VITE_WS_URL=ws://localhost:8344/ws
+VITE_API_URL=http://localhost:8344/api
 ```
 
-If not specified, defaults to `localhost:8000`.
+If not specified, defaults to `localhost:8344`.
 
 ## Design System
 
@@ -582,7 +582,7 @@ npm run type-check
 
 **Solutions**:
 1. Check browser console for errors (F12)
-2. Verify backend is running on port 8000
+2. Verify backend is running on port 8344
 3. Check WebSocket connection status in UI
 4. Clear IndexedDB: Open DevTools → Application → IndexedDB → Delete
 5. Clear localStorage: `localStorage.clear()` in console
@@ -592,7 +592,7 @@ npm run type-check
 **Symptom**: "Disconnected" status indicator
 
 **Solutions**:
-1. Verify backend WebSocket endpoint is accessible: `ws://localhost:8000/ws`
+1. Verify backend WebSocket endpoint is accessible: `ws://localhost:8344/ws`
 2. Check for CORS issues in browser console
 3. Check network tab for WebSocket connection attempts
 4. Restart the backend server

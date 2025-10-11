@@ -26,7 +26,7 @@ This section will showcase Flock's real-time dashboard and visualization capabil
 The dashboard is already available! Just run:
 ```python
 await flock.serve(dashboard=True)
-# Then visit http://localhost:8000
+# Then visit http://localhost:8344
 ```
 
 For trace examples, see:

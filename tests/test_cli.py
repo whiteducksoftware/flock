@@ -305,7 +305,7 @@ class TestServeCommand:
         serve()
 
         # Verify defaults were used
-        mock_service.run.assert_called_once_with(host="127.0.0.1", port=8000)
+        mock_service.run.assert_called_once_with(host="127.0.0.1", port=8344)
 
     def test_serve_cli_invocation(self, runner, mocker):
         """Test serve command via CLI runner."""

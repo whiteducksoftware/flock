@@ -21,7 +21,7 @@ normal_green = "#6fa64c"
 normal_magenta = "#452d53"
 normal_red = "#006536"
 normal_white = "#006536"
-normal_yellow = "#7e8000"
+normal_yellow = "#7e8344"
 cursor_cursor = "#9fa86e"
 cursor_text = "#00ff87"
 table_show_lines = true
@@ -66,7 +66,7 @@ green = "#6fa64c"
 magenta = "#452d53"
 red = "#006536"
 white = "#006536"
-yellow = "#7e8000"
+yellow = "#7e8344"
 
 [colors.primary]
 background = "#070c0e"

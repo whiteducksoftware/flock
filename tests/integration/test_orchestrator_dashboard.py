@@ -238,12 +238,12 @@ class TestOrchestratorDashboardIntegration:
         mock_service.run_async = Mock(return_value=asyncio.sleep(10))
         mock_service_class.return_value = mock_service
 
-        # serve() should pass port to launcher (default 8000)
+        # serve() should pass port to launcher (default 8344)
         serve_task = asyncio.create_task(orchestrator.serve(dashboard=True))
         await asyncio.sleep(0.1)
 
-        # Launcher should be initialized with port 8000
-        mock_launcher_class.assert_called_once_with(port=8000)
+        # Launcher should be initialized with port 8344
+        mock_launcher_class.assert_called_once_with(port=8344)
 
         # Cleanup
         serve_task.cancel()

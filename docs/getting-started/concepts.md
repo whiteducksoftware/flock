@@ -526,7 +526,7 @@ await flock.run_until_idle()
 
 ```python
 await flock.serve(dashboard=True)
-# Opens browser to http://localhost:8000
+# Opens browser to http://localhost:8344
 ```
 
 **Dual visualization modes:**
