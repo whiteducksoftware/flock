@@ -755,6 +755,149 @@ class DashboardHTTPService(BlackboardHTTPService):
                     status_code=500, detail=f"Failed to get streaming history: {e!s}"
                 )
 
+        @app.get("/api/artifacts/history/{node_id}")
+        async def get_message_history(node_id: str) -> dict[str, Any]:
+            """Get complete message history for a node (both produced and consumed).
+
+            Phase 4.1 Feature Gap Fix: Returns both messages produced by AND consumed by
+            the specified node, enabling complete message history view in MessageHistoryTab.
+
+            Args:
+                node_id: ID of the node (agent name or message ID)
+
+            Returns:
+                {
+                    "node_id": "agent_name",
+                    "messages": [
+                        {
+                            "id": "artifact-uuid",
+                            "type": "ArtifactType",
+                            "direction": "published"|"consumed",
+                            "payload": {...},
+                            "timestamp": "2025-10-11T...",
+                            "correlation_id": "uuid",
+                            "produced_by": "producer_name",
+                            "consumed_at": "2025-10-11T..." (only for consumed)
+                        },
+                        ...
+                    ],
+                    "total": 123
+                }
+            """
+            try:
+                from flock.store import FilterConfig
+
+                messages = []
+
+                # 1. Get messages PRODUCED by this node
+                produced_filter = FilterConfig(produced_by={node_id})
+                produced_artifacts, produced_count = await orchestrator.store.query_artifacts(
+                    produced_filter, limit=100, offset=0, embed_meta=False
+                )
+
+                for artifact in produced_artifacts:
+                    messages.append({
+                        "id": str(artifact.id),
+                        "type": artifact.type,
+                        "direction": "published",
+                        "payload": artifact.payload,
+                        "timestamp": artifact.created_at.isoformat(),
+                        "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
+                        "produced_by": artifact.produced_by,
+                    })
+
+                # 2. Get messages CONSUMED by this node
+                # Query all artifacts with consumption metadata
+                all_artifacts_filter = FilterConfig()  # No filter = all artifacts
+                all_envelopes, _ = await orchestrator.store.query_artifacts(
+                    all_artifacts_filter, limit=500, offset=0, embed_meta=True
+                )
+
+                for envelope in all_envelopes:
+                    artifact = envelope.artifact
+                    for consumption in envelope.consumptions:
+                        if consumption.consumer == node_id:
+                            messages.append({
+                                "id": str(artifact.id),
+                                "type": artifact.type,
+                                "direction": "consumed",
+                                "payload": artifact.payload,
+                                "timestamp": artifact.created_at.isoformat(),
+                                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
+                                "produced_by": artifact.produced_by,
+                                "consumed_at": consumption.consumed_at.isoformat(),
+                            })
+
+                # Sort by timestamp (most recent first)
+                messages.sort(key=lambda m: m.get("consumed_at", m["timestamp"]), reverse=True)
+
+                return {
+                    "node_id": node_id,
+                    "messages": messages,
+                    "total": len(messages)
+                }
+
+            except Exception as e:
+                logger.exception(f"Failed to get message history for {node_id}: {e}")
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to get message history: {e!s}"
+                )
+
+        @app.get("/api/agents/{agent_id}/runs")
+        async def get_agent_runs(agent_id: str) -> dict[str, Any]:
+            """Get run history for an agent.
+
+            Phase 4.1 Feature Gap Fix: Returns agent execution history with metrics
+            for display in RunStatusTab.
+
+            Args:
+                agent_id: ID of the agent
+
+            Returns:
+                {
+                    "agent_id": "agent_name",
+                    "runs": [
+                        {
+                            "run_id": "uuid",
+                            "start_time": "2025-10-11T...",
+                            "end_time": "2025-10-11T...",
+                            "duration_ms": 1234,
+                            "status": "completed"|"active"|"error",
+                            "metrics": {
+                                "tokens_used": 123,
+                                "cost_usd": 0.0012,
+                                "artifacts_produced": 5
+                            },
+                            "error_message": "error details" (if status=error)
+                        },
+                        ...
+                    ],
+                    "total": 50
+                }
+            """
+            try:
+                # TODO: Implement run history tracking in orchestrator
+                # For now, return empty array with proper structure
+                # This unblocks frontend development and can be enhanced later
+
+                runs = []
+
+                # FUTURE: Query run history from orchestrator or store
+                # Example implementation when run tracking is added:
+                # runs = await orchestrator.get_agent_run_history(agent_id, limit=50)
+
+                return {
+                    "agent_id": agent_id,
+                    "runs": runs,
+                    "total": len(runs)
+                }
+
+            except Exception as e:
+                logger.exception(f"Failed to get run history for {agent_id}: {e}")
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to get run history: {e!s}"
+                )
+
     def _register_theme_routes(self) -> None:
         """Register theme API endpoints for dashboard customization."""
         from pathlib import Path

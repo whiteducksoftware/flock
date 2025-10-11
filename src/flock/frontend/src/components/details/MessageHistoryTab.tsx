@@ -1,5 +1,4 @@
-import React, { useMemo, useState } from 'react';
-import { useGraphStore } from '../../store/graphStore';
+import React, { useEffect, useState } from 'react';
 
 interface MessageHistoryTabProps {
   nodeId: string;
@@ -12,35 +11,55 @@ interface MessageHistoryEntry {
   direction: 'consumed' | 'published';
   payload: any;
   timestamp: number;
-  correlationId: string;
+  correlationId: string | null;
+  produced_by?: string;
+  consumed_at?: string;
 }
 
 const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType: _nodeType }) => {
-  const events = useGraphStore((state) => state.events);
+  const [messageHistory, setMessageHistory] = useState<MessageHistoryEntry[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // UI Optimization Migration (Phase 4.1): Build message history from events array
-  // TODO: Re-implement with backend API for complete message history
-  const messageHistory = useMemo(() => {
-    const history: MessageHistoryEntry[] = [];
+  // Phase 4.1 Feature Gap Fix: Fetch complete message history from backend API
+  // Includes both produced AND consumed messages for the node
+  useEffect(() => {
+    const fetchMessageHistory = async () => {
+      setIsLoading(true);
+      setError(null);
 
-    // Simple implementation: show events produced by this node
-    events.forEach((message: any) => {
-      if (message.producedBy === nodeId) {
-        history.push({
-          id: message.id,
-          type: message.type,
-          direction: 'published',
-          payload: message.payload,
-          timestamp: message.timestamp,
-          correlationId: message.correlationId,
-        });
+      try {
+        const response = await fetch(`/api/artifacts/history/${nodeId}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch message history: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        // Convert ISO timestamps to milliseconds
+        const history = data.messages.map((msg: any) => ({
+          id: msg.id,
+          type: msg.type,
+          direction: msg.direction,
+          payload: msg.payload,
+          timestamp: new Date(msg.consumed_at || msg.timestamp).getTime(),
+          correlationId: msg.correlation_id,
+          produced_by: msg.produced_by,
+          consumed_at: msg.consumed_at,
+        }));
+
+        setMessageHistory(history);
+      } catch (err) {
+        console.error('Failed to fetch message history:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error');
+      } finally {
+        setIsLoading(false);
       }
-    });
+    };
 
-    // Sort by timestamp (most recent first)
-    return history.sort((a, b) => b.timestamp - a.timestamp);
-  }, [nodeId, events]);
+    fetchMessageHistory();
+  }, [nodeId]);
 
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
@@ -76,7 +95,33 @@ const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType:
         color: 'var(--color-text-primary)',
       }}
     >
-      {messageHistory.length === 0 ? (
+      {isLoading ? (
+        <div
+          data-testid="loading-messages"
+          style={{
+            padding: 'var(--space-layout-md)',
+            color: 'var(--color-text-muted)',
+            fontSize: 'var(--font-size-body-sm)',
+            fontFamily: 'var(--font-family-sans)',
+            textAlign: 'center',
+          }}
+        >
+          Loading message history...
+        </div>
+      ) : error ? (
+        <div
+          data-testid="error-messages"
+          style={{
+            padding: 'var(--space-layout-md)',
+            color: 'var(--color-error-light)',
+            fontSize: 'var(--font-size-body-sm)',
+            fontFamily: 'var(--font-family-sans)',
+            textAlign: 'center',
+          }}
+        >
+          Error: {error}
+        </div>
+      ) : messageHistory.length === 0 ? (
         <div
           data-testid="empty-messages"
           style={{

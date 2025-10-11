@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface RunStatusTabProps {
   nodeId: string;
@@ -20,49 +20,56 @@ interface RunStatusEntry {
 }
 
 const RunStatusTab: React.FC<RunStatusTabProps> = ({ nodeId, nodeType: _nodeType }) => {
-  // UI Optimization Migration (Phase 4.1): OLD runs Map removed in Phase 2
-  // TODO: Re-implement with backend API for agent run history
-  const runs = new Map<string, any>();
+  const [runHistory, setRunHistory] = useState<RunStatusEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Build run history for this agent
-  const runHistory = useMemo(() => {
-    const history: RunStatusEntry[] = [];
+  // Phase 4.1 Feature Gap Fix: Fetch agent run history from backend API
+  useEffect(() => {
+    const fetchRunHistory = async () => {
+      if (_nodeType !== 'agent') {
+        setRunHistory([]);
+        setIsLoading(false);
+        return;
+      }
 
-    if (_nodeType !== 'agent') {
-      return history;
-    }
+      setIsLoading(true);
+      setError(null);
 
-    runs.forEach((run: any) => {
-      // Filter runs for this agent
-      if (run.agent_name === nodeId) {
-        const startTime = run.started_at ? new Date(run.started_at).getTime() : Date.now();
-        const endTime = run.completed_at ? new Date(run.completed_at).getTime() : Date.now();
-
-        // Map status
-        let status: 'idle' | 'processing' | 'error' = 'idle';
-        if (run.status === 'active') {
-          status = 'processing';
-        } else if (run.status === 'error') {
-          status = 'error';
-        } else {
-          status = 'idle';
+      try {
+        const response = await fetch(`/api/agents/${nodeId}/runs`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch run history: ${response.statusText}`);
         }
 
-        history.push({
-          runId: run.run_id,
-          startTime,
-          endTime,
-          duration: run.duration_ms || 0,
-          status,
-          metrics: run.metrics || {},
-          errorMessage: run.error_message || undefined,
-        });
-      }
-    });
+        const data = await response.json();
 
-    // Sort by start time (most recent first)
-    return history.sort((a, b) => b.startTime - a.startTime);
-  }, [nodeId, _nodeType, runs]);
+        // Convert API response to RunStatusEntry format
+        const history = data.runs.map((run: any) => ({
+          runId: run.run_id,
+          startTime: new Date(run.start_time).getTime(),
+          endTime: new Date(run.end_time).getTime(),
+          duration: run.duration_ms,
+          status: run.status === 'completed' ? 'idle' : run.status === 'active' ? 'processing' : 'error',
+          metrics: {
+            tokensUsed: run.metrics?.tokens_used,
+            costUsd: run.metrics?.cost_usd,
+            artifactsProduced: run.metrics?.artifacts_produced,
+          },
+          errorMessage: run.error_message,
+        }));
+
+        setRunHistory(history);
+      } catch (err) {
+        console.error('Failed to fetch run history:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRunHistory();
+  }, [nodeId, _nodeType]);
 
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
@@ -114,7 +121,33 @@ const RunStatusTab: React.FC<RunStatusTabProps> = ({ nodeId, nodeType: _nodeType
         color: 'var(--color-text-primary)',
       }}
     >
-      {runHistory.length === 0 ? (
+      {isLoading ? (
+        <div
+          data-testid="loading-runs"
+          style={{
+            padding: 'var(--space-layout-md)',
+            color: 'var(--color-text-muted)',
+            fontSize: 'var(--font-size-body-sm)',
+            fontFamily: 'var(--font-family-sans)',
+            textAlign: 'center',
+          }}
+        >
+          Loading run history...
+        </div>
+      ) : error ? (
+        <div
+          data-testid="error-runs"
+          style={{
+            padding: 'var(--space-layout-md)',
+            color: 'var(--color-error-light)',
+            fontSize: 'var(--font-size-body-sm)',
+            fontFamily: 'var(--font-family-sans)',
+            textAlign: 'center',
+          }}
+        >
+          Error: {error}
+        </div>
+      ) : runHistory.length === 0 ? (
         <div
           data-testid="empty-runs"
           style={{
