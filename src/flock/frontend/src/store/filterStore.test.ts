@@ -1,6 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useFilterStore } from './filterStore';
 import type { FilterFacets, FilterSnapshot } from '../types/filters';
+import { useGraphStore } from './graphStore';
+
+// Mock graphStore to test applyFilters integration
+vi.mock('./graphStore', () => ({
+  useGraphStore: {
+    getState: vi.fn(() => ({
+      refreshCurrentView: vi.fn(),
+      viewMode: 'agent',
+    })),
+  },
+}));
 
 describe('filterStore', () => {
   beforeEach(() => {
@@ -157,6 +168,83 @@ describe('filterStore', () => {
       expect(useFilterStore.getState().savedFilters).toHaveLength(1);
       useFilterStore.getState().removeSavedFilter('1');
       expect(useFilterStore.getState().savedFilters).toHaveLength(0);
+    });
+  });
+
+  describe('applyFilters - backend integration (Phase 4)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should trigger backend snapshot refresh when applying filters', async () => {
+      const mockRefresh = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useGraphStore.getState).mockReturnValue({
+        refreshCurrentView: mockRefresh,
+        viewMode: 'agent',
+      } as any);
+
+      await useFilterStore.getState().applyFilters();
+
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+    });
+
+    it('should use current filter state when refreshing graph', async () => {
+      const mockRefresh = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useGraphStore.getState).mockReturnValue({
+        refreshCurrentView: mockRefresh,
+        viewMode: 'agent',
+      } as any);
+
+      // Set some filters
+      useFilterStore.setState({
+        correlationId: 'test-correlation-456',
+        selectedArtifactTypes: ['Pizza', 'Burger'],
+        selectedProducers: ['chef_agent'],
+        selectedTags: ['urgent'],
+      });
+
+      await useFilterStore.getState().applyFilters();
+
+      // Verify refresh was called (graphStore.refreshCurrentView will use current filter state)
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+
+      // The filters are passed via the filterStore state, which graphStore reads in buildGraphRequest
+      const filterState = useFilterStore.getState();
+      expect(filterState.correlationId).toBe('test-correlation-456');
+      expect(filterState.selectedArtifactTypes).toContain('Pizza');
+    });
+
+    it('should handle errors from backend refresh gracefully', async () => {
+      const mockRefresh = vi.fn().mockRejectedValue(new Error('Backend API error'));
+      vi.mocked(useGraphStore.getState).mockReturnValue({
+        refreshCurrentView: mockRefresh,
+        viewMode: 'agent',
+      } as any);
+
+      // Should propagate error to caller
+      await expect(useFilterStore.getState().applyFilters()).rejects.toThrow('Backend API error');
+    });
+
+    it('should work with both agent and blackboard view modes', async () => {
+      const mockRefresh = vi.fn().mockResolvedValue(undefined);
+
+      // Test agent view
+      vi.mocked(useGraphStore.getState).mockReturnValue({
+        refreshCurrentView: mockRefresh,
+        viewMode: 'agent',
+      } as any);
+
+      await useFilterStore.getState().applyFilters();
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+
+      // Test blackboard view
+      vi.mocked(useGraphStore.getState).mockReturnValue({
+        refreshCurrentView: mockRefresh,
+        viewMode: 'blackboard',
+      } as any);
+
+      await useFilterStore.getState().applyFilters();
+      expect(mockRefresh).toHaveBeenCalledTimes(2);
     });
   });
 });

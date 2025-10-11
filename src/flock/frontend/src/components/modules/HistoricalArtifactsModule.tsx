@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchArtifactSummary, fetchArtifacts, type ArtifactListItem, type ArtifactQueryOptions } from '../../services/api';
-import { mapArtifactToMessage } from '../../utils/artifacts';
 import { useFilterStore } from '../../store/filterStore';
-import { useGraphStore } from '../../store/graphStore';
-import { useUIStore } from '../../store/uiStore';
 import type { ModuleContext } from './ModuleRegistry';
 import JsonAttributeRenderer from './JsonAttributeRenderer';
 import styles from './HistoricalArtifactsModule.module.css';
@@ -147,17 +144,10 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
 
         mergeCorrelationMetadata(response.items);
 
-        if (response.items.length > 0) {
-          const graphStore = useGraphStore.getState();
-          graphStore.batchUpdate({ messages: response.items.map(mapArtifactToMessage) });
-          const uiState = useUIStore.getState();
-          if (uiState.mode === 'agent') {
-            graphStore.generateAgentViewGraph();
-          } else {
-            graphStore.generateBlackboardViewGraph();
-          }
-          graphStore.applyFilters();
-        }
+        // UI Optimization Migration (Phase 2/4 - Spec 002): Backend-driven architecture
+        // Graph updates happen automatically via GraphCanvas useEffect when filters change
+        // This module only manages the artifact table view, not the graph
+        // No need to manually trigger graph updates here
 
         const summaryResponse = await fetchArtifactSummary({
           ...queryOptions,

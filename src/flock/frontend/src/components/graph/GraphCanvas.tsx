@@ -43,9 +43,10 @@ const GraphCanvas: React.FC = () => {
   const runs = useGraphStore((state) => state.runs);
   const generateAgentViewGraph = useGraphStore((state) => state.generateAgentViewGraph);
   const generateBlackboardViewGraph = useGraphStore((state) => state.generateBlackboardViewGraph);
-  const updateNodePosition = useGraphStore((state) => state.updateNodePosition);
+  const updateNodePosition = useGraphStore ((state) => state.updateNodePosition);
   const addModule = useModuleStore((state) => state.addModule);
-  const applyFilters = useGraphStore((state) => state.applyFilters);
+  // UI Optimization Migration (Phase 4 - Spec 002): Use filterStore.applyFilters (backend-driven)
+  const applyFilters = useFilterStore((state) => state.applyFilters);
 
   const correlationId = useFilterStore((state) => state.correlationId);
   const timeRange = useFilterStore((state) => state.timeRange);

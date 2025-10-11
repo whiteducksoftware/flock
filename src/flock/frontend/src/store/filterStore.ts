@@ -8,6 +8,7 @@ import {
   SavedFilterMeta,
   FilterSnapshot,
 } from '../types/filters';
+import { useGraphStore } from './graphStore';
 
 export type ActiveFilterType =
   | 'correlationId'
@@ -45,6 +46,7 @@ interface FilterState {
   setTags: (tags: string[]) => void;
   setVisibility: (visibility: string[]) => void;
   clearFilters: () => void;
+  applyFilters: () => Promise<void>;
 
   updateAvailableCorrelationIds: (metadata: CorrelationIdMetadata[]) => void;
   updateAvailableFacets: (facets: FilterFacets) => void;
@@ -112,6 +114,13 @@ export const useFilterStore = create<FilterState>()(
           selectedTags: [],
           selectedVisibility: [],
         }),
+
+      applyFilters: async () => {
+        // UI Optimization Migration (Phase 4 - Spec 002): Backend-driven filtering
+        // Trigger backend snapshot refresh with current filter state
+        // The graphStore will read current filter state via buildGraphRequest()
+        await useGraphStore.getState().refreshCurrentView();
+      },
 
       updateAvailableCorrelationIds: (metadata) => {
         const sorted = [...metadata].sort((a, b) => b.first_seen - a.first_seen);
