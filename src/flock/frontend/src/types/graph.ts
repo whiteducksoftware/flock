@@ -1,3 +1,21 @@
+// Legacy types (still used during migration for events, WebSocket handlers)
+export interface Message {
+  id: string;
+  type: string;
+  payload: any;
+  timestamp: number;
+  correlationId: string;
+  producedBy: string;
+  tags?: string[];
+  visibilityKind?: string;
+  partitionKey?: string | null;
+  version?: number;
+  isStreaming?: boolean;
+  streamingText?: string;
+  consumedBy?: string[];
+}
+
+// New backend API types (Phase 1 - Spec 002)
 export interface GraphRequest {
   viewMode: 'agent' | 'blackboard';
   filters: GraphFilters;

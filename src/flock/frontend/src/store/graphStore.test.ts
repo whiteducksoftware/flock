@@ -1,205 +1,561 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { useGraphStore } from './graphStore';
-import { Agent, Message } from '../types/graph';
+/**
+ * GraphStore Tests - NEW Simplified Architecture
+ *
+ * Tests for Phase 2: Backend snapshot consumption replacing client-side graph construction
+ *
+ * FOCUS: Backend integration, position merging, real-time WebSocket overlays
+ * NOT: Edge derivation algorithms (now handled by backend)
+ *
+ * Specification: docs/specs/002-ui-optimization-migration/
+ */
 
-describe('graphStore', () => {
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { useGraphStore } from './graphStore';
+import { fetchGraphSnapshot, mergeNodePositions, overlayWebSocketState } from '../services/graphService';
+import { useFilterStore } from './filterStore';
+import { GraphSnapshot, GraphNode } from '../types/graph';
+import { Node } from '@xyflow/react';
+
+// Mock dependencies
+vi.mock('../services/graphService', () => ({
+  fetchGraphSnapshot: vi.fn(),
+  mergeNodePositions: vi.fn(),
+  overlayWebSocketState: vi.fn(),
+}));
+
+vi.mock('./filterStore', () => ({
+  useFilterStore: {
+    getState: vi.fn(),
+  },
+}));
+
+vi.mock('../hooks/usePersistence', () => ({
+  usePersistence: vi.fn(() => ({
+    loadPositions: vi.fn().mockResolvedValue(new Map()),
+    savePositions: vi.fn(),
+  })),
+}));
+
+describe('graphStore - NEW Simplified Architecture', () => {
   beforeEach(() => {
-    // Reset store before each test
+    // Reset store state before each test
     useGraphStore.setState({
-      agents: new Map(),
-      messages: new Map(),
-      events: [],
-      runs: new Map(),
-      consumptions: new Map(),
+      agentStatus: new Map(),
+      streamingTokens: new Map(),
       nodes: [],
       edges: [],
+      statistics: null,
+      events: [],
+      viewMode: 'agent',
+    });
+
+    // Clear all mocks
+    vi.clearAllMocks();
+
+    // Setup default filter store mock
+    vi.mocked(useFilterStore.getState).mockReturnValue({
+      correlationId: null,
+      timeRange: { preset: 'last10min' },
+      selectedArtifactTypes: [],
+      selectedProducers: [],
+      selectedTags: [],
+      selectedVisibility: [],
+      updateFacets: vi.fn(),
+    } as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('generateAgentViewGraph()', () => {
+    it('should fetch agent view graph from backend', async () => {
+      const mockSnapshot: GraphSnapshot = {
+        nodes: [
+          { id: 'agent1', type: 'agent', data: { name: 'pizza_master' }, position: { x: 0, y: 0 }, hidden: false },
+        ],
+        edges: [
+          { id: 'edge1', source: 'agent1', target: 'agent2', type: 'message_flow', data: {}, hidden: false },
+        ],
+        statistics: null,
+        viewMode: 'agent',
+        filters: {
+          correlation_id: null,
+          time_range: { preset: 'last10min' },
+          artifactTypes: [],
+          producers: [],
+          tags: [],
+          visibility: [],
+        },
+        generatedAt: '2025-10-11T00:00:00Z',
+        totalArtifacts: 1,
+        truncated: false,
+      };
+
+      const mockMergedNodes: Node[] = [
+        { id: 'agent1', type: 'agent', data: { name: 'pizza_master' }, position: { x: 100, y: 100 } } as Node,
+      ];
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue(mockMergedNodes);
+      vi.mocked(overlayWebSocketState).mockReturnValue(mockMergedNodes);
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      // Verify backend API call
+      expect(fetchGraphSnapshot).toHaveBeenCalledWith({
+        viewMode: 'agent',
+        filters: {
+          correlation_id: null,
+          time_range: { preset: 'last10min' },
+          artifactTypes: [],
+          producers: [],
+          tags: [],
+          visibility: [],
+        },
+        options: { include_statistics: true },
+      });
+
+      // Verify state updated
+      const state = useGraphStore.getState();
+      expect(state.nodes).toHaveLength(1);
+      expect(state.edges).toHaveLength(1);
+      expect(state.viewMode).toBe('agent');
+    });
+
+    it('should pass filters from filterStore to backend', async () => {
+      const mockFilters = {
+        correlationId: 'test-correlation-id',
+        timeRange: { preset: 'last1hour' as const },
+        selectedArtifactTypes: ['Pizza', 'Order'],
+        selectedProducers: ['pizza_master', 'waiter'],
+        selectedTags: ['urgent'],
+        selectedVisibility: ['public'],
+        updateFacets: vi.fn(),
+      };
+
+      vi.mocked(useFilterStore.getState).mockReturnValue(mockFilters as any);
+
+      const mockSnapshot: GraphSnapshot = {
+        nodes: [],
+        edges: [],
+        statistics: null,
+        viewMode: 'agent',
+        filters: {
+          correlation_id: 'test-correlation-id',
+          time_range: { preset: 'last1hour' },
+          artifactTypes: ['Pizza', 'Order'],
+          producers: ['pizza_master', 'waiter'],
+          tags: ['urgent'],
+          visibility: ['public'],
+        },
+        generatedAt: '2025-10-11T00:00:00Z',
+        totalArtifacts: 0,
+        truncated: false,
+      };
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue([]);
+      vi.mocked(overlayWebSocketState).mockReturnValue([]);
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      expect(fetchGraphSnapshot).toHaveBeenCalledWith({
+        viewMode: 'agent',
+        filters: {
+          correlation_id: 'test-correlation-id',
+          time_range: { preset: 'last1hour' },
+          artifactTypes: ['Pizza', 'Order'],
+          producers: ['pizza_master', 'waiter'],
+          tags: ['urgent'],
+          visibility: ['public'],
+        },
+        options: { include_statistics: true },
+      });
+    });
+
+    it('should update filter facets from backend statistics', async () => {
+      const mockUpdateFacets = vi.fn();
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: null,
+        timeRange: { preset: 'last10min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+        updateFacets: mockUpdateFacets,
+      } as any);
+
+      const mockSnapshot: GraphSnapshot = {
+        nodes: [],
+        edges: [],
+        statistics: {
+          producedByAgent: {},
+          consumedByAgent: {},
+          artifactSummary: {
+            total: 100,
+            by_type: { Pizza: 50, Order: 50 },
+            by_producer: { pizza_master: 75, waiter: 25 },
+            by_visibility: { public: 100 },
+            tag_counts: { urgent: 10 },
+            earliest_created_at: '2025-10-11T00:00:00Z',
+            latest_created_at: '2025-10-11T01:00:00Z',
+          },
+        },
+        viewMode: 'agent',
+        filters: {
+          correlation_id: null,
+          time_range: { preset: 'last10min' },
+          artifactTypes: [],
+          producers: [],
+          tags: [],
+          visibility: [],
+        },
+        generatedAt: '2025-10-11T00:00:00Z',
+        totalArtifacts: 100,
+        truncated: false,
+      };
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue([]);
+      vi.mocked(overlayWebSocketState).mockReturnValue([]);
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      expect(mockUpdateFacets).toHaveBeenCalledWith(mockSnapshot.statistics!.artifactSummary);
+    });
+
+    it('should handle API errors gracefully', async () => {
+      vi.mocked(fetchGraphSnapshot).mockRejectedValue(new Error('API error'));
+
+      await expect(useGraphStore.getState().generateAgentViewGraph()).rejects.toThrow('API error');
     });
   });
 
-  it('should add an agent', () => {
-    const agent: Agent = {
-      id: 'test-agent',
-      name: 'test-agent',
-      status: 'idle',
-      subscriptions: ['Movie'],
-      lastActive: Date.now(),
-      sentCount: 0,
-      recvCount: 0,
-    };
-
-    useGraphStore.getState().addAgent(agent);
-
-    const agents = useGraphStore.getState().agents;
-    expect(agents.size).toBe(1);
-    expect(agents.get('test-agent')).toEqual(agent);
-  });
-
-  it('should update an agent', () => {
-    const agent: Agent = {
-      id: 'test-agent',
-      name: 'test-agent',
-      status: 'idle',
-      subscriptions: [],
-      lastActive: Date.now(),
-      sentCount: 0,
-      recvCount: 0,
-    };
-
-    useGraphStore.getState().addAgent(agent);
-    useGraphStore.getState().updateAgent('test-agent', { status: 'running', sentCount: 5 });
-
-    const updatedAgent = useGraphStore.getState().agents.get('test-agent');
-    expect(updatedAgent?.status).toBe('running');
-    expect(updatedAgent?.sentCount).toBe(5);
-  });
-
-  it('should add a message', () => {
-    const message: Message = {
-      id: 'msg-1',
-      type: 'Movie',
-      payload: { title: 'Test Movie' },
-      timestamp: Date.now(),
-      correlationId: 'corr-1',
-      producedBy: 'movie',
-    };
-
-    useGraphStore.getState().addMessage(message);
-
-    const messages = useGraphStore.getState().messages;
-    const events = useGraphStore.getState().events;
-    expect(messages.size).toBe(1);
-    expect(messages.get('msg-1')).toEqual(message);
-    expect(events.length).toBe(1);
-    expect(events[0]).toEqual(message);
-  });
-
-  it('should limit events to 100', () => {
-    for (let i = 0; i < 120; i++) {
-      const message: Message = {
-        id: `msg-${i}`,
-        type: 'Movie',
-        payload: { index: i },
-        timestamp: Date.now(),
-        correlationId: 'corr-1',
-        producedBy: 'movie',
+  describe('generateBlackboardViewGraph()', () => {
+    it('should fetch blackboard view graph from backend', async () => {
+      const mockSnapshot: GraphSnapshot = {
+        nodes: [
+          { id: 'msg1', type: 'message', data: { artifact_type: 'Pizza' }, position: { x: 0, y: 0 }, hidden: false },
+        ],
+        edges: [
+          { id: 'edge1', source: 'msg1', target: 'msg2', type: 'transformation', data: {}, hidden: false },
+        ],
+        statistics: null,
+        viewMode: 'blackboard',
+        filters: {
+          correlation_id: null,
+          time_range: { preset: 'last10min' },
+          artifactTypes: [],
+          producers: [],
+          tags: [],
+          visibility: [],
+        },
+        generatedAt: '2025-10-11T00:00:00Z',
+        totalArtifacts: 1,
+        truncated: false,
       };
-      useGraphStore.getState().addMessage(message);
-    }
 
-    const events = useGraphStore.getState().events;
-    expect(events.length).toBe(100);
+      const mockMergedNodes: Node[] = [
+        { id: 'msg1', type: 'message', data: { artifact_type: 'Pizza' }, position: { x: 100, y: 100 } } as Node,
+      ];
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue(mockMergedNodes);
+      vi.mocked(overlayWebSocketState).mockReturnValue(mockMergedNodes);
+
+      await useGraphStore.getState().generateBlackboardViewGraph();
+
+      // Verify backend API call with blackboard mode
+      expect(fetchGraphSnapshot).toHaveBeenCalledWith({
+        viewMode: 'blackboard',
+        filters: expect.any(Object),
+        options: { include_statistics: true },
+      });
+
+      // Verify state updated
+      const state = useGraphStore.getState();
+      expect(state.nodes).toHaveLength(1);
+      expect(state.edges).toHaveLength(1);
+      expect(state.viewMode).toBe('blackboard');
+    });
   });
 
-  it('should batch update agents and messages', () => {
-    const agents: Agent[] = [
-      {
-        id: 'agent-1',
-        name: 'agent-1',
-        status: 'idle',
-        subscriptions: [],
-        lastActive: Date.now(),
-        sentCount: 0,
-        recvCount: 0,
-      },
-      {
-        id: 'agent-2',
-        name: 'agent-2',
-        status: 'running',
-        subscriptions: [],
-        lastActive: Date.now(),
-        sentCount: 0,
-        recvCount: 0,
-      },
-    ];
+  describe('updateAgentStatus() - Real-time WebSocket updates', () => {
+    it('should update agent status immediately (FAST path)', () => {
+      // Setup initial state with agent node
+      useGraphStore.setState({
+        nodes: [
+          { id: 'agent1', type: 'agent', data: { name: 'pizza_master', status: 'idle' }, position: { x: 0, y: 0 } } as Node,
+        ],
+      });
 
-    const messages: Message[] = [
-      {
-        id: 'msg-1',
-        type: 'Movie',
-        payload: {},
-        timestamp: Date.now(),
-        correlationId: 'corr-1',
-        producedBy: 'agent-1',
-      },
-    ];
+      // Update status
+      useGraphStore.getState().updateAgentStatus('agent1', 'running');
 
-    useGraphStore.getState().batchUpdate({ agents, messages });
+      // Verify immediate update
+      const state = useGraphStore.getState();
+      const node = state.nodes.find((n) => n.id === 'agent1');
+      expect(node?.data.status).toBe('running');
 
-    expect(useGraphStore.getState().agents.size).toBe(2);
-    expect(useGraphStore.getState().messages.size).toBe(1);
-    expect(useGraphStore.getState().events.length).toBe(1);
+      // Verify status stored in agentStatus map
+      expect(state.agentStatus.get('agent1')).toBe('running');
+    });
+
+    it('should only update matching agent node', () => {
+      useGraphStore.setState({
+        nodes: [
+          { id: 'agent1', type: 'agent', data: { status: 'idle' }, position: { x: 0, y: 0 } } as Node,
+          { id: 'agent2', type: 'agent', data: { status: 'idle' }, position: { x: 100, y: 0 } } as Node,
+        ],
+      });
+
+      useGraphStore.getState().updateAgentStatus('agent1', 'running');
+
+      const state = useGraphStore.getState();
+      expect(state.nodes.find((n) => n.id === 'agent1')?.data.status).toBe('running');
+      expect(state.nodes.find((n) => n.id === 'agent2')?.data.status).toBe('idle');
+    });
   });
 
-  it('should generate agent view graph', () => {
-    const agents: Agent[] = [
-      {
-        id: 'movie',
-        name: 'movie',
-        status: 'idle',
-        subscriptions: [],
-        lastActive: Date.now(),
-        sentCount: 2,
-        recvCount: 0,
-        position: { x: 0, y: 0 },
-      },
-      {
-        id: 'tagline',
-        name: 'tagline',
-        status: 'idle',
-        subscriptions: ['Movie'],
-        lastActive: Date.now(),
-        sentCount: 0,
-        recvCount: 2,
-        position: { x: 200, y: 0 },
-      },
-    ];
+  describe('updateStreamingTokens() - Real-time token display', () => {
+    it('should update streaming tokens and keep last 6 only', () => {
+      useGraphStore.setState({
+        nodes: [
+          { id: 'agent1', type: 'agent', data: { streamingTokens: [] }, position: { x: 0, y: 0 } } as Node,
+        ],
+      });
 
-    const messages: Message[] = [
-      {
-        id: 'msg-1',
-        type: 'Movie',
-        payload: {},
-        timestamp: Date.now(),
-        correlationId: 'corr-1',
-        producedBy: 'movie',
-      },
-      {
-        id: 'msg-2',
-        type: 'Movie',
-        payload: {},
-        timestamp: Date.now(),
-        correlationId: 'corr-1',
-        producedBy: 'movie',
-      },
-    ];
+      // Send 8 tokens
+      const tokens = ['token1', 'token2', 'token3', 'token4', 'token5', 'token6', 'token7', 'token8'];
+      useGraphStore.getState().updateStreamingTokens('agent1', tokens);
 
-    useGraphStore.getState().batchUpdate({ agents, messages });
-    // Phase 11 fix: Record consumption to populate consumed_by field
-    useGraphStore.getState().recordConsumption(['msg-1', 'msg-2'], 'tagline');
-    useGraphStore.getState().generateAgentViewGraph();
+      const state = useGraphStore.getState();
+      const node = state.nodes.find((n) => n.id === 'agent1');
 
-    const nodes = useGraphStore.getState().nodes;
-    const edges = useGraphStore.getState().edges;
+      // Verify only last 6 tokens kept
+      expect(node?.data.streamingTokens).toEqual(['token3', 'token4', 'token5', 'token6', 'token7', 'token8']);
+      expect(node?.data.streamingTokens).toHaveLength(6);
+    });
 
-    expect(nodes.length).toBe(2);
-    expect(nodes[0]?.type).toBe('agent');
-    expect(edges.length).toBeGreaterThan(0);
+    it('should handle tokens less than 6', () => {
+      useGraphStore.setState({
+        nodes: [
+          { id: 'agent1', type: 'agent', data: { streamingTokens: [] }, position: { x: 0, y: 0 } } as Node,
+        ],
+      });
+
+      const tokens = ['token1', 'token2', 'token3'];
+      useGraphStore.getState().updateStreamingTokens('agent1', tokens);
+
+      const state = useGraphStore.getState();
+      const node = state.nodes.find((n) => n.id === 'agent1');
+      expect(node?.data.streamingTokens).toEqual(['token1', 'token2', 'token3']);
+    });
+
+    it('should store tokens in streamingTokens map', () => {
+      useGraphStore.setState({
+        nodes: [
+          { id: 'agent1', type: 'agent', data: { streamingTokens: [] }, position: { x: 0, y: 0 } } as Node,
+        ],
+      });
+
+      const tokens = ['token1', 'token2'];
+      useGraphStore.getState().updateStreamingTokens('agent1', tokens);
+
+      const state = useGraphStore.getState();
+      expect(state.streamingTokens.get('agent1')).toEqual(['token1', 'token2']);
+    });
   });
 
-  it('should hydrate consumptions from message payload', () => {
-    const message: Message = {
-      id: 'msg-embed',
-      type: 'Recipe',
-      payload: {},
-      timestamp: Date.now(),
-      correlationId: 'corr-embed',
-      producedBy: 'chef',
-      consumedBy: ['critic'],
-    };
+  describe('Position persistence integration', () => {
+    it('should merge saved positions with backend nodes', async () => {
+      const mockBackendNodes: GraphNode[] = [
+        { id: 'agent1', type: 'agent', data: { name: 'agent1' }, position: { x: 0, y: 0 }, hidden: false },
+      ];
 
-    useGraphStore.getState().batchUpdate({ messages: [message] });
+      const mockSavedPositions = new Map([['agent1', { x: 200, y: 300 }]]);
 
-    const state = useGraphStore.getState();
-    expect(state.consumptions.get('msg-embed')).toEqual(['critic']);
+      const mockMergedNodes: Node[] = [
+        { id: 'agent1', type: 'agent', data: { name: 'agent1' }, position: { x: 200, y: 300 } } as Node,
+      ];
+
+      const mockSnapshot: GraphSnapshot = {
+        nodes: mockBackendNodes,
+        edges: [],
+        statistics: null,
+        viewMode: 'agent',
+        filters: {
+          correlation_id: null,
+          time_range: { preset: 'last10min' },
+          artifactTypes: [],
+          producers: [],
+          tags: [],
+          visibility: [],
+        },
+        generatedAt: '2025-10-11T00:00:00Z',
+        totalArtifacts: 0,
+        truncated: false,
+      };
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue(mockMergedNodes);
+      vi.mocked(overlayWebSocketState).mockReturnValue(mockMergedNodes);
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      // Verify mergeNodePositions was called with correct arguments
+      expect(mergeNodePositions).toHaveBeenCalledWith(
+        mockBackendNodes,
+        expect.any(Map), // savedPositions from IndexedDB
+        [] // currentNodes (empty on first load)
+      );
+
+      // Verify merged positions applied
+      const state = useGraphStore.getState();
+      expect(state.nodes[0].position).toEqual({ x: 200, y: 300 });
+    });
+
+    it('should overlay WebSocket state on merged nodes', async () => {
+      const mockBackendNodes: GraphNode[] = [
+        { id: 'agent1', type: 'agent', data: { name: 'agent1', status: 'idle' }, position: { x: 0, y: 0 }, hidden: false },
+      ];
+
+      const mockMergedNodes: Node[] = [
+        { id: 'agent1', type: 'agent', data: { name: 'agent1', status: 'idle' }, position: { x: 100, y: 100 } } as Node,
+      ];
+
+      const mockOverlayedNodes: Node[] = [
+        { id: 'agent1', type: 'agent', data: { name: 'agent1', status: 'running', streamingTokens: ['token1'] }, position: { x: 100, y: 100 } } as Node,
+      ];
+
+      const mockSnapshot: GraphSnapshot = {
+        nodes: mockBackendNodes,
+        edges: [],
+        statistics: null,
+        viewMode: 'agent',
+        filters: {
+          correlation_id: null,
+          time_range: { preset: 'last10min' },
+          artifactTypes: [],
+          producers: [],
+          tags: [],
+          visibility: [],
+        },
+        generatedAt: '2025-10-11T00:00:00Z',
+        totalArtifacts: 0,
+        truncated: false,
+      };
+
+      // Setup WebSocket state
+      useGraphStore.setState({
+        agentStatus: new Map([['agent1', 'running']]),
+        streamingTokens: new Map([['agent1', ['token1']]]),
+      });
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue(mockMergedNodes);
+      vi.mocked(overlayWebSocketState).mockReturnValue(mockOverlayedNodes);
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      // Verify overlayWebSocketState called with WebSocket state
+      expect(overlayWebSocketState).toHaveBeenCalledWith(
+        mockMergedNodes,
+        expect.any(Map), // agentStatus
+        expect.any(Map) // streamingTokens
+      );
+    });
+  });
+
+  describe('Statistics from backend snapshot', () => {
+    it('should store statistics from backend', async () => {
+      const mockStatistics = {
+        producedByAgent: {
+          pizza_master: { total: 50, byType: { Pizza: 50 } },
+        },
+        consumedByAgent: {
+          waiter: { total: 50, byType: { Pizza: 50 } },
+        },
+        artifactSummary: {
+          total: 100,
+          by_type: { Pizza: 100 },
+          by_producer: { pizza_master: 100 },
+          by_visibility: { public: 100 },
+          tag_counts: {},
+          earliest_created_at: '2025-10-11T00:00:00Z',
+          latest_created_at: '2025-10-11T01:00:00Z',
+        },
+      };
+
+      const mockSnapshot: GraphSnapshot = {
+        nodes: [],
+        edges: [],
+        statistics: mockStatistics,
+        viewMode: 'agent',
+        filters: {
+          correlation_id: null,
+          time_range: { preset: 'last10min' },
+          artifactTypes: [],
+          producers: [],
+          tags: [],
+          visibility: [],
+        },
+        generatedAt: '2025-10-11T00:00:00Z',
+        totalArtifacts: 100,
+        truncated: false,
+      };
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue([]);
+      vi.mocked(overlayWebSocketState).mockReturnValue([]);
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      const state = useGraphStore.getState();
+      expect(state.statistics).toEqual(mockStatistics);
+    });
+  });
+
+  describe('UI state management', () => {
+    it('should add events to event log', () => {
+      const event = {
+        id: 'msg1',
+        artifact_type: 'Pizza',
+        produced_by: 'pizza_master',
+        timestamp: Date.now(),
+      };
+
+      useGraphStore.getState().addEvent(event);
+
+      const state = useGraphStore.getState();
+      expect(state.events).toHaveLength(1);
+      expect(state.events[0]).toEqual(event);
+    });
+
+    it('should limit events to 100 entries', () => {
+      // Add 150 events
+      for (let i = 0; i < 150; i++) {
+        useGraphStore.getState().addEvent({
+          id: `msg${i}`,
+          artifact_type: 'Pizza',
+          produced_by: 'pizza_master',
+          timestamp: Date.now() + i,
+        });
+      }
+
+      const state = useGraphStore.getState();
+      expect(state.events).toHaveLength(100);
+      // Most recent should be first
+      expect(state.events[0].id).toBe('msg149');
+    });
+
+    it('should update view mode', () => {
+      useGraphStore.getState().setViewMode('blackboard');
+      expect(useGraphStore.getState().viewMode).toBe('blackboard');
+
+      useGraphStore.getState().setViewMode('agent');
+      expect(useGraphStore.getState().viewMode).toBe('agent');
+    });
   });
 });
