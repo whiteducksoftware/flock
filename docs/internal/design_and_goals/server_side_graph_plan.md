@@ -188,3 +188,8 @@ The new REST snapshot covers the graph topology and statistics, but a few option
 | Filter facets | Filter UI currently derives options from live websocket events. | Include available artifact types, producers, tags, visibility counts in the snapshot payload. |
 | Layout persistence | Node positions are managed in IndexedDB. | (Optional) Expose save/load layout endpoints keyed by view mode. |
 | Operational telemetry | Run timelines or budgets still rely on websocket glue. | Decide which data belongs in REST vs streaming updates and document accordingly. |
+
+### 12.1 Module Architecture Simplification
+- **Observation**: Each dashboard “module” currently stitches graphs together from disparate stores and live events.
+- **Outcome with server snapshots**: Modules can accept ready-made `ServerGraphSnapshot` payloads (agent and blackboard views) and, if desired, return a manipulated snapshot for the host to render.
+- **Implication**: The extension system reduces to a pure data-flow contract—fetch snapshot → pass to module → accept optional override—eliminating tight coupling to internal stores.
