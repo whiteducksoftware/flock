@@ -222,8 +222,9 @@ export class WebSocketClient {
         console.log('[WebSocket] Streaming output:', data.is_final ? 'FINAL' : 'START', data);
       }
 
-      // Agent streaming tokens (for yellow ticker in agent nodes)
-      if (data.agent_name && data.output_type === 'llm_token' && !data.artifact_id) {
+      // Phase 6: Agent streaming tokens (for yellow ticker in agent nodes)
+      // Note: artifact_id is now always present (Phase 6), so we removed the !artifact_id check
+      if (data.agent_name && data.output_type === 'llm_token') {
         const { streamingTokens } = useGraphStore.getState();
         const currentTokens = streamingTokens.get(data.agent_name) || [];
 
