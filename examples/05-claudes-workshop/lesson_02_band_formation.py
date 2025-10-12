@@ -241,9 +241,9 @@ async def main():
     print("=" * 70)
 
     # Get the band lineup
-    lineups = await flock.store.get_artifacts_by_type("BandLineup")
+    lineups = await flock.store.get_by_type(BandLineup)
     if lineups:
-        lineup = lineups[-1].obj
+        lineup = lineups[-1]
         print(f"\n🎸 BAND FORMED: {lineup.band_name}")
         print("\n📖 Origin Story:")
         print(f"   {lineup.origin_story[:200]}...")
