@@ -103,8 +103,8 @@ The dashboard provides **two complementary views** of your system. Switch betwee
 - Verifying output structure
 - Understanding data flow patterns
 
-[**👉 See Agent View example**](https://github.com/whiteducksoftware/flock/blob/main/examples/03-the-dashboard/01_declarative_pizza.py)
-[**👉 See Blackboard View with complex lineage**](https://github.com/whiteducksoftware/flock/blob/main/examples/03-the-dashboard/02-dashboard-edge-cases.py)
+[**👉 See Agent View example**](https://github.com/whiteducksoftware/flock/blob/main/examples/02-dashboard/01_declarative_pizza.py)
+[**👉 See Blackboard View with complex lineage**](https://github.com/whiteducksoftware/flock/blob/main/examples/02-dashboard/02_input_and_output.py)
 
 ---
 
@@ -165,7 +165,7 @@ Time 4: Pizza artifact appears in Blackboard View
 - When nodes overlap visually
 - For screenshot-ready presentation
 
-[**👉 Try auto-layout with multi-agent example**](https://github.com/whiteducksoftware/flock/blob/main/examples/03-the-dashboard/02-dashboard-edge-cases.py)
+[**👉 Try auto-layout with multi-agent example**](https://github.com/whiteducksoftware/flock/blob/main/examples/02-dashboard/08_band_formation.py)
 
 ---
 
@@ -353,7 +353,7 @@ Preview: {"ingredients": ["mozzarella", ...], ...}
 
 ### Simple Single-Agent Example
 
-**Code:** `examples/03-the-dashboard/01_declarative_pizza.py`
+**Code:** `examples/02-dashboard/01_declarative_pizza.py`
 
 ```python
 @flock_type
@@ -381,7 +381,7 @@ async def main():
 
 **Testing workflow:**
 
-1. **Start example:** `uv run examples/03-the-dashboard/01_declarative_pizza.py`
+1. **Start example:** `uv run examples/02-dashboard/01_declarative_pizza.py`
 2. **Wait for startup:** "Browser launched successfully"
 3. **Verify initial state:**
    - Agent View shows `pizza_master` node
@@ -414,7 +414,7 @@ async def main():
 
 ### Complex Multi-Agent Example
 
-**Code:** `examples/03-the-dashboard/02-dashboard-edge-cases.py`
+**Code:** `examples/02-dashboard/09_debate_club.py`
 
 ```python
 book_idea_agent = (
@@ -445,7 +445,7 @@ chapter_agent = (
 
 **Testing workflow:**
 
-1. **Start example:** `uv run examples/03-the-dashboard/02-dashboard-edge-cases.py`
+1. **Start example:** `uv run examples/02-dashboard/09_debate_club.py`
 2. **Use auto-layout:** Right-click canvas → Auto Layout → Hierarchical Vertical
 3. **Publish initial Idea:**
    - Click "Publish"
@@ -478,8 +478,8 @@ Time 45s: book_idea_agent executes again (↓ 2 Review → ↑ 0 BookHook) [feed
 
 **⚠️ Important:** With 8+ artifacts, use `browser_take_screenshot()` instead of `browser_snapshot()` for visual verification (snapshots exceed token limits).
 
-[**👉 Run the simple example**](https://github.com/whiteducksoftware/flock/blob/main/examples/03-the-dashboard/01_declarative_pizza.py)
-[**👉 Run the complex example**](https://github.com/whiteducksoftware/flock/blob/main/examples/03-the-dashboard/02-dashboard-edge-cases.py)
+[**👉 Run the simple example**](https://github.com/whiteducksoftware/flock/blob/main/examples/02-dashboard/01_declarative_pizza.py)
+[**👉 Run the complex example**](https://github.com/whiteducksoftware/flock/blob/main/examples/02-dashboard/09_debate_club.py)
 
 ---
 
@@ -664,7 +664,7 @@ The dashboard includes a **Jaeger-style trace viewer** with 7 visualization mode
 - **[Tracing Guide](tracing/index.md)** - Deep dive into trace viewer features
 - **[Visibility Controls](visibility.md)** - Secure multi-tenant dashboard filtering
 - **[Agent Guide](agents.md)** - Build agents optimized for dashboard visibility
-- **[Examples](https://github.com/whiteducksoftware/flock/tree/main/examples/03-the-dashboard)** - Working dashboard code
+- **[Examples](https://github.com/whiteducksoftware/flock/tree/main/examples/02-dashboard)** - Working dashboard code
 
 ---
 
@@ -707,4 +707,4 @@ The dashboard includes a **Jaeger-style trace viewer** with 7 visualization mode
 
 ---
 
-**Ready to visualize your agents?** Start the dashboard with `await flock.serve(dashboard=True)` or explore [working examples](https://github.com/whiteducksoftware/flock/tree/main/examples/03-the-dashboard).
+**Ready to visualize your agents?** Start the dashboard with `await flock.serve(dashboard=True)` or explore [working examples](https://github.com/whiteducksoftware/flock/tree/main/examples/02-dashboard).

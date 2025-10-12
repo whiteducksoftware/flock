@@ -242,19 +242,51 @@ class DSPyEngine(EngineComponent):
 
             try:
                 if should_stream:
-                    (
-                        raw_result,
-                        _stream_final_display_data,
-                    ) = await self._execute_streaming(
-                        dspy_mod,
-                        program,
-                        signature,
-                        description=sys_desc,
-                        payload=execution_payload,
-                        agent=agent,
-                        ctx=ctx,
-                        pre_generated_artifact_id=pre_generated_artifact_id,
+                    # Choose streaming method based on dashboard mode
+                    is_dashboard = orchestrator and getattr(orchestrator, "is_dashboard", False)
+
+                    # DEBUG: Log routing decision
+                    logger.info(
+                        f"[STREAMING ROUTER] agent={agent.name}, is_dashboard={is_dashboard}, orchestrator={orchestrator is not None}"
                     )
+
+                    if is_dashboard:
+                        # Dashboard mode: WebSocket-only streaming (no Rich overhead)
+                        # This eliminates the Rich Live context that causes deadlocks with MCP tools
+                        logger.info(
+                            f"[STREAMING ROUTER] Routing {agent.name} to WebSocket-only method (dashboard mode)"
+                        )
+                        (
+                            raw_result,
+                            _stream_final_display_data,
+                        ) = await self._execute_streaming_websocket_only(
+                            dspy_mod,
+                            program,
+                            signature,
+                            description=sys_desc,
+                            payload=execution_payload,
+                            agent=agent,
+                            ctx=ctx,
+                            pre_generated_artifact_id=pre_generated_artifact_id,
+                        )
+                    else:
+                        # CLI mode: Rich streaming with terminal display
+                        logger.info(
+                            f"[STREAMING ROUTER] Routing {agent.name} to Rich streaming method (CLI mode)"
+                        )
+                        (
+                            raw_result,
+                            _stream_final_display_data,
+                        ) = await self._execute_streaming(
+                            dspy_mod,
+                            program,
+                            signature,
+                            description=sys_desc,
+                            payload=execution_payload,
+                            agent=agent,
+                            ctx=ctx,
+                            pre_generated_artifact_id=pre_generated_artifact_id,
+                        )
                     if not self.no_output and ctx:
                         ctx.state["_flock_stream_live_active"] = True
                 else:
@@ -502,6 +534,221 @@ class DSPyEngine(EngineComponent):
 
         # Handle old format: direct payload (backwards compatible)
         return program(description=description, input=payload, context=[])
+
+    async def _execute_streaming_websocket_only(
+        self,
+        dspy_mod,
+        program,
+        signature,
+        *,
+        description: str,
+        payload: dict[str, Any],
+        agent: Any,
+        ctx: Any = None,
+        pre_generated_artifact_id: Any = None,
+    ) -> tuple[Any, None]:
+        """Execute streaming for WebSocket only (no Rich display).
+
+        Optimized path for dashboard mode that skips all Rich formatting overhead.
+        Used when multiple agents stream in parallel to avoid terminal conflicts
+        and deadlocks with MCP tools.
+
+        This method eliminates the Rich Live context that can cause deadlocks when
+        combined with MCP tool execution and parallel agent streaming.
+        """
+        logger.info(f"Agent {agent.name}: Starting WebSocket-only streaming (dashboard mode)")
+
+        # Get WebSocketManager
+        ws_manager = None
+        if ctx:
+            orchestrator = getattr(ctx, "orchestrator", None)
+            if orchestrator:
+                collector = getattr(orchestrator, "_dashboard_collector", None)
+                if collector:
+                    ws_manager = getattr(collector, "_websocket_manager", None)
+
+        if not ws_manager:
+            logger.warning(
+                f"Agent {agent.name}: No WebSocket manager, falling back to standard execution"
+            )
+            result = await self._execute_standard(
+                dspy_mod, program, description=description, payload=payload
+            )
+            return result, None
+
+        # Get artifact type name for WebSocket events
+        artifact_type_name = "output"
+        if hasattr(agent, "outputs") and agent.outputs:
+            artifact_type_name = agent.outputs[0].spec.type_name
+
+        # Prepare stream listeners
+        listeners = []
+        try:
+            streaming_mod = getattr(dspy_mod, "streaming", None)
+            if streaming_mod and hasattr(streaming_mod, "StreamListener"):
+                for name, field in signature.output_fields.items():
+                    if field.annotation is str:
+                        listeners.append(streaming_mod.StreamListener(signature_field_name=name))
+        except Exception:
+            listeners = []
+
+        # Create streaming task
+        streaming_task = dspy_mod.streamify(
+            program,
+            is_async_program=True,
+            stream_listeners=listeners if listeners else None,
+        )
+
+        # Execute with appropriate payload format
+        if isinstance(payload, dict) and "input" in payload:
+            stream_generator = streaming_task(
+                description=description,
+                input=payload["input"],
+                context=payload.get("context", []),
+            )
+        else:
+            stream_generator = streaming_task(description=description, input=payload, context=[])
+
+        # Process stream (WebSocket only, no Rich display)
+        final_result = None
+        stream_sequence = 0
+
+        # Track background WebSocket broadcast tasks to prevent garbage collection
+        # Using fire-and-forget pattern to avoid blocking DSPy's streaming loop
+        ws_broadcast_tasks: set[asyncio.Task] = set()
+
+        async for value in stream_generator:
+            try:
+                from dspy.streaming import StatusMessage, StreamResponse
+                from litellm import ModelResponseStream
+            except Exception:
+                StatusMessage = object  # type: ignore
+                StreamResponse = object  # type: ignore
+                ModelResponseStream = object  # type: ignore
+
+            if isinstance(value, StatusMessage):
+                token = getattr(value, "message", "")
+                if token:
+                    try:
+                        event = StreamingOutputEvent(
+                            correlation_id=str(ctx.correlation_id)
+                            if ctx and ctx.correlation_id
+                            else "",
+                            agent_name=agent.name,
+                            run_id=ctx.task_id if ctx else "",
+                            output_type="log",
+                            content=str(token + "\n"),
+                            sequence=stream_sequence,
+                            is_final=False,
+                            artifact_id=str(pre_generated_artifact_id),
+                            artifact_type=artifact_type_name,
+                        )
+                        # Fire-and-forget to avoid blocking DSPy's streaming loop
+                        task = asyncio.create_task(ws_manager.broadcast(event))
+                        ws_broadcast_tasks.add(task)
+                        task.add_done_callback(ws_broadcast_tasks.discard)
+                        stream_sequence += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to emit streaming event: {e}")
+
+            elif isinstance(value, StreamResponse):
+                token = getattr(value, "chunk", None)
+                if token:
+                    try:
+                        event = StreamingOutputEvent(
+                            correlation_id=str(ctx.correlation_id)
+                            if ctx and ctx.correlation_id
+                            else "",
+                            agent_name=agent.name,
+                            run_id=ctx.task_id if ctx else "",
+                            output_type="llm_token",
+                            content=str(token),
+                            sequence=stream_sequence,
+                            is_final=False,
+                            artifact_id=str(pre_generated_artifact_id),
+                            artifact_type=artifact_type_name,
+                        )
+                        # Fire-and-forget to avoid blocking DSPy's streaming loop
+                        task = asyncio.create_task(ws_manager.broadcast(event))
+                        ws_broadcast_tasks.add(task)
+                        task.add_done_callback(ws_broadcast_tasks.discard)
+                        stream_sequence += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to emit streaming event: {e}")
+
+            elif isinstance(value, ModelResponseStream):
+                chunk = value
+                token = chunk.choices[0].delta.content or ""
+                if token:
+                    try:
+                        event = StreamingOutputEvent(
+                            correlation_id=str(ctx.correlation_id)
+                            if ctx and ctx.correlation_id
+                            else "",
+                            agent_name=agent.name,
+                            run_id=ctx.task_id if ctx else "",
+                            output_type="llm_token",
+                            content=str(token),
+                            sequence=stream_sequence,
+                            is_final=False,
+                            artifact_id=str(pre_generated_artifact_id),
+                            artifact_type=artifact_type_name,
+                        )
+                        # Fire-and-forget to avoid blocking DSPy's streaming loop
+                        task = asyncio.create_task(ws_manager.broadcast(event))
+                        ws_broadcast_tasks.add(task)
+                        task.add_done_callback(ws_broadcast_tasks.discard)
+                        stream_sequence += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to emit streaming event: {e}")
+
+            elif isinstance(value, dspy_mod.Prediction):
+                final_result = value
+                # Send final events
+                try:
+                    event = StreamingOutputEvent(
+                        correlation_id=str(ctx.correlation_id)
+                        if ctx and ctx.correlation_id
+                        else "",
+                        agent_name=agent.name,
+                        run_id=ctx.task_id if ctx else "",
+                        output_type="log",
+                        content=f"\nAmount of output tokens: {stream_sequence}",
+                        sequence=stream_sequence,
+                        is_final=True,
+                        artifact_id=str(pre_generated_artifact_id),
+                        artifact_type=artifact_type_name,
+                    )
+                    # Fire-and-forget to avoid blocking DSPy's streaming loop
+                    task = asyncio.create_task(ws_manager.broadcast(event))
+                    ws_broadcast_tasks.add(task)
+                    task.add_done_callback(ws_broadcast_tasks.discard)
+
+                    event = StreamingOutputEvent(
+                        correlation_id=str(ctx.correlation_id)
+                        if ctx and ctx.correlation_id
+                        else "",
+                        agent_name=agent.name,
+                        run_id=ctx.task_id if ctx else "",
+                        output_type="log",
+                        content="--- End of output ---",
+                        sequence=stream_sequence + 1,
+                        is_final=True,
+                        artifact_id=str(pre_generated_artifact_id),
+                        artifact_type=artifact_type_name,
+                    )
+                    # Fire-and-forget to avoid blocking DSPy's streaming loop
+                    task = asyncio.create_task(ws_manager.broadcast(event))
+                    ws_broadcast_tasks.add(task)
+                    task.add_done_callback(ws_broadcast_tasks.discard)
+                except Exception as e:
+                    logger.warning(f"Failed to emit final streaming event: {e}")
+
+        if final_result is None:
+            raise RuntimeError(f"Agent {agent.name}: Streaming did not yield a final prediction")
+
+        logger.info(f"Agent {agent.name}: WebSocket streaming completed ({stream_sequence} tokens)")
+        return final_result, None
 
     async def _execute_streaming(
         self,
@@ -930,3 +1177,11 @@ __all__ = ["DSPyEngine"]
 
 # Apply the Rich Live patch when this module is imported
 _apply_live_patch_on_import()
+
+# Apply the DSPy streaming patch to fix deadlocks with MCP tools
+try:
+    from flock.patches.dspy_streaming_patch import apply_patch as apply_dspy_streaming_patch
+
+    apply_dspy_streaming_patch()
+except Exception:
+    pass  # Silently ignore if patch fails to apply

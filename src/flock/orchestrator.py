@@ -668,8 +668,10 @@ class Flock(metaclass=AutoTracedMeta):
             >>> # Publish with tags for channel routing
             >>> await orchestrator.publish(task, tags={"urgent", "backend"})
         """
-        init_console(clear_screen=True, show_banner=True, model=self.model)
         self.is_dashboard = is_dashboard
+        # Only show banner in CLI mode, not dashboard mode
+        if not self.is_dashboard:
+            init_console(clear_screen=True, show_banner=True, model=self.model)
         # Handle different input types
         if isinstance(obj, Artifact):
             # Already an artifact - publish as-is

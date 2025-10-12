@@ -567,10 +567,9 @@ for i in range(100):
 ### Examples Repository
 
 **[Browse Examples](https://github.com/whiteducksoftware/flock/tree/main/examples)**
-- `01-the-declarative-way/` - Beginner-friendly tutorials
-- `03-the-dashboard/` - Dashboard features
-- `05-claudes-workshop/` - Advanced patterns (parallel, feedback loops)
-- `showcase/` - Production-ready scenarios
+- `examples/README.md` - Complete 12-step learning path documentation
+- `01-cli/` - CLI examples with detailed console output (01-12)
+- `02-dashboard/` - Dashboard examples with interactive visualization (01-12)
 
 ---
 
