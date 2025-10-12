@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { act } from '@testing-library/react';
 import { useGraphStore } from '../../store/graphStore';
 import { useFilterStore } from '../../store/filterStore';
 import { GraphSnapshot } from '../../types/graph';
@@ -28,7 +28,7 @@ const mockIndexedDB = {
   open: vi.fn(),
   databases: vi.fn().mockResolvedValue([]),
 };
-global.indexedDB = mockIndexedDB as any;
+globalThis.indexedDB = mockIndexedDB as any;
 
 import * as graphService from '../../services/graphService';
 
@@ -305,24 +305,24 @@ describe('Graph Snapshot Integration', () => {
       act(() => {
         useGraphStore.getState().addEvent({
           id: 'msg1',
-          artifact_type: 'Pizza',
-          produced_by: 'pizza_master',
+          type: 'Pizza',
+          producedBy: 'pizza_master',
           timestamp: Date.now(),
-        });
+        } as any);
 
         useGraphStore.getState().addEvent({
           id: 'msg2',
-          artifact_type: 'Pizza',
-          produced_by: 'pizza_master',
+          type: 'Pizza',
+          producedBy: 'pizza_master',
           timestamp: Date.now(),
-        });
+        } as any);
 
         useGraphStore.getState().addEvent({
           id: 'msg3',
-          artifact_type: 'Pizza',
-          produced_by: 'pizza_master',
+          type: 'Pizza',
+          producedBy: 'pizza_master',
           timestamp: Date.now(),
-        });
+        } as any);
       });
 
       // Verify all 3 events in store
@@ -333,10 +333,6 @@ describe('Graph Snapshot Integration', () => {
 
   describe('Test 4: Position Persistence', () => {
     it('should merge saved positions with backend nodes', async () => {
-      const savedPositions = new Map([
-        ['pizza_master', { x: 500, y: 600 }], // User-saved position
-      ]);
-
       // Mock persistence to return saved positions
       vi.mocked(graphService.mergeNodePositions).mockImplementation(
         (backendNodes, saved) => {
@@ -508,17 +504,17 @@ describe('Graph Snapshot Integration', () => {
         for (let i = 0; i < 101; i++) {
           useGraphStore.getState().addEvent({
             id: `msg${i}`,
-            artifact_type: 'Pizza',
-            produced_by: 'pizza_master',
+            type: 'Pizza',
+            producedBy: 'pizza_master',
             timestamp: Date.now() + i,
-          });
+          } as any);
         }
       });
 
       // Should keep only last 100
       const state = useGraphStore.getState();
       expect(state.events).toHaveLength(100);
-      expect(state.events[0].id).toBe('msg100'); // Most recent first
+      expect(state.events[0]?.id).toBe('msg100'); // Most recent first
     });
   });
 
@@ -559,6 +555,93 @@ describe('Graph Snapshot Integration', () => {
       });
 
       expect(useGraphStore.getState().viewMode).toBe('agent');
+    });
+  });
+
+  describe('Test 9: Debounced Refresh (Critical Optimization)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should batch multiple rapid events into single backend fetch after 500ms', async () => {
+      const mockSnapshot = createMockSnapshot();
+      vi.mocked(graphService.fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
+
+      // Load initial graph
+      await act(async () => {
+        await useGraphStore.getState().generateAgentViewGraph();
+      });
+
+      vi.clearAllMocks();
+
+      // Simulate 5 rapid scheduleRefresh() calls (like rapid WebSocket events)
+      act(() => {
+        for (let i = 0; i < 5; i++) {
+          useGraphStore.getState().scheduleRefresh();
+        }
+      });
+
+      // No fetch yet (debounce delay)
+      expect(graphService.fetchGraphSnapshot).not.toHaveBeenCalled();
+
+      // Advance timers by 500ms (debounce threshold)
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+        // Wait for any pending promises
+        await Promise.resolve();
+      });
+
+      // Should have triggered exactly ONE backend fetch (batching worked!)
+      expect(graphService.fetchGraphSnapshot).toHaveBeenCalledTimes(1);
+    });
+
+    it('should reset debounce timer if new event arrives within 500ms', async () => {
+      const mockSnapshot = createMockSnapshot();
+      vi.mocked(graphService.fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
+
+      await act(async () => {
+        await useGraphStore.getState().generateAgentViewGraph();
+      });
+
+      vi.clearAllMocks();
+
+      // First scheduleRefresh call
+      act(() => {
+        useGraphStore.getState().scheduleRefresh();
+      });
+
+      // Advance 300ms (not enough to trigger)
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(graphService.fetchGraphSnapshot).not.toHaveBeenCalled();
+
+      // Second scheduleRefresh call (resets timer)
+      act(() => {
+        useGraphStore.getState().scheduleRefresh();
+      });
+
+      // Advance another 300ms (600ms total, but timer was reset at 300ms)
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+
+      // Still no fetch (timer was reset)
+      expect(graphService.fetchGraphSnapshot).not.toHaveBeenCalled();
+
+      // Advance final 200ms (500ms since last scheduleRefresh)
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+        await Promise.resolve();
+      });
+
+      // Now it should fetch (500ms of quiet time)
+      expect(graphService.fetchGraphSnapshot).toHaveBeenCalledTimes(1);
     });
   });
 });

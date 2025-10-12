@@ -222,7 +222,13 @@ describe('graphStore - NEW Simplified Architecture', () => {
 
       await useGraphStore.getState().generateAgentViewGraph();
 
-      expect(mockUpdateFacets).toHaveBeenCalledWith(mockSnapshot.statistics!.artifactSummary);
+      // Verify facets are transformed from artifactSummary
+      expect(mockUpdateFacets).toHaveBeenCalledWith({
+        artifactTypes: ['Pizza', 'Order'],
+        producers: ['pizza_master', 'waiter'],
+        tags: ['urgent'],
+        visibilities: ['public'],
+      });
     });
 
     it('should handle API errors gracefully', async () => {

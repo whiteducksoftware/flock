@@ -45,6 +45,7 @@ interface GraphState {
   generateAgentViewGraph: () => Promise<void>;
   generateBlackboardViewGraph: () => Promise<void>;
   refreshCurrentView: () => Promise<void>;
+  scheduleRefresh: () => void; // Debounced refresh (500ms)
 
   // Actions - Real-time WebSocket updates
   updateAgentStatus: (agentId: string, status: string) => void;
@@ -164,6 +165,11 @@ function buildGraphRequest(viewMode: 'agent' | 'blackboard'): GraphRequest {
     },
   };
 }
+
+/**
+ * Debounce timer for graph refresh (500ms batching)
+ */
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useGraphStore = create<GraphState>()(
   devtools(
@@ -292,6 +298,21 @@ export const useGraphStore = create<GraphState>()(
         } else {
           await get().generateBlackboardViewGraph();
         }
+      },
+
+      scheduleRefresh: () => {
+        // Clear existing timer if any (reset debounce)
+        if (refreshTimer !== null) {
+          clearTimeout(refreshTimer);
+        }
+
+        // Schedule refresh after 500ms of quiet time
+        refreshTimer = setTimeout(() => {
+          refreshTimer = null;
+          get().refreshCurrentView().catch((error) => {
+            console.error('[GraphStore] Scheduled refresh failed:', error);
+          });
+        }, 500);
       },
 
       // Real-time WebSocket update actions
