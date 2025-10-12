@@ -12,7 +12,7 @@ import traceback
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import PrivateAttr
 
@@ -26,9 +26,9 @@ from flock.dashboard.events import (
     VisibilitySpec,
 )
 from flock.dashboard.models.graph import GraphRun, GraphState
-from flock.store import AgentSnapshotRecord, BlackboardStore
 from flock.logging.logging import get_logger
 from flock.runtime import Context
+from flock.store import AgentSnapshotRecord, BlackboardStore
 
 
 logger = get_logger("dashboard.collector")
@@ -50,7 +50,7 @@ class RunRecord:
     duration_ms: float | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
     error_message: str | None = None
 
     def to_graph_run(self) -> GraphRun:
@@ -108,10 +108,10 @@ class DashboardEventCollector(AgentComponent):
 
     # Graph assembly helpers
     _graph_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
-    _run_registry: Dict[str, RunRecord] = PrivateAttr(default_factory=dict)
-    _artifact_consumers: Dict[str, set[str]] = PrivateAttr(default_factory=lambda: defaultdict(set))
-    _agent_status: Dict[str, str] = PrivateAttr(default_factory=dict)
-    _agent_snapshots: Dict[str, AgentSnapshot] = PrivateAttr(default_factory=dict)
+    _run_registry: dict[str, RunRecord] = PrivateAttr(default_factory=dict)
+    _artifact_consumers: dict[str, set[str]] = PrivateAttr(default_factory=lambda: defaultdict(set))
+    _agent_status: dict[str, str] = PrivateAttr(default_factory=dict)
+    _agent_snapshots: dict[str, AgentSnapshot] = PrivateAttr(default_factory=dict)
 
     def __init__(self, *, store: BlackboardStore | None = None, **data):
         super().__init__(**data)
@@ -388,7 +388,7 @@ class DashboardEventCollector(AgentComponent):
             agent_status = dict(self._agent_status)
         return GraphState(consumptions=consumptions, runs=runs, agent_status=agent_status)
 
-    async def snapshot_agent_registry(self) -> Dict[str, AgentSnapshot]:
+    async def snapshot_agent_registry(self) -> dict[str, AgentSnapshot]:
         """Return a snapshot of all known agents (active and inactive)."""
         await self.load_persistent_snapshots()
         async with self._graph_lock:

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Iterable, List, Mapping, Sequence
 
 from flock.dashboard.collector import AgentSnapshot, DashboardEventCollector
 from flock.dashboard.models.graph import (
@@ -15,10 +15,10 @@ from flock.dashboard.models.graph import (
     GraphNode,
     GraphPosition,
     GraphRequest,
+    GraphRun,
     GraphSnapshot,
     GraphState,
     GraphStatistics,
-    GraphRun,
     GraphTimeRange,
     GraphTimeRangePreset,
 )
@@ -26,9 +26,11 @@ from flock.logging.auto_trace import AutoTracedMeta
 from flock.orchestrator import Flock
 from flock.store import (
     Artifact,
-    ArtifactEnvelope as StoreArtifactEnvelope,
     BlackboardStore,
     FilterConfig,
+)
+from flock.store import (
+    ArtifactEnvelope as StoreArtifactEnvelope,
 )
 
 
@@ -102,8 +104,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         self,
         envelopes: Sequence[StoreArtifactEnvelope],
         runtime_consumptions: Mapping[str, Sequence[str]],
-    ) -> Dict[str, GraphArtifact]:
-        artifacts: Dict[str, GraphArtifact] = {}
+    ) -> dict[str, GraphArtifact]:
+        artifacts: dict[str, GraphArtifact] = {}
         for envelope in envelopes:
             artifact: Artifact = envelope.artifact
             artifact_id = str(artifact.id)
@@ -135,11 +137,11 @@ class GraphAssembler(metaclass=AutoTracedMeta):
     def _calculate_agent_metrics(
         self,
         artifacts: Iterable[GraphArtifact],
-    ) -> tuple[Dict[str, GraphAgentMetrics], Dict[str, GraphAgentMetrics]]:
-        produced_acc: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
-        consumed_acc: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
-        produced_totals: Dict[str, int] = defaultdict(int)
-        consumed_totals: Dict[str, int] = defaultdict(int)
+    ) -> tuple[dict[str, GraphAgentMetrics], dict[str, GraphAgentMetrics]]:
+        produced_acc: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        consumed_acc: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        produced_totals: dict[str, int] = defaultdict(int)
+        consumed_totals: dict[str, int] = defaultdict(int)
 
         for artifact in artifacts:
             producer = artifact.produced_by or "external"
@@ -150,14 +152,14 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 consumed_totals[consumer] += 1
                 consumed_acc[consumer][artifact.artifact_type] += 1
 
-        produced_metrics: Dict[str, GraphAgentMetrics] = {}
+        produced_metrics: dict[str, GraphAgentMetrics] = {}
         for agent, total in produced_totals.items():
             produced_metrics[agent] = GraphAgentMetrics(
                 total=total,
                 by_type=dict(produced_acc[agent]),
             )
 
-        consumed_metrics: Dict[str, GraphAgentMetrics] = {}
+        consumed_metrics: dict[str, GraphAgentMetrics] = {}
         for agent, total in consumed_totals.items():
             consumed_metrics[agent] = GraphAgentMetrics(
                 total=total,
@@ -173,8 +175,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         consumed_metrics: Mapping[str, GraphAgentMetrics],
         graph_state: GraphState,
         agent_snapshots: Mapping[str, AgentSnapshot],
-    ) -> List[GraphNode]:
-        nodes: List[GraphNode] = []
+    ) -> list[GraphNode]:
+        nodes: list[GraphNode] = []
         agent_status = graph_state.agent_status
         active_names: set[str] = set()
 
@@ -290,8 +292,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
     def _build_message_nodes(
         self,
         artifacts: Mapping[str, GraphArtifact],
-    ) -> List[GraphNode]:
-        nodes: List[GraphNode] = []
+    ) -> list[GraphNode]:
+        nodes: list[GraphNode] = []
 
         for artifact in artifacts.values():
             payload_preview = self._payload_preview(artifact.payload)
@@ -324,9 +326,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
     def _derive_agent_edges(
         self,
         artifacts: Mapping[str, GraphArtifact],
-    ) -> List[GraphEdge]:
-        edge_payloads: Dict[str, dict] = {}
-        pair_group: Dict[tuple[str, str], List[str]] = defaultdict(list)
+    ) -> list[GraphEdge]:
+        edge_payloads: dict[str, dict] = {}
+        pair_group: dict[tuple[str, str], list[str]] = defaultdict(list)
 
         for artifact in artifacts.values():
             producer = artifact.produced_by or "external"
@@ -344,14 +346,13 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     },
                 )
                 payload["artifact_ids"].append(artifact.artifact_id)
-                if artifact.published_at > payload["latest_timestamp"]:
-                    payload["latest_timestamp"] = artifact.published_at
+                payload["latest_timestamp"] = max(payload["latest_timestamp"], artifact.published_at)
                 pair_key = tuple(sorted((producer, consumer)))
                 if edge_id not in pair_group[pair_key]:
                     pair_group[pair_key].append(edge_id)
 
         offsets = self._calculate_label_offsets(pair_group)
-        edges: List[GraphEdge] = []
+        edges: list[GraphEdge] = []
         for edge_id, payload in edge_payloads.items():
             message_type = payload["message_type"]
             artifact_ids = payload["artifact_ids"]
@@ -381,10 +382,10 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         self,
         artifacts: Mapping[str, GraphArtifact],
         graph_state: GraphState,
-    ) -> List[GraphEdge]:
+    ) -> list[GraphEdge]:
         artifact_ids = set(artifacts.keys())
-        edge_payloads: Dict[str, dict] = {}
-        pair_group: Dict[tuple[str, str], List[str]] = defaultdict(list)
+        edge_payloads: dict[str, dict] = {}
+        pair_group: dict[tuple[str, str], list[str]] = defaultdict(list)
 
         for run in self._collect_runs_for_blackboard(artifacts, graph_state):
             if run.status == "active":
@@ -415,7 +416,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                         pair_group[pair_key].append(edge_id)
 
         offsets = self._calculate_label_offsets(pair_group)
-        edges: List[GraphEdge] = []
+        edges: list[GraphEdge] = []
         for edge_id, payload in edge_payloads.items():
             edges.append(
                 GraphEdge(
@@ -460,7 +461,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         self,
         artifacts: Mapping[str, GraphArtifact],
         graph_state: GraphState,
-    ) -> List[GraphRun]:
+    ) -> list[GraphRun]:
         existing_runs = list(graph_state.runs)
         synthetic_runs = self._build_synthetic_runs(
             artifacts, graph_state.consumptions, existing_runs
@@ -472,11 +473,11 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         artifacts: Mapping[str, GraphArtifact],
         consumptions: Mapping[str, Sequence[str]],
         existing_runs: Sequence[GraphRun],
-    ) -> List[GraphRun]:
+    ) -> list[GraphRun]:
         existing_keys = {(run.agent_name, run.correlation_id or "") for run in existing_runs}
 
-        produced_buckets: Dict[tuple[str, str], List[str]] = defaultdict(list)
-        consumed_buckets: Dict[tuple[str, str], List[str]] = defaultdict(list)
+        produced_buckets: dict[tuple[str, str], list[str]] = defaultdict(list)
+        consumed_buckets: dict[tuple[str, str], list[str]] = defaultdict(list)
 
         for artifact in artifacts.values():
             correlation = artifact.correlation_id or ""
@@ -487,7 +488,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             for consumer in consumer_list:
                 consumed_buckets[(consumer, correlation)].append(artifact.artifact_id)
 
-        synthetic_runs: List["GraphRun"] = []
+        synthetic_runs: list[GraphRun] = []
         counter = 0
         for key, consumed in consumed_buckets.items():
             produced = produced_buckets.get(key)
@@ -547,8 +548,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         return cleaned if cleaned else None
 
     @staticmethod
-    def _calculate_label_offsets(groups: Mapping[tuple[str, str], List[str]]) -> Dict[str, float]:
-        offsets: Dict[str, float] = {}
+    def _calculate_label_offsets(groups: Mapping[tuple[str, str], list[str]]) -> dict[str, float]:
+        offsets: dict[str, float] = {}
         for edge_ids in groups.values():
             total = len(edge_ids)
             if total <= 1:

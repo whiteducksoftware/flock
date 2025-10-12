@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,19 +19,19 @@ class GraphTimeRange(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     preset: GraphTimeRangePreset = GraphTimeRangePreset.LAST_10_MIN
-    start: Optional[datetime] = None
-    end: Optional[datetime] = None
+    start: datetime | None = None
+    end: datetime | None = None
 
 
 class GraphFilters(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    correlation_id: Optional[str] = None
+    correlation_id: str | None = None
     time_range: GraphTimeRange = Field(default_factory=GraphTimeRange)
-    artifact_types: List[str] = Field(default_factory=list, alias="artifactTypes")
-    producers: List[str] = Field(default_factory=list)
-    tags: List[str] = Field(default_factory=list)
-    visibility: List[str] = Field(default_factory=list)
+    artifact_types: list[str] = Field(default_factory=list, alias="artifactTypes")
+    producers: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    visibility: list[str] = Field(default_factory=list)
 
 
 class GraphRequestOptions(BaseModel):
@@ -68,8 +68,8 @@ class GraphNode(BaseModel):
 
     id: str
     type: Literal["agent", "message"]
-    data: Dict[str, Any] = Field(default_factory=dict)
-    position: Optional[GraphPosition] = None
+    data: dict[str, Any] = Field(default_factory=dict)
+    position: GraphPosition | None = None
     hidden: bool = False
 
 
@@ -80,9 +80,9 @@ class GraphEdge(BaseModel):
     source: str
     target: str
     type: Literal["message_flow", "transformation"]
-    label: Optional[str] = None
-    data: Dict[str, Any] = Field(default_factory=dict)
-    marker_end: Optional[GraphMarker] = Field(default=None, alias="markerEnd")
+    label: str | None = None
+    data: dict[str, Any] = Field(default_factory=dict)
+    marker_end: GraphMarker | None = Field(default=None, alias="markerEnd")
     hidden: bool = False
 
 
@@ -90,19 +90,19 @@ class GraphAgentMetrics(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     total: int = 0
-    by_type: Dict[str, int] = Field(default_factory=dict, alias="byType")
+    by_type: dict[str, int] = Field(default_factory=dict, alias="byType")
 
 
 class GraphStatistics(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    produced_by_agent: Dict[str, GraphAgentMetrics] = Field(
+    produced_by_agent: dict[str, GraphAgentMetrics] = Field(
         default_factory=dict, alias="producedByAgent"
     )
-    consumed_by_agent: Dict[str, GraphAgentMetrics] = Field(
+    consumed_by_agent: dict[str, GraphAgentMetrics] = Field(
         default_factory=dict, alias="consumedByAgent"
     )
-    artifact_summary: Dict[str, Any] = Field(default_factory=dict, alias="artifactSummary")
+    artifact_summary: dict[str, Any] = Field(default_factory=dict, alias="artifactSummary")
 
 
 class GraphArtifact(BaseModel):
@@ -111,12 +111,12 @@ class GraphArtifact(BaseModel):
     artifact_id: str = Field(alias="artifactId")
     artifact_type: str = Field(alias="artifactType")
     produced_by: str = Field(alias="producedBy")
-    consumed_by: List[str] = Field(default_factory=list, alias="consumedBy")
+    consumed_by: list[str] = Field(default_factory=list, alias="consumedBy")
     published_at: datetime = Field(alias="publishedAt")
-    payload: Dict[str, Any] = Field(default_factory=dict)
-    correlation_id: Optional[str] = Field(default=None, alias="correlationId")
-    visibility_kind: Optional[str] = Field(default=None, alias="visibilityKind")
-    tags: List[str] = Field(default_factory=list)
+    payload: dict[str, Any] = Field(default_factory=dict)
+    correlation_id: str | None = Field(default=None, alias="correlationId")
+    visibility_kind: str | None = Field(default=None, alias="visibilityKind")
+    tags: list[str] = Field(default_factory=list)
 
 
 class GraphRun(BaseModel):
@@ -124,23 +124,23 @@ class GraphRun(BaseModel):
 
     run_id: str = Field(alias="runId")
     agent_name: str = Field(alias="agentName")
-    correlation_id: Optional[str] = Field(default=None, alias="correlationId")
+    correlation_id: str | None = Field(default=None, alias="correlationId")
     status: Literal["active", "completed", "error"] = "active"
-    consumed_artifacts: List[str] = Field(default_factory=list, alias="consumedArtifacts")
-    produced_artifacts: List[str] = Field(default_factory=list, alias="producedArtifacts")
-    duration_ms: Optional[float] = Field(default=None, alias="durationMs")
-    started_at: Optional[datetime] = Field(default=None, alias="startedAt")
-    completed_at: Optional[datetime] = Field(default=None, alias="completedAt")
-    metrics: Dict[str, Any] = Field(default_factory=dict)
-    error_message: Optional[str] = Field(default=None, alias="errorMessage")
+    consumed_artifacts: list[str] = Field(default_factory=list, alias="consumedArtifacts")
+    produced_artifacts: list[str] = Field(default_factory=list, alias="producedArtifacts")
+    duration_ms: float | None = Field(default=None, alias="durationMs")
+    started_at: datetime | None = Field(default=None, alias="startedAt")
+    completed_at: datetime | None = Field(default=None, alias="completedAt")
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = Field(default=None, alias="errorMessage")
 
 
 class GraphState(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    consumptions: Dict[str, List[str]] = Field(default_factory=dict)
-    runs: List[GraphRun] = Field(default_factory=list)
-    agent_status: Dict[str, str] = Field(default_factory=dict, alias="agentStatus")
+    consumptions: dict[str, list[str]] = Field(default_factory=dict)
+    runs: list[GraphRun] = Field(default_factory=list)
+    agent_status: dict[str, str] = Field(default_factory=dict, alias="agentStatus")
 
 
 class GraphSnapshot(BaseModel):
@@ -149,8 +149,8 @@ class GraphSnapshot(BaseModel):
     generated_at: datetime = Field(alias="generatedAt")
     view_mode: Literal["agent", "blackboard"] = Field(alias="viewMode")
     filters: GraphFilters
-    nodes: List[GraphNode] = Field(default_factory=list)
-    edges: List[GraphEdge] = Field(default_factory=list)
-    statistics: Optional[GraphStatistics] = None
+    nodes: list[GraphNode] = Field(default_factory=list)
+    edges: list[GraphEdge] = Field(default_factory=list)
+    statistics: GraphStatistics | None = None
     total_artifacts: int = Field(alias="totalArtifacts", default=0)
     truncated: bool = False

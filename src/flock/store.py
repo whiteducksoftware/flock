@@ -16,7 +16,6 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-import json
 from pathlib import Path
 from typing import Any, TypeVar
 from uuid import UUID
@@ -301,9 +300,7 @@ class InMemoryBlackboardStore(BlackboardStore):
                 return False
             if filters.start and artifact.created_at < filters.start:
                 return False
-            if filters.end and artifact.created_at > filters.end:
-                return False
-            return True
+            return not (filters.end and artifact.created_at > filters.end)
 
         filtered = [artifact for artifact in artifacts if _matches(artifact)]
         filtered.sort(key=lambda a: (a.created_at, a.id))
@@ -436,10 +433,10 @@ class InMemoryBlackboardStore(BlackboardStore):
 
 
 __all__ = [
+    "AgentSnapshotRecord",
     "BlackboardStore",
     "InMemoryBlackboardStore",
     "SQLiteBlackboardStore",
-    "AgentSnapshotRecord",
 ]
 
 

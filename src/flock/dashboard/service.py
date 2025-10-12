@@ -19,9 +19,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
 from flock.dashboard.collector import DashboardEventCollector
+from flock.dashboard.events import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.graph_builder import GraphAssembler
 from flock.dashboard.models.graph import GraphRequest, GraphSnapshot
-from flock.dashboard.events import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger
 from flock.orchestrator import Flock
@@ -522,8 +522,9 @@ class DashboardHTTPService(BlackboardHTTPService):
                     "operations": ["Flock.publish", "Agent.execute", ...]
                 }
             """
-            import duckdb
             from pathlib import Path
+
+            import duckdb
 
             db_path = Path(".flock/traces.duckdb")
 
@@ -583,8 +584,9 @@ class DashboardHTTPService(BlackboardHTTPService):
 
             Security: Only SELECT queries allowed, rate-limited.
             """
-            import duckdb
             from pathlib import Path
+
+            import duckdb
 
             query = request.get("query", "").strip()
 
@@ -629,7 +631,7 @@ class DashboardHTTPService(BlackboardHTTPService):
 
                     return {"results": results, "columns": columns, "row_count": len(results)}
             except Exception as e:
-                logger.error(f"DuckDB query error: {e}")
+                logger.exception(f"DuckDB query error: {e}")
                 return {"error": str(e), "results": [], "columns": []}
 
         @app.get("/api/traces/stats")
@@ -646,9 +648,10 @@ class DashboardHTTPService(BlackboardHTTPService):
                     "database_size_mb": 12.5
                 }
             """
-            import duckdb
-            from pathlib import Path
             from datetime import datetime
+            from pathlib import Path
+
+            import duckdb
 
             db_path = Path(".flock/traces.duckdb")
 
@@ -792,7 +795,7 @@ class DashboardHTTPService(BlackboardHTTPService):
 
                 # 1. Get messages PRODUCED by this node
                 produced_filter = FilterConfig(produced_by={node_id})
-                produced_artifacts, produced_count = await orchestrator.store.query_artifacts(
+                produced_artifacts, _produced_count = await orchestrator.store.query_artifacts(
                     produced_filter, limit=100, offset=0, embed_meta=False
                 )
 
