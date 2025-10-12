@@ -75,14 +75,15 @@ uv run python -c "from flock import Flock; print('✅ Ready!')"
 ### Run Examples
 
 ```bash
-# Core examples
-uv run python examples/01-the-declarative-way/01_declarative_pizza.py
-uv run python examples/01-the-declarative-way/02_input_and_output.py
+# CLI examples (with detailed output)
+uv run python examples/01-cli/01_declarative_pizza.py
+uv run python examples/01-cli/02_input_and_output.py
+uv run python examples/01-cli/03_code_detective.py
 
-# Dashboard examples
-uv run python examples/03-the-dashboard/01_declarative_pizza.py
-uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py
-uv run python examples/03-the-dashboard/03-scale-test-100-agents.py
+# Dashboard examples (with visualization)
+uv run python examples/02-dashboard/01_declarative_pizza.py
+uv run python examples/02-dashboard/02_input_and_output.py
+uv run python examples/02-dashboard/03_code_detective.py
 ```
 
 ---
@@ -1158,7 +1159,7 @@ mcp__playwright__browser_take_screenshot(filename="dashboard-test.png")
 - ✅ **Screenshot capture** - Document UI state for debugging/documentation
 - ✅ **Interactive debugging** - Click, type, inspect like a real user
 
-📖 **Dashboard examples:** [`examples/03-the-dashboard/`](examples/03-the-dashboard/)
+📖 **Dashboard examples:** [`examples/02-dashboard/`](examples/02-dashboard/)
 
 ---
 
@@ -1278,7 +1279,7 @@ Plan your testing time accordingly!
 - Counters increment as artifacts produced/consumed
 - WebSocket delivers updates without page refresh
 
-📖 **Dashboard examples:** [`examples/03-the-dashboard/`](examples/03-the-dashboard/)
+📖 **Dashboard examples:** [`examples/02-dashboard/`](examples/02-dashboard/)
 
 ---
 
@@ -1408,5 +1409,5 @@ await orchestrator.serve(dashboard=True)
 
 ---
 
-*Last updated: October 8, 2025*
+*Last updated: October 13, 2025*
 *This file follows the modern AGENTS.md format for AI coding agents.*

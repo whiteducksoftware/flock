@@ -643,13 +643,15 @@ Flock uses a fundamentally different coordination pattern than most multi-agent 
 - Type-safe retrieval API (`get_by_type()`)
 
 **⚠️ What's missing for large-scale production:**
-- **Persistent blackboard** - Currently in-memory only
-- **Advanced retry logic** - Basic only
+- **Advanced retry logic** - Basic only (exponential backoff planned)
 - **Event replay** - No Kafka integration yet
 - **Kubernetes-native deployment** - No Helm chart yet
 - **OAuth/RBAC** - Dashboard has no auth
 
-All planned for v1.0
+**✅ Available today:**
+- **Persistent blackboard** - SQLiteBlackboardStore (see above)
+
+All missing features planned for v1.0
 
 ### Recommended Use Cases Today
 
@@ -841,16 +843,21 @@ pip install flock-core
 # Set API key
 export OPENAI_API_KEY="sk-..."
 
-# Try the workshop
+# Try the examples
 git clone https://github.com/whiteducksoftware/flock-flow.git
 cd flock-flow
-uv run python examples/05-claudes-workshop/lesson_01_code_detective.py
+
+# CLI examples with detailed output
+uv run python examples/01-cli/01_declarative_pizza.py
+
+# Dashboard examples with visualization
+uv run python examples/02-dashboard/01_declarative_pizza.py
 ```
 
 **Learn by doing:**
-- 📚 [7-Lesson Workshop](examples/05-claudes-workshop/) - Progressive lessons from basics to advanced
-- 🆚 [The Blackboard](examples/02-the-blackboard/) - See data-driven orchestration without graphs
-- 🎯 [Declarative Basics](examples/01-the-declarative-way/) - Understanding declarative programming
+- 📚 [Examples README](examples/README.md) - 12-step learning path from basics to advanced
+- 🖥️ [CLI Examples](examples/01-cli/) - Detailed console output examples (01-12)
+- 📊 [Dashboard Examples](examples/02-dashboard/) - Interactive visualization examples (01-12)
 - 📖 [Documentation](https://docs.flock.whiteduck.de) - Complete online documentation
 - 📘 [AGENTS.md](AGENTS.md) - Development guide
 
@@ -927,6 +934,6 @@ We're calling this 0.5 to signal:
 
 ---
 
-**Last Updated:** October 8, 2025
+**Last Updated:** October 13, 2025
 **Version:** Flock 0.5.0 (Blackboard Edition)
 **Status:** Production-Ready Core, Enterprise Features Roadmapped
