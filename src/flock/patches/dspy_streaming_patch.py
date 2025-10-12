@@ -6,6 +6,7 @@ causing deadlocks when using MCP tools with dashboard streaming.
 
 This patch replaces it with a non-blocking fire-and-forget approach.
 """
+
 import asyncio
 import logging
 
@@ -22,6 +23,7 @@ def patched_sync_send_to_stream(stream, message):
 
     This allows MCP tool callbacks to complete without deadlocking.
     """
+
     async def _send():
         try:
             await stream.send(message)
@@ -51,7 +53,7 @@ def apply_patch():
         import dspy.streaming.messages as dspy_messages
 
         # Store original for reference (in case we need to restore)
-        if not hasattr(dspy_messages, '_original_sync_send_to_stream'):
+        if not hasattr(dspy_messages, "_original_sync_send_to_stream"):
             dspy_messages._original_sync_send_to_stream = dspy_messages.sync_send_to_stream
 
         # Replace with our non-blocking version
@@ -70,7 +72,7 @@ def restore_original():
     try:
         import dspy.streaming.messages as dspy_messages
 
-        if hasattr(dspy_messages, '_original_sync_send_to_stream'):
+        if hasattr(dspy_messages, "_original_sync_send_to_stream"):
             dspy_messages.sync_send_to_stream = dspy_messages._original_sync_send_to_stream
             logger.info("Restored original DSPy streaming function")
             return True

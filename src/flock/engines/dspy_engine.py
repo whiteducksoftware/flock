@@ -246,12 +246,16 @@ class DSPyEngine(EngineComponent):
                     is_dashboard = orchestrator and getattr(orchestrator, "is_dashboard", False)
 
                     # DEBUG: Log routing decision
-                    logger.info(f"[STREAMING ROUTER] agent={agent.name}, is_dashboard={is_dashboard}, orchestrator={orchestrator is not None}")
+                    logger.info(
+                        f"[STREAMING ROUTER] agent={agent.name}, is_dashboard={is_dashboard}, orchestrator={orchestrator is not None}"
+                    )
 
                     if is_dashboard:
                         # Dashboard mode: WebSocket-only streaming (no Rich overhead)
                         # This eliminates the Rich Live context that causes deadlocks with MCP tools
-                        logger.info(f"[STREAMING ROUTER] Routing {agent.name} to WebSocket-only method (dashboard mode)")
+                        logger.info(
+                            f"[STREAMING ROUTER] Routing {agent.name} to WebSocket-only method (dashboard mode)"
+                        )
                         (
                             raw_result,
                             _stream_final_display_data,
@@ -267,7 +271,9 @@ class DSPyEngine(EngineComponent):
                         )
                     else:
                         # CLI mode: Rich streaming with terminal display
-                        logger.info(f"[STREAMING ROUTER] Routing {agent.name} to Rich streaming method (CLI mode)")
+                        logger.info(
+                            f"[STREAMING ROUTER] Routing {agent.name} to Rich streaming method (CLI mode)"
+                        )
                         (
                             raw_result,
                             _stream_final_display_data,
@@ -565,7 +571,9 @@ class DSPyEngine(EngineComponent):
             logger.warning(
                 f"Agent {agent.name}: No WebSocket manager, falling back to standard execution"
             )
-            result = await self._execute_standard(dspy_mod, program, description=description, payload=payload)
+            result = await self._execute_standard(
+                dspy_mod, program, description=description, payload=payload
+            )
             return result, None
 
         # Get artifact type name for WebSocket events
@@ -623,7 +631,9 @@ class DSPyEngine(EngineComponent):
                 if token:
                     try:
                         event = StreamingOutputEvent(
-                            correlation_id=str(ctx.correlation_id) if ctx and ctx.correlation_id else "",
+                            correlation_id=str(ctx.correlation_id)
+                            if ctx and ctx.correlation_id
+                            else "",
                             agent_name=agent.name,
                             run_id=ctx.task_id if ctx else "",
                             output_type="log",
@@ -646,7 +656,9 @@ class DSPyEngine(EngineComponent):
                 if token:
                     try:
                         event = StreamingOutputEvent(
-                            correlation_id=str(ctx.correlation_id) if ctx and ctx.correlation_id else "",
+                            correlation_id=str(ctx.correlation_id)
+                            if ctx and ctx.correlation_id
+                            else "",
                             agent_name=agent.name,
                             run_id=ctx.task_id if ctx else "",
                             output_type="llm_token",
@@ -670,7 +682,9 @@ class DSPyEngine(EngineComponent):
                 if token:
                     try:
                         event = StreamingOutputEvent(
-                            correlation_id=str(ctx.correlation_id) if ctx and ctx.correlation_id else "",
+                            correlation_id=str(ctx.correlation_id)
+                            if ctx and ctx.correlation_id
+                            else "",
                             agent_name=agent.name,
                             run_id=ctx.task_id if ctx else "",
                             output_type="llm_token",
@@ -693,7 +707,9 @@ class DSPyEngine(EngineComponent):
                 # Send final events
                 try:
                     event = StreamingOutputEvent(
-                        correlation_id=str(ctx.correlation_id) if ctx and ctx.correlation_id else "",
+                        correlation_id=str(ctx.correlation_id)
+                        if ctx and ctx.correlation_id
+                        else "",
                         agent_name=agent.name,
                         run_id=ctx.task_id if ctx else "",
                         output_type="log",
@@ -709,7 +725,9 @@ class DSPyEngine(EngineComponent):
                     task.add_done_callback(ws_broadcast_tasks.discard)
 
                     event = StreamingOutputEvent(
-                        correlation_id=str(ctx.correlation_id) if ctx and ctx.correlation_id else "",
+                        correlation_id=str(ctx.correlation_id)
+                        if ctx and ctx.correlation_id
+                        else "",
                         agent_name=agent.name,
                         run_id=ctx.task_id if ctx else "",
                         output_type="log",
@@ -729,9 +747,7 @@ class DSPyEngine(EngineComponent):
         if final_result is None:
             raise RuntimeError(f"Agent {agent.name}: Streaming did not yield a final prediction")
 
-        logger.info(
-            f"Agent {agent.name}: WebSocket streaming completed ({stream_sequence} tokens)"
-        )
+        logger.info(f"Agent {agent.name}: WebSocket streaming completed ({stream_sequence} tokens)")
         return final_result, None
 
     async def _execute_streaming(
@@ -1165,6 +1181,7 @@ _apply_live_patch_on_import()
 # Apply the DSPy streaming patch to fix deadlocks with MCP tools
 try:
     from flock.patches.dspy_streaming_patch import apply_patch as apply_dspy_streaming_patch
+
     apply_dspy_streaming_patch()
 except Exception:
     pass  # Silently ignore if patch fails to apply
