@@ -585,7 +585,7 @@ flow = conn.execute("""
 
 ```python
 await flock.serve(dashboard=True)
-# Open http://localhost:8000
+# Open http://localhost:8344
 ```
 
 **Dashboard views:**

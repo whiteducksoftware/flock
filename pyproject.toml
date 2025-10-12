@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.0b71"
+version = "0.5.0b75"
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -117,7 +117,7 @@ format = "ruff format src/flock/"
 
 # Documentation tasks
 docs = "mkdocs serve"  # Alias for docs-serve (most common use case)
-docs-serve = "mkdocs serve"  # Serve docs locally at http://127.0.0.1:8000
+docs-serve = "mkdocs serve"  # Serve docs locally at http://127.0.0.1:8344
 docs-build = "mkdocs build"  # Build docs to site/ directory
 docs-deploy = "mkdocs gh-deploy --force"  # Deploy to GitHub Pages
 
@@ -169,6 +169,7 @@ exclude = [
     "*.egg-info",
     "frontend/",
     "docs/",
+    "src/flock/dashboard/graph_builder.py",  # Windows/Linux line ending conflict
 ]
 
 [tool.ruff.lint]
@@ -341,7 +342,7 @@ convention = "google"
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
-line-ending = "auto"
+line-ending = "lf"
 
 # ============================================================================
 # MyPy Configuration - Strict type checking for production code

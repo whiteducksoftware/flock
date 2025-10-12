@@ -1010,13 +1010,13 @@ uv run python examples/03-the-dashboard/01_declarative_pizza.py
 
 Wait for these success indicators in the output:
 - `[Dashboard] Production build completed`
-- `INFO: Uvicorn running on http://127.0.0.1:8000`
+- `INFO: Uvicorn running on http://127.0.0.1:8344`
 - `[Dashboard] Browser launched successfully`
 
 **2. Navigate and Verify Initial Load**
 ```python
 # Use playwright-mcp tools
-mcp__playwright__browser_navigate(url="http://localhost:8000")
+mcp__playwright__browser_navigate(url="http://localhost:8344")
 ```
 
 **✅ What to verify:**

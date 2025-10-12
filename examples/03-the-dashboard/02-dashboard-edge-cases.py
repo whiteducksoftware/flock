@@ -9,7 +9,7 @@ This example demonstrates advanced features of the Flock Flow dashboard, includi
 
 How to use:
 1. Run this script: `uv run examples/showcase/04b_dashboard_edge_cases.py`
-2. Open http://localhost:8000 in your browser
+2. Open http://localhost:8344 in your browser
 3. Click "Show Controls" to publish an initial Idea artifact
 4. Observe the workflow:
    - book_writer creates 3 BookHooks from the Idea

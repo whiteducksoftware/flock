@@ -120,7 +120,7 @@ Run: `python examples/03-the-dashboard/02-dashboard-edge-cases.py`
 ```python
 await orchestrator.serve(
     dashboard=True,
-    port=8000
+    port=8344
 )
 ```
 

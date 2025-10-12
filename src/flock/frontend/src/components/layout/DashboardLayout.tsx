@@ -40,7 +40,6 @@ const DashboardLayout: React.FC = () => {
 
   const handleToggleAgentDetails = () => {
     const detailWindows = useUIStore.getState().detailWindows;
-    const agents = useGraphStore.getState().agents;
 
     // Check if any detail windows are open
     if (detailWindows.size > 0) {
@@ -49,9 +48,13 @@ const DashboardLayout: React.FC = () => {
         useUIStore.getState().closeDetailWindow(nodeId);
       });
     } else {
+      // UI Optimization Migration (Phase 4.1): Read agent nodes from state.nodes
+      const nodes = useGraphStore.getState().nodes;
+      const agentNodes = nodes.filter((node) => node.type === 'agent');
+
       // Open detail windows for all agents
-      agents.forEach((agent) => {
-        useUIStore.getState().openDetailWindow(agent.id);
+      agentNodes.forEach((node) => {
+        useUIStore.getState().openDetailWindow(node.id);
       });
     }
   };
@@ -63,15 +66,15 @@ const DashboardLayout: React.FC = () => {
   });
 
   const handleClearStore = () => {
-    if (confirm('Clear all dashboard data? This will remove all agents, messages, and session data.')) {
-      // Clear graph store
+    if (confirm('Clear all dashboard data? This will remove all graph data and session data.')) {
+      // UI Optimization Migration (Phase 4.1): Clear NEW Phase 2 state only
       useGraphStore.setState({
-        agents: new Map(),
-        messages: new Map(),
         events: [],
-        runs: new Map(),
         nodes: [],
-        edges: []
+        edges: [],
+        statistics: null,
+        agentStatus: new Map(),
+        streamingTokens: new Map(),
       });
 
       // Clear UI store

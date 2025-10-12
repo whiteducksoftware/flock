@@ -571,12 +571,12 @@ class DSPyEngine(EngineComponent):
         # Use the pre-generated artifact ID that was created before execution started
         display_data["id"] = str(pre_generated_artifact_id)
 
-        # Get the output type from agent configuration
-        output_type = "output"
+        # Get the artifact type name from agent configuration
+        artifact_type_name = "output"
         if hasattr(agent, "outputs") and agent.outputs:
-            output_type = agent.outputs[0].spec.type_name
+            artifact_type_name = agent.outputs[0].spec.type_name
 
-        display_data["type"] = output_type
+        display_data["type"] = artifact_type_name
         display_data["payload"] = OrderedDict()
 
         # Add output fields to payload section
@@ -660,6 +660,10 @@ class DSPyEngine(EngineComponent):
                                     content=str(token + "\n"),
                                     sequence=stream_sequence,
                                     is_final=False,
+                                    artifact_id=str(
+                                        pre_generated_artifact_id
+                                    ),  # Phase 6: Track artifact for message streaming
+                                    artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                 )
                                 # Use create_task to avoid blocking the streaming loop
                                 task = asyncio.create_task(ws_manager.broadcast(event))
@@ -704,6 +708,10 @@ class DSPyEngine(EngineComponent):
                                         content=str(token),
                                         sequence=stream_sequence,
                                         is_final=False,
+                                        artifact_id=str(
+                                            pre_generated_artifact_id
+                                        ),  # Phase 6: Track artifact for message streaming
+                                        artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                     )
                                     # Use create_task to avoid blocking the streaming loop
                                     task = asyncio.create_task(ws_manager.broadcast(event))
@@ -721,9 +729,6 @@ class DSPyEngine(EngineComponent):
                     chunk = value
                     token = chunk.choices[0].delta.content or ""
                     signature_field = getattr(value, "signature_field_name", None)
-
-                    # Determine output type based on signature field
-                    output_type = "llm_token"  # if signature_field and signature_field != "description" else "log"
 
                     if signature_field and signature_field != "description":
                         # Update payload section - accumulate in buffer
@@ -747,10 +752,16 @@ class DSPyEngine(EngineComponent):
                                 else "",
                                 agent_name=agent.name,
                                 run_id=ctx.task_id if ctx else "",
-                                output_type=output_type,
+                                output_type="llm_token",
                                 content=str(token),
                                 sequence=stream_sequence,
                                 is_final=False,
+                                artifact_id=str(
+                                    pre_generated_artifact_id
+                                ),  # Phase 6: Track artifact for message streaming
+                                artifact_type=display_data[
+                                    "type"
+                                ],  # Phase 6: Artifact type name from display_data
                             )
                             # Use create_task to avoid blocking the streaming loop
                             task = asyncio.create_task(ws_manager.broadcast(event))
@@ -780,6 +791,10 @@ class DSPyEngine(EngineComponent):
                                 content="\nAmount of output tokens: " + str(stream_sequence),
                                 sequence=stream_sequence,
                                 is_final=True,  # Mark as final
+                                artifact_id=str(
+                                    pre_generated_artifact_id
+                                ),  # Phase 6: Track artifact for message streaming
+                                artifact_type=display_data["type"],  # Phase 6: Artifact type name
                             )
                             # Use create_task to avoid blocking the streaming loop
                             task = asyncio.create_task(ws_manager.broadcast(event))
@@ -795,6 +810,10 @@ class DSPyEngine(EngineComponent):
                                 content="--- End of output ---",
                                 sequence=stream_sequence,
                                 is_final=True,  # Mark as final
+                                artifact_id=str(
+                                    pre_generated_artifact_id
+                                ),  # Phase 6: Track artifact for message streaming
+                                artifact_type=display_data["type"],  # Phase 6: Artifact type name
                             )
                             # Use create_task to avoid blocking the streaming loop
                             task = asyncio.create_task(ws_manager.broadcast(event))

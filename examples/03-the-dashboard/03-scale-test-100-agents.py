@@ -6,7 +6,7 @@ with a large number of nodes. Perfect for stress-testing the visualization syste
 
 How to use:
 1. Run this script: `uv run examples/03-the-dashboard/03-scale-test-100-agents.py`
-2. Open http://localhost:8000 in your browser
+2. Open http://localhost:8344 in your browser
 3. Right-click canvas → Auto Layout → Try different layout algorithms:
    - Hierarchical (Vertical/Horizontal) - See how Dagre handles 100 nodes
    - Circular - 100 nodes in a perfect circle

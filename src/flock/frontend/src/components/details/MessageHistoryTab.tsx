@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useGraphStore } from '../../store/graphStore';
 
 interface MessageHistoryTabProps {
@@ -12,70 +12,119 @@ interface MessageHistoryEntry {
   direction: 'consumed' | 'published';
   payload: any;
   timestamp: number;
-  correlationId: string;
+  correlationId: string | null;
+  produced_by?: string;
+  consumed_at?: string;
 }
 
-const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType }) => {
-  const messages = useGraphStore((state) => state.messages);
-  const agents = useGraphStore((state) => state.agents);
+const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType: _nodeType }) => {
+  const [messageHistory, setMessageHistory] = useState<MessageHistoryEntry[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const isInitialLoad = useRef(true);
 
-  // Build message history based on node type
-  const messageHistory = useMemo(() => {
-    const history: MessageHistoryEntry[] = [];
+  // Subscribe to real-time events for this node
+  const events = useGraphStore((state) => state.events);
 
-    if (nodeType === 'agent') {
-      const agent = agents.get(nodeId);
-      if (!agent) return history;
-
-      // Get all messages
-      messages.forEach((message) => {
-        // Check if this agent consumed this message
-        const isConsumed = agent.subscriptions.includes(message.type);
-
-        // Check if this agent published this message
-        const isPublished = message.producedBy === nodeId;
-
-        if (isConsumed) {
-          history.push({
-            id: message.id,
-            type: message.type,
-            direction: 'consumed',
-            payload: message.payload,
-            timestamp: message.timestamp,
-            correlationId: message.correlationId,
-          });
-        }
-
-        if (isPublished) {
-          history.push({
-            id: `${message.id}-published`,
-            type: message.type,
-            direction: 'published',
-            payload: message.payload,
-            timestamp: message.timestamp,
-            correlationId: message.correlationId,
-          });
-        }
-      });
-    } else if (nodeType === 'message') {
-      // For message nodes, just show that single message
-      const message = messages.get(nodeId);
-      if (message) {
-        history.push({
-          id: message.id,
-          type: message.type,
-          direction: 'published',
-          payload: message.payload,
-          timestamp: message.timestamp,
-          correlationId: message.correlationId,
-        });
+  // Phase 4.1 Feature Gap Fix: Fetch complete message history from backend API
+  // Includes both produced AND consumed messages for the node
+  useEffect(() => {
+    const fetchMessageHistory = async () => {
+      // Only show loading spinner on initial load
+      if (isInitialLoad.current) {
+        setIsLoading(true);
       }
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/artifacts/history/${nodeId}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch message history: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        // Convert ISO timestamps to milliseconds
+        const history = data.messages.map((msg: any) => ({
+          id: msg.id,
+          type: msg.type,
+          direction: msg.direction,
+          payload: msg.payload,
+          timestamp: new Date(msg.consumed_at || msg.timestamp).getTime(),
+          correlationId: msg.correlation_id,
+          produced_by: msg.produced_by,
+          consumed_at: msg.consumed_at,
+        }));
+
+        setMessageHistory(history);
+      } catch (err) {
+        console.error('Failed to fetch message history:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error');
+      } finally {
+        if (isInitialLoad.current) {
+          setIsLoading(false);
+          isInitialLoad.current = false;
+        }
+      }
+    };
+
+    fetchMessageHistory();
+  }, [nodeId]);
+
+  // Real-time updates: Refetch when new events arrive for this node
+  useEffect(() => {
+    // Debounce refetch to avoid spamming API
+    let refetchTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRefetch = () => {
+      if (refetchTimer !== null) {
+        clearTimeout(refetchTimer);
+      }
+
+      refetchTimer = setTimeout(async () => {
+        refetchTimer = null;
+
+        try {
+          const response = await fetch(`/api/artifacts/history/${nodeId}`);
+          if (!response.ok) return;
+
+          const data = await response.json();
+
+          const history = data.messages.map((msg: any) => ({
+            id: msg.id,
+            type: msg.type,
+            direction: msg.direction,
+            payload: msg.payload,
+            timestamp: new Date(msg.consumed_at || msg.timestamp).getTime(),
+            correlationId: msg.correlation_id,
+            produced_by: msg.produced_by,
+            consumed_at: msg.consumed_at,
+          }));
+
+          setMessageHistory(history);
+        } catch (err) {
+          console.error('Failed to refetch message history:', err);
+        }
+      }, 500); // 500ms debounce
+    };
+
+    // Check if any recent event relates to this node
+    const recentEvents = events.slice(-10); // Check last 10 events
+    const hasRelevantEvent = recentEvents.some(
+      (event: any) => event.producedBy === nodeId || event.consumedBy === nodeId
+    );
+
+    if (hasRelevantEvent) {
+      scheduleRefetch();
     }
 
-    // Sort by timestamp (most recent first)
-    return history.sort((a, b) => b.timestamp - a.timestamp);
-  }, [nodeId, nodeType, messages, agents]);
+    return () => {
+      if (refetchTimer !== null) {
+        clearTimeout(refetchTimer);
+      }
+    };
+  }, [events, nodeId]);
 
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
@@ -111,7 +160,33 @@ const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType 
         color: 'var(--color-text-primary)',
       }}
     >
-      {messageHistory.length === 0 ? (
+      {isLoading ? (
+        <div
+          data-testid="loading-messages"
+          style={{
+            padding: 'var(--space-layout-md)',
+            color: 'var(--color-text-muted)',
+            fontSize: 'var(--font-size-body-sm)',
+            fontFamily: 'var(--font-family-sans)',
+            textAlign: 'center',
+          }}
+        >
+          Loading message history...
+        </div>
+      ) : error ? (
+        <div
+          data-testid="error-messages"
+          style={{
+            padding: 'var(--space-layout-md)',
+            color: 'var(--color-error-light)',
+            fontSize: 'var(--font-size-body-sm)',
+            fontFamily: 'var(--font-family-sans)',
+            textAlign: 'center',
+          }}
+        >
+          Error: {error}
+        </div>
+      ) : messageHistory.length === 0 ? (
         <div
           data-testid="empty-messages"
           style={{

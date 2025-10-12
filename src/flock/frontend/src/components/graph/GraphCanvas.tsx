@@ -38,14 +38,12 @@ const GraphCanvas: React.FC = () => {
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
-  const agents = useGraphStore((state) => state.agents);
-  const messages = useGraphStore((state) => state.messages);
-  const runs = useGraphStore((state) => state.runs);
   const generateAgentViewGraph = useGraphStore((state) => state.generateAgentViewGraph);
   const generateBlackboardViewGraph = useGraphStore((state) => state.generateBlackboardViewGraph);
-  const updateNodePosition = useGraphStore((state) => state.updateNodePosition);
+  const updateNodePosition = useGraphStore ((state) => state.updateNodePosition);
   const addModule = useModuleStore((state) => state.addModule);
-  const applyFilters = useGraphStore((state) => state.applyFilters);
+  // UI Optimization Migration (Phase 4 - Spec 002): Use filterStore.applyFilters (backend-driven)
+  const applyFilters = useFilterStore((state) => state.applyFilters);
 
   const correlationId = useFilterStore((state) => state.correlationId);
   const timeRange = useFilterStore((state) => state.timeRange);
@@ -84,23 +82,30 @@ const GraphCanvas: React.FC = () => {
     []
   );
 
-  // Generate graph when mode changes OR when agents/messages/runs change
+  // UI Optimization Migration (Phase 4.1 - Spec 002): Generate graph when mode changes
+  // Backend snapshot includes ALL latest data, no need to watch OLD agents/messages/runs Maps
+  // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
+  // DO NOT add them to dependencies or it will cause infinite loop when nodes update
   useEffect(() => {
     if (mode === 'agent') {
       generateAgentViewGraph();
     } else {
       generateBlackboardViewGraph();
     }
-  }, [mode, agents, messages, runs, generateAgentViewGraph, generateBlackboardViewGraph]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // Regenerate graph when edge settings change to apply new edge styles
+  // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
+  // DO NOT add them to dependencies or it will cause infinite loop when nodes update
   useEffect(() => {
     if (mode === 'agent') {
       generateAgentViewGraph();
     } else {
       generateBlackboardViewGraph();
     }
-  }, [edgeType, edgeStrokeWidth, edgeAnimation, mode, generateAgentViewGraph, generateBlackboardViewGraph]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edgeType, edgeStrokeWidth, edgeAnimation, mode]);
 
   // Apply filters whenever filter store state changes
   useEffect(() => {

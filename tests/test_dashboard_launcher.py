@@ -24,18 +24,18 @@ class TestDashboardLauncher:
     @pytest.fixture
     def launcher(self, mock_frontend_dir):
         """Create launcher instance with mocked frontend directory."""
-        return DashboardLauncher(port=8000, frontend_dir=mock_frontend_dir)
+        return DashboardLauncher(port=8344, frontend_dir=mock_frontend_dir)
 
     def test_initialization(self, launcher):
         """Test launcher initializes with correct default values."""
-        assert launcher.port == 8000
+        assert launcher.port == 8344
         assert launcher.dev_mode is False
         assert launcher._npm_process is None
 
     def test_initialization_dev_mode(self, mock_frontend_dir):
         """Test launcher initializes in dev mode when DASHBOARD_DEV=1."""
         with patch.dict(os.environ, {"DASHBOARD_DEV": "1"}):
-            launcher = DashboardLauncher(port=8000, frontend_dir=mock_frontend_dir)
+            launcher = DashboardLauncher(port=8344, frontend_dir=mock_frontend_dir)
             assert launcher.dev_mode is True
 
     @patch("subprocess.run")
@@ -100,7 +100,7 @@ class TestDashboardLauncher:
         launcher._launch_browser()
 
         # Should open browser with correct URL
-        mock_browser_open.assert_called_once_with("http://localhost:8000")
+        mock_browser_open.assert_called_once_with("http://localhost:8344")
 
     @patch("webbrowser.open")
     def test_launch_browser_error_handling(self, mock_browser_open, launcher):

@@ -1,10 +1,12 @@
 import React from 'react';
-import type { Agent, Message } from '../../types/graph';
+import type { Message } from '../../types/graph';
 import type { TimeRange, ArtifactSummary } from '../../types/filters';
 
+// UI Optimization Migration (Phase 4.1 - Spec 002): ModuleContext uses OLD Phase 1 architecture
+// TODO: Update module system to use GraphNode[] instead of Maps
 export interface ModuleContext {
-  // Data access
-  agents: Map<string, Agent>;
+  // Data access (DEPRECATED - Phase 1 architecture, use events array instead)
+  agents: Map<string, any>; // OLD: was Map<string, Agent>
   messages: Map<string, Message>;
   events: Message[];
 

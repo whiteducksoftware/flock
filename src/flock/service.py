@@ -257,14 +257,14 @@ class BlackboardHTTPService:
             return PlainTextResponse("\n".join(lines))
 
     def run(
-        self, host: str = "127.0.0.1", port: int = 8000
+        self, host: str = "127.0.0.1", port: int = 8344
     ) -> None:  # pragma: no cover - manual execution
         import uvicorn
 
         uvicorn.run(self.app, host=host, port=port)
 
     async def run_async(
-        self, host: str = "127.0.0.1", port: int = 8000
+        self, host: str = "127.0.0.1", port: int = 8344
     ) -> None:  # pragma: no cover - manual execution
         """Run the service asynchronously (for use within async context)."""
         import uvicorn

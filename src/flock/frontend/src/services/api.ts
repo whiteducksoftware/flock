@@ -171,25 +171,9 @@ export async function fetchAgents(): Promise<Agent[]> {
   }
 }
 
-/**
- * Fetch registered agents and transform to graph store format
- * Returns agents with 'idle' status ready for initial display
- */
-export async function fetchRegisteredAgents(): Promise<import('../types/graph').Agent[]> {
-  const agents = await fetchAgents();
-  return agents.map(agent => ({
-    id: agent.name,
-    name: agent.name,
-    status: 'idle' as const,
-    subscriptions: agent.subscriptions || [],
-    outputTypes: agent.output_types || [],
-    lastActive: Date.now(),
-    sentCount: 0,
-    recvCount: 0,
-    receivedByType: {},
-    sentByType: {},
-  }));
-}
+// UI Optimization Migration (Phase 4.1 - Spec 002): Removed fetchRegisteredAgents()
+// OLD Phase 1 function that transformed API agents to graph store format
+// Backend now provides agent data directly in GraphSnapshot
 
 /**
  * Publish an artifact to the orchestrator

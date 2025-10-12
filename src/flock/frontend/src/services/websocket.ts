@@ -1,7 +1,6 @@
 import { useWSStore } from '../store/wsStore';
 import { useGraphStore } from '../store/graphStore';
 import { useFilterStore } from '../store/filterStore';
-import { useUIStore } from '../store/uiStore';
 
 interface WebSocketMessage {
   event_type: 'agent_activated' | 'message_published' | 'streaming_output' | 'agent_completed' | 'agent_error';
@@ -9,14 +8,6 @@ interface WebSocketMessage {
   correlation_id: string;
   session_id: string;
   data: any;
-}
-
-interface StoreInterface {
-  addAgent: (agent: any) => void;
-  updateAgent: (id: string, updates: any) => void;
-  addMessage: (message: any) => void;
-  updateMessage: (id: string, updates: any) => void;
-  batchUpdate?: (update: any) => void;
 }
 
 export class WebSocketClient {
@@ -34,23 +25,39 @@ export class WebSocketClient {
   private heartbeatInterval: number | null = null;
   private heartbeatTimeout: number | null = null;
   private connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'disconnecting' | 'error' = 'disconnected';
-  private store: StoreInterface;
   private enableHeartbeat: boolean;
 
-  constructor(url: string, mockStore?: StoreInterface) {
+  // UI Optimization Migration (Phase 2 - Spec 002): Debounced graph refresh
+  private refreshTimer: number | null = null;
+  private refreshDebounceMs = 500; // 500ms batching window
+
+  constructor(url: string) {
     this.url = url;
-    this.store = mockStore || {
-      addAgent: (agent: any) => useGraphStore.getState().addAgent(agent),
-      updateAgent: (id: string, updates: any) => useGraphStore.getState().updateAgent(id, updates),
-      addMessage: (message: any) => useGraphStore.getState().addMessage(message),
-      updateMessage: (id: string, updates: any) => useGraphStore.getState().updateMessage(id, updates),
-      batchUpdate: (update: any) => useGraphStore.getState().batchUpdate(update),
-    };
     // Phase 11 Fix: Disable heartbeat entirely - it causes unnecessary disconnects
     // WebSocket auto-reconnects on real network issues without needing heartbeat
     // The heartbeat was closing connections every 2min when backend didn't respond to pings
     this.enableHeartbeat = false;
     this.setupEventHandlers();
+  }
+
+  /**
+   * UI Optimization Migration (Phase 2 - Spec 002): Debounced graph refresh
+   *
+   * Batch multiple graph-changing events within 500ms window, then fetch fresh
+   * snapshot from backend. This replaces immediate regenerateGraph() calls.
+   */
+  private scheduleGraphRefresh(): void {
+    if (this.refreshTimer !== null) {
+      clearTimeout(this.refreshTimer);
+    }
+
+    this.refreshTimer = window.setTimeout(() => {
+      this.refreshTimer = null;
+      // Call the NEW async refreshCurrentView() method
+      useGraphStore.getState().refreshCurrentView().catch((error) => {
+        console.error('[WebSocket] Graph refresh failed:', error);
+      });
+    }, this.refreshDebounceMs);
   }
 
   private updateFilterStateFromPublishedMessage(data: any): void {
@@ -159,289 +166,116 @@ export class WebSocketClient {
   private setupEventHandlers(): void {
     // Handler for agent_activated: create/update agent in graph AND create Run
     this.on('agent_activated', (data) => {
-      const agents = useGraphStore.getState().agents;
-      const messages = useGraphStore.getState().messages;
-      const existingAgent = agents.get(data.agent_id);
+      // UI Optimization Migration (Phase 2 - Spec 002): DEPRECATED client-side agent tracking
+      // Backend now handles all agent data. Frontend only tracks real-time status overlay.
+      // OLD CODE REMOVED: agents Map, receivedByType tracking, addAgent(), recordConsumption()
+      // NEW BEHAVIOR: Backend refresh will include updated agent data
 
-      // Count received messages by type
-      const receivedByType = { ...(existingAgent?.receivedByType || {}) };
-      if (data.consumed_artifacts && data.consumed_artifacts.length > 0) {
-        // Look up each consumed artifact and count by type
-        data.consumed_artifacts.forEach((artifactId: string) => {
-          const message = messages.get(artifactId);
-          if (message) {
-            receivedByType[message.type] = (receivedByType[message.type] || 0) + 1;
-          }
-        });
-      }
+      // Update real-time status (fast, local)
+      useGraphStore.getState().updateAgentStatus(data.agent_name, 'running');
 
-      // Bug Fix #2: Preserve sentCount/recvCount if agent already exists
-      // Otherwise counters get reset to 0 on each activation
-      const agent = {
-        id: data.agent_id,
-        name: data.agent_name,
-        status: 'running' as const,
-        subscriptions: data.consumed_types || [],
-        lastActive: Date.now(),
-        sentCount: existingAgent?.sentCount || 0, // Preserve existing count
-        recvCount: (existingAgent?.recvCount || 0) + (data.consumed_artifacts?.length || 0), // Add new consumed artifacts
-        outputTypes: data.produced_types || [], // Get output types from backend
-        receivedByType, // Track per-type received counts
-        sentByType: existingAgent?.sentByType || {}, // Preserve sent counts
-      };
-      this.store.addAgent(agent);
-
-      // Phase 11 Bug Fix: Record actual consumption to track filtering
-      // This enables showing "(3, filtered: 1)" on edges
-      if (data.consumed_artifacts && data.consumed_artifacts.length > 0) {
-        useGraphStore.getState().recordConsumption(data.consumed_artifacts, data.agent_id);
-      }
-
-      // Create Run object for Blackboard View edges
-      // Bug Fix: Use run_id from backend (unique per agent activation) instead of correlation_id
-      const run = {
-        run_id: data.run_id || `run_${Date.now()}`, // data.run_id is ctx.task_id from backend
-        agent_name: data.agent_name,
-        correlation_id: data.correlation_id, // Separate field for grouping runs
-        status: 'active' as const,
-        consumed_artifacts: data.consumed_artifacts || [],
-        produced_artifacts: [], // Will be populated on message_published
-        started_at: new Date().toISOString(),
-      };
-      if (this.store.batchUpdate) {
-        this.store.batchUpdate({ runs: [run] });
-      }
+      // Schedule debounced refresh (batches within 500ms, then fetches backend snapshot)
+      this.scheduleGraphRefresh();
     });
 
     // Handler for message_published: update existing streaming message or create new one
     this.on('message_published', (data) => {
-      // Finalize or create the message
-      const messages = useGraphStore.getState().messages;
-      const streamingMessageId = `streaming_${data.produced_by}_${data.correlation_id}`;
-      const existingMessage = messages.get(streamingMessageId);
+      // UI Optimization Migration (Phase 2 - Spec 002): DEPRECATED client-side message tracking
+      // Backend now handles all message/artifact data. Frontend only tracks events for display.
+      // OLD CODE REMOVED: messages Map, addMessage(), updateMessage(), finalizeStreamingMessage(),
+      //                   agent counter updates, run tracking
+      // NEW BEHAVIOR: Backend refresh will include all updated data
 
-      if (existingMessage) {
-        // Update existing streaming message with final data
-        const tags = Array.isArray(data.tags) ? data.tags : [];
-        const visibilityKind = data.visibility?.kind || data.visibility_kind || 'Unknown';
-        const finalMessage = {
-          ...existingMessage,
-          id: data.artifact_id, // Replace temp ID with real artifact ID
-          type: data.artifact_type,
-          payload: data.payload,
-          tags,
-          visibilityKind,
-          partitionKey: data.partition_key ?? null,
-          version: data.version ?? 1,
-          isStreaming: false, // Streaming complete
-          streamingText: '', // Clear streaming text
-        };
-
-        // Use store action to properly update (triggers graph regeneration)
-        useGraphStore.getState().finalizeStreamingMessage(streamingMessageId, finalMessage);
-      } else {
-        // No streaming message - create new message directly
-        const tags = Array.isArray(data.tags) ? data.tags : [];
-        const visibilityKind = data.visibility?.kind || data.visibility_kind || 'Unknown';
-        const message = {
-          id: data.artifact_id,
-          type: data.artifact_type,
-          payload: data.payload,
-          timestamp: data.timestamp ? new Date(data.timestamp).getTime() : Date.now(),
-          correlationId: data.correlation_id || '',
-          producedBy: data.produced_by,
-          tags,
-          visibilityKind,
-          partitionKey: data.partition_key ?? null,
-          version: data.version ?? 1,
-          isStreaming: false,
-        };
-        this.store.addMessage(message);
+      // Phase 6: Finalize streaming message node if it exists
+      if (data.artifact_id) {
+        useGraphStore.getState().finalizeStreamingMessageNode(data.artifact_id);
       }
 
-      // Update producer agent counters (outputTypes come from agent_activated event now)
-      const producer = useGraphStore.getState().agents.get(data.produced_by);
-      if (producer) {
-        // Track sent count by type
-        const sentByType = { ...(producer.sentByType || {}) };
-        sentByType[data.artifact_type] = (sentByType[data.artifact_type] || 0) + 1;
-
-        this.store.updateAgent(data.produced_by, {
-          sentCount: (producer.sentCount || 0) + 1,
-          lastActive: Date.now(),
-          sentByType,
-        });
-      } else {
-        // Producer doesn't exist as a registered agent - create virtual agent
-        // This handles orchestrator-published artifacts (e.g., initial Idea from dashboard PublishControl)
-        this.store.addAgent({
-          id: data.produced_by,
-          name: data.produced_by,
-          status: 'idle' as const,
-          subscriptions: [],
-          lastActive: Date.now(),
-          sentCount: 1,
-          recvCount: 0,
-          outputTypes: [data.artifact_type], // Virtual agents get type from their first message
-          sentByType: { [data.artifact_type]: 1 },
-          receivedByType: {},
-        });
-      }
-
-      // Phase 11 Bug Fix: Increment consumers' recv count instead of setting to 1
-      if (data.consumers && Array.isArray(data.consumers)) {
-        const agents = useGraphStore.getState().agents;
-        data.consumers.forEach((consumerId: string) => {
-          const consumer = agents.get(consumerId);
-          if (consumer) {
-            this.store.updateAgent(consumerId, {
-              recvCount: (consumer.recvCount || 0) + 1,
-              lastActive: Date.now(),
-            });
-          }
-        });
-      }
-
-      // Update Run with produced artifact for Blackboard View edges
-      // Bug Fix: Find Run by agent_name + correlation_id since run_id is not in message_published event
-      if (data.correlation_id && this.store.batchUpdate) {
-        const runs = useGraphStore.getState().runs;
-        // Find the active Run for this agent + correlation_id
-        const run = Array.from(runs.values()).find(
-          r => r.agent_name === data.produced_by &&
-               r.correlation_id === data.correlation_id &&
-               r.status === 'active'
-        );
-        if (run) {
-          // Add artifact to produced_artifacts if not already present
-          if (!run.produced_artifacts.includes(data.artifact_id)) {
-            const updatedRun = {
-              ...run,
-              produced_artifacts: [...run.produced_artifacts, data.artifact_id],
-            };
-            this.store.batchUpdate({ runs: [updatedRun] });
-          }
-        }
-      }
-
+      // Update filter state (still needed for filter UI)
       this.updateFilterStateFromPublishedMessage(data);
 
-      // Ensure blackboard graph reflects the newly published artifact immediately
-      const mode = useUIStore.getState().mode;
-      if (mode === 'blackboard') {
-        useGraphStore.getState().generateBlackboardViewGraph();
-      } else if (mode === 'agent') {
-        useGraphStore.getState().generateAgentViewGraph();
-      }
+      // Add to events array for Event Log display
+      const message = {
+        id: data.artifact_id,
+        type: data.artifact_type,
+        payload: data.payload,
+        timestamp: data.timestamp ? new Date(data.timestamp).getTime() : Date.now(),
+        correlationId: data.correlation_id || '',
+        producedBy: data.produced_by,
+        tags: Array.isArray(data.tags) ? data.tags : [],
+        visibilityKind: data.visibility?.kind || data.visibility_kind || 'Unknown',
+        partitionKey: data.partition_key ?? null,
+        version: data.version ?? 1,
+        isStreaming: false,
+      };
+      useGraphStore.getState().addEvent(message);
+
+      // Schedule debounced refresh (batches multiple events within 500ms)
+      // This will replace the streaming node with the full backend snapshot
+      this.scheduleGraphRefresh();
     });
 
     // Handler for streaming_output: update live output (Phase 6)
     this.on('streaming_output', (data) => {
-      // Phase 6: Update detail window live output
-      console.log('[WebSocket] Streaming output:', data);
-      // Update agent to show it's active and track streaming tokens for news ticker
+      // Phase 6: Only log start (sequence=0) and finish (is_final=true) to reduce noise
+      if (data.sequence === 0 || data.is_final) {
+        console.log('[WebSocket] Streaming output:', data.is_final ? 'FINAL' : 'START', data);
+      }
+
+      // Phase 6: Agent streaming tokens (for yellow ticker in agent nodes)
+      // Note: artifact_id is now always present (Phase 6), so we removed the !artifact_id check
       if (data.agent_name && data.output_type === 'llm_token') {
-        const agents = useGraphStore.getState().agents;
-        const agent = agents.get(data.agent_name);
-        const currentTokens = agent?.streamingTokens || [];
+        const { streamingTokens } = useGraphStore.getState();
+        const currentTokens = streamingTokens.get(data.agent_name) || [];
 
         // Keep only last 6 tokens (news ticker effect)
         const updatedTokens = [...currentTokens, data.content].slice(-6);
 
-        this.store.updateAgent(data.agent_name, {
-          lastActive: Date.now(),
-          streamingTokens: updatedTokens,
-        });
+        useGraphStore.getState().updateStreamingTokens(data.agent_name, updatedTokens);
       }
 
-      // Create/update streaming message node for blackboard view
-      if (data.output_type === 'llm_token' && data.agent_name && data.correlation_id) {
-        const messages = useGraphStore.getState().messages;
-        // Use agent_name + correlation_id as temporary ID
-        const streamingMessageId = `streaming_${data.agent_name}_${data.correlation_id}`;
-        const existingMessage = messages.get(streamingMessageId);
+      // Phase 6: Message streaming preview (for streaming textbox in message nodes)
+      if (data.artifact_id && data.output_type === 'llm_token') {
+        // Create or update streaming message node
+        useGraphStore.getState().createOrUpdateStreamingMessageNode(
+          data.artifact_id,
+          data.content,
+          {
+            agent_name: data.agent_name,
+            correlation_id: data.correlation_id,
+            artifact_type: data.artifact_type,  // Phase 6: Artifact type name for node header
+          }
+        );
 
-        if (existingMessage) {
-          // Append token to existing streaming message using updateMessage
-          // This updates the messages Map without flooding the events array
-          this.store.updateMessage(streamingMessageId, {
-            streamingText: (existingMessage.streamingText || '') + data.content,
-            timestamp: data.timestamp ? new Date(data.timestamp).getTime() : Date.now(),
-          });
-        } else if (data.sequence === 0 || !existingMessage) {
-          // Look up agent's typical output type
-          const agents = useGraphStore.getState().agents;
-          const agent = agents.get(data.agent_name);
-          const outputType = agent?.outputTypes?.[0] || 'output';
-
-          // Create new streaming message on first token
-          const streamingMessage = {
-            id: streamingMessageId,
-            type: outputType, // Use agent's known output type
-            payload: {},
-            timestamp: data.timestamp ? new Date(data.timestamp).getTime() : Date.now(),
-            correlationId: data.correlation_id || '',
-            producedBy: data.agent_name,
-            tags: [],
-            visibilityKind: 'Unknown',
-            isStreaming: true,
-            streamingText: data.content,
-          };
-          this.store.addMessage(streamingMessage);
+        // Finalize when streaming is complete (is_final=true)
+        if (data.is_final) {
+          useGraphStore.getState().finalizeStreamingMessageNode(data.artifact_id);
         }
       }
 
       // Note: The actual output storage is handled by LiveOutputTab's event listener
-      // This handler is for store updates only
+      // This handler is for real-time token updates only
     });
 
     // Handler for agent_completed: update agent status to idle
     this.on('agent_completed', (data) => {
-      this.store.updateAgent(data.agent_name, {
-        status: 'idle',
-        lastActive: Date.now(),
-        streamingTokens: [], // Clear news ticker on completion
-      });
+      // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
+      // for FAST real-time updates without backend calls
+      useGraphStore.getState().updateAgentStatus(data.agent_name, 'idle');
+      useGraphStore.getState().updateStreamingTokens(data.agent_name, []); // Clear news ticker
 
-      // Update Run status to completed for Blackboard View edges
-      // Bug Fix: Use run_id from event data (agent_completed has run_id)
-      if (data.run_id && this.store.batchUpdate) {
-        const runs = useGraphStore.getState().runs;
-        const run = runs.get(data.run_id);
-        if (run) {
-          const updatedRun = {
-            ...run,
-            status: 'completed' as const,
-            completed_at: new Date().toISOString(),
-            duration_ms: data.duration_ms,
-          };
-          this.store.batchUpdate({ runs: [updatedRun] });
-        }
-      }
+      // OLD CODE REMOVED: Run status tracking (runs Map, batchUpdate)
+      // Backend handles run data now
     });
 
     // Handler for agent_error: update agent status to error
     this.on('agent_error', (data) => {
-      this.store.updateAgent(data.agent_name, {
-        status: 'error',
-        lastActive: Date.now(),
-      });
+      // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
+      // for FAST real-time updates without backend calls
+      useGraphStore.getState().updateAgentStatus(data.agent_name, 'error');
 
-      // Update Run status to error
-      // Bug Fix: Use run_id from event data (agent_error has run_id)
-      if (data.run_id && this.store.batchUpdate) {
-        const runs = useGraphStore.getState().runs;
-        const run = runs.get(data.run_id);
-        if (run) {
-          const updatedRun = {
-            ...run,
-            status: 'error' as const,
-            completed_at: new Date().toISOString(),
-            error_message: data.error_message || 'Unknown error',
-          };
-          this.store.batchUpdate({ runs: [updatedRun] });
-        }
-      }
+      // OLD CODE REMOVED: Run status tracking (runs Map, batchUpdate)
+      // Backend handles run data now
     });
 
     // Handler for ping: respond with pong
@@ -602,12 +436,14 @@ export class WebSocketClient {
       let eventType = message.event_type;
       if (!eventType) {
         // Infer event type from data structure for test compatibility
+        // IMPORTANT: Check streaming_output BEFORE message_published since streaming events
+        // now have artifact_id + artifact_type (Phase 6) but also have run_id + output_type
         if (data.agent_id && data.consumed_types) {
           eventType = 'agent_activated';
-        } else if (data.artifact_id && data.artifact_type) {
-          eventType = 'message_published';
         } else if (data.run_id && data.output_type) {
           eventType = 'streaming_output';
+        } else if (data.artifact_id && data.artifact_type) {
+          eventType = 'message_published';
         } else if (data.run_id && data.duration_ms !== undefined) {
           eventType = 'agent_completed';
         } else if (data.run_id && data.error_type) {

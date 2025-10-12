@@ -2,16 +2,18 @@ import React from 'react';
 import { useUIStore } from '../../store/uiStore';
 import { useGraphStore } from '../../store/graphStore';
 import NodeDetailWindow from './NodeDetailWindow';
+import MessageDetailWindow from './MessageDetailWindow';
 
 /**
  * Container component that renders all open detail windows.
  * Manages multiple floating windows with independent drag/resize.
+ *
+ * Phase 6: Agent nodes show NodeDetailWindow (Live Output, Message History, Run Status tabs)
+ *          Message nodes show MessageDetailWindow (Metadata, Payload, Consumption History)
  */
 const DetailWindowContainer: React.FC = () => {
   const detailWindows = useUIStore((state) => state.detailWindows);
-  const mode = useUIStore((state) => state.mode);
-  const agents = useGraphStore((state) => state.agents);
-  const messages = useGraphStore((state) => state.messages);
+  const nodes = useGraphStore((state) => state.nodes);
 
   // Convert Map to array for rendering
   const windowEntries = Array.from(detailWindows.entries());
@@ -37,22 +39,16 @@ const DetailWindowContainer: React.FC = () => {
         }}
       >
         {windowEntries.map(([nodeId, _window]) => {
-          // Determine node type based on mode and what exists
-          let nodeType: 'agent' | 'message' = 'agent';
+          // UI Optimization Migration (Phase 4.1): Read node type from state.nodes
+          const node = nodes.find((n) => n.id === nodeId);
+          const nodeType: 'agent' | 'message' = node?.type === 'agent' ? 'agent' : 'message';
 
-          if (mode === 'agent') {
-            // In agent view, check if it's an agent
-            if (agents.has(nodeId)) {
-              nodeType = 'agent';
-            }
-          } else if (mode === 'blackboard') {
-            // In blackboard view, nodes are messages
-            if (messages.has(nodeId)) {
-              nodeType = 'message';
-            }
+          // Render appropriate window based on node type
+          if (nodeType === 'message') {
+            return <MessageDetailWindow key={nodeId} nodeId={nodeId} />;
+          } else {
+            return <NodeDetailWindow key={nodeId} nodeId={nodeId} nodeType={nodeType} />;
           }
-
-          return <NodeDetailWindow key={nodeId} nodeId={nodeId} nodeType={nodeType} />;
         })}
       </div>
     </div>

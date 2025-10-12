@@ -88,7 +88,7 @@ FLOCK_TRACE_TTL_DAYS=30
 #### Dashboard Configuration
 ```bash
 # Dashboard port
-FLOCK_DASHBOARD_PORT=8000
+FLOCK_DASHBOARD_PORT=8344
 
 # Dashboard host
 FLOCK_DASHBOARD_HOST="0.0.0.0"
@@ -113,7 +113,7 @@ tracing:
 
 # Dashboard settings
 dashboard:
-  port: 8000
+  port: 8344
   host: "0.0.0.0"
   enable_websocket: true
 ```

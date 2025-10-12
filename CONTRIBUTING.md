@@ -451,7 +451,7 @@ uv run python examples/showcase/04_dashboard.py
 cd frontend
 npm run dev
 
-# Dashboard opens at http://localhost:8000
+# Dashboard opens at http://localhost:8344
 ```
 
 ### Debug Tests
@@ -476,7 +476,7 @@ uv run pytest tests/test_orchestrator.py --cov=src/flock/orchestrator.py
 # Build docs locally
 poe docs
 
-# Docs served at http://127.0.0.1:8000
+# Docs served at http://127.0.0.1:8344
 ```
 
 ## 🚨 Troubleshooting

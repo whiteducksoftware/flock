@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools, persist } from 'zustand/middleware';
 import {
   TimeRange,
   CorrelationIdMetadata,
@@ -8,6 +8,7 @@ import {
   SavedFilterMeta,
   FilterSnapshot,
 } from '../types/filters';
+import { useGraphStore } from './graphStore';
 
 export type ActiveFilterType =
   | 'correlationId'
@@ -45,6 +46,7 @@ interface FilterState {
   setTags: (tags: string[]) => void;
   setVisibility: (visibility: string[]) => void;
   clearFilters: () => void;
+  applyFilters: () => Promise<void>;
 
   updateAvailableCorrelationIds: (metadata: CorrelationIdMetadata[]) => void;
   updateAvailableFacets: (facets: FilterFacets) => void;
@@ -82,20 +84,21 @@ const uniqueSorted = (items: string[]) => Array.from(new Set(items)).sort((a, b)
 
 export const useFilterStore = create<FilterState>()(
   devtools(
-    (set, get) => ({
-      correlationId: null,
-      timeRange: defaultTimeRange,
-      selectedArtifactTypes: [],
-      selectedProducers: [],
-      selectedTags: [],
-      selectedVisibility: [],
-      availableCorrelationIds: [],
-      availableArtifactTypes: [],
-      availableProducers: [],
-      availableTags: [],
-      availableVisibility: [],
-      summary: null,
-      savedFilters: [],
+    persist(
+      (set, get) => ({
+        correlationId: null,
+        timeRange: defaultTimeRange,
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+        availableCorrelationIds: [],
+        availableArtifactTypes: [],
+        availableProducers: [],
+        availableTags: [],
+        availableVisibility: [],
+        summary: null,
+        savedFilters: [],
 
       setCorrelationId: (id) => set({ correlationId: id }),
       setTimeRange: (range) => set({ timeRange: range }),
@@ -112,6 +115,13 @@ export const useFilterStore = create<FilterState>()(
           selectedTags: [],
           selectedVisibility: [],
         }),
+
+      applyFilters: async () => {
+        // UI Optimization Migration (Phase 4 - Spec 002): Backend-driven filtering
+        // Trigger backend snapshot refresh with current filter state
+        // The graphStore will read current filter state via buildGraphRequest()
+        await useGraphStore.getState().refreshCurrentView();
+      },
 
       updateAvailableCorrelationIds: (metadata) => {
         const sorted = [...metadata].sort((a, b) => b.first_seen - a.first_seen);
@@ -244,7 +254,19 @@ export const useFilterStore = create<FilterState>()(
           return {};
         });
       },
-    }),
+      }),
+      {
+        name: 'flock-filter-state',
+        partialize: (state) => ({
+          correlationId: state.correlationId,
+          timeRange: state.timeRange,
+          selectedArtifactTypes: state.selectedArtifactTypes,
+          selectedProducers: state.selectedProducers,
+          selectedTags: state.selectedTags,
+          selectedVisibility: state.selectedVisibility,
+        }),
+      }
+    ),
     { name: 'filterStore' }
   )
 );

@@ -57,9 +57,9 @@ class WebSocketManager:
         self._heartbeat_task: asyncio.Task | None = None
         self._shutdown = False
 
-        # Store streaming output events by agent_name for history (max 128000 per agent)
+        # Store streaming output events by agent_name for history (max 128344 per agent)
         self._streaming_history: dict[str, deque[StreamingOutputEvent]] = defaultdict(
-            lambda: deque(maxlen=128000)
+            lambda: deque(maxlen=128344)
         )
 
     async def add_client(self, websocket: WebSocket) -> None:

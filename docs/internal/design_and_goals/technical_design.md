@@ -1149,7 +1149,7 @@ engine = DSPyEngine(
     theme="cyberpunk",                     # Output theme
     stream_vertical_overflow="crop_above", # Keep recent output visible
     temperature=0.7,
-    max_tokens=8000,
+    max_tokens=8344,
 )
 
 agent.with_engines(engine)
@@ -1399,11 +1399,11 @@ spec:
         livenessProbe:
           httpGet:
             path: /health/live
-            port: 8000
+            port: 8344
         readinessProbe:
           httpGet:
             path: /health/ready
-            port: 8000
+            port: 8344
 ```
 
 ---

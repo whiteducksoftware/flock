@@ -44,6 +44,12 @@ class Pizza(BaseModel):
     step_by_step_instructions: list[str]
 
 
+@flock_type
+class FoodCritique(BaseModel):
+    score: int
+    comments: str
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ⚙️ Orchestrator Setup
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -61,6 +67,13 @@ def build_orchestrator(db_path: Path) -> tuple[Flock, SQLiteBlackboardStore]:
         .publishes(Pizza)
     )
 
+    (
+        flock.agent("food_critic")
+        .description("Evaluates the pizza and provides feedback.")
+        .consumes(Pizza)
+        .publishes(FoodCritique)
+    )
+
     return flock, store
 
 
@@ -71,12 +84,8 @@ def build_orchestrator(db_path: Path) -> tuple[Flock, SQLiteBlackboardStore]:
 
 async def bake_pizzas(flock: Flock, ideas: Iterable[str]) -> None:
     """Publish pizza ideas and wait for the agent cascade to finish."""
-    for idea in ideas:
-        artifact = MyDreamPizza(pizza_idea=idea)
-        print(f"📨 Publishing idea: {artifact.pizza_idea}")
-        await flock.publish(artifact)
 
-    await flock.run_until_idle()
+    
 
 
 async def show_recent_history(flock: Flock) -> None:
@@ -92,17 +101,18 @@ async def main() -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     flock, store = build_orchestrator(db_path)
+    #await flock.serve(dashboard_v2=True)
     try:
         await store.ensure_schema()
 
         ideas = [
-            "a wood-fired truffle pizza with black garlic and burrata",
-            "detroit-style pepperoni with hot honey drizzle",
-            "hawaiian remix with charred pineapple and jalapeño chutney",
+            MyDreamPizza(pizza_idea="classic margherita with fresh basil and mozzarella"),
+            MyDreamPizza(pizza_idea="hawaiian remix with charred pineapple and jalapeño chutney"),
         ]
 
-        await bake_pizzas(flock, ideas)
-        await show_recent_history(flock)
+        await flock.publish_many(ideas)
+
+        await flock.run_until_idle()
 
         print(f"\n✅ History stored in: {db_path}")
         print("Next: run `uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py`")

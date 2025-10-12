@@ -388,7 +388,7 @@ asyncio.run(main())
 **Run with dashboard:**
 ```bash
 python pizza_workflow.py
-# Browser opens to http://localhost:8000
+# Browser opens to http://localhost:8344
 # Click "Publish" → Select PizzaIdea → Enter "truffle pizza" → Publish
 # Watch agents execute in real-time!
 ```

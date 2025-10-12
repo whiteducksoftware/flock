@@ -5,11 +5,10 @@ import { measureRenderTime } from './utils/performance';
 import { initializeWebSocket } from './services/websocket';
 import { registerModules } from './components/modules/registerModules';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { fetchRegisteredAgents, fetchArtifactSummary, fetchArtifacts } from './services/api';
+import { fetchArtifactSummary, fetchArtifacts } from './services/api';
 import { useGraphStore } from './store/graphStore';
 import { useUIStore } from './store/uiStore';
 import { useFilterStore } from './store/filterStore';
-import { mapArtifactToMessage } from './utils/artifacts';
 import { indexedDBService } from './services/indexeddb';
 
 // Register modules once at module load time
@@ -38,9 +37,10 @@ const App: React.FC = () => {
         await indexedDBService.initialize();
 
         const filterStore = useFilterStore.getState();
-        const graphStore = useGraphStore.getState();
-        const uiStore = useUIStore.getState();
 
+        // UI Optimization Migration (Phase 2/4 - Spec 002): Backend-driven architecture
+        // Fetch artifact summary to populate filter facets
+        //    Note: Node positions are now loaded automatically in generateAgentViewGraph/generateBlackboardViewGraph
         const summary = await fetchArtifactSummary();
         filterStore.setSummary(summary);
         filterStore.updateAvailableFacets({
@@ -50,17 +50,9 @@ const App: React.FC = () => {
           visibilities: Object.keys(summary.by_visibility),
         });
 
+        // Fetch correlation IDs for filter dropdown
         const artifactResponse = await fetchArtifacts({ limit: 200, embedMeta: true });
-        const messages = artifactResponse.items.map(mapArtifactToMessage);
-        if (messages.length > 0) {
-          graphStore.batchUpdate({ messages });
-          if (uiStore.mode === 'blackboard') {
-            graphStore.generateBlackboardViewGraph();
-          } else {
-            graphStore.generateAgentViewGraph();
-          }
-          graphStore.applyFilters();
-
+        if (artifactResponse.items.length > 0) {
           const correlationMetadata = new Map<string, { correlation_id: string; first_seen: number; artifact_count: number; run_count: number }>();
           artifactResponse.items.forEach((item) => {
             if (!item.correlation_id) return;
@@ -82,44 +74,44 @@ const App: React.FC = () => {
             filterStore.updateAvailableCorrelationIds(Array.from(correlationMetadata.values()));
           }
         }
+
+        // Generate initial graph view from backend snapshot
+        //    (GraphCanvas useEffect will handle initial render based on mode)
+        //    No need to manually trigger here - happens in GraphCanvas mount
       } catch (error) {
         console.error('[App] Failed to load historical artifacts:', error);
       }
     };
 
-    // Load registered agents from orchestrator
-    // This pre-populates the graph with all agent nodes before any events occur
-    const loadInitialAgents = async () => {
+    // UI Optimization Migration (Phase 2/4 - Spec 002): Simplified initial graph load
+    // Backend snapshot includes all agents + artifacts + edges in a single call
+    const loadInitialGraph = async () => {
       try {
-        console.log('[App] Fetching registered agents...');
-        const agents = await fetchRegisteredAgents();
-        console.log(`[App] Loaded ${agents.length} registered agents`);
-
+        console.log('[App] Loading initial graph from backend snapshot...');
         const graphStore = useGraphStore.getState();
         const uiStore = useUIStore.getState();
 
-        // Add all agents to the store
-        agents.forEach(agent => graphStore.addAgent(agent));
-
-        // Generate initial graph layout based on current view mode
+        // Fetch complete graph snapshot from backend (includes agents + artifacts + edges)
         if (uiStore.mode === 'agent') {
-          graphStore.generateAgentViewGraph();
+          await graphStore.generateAgentViewGraph();
         } else {
-          graphStore.generateBlackboardViewGraph();
+          await graphStore.generateBlackboardViewGraph();
         }
+
+        console.log('[App] Initial graph loaded from backend');
       } catch (error) {
-        console.error('[App] Failed to load registered agents:', error);
-        // Graceful degradation: agents will appear when they activate via WebSocket
+        console.error('[App] Failed to load initial graph:', error);
+        // Graceful degradation: graph will populate as WebSocket events arrive
       }
     };
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8344/ws';
     const wsClient = initializeWebSocket(wsUrl);
     let cancelled = false;
 
     const bootstrap = async () => {
       await loadHistoricalData();
-      await loadInitialAgents();
+      await loadInitialGraph();
 
       if (!cancelled) {
         wsClient.connect();

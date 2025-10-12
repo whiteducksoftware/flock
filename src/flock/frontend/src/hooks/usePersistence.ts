@@ -57,7 +57,6 @@ function debounce<T extends (...args: any[]) => void>(
  */
 export function usePersistence() {
   const mode = useUIStore((state) => state.mode);
-  const updateNodePosition = useGraphStore((state) => state.updateNodePosition);
 
   // Use ref to maintain debounced function identity across renders
   const debouncedSaveRef = useRef<((nodeId: string, mode: VisualizationMode, position: Position) => void) | null>(null);
@@ -92,6 +91,8 @@ export function usePersistence() {
 
   /**
    * Load node positions from IndexedDB for current mode
+   * Note: Deliberately excludes updateNodePosition from dependencies to prevent infinite loops
+   * The function is stable from zustand, so we can safely use it without re-creating the callback
    */
   const loadNodePositions = useCallback(async (currentMode: VisualizationMode) => {
     try {
@@ -104,15 +105,16 @@ export function usePersistence() {
       }
 
       // Apply loaded positions to graph store
+      // Use graphStore directly to avoid dependency on updateNodePosition selector
       layouts.forEach((layout) => {
-        updateNodePosition(layout.node_id, { x: layout.x, y: layout.y });
+        useGraphStore.getState().updateNodePosition(layout.node_id, { x: layout.x, y: layout.y });
       });
 
       console.log(`[usePersistence] Loaded ${layouts.length} node positions for ${currentMode} view`);
     } catch (error) {
       console.error(`[usePersistence] Failed to load node positions for ${currentMode} view:`, error);
     }
-  }, [updateNodePosition]);
+  }, []); // Empty deps - function is now stable!
 
   /**
    * Load positions on mount and when mode changes

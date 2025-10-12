@@ -6,10 +6,15 @@
  * Calls module onMount/onUnmount lifecycle hooks when instances change.
  *
  * SPECIFICATION: docs/specs/003-real-time-dashboard/FRONTEND_ARCHITECTURE.md Section 7.4
- * - Build ModuleContext from store data (agents, messages, events, filters)
+ * - Build ModuleContext from store data (events, filters)
  * - Call module onMount lifecycle hooks when instances added
  * - Call module onUnmount lifecycle hooks when instances removed
  * - Provide publish and invoke actions in context
+ *
+ * UI Optimization Migration (Phase 4.1 - Spec 002):
+ * - agents/messages Maps are DEPRECATED (Phase 1 architecture)
+ * - Modules should use events array instead
+ * - Empty Maps provided for backward compatibility
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -34,9 +39,11 @@ import { moduleRegistry, type ModuleContext } from '../components/modules/Module
 export function useModules() {
   // Subscribe to store state
   const instances = useModuleStore((state) => state.instances);
-  const agents = useGraphStore((state) => state.agents);
-  const messages = useGraphStore((state) => state.messages);
   const events = useGraphStore((state) => state.events);
+
+  // UI Optimization Migration (Phase 4.1): Provide empty Maps for deprecated fields
+  const agents = useMemo(() => new Map(), []);
+  const messages = useMemo(() => new Map(), []);
   const correlationId = useFilterStore((state) => state.correlationId);
   const timeRange = useFilterStore((state) => state.timeRange);
   const artifactTypes = useFilterStore((state) => state.selectedArtifactTypes);
@@ -72,7 +79,8 @@ export function useModules() {
         console.log('[Module Context] Invoke agent:', agentName, 'with inputs:', inputs);
       },
     }),
-    [agents, messages, events, correlationId, timeRange, artifactTypes, producers, tags, visibility, summary]
+    // Note: agents and messages are stable empty Maps, so excluded from deps
+    [events, correlationId, timeRange, artifactTypes, producers, tags, visibility, summary]
   );
 
   /**

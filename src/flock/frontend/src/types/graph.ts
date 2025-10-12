@@ -1,20 +1,4 @@
-import { Node, Edge } from '@xyflow/react';
-
-export interface Agent {
-  id: string;
-  name: string;
-  status: 'idle' | 'running' | 'error';
-  subscriptions: string[];
-  lastActive: number;
-  sentCount: number;
-  recvCount: number;
-  position?: { x: number; y: number };
-  outputTypes?: string[]; // Artifact types this agent produces
-  receivedByType?: Record<string, number>; // Count of messages received per type
-  sentByType?: Record<string, number>; // Count of messages sent per type
-  streamingTokens?: string[]; // Last 6 streaming tokens for news ticker effect
-}
-
+// Legacy types (still used during migration for events, WebSocket handlers)
 export interface Message {
   id: string;
   type: string;
@@ -26,37 +10,86 @@ export interface Message {
   visibilityKind?: string;
   partitionKey?: string | null;
   version?: number;
-  isStreaming?: boolean; // True while streaming, false when complete
-  streamingText?: string; // Accumulated streaming text (raw)
+  isStreaming?: boolean;
+  streamingText?: string;
   consumedBy?: string[];
 }
 
-export interface AgentNodeData extends Record<string, unknown> {
-  name: string;
-  status: 'idle' | 'running' | 'error';
-  subscriptions: string[];
-  outputTypes?: string[];
-  sentCount: number;
-  recvCount: number;
-  receivedByType?: Record<string, number>;
-  sentByType?: Record<string, number>;
-  streamingTokens?: string[]; // Last 6 streaming tokens for news ticker effect
+// New backend API types (Phase 1 - Spec 002)
+export interface GraphRequest {
+  viewMode: 'agent' | 'blackboard';
+  filters: GraphFilters;
+  options?: GraphRequestOptions;
 }
 
-export interface MessageNodeData extends Record<string, unknown> {
-  artifactType: string;
-  payloadPreview: string;
-  payload: any; // Full payload for display
-  producedBy: string;
-  consumedBy: string[];
-  timestamp: number;
-  isStreaming?: boolean; // True while streaming tokens
-  streamingText?: string; // Raw streaming text
-  tags?: string[];
-  visibilityKind?: string;
+export interface GraphFilters {
+  correlation_id?: string | null;
+  time_range: TimeRangeFilter;
+  artifactTypes: string[];
+  producers: string[];
+  tags: string[];
+  visibility: string[];
 }
 
-export type AgentViewNode = Node<AgentNodeData, 'agent'>;
-export type MessageViewNode = Node<MessageNodeData, 'message'>;
-export type GraphNode = AgentViewNode | MessageViewNode;
-export type GraphEdge = Edge;
+export interface TimeRangeFilter {
+  preset: 'last10min' | 'last5min' | 'last1hour' | 'all' | 'custom';
+  start?: string | null;
+  end?: string | null;
+}
+
+export interface GraphRequestOptions {
+  include_statistics?: boolean;
+  label_offset_strategy?: 'stack' | 'none';
+  limit?: number;
+}
+
+export interface GraphSnapshot {
+  generatedAt: string;
+  viewMode: 'agent' | 'blackboard';
+  filters: GraphFilters;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  statistics: GraphStatistics | null;
+  totalArtifacts: number;
+  truncated: boolean;
+}
+
+export interface GraphNode {
+  id: string;
+  type: 'agent' | 'message';
+  data: Record<string, any>;
+  position: { x: number; y: number };
+  hidden: boolean;
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: 'message_flow' | 'transformation';
+  label?: string | null;
+  data: Record<string, any>;
+  markerEnd?: { type: string; width: number; height: number };
+  hidden: boolean;
+}
+
+export interface GraphStatistics {
+  producedByAgent: Record<string, GraphAgentMetrics>;
+  consumedByAgent: Record<string, GraphAgentMetrics>;
+  artifactSummary: ArtifactSummary;
+}
+
+export interface GraphAgentMetrics {
+  total: number;
+  byType: Record<string, number>;
+}
+
+export interface ArtifactSummary {
+  total: number;
+  by_type: Record<string, number>;
+  by_producer: Record<string, number>;
+  by_visibility: Record<string, number>;
+  tag_counts: Record<string, number>;
+  earliest_created_at: string;
+  latest_created_at: string;
+}

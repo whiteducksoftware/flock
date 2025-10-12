@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from flock.artifacts import Artifact
 from flock.dashboard.collector import DashboardEventCollector
+from flock.store import InMemoryBlackboardStore
 from flock.dashboard.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
@@ -43,7 +44,7 @@ class TestOutput(BaseModel):
 @pytest.fixture
 def collector():
     """Create fresh collector instance for each test."""
-    return DashboardEventCollector()
+    return DashboardEventCollector(store=InMemoryBlackboardStore())
 
 
 @pytest.fixture
@@ -180,6 +181,24 @@ async def test_on_post_publish_emits_message_published(collector, test_agent, te
 
     # Note: consumers field will be empty in Phase 1 (no subscription matching)
     assert event.consumers == []
+
+
+@pytest.mark.asyncio
+async def test_snapshot_agent_registry_tracks_metadata(
+    collector, test_agent, test_context, test_artifacts
+):
+    test_agent.description = "Historical agent"
+    await collector.on_pre_consume(test_agent, test_context, test_artifacts)
+    registry = await collector.snapshot_agent_registry()
+    assert "test_agent" in registry
+    snapshot = registry["test_agent"]
+    assert snapshot.name == "test_agent"
+    assert snapshot.description == "Historical agent"
+    assert snapshot.first_seen is not None
+    assert snapshot.last_seen is not None
+    await collector.clear_agent_registry()
+    registry_after_clear = await collector.snapshot_agent_registry()
+    assert "test_agent" not in registry_after_clear
 
 
 @pytest.mark.asyncio
@@ -397,7 +416,7 @@ async def test_in_memory_buffer_max_size(collector, test_agent, test_context):
 @pytest.mark.asyncio
 async def test_multiple_agents_different_correlation_ids(orchestrator):
     """Test that collector tracks events from multiple agents with different correlation_ids."""
-    collector = DashboardEventCollector()
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
 
     # Create two agents - access underlying agent objects
     agent1 = orchestrator.agent("agent1")._agent
@@ -560,7 +579,7 @@ async def test_collector_as_agent_component(orchestrator):
             return EvalResult.from_object(output, agent=agent)
 
     # Create agent with collector
-    collector = DashboardEventCollector()
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
     agent = (
         orchestrator.agent("test_agent")
         .consumes(CollectorTestInput)
