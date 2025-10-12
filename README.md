@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="Flock Banner" src="https://raw.githubusercontent.com/whiteducksoftware/flock/master/docs/assets/images/flock.png" width="800">
+  <img alt="Flock Banner" src="docs/assets/images/flock.png" width="800">
 </p>
 <p align="center">
   <a href="https://docs.flock.whiteduck.de" target="_blank"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-blue?style=for-the-badge&logo=readthedocs"></a>
