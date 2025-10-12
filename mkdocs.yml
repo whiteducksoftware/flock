@@ -1,7 +1,7 @@
 site_name: Flock
 site_description: A declarative blackboard multi-agent framework
 site_author: white duck GmbH
-site_url: https://github.com/whiteducksoftware/flock
+site_url: https://whiteducksoftware.github.io/flock/
 
 repo_name: whiteducksoftware/flock
 repo_url: https://github.com/whiteducksoftware/flock
