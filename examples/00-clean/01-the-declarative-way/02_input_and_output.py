@@ -67,30 +67,10 @@ movie_master = (
 
 async def main():
     movie_idea = MovieIdea(idea="A movie about cat owners during the rise of AI")
-    print(f"🎬 Pitching: {movie_idea.idea}")
-    print("🎭 Movie master is writing the screenplay...\n")
     await flock.publish(movie_idea)
     await flock.run_until_idle()
-    movies = await flock.store.get_by_type(Movie)
-    if movies:
-        movie = movies[0]
-        print("✅ Movie created!\n")
-        print(f"🎬 Title: {movie.fun_title}")
-        print(f"⏱️  Runtime: {movie.runtime} minutes")
-        print(f"🎭 Genre: {movie.genre}")
-        print(f"👥 Characters: {len(movie.characters)}")
-        print(f"\n📖 Synopsis:\n{movie.synopsis}\n")
-        if movie.characters:
-            char = movie.characters[0]
-            print("⭐ Featured Character:")
-            print(f"   Name: {char.name} {char.emoji}")
-            print(f"   Role: {char.role}")
-            print(f'   Catchphrase: "{char.catchphrase}"')
-            if char.possible_actors:
-                actor, reason = next(iter(char.possible_actors.items()))
-                print(f"   Casting idea: {actor} - {reason}")
-    else:
-        print("❌ No movie was created!")
+    movie = await flock.store.get_by_type(Movie)[0]
+    print(f"🎬 Title: {movie.fun_title}")
 
 if __name__ == "__main__":
     asyncio.run(main(), debug=True)

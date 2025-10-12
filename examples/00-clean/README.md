@@ -3,7 +3,7 @@
 This directory contains **absolutely clean** versions of all Flock Flow examples with **ZERO comments, docstrings, or explanations**.
 
 ## What Was Removed:
-- ❌ All `"""docstrings"""`
+- ❌ All `"""docstrings"""` (except docstrings that are also getting consumed by agents)
 - ❌ All `# comments` 
 - ❌ All explanatory text
 - ❌ All decorative separators

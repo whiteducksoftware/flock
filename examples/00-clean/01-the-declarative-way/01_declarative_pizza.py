@@ -27,12 +27,8 @@ pizza_master = (
 
 async def main():
     pizza_idea = MyDreamPizza(pizza_idea="pizza with tartufo")
-    print(f"🎯 Ordering: {pizza_idea.pizza_idea}")
-    print("👨‍🍳 Pizza master is working...\n")
     await flock.publish(pizza_idea)
     await flock.run_until_idle()
-    print("✅ Pizza recipe generated!")
-    print("💡 TIP: Check your console - you'll see the structured Pizza output!")
-
+    
 if __name__ == "__main__":
     asyncio.run(main(), debug=True)

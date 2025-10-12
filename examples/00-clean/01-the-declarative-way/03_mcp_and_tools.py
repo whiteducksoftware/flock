@@ -8,7 +8,8 @@ from flock.registry import flock_tool, flock_type
 
 
 @flock_tool
-def write_file(string: str, file_name: str) -> None:
+def write_report(string: str, file_name: str) -> None:
+    """Writes a research report to a markdown file. FILE NAME IN CAPS AND WITH CURRENT DATE."""
     from pathlib import Path
     file_path = Path(".flock") / file_name
     directory = file_path.parent
@@ -20,6 +21,7 @@ def write_file(string: str, file_name: str) -> None:
 
 @flock_tool
 def get_current_date() -> str:
+    """Returns the current date in YYYY-MM-DD format."""
     from datetime import UTC, datetime
     return datetime.now(UTC).strftime("%Y-%m-%d")
 
@@ -70,12 +72,12 @@ except Exception as e:
     )
     .consumes(Task)
     .with_mcps(["search_web", "read-website"])
-    .with_tools([write_file, get_current_date])
+    .with_tools([write_report, get_current_date])
     .publishes(Report)
 )
 
 async def main():
-    task = Task(description="A review meta overview of the movie 'Dune: Part Two'")
+    task = Task(description="Are blackboard multi agent systems the future of AI?")
     print(f"�� Research task: {task.description}")
     print("�� Web researcher is gathering information...\n")
     print("📡 This will:")
