@@ -96,8 +96,12 @@ class GraphAgentMetrics(BaseModel):
 class GraphStatistics(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    produced_by_agent: Dict[str, GraphAgentMetrics] = Field(default_factory=dict, alias="producedByAgent")
-    consumed_by_agent: Dict[str, GraphAgentMetrics] = Field(default_factory=dict, alias="consumedByAgent")
+    produced_by_agent: Dict[str, GraphAgentMetrics] = Field(
+        default_factory=dict, alias="producedByAgent"
+    )
+    consumed_by_agent: Dict[str, GraphAgentMetrics] = Field(
+        default_factory=dict, alias="consumedByAgent"
+    )
     artifact_summary: Dict[str, Any] = Field(default_factory=dict, alias="artifactSummary")
 
 

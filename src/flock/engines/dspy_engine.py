@@ -660,7 +660,9 @@ class DSPyEngine(EngineComponent):
                                     content=str(token + "\n"),
                                     sequence=stream_sequence,
                                     is_final=False,
-                                    artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
+                                    artifact_id=str(
+                                        pre_generated_artifact_id
+                                    ),  # Phase 6: Track artifact for message streaming
                                     artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                 )
                                 # Use create_task to avoid blocking the streaming loop
@@ -706,7 +708,9 @@ class DSPyEngine(EngineComponent):
                                         content=str(token),
                                         sequence=stream_sequence,
                                         is_final=False,
-                                        artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
+                                        artifact_id=str(
+                                            pre_generated_artifact_id
+                                        ),  # Phase 6: Track artifact for message streaming
                                         artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                     )
                                     # Use create_task to avoid blocking the streaming loop
@@ -752,8 +756,12 @@ class DSPyEngine(EngineComponent):
                                 content=str(token),
                                 sequence=stream_sequence,
                                 is_final=False,
-                                artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
-                                artifact_type=display_data["type"],  # Phase 6: Artifact type name from display_data
+                                artifact_id=str(
+                                    pre_generated_artifact_id
+                                ),  # Phase 6: Track artifact for message streaming
+                                artifact_type=display_data[
+                                    "type"
+                                ],  # Phase 6: Artifact type name from display_data
                             )
                             # Use create_task to avoid blocking the streaming loop
                             task = asyncio.create_task(ws_manager.broadcast(event))
@@ -783,7 +791,9 @@ class DSPyEngine(EngineComponent):
                                 content="\nAmount of output tokens: " + str(stream_sequence),
                                 sequence=stream_sequence,
                                 is_final=True,  # Mark as final
-                                artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
+                                artifact_id=str(
+                                    pre_generated_artifact_id
+                                ),  # Phase 6: Track artifact for message streaming
                                 artifact_type=display_data["type"],  # Phase 6: Artifact type name
                             )
                             # Use create_task to avoid blocking the streaming loop
@@ -800,7 +810,9 @@ class DSPyEngine(EngineComponent):
                                 content="--- End of output ---",
                                 sequence=stream_sequence,
                                 is_final=True,  # Mark as final
-                                artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
+                                artifact_id=str(
+                                    pre_generated_artifact_id
+                                ),  # Phase 6: Track artifact for message streaming
                                 artifact_type=display_data["type"],  # Phase 6: Artifact type name
                             )
                             # Use create_task to avoid blocking the streaming loop

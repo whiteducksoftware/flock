@@ -24,7 +24,12 @@ from flock.dashboard.models.graph import (
 )
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.orchestrator import Flock
-from flock.store import Artifact, ArtifactEnvelope as StoreArtifactEnvelope, BlackboardStore, FilterConfig
+from flock.store import (
+    Artifact,
+    ArtifactEnvelope as StoreArtifactEnvelope,
+    BlackboardStore,
+    FilterConfig,
+)
 
 
 class GraphAssembler(metaclass=AutoTracedMeta):
@@ -102,17 +107,12 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         for envelope in envelopes:
             artifact: Artifact = envelope.artifact
             artifact_id = str(artifact.id)
-            consumers = {
-                record.consumer
-                for record in envelope.consumptions
-            }
+            consumers = {record.consumer for record in envelope.consumptions}
             runtime = runtime_consumptions.get(artifact_id, [])
             consumers.update(runtime)
 
             correlation_id = (
-                str(artifact.correlation_id)
-                if artifact.correlation_id is not None
-                else None
+                str(artifact.correlation_id) if artifact.correlation_id is not None else None
             )
             visibility_kind = getattr(artifact.visibility, "kind", None)
             if visibility_kind is None:
@@ -181,7 +181,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         existing_names: set[str] = set()
 
         for agent in self._orchestrator.agents:
-            subscriptions = sorted({type_name for sub in agent.subscriptions for type_name in sub.type_names})
+            subscriptions = sorted(
+                {type_name for sub in agent.subscriptions for type_name in sub.type_names}
+            )
             output_types = sorted({output.spec.type_name for output in agent.outputs})
 
             produced = produced_metrics.get(agent.name)
@@ -387,8 +389,12 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         for run in self._collect_runs_for_blackboard(artifacts, graph_state):
             if run.status == "active":
                 continue
-            consumed = [artifact_id for artifact_id in run.consumed_artifacts if artifact_id in artifact_ids]
-            produced = [artifact_id for artifact_id in run.produced_artifacts if artifact_id in artifact_ids]
+            consumed = [
+                artifact_id for artifact_id in run.consumed_artifacts if artifact_id in artifact_ids
+            ]
+            produced = [
+                artifact_id for artifact_id in run.produced_artifacts if artifact_id in artifact_ids
+            ]
             if not consumed or not produced:
                 continue
             for consumed_id in consumed:
@@ -456,7 +462,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         graph_state: GraphState,
     ) -> List[GraphRun]:
         existing_runs = list(graph_state.runs)
-        synthetic_runs = self._build_synthetic_runs(artifacts, graph_state.consumptions, existing_runs)
+        synthetic_runs = self._build_synthetic_runs(
+            artifacts, graph_state.consumptions, existing_runs
+        )
         return existing_runs + synthetic_runs
 
     def _build_synthetic_runs(
@@ -505,7 +513,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
         return synthetic_runs
 
-    def _resolve_time_bounds(self, time_range: GraphTimeRange) -> tuple[datetime | None, datetime | None]:
+    def _resolve_time_bounds(
+        self, time_range: GraphTimeRange
+    ) -> tuple[datetime | None, datetime | None]:
         now = datetime.now(timezone.utc)
         preset = time_range.preset
 

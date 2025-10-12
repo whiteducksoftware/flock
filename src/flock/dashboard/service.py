@@ -135,6 +135,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                 await self.websocket_manager.remove_client(websocket)
 
         if self.graph_assembler is not None:
+
             @app.post("/api/dashboard/graph", response_model=GraphSnapshot)
             async def get_dashboard_graph(request: GraphRequest) -> GraphSnapshot:
                 """Return server-side assembled dashboard graph snapshot."""
@@ -796,15 +797,19 @@ class DashboardHTTPService(BlackboardHTTPService):
                 )
 
                 for artifact in produced_artifacts:
-                    messages.append({
-                        "id": str(artifact.id),
-                        "type": artifact.type,
-                        "direction": "published",
-                        "payload": artifact.payload,
-                        "timestamp": artifact.created_at.isoformat(),
-                        "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
-                        "produced_by": artifact.produced_by,
-                    })
+                    messages.append(
+                        {
+                            "id": str(artifact.id),
+                            "type": artifact.type,
+                            "direction": "published",
+                            "payload": artifact.payload,
+                            "timestamp": artifact.created_at.isoformat(),
+                            "correlation_id": str(artifact.correlation_id)
+                            if artifact.correlation_id
+                            else None,
+                            "produced_by": artifact.produced_by,
+                        }
+                    )
 
                 # 2. Get messages CONSUMED by this node
                 # Query all artifacts with consumption metadata
@@ -817,31 +822,29 @@ class DashboardHTTPService(BlackboardHTTPService):
                     artifact = envelope.artifact
                     for consumption in envelope.consumptions:
                         if consumption.consumer == node_id:
-                            messages.append({
-                                "id": str(artifact.id),
-                                "type": artifact.type,
-                                "direction": "consumed",
-                                "payload": artifact.payload,
-                                "timestamp": artifact.created_at.isoformat(),
-                                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
-                                "produced_by": artifact.produced_by,
-                                "consumed_at": consumption.consumed_at.isoformat(),
-                            })
+                            messages.append(
+                                {
+                                    "id": str(artifact.id),
+                                    "type": artifact.type,
+                                    "direction": "consumed",
+                                    "payload": artifact.payload,
+                                    "timestamp": artifact.created_at.isoformat(),
+                                    "correlation_id": str(artifact.correlation_id)
+                                    if artifact.correlation_id
+                                    else None,
+                                    "produced_by": artifact.produced_by,
+                                    "consumed_at": consumption.consumed_at.isoformat(),
+                                }
+                            )
 
                 # Sort by timestamp (most recent first)
                 messages.sort(key=lambda m: m.get("consumed_at", m["timestamp"]), reverse=True)
 
-                return {
-                    "node_id": node_id,
-                    "messages": messages,
-                    "total": len(messages)
-                }
+                return {"node_id": node_id, "messages": messages, "total": len(messages)}
 
             except Exception as e:
                 logger.exception(f"Failed to get message history for {node_id}: {e}")
-                raise HTTPException(
-                    status_code=500, detail=f"Failed to get message history: {e!s}"
-                )
+                raise HTTPException(status_code=500, detail=f"Failed to get message history: {e!s}")
 
         @app.get("/api/agents/{agent_id}/runs")
         async def get_agent_runs(agent_id: str) -> dict[str, Any]:
@@ -886,17 +889,11 @@ class DashboardHTTPService(BlackboardHTTPService):
                 # Example implementation when run tracking is added:
                 # runs = await orchestrator.get_agent_run_history(agent_id, limit=50)
 
-                return {
-                    "agent_id": agent_id,
-                    "runs": runs,
-                    "total": len(runs)
-                }
+                return {"agent_id": agent_id, "runs": runs, "total": len(runs)}
 
             except Exception as e:
                 logger.exception(f"Failed to get run history for {agent_id}: {e}")
-                raise HTTPException(
-                    status_code=500, detail=f"Failed to get run history: {e!s}"
-                )
+                raise HTTPException(status_code=500, detail=f"Failed to get run history: {e!s}")
 
     def _register_theme_routes(self) -> None:
         """Register theme API endpoints for dashboard customization."""
