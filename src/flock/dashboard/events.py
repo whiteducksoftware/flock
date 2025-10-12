@@ -102,6 +102,8 @@ class StreamingOutputEvent(BaseModel):
 
     For Phase 1: This is optional and not fully implemented.
     Schema per DATA_MODEL.md lines 152-159.
+
+    Phase 6 Extension: Added artifact_id for message node streaming in blackboard view.
     """
 
     # Event metadata
@@ -119,6 +121,10 @@ class StreamingOutputEvent(BaseModel):
     content: str  # Token text or log line
     sequence: int  # Monotonic sequence for ordering
     is_final: bool = False  # True when agent completes this output stream
+
+    # Artifact tracking (Phase 6: for message streaming preview)
+    artifact_id: str | None = None  # Pre-generated artifact ID for streaming message nodes
+    artifact_type: str | None = None  # Artifact type name (e.g., "__main__.BookOutline")
 
 
 class AgentCompletedEvent(BaseModel):

@@ -5,6 +5,7 @@ import { GraphSnapshot, GraphStatistics, GraphRequest } from '../types/graph';
 import { fetchGraphSnapshot, mergeNodePositions, overlayWebSocketState } from '../services/graphService';
 import { useFilterStore } from './filterStore';
 import { Message } from '../types/graph';
+import { indexedDBService } from '../services/indexeddb';
 
 /**
  * Graph Store - UI Optimization Migration (Spec 002)
@@ -16,6 +17,7 @@ import { Message } from '../types/graph';
  * - Backend generates nodes + edges + statistics
  * - Position merging: saved > current > backend > random
  * - WebSocket state overlay for real-time updates (status, tokens)
+ * - Debounced refresh: 100ms batching for snappy UX
  * - No more client-side edge derivation
  * - No more synthetic runs or complex Maps
  */
@@ -52,6 +54,10 @@ interface GraphState {
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
   addEvent: (message: Message) => void;
 
+  // Actions - Streaming message nodes (Phase 6)
+  createOrUpdateStreamingMessageNode: (artifactId: string, token: string, eventData?: any) => void;
+  finalizeStreamingMessageNode: (artifactId: string) => void;
+
   // Actions - Position persistence
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   saveNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
@@ -59,71 +65,6 @@ interface GraphState {
 
   // Actions - UI state
   setViewMode: (viewMode: 'agent' | 'blackboard') => void;
-}
-
-/**
- * IndexedDB helpers for position persistence
- */
-const DB_NAME = 'flock-dashboard';
-const DB_VERSION = 1;
-const STORE_NAME = 'node-positions';
-
-async function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-  });
-}
-
-async function savePositionToDB(nodeId: string, position: { x: number; y: number }): Promise<void> {
-  const db = await openDB();
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  const store = tx.objectStore(STORE_NAME);
-  store.put(position, nodeId);
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-async function loadPositionsFromDB(): Promise<Map<string, { x: number; y: number }>> {
-  const db = await openDB();
-  const tx = db.transaction(STORE_NAME, 'readonly');
-  const store = tx.objectStore(STORE_NAME);
-  const request = store.getAllKeys();
-
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => {
-      const keys = request.result as string[];
-      const positions = new Map<string, { x: number; y: number }>();
-
-      let pending = keys.length;
-      if (pending === 0) {
-        resolve(positions);
-        return;
-      }
-
-      keys.forEach((key) => {
-        const getRequest = store.get(key);
-        getRequest.onsuccess = () => {
-          positions.set(key, getRequest.result);
-          pending--;
-          if (pending === 0) {
-            resolve(positions);
-          }
-        };
-        getRequest.onerror = () => reject(getRequest.error);
-      });
-    };
-    request.onerror = () => reject(request.error);
-  });
 }
 
 /**
@@ -191,6 +132,9 @@ export const useGraphStore = create<GraphState>()(
         set({ isLoading: true, error: null, viewMode: 'agent' });
 
         try {
+          // Load saved positions from IndexedDB first
+          await get().loadSavedPositions();
+
           const request = buildGraphRequest('agent');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
 
@@ -243,6 +187,9 @@ export const useGraphStore = create<GraphState>()(
         set({ isLoading: true, error: null, viewMode: 'blackboard' });
 
         try {
+          // Load saved positions from IndexedDB first
+          await get().loadSavedPositions();
+
           const request = buildGraphRequest('blackboard');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
 
@@ -306,13 +253,13 @@ export const useGraphStore = create<GraphState>()(
           clearTimeout(refreshTimer);
         }
 
-        // Schedule refresh after 500ms of quiet time
+        // Schedule refresh after 100ms of quiet time (snappy UX)
         refreshTimer = setTimeout(() => {
           refreshTimer = null;
           get().refreshCurrentView().catch((error) => {
             console.error('[GraphStore] Scheduled refresh failed:', error);
           });
-        }, 500);
+        }, 100);
       },
 
       // Real-time WebSocket update actions
@@ -375,6 +322,78 @@ export const useGraphStore = create<GraphState>()(
         });
       },
 
+      // Streaming message nodes (Phase 6)
+      createOrUpdateStreamingMessageNode: (artifactId, token, eventData) => {
+        set((state) => {
+          // Only create/update streaming message nodes in blackboard view
+          // Message nodes should never appear in agent view
+          if (state.viewMode !== 'blackboard') {
+            console.log(`[GraphStore] Ignoring streaming message node in ${state.viewMode} view`);
+            return state; // No changes
+          }
+
+          const existingNode = state.nodes.find(n => n.id === artifactId);
+
+          if (existingNode) {
+            // Update existing streaming node
+            const currentText = (existingNode.data.streamingText as string) || '';
+            const updatedNodes = state.nodes.map(node => {
+              if (node.id === artifactId) {
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    streamingText: currentText + token,
+                    isStreaming: true,
+                  },
+                };
+              }
+              return node;
+            });
+            return { nodes: updatedNodes };
+          } else {
+            // Create new streaming message node
+            const newNode: Node = {
+              id: artifactId,
+              type: 'message',
+              position: { x: Math.random() * 500, y: Math.random() * 500 }, // Random position
+              data: {
+                artifactType: eventData?.artifact_type || 'Unknown',
+                payload: {},
+                producedBy: eventData?.agent_name || 'Unknown',
+                timestamp: Date.now(),
+                streamingText: token,
+                isStreaming: true,
+                tags: [],
+                visibilityKind: 'Public',
+                correlationId: eventData?.correlation_id || '',
+              },
+            };
+            return { nodes: [...state.nodes, newNode] };
+          }
+        });
+      },
+
+      finalizeStreamingMessageNode: (artifactId) => {
+        set((state) => {
+          const nodes = state.nodes.map(node => {
+            if (node.id === artifactId && node.data.isStreaming) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  isStreaming: false,
+                  // streamingText is kept so MessageNode can display it until backend refresh
+                },
+              };
+            }
+            return node;
+          });
+
+          return { nodes };
+        });
+      },
+
       // Position persistence actions
       updateNodePosition: (nodeId, position) => {
         set((state) => {
@@ -390,8 +409,20 @@ export const useGraphStore = create<GraphState>()(
           const savedPositions = new Map(state.savedPositions);
           savedPositions.set(nodeId, position);
 
-          // Save to IndexedDB
-          savePositionToDB(nodeId, position).catch(console.error);
+          // Save to IndexedDB using indexedDBService
+          const viewMode = state.viewMode;
+          const layoutRecord = {
+            node_id: nodeId,
+            x: position.x,
+            y: position.y,
+            last_updated: new Date().toISOString(),
+          };
+
+          if (viewMode === 'agent') {
+            indexedDBService.saveAgentViewLayout(layoutRecord).catch(console.error);
+          } else {
+            indexedDBService.saveBlackboardViewLayout(layoutRecord).catch(console.error);
+          }
 
           return { savedPositions };
         });
@@ -399,10 +430,25 @@ export const useGraphStore = create<GraphState>()(
 
       loadSavedPositions: async () => {
         try {
-          const positions = await loadPositionsFromDB();
+          const viewMode = get().viewMode;
+          let layouts: Array<{ node_id: string; x: number; y: number; last_updated: string }> = [];
+
+          if (viewMode === 'agent') {
+            layouts = await indexedDBService.getAllAgentViewLayouts();
+          } else {
+            layouts = await indexedDBService.getAllBlackboardViewLayouts();
+          }
+
+          // Convert to Map
+          const positions = new Map<string, { x: number; y: number }>();
+          layouts.forEach((layout) => {
+            positions.set(layout.node_id, { x: layout.x, y: layout.y });
+          });
+
           set({ savedPositions: positions });
+          console.log(`[GraphStore] Loaded ${positions.size} saved positions for ${viewMode} view`);
         } catch (error) {
-          console.error('Failed to load saved positions:', error);
+          console.error('[GraphStore] Failed to load saved positions:', error);
         }
       },
 

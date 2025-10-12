@@ -158,7 +158,14 @@ const RunStatusTab: React.FC<RunStatusTabProps> = ({ nodeId, nodeType: _nodeType
             textAlign: 'center',
           }}
         >
-          No previous runs
+          <div style={{ marginBottom: 'var(--space-component-sm)' }}>
+            🚧 Run tracking coming soon!
+          </div>
+          <div style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>
+            This feature will track individual agent executions with timing and metrics.
+            <br />
+            For now, check the Message History tab to see consumed and published messages.
+          </div>
         </div>
       ) : (
         <table

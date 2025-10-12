@@ -567,7 +567,7 @@ describe('Graph Snapshot Integration', () => {
       vi.useRealTimers();
     });
 
-    it('should batch multiple rapid events into single backend fetch after 500ms', async () => {
+    it('should batch multiple rapid events into single backend fetch after 100ms', async () => {
       const mockSnapshot = createMockSnapshot();
       vi.mocked(graphService.fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
 
@@ -588,9 +588,9 @@ describe('Graph Snapshot Integration', () => {
       // No fetch yet (debounce delay)
       expect(graphService.fetchGraphSnapshot).not.toHaveBeenCalled();
 
-      // Advance timers by 500ms (debounce threshold)
+      // Advance timers by 100ms (debounce threshold)
       await act(async () => {
-        vi.advanceTimersByTime(500);
+        vi.advanceTimersByTime(100);
         // Wait for any pending promises
         await Promise.resolve();
       });
@@ -599,7 +599,7 @@ describe('Graph Snapshot Integration', () => {
       expect(graphService.fetchGraphSnapshot).toHaveBeenCalledTimes(1);
     });
 
-    it('should reset debounce timer if new event arrives within 500ms', async () => {
+    it('should reset debounce timer if new event arrives within 100ms', async () => {
       const mockSnapshot = createMockSnapshot();
       vi.mocked(graphService.fetchGraphSnapshot).mockResolvedValue(mockSnapshot);
 
@@ -614,9 +614,9 @@ describe('Graph Snapshot Integration', () => {
         useGraphStore.getState().scheduleRefresh();
       });
 
-      // Advance 300ms (not enough to trigger)
+      // Advance 50ms (not enough to trigger)
       act(() => {
-        vi.advanceTimersByTime(300);
+        vi.advanceTimersByTime(50);
       });
 
       expect(graphService.fetchGraphSnapshot).not.toHaveBeenCalled();
@@ -626,21 +626,21 @@ describe('Graph Snapshot Integration', () => {
         useGraphStore.getState().scheduleRefresh();
       });
 
-      // Advance another 300ms (600ms total, but timer was reset at 300ms)
+      // Advance another 50ms (100ms total, but timer was reset at 50ms)
       act(() => {
-        vi.advanceTimersByTime(300);
+        vi.advanceTimersByTime(50);
       });
 
       // Still no fetch (timer was reset)
       expect(graphService.fetchGraphSnapshot).not.toHaveBeenCalled();
 
-      // Advance final 200ms (500ms since last scheduleRefresh)
+      // Advance final 50ms (100ms since last scheduleRefresh)
       await act(async () => {
-        vi.advanceTimersByTime(200);
+        vi.advanceTimersByTime(50);
         await Promise.resolve();
       });
 
-      // Now it should fetch (500ms of quiet time)
+      // Now it should fetch (100ms of quiet time)
       expect(graphService.fetchGraphSnapshot).toHaveBeenCalledTimes(1);
     });
   });

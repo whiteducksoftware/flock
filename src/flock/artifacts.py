@@ -51,18 +51,25 @@ class ArtifactSpec(BaseModel):
         partition_key: str | None = None,
         tags: set[str] | None = None,
         version: int = 1,
+        artifact_id: UUID | None = None,  # Phase 6: Optional pre-generated ID
     ) -> Artifact:
         payload_model = self.model(**data)
-        return Artifact(
-            type=self.type_name,
-            payload=payload_model.model_dump(),
-            produced_by=produced_by,
-            visibility=ensure_visibility(visibility),
-            correlation_id=correlation_id,
-            partition_key=partition_key,
-            tags=tags or set(),
-            version=version,
-        )
+        artifact_kwargs = {
+            "type": self.type_name,
+            "payload": payload_model.model_dump(),
+            "produced_by": produced_by,
+            "visibility": ensure_visibility(visibility),
+            "correlation_id": correlation_id,
+            "partition_key": partition_key,
+            "tags": tags or set(),
+            "version": version,
+        }
+
+        # Phase 6: Use pre-generated ID if provided (for streaming message preview)
+        if artifact_id is not None:
+            artifact_kwargs["id"] = artifact_id
+
+        return Artifact(**artifact_kwargs)
 
 
 class ArtifactEnvelope(BaseModel):

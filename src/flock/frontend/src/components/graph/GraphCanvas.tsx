@@ -84,22 +84,28 @@ const GraphCanvas: React.FC = () => {
 
   // UI Optimization Migration (Phase 4.1 - Spec 002): Generate graph when mode changes
   // Backend snapshot includes ALL latest data, no need to watch OLD agents/messages/runs Maps
+  // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
+  // DO NOT add them to dependencies or it will cause infinite loop when nodes update
   useEffect(() => {
     if (mode === 'agent') {
       generateAgentViewGraph();
     } else {
       generateBlackboardViewGraph();
     }
-  }, [mode, generateAgentViewGraph, generateBlackboardViewGraph]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // Regenerate graph when edge settings change to apply new edge styles
+  // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
+  // DO NOT add them to dependencies or it will cause infinite loop when nodes update
   useEffect(() => {
     if (mode === 'agent') {
       generateAgentViewGraph();
     } else {
       generateBlackboardViewGraph();
     }
-  }, [edgeType, edgeStrokeWidth, edgeAnimation, mode, generateAgentViewGraph, generateBlackboardViewGraph]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edgeType, edgeStrokeWidth, edgeAnimation, mode]);
 
   // Apply filters whenever filter store state changes
   useEffect(() => {

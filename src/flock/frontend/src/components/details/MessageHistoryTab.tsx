@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useGraphStore } from '../../store/graphStore';
 
 interface MessageHistoryTabProps {
   nodeId: string;
@@ -21,12 +22,19 @@ const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType:
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isInitialLoad = useRef(true);
+
+  // Subscribe to real-time events for this node
+  const events = useGraphStore((state) => state.events);
 
   // Phase 4.1 Feature Gap Fix: Fetch complete message history from backend API
   // Includes both produced AND consumed messages for the node
   useEffect(() => {
     const fetchMessageHistory = async () => {
-      setIsLoading(true);
+      // Only show loading spinner on initial load
+      if (isInitialLoad.current) {
+        setIsLoading(true);
+      }
       setError(null);
 
       try {
@@ -54,12 +62,69 @@ const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType:
         console.error('Failed to fetch message history:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
-        setIsLoading(false);
+        if (isInitialLoad.current) {
+          setIsLoading(false);
+          isInitialLoad.current = false;
+        }
       }
     };
 
     fetchMessageHistory();
   }, [nodeId]);
+
+  // Real-time updates: Refetch when new events arrive for this node
+  useEffect(() => {
+    // Debounce refetch to avoid spamming API
+    let refetchTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRefetch = () => {
+      if (refetchTimer !== null) {
+        clearTimeout(refetchTimer);
+      }
+
+      refetchTimer = setTimeout(async () => {
+        refetchTimer = null;
+
+        try {
+          const response = await fetch(`/api/artifacts/history/${nodeId}`);
+          if (!response.ok) return;
+
+          const data = await response.json();
+
+          const history = data.messages.map((msg: any) => ({
+            id: msg.id,
+            type: msg.type,
+            direction: msg.direction,
+            payload: msg.payload,
+            timestamp: new Date(msg.consumed_at || msg.timestamp).getTime(),
+            correlationId: msg.correlation_id,
+            produced_by: msg.produced_by,
+            consumed_at: msg.consumed_at,
+          }));
+
+          setMessageHistory(history);
+        } catch (err) {
+          console.error('Failed to refetch message history:', err);
+        }
+      }, 500); // 500ms debounce
+    };
+
+    // Check if any recent event relates to this node
+    const recentEvents = events.slice(-10); // Check last 10 events
+    const hasRelevantEvent = recentEvents.some(
+      (event: any) => event.producedBy === nodeId || event.consumedBy === nodeId
+    );
+
+    if (hasRelevantEvent) {
+      scheduleRefetch();
+    }
+
+    return () => {
+      if (refetchTimer !== null) {
+        clearTimeout(refetchTimer);
+      }
+    };
+  }, [events, nodeId]);
 
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();

@@ -186,6 +186,11 @@ export class WebSocketClient {
       //                   agent counter updates, run tracking
       // NEW BEHAVIOR: Backend refresh will include all updated data
 
+      // Phase 6: Finalize streaming message node if it exists
+      if (data.artifact_id) {
+        useGraphStore.getState().finalizeStreamingMessageNode(data.artifact_id);
+      }
+
       // Update filter state (still needed for filter UI)
       this.updateFilterStateFromPublishedMessage(data);
 
@@ -206,17 +211,19 @@ export class WebSocketClient {
       useGraphStore.getState().addEvent(message);
 
       // Schedule debounced refresh (batches multiple events within 500ms)
+      // This will replace the streaming node with the full backend snapshot
       this.scheduleGraphRefresh();
     });
 
     // Handler for streaming_output: update live output (Phase 6)
     this.on('streaming_output', (data) => {
-      // Phase 6: Update detail window live output
-      console.log('[WebSocket] Streaming output:', data);
+      // Phase 6: Only log start (sequence=0) and finish (is_final=true) to reduce noise
+      if (data.sequence === 0 || data.is_final) {
+        console.log('[WebSocket] Streaming output:', data.is_final ? 'FINAL' : 'START', data);
+      }
 
-      // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateStreamingTokens()
-      // for FAST real-time updates without backend calls
-      if (data.agent_name && data.output_type === 'llm_token') {
+      // Agent streaming tokens (for yellow ticker in agent nodes)
+      if (data.agent_name && data.output_type === 'llm_token' && !data.artifact_id) {
         const { streamingTokens } = useGraphStore.getState();
         const currentTokens = streamingTokens.get(data.agent_name) || [];
 
@@ -226,10 +233,24 @@ export class WebSocketClient {
         useGraphStore.getState().updateStreamingTokens(data.agent_name, updatedTokens);
       }
 
-      // UI Optimization Migration (Phase 2 - Spec 002): DEPRECATED streaming message tracking
-      // OLD CODE REMOVED: Streaming message nodes in messages Map
-      // NEW BEHAVIOR: Backend will show streaming messages when they're published
-      // The real-time streaming tokens are shown via updateStreamingTokens() above
+      // Phase 6: Message streaming preview (for streaming textbox in message nodes)
+      if (data.artifact_id && data.output_type === 'llm_token') {
+        // Create or update streaming message node
+        useGraphStore.getState().createOrUpdateStreamingMessageNode(
+          data.artifact_id,
+          data.content,
+          {
+            agent_name: data.agent_name,
+            correlation_id: data.correlation_id,
+            artifact_type: data.artifact_type,  // Phase 6: Artifact type name for node header
+          }
+        );
+
+        // Finalize when streaming is complete (is_final=true)
+        if (data.is_final) {
+          useGraphStore.getState().finalizeStreamingMessageNode(data.artifact_id);
+        }
+      }
 
       // Note: The actual output storage is handled by LiveOutputTab's event listener
       // This handler is for real-time token updates only
@@ -414,12 +435,14 @@ export class WebSocketClient {
       let eventType = message.event_type;
       if (!eventType) {
         // Infer event type from data structure for test compatibility
+        // IMPORTANT: Check streaming_output BEFORE message_published since streaming events
+        // now have artifact_id + artifact_type (Phase 6) but also have run_id + output_type
         if (data.agent_id && data.consumed_types) {
           eventType = 'agent_activated';
-        } else if (data.artifact_id && data.artifact_type) {
-          eventType = 'message_published';
         } else if (data.run_id && data.output_type) {
           eventType = 'streaming_output';
+        } else if (data.artifact_id && data.artifact_type) {
+          eventType = 'message_published';
         } else if (data.run_id && data.duration_ms !== undefined) {
           eventType = 'agent_completed';
         } else if (data.run_id && data.error_type) {

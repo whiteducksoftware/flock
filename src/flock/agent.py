@@ -48,6 +48,7 @@ class AgentOutput:
             partition_key=metadata.get("partition_key"),
             tags=metadata.get("tags"),
             version=metadata.get("version", 1),
+            artifact_id=metadata.get("artifact_id"),  # Phase 6: Preserve engine's ID
         )
 
 
@@ -251,12 +252,20 @@ class Agent(metaclass=AutoTracedMeta):
 
         produced: list[Artifact] = []
         for output_decl in self.outputs:
+            # Phase 6: Find the matching artifact from engine result to preserve its ID
+            matching_artifact = self._find_matching_artifact(output_decl, result)
+
             payload = self._select_payload(output_decl, result)
             if payload is None:
                 continue
             metadata = {
-                "correlation_id": ctx.correlation_id  # Need to add this to Context!
+                "correlation_id": ctx.correlation_id,
             }
+
+            # Phase 6: Preserve artifact ID from engine (for streaming message preview)
+            if matching_artifact:
+                metadata["artifact_id"] = matching_artifact.id
+
             artifact = output_decl.apply(payload, produced_by=self.name, metadata=metadata)
             produced.append(artifact)
             await ctx.board.publish(artifact)
@@ -320,6 +329,35 @@ class Agent(metaclass=AutoTracedMeta):
         default_component = OutputUtilityComponent()
         self.utilities = [default_component]
         return self.utilities
+
+    def _find_matching_artifact(
+        self, output_decl: AgentOutput, result: EvalResult
+    ) -> Artifact | None:
+        """Phase 6: Find artifact from engine result that matches this output declaration.
+
+        Returns the artifact object (with its ID) so we can preserve it when creating
+        the final published artifact. This ensures streaming events use the same ID.
+        """
+        from flock.registry import type_registry
+
+        if not result.artifacts:
+            return None
+
+        # Normalize the expected type name to canonical form
+        expected_canonical = type_registry.resolve_name(output_decl.spec.type_name)
+
+        for artifact in result.artifacts:
+            # Normalize artifact type name to canonical form for comparison
+            try:
+                artifact_canonical = type_registry.resolve_name(artifact.type)
+                if artifact_canonical == expected_canonical:
+                    return artifact
+            except Exception:
+                # If normalization fails, fall back to direct comparison
+                if artifact.type == output_decl.spec.type_name:
+                    return artifact
+
+        return None
 
     def _select_payload(
         self, output_decl: AgentOutput, result: EvalResult

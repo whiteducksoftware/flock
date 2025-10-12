@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools, persist } from 'zustand/middleware';
 import {
   TimeRange,
   CorrelationIdMetadata,
@@ -84,20 +84,21 @@ const uniqueSorted = (items: string[]) => Array.from(new Set(items)).sort((a, b)
 
 export const useFilterStore = create<FilterState>()(
   devtools(
-    (set, get) => ({
-      correlationId: null,
-      timeRange: defaultTimeRange,
-      selectedArtifactTypes: [],
-      selectedProducers: [],
-      selectedTags: [],
-      selectedVisibility: [],
-      availableCorrelationIds: [],
-      availableArtifactTypes: [],
-      availableProducers: [],
-      availableTags: [],
-      availableVisibility: [],
-      summary: null,
-      savedFilters: [],
+    persist(
+      (set, get) => ({
+        correlationId: null,
+        timeRange: defaultTimeRange,
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+        availableCorrelationIds: [],
+        availableArtifactTypes: [],
+        availableProducers: [],
+        availableTags: [],
+        availableVisibility: [],
+        summary: null,
+        savedFilters: [],
 
       setCorrelationId: (id) => set({ correlationId: id }),
       setTimeRange: (range) => set({ timeRange: range }),
@@ -253,7 +254,19 @@ export const useFilterStore = create<FilterState>()(
           return {};
         });
       },
-    }),
+      }),
+      {
+        name: 'flock-filter-state',
+        partialize: (state) => ({
+          correlationId: state.correlationId,
+          timeRange: state.timeRange,
+          selectedArtifactTypes: state.selectedArtifactTypes,
+          selectedProducers: state.selectedProducers,
+          selectedTags: state.selectedTags,
+          selectedVisibility: state.selectedVisibility,
+        }),
+      }
+    ),
     { name: 'filterStore' }
   )
 );

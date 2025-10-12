@@ -4,7 +4,7 @@ import JsonView from '@uiw/react-json-view';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
 // Message/artifact-specific properties populated by backend snapshot
-const MessageNode = memo(({ data, selected }: NodeProps) => {
+const MessageNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as Record<string, any>;
   const artifactType = nodeData.artifactType;
   const payload = nodeData.payload;
@@ -12,6 +12,9 @@ const MessageNode = memo(({ data, selected }: NodeProps) => {
   const timestamp = nodeData.timestamp;
   const isStreaming = nodeData.isStreaming || false;
   const streamingText = nodeData.streamingText || '';
+
+  // Phase 6: Show artifact ID for debugging/verification
+  const artifactId = id; // Node ID is the artifact ID
 
   return (
     <div
@@ -45,6 +48,15 @@ const MessageNode = memo(({ data, selected }: NodeProps) => {
           fontFamily: 'monospace'
         }}>
           {artifactType}
+        </div>
+        <div style={{
+          fontSize: '10px',
+          color: '#a8a29e',
+          marginBottom: '4px',
+          fontFamily: 'monospace',
+          wordBreak: 'break-all'
+        }}>
+          id: {artifactId}
         </div>
         <div style={{
           fontSize: '11px',

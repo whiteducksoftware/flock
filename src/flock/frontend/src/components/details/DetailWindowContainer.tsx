@@ -2,10 +2,14 @@ import React from 'react';
 import { useUIStore } from '../../store/uiStore';
 import { useGraphStore } from '../../store/graphStore';
 import NodeDetailWindow from './NodeDetailWindow';
+import MessageDetailWindow from './MessageDetailWindow';
 
 /**
  * Container component that renders all open detail windows.
  * Manages multiple floating windows with independent drag/resize.
+ *
+ * Phase 6: Agent nodes show NodeDetailWindow (Live Output, Message History, Run Status tabs)
+ *          Message nodes show MessageDetailWindow (Metadata, Payload, Consumption History)
  */
 const DetailWindowContainer: React.FC = () => {
   const detailWindows = useUIStore((state) => state.detailWindows);
@@ -39,7 +43,12 @@ const DetailWindowContainer: React.FC = () => {
           const node = nodes.find((n) => n.id === nodeId);
           const nodeType: 'agent' | 'message' = node?.type === 'agent' ? 'agent' : 'message';
 
-          return <NodeDetailWindow key={nodeId} nodeId={nodeId} nodeType={nodeType} />;
+          // Render appropriate window based on node type
+          if (nodeType === 'message') {
+            return <MessageDetailWindow key={nodeId} nodeId={nodeId} />;
+          } else {
+            return <NodeDetailWindow key={nodeId} nodeId={nodeId} nodeType={nodeType} />;
+          }
         })}
       </div>
     </div>

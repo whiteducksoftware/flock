@@ -37,13 +37,10 @@ const App: React.FC = () => {
         await indexedDBService.initialize();
 
         const filterStore = useFilterStore.getState();
-        const graphStore = useGraphStore.getState();
 
         // UI Optimization Migration (Phase 2/4 - Spec 002): Backend-driven architecture
-        // 1. Load saved node positions from IndexedDB
-        await graphStore.loadSavedPositions();
-
-        // 2. Fetch artifact summary to populate filter facets
+        // Fetch artifact summary to populate filter facets
+        //    Note: Node positions are now loaded automatically in generateAgentViewGraph/generateBlackboardViewGraph
         const summary = await fetchArtifactSummary();
         filterStore.setSummary(summary);
         filterStore.updateAvailableFacets({
@@ -53,7 +50,7 @@ const App: React.FC = () => {
           visibilities: Object.keys(summary.by_visibility),
         });
 
-        // 3. Fetch correlation IDs for filter dropdown
+        // Fetch correlation IDs for filter dropdown
         const artifactResponse = await fetchArtifacts({ limit: 200, embedMeta: true });
         if (artifactResponse.items.length > 0) {
           const correlationMetadata = new Map<string, { correlation_id: string; first_seen: number; artifact_count: number; run_count: number }>();
@@ -78,7 +75,7 @@ const App: React.FC = () => {
           }
         }
 
-        // 4. Generate initial graph view from backend snapshot
+        // Generate initial graph view from backend snapshot
         //    (GraphCanvas useEffect will handle initial render based on mode)
         //    No need to manually trigger here - happens in GraphCanvas mount
       } catch (error) {
