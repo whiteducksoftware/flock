@@ -2,10 +2,10 @@
   <img alt="Flock Banner" src="docs/assets/images/flock.png" width="800">
 </p>
 <p align="center">
-  <a href="https://docs.flock.whiteduck.de" target="_blank"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-blue?style=for-the-badge&logo=readthedocs"></a>
+  <a href="https://whiteducksoftware.github.io/flock/" target="_blank"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-blue?style=for-the-badge&logo=readthedocs"></a>
   <a href="https://pypi.org/project/flock-core/" target="_blank"><img alt="PyPI Version" src="https://img.shields.io/pypi/v/flock-core?style=for-the-badge&logo=pypi&label=pip%20version"></a>
   <img alt="Python Version" src="https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python">
-  <a href="LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/pypi/l/flock-core?style=for-the-badge"></a>
+  <a href="LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/github/license/whiteducksoftware/flock?style=for-the-badge"></a>
   <a href="https://whiteduck.de" target="_blank"><img alt="Built by white duck" src="https://img.shields.io/badge/Built%20by-white%20duck%20GmbH-white?style=for-the-badge&labelColor=black"></a>
   <img alt="Test Coverage" src="https://img.shields.io/badge/coverage-77%25-green?style=for-the-badge">
   <img alt="Tests" src="https://img.shields.io/badge/tests-743%20passing-brightgreen?style=for-the-badge">
@@ -19,14 +19,14 @@
 
 Flock is a production-focused framework for orchestrating AI agents through **declarative type contracts** and **blackboard architecture**—proven patterns from distributed systems, decades of experience with microservice architectures, and classical AI—now applied to modern LLMs.
 
-**📖 [Read the full documentation →](https://docs.flock.whiteduck.de)**
+**📖 [Read the full documentation →](https://whiteducksoftware.github.io/flock)**
 
 **Quick links:**
-- **[Getting Started](https://docs.flock.whiteduck.de/getting-started/installation/)** - Installation and first steps
-- **[Tutorials](https://docs.flock.whiteduck.de/tutorials/)** - Step-by-step learning path
-- **[User Guides](https://docs.flock.whiteduck.de/guides/)** - In-depth feature documentation
-- **[API Reference](https://docs.flock.whiteduck.de/reference/api/)** - Complete API documentation
-- **[Roadmap](https://docs.flock.whiteduck.de/about/roadmap/)** - What's coming in v1.0
+- **[Getting Started](https://whiteducksoftware.github.io/flock/getting-started/installation/)** - Installation and first steps
+- **[Tutorials](https://whiteducksoftware.github.io/flock/tutorials/)** - Step-by-step learning path
+- **[User Guides](https://whiteducksoftware.github.io/flock/guides/)** - In-depth feature documentation
+- **[API Reference](https://whiteducksoftware.github.io/flock/reference/api/)** - Complete API documentation
+- **[Roadmap](https://whiteducksoftware.github.io/flock/about/roadmap/)** - What's coming in v1.0
 
 ---
 
@@ -858,14 +858,14 @@ uv run python examples/02-dashboard/01_declarative_pizza.py
 - 📚 [Examples README](examples/README.md) - 12-step learning path from basics to advanced
 - 🖥️ [CLI Examples](examples/01-cli/) - Detailed console output examples (01-12)
 - 📊 [Dashboard Examples](examples/02-dashboard/) - Interactive visualization examples (01-12)
-- 📖 [Documentation](https://docs.flock.whiteduck.de) - Complete online documentation
+- 📖 [Documentation](https://whiteducksoftware.github.io/flock) - Complete online documentation
 - 📘 [AGENTS.md](AGENTS.md) - Development guide
 
 ---
 
 ## Contributing
 
-We're building Flock in the open. See **[Contributing Guide](https://docs.flock.whiteduck.de/about/contributing/)** for development setup, or check [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) locally.
+We're building Flock in the open. See **[Contributing Guide](https://whiteducksoftware.github.io/flock/about/contributing/)** for development setup, or check [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) locally.
 
 **We welcome:**
 - Bug reports and feature requests
@@ -928,7 +928,7 @@ We're calling this 0.5 to signal:
 
 **"Declarative contracts eliminate prompt hell. Blackboard architecture eliminates graph spaghetti. Proven patterns applied to modern LLMs."**
 
-[⭐ Star on GitHub](https://github.com/whiteducksoftware/flock-flow) | [📖 Documentation](https://docs.flock.whiteduck.de) | [🚀 Try Examples](examples/) | [💼 Enterprise Support](mailto:support@whiteduck.de)
+[⭐ Star on GitHub](https://github.com/whiteducksoftware/flock-flow) | [📖 Documentation](https://whiteducksoftware.github.io/flock) | [🚀 Try Examples](examples/) | [💼 Enterprise Support](mailto:support@whiteduck.de)
 
 </div>
 

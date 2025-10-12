@@ -1,8 +1,9 @@
 [project]
 name = "flock-core"
-version = "0.5.1"
+version = "0.5.2"
 description = "Flock: A declrative framework for building and orchestrating AI agents."
 readme = "README.md"
+license = {text = "MIT"}
 authors = [
     { name = "Andre Ratzenberger", email = "andre.ratzenberger@whiteduck.de" }
 ]
