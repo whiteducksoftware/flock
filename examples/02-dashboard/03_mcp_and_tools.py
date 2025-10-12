@@ -5,6 +5,9 @@ from pydantic import BaseModel, Field
 from flock.mcp import StdioServerParameters
 from flock.orchestrator import Flock
 from flock.registry import flock_tool, flock_type
+from flock.logging.logging import configure_logging
+
+configure_logging(flock_level="DEBUG", external_level="DEBUG")
 
 
 @flock_tool
@@ -17,7 +20,7 @@ def write_report(string: str, file_name: str) -> None:
         directory.mkdir(parents=True)
     with open(file_path, "w") as f:
         f.write(string)
-    print(f"✍️  Wrote file: {file_path}")
+    print(f"[WRITE] Wrote file: {file_path}")
 
 @flock_tool
 def get_current_date() -> str:
@@ -48,9 +51,9 @@ try:
             args=["duckduckgo-mcp-server"],
         ),
     )
-    print("✅ Added DuckDuckGo search MCP")
+    print("[OK] Added DuckDuckGo search MCP")
 except Exception as e:
-    print(f"⚠️  Could not add search MCP (is uvx installed?): {e}")
+    print(f"[WARNING] Could not add search MCP (is uvx installed?): {e}")
 
 try:
     flock.add_mcp(
@@ -61,9 +64,9 @@ try:
             args=["-y", "@just-every/mcp-read-website-fast"],
         ),
     )
-    print("✅ Added website reader MCP")
+    print("[OK] Added website reader MCP")
 except Exception as e:
-    print(f"⚠️  Could not add website reader MCP (is npm installed?): {e}")
+    print(f"[WARNING] Could not add website reader MCP (is npm installed?): {e}")
 
 (
     flock.agent("web_researcher")
