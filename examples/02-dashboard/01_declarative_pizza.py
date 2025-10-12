@@ -25,9 +25,4 @@ pizza_master = (
     .publishes(Pizza)
 )
 
-async def main():
-    await flock.serve(dashboard=True)
-
-    
-if __name__ == "__main__":
-    asyncio.run(main(), debug=True)
+asyncio.run(flock.serve(dashboard=True), debug=True)
