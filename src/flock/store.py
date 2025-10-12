@@ -310,7 +310,10 @@ class InMemoryBlackboardStore(BlackboardStore):
 
         total = len(filtered)
         offset = max(offset, 0)
-        page = filtered[offset : offset + limit] if limit > 0 else []
+        if limit <= 0:
+            page = filtered[offset:]
+        else:
+            page = filtered[offset : offset + limit]
 
         if not embed_meta:
             return page, total
@@ -344,7 +347,8 @@ class InMemoryBlackboardStore(BlackboardStore):
         latest: datetime | None = None
 
         for artifact in artifacts:
-            assert isinstance(artifact, Artifact)
+            if not isinstance(artifact, Artifact):
+                raise TypeError("Expected Artifact instance")
             by_type[artifact.type] = by_type.get(artifact.type, 0) + 1
             by_producer[artifact.produced_by] = by_producer.get(artifact.produced_by, 0) + 1
             kind = getattr(artifact.visibility, "kind", "Unknown")
@@ -402,7 +406,8 @@ class InMemoryBlackboardStore(BlackboardStore):
         consumed_by_type: dict[str, int] = defaultdict(int)
 
         for envelope in envelopes:
-            assert isinstance(envelope, ArtifactEnvelope)
+            if not isinstance(envelope, ArtifactEnvelope):
+                raise TypeError("Expected ArtifactEnvelope instance")
             artifact = envelope.artifact
             if artifact.produced_by == agent_id:
                 produced_total += 1
@@ -685,19 +690,13 @@ class SQLiteBlackboardStore(BlackboardStore):
         conn = await self._get_connection()
 
         where_clause, params = self._build_filters(filters)
-        cursor = await conn.execute(
-            f"SELECT COUNT(*) AS total FROM artifacts{where_clause}",
-            tuple(params),
-        )
+        count_query = f"SELECT COUNT(*) AS total FROM artifacts{where_clause}"  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
+        cursor = await conn.execute(count_query, tuple(params))  # nosec B608
         total_row = await cursor.fetchone()
         await cursor.close()
         total = total_row["total"] if total_row else 0
 
-        if limit <= 0:
-            return ([], total)
-
-        cursor = await conn.execute(
-            f"""
+        query = f"""
             SELECT
                 artifact_id,
                 type,
@@ -713,10 +712,19 @@ class SQLiteBlackboardStore(BlackboardStore):
             FROM artifacts
             {where_clause}
             ORDER BY created_at ASC, rowid ASC
-            LIMIT ? OFFSET ?
-            """,
-            (*params, limit, max(offset, 0)),
-        )
+        """  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
+        query_params: tuple[Any, ...]
+        if limit <= 0:
+            if offset > 0:
+                query += " LIMIT -1 OFFSET ?"
+                query_params = (*params, max(offset, 0))
+            else:
+                query_params = tuple(params)
+        else:
+            query += " LIMIT ? OFFSET ?"
+            query_params = (*params, limit, max(offset, 0))
+
+        cursor = await conn.execute(query, query_params)
         rows = await cursor.fetchall()
         await cursor.close()
         artifacts = [self._row_to_artifact(row) for row in rows]
@@ -726,8 +734,7 @@ class SQLiteBlackboardStore(BlackboardStore):
 
         artifact_ids = [str(artifact.id) for artifact in artifacts]
         placeholders = ", ".join("?" for _ in artifact_ids)
-        cursor = await conn.execute(
-            f"""
+        consumption_query = f"""
             SELECT
                 artifact_id,
                 consumer,
@@ -737,9 +744,8 @@ class SQLiteBlackboardStore(BlackboardStore):
             FROM artifact_consumptions
             WHERE artifact_id IN ({placeholders})
             ORDER BY consumed_at ASC
-            """,
-            artifact_ids,
-        )
+        """  # nosec B608 - placeholders string contains only '?' characters
+        cursor = await conn.execute(consumption_query, artifact_ids)
         consumption_rows = await cursor.fetchall()
         await cursor.close()
 
@@ -775,77 +781,65 @@ class SQLiteBlackboardStore(BlackboardStore):
         where_clause, params = self._build_filters(filters)
         params_tuple = tuple(params)
 
-        cursor = await conn.execute(
-            f"SELECT COUNT(*) AS total FROM artifacts{where_clause}",
-            params_tuple,
-        )
+        count_query = f"SELECT COUNT(*) AS total FROM artifacts{where_clause}"  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
+        cursor = await conn.execute(count_query, params_tuple)  # nosec B608
         total_row = await cursor.fetchone()
         await cursor.close()
         total = total_row["total"] if total_row else 0
 
-        cursor = await conn.execute(
-            f"""
+        by_type_query = f"""
             SELECT canonical_type, COUNT(*) AS count
             FROM artifacts
             {where_clause}
             GROUP BY canonical_type
-            """,
-            params_tuple,
-        )
+        """  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
+        cursor = await conn.execute(by_type_query, params_tuple)
         by_type_rows = await cursor.fetchall()
         await cursor.close()
         by_type = {row["canonical_type"]: row["count"] for row in by_type_rows}
 
-        cursor = await conn.execute(
-            f"""
+        by_producer_query = f"""
             SELECT produced_by, COUNT(*) AS count
             FROM artifacts
             {where_clause}
             GROUP BY produced_by
-            """,
-            params_tuple,
-        )
+        """  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
+        cursor = await conn.execute(by_producer_query, params_tuple)
         by_producer_rows = await cursor.fetchall()
         await cursor.close()
         by_producer = {row["produced_by"]: row["count"] for row in by_producer_rows}
 
-        cursor = await conn.execute(
-            f"""
+        by_visibility_query = f"""
             SELECT json_extract(visibility, '$.kind') AS visibility_kind, COUNT(*) AS count
             FROM artifacts
             {where_clause}
             GROUP BY json_extract(visibility, '$.kind')
-            """,
-            params_tuple,
-        )
+        """  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
+        cursor = await conn.execute(by_visibility_query, params_tuple)
         by_visibility_rows = await cursor.fetchall()
         await cursor.close()
         by_visibility = {
             (row["visibility_kind"] or "Unknown"): row["count"] for row in by_visibility_rows
         }
 
-        cursor = await conn.execute(
-            f"""
+        tag_query = f"""
             SELECT json_each.value AS tag, COUNT(*) AS count
             FROM artifacts
             JOIN json_each(artifacts.tags)
             {where_clause}
             GROUP BY json_each.value
-            """,
-            params_tuple,
-        )
+        """  # nosec B608 - where_clause contains only parameter placeholders produced by _build_filters
+        cursor = await conn.execute(tag_query, params_tuple)
         tag_rows = await cursor.fetchall()
         await cursor.close()
         tag_counts = {row["tag"]: row["count"] for row in tag_rows}
 
-        cursor = await conn.execute(
-            f"""
+        range_query = f"""
             SELECT MIN(created_at) AS earliest, MAX(created_at) AS latest
             FROM artifacts
             {where_clause}
-            """,
-            params_tuple,
-        )
+        """  # nosec B608 - safe composition using parameterized where_clause
+        cursor = await conn.execute(range_query, params_tuple)
         range_row = await cursor.fetchone()
         await cursor.close()
         earliest = range_row["earliest"] if range_row and range_row["earliest"] else None
@@ -885,15 +879,13 @@ class SQLiteBlackboardStore(BlackboardStore):
                 end=filters.end,
             )
             where_clause, params = self._build_filters(produced_filter)
-            cursor = await conn.execute(
-                f"""
+            produced_query = f"""
                 SELECT canonical_type, COUNT(*) AS count
                 FROM artifacts
                 {where_clause}
                 GROUP BY canonical_type
-                """,
-                tuple(params),
-            )
+            """  # nosec B608 - produced_filter yields parameter placeholders only
+            cursor = await conn.execute(produced_query, tuple(params))
             rows = await cursor.fetchall()
             await cursor.close()
             produced_by_type = {row["canonical_type"]: row["count"] for row in rows}
@@ -901,17 +893,15 @@ class SQLiteBlackboardStore(BlackboardStore):
 
         where_clause, params = self._build_filters(filters, table_alias="a")
         params_with_consumer = (*params, agent_id)
-        cursor = await conn.execute(
-            f"""
+        consumption_query = f"""
             SELECT a.canonical_type AS canonical_type, COUNT(*) AS count
             FROM artifact_consumptions c
             JOIN artifacts a ON a.artifact_id = c.artifact_id
             {where_clause}
             {"AND" if where_clause else "WHERE"} c.consumer = ?
             GROUP BY a.canonical_type
-            """,
-            params_with_consumer,
-        )
+        """  # nosec B608 - where_clause joins parameter placeholders only
+        cursor = await conn.execute(consumption_query, params_with_consumer)
         consumption_rows = await cursor.fetchall()
         await cursor.close()
 
@@ -1200,7 +1190,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             column = f"{prefix}tags" if table_alias else "artifacts.tags"
             for tag in sorted(filters.tags):
                 conditions.append(
-                    f"EXISTS (SELECT 1 FROM json_each({column}) WHERE json_each.value = ?)"
+                    f"EXISTS (SELECT 1 FROM json_each({column}) WHERE json_each.value = ?)"  # nosec B608 - column is internal constant
                 )
                 params.append(tag)
 

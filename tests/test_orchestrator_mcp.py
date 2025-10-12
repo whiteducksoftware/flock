@@ -59,12 +59,10 @@ def test_add_mcp_with_tool_whitelist():
         name="restricted_server",
         connection_params=StdioServerParameters(command="echo", args=["test"]),
         tool_whitelist=["tool1", "tool2"],
-        allow_all_tools=False,
     )
 
     config = orch._mcp_configs["restricted_server"]
     assert config.feature_config.tool_whitelist == ["tool1", "tool2"]
-    assert config.allow_all_tools is False
 
 
 def test_add_mcp_method_chaining():

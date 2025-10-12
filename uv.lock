@@ -955,6 +955,7 @@ dependencies = [
     { name = "dspy" },
     { name = "duckdb" },
     { name = "fastapi" },
+    { name = "hanging-threads" },
     { name = "httpx" },
     { name = "litellm" },
     { name = "loguru" },
@@ -1012,6 +1013,7 @@ requires-dist = [
     { name = "dspy", specifier = "==3.0.0" },
     { name = "duckdb", specifier = ">=1.1.0" },
     { name = "fastapi", specifier = ">=0.117.1" },
+    { name = "hanging-threads", specifier = ">=2.0.7" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "litellm", specifier = "==1.75.3" },
     { name = "loguru", specifier = ">=0.7.3" },
@@ -1389,6 +1391,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/01/ee/02a2c011bdab74c6fb3c75474d40b3052059d95df7e73351460c8588d963/h11-0.16.0.tar.gz", hash = "sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1", size = 101250, upload-time = "2025-04-24T03:35:25.427Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86", size = 37515, upload-time = "2025-04-24T03:35:24.344Z" },
+]
+
+[[package]]
+name = "hanging-threads"
+version = "2.0.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/92/82/06eb3c0b55e205f7739243fb9dec8814a098716ebb6dbec5c0f7c8694488/hanging_threads-2.0.7.tar.gz", hash = "sha256:5cfc1e34fcf9e6a0215cf8e0425532b77bd34ce0355a84e410fdc8e1ea15104a", size = 5206, upload-time = "2024-02-17T17:30:26.821Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1d/6a/2c0119bc9745bb5b3e7cb5cb962b84282d5d37fb8827c72d9ded7ce3a078/hanging_threads-2.0.7-py3-none-any.whl", hash = "sha256:a6cbfd962dfa02731899081f12e7ac51279e0170dcb4b6421e7c5a320176b744", size = 5480, upload-time = "2024-02-17T17:30:24.61Z" },
 ]
 
 [[package]]

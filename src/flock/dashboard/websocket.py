@@ -124,15 +124,26 @@ class WebSocketManager:
         # Broadcast to all clients concurrently
         # Use return_exceptions=True to handle client failures gracefully
         # Use send_text() for FastAPI WebSocket (send JSON string as text)
+        # CRITICAL: Add timeout to prevent deadlock when client send buffer is full
         clients_list = list(self.clients)  # Copy to avoid modification during iteration
-        send_tasks = [client.send_text(message) for client in clients_list]
+
+        send_tasks = [
+            asyncio.wait_for(client.send_text(message), timeout=0.5)  # 500ms timeout
+            for client in clients_list
+        ]
         results = await asyncio.gather(*send_tasks, return_exceptions=True)
 
         # Remove clients that failed to receive the message
         failed_clients = []
         for client, result in zip(clients_list, results, strict=False):
             if isinstance(result, Exception):
-                logger.warning(f"Failed to send to client: {result}")
+                # Check if it's a timeout (backpressure) or other error
+                if isinstance(result, asyncio.TimeoutError):
+                    logger.warning(
+                        "Client send timeout (backpressure) - client is slow or disconnected, removing client"
+                    )
+                else:
+                    logger.warning(f"Failed to send to client: {result}")
                 failed_clients.append(client)
 
         # Clean up failed clients

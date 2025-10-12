@@ -64,7 +64,10 @@ async def default_list_roots_callback(
 ) -> ListRootsResult | ErrorData:
     """Default List Roots Callback."""
     if associated_client.config.feature_config.roots_enabled:
-        current_roots = await associated_client.get_roots()
+        # Use lock-free version to avoid deadlock during initialization
+        # when the lock is already held by _connect()
+        current_roots = associated_client._get_roots_no_lock()
+        logger.debug(f"Server requested list/roots. Sending: {current_roots}")
         return ListRootsResult(roots=current_roots)
     return ErrorData(code=INVALID_REQUEST, message="List roots not supported.")
 

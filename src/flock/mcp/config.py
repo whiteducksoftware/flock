@@ -271,7 +271,7 @@ class FlockMCPFeatureConfiguration(BaseModel):
         default=None,
         description="Whitelist of tool names that are enabled for this MCP server. "
         "If provided, only tools with names in this list will be available "
-        "from this server. Used in conjunction with allow_all_tools setting. "
+        "from this server."
         "Note: Agent-level tool filtering is generally preferred over "
         "server-level filtering for better granular control.",
     )
@@ -312,15 +312,6 @@ class FlockMCPConfiguration(BaseModel):
     """
 
     name: str = Field(..., description="Name of the server the client connects to.")
-
-    allow_all_tools: bool = Field(
-        default=True,
-        description="Whether to allow usage of all tools from this MCP server. "
-        "When True (default), all tools are available unless restricted "
-        "by tool_whitelist. When False, tool access is controlled entirely "
-        "by tool_whitelist (if provided). Setting to False with no whitelist "
-        "will block all tools from this server.",
-    )
 
     connection_config: FlockMCPConnectionConfiguration = Field(
         ..., description="MCP Connection Configuration for a client."

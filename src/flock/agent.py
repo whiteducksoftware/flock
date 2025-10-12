@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from pydantic import BaseModel
 
@@ -25,6 +25,38 @@ if TYPE_CHECKING:  # pragma: no cover - type hints only
 
     from flock.components import AgentComponent, EngineComponent
     from flock.orchestrator import Flock
+
+
+class MCPServerConfig(TypedDict, total=False):
+    """Configuration for MCP server assignment to an agent.
+
+    All fields are optional. If omitted, no restrictions apply.
+
+    Attributes:
+        roots: Filesystem paths this server can access.
+               Empty list or omitted = no mount restrictions.
+        tool_whitelist: Tool names the agent can use from this server.
+                       Empty list or omitted = all tools available.
+
+    Examples:
+        >>> # No restrictions
+        >>> config: MCPServerConfig = {}
+
+        >>> # Mount restrictions only
+        >>> config: MCPServerConfig = {"roots": ["/workspace/data"]}
+
+        >>> # Tool whitelist only
+        >>> config: MCPServerConfig = {"tool_whitelist": ["read_file", "write_file"]}
+
+        >>> # Both restrictions
+        >>> config: MCPServerConfig = {
+        ...     "roots": ["/workspace/data"],
+        ...     "tool_whitelist": ["read_file"]
+        ... }
+    """
+
+    roots: list[str]
+    tool_whitelist: list[str]
 
 
 @dataclass
@@ -68,7 +100,7 @@ class Agent(metaclass=AutoTracedMeta):
         self.engines: list[EngineComponent] = []
         self.best_of_n: int = 1
         self.best_of_score: Callable[[EvalResult], float] | None = None
-        self.max_concurrency: int = 1
+        self.max_concurrency: int = 2
         self._semaphore = asyncio.Semaphore(self.max_concurrency)
         self.calls_func: Callable[..., Any] | None = None
         self.tools: set[Callable[..., Any]] = set()
@@ -78,6 +110,9 @@ class Agent(metaclass=AutoTracedMeta):
         self.prevent_self_trigger: bool = True  # T065: Prevent infinite feedback loops
         # MCP integration
         self.mcp_server_names: set[str] = set()
+        self.mcp_mount_points: list[str] = []  # Deprecated: Use mcp_server_mounts instead
+        self.mcp_server_mounts: dict[str, list[str]] = {}  # Server-specific mount points
+        self.tool_whitelist: list[str] | None = None
 
     @property
     def identity(self) -> AgentIdentity:
@@ -138,14 +173,29 @@ class Agent(metaclass=AutoTracedMeta):
             # Get the MCP manager from orchestrator
             manager = self._orchestrator.get_mcp_manager()
 
-            # Import tool wrapper
-
             # Fetch tools from all assigned servers
             tools_dict = await manager.get_tools_for_agent(
                 agent_id=self.name,
                 run_id=ctx.task_id,
                 server_names=self.mcp_server_names,
+                server_mounts=self.mcp_server_mounts,  # Pass server-specific mounts
             )
+
+            # Whitelisting logic
+            tool_whitelist = self.tool_whitelist
+            if (
+                tool_whitelist is not None
+                and isinstance(tool_whitelist, list)
+                and len(tool_whitelist) > 0
+            ):
+                filtered_tools: dict[str, Any] = {}
+                for tool_key, tool_entry in tools_dict.items():
+                    if isinstance(tool_entry, dict):
+                        original_name = tool_entry.get("original_name", None)
+                        if original_name is not None and original_name in tool_whitelist:
+                            filtered_tools[tool_key] = tool_entry
+
+                tools_dict = filtered_tools
 
             # Convert to DSPy tool callables
             dspy_tools = []
@@ -668,30 +718,103 @@ class AgentBuilder:
         self._agent.tools.update(funcs)
         return self
 
-    def with_mcps(self, server_names: Iterable[str]) -> AgentBuilder:
-        """Assign MCP servers to this agent.
+    def with_mcps(
+        self,
+        servers: (
+            Iterable[str]
+            | dict[str, MCPServerConfig | list[str]]  # Support both new and old format
+            | list[str | dict[str, MCPServerConfig | list[str]]]
+        ),
+    ) -> AgentBuilder:
+        """Assign MCP servers to this agent with optional server-specific mount points.
 
-        Architecture Decision: AD001 - Two-Level Architecture
-        Agents reference servers registered at orchestrator level.
+                Architecture Decision: AD001 - Two-Level Architecture
+                Agents reference servers registered at orchestrator level.
 
-        Args:
-            server_names: Names of MCP servers this agent should use
+                Args:
+                    servers: One of:
+                        - List of server names (strings) - no specific mounts
+                        - Dict mapping server names to MCPServerConfig or list[str] (backward compatible)
+                        - Mixed list of strings and dicts for flexibility
 
-        Returns:
-            self for method chaining
+                Returns:
+                    self for method chaining
 
-        Raises:
-            ValueError: If any server name is not registered with orchestrator
+                Raises:
+                    ValueError: If any server name is not registered with orchestrator
 
-        Example:
-            >>> agent = (
-            ...     orchestrator.agent("file_agent")
-            ...     .with_mcps(["filesystem", "github"])
-            ...     .build()
-            ... )
+                Examples:
+                    >>> # Simple: no mount restrictions
+                    >>> agent.with_mcps(["filesystem", "github"])
+
+                    >>> # New format: Server-specific config with roots and tool whitelist
+                    >>> agent.with_mcps({
+                    ...     "filesystem": {"roots": ["/workspace/dir/data"], "tool_whitelist": ["read_file"]},
+                    ...     "github": {}  # No restrictions for github
+                    ... })
+
+                    >>> # Old format: Direct list (backward compatible)
+                    >>> agent.with_mcps({
+                    ...     "filesystem": ["/workspace/dir/data"],  # Old format still works
+                    ... })
+
+                    >>> # Mixed: backward compatible
+                    >>> agent.with_mcps([
+                    ...     "github",  # No mounts
+                    ...     {"filesystem": {"roots": ["mount1", "mount2"] } }
+        ```
+                    ... ])
         """
-        # Convert to set for efficient lookup
-        server_set = set(server_names)
+        # Parse input into server_names and mounts
+        server_set: set[str] = set()
+        server_mounts: dict[str, list[str]] = {}
+        whitelist = None
+
+        if isinstance(servers, dict):
+            # Dict format: supports both old and new formats
+            # Old: {"server": ["/path1", "/path2"]}
+            # New: {"server": {"roots": ["/path1"], "tool_whitelist": ["tool1"]}}
+            for server_name, server_config in servers.items():
+                server_set.add(server_name)
+
+                # Check if it's the old format (direct list) or new format (MCPServerConfig dict)
+                if isinstance(server_config, list):
+                    # Old format: direct list of paths (backward compatibility)
+                    if len(server_config) > 0:
+                        server_mounts[server_name] = list(server_config)
+                elif isinstance(server_config, dict):
+                    # New format: MCPServerConfig with optional roots and tool_whitelist
+                    mounts = server_config.get("roots", None)
+                    if mounts is not None and isinstance(mounts, list) and len(mounts) > 0:
+                        server_mounts[server_name] = list(mounts)
+
+                    config_whitelist = server_config.get("tool_whitelist", None)
+                    if (
+                        config_whitelist is not None
+                        and isinstance(config_whitelist, list)
+                        and len(config_whitelist) > 0
+                    ):
+                        whitelist = config_whitelist
+        elif isinstance(servers, list):
+            # List format: can be mixed
+            for item in servers:
+                if isinstance(item, str):
+                    # Simple server name
+                    server_set.add(item)
+                elif isinstance(item, dict):
+                    # Dict with mounts
+                    for server_name, mounts in item.items():
+                        server_set.add(server_name)
+                        if mounts:
+                            server_mounts[server_name] = list(mounts)
+                else:
+                    raise TypeError(
+                        f"Invalid server specification: {item}. "
+                        f"Expected string or dict, got {type(item).__name__}"
+                    )
+        else:
+            # Assume it's an iterable of strings (backward compatibility)
+            server_set = set(servers)
 
         # Validate all servers exist in orchestrator
         registered_servers = set(self._orchestrator._mcp_configs.keys())
@@ -707,6 +830,61 @@ class AgentBuilder:
 
         # Store in agent
         self._agent.mcp_server_names = server_set
+        self._agent.mcp_server_mounts = server_mounts
+        self._agent.tool_whitelist = whitelist
+
+        return self
+
+    def mount(self, paths: str | list[str], *, validate: bool = False) -> AgentBuilder:
+        """Mount agent in specific directories for MCP root access.
+
+        .. deprecated:: 0.2.0
+            Use `.with_mcps({"server_name": ["/path"]})` instead for server-specific mounts.
+            This method applies mounts globally to all MCP servers.
+
+        This sets the filesystem roots that MCP servers will operate under for this agent.
+        Paths are cumulative across multiple calls.
+
+        Args:
+            paths: Single path or list of paths to mount
+            validate: If True, validate that paths exist (default: False)
+
+        Returns:
+            AgentBuilder for method chaining
+
+        Example:
+            >>> # Old way (deprecated)
+            >>> agent.with_mcps(["filesystem"]).mount("/workspace/src")
+            >>>
+            >>> # New way (recommended)
+            >>> agent.with_mcps({"filesystem": ["/workspace/src"]})
+        """
+        import warnings
+
+        warnings.warn(
+            "Agent.mount() is deprecated. Use .with_mcps({'server': ['/path']}) "
+            "for server-specific mounts instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        if isinstance(paths, str):
+            paths = [paths]
+        if validate:
+            from pathlib import Path
+
+            for path in paths:
+                if not Path(path).exists():
+                    raise ValueError(f"Mount path does not exist: {path}")
+
+        # Add to agent's mount points (cumulative) - for backward compatibility
+        self._agent.mcp_mount_points.extend(paths)
+
+        # Also add to all configured servers for backward compatibility
+        for server_name in self._agent.mcp_server_names:
+            if server_name not in self._agent.mcp_server_mounts:
+                self._agent.mcp_server_mounts[server_name] = []
+            self._agent.mcp_server_mounts[server_name].extend(paths)
 
         return self
 

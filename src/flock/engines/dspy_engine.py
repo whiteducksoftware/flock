@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from collections import OrderedDict, defaultdict
@@ -598,6 +599,9 @@ class DSPyEngine(EngineComponent):
         stream_buffers[status_field] = []
         stream_sequence = 0  # Monotonic sequence for ordering
 
+        # Track background WebSocket broadcast tasks to prevent garbage collection
+        ws_broadcast_tasks: set[asyncio.Task] = set()
+
         formatter = theme_dict = styles = agent_label = None
         live_cm = nullcontext()
         overflow_mode = self.stream_vertical_overflow
@@ -643,7 +647,7 @@ class DSPyEngine(EngineComponent):
                         stream_buffers[status_field].append(str(token) + "\n")
                         display_data["status"] = "".join(stream_buffers[status_field])
 
-                        # Emit to WebSocket
+                        # Emit to WebSocket (non-blocking to prevent deadlock)
                         if ws_manager and token:
                             try:
                                 event = StreamingOutputEvent(
@@ -659,10 +663,15 @@ class DSPyEngine(EngineComponent):
                                     artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
                                     artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                 )
-                                await ws_manager.broadcast(event)
+                                # Use create_task to avoid blocking the streaming loop
+                                task = asyncio.create_task(ws_manager.broadcast(event))
+                                ws_broadcast_tasks.add(task)
+                                task.add_done_callback(ws_broadcast_tasks.discard)
                                 stream_sequence += 1
                             except Exception as e:
                                 logger.warning(f"Failed to emit streaming event: {e}")
+                        else:
+                            logger.debug("No WebSocket manager present for streaming event.")
 
                         if formatter is not None:
                             _refresh_panel()
@@ -681,7 +690,7 @@ class DSPyEngine(EngineComponent):
                                 stream_buffers[buffer_key]
                             )
 
-                            # Emit to WebSocket
+                            # Emit to WebSocket (non-blocking to prevent deadlock)
                             if ws_manager:
                                 logger.info(
                                     f"[STREAMING] Emitting StreamResponse token='{token}', sequence={stream_sequence}"
@@ -700,7 +709,10 @@ class DSPyEngine(EngineComponent):
                                         artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
                                         artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                     )
-                                    await ws_manager.broadcast(event)
+                                    # Use create_task to avoid blocking the streaming loop
+                                    task = asyncio.create_task(ws_manager.broadcast(event))
+                                    ws_broadcast_tasks.add(task)
+                                    task.add_done_callback(ws_broadcast_tasks.discard)
                                     stream_sequence += 1
                                 except Exception as e:
                                     logger.warning(f"Failed to emit streaming event: {e}")
@@ -727,7 +739,7 @@ class DSPyEngine(EngineComponent):
                         stream_buffers[status_field].append(str(token))
                         display_data["status"] = "".join(stream_buffers[status_field])
 
-                    # Emit to WebSocket
+                    # Emit to WebSocket (non-blocking to prevent deadlock)
                     if ws_manager and token:
                         try:
                             event = StreamingOutputEvent(
@@ -743,7 +755,10 @@ class DSPyEngine(EngineComponent):
                                 artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
                                 artifact_type=display_data["type"],  # Phase 6: Artifact type name from display_data
                             )
-                            await ws_manager.broadcast(event)
+                            # Use create_task to avoid blocking the streaming loop
+                            task = asyncio.create_task(ws_manager.broadcast(event))
+                            ws_broadcast_tasks.add(task)
+                            task.add_done_callback(ws_broadcast_tasks.discard)
                             stream_sequence += 1
                         except Exception as e:
                             logger.warning(f"Failed to emit streaming event: {e}")
@@ -755,7 +770,7 @@ class DSPyEngine(EngineComponent):
                 if isinstance(value, dspy_mod.Prediction):
                     final_result = value
 
-                    # Emit final streaming event
+                    # Emit final streaming event (non-blocking to prevent deadlock)
                     if ws_manager:
                         try:
                             event = StreamingOutputEvent(
@@ -771,7 +786,10 @@ class DSPyEngine(EngineComponent):
                                 artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
                                 artifact_type=display_data["type"],  # Phase 6: Artifact type name
                             )
-                            await ws_manager.broadcast(event)
+                            # Use create_task to avoid blocking the streaming loop
+                            task = asyncio.create_task(ws_manager.broadcast(event))
+                            ws_broadcast_tasks.add(task)
+                            task.add_done_callback(ws_broadcast_tasks.discard)
                             event = StreamingOutputEvent(
                                 correlation_id=str(ctx.correlation_id)
                                 if ctx and ctx.correlation_id
@@ -785,7 +803,10 @@ class DSPyEngine(EngineComponent):
                                 artifact_id=str(pre_generated_artifact_id),  # Phase 6: Track artifact for message streaming
                                 artifact_type=display_data["type"],  # Phase 6: Artifact type name
                             )
-                            await ws_manager.broadcast(event)
+                            # Use create_task to avoid blocking the streaming loop
+                            task = asyncio.create_task(ws_manager.broadcast(event))
+                            ws_broadcast_tasks.add(task)
+                            task.add_done_callback(ws_broadcast_tasks.discard)
                         except Exception as e:
                             logger.warning(f"Failed to emit final streaming event: {e}")
 

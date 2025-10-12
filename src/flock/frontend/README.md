@@ -33,7 +33,7 @@ The dashboard offers two complementary visualization modes:
 
 ### Extensible Module System
 - **Custom Visualizations**: Add specialized views via the module system
-- **Event Log Module**: Built-in table view for detailed event inspection
+- **Historical Blackboard Module**: Persisted artifact browser with retention insights
 - **Trace Viewer Module**: Jaeger-style distributed tracing with timeline and statistics
 - **Context Menu Integration**: Right-click to add modules at any location
 - **Persistent Layout**: Module positions and sizes are saved across sessions
@@ -122,6 +122,20 @@ Every traced operation captures:
 - **I/O Debugging**: Expand JSON viewers to see exact inputs that caused issues
 - **Multi-Trace Comparison**: Open related traces to compare execution patterns
 - **JSON Navigation**: Use "Expand All" for complex nested structures
+
+### Historical Blackboard Module 📚
+
+The new Historical Blackboard module brings persisted artifacts into the dashboard so operators can rewind the blackboard, not just watch the live firehose.
+
+#### Highlights
+
+- **SQLite-first loading**: Fetches paginated artifacts before WebSocket replay, so the graph and detail views start with real history.
+- **Rich filtering**: Mirrors server-side `FilterConfig` capabilities (type, producer, tags, visibility, correlation, time range) with multi-select controls and saved presets.
+- **Consumption awareness**: Displays who consumed each artifact, run IDs, and consumption timestamps—ideal for reconciling downstream behaviour.
+- **Retention transparency**: Inline banners show the oldest/latest artifacts on disk and whether additional data can be loaded.
+- **Virtualized table**: Efficiently scroll through thousands of artifacts with keyboard navigation, quick selection, and payload inspection via the JSON renderer.
+
+Launch the module via the context menu (or `Add Module → Historical Blackboard`) after running `examples/03-the-dashboard/04_persistent_pizza_dashboard.py` against a SQLite-backed orchestrator.
 
 ### Modern UI/UX
 - **Glassmorphism Design**: Modern dark theme with semi-transparent surfaces and blur effects
