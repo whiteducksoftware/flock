@@ -169,6 +169,7 @@ exclude = [
     "*.egg-info",
     "frontend/",
     "docs/",
+    "src/flock/dashboard/graph_builder.py",  # Windows/Linux line ending conflict
 ]
 
 [tool.ruff.lint]
