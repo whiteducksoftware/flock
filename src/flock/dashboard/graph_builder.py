@@ -73,6 +73,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 agent_snapshots,
             )
             edges = self._derive_agent_edges(artifacts)
+            # Phase 1.5: Add pending edges for artifacts waiting in correlation/batch
+            pending_edges = self._derive_pending_edges(artifacts)
+            edges.extend(pending_edges)
         else:
             nodes = self._build_message_nodes(artifacts)
             edges = self._derive_blackboard_edges(artifacts, graph_state)
@@ -380,6 +383,196 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                         "artifactIds": artifact_ids,
                         "latestTimestamp": payload["latest_timestamp"].isoformat(),
                         "labelOffset": offsets.get(edge_id, 0.0),
+                    },
+                    marker_end=GraphMarker(),
+                    hidden=False,
+                )
+            )
+
+        return edges
+
+    def _derive_pending_edges(
+        self,
+        artifacts: Mapping[str, GraphArtifact],
+    ) -> list[GraphEdge]:
+        """
+        Phase 1.5: Build pending edges for artifacts waiting in correlation/batch.
+
+        Creates visual edges (purple/orange dashed) from artifact producers to agents
+        that have those artifacts waiting in JoinSpec/BatchSpec queues.
+
+        Returns edges with type "pending_join" or "pending_batch".
+        """
+        edges: list[GraphEdge] = []
+        edge_counter = 0
+
+        # Build map of artifact_id -> artifact for quick lookup
+        artifact_map = {art.artifact_id: art for art in artifacts.values()}
+
+        # Iterate through all active agents with JoinSpec/BatchSpec subscriptions
+        for agent in self._orchestrator.agents:
+            for sub_idx, subscription in enumerate(agent.subscriptions):
+                # JoinSpec pending edges
+                if subscription.join:
+                    pending_join_edges = self._build_pending_join_edges(
+                        agent.name,
+                        sub_idx,
+                        subscription,
+                        artifact_map,
+                        edge_counter
+                    )
+                    edges.extend(pending_join_edges)
+                    edge_counter += len(pending_join_edges)
+
+                # BatchSpec pending edges
+                if subscription.batch:
+                    pending_batch_edges = self._build_pending_batch_edges(
+                        agent.name,
+                        sub_idx,
+                        subscription,
+                        artifact_map,
+                        edge_counter
+                    )
+                    edges.extend(pending_batch_edges)
+                    edge_counter += len(pending_batch_edges)
+
+        return edges
+
+    def _build_pending_join_edges(
+        self,
+        agent_name: str,
+        sub_idx: int,
+        subscription: "Subscription",  # noqa: F821
+        artifact_map: Mapping[str, GraphArtifact],
+        start_counter: int,
+    ) -> list[GraphEdge]:
+        """Build pending edges for JoinSpec correlation groups."""
+        from flock.dashboard.service import _get_correlation_groups
+
+        edges: list[GraphEdge] = []
+        correlation_groups = _get_correlation_groups(
+            self._orchestrator._correlation_engine,
+            agent_name,
+            sub_idx
+        )
+
+        if not correlation_groups:
+            return edges
+
+        edge_counter = start_counter
+
+        # For each correlation group, create edges for waiting artifacts
+        for group in correlation_groups:
+            # Get artifacts in this correlation group's waiting pool
+            correlation_key = group.get("correlation_key")
+            if not correlation_key:
+                continue
+
+            # Get the actual correlation group from engine
+            pool_key = (agent_name, sub_idx)
+            groups_dict = self._orchestrator._correlation_engine.correlation_groups.get(pool_key, {})
+            corr_group = groups_dict.get(correlation_key)
+
+            if not corr_group:
+                continue
+
+            # Build edges for each artifact type in the waiting pool
+            for artifact_type, artifact_list in corr_group.waiting_artifacts.items():
+                for artifact in artifact_list:
+                    artifact_id = str(artifact.id)
+                    graph_artifact = artifact_map.get(artifact_id)
+
+                    if not graph_artifact:
+                        continue
+
+                    producer = graph_artifact.produced_by or "external"
+
+                    # Create pending join edge
+                    edge_id = f"pending_join__{producer}__{agent_name}__{artifact_id}__{edge_counter}"
+                    edge_counter += 1
+
+                    edges.append(
+                        GraphEdge(
+                            id=edge_id,
+                            source=producer,
+                            target=agent_name,
+                            type="pending_join",
+                            label=f"⋈ {correlation_key}",
+                            data={
+                                "artifactId": artifact_id,
+                                "artifactType": artifact_type,
+                                "correlationKey": correlation_key,
+                                "subscriptionIndex": sub_idx,
+                                "waitingFor": group.get("waiting_for", []),
+                                "labelOffset": 0.0,
+                            },
+                            marker_end=GraphMarker(),
+                            hidden=False,
+                        )
+                    )
+
+        return edges
+
+    def _build_pending_batch_edges(
+        self,
+        agent_name: str,
+        sub_idx: int,
+        subscription: "Subscription",  # noqa: F821
+        artifact_map: Mapping[str, GraphArtifact],
+        start_counter: int,
+    ) -> list[GraphEdge]:
+        """Build pending edges for BatchSpec accumulation."""
+        from flock.dashboard.service import _get_batch_state
+
+        edges: list[GraphEdge] = []
+        batch_state = _get_batch_state(
+            self._orchestrator._batch_engine,
+            agent_name,
+            sub_idx,
+            subscription.batch
+        )
+
+        if not batch_state:
+            return edges
+
+        # Get the batch accumulator
+        batch_key = (agent_name, sub_idx)
+        accumulator = self._orchestrator._batch_engine.batches.get(batch_key)
+
+        if not accumulator or not accumulator.artifacts:
+            return edges
+
+        edge_counter = start_counter
+
+        # Create edges for each artifact in the batch
+        for artifact in accumulator.artifacts:
+            artifact_id = str(artifact.id)
+            graph_artifact = artifact_map.get(artifact_id)
+
+            if not graph_artifact:
+                continue
+
+            producer = graph_artifact.produced_by or "external"
+            artifact_type = graph_artifact.artifact_type
+
+            # Create pending batch edge
+            edge_id = f"pending_batch__{producer}__{agent_name}__{artifact_id}__{edge_counter}"
+            edge_counter += 1
+
+            edges.append(
+                GraphEdge(
+                    id=edge_id,
+                    source=producer,
+                    target=agent_name,
+                    type="pending_batch",
+                    label=f"⊞ {batch_state['items_collected']}/{batch_state['items_target'] or '∞'}",
+                    data={
+                        "artifactId": artifact_id,
+                        "artifactType": artifact_type,
+                        "subscriptionIndex": sub_idx,
+                        "itemsCollected": batch_state["items_collected"],
+                        "itemsTarget": batch_state["items_target"],
+                        "labelOffset": 0.0,
                     },
                     marker_end=GraphMarker(),
                     hidden=False,

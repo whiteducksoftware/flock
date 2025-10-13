@@ -15,6 +15,8 @@ import AgentNode from './AgentNode';
 import MessageNode from './MessageNode';
 import MessageFlowEdge from './MessageFlowEdge';
 import TransformEdge from './TransformEdge';
+import PendingJoinEdge from './PendingJoinEdge';
+import PendingBatchEdge from './PendingBatchEdge';
 import MiniMap from './MiniMap';
 import { useGraphStore } from '../../store/graphStore';
 import { useFilterStore } from '../../store/filterStore';
@@ -78,6 +80,8 @@ const GraphCanvas: React.FC = () => {
     () => ({
       message_flow: MessageFlowEdge,
       transformation: TransformEdge,
+      pending_join: PendingJoinEdge,  // Phase 1.5: Pending edges for JoinSpec correlation groups
+      pending_batch: PendingBatchEdge, // Phase 1.5: Pending edges for BatchSpec accumulation
     }),
     []
   );

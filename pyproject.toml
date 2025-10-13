@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.3"
+version = "0.5.4"
 description = "Flock: A declrative framework for building and orchestrating AI agents."
 readme = "README.md"
 license = {text = "MIT"}

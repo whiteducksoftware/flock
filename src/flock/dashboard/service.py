@@ -1184,13 +1184,24 @@ def _get_batch_state(
 
     # Determine what will trigger flush
     if batch_spec.size and batch_spec.timeout:
-        # Hybrid: predict which will fire first
-        size_will_fire = result.get("items_remaining", 999) <= 1
-        timeout_will_fire = result.get("timeout_remaining_seconds", 999) <= 1
+        # Hybrid: predict which will fire first based on progress percentages
+        items_collected = result["items_collected"]
+        items_target = result.get("items_target", 1)
+        timeout_remaining = result.get("timeout_remaining_seconds", 0)
 
-        result["will_flush"] = (
-            "on_size" if size_will_fire else "on_timeout" if timeout_will_fire else "unknown"
-        )
+        # Calculate progress toward each threshold
+        size_progress = items_collected / items_target if items_target > 0 else 0
+        timeout_elapsed = elapsed
+        timeout_total = batch_spec.timeout.total_seconds()
+        time_progress = timeout_elapsed / timeout_total if timeout_total > 0 else 0
+
+        # Predict based on which threshold we're progressing toward faster
+        # If we're closer to size threshold (percentage-wise), predict size
+        # Otherwise predict timeout
+        if size_progress > time_progress:
+            result["will_flush"] = "on_size"
+        else:
+            result["will_flush"] = "on_timeout"
     elif batch_spec.size:
         result["will_flush"] = "on_size"
     elif batch_spec.timeout:
