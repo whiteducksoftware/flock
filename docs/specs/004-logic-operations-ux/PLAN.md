@@ -6,12 +6,14 @@
 |-------|--------|----------|-------|-------|
 | **Phase 1.1**: State Tracking | ✅ Complete | 3 days | 22/22 ✅ | Backend helpers for state extraction |
 | **Phase 1.2**: WebSocket + API | ✅ Complete | 5 days | 22/22 ✅ | Event emission + API enhancement combined |
-| **Phase 1.4**: Integration Tests | ✅ Complete | Inline | 37/37 ✅ | Validated with wscat + medical example |
-| **Phase 2**: Data Layer | 🔲 Pending | - | - | DuckDB persistence (optional) |
-| **Phase 3**: Frontend UI | 🔲 Next | - | - | React components for countdown/progress |
-| **Phase 4**: Polish | 🔲 Future | - | - | Animations, edge cases, performance |
+| **Phase 1.2.1**: GraphAssembler Integration | ✅ Complete | 1 day | Manual ✅ | Added waiting_state to graph API + timezone fixes |
+| **Phase 1.3**: Frontend WebSocket | ✅ Complete | Inline | N/A | WebSocket handlers already working |
+| **Phase 1.4**: Frontend UI Components | ✅ Complete | 2 days | Manual ✅ | LogicOperationsDisplay.tsx + AgentNode integration |
+| **Phase 2**: Data Layer | 🔲 Optional | - | - | DuckDB persistence (deferred) |
+| **Phase 3**: Advanced Features | 🔲 Next | - | - | Animations, historical state, advanced viz |
+| **Phase 4**: Polish | 🔲 Future | - | - | Edge cases, performance, accessibility |
 
-**Latest Achievement**: ✅ **Phase 1 Backend COMPLETE** - WebSocket events emitting in real-time, API enhanced, 37/37 tests passing!
+**Latest Achievement**: ✅ **Phase 1 COMPLETE - Full Stack Logic Operations UX SHIPPED!** - Real-time visualization working with countdown timers, correlation groups, and progress tracking!
 
 ---
 
