@@ -22,7 +22,7 @@ Related:
   - Dashboard service: src/flock/dashboard/service.py
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
 from uuid import uuid4
 
