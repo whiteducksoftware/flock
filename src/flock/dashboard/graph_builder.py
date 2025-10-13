@@ -192,6 +192,14 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             consumed = consumed_metrics.get(agent.name)
             snapshot = agent_snapshots.get(agent.name)
 
+            # Phase 1.2: Build logic_operations from live agent subscriptions
+            logic_operations = []
+            for idx, subscription in enumerate(agent.subscriptions):
+                if subscription.join or subscription.batch:
+                    logic_config = self._build_logic_config_for_subscription(agent, subscription, idx)
+                    if logic_config:
+                        logic_operations.append(logic_config)
+
             node_data = {
                 "name": agent.name,
                 "status": agent_status.get(agent.name, "idle"),
@@ -206,6 +214,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "firstSeen": snapshot.first_seen.isoformat() if snapshot else None,
                 "lastSeen": snapshot.last_seen.isoformat() if snapshot else None,
                 "signature": snapshot.signature if snapshot else None,
+                "logicOperations": logic_operations,  # Phase 1.2
             }
 
             nodes.append(
@@ -241,6 +250,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "firstSeen": snapshot.first_seen.isoformat(),
                 "lastSeen": snapshot.last_seen.isoformat(),
                 "signature": snapshot.signature,
+                "logicOperations": list(snapshot.logic_operations),  # Phase 1.2: From snapshot
             }
 
             nodes.append(
@@ -561,3 +571,72 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             for index, edge_id in enumerate(edge_ids):
                 offsets[edge_id] = index * step - offset_range / 2
         return offsets
+
+    def _build_logic_config_for_subscription(self, agent, subscription, idx):
+        """Build logic operations config for a subscription (Phase 1.2 + 1.2.1: with waiting_state)."""
+        if not subscription.join and not subscription.batch:
+            return None
+
+        config = {
+            "subscription_index": idx,
+            "subscription_types": list(subscription.type_names),
+        }
+
+        # JoinSpec configuration
+        if subscription.join:
+            join_spec = subscription.join
+            window_type = "time" if isinstance(join_spec.within, timedelta) else "count"
+            window_value = (
+                int(join_spec.within.total_seconds())
+                if isinstance(join_spec.within, timedelta)
+                else join_spec.within
+            )
+
+            config["join"] = {
+                "correlation_strategy": "by_key",
+                "window_type": window_type,
+                "window_value": window_value,
+                "window_unit": "seconds" if window_type == "time" else "artifacts",
+                "required_types": list(subscription.type_names),
+                "type_counts": dict(subscription.type_counts),
+            }
+
+            # Phase 1.2.1: Get waiting state from CorrelationEngine
+            from flock.dashboard.service import _get_correlation_groups
+            correlation_groups = _get_correlation_groups(
+                self._orchestrator._correlation_engine, agent.name, idx
+            )
+            if correlation_groups:
+                config["waiting_state"] = {
+                    "is_waiting": True,
+                    "correlation_groups": correlation_groups,
+                }
+
+        # BatchSpec configuration
+        if subscription.batch:
+            batch_spec = subscription.batch
+            strategy = (
+                "hybrid"
+                if batch_spec.size and batch_spec.timeout
+                else "size"
+                if batch_spec.size
+                else "timeout"
+            )
+
+            config["batch"] = {
+                "strategy": strategy,
+            }
+            if batch_spec.size:
+                config["batch"]["size"] = batch_spec.size
+            if batch_spec.timeout:
+                config["batch"]["timeout_seconds"] = int(batch_spec.timeout.total_seconds())
+
+            # Phase 1.2.1: Get waiting state from BatchEngine
+            from flock.dashboard.service import _get_batch_state
+            batch_state = _get_batch_state(self._orchestrator._batch_engine, agent.name, idx, batch_spec)
+            if batch_state:
+                if "waiting_state" not in config:
+                    config["waiting_state"] = {"is_waiting": True}
+                config["waiting_state"]["batch_state"] = batch_state
+
+        return config

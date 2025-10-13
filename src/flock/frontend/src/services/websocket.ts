@@ -3,7 +3,7 @@ import { useGraphStore } from '../store/graphStore';
 import { useFilterStore } from '../store/filterStore';
 
 interface WebSocketMessage {
-  event_type: 'agent_activated' | 'message_published' | 'streaming_output' | 'agent_completed' | 'agent_error';
+  event_type: 'agent_activated' | 'message_published' | 'streaming_output' | 'agent_completed' | 'agent_error' | 'correlation_group_updated' | 'batch_item_added';
   timestamp: string;
   correlation_id: string;
   session_id: string;
@@ -281,6 +281,104 @@ export class WebSocketClient {
     // Handler for ping: respond with pong
     this.on('ping', () => {
       this.send({ type: 'pong', timestamp: Date.now() });
+    });
+
+    // Phase 1.3: Handler for correlation_group_updated - update logic operations state
+    this.on('correlation_group_updated', (data) => {
+      const { agent_name, subscription_index, correlation_key, elapsed_seconds, expires_in_seconds, waiting_for } = data;
+
+      console.log('[WebSocket] Correlation group updated:', {
+        agent: agent_name,
+        key: correlation_key,
+        waiting_for,
+        elapsed: elapsed_seconds,
+        expires_in: expires_in_seconds,
+      });
+
+      // Get current logic operations for this agent
+      const graphStore = useGraphStore.getState();
+      const currentLogicOps = graphStore.agentLogicOperations.get(agent_name) || [];
+
+      // Find the subscription's logic operations
+      const updatedLogicOps = currentLogicOps.map((logicOp) => {
+        if (logicOp.subscription_index === subscription_index && logicOp.join) {
+          // Update waiting_state with correlation group data
+          const correlationGroup = {
+            correlation_key: data.correlation_key,
+            created_at: data.timestamp,
+            elapsed_seconds: data.elapsed_seconds,
+            expires_in_seconds: data.expires_in_seconds,
+            expires_in_artifacts: data.expires_in_artifacts,
+            collected_types: data.collected_types,
+            required_types: data.required_types,
+            waiting_for: data.waiting_for,
+            is_complete: data.is_complete,
+            is_expired: false,
+          };
+
+          return {
+            ...logicOp,
+            waiting_state: {
+              is_waiting: true,
+              correlation_groups: [correlationGroup],
+            },
+          };
+        }
+        return logicOp;
+      });
+
+      // Update graph store with new logic operations state
+      if (updatedLogicOps.length > 0) {
+        graphStore.updateAgentLogicOperations(agent_name, updatedLogicOps);
+      }
+    });
+
+    // Phase 1.3: Handler for batch_item_added - update logic operations state
+    this.on('batch_item_added', (data) => {
+      const { agent_name, subscription_index, items_collected, items_target, timeout_remaining_seconds, will_flush } = data;
+
+      console.log('[WebSocket] Batch item added:', {
+        agent: agent_name,
+        collected: items_collected,
+        target: items_target,
+        timeout_remaining: timeout_remaining_seconds,
+        will_flush,
+      });
+
+      // Get current logic operations for this agent
+      const graphStore = useGraphStore.getState();
+      const currentLogicOps = graphStore.agentLogicOperations.get(agent_name) || [];
+
+      // Find the subscription's logic operations
+      const updatedLogicOps = currentLogicOps.map((logicOp) => {
+        if (logicOp.subscription_index === subscription_index && logicOp.batch) {
+          // Update waiting_state with batch data
+          const batchState = {
+            created_at: data.timestamp,
+            elapsed_seconds: data.elapsed_seconds,
+            items_collected: data.items_collected,
+            items_target: data.items_target,
+            items_remaining: data.items_remaining,
+            timeout_seconds: data.timeout_seconds,
+            timeout_remaining_seconds: data.timeout_remaining_seconds,
+            will_flush: data.will_flush,
+          };
+
+          return {
+            ...logicOp,
+            waiting_state: {
+              is_waiting: true,
+              batch_state: batchState,
+            },
+          };
+        }
+        return logicOp;
+      });
+
+      // Update graph store with new logic operations state
+      if (updatedLogicOps.length > 0) {
+        graphStore.updateAgentLogicOperations(agent_name, updatedLogicOps);
+      }
     });
   }
 

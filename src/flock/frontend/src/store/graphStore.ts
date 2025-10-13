@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { Node, Edge } from '@xyflow/react';
-import { GraphSnapshot, GraphStatistics, GraphRequest } from '../types/graph';
+import { GraphSnapshot, GraphStatistics, GraphRequest, AgentLogicOperations } from '../types/graph';
 import { fetchGraphSnapshot, mergeNodePositions, overlayWebSocketState } from '../services/graphService';
 import { useFilterStore } from './filterStore';
 import { Message } from '../types/graph';
@@ -20,12 +20,17 @@ import { indexedDBService } from '../services/indexeddb';
  * - Debounced refresh: 100ms batching for snappy UX
  * - No more client-side edge derivation
  * - No more synthetic runs or complex Maps
+ *
+ * Phase 1.3: Logic Operations UX
+ * - Added logic operations state for JoinSpec/BatchSpec waiting states
+ * - Real-time updates via CorrelationGroupUpdatedEvent and BatchItemAddedEvent
  */
 
 interface GraphState {
   // Real-time WebSocket state (overlaid on backend snapshot)
   agentStatus: Map<string, string>;
   streamingTokens: Map<string, string[]>;
+  agentLogicOperations: Map<string, AgentLogicOperations[]>; // Phase 1.3: Logic operations state
 
   // Backend snapshot state
   nodes: Node[];
@@ -52,6 +57,7 @@ interface GraphState {
   // Actions - Real-time WebSocket updates
   updateAgentStatus: (agentId: string, status: string) => void;
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
+  updateAgentLogicOperations: (agentId: string, logicOps: AgentLogicOperations[]) => void; // Phase 1.3
   addEvent: (message: Message) => void;
 
   // Actions - Streaming message nodes (Phase 6)
@@ -118,6 +124,7 @@ export const useGraphStore = create<GraphState>()(
       // Initial state
       agentStatus: new Map(),
       streamingTokens: new Map(),
+      agentLogicOperations: new Map(), // Phase 1.3
       nodes: [],
       edges: [],
       statistics: null,
@@ -138,13 +145,13 @@ export const useGraphStore = create<GraphState>()(
           const request = buildGraphRequest('agent');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
 
-          const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens } = get();
+          const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens, agentLogicOperations } = get();
 
           // Merge positions: saved > current > backend > random
           const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
 
           // Overlay real-time WebSocket state
-          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens);
+          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations);
 
           set({
             nodes: finalNodes,
@@ -193,13 +200,13 @@ export const useGraphStore = create<GraphState>()(
           const request = buildGraphRequest('blackboard');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
 
-          const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens } = get();
+          const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens, agentLogicOperations } = get();
 
           // Merge positions: saved > current > backend > random
           const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
 
           // Overlay real-time WebSocket state (primarily for message streaming)
-          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens);
+          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations);
 
           set({
             nodes: finalNodes,
@@ -306,6 +313,30 @@ export const useGraphStore = create<GraphState>()(
           });
 
           return { streamingTokens, nodes };
+        });
+      },
+
+      // Phase 1.3: Logic Operations UX - Update agent logic operations state
+      updateAgentLogicOperations: (agentId, logicOps) => {
+        set((state) => {
+          const agentLogicOperations = new Map(state.agentLogicOperations);
+          agentLogicOperations.set(agentId, logicOps);
+
+          // Update agent nodes with logic operations data
+          const nodes = state.nodes.map(node => {
+            if (node.type === 'agent' && node.id === agentId) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  logicOperations: logicOps,
+                },
+              };
+            }
+            return node;
+          });
+
+          return { agentLogicOperations, nodes };
         });
       },
 

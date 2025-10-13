@@ -2,6 +2,7 @@ import { memo, useState, useEffect, useRef } from 'react';
 import { NodeProps, Handle, Position } from '@xyflow/react';
 import { useUIStore } from '../../store/uiStore';
 import { useSettingsStore } from '../../store/settingsStore';
+import LogicOperationsDisplay from './LogicOperationsDisplay';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
 // Agent-specific properties populated by backend snapshot
@@ -16,6 +17,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   const receivedByType = nodeData.receivedByType || {};
   const sentByType = nodeData.sentByType || {};
   const streamingTokens = nodeData.streamingTokens || [];
+  const logicOperations = nodeData.logicOperations || []; // Phase 1.4: Logic operations state
 
   // Merge known types with actual counts - show all types even with 0 count
   // Start with actual counts, then add known types that haven't happened yet
@@ -307,6 +309,8 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
               </div>
             </div>
           )}
+          {/* Phase 1.4: Logic Operations Display (JoinSpec/BatchSpec waiting states) */}
+          <LogicOperationsDisplay logicOperations={logicOperations} compactNodeView={compactNodeView} />
         </div>
       )}
       {compactNodeView && (

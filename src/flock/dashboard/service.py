@@ -8,7 +8,7 @@ Provides real-time dashboard capabilities by:
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -1056,7 +1056,13 @@ def _get_correlation_groups(
 
     for corr_key, group in groups.items():
         # Calculate elapsed time
-        elapsed = (now - group.created_at_time).total_seconds() if group.created_at_time else 0
+        if group.created_at_time:
+            created_at_time = group.created_at_time
+            if created_at_time.tzinfo is None:
+                created_at_time = created_at_time.replace(tzinfo=timezone.utc)
+            elapsed = (now - created_at_time).total_seconds()
+        else:
+            elapsed = 0
 
         # Calculate time remaining (for time windows)
         expires_in_seconds = None
@@ -1141,7 +1147,11 @@ def _get_batch_state(
         return None
 
     now = datetime.now(timezone.utc)
-    elapsed = (now - accumulator.created_at).total_seconds()
+    # Ensure accumulator.created_at is timezone-aware
+    created_at = accumulator.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    elapsed = (now - created_at).total_seconds()
 
     # Calculate items collected (needed for all batch types)
     items_collected = len(accumulator.artifacts)

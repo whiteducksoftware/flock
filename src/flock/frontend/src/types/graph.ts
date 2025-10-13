@@ -93,3 +93,89 @@ export interface ArtifactSummary {
   earliest_created_at: string;
   latest_created_at: string;
 }
+
+// Phase 1.3: Logic Operations UX - Real-time WebSocket Events
+export interface CorrelationGroupUpdatedEvent {
+  timestamp: string;
+  agent_name: string;
+  subscription_index: number;
+  correlation_key: string;
+  collected_types: Record<string, number>;
+  required_types: Record<string, number>;
+  waiting_for: string[];
+  elapsed_seconds: number;
+  expires_in_seconds: number | null;
+  expires_in_artifacts: number | null;
+  artifact_id: string;
+  artifact_type: string;
+  is_complete: boolean;
+}
+
+export interface BatchItemAddedEvent {
+  timestamp: string;
+  agent_name: string;
+  subscription_index: number;
+  items_collected: number;
+  items_target: number | null;
+  items_remaining: number | null;
+  elapsed_seconds: number;
+  timeout_seconds: number | null;
+  timeout_remaining_seconds: number | null;
+  will_flush: 'on_size' | 'on_timeout' | 'unknown';
+  artifact_id: string;
+  artifact_type: string;
+}
+
+// Agent logic operations state (from /api/agents endpoint + WebSocket updates)
+export interface AgentLogicOperations {
+  subscription_index: number;
+  subscription_types: string[];
+  join?: JoinSpecConfig;
+  batch?: BatchSpecConfig;
+  waiting_state?: LogicOperationsWaitingState;
+}
+
+export interface JoinSpecConfig {
+  correlation_strategy: 'by_key';
+  window_type: 'time' | 'count';
+  window_value: number;
+  window_unit: 'seconds' | 'artifacts';
+  required_types: string[];
+  type_counts: Record<string, number>;
+}
+
+export interface BatchSpecConfig {
+  strategy: 'size' | 'timeout' | 'hybrid';
+  size?: number;
+  timeout_seconds?: number;
+}
+
+export interface LogicOperationsWaitingState {
+  is_waiting: boolean;
+  correlation_groups?: CorrelationGroupState[];
+  batch_state?: BatchState;
+}
+
+export interface CorrelationGroupState {
+  correlation_key: string;
+  created_at: string;
+  elapsed_seconds: number;
+  expires_in_seconds: number | null;
+  expires_in_artifacts: number | null;
+  collected_types: Record<string, number>;
+  required_types: Record<string, number>;
+  waiting_for: string[];
+  is_complete: boolean;
+  is_expired: boolean;
+}
+
+export interface BatchState {
+  created_at: string;
+  elapsed_seconds: number;
+  items_collected: number;
+  items_target: number | null;
+  items_remaining: number | null;
+  timeout_seconds?: number;
+  timeout_remaining_seconds?: number;
+  will_flush: 'on_size' | 'on_timeout' | 'unknown';
+}
