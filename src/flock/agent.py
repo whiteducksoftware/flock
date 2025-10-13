@@ -990,10 +990,15 @@ class AgentBuilder:
             return value
         # Phase 2: New JoinSpec API with 'by' and 'within' (time OR count)
         from datetime import timedelta
+
         within_value = value.get("within")
         if isinstance(within_value, (int, float)):
             # Count window or seconds as float - keep as is
-            within = int(within_value) if isinstance(within_value, int) else timedelta(seconds=within_value)
+            within = (
+                int(within_value)
+                if isinstance(within_value, int)
+                else timedelta(seconds=within_value)
+            )
         else:
             # Default to 1 minute time window
             within = timedelta(minutes=1)

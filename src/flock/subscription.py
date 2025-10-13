@@ -51,6 +51,7 @@ class JoinSpec:
             - timedelta: Time window (artifacts must arrive within this time)
             - int: Count window (artifacts must arrive within N published artifacts)
     """
+
     by: Callable[[BaseModel], Any]  # Extract correlation key from payload
     within: timedelta | int  # Time window OR count window for correlation
 
@@ -81,6 +82,7 @@ class BatchSpec:
 
     Note: At least one of size or timeout must be specified.
     """
+
     size: int | None = None
     timeout: timedelta | None = None
 

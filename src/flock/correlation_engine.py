@@ -40,7 +40,9 @@ class CorrelationGroup:
         self.required_types = required_types  # e.g., {"TypeA", "TypeB"}
         self.type_counts = type_counts  # e.g., {"TypeA": 1, "TypeB": 1}
         self.window_spec = window_spec  # timedelta or int
-        self.created_at_sequence = created_at_sequence  # Global sequence when first artifact arrived
+        self.created_at_sequence = (
+            created_at_sequence  # Global sequence when first artifact arrived
+        )
         self.created_at_time: datetime | None = None  # Timestamp when first artifact arrived
 
         # Waiting pool: type -> list of artifacts
@@ -117,7 +119,9 @@ class CorrelationEngine:
         # Correlation state per (agent, subscription_index)
         # Key: (agent_name, subscription_index)
         # Value: dict[correlation_key, CorrelationGroup]
-        self.correlation_groups: dict[tuple[str, int], dict[Any, CorrelationGroup]] = defaultdict(dict)
+        self.correlation_groups: dict[tuple[str, int], dict[Any, CorrelationGroup]] = defaultdict(
+            dict
+        )
 
     def add_artifact(
         self,
@@ -204,9 +208,7 @@ class CorrelationEngine:
 
         # Remove expired groups
         expired_keys = [
-            key
-            for key, group in groups.items()
-            if group.is_expired(self.global_sequence)
+            key for key, group in groups.items() if group.is_expired(self.global_sequence)
         ]
 
         for key in expired_keys:

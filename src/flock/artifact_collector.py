@@ -114,7 +114,9 @@ class ArtifactCollector:
             # Incomplete - still waiting for more artifacts
             return (False, [])
 
-    def get_waiting_status(self, agent: Agent, subscription_index: int) -> dict[str, list[Artifact]]:
+    def get_waiting_status(
+        self, agent: Agent, subscription_index: int
+    ) -> dict[str, list[Artifact]]:
         """Get current waiting pool contents for debugging/inspection.
 
         Args:
