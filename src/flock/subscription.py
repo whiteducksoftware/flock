@@ -57,9 +57,36 @@ class JoinSpec:
 
 @dataclass
 class BatchSpec:
-    size: int
-    within: float
-    by: Callable[[Artifact], Any] | None = None
+    """
+    Specification for batch processing.
+
+    Accumulates artifacts and triggers agent when:
+    - Size threshold reached (e.g., batch of 10)
+    - Timeout expires (e.g., flush every 30 seconds)
+    - Whichever comes first
+
+    Examples:
+        # Size-based batching (flush when 25 artifacts accumulated)
+        BatchSpec(size=25)
+
+        # Timeout-based batching (flush every 30 seconds)
+        BatchSpec(timeout=timedelta(seconds=30))
+
+        # Hybrid (whichever comes first)
+        BatchSpec(size=100, timeout=timedelta(minutes=5))
+
+    Args:
+        size: Optional batch size threshold (flush when this many artifacts accumulated)
+        timeout: Optional timeout threshold (flush when this much time elapsed since first artifact)
+
+    Note: At least one of size or timeout must be specified.
+    """
+    size: int | None = None
+    timeout: timedelta | None = None
+
+    def __post_init__(self):
+        if self.size is None and self.timeout is None:
+            raise ValueError("BatchSpec requires at least one of: size, timeout")
 
 
 class Subscription:

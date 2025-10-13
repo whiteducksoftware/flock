@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from flock.agent import Agent, AgentBuilder
 from flock.artifact_collector import ArtifactCollector
 from flock.artifacts import Artifact
+from flock.batch_accumulator import BatchEngine
 from flock.correlation_engine import CorrelationEngine
 from flock.helper.cli_helper import init_console
 from flock.logging.auto_trace import AutoTracedMeta
@@ -134,6 +135,8 @@ class Flock(metaclass=AutoTracedMeta):
         self._artifact_collector = ArtifactCollector()
         # JoinSpec logic: Correlation engine for correlated AND gates
         self._correlation_engine = CorrelationEngine()
+        # BatchSpec logic: Batch accumulator for size/timeout batching
+        self._batch_engine = BatchEngine()
         # Unified tracing support
         self._workflow_span = None
         self._auto_workflow_enabled = os.getenv("FLOCK_AUTO_WORKFLOW_TRACE", "false").lower() in {
@@ -918,6 +921,40 @@ class Flock(metaclass=AutoTracedMeta):
                         # Still waiting for more types (AND gate incomplete)
                         continue
 
+                # BatchSpec BATCHING: Check if subscription has batch accumulator
+                if subscription.batch is not None:
+                    # Add to batch accumulator
+                    subscription_index = agent.subscriptions.index(subscription)
+
+                    # For batching, we need to add EACH artifact individually
+                    # (correlation/AND gate already gave us a list)
+                    for single_artifact in artifacts:
+                        should_flush = self._batch_engine.add_artifact(
+                            artifact=single_artifact,
+                            subscription=subscription,
+                            subscription_index=subscription_index,
+                        )
+
+                        if should_flush:
+                            # Size threshold reached! Flush batch now
+                            break
+
+                    if not should_flush:
+                        # Batch not full yet - wait for more artifacts
+                        continue
+
+                    # Flush the batch and get all accumulated artifacts
+                    batched_artifacts = self._batch_engine.flush_batch(
+                        agent.name, subscription_index
+                    )
+
+                    if batched_artifacts is None:
+                        # No batch to flush (shouldn't happen, but defensive)
+                        continue
+
+                    # Replace artifacts with batched artifacts
+                    artifacts = batched_artifacts
+
                 # Complete! Schedule agent with all collected artifacts
                 # T068: Increment iteration counter
                 self._agent_iteration_count[agent.name] = iteration_count + 1
@@ -926,7 +963,7 @@ class Flock(metaclass=AutoTracedMeta):
                 for collected_artifact in artifacts:
                     self._mark_processed(collected_artifact, agent)
 
-                # Schedule agent with ALL artifacts (AND gate complete)
+                # Schedule agent with ALL artifacts (batched, correlated, or AND gate complete)
                 self._schedule_task(agent, artifacts)
 
     def _schedule_task(self, agent: Agent, artifacts: list[Artifact]) -> None:
@@ -975,6 +1012,47 @@ class Flock(metaclass=AutoTracedMeta):
                 pass
             except Exception as exc:  # pragma: no cover - defensive logging
                 self._logger.exception("Failed to record artifact consumption: %s", exc)
+
+    # Batch Helpers --------------------------------------------------------
+
+    async def _check_batch_timeouts(self) -> None:
+        """Check all batches for timeout expiry and flush expired batches.
+
+        This method is called periodically or manually (in tests) to enforce
+        timeout-based batching.
+        """
+        expired_batches = self._batch_engine.check_timeouts()
+
+        for agent_name, subscription_index in expired_batches:
+            # Flush the expired batch
+            artifacts = self._batch_engine.flush_batch(agent_name, subscription_index)
+
+            if artifacts is None:
+                continue
+
+            # Get the agent
+            agent = self._agents.get(agent_name)
+            if agent is None:
+                continue
+
+            # Schedule agent with batched artifacts
+            self._schedule_task(agent, artifacts)
+
+    async def _flush_all_batches(self) -> None:
+        """Flush all partial batches (for shutdown - ensures zero data loss)."""
+        all_batches = self._batch_engine.flush_all()
+
+        for agent_name, subscription_index, artifacts in all_batches:
+            # Get the agent
+            agent = self._agents.get(agent_name)
+            if agent is None:
+                continue
+
+            # Schedule agent with partial batch
+            self._schedule_task(agent, artifacts)
+
+        # Wait for all scheduled tasks to complete
+        await self.run_until_idle()
 
     # Helpers --------------------------------------------------------------
 
