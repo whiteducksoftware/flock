@@ -177,10 +177,84 @@ class AgentErrorEvent(BaseModel):
     failed_at: str  # ISO timestamp of failure
 
 
+class CorrelationGroupUpdatedEvent(BaseModel):
+    """Event emitted when artifact added to correlation group.
+
+    Phase 1.2: Logic Operations UX Enhancement
+    Emitted when an artifact is added to a JoinSpec correlation group
+    that has not yet collected all required types.
+    """
+
+    # Event metadata
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+
+    # Agent identification
+    agent_name: str
+    subscription_index: int
+
+    # Correlation group
+    correlation_key: str  # "patient_123"
+
+    # Progress
+    collected_types: dict[str, int]  # {"XRayImage": 1, "LabResults": 0}
+    required_types: dict[str, int]  # {"XRayImage": 1, "LabResults": 1}
+    waiting_for: list[str]  # ["LabResults"]
+
+    # Window progress
+    elapsed_seconds: float
+    expires_in_seconds: float | None  # For time windows
+    expires_in_artifacts: int | None  # For count windows
+
+    # Artifact that triggered this event
+    artifact_id: str
+    artifact_type: str
+
+    is_complete: bool  # Will trigger agent in next orchestrator cycle
+
+
+class BatchItemAddedEvent(BaseModel):
+    """Event emitted when artifact added to batch accumulator.
+
+    Phase 1.2: Logic Operations UX Enhancement
+    Emitted when an artifact is added to a BatchSpec accumulator
+    that has not yet reached its flush threshold.
+    """
+
+    # Event metadata
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+
+    # Agent identification
+    agent_name: str
+    subscription_index: int
+
+    # Batch progress
+    items_collected: int
+    items_target: int | None  # None if no size limit
+    items_remaining: int | None
+
+    # Timeout progress
+    elapsed_seconds: float
+    timeout_seconds: float | None
+    timeout_remaining_seconds: float | None
+
+    # Trigger prediction
+    will_flush: str  # "on_size" | "on_timeout" | "unknown"
+
+    # Artifact that triggered this event
+    artifact_id: str
+    artifact_type: str
+
+
 __all__ = [
     "AgentActivatedEvent",
     "AgentCompletedEvent",
     "AgentErrorEvent",
+    "BatchItemAddedEvent",
+    "CorrelationGroupUpdatedEvent",
     "MessagePublishedEvent",
     "StreamingOutputEvent",
     "SubscriptionInfo",

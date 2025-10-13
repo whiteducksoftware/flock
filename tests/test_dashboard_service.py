@@ -564,6 +564,522 @@ async def test_get_agents_empty_list(async_client, mocker):
     assert len(data["agents"]) == 0
 
 
+# ============================================================================
+# Phase 1.2: Enhanced /api/agents Endpoint Tests - Logic Operations Support
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_agents_with_joinspec_returns_logic_operations():
+    """Test GET /api/agents includes logic_operations for agents with JoinSpec."""
+    from datetime import timedelta
+
+    from flock.orchestrator import Flock
+    from flock.subscription import JoinSpec
+
+    # Create fresh orchestrator
+    orchestrator = Flock()
+
+    # Create test artifact types
+    @flock_type
+    class XRayImage(BaseModel):
+        patient_id: str
+        image_data: str
+
+    @flock_type
+    class LabResults(BaseModel):
+        patient_id: str
+        test_results: str
+
+    # Create agent with JoinSpec
+    agent = (
+        orchestrator.agent("radiologist")
+        .description("Medical diagnostics agent")
+        .consumes(
+            XRayImage,
+            LabResults,
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+        )
+    )
+
+    # Create service
+    from flock.dashboard.service import DashboardHTTPService
+
+    service = DashboardHTTPService(orchestrator)
+
+    # Make request
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=service.get_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/agents")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    assert "agents" in data
+    assert len(data["agents"]) == 1
+
+    agent_data = data["agents"][0]
+    assert agent_data["name"] == "radiologist"
+    assert agent_data["status"] == "ready"
+
+    # Verify logic_operations field exists
+    assert "logic_operations" in agent_data
+    assert len(agent_data["logic_operations"]) == 1
+
+    logic_op = agent_data["logic_operations"][0]
+    assert logic_op["subscription_index"] == 0
+    # Type names are fully qualified (e.g., "test_dashboard_service.XRayImage")
+    subscription_types = logic_op["subscription_types"]
+    assert len(subscription_types) == 2
+    assert any("XRayImage" in t for t in subscription_types)
+    assert any("LabResults" in t for t in subscription_types)
+
+    # Verify JoinSpec configuration
+    assert "join" in logic_op
+    join_config = logic_op["join"]
+    assert join_config["correlation_strategy"] == "by_key"
+    assert join_config["window_type"] == "time"
+    assert join_config["window_value"] == 300  # 5 minutes in seconds
+    assert join_config["window_unit"] == "seconds"
+    # Type names in required_types are also fully qualified
+    required_types = join_config["required_types"]
+    assert len(required_types) == 2
+    assert any("XRayImage" in t for t in required_types)
+    assert any("LabResults" in t for t in required_types)
+    # Type counts use fully qualified names as keys
+    type_counts = join_config["type_counts"]
+    assert len(type_counts) == 2
+    assert all(count == 1 for count in type_counts.values())
+
+
+@pytest.mark.asyncio
+async def test_get_agents_with_batchspec_returns_logic_operations():
+    """Test GET /api/agents includes logic_operations for agents with BatchSpec."""
+    from datetime import timedelta
+
+    from flock.orchestrator import Flock
+    from flock.subscription import BatchSpec
+
+    # Create fresh orchestrator
+    orchestrator = Flock()
+
+    # Create test artifact type
+    @flock_type
+    class Email(BaseModel):
+        subject: str
+        body: str
+
+    # Create agent with BatchSpec
+    agent = (
+        orchestrator.agent("email_processor")
+        .description("Batch email processor")
+        .consumes(Email, batch=BatchSpec(size=25, timeout=timedelta(seconds=30)))
+    )
+
+    # Create service
+    from flock.dashboard.service import DashboardHTTPService
+
+    service = DashboardHTTPService(orchestrator)
+
+    # Make request
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=service.get_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/agents")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    assert "agents" in data
+    assert len(data["agents"]) == 1
+
+    agent_data = data["agents"][0]
+    assert agent_data["name"] == "email_processor"
+    assert agent_data["status"] == "ready"
+
+    # Verify logic_operations field exists
+    assert "logic_operations" in agent_data
+    assert len(agent_data["logic_operations"]) == 1
+
+    logic_op = agent_data["logic_operations"][0]
+    assert logic_op["subscription_index"] == 0
+    # Type names are fully qualified (e.g., "test_dashboard_service.Email")
+    subscription_types = logic_op["subscription_types"]
+    assert len(subscription_types) == 1
+    assert "Email" in subscription_types[0]
+
+    # Verify BatchSpec configuration
+    assert "batch" in logic_op
+    batch_config = logic_op["batch"]
+    assert batch_config["strategy"] == "hybrid"  # Both size and timeout
+    assert batch_config["size"] == 25
+    assert batch_config["timeout_seconds"] == 30
+
+
+@pytest.mark.asyncio
+async def test_get_agents_with_waiting_correlation_groups():
+    """Test GET /api/agents includes waiting_state when correlation groups exist."""
+    from datetime import datetime, timedelta
+
+    from flock.artifacts import Artifact
+    from flock.correlation_engine import CorrelationGroup
+    from flock.orchestrator import Flock
+    from flock.subscription import JoinSpec
+    from flock.visibility import PublicVisibility
+
+    # Create fresh orchestrator
+    orchestrator = Flock()
+
+    # Create test artifact types
+    @flock_type
+    class XRayImage(BaseModel):
+        patient_id: str
+        image_data: str
+
+    @flock_type
+    class LabResults(BaseModel):
+        patient_id: str
+        test_results: str
+
+    # Create agent with JoinSpec
+    agent = (
+        orchestrator.agent("radiologist")
+        .description("Medical diagnostics agent")
+        .consumes(
+            XRayImage,
+            LabResults,
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+        )
+    )
+
+    # Manually create correlation group in orchestrator's engine
+    pool_key = (agent.agent.name, 0)
+    group = CorrelationGroup(
+        correlation_key="patient_123",
+        required_types={"XRayImage", "LabResults"},
+        type_counts={"XRayImage": 1, "LabResults": 1},
+        window_spec=timedelta(minutes=5),
+        created_at_sequence=1,
+    )
+    group.created_at_time = datetime.now(timezone.utc)
+
+    # Add one artifact (XRay) to make it incomplete
+    xray = Artifact(
+        id=uuid4(),
+        type="XRayImage",
+        payload={"patient_id": "patient_123", "image_data": "scan.png"},
+        produced_by="scanner",
+        visibility=PublicVisibility(),
+    )
+    group.waiting_artifacts["XRayImage"].append(xray)
+
+    orchestrator._correlation_engine.correlation_groups[pool_key]["patient_123"] = group
+
+    # Create service
+    from flock.dashboard.service import DashboardHTTPService
+
+    service = DashboardHTTPService(orchestrator)
+
+    # Make request
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=service.get_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/agents")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    agent_data = data["agents"][0]
+
+    # Verify status is "waiting"
+    assert agent_data["status"] == "waiting"
+
+    # Verify waiting_state exists
+    assert "logic_operations" in agent_data
+    logic_op = agent_data["logic_operations"][0]
+    assert "waiting_state" in logic_op
+
+    waiting_state = logic_op["waiting_state"]
+    assert waiting_state["is_waiting"] is True
+    assert "correlation_groups" in waiting_state
+
+    # Verify correlation group details
+    groups = waiting_state["correlation_groups"]
+    assert len(groups) == 1
+    group_state = groups[0]
+    assert group_state["correlation_key"] == "patient_123"
+    assert group_state["collected_types"]["XRayImage"] == 1
+    assert group_state["collected_types"]["LabResults"] == 0
+    assert "LabResults" in group_state["waiting_for"]
+    assert group_state["is_complete"] is False
+
+
+@pytest.mark.asyncio
+async def test_get_agents_with_batch_accumulating():
+    """Test GET /api/agents includes waiting_state when batch is accumulating."""
+    from datetime import datetime
+
+    from flock.artifacts import Artifact
+    from flock.batch_accumulator import BatchAccumulator
+    from flock.orchestrator import Flock
+    from flock.subscription import BatchSpec
+    from flock.visibility import PublicVisibility
+
+    # Create fresh orchestrator
+    orchestrator = Flock()
+
+    # Create test artifact type
+    @flock_type
+    class Email(BaseModel):
+        subject: str
+        body: str
+
+    # Create agent with BatchSpec
+    agent = (
+        orchestrator.agent("email_processor")
+        .description("Batch email processor")
+        .consumes(Email, batch=BatchSpec(size=25))
+    )
+
+    # Manually create batch accumulator in orchestrator's engine
+    batch_key = (agent.agent.name, 0)
+    accumulator = BatchAccumulator(
+        batch_spec=BatchSpec(size=25),
+        created_at=datetime.now(timezone.utc),
+    )
+
+    # Add some artifacts (10 out of 25)
+    for i in range(10):
+        email = Artifact(
+            id=uuid4(),
+            type="Email",
+            payload={"subject": f"Email {i}", "body": "test"},
+            produced_by="mailer",
+            visibility=PublicVisibility(),
+        )
+        accumulator.artifacts.append(email)
+
+    orchestrator._batch_engine.batches[batch_key] = accumulator
+
+    # Create service
+    from flock.dashboard.service import DashboardHTTPService
+
+    service = DashboardHTTPService(orchestrator)
+
+    # Make request
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=service.get_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/agents")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    agent_data = data["agents"][0]
+
+    # Verify status is "waiting"
+    assert agent_data["status"] == "waiting"
+
+    # Verify waiting_state exists
+    assert "logic_operations" in agent_data
+    logic_op = agent_data["logic_operations"][0]
+    assert "waiting_state" in logic_op
+
+    waiting_state = logic_op["waiting_state"]
+    assert waiting_state["is_waiting"] is True
+    assert "batch_state" in waiting_state
+
+    # Verify batch state details
+    batch_state = waiting_state["batch_state"]
+    assert batch_state["items_collected"] == 10
+    assert batch_state["items_target"] == 25
+    assert batch_state["items_remaining"] == 15
+    assert batch_state["will_flush"] == "on_size"
+
+
+@pytest.mark.asyncio
+async def test_get_agents_with_both_joinspec_and_batchspec():
+    """Test GET /api/agents with agent using both JoinSpec and BatchSpec."""
+    from datetime import timedelta
+
+    from flock.orchestrator import Flock
+    from flock.subscription import BatchSpec, JoinSpec
+
+    # Create fresh orchestrator
+    orchestrator = Flock()
+
+    # Create test artifact types
+    @flock_type
+    class XRayImage(BaseModel):
+        patient_id: str
+        image_data: str
+
+    @flock_type
+    class LabResults(BaseModel):
+        patient_id: str
+        test_results: str
+
+    # Create agent with BOTH JoinSpec and BatchSpec
+    agent = (
+        orchestrator.agent("radiologist")
+        .description("Batches correlated diagnostics")
+        .consumes(
+            XRayImage,
+            LabResults,
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=5),  # Batch 5 correlated pairs
+        )
+    )
+
+    # Create service
+    from flock.dashboard.service import DashboardHTTPService
+
+    service = DashboardHTTPService(orchestrator)
+
+    # Make request
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=service.get_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/agents")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    agent_data = data["agents"][0]
+
+    # Verify logic_operations includes BOTH join and batch
+    assert "logic_operations" in agent_data
+    logic_op = agent_data["logic_operations"][0]
+
+    # Verify JoinSpec config
+    assert "join" in logic_op
+    join_config = logic_op["join"]
+    assert join_config["window_type"] == "time"
+    assert join_config["window_value"] == 300
+
+    # Verify BatchSpec config
+    assert "batch" in logic_op
+    batch_config = logic_op["batch"]
+    assert batch_config["strategy"] == "size"
+    assert batch_config["size"] == 5
+
+
+@pytest.mark.asyncio
+async def test_get_agents_without_logic_operations():
+    """Test GET /api/agents for agents without JoinSpec or BatchSpec."""
+    from flock.orchestrator import Flock
+
+    # Create fresh orchestrator
+    orchestrator = Flock()
+
+    # Create test artifact type
+    @flock_type
+    class SimpleMessage(BaseModel):
+        content: str
+
+    # Create simple agent (no join/batch)
+    agent = (
+        orchestrator.agent("simple_processor")
+        .description("Simple message processor")
+        .consumes(SimpleMessage)
+    )
+
+    # Create service
+    from flock.dashboard.service import DashboardHTTPService
+
+    service = DashboardHTTPService(orchestrator)
+
+    # Make request
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=service.get_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/agents")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    agent_data = data["agents"][0]
+
+    # Verify logic_operations is NOT present (or is empty)
+    # According to the implementation, if there's no join/batch, logic_operations is omitted
+    assert "logic_operations" not in agent_data
+
+
+@pytest.mark.asyncio
+async def test_get_agents_multiple_subscriptions_with_logic_ops():
+    """Test GET /api/agents with agent having multiple subscriptions with different logic ops."""
+    from datetime import timedelta
+
+    from flock.orchestrator import Flock
+    from flock.subscription import BatchSpec, JoinSpec
+
+    # Create fresh orchestrator
+    orchestrator = Flock()
+
+    # Create test artifact types
+    @flock_type
+    class XRayImage(BaseModel):
+        patient_id: str
+        image_data: str
+
+    @flock_type
+    class LabResults(BaseModel):
+        patient_id: str
+        test_results: str
+
+    @flock_type
+    class Email(BaseModel):
+        subject: str
+        body: str
+
+    # Create agent with TWO subscriptions (different logic ops)
+    agent = (
+        orchestrator.agent("multi_subscriber")
+        .description("Agent with multiple subscriptions")
+        # First subscription: JoinSpec
+        .consumes(
+            XRayImage,
+            LabResults,
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+        )
+        # Second subscription: BatchSpec
+        .consumes(Email, batch=BatchSpec(size=10))
+    )
+
+    # Create service
+    from flock.dashboard.service import DashboardHTTPService
+
+    service = DashboardHTTPService(orchestrator)
+
+    # Make request
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=service.get_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/agents")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    agent_data = data["agents"][0]
+
+    # Verify TWO logic_operations entries (one per subscription)
+    assert "logic_operations" in agent_data
+    assert len(agent_data["logic_operations"]) == 2
+
+    # First subscription (JoinSpec)
+    logic_op_0 = agent_data["logic_operations"][0]
+    assert logic_op_0["subscription_index"] == 0
+    assert "join" in logic_op_0
+    assert "batch" not in logic_op_0
+
+    # Second subscription (BatchSpec)
+    logic_op_1 = agent_data["logic_operations"][1]
+    assert logic_op_1["subscription_index"] == 1
+    assert "batch" in logic_op_1
+    assert "join" not in logic_op_1
+
+
 # Test /api/version endpoint (lines 212-228 in service.py)
 
 
