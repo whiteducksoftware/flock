@@ -926,18 +926,31 @@ class Flock(metaclass=AutoTracedMeta):
                     # Add to batch accumulator
                     subscription_index = agent.subscriptions.index(subscription)
 
-                    # For batching, we need to add EACH artifact individually
-                    # (correlation/AND gate already gave us a list)
-                    for single_artifact in artifacts:
-                        should_flush = self._batch_engine.add_artifact(
-                            artifact=single_artifact,
+                    # COMBINED FEATURES: JoinSpec + BatchSpec
+                    # If we have JoinSpec, artifacts is a correlated GROUP - treat as single batch item
+                    # If we have AND gate, artifacts is a complete set - treat as single batch item
+                    # Otherwise (single type), add each artifact individually
+
+                    if subscription.join is not None or len(subscription.type_models) > 1:
+                        # JoinSpec or AND gate: Treat artifact group as ONE batch item
+                        should_flush = self._batch_engine.add_artifact_group(
+                            artifacts=artifacts,
                             subscription=subscription,
                             subscription_index=subscription_index,
                         )
+                    else:
+                        # Single type subscription: Add each artifact individually
+                        should_flush = False
+                        for single_artifact in artifacts:
+                            should_flush = self._batch_engine.add_artifact(
+                                artifact=single_artifact,
+                                subscription=subscription,
+                                subscription_index=subscription_index,
+                            )
 
-                        if should_flush:
-                            # Size threshold reached! Flush batch now
-                            break
+                            if should_flush:
+                                # Size threshold reached! Flush batch now
+                                break
 
                     if not should_flush:
                         # Batch not full yet - wait for more artifacts

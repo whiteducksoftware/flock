@@ -135,6 +135,65 @@ class BatchEngine:
 
         return should_flush
 
+    def add_artifact_group(
+        self,
+        *,
+        artifacts: list[Artifact],
+        subscription: Subscription,
+        subscription_index: int,
+    ) -> bool:
+        """
+        Add a GROUP of artifacts (e.g., correlated pair) as a SINGLE batch item.
+
+        This is used for JoinSpec + BatchSpec combinations where we want to batch
+        correlated groups, not individual artifacts.
+
+        Example: JoinSpec + BatchSpec(size=2) means "batch 2 correlated pairs",
+                 not "batch 2 individual artifacts".
+
+        Returns:
+            True if batch should flush (size threshold reached), False otherwise
+        """
+        if subscription.batch is None:
+            raise ValueError("Subscription must have BatchSpec for batching")
+
+        batch_key = (subscription.agent_name, subscription_index)
+
+        # Get or create batch accumulator
+        if batch_key not in self.batches:
+            self.batches[batch_key] = BatchAccumulator(
+                batch_spec=subscription.batch,
+                created_at=datetime.now(),
+            )
+
+        accumulator = self.batches[batch_key]
+
+        # Add ALL artifacts from the group
+        for artifact in artifacts:
+            accumulator.artifacts.append(artifact)
+
+        # Check size threshold - count GROUPS, not artifacts
+        # We track how many groups have been added by checking batch_spec metadata
+        if subscription.batch.size is not None:
+            # For group batching, we need to track group count separately
+            # For now, we'll use a simple heuristic: count groups by dividing by expected group size
+            # But this is NOT perfect - we need better tracking
+
+            # BETTER APPROACH: Count how many times we've called add_artifact_group
+            # For now, let's use artifact count as a proxy and check if we've hit the threshold
+            # This will work correctly if all groups are the same size
+
+            # Actually, let's track group count properly:
+            if not hasattr(accumulator, '_group_count'):
+                accumulator._group_count = 0
+
+            accumulator._group_count += 1
+
+            if accumulator._group_count >= subscription.batch.size:
+                return True  # Flush now
+
+        return False  # Not ready to flush yet
+
     def flush_batch(self, agent_name: str, subscription_index: int) -> list[Artifact] | None:
         """
         Flush a batch and return its artifacts.

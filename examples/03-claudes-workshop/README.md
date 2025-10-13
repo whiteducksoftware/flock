@@ -15,6 +15,9 @@ This workshop teaches you **declarative AI orchestration** through progressively
 - ✅ **Unified Tracing** - Production-ready debugging
 - ✅ **Visibility Controls** - Security and access control
 - ✅ **Parallel Processing** - Concurrent agent execution
+- ✅ **Data Correlation** - JoinSpec for correlated AND gates
+- ✅ **Batch Processing** - BatchSpec for efficient batching
+- ✅ **Combined Features** - JoinSpec + BatchSpec together
 
 ## 📚 Course Structure
 
@@ -70,6 +73,29 @@ Each lesson builds on the previous one, introducing new concepts with hands-on e
 - Concurrent workflows at scale
 - **Time:** 20 minutes
 
+### 🚀 Expert Track - Logic Operations
+
+**Lesson 08: The Matchmaker**
+- Data correlation with JoinSpec
+- Correlated AND gates by common keys
+- Time-windowed matching
+- E-commerce order-shipment correlation
+- **Time:** 25 minutes
+
+**Lesson 09: The Batch Optimizer**
+- Efficient processing with BatchSpec
+- Size and timeout triggers
+- Cost optimization through batching
+- Payment processing use case
+- **Time:** 25 minutes
+
+**Lesson 10: The Smart Factory** 🏆 MASTER CLASS
+- Combining JoinSpec + BatchSpec
+- Multi-stage correlation and batching
+- IoT sensor monitoring at scale
+- Production-grade patterns
+- **Time:** 30 minutes
+
 ## 🛠️ Prerequisites
 
 ```bash
@@ -97,10 +123,10 @@ Work through lessons in order, running each example:
 
 ```bash
 # Start with Lesson 01
-uv run examples/05-claudes-workshop/lesson_01_code_detective.py
+uv run examples/03-claudes-workshop/lesson_01_code_detective.py
 
 # Then Lesson 02
-uv run examples/05-claudes-workshop/lesson_02_band_formation.py
+uv run examples/03-claudes-workshop/lesson_02_band_formation.py
 
 # And so on...
 ```
@@ -110,6 +136,9 @@ Already familiar with basics? Jump to specific lessons:
 - Need to learn tracing? → Lesson 05
 - Building secure systems? → Lesson 06
 - Optimizing performance? → Lesson 07
+- Data correlation patterns? → Lesson 08
+- Batch processing optimization? → Lesson 09
+- Advanced combined features? → Lesson 10
 
 ### Option 3: Interactive Exploration
 Each lesson is a standalone Python file with:
@@ -127,7 +156,7 @@ export FLOCK_AUTO_TRACE=true
 export FLOCK_TRACE_FILE=true
 
 # Run a lesson
-uv run examples/05-claudes-workshop/lesson_01_code_detective.py
+uv run examples/03-claudes-workshop/lesson_01_code_detective.py
 
 # Query the traces to understand what happened
 python -c "
@@ -191,6 +220,9 @@ By the end of this workshop, you'll be able to:
 - ✅ Implement conditional routing and feedback loops
 - ✅ Debug complex workflows with distributed tracing
 - ✅ Secure multi-tenant systems with visibility controls
+- ✅ Correlate related data with JoinSpec
+- ✅ Optimize processing with BatchSpec batching
+- ✅ Combine advanced features for production-grade systems
 - ✅ Scale to 100+ agents without graph complexity
 
 ## 🚀 Ready to Start?
@@ -198,7 +230,7 @@ By the end of this workshop, you'll be able to:
 Begin with **Lesson 01: The Code Detective** and work your way through!
 
 ```bash
-uv run examples/05-claudes-workshop/lesson_01_code_detective.py
+uv run examples/03-claudes-workshop/lesson_01_code_detective.py
 ```
 
 **Let's build the future of AI orchestration together!** 🎉

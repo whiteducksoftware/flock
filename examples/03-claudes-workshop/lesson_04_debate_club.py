@@ -28,7 +28,7 @@ class DebateVerdict(BaseModel):
     vote_margin: str
     most_compelling_point: str
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 pro_debater = (
     flock.agent("pro_debater")
@@ -95,4 +95,4 @@ async def main():
         print(f"   Avg Con strength: {avg_con_strength:.1f}/10")
 
 if __name__ == "__main__":
-    asyncio.run(main(), debug=True)
+    asyncio.run(main())

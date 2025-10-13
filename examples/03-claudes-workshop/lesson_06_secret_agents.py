@@ -37,7 +37,7 @@ class PublicStatement(BaseModel):
     media_talking_points: list[str]
     public_reassurance: str
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 field_agent = (
     flock.agent("field_agent")
@@ -108,4 +108,4 @@ async def main():
         print(f"   Total assets deployed: {total_assets}")
 
 if __name__ == "__main__":
-    asyncio.run(main(), debug=True)
+    asyncio.run(main())
