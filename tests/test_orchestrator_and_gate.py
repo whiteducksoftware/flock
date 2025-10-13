@@ -1,0 +1,322 @@
+"""
+Test Suite: AND/OR Gate Logic for Multi-Type Subscriptions
+
+This test suite validates the new AND gate behavior for `.consumes(A, B)` syntax
+and ensures backward compatibility with OR gate via chaining `.consumes(A).consumes(B)`.
+
+Target Implementation: Phase 1 of Logic Operations (Spec 003)
+Status: RED - Tests written first, implementation pending
+"""
+
+import pytest
+from pydantic import BaseModel, Field
+
+from flock.components import EngineComponent
+from flock.registry import flock_type
+from flock.runtime import EvalResult
+
+
+# Test Types for AND/OR Gate Testing
+@flock_type(name="TypeA")
+class TypeA(BaseModel):
+    """Test type A for multi-type subscription testing."""
+
+    value: str = Field(description="Value for type A")
+    correlation_id: str = Field(default="default", description="Correlation ID for join testing")
+
+
+@flock_type(name="TypeB")
+class TypeB(BaseModel):
+    """Test type B for multi-type subscription testing."""
+
+    value: str = Field(description="Value for type B")
+    correlation_id: str = Field(default="default", description="Correlation ID for join testing")
+
+
+@flock_type(name="TypeC")
+class TypeC(BaseModel):
+    """Test type C for three-way AND gate testing."""
+
+    value: str = Field(description="Value for type C")
+
+
+# ============================================================================
+# Phase 1, Week 1, Day 1-2: Basic AND Gate Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_simple_and_gate_waits_for_both_types(orchestrator):
+    """
+    Test that `.consumes(A, B)` implements AND gate logic.
+
+    GIVEN: Agent consumes TypeA AND TypeB (AND gate)
+    WHEN: Only TypeA is published
+    THEN: Agent should NOT be triggered
+    WHEN: TypeB is then published
+    THEN: Agent should be triggered with BOTH artifacts
+
+    This is the foundational test for AND gate behavior.
+    Currently FAILS because `.consumes(A, B)` uses OR logic.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        """Tracks agent execution with artifact details."""
+
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(
+                {
+                    "agent": agent.name,
+                    "artifacts": inputs.artifacts,
+                    "artifact_count": len(inputs.artifacts),
+                    "types": [a.type for a in inputs.artifacts],
+                }
+            )
+            return EvalResult(artifacts=[])
+
+    # Create agent with AND gate subscription
+    orchestrator.agent("and_gate_agent").consumes(TypeA, TypeB).with_engines(TrackingEngine())
+
+    # Act - Publish only TypeA
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Agent should NOT be triggered yet (waiting for TypeB)
+    assert len(executed) == 0, "Agent should NOT trigger with only TypeA (AND gate requires both)"
+
+    # Act - Publish TypeB
+    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Agent should NOW be triggered with BOTH artifacts
+    assert len(executed) == 1, "Agent should trigger once when both types present"
+    assert executed[0]["artifact_count"] == 2, "Agent should receive BOTH artifacts"
+
+    # Verify both types are present
+    types_received = set(executed[0]["types"])
+    assert types_received == {"TypeA", "TypeB"}, f"Expected both types, got {types_received}"
+
+
+@pytest.mark.asyncio
+async def test_and_gate_order_independence(orchestrator):
+    """
+    Test that AND gate works regardless of artifact publication order.
+
+    GIVEN: Agent with AND gate subscription
+    WHEN: TypeB published before TypeA
+    THEN: Agent should still wait for both and trigger correctly
+
+    This ensures the waiting pool doesn't depend on publication order.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(len(inputs.artifacts))
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("order_test").consumes(TypeA, TypeB).with_engines(TrackingEngine())
+
+    # Act - Publish TypeB FIRST (reverse order)
+    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    assert len(executed) == 0, "Should not trigger with only TypeB"
+
+    # Act - Publish TypeA SECOND
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger with both artifacts
+    assert len(executed) == 1, "Should trigger when both types present"
+    assert executed[0] == 2, "Should receive both artifacts"
+
+
+@pytest.mark.asyncio
+async def test_three_way_and_gate(orchestrator):
+    """
+    Test that AND gate works with more than 2 types.
+
+    GIVEN: Agent consumes TypeA, TypeB, AND TypeC
+    WHEN: Only 2 out of 3 types published
+    THEN: Agent should NOT trigger
+    WHEN: All 3 types published
+    THEN: Agent should trigger with all 3 artifacts
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append({"count": len(inputs.artifacts), "types": [a.type for a in inputs.artifacts]})
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("three_way").consumes(TypeA, TypeB, TypeC).with_engines(TrackingEngine())
+
+    # Act - Publish only TypeA and TypeB
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    assert len(executed) == 0, "Should not trigger with only 2 out of 3 types"
+
+    # Act - Publish TypeC (completes the set)
+    await orchestrator.publish({"type": "TypeC", "value": "c1"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger with all 3 artifacts
+    assert len(executed) == 1, "Should trigger when all 3 types present"
+    assert executed[0]["count"] == 3, "Should receive all 3 artifacts"
+    assert set(executed[0]["types"]) == {"TypeA", "TypeB", "TypeC"}
+
+
+@pytest.mark.asyncio
+async def test_multiple_agents_same_types_independent_waiting(orchestrator):
+    """
+    Test that multiple agents with AND gates don't interfere.
+
+    GIVEN: Two agents both consume TypeA AND TypeB
+    WHEN: Both types published
+    THEN: Both agents should trigger independently
+    """
+    # Arrange
+    executed_agent1 = []
+    executed_agent2 = []
+
+    class TrackingEngine1(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed_agent1.append(len(inputs.artifacts))
+            return EvalResult(artifacts=[])
+
+    class TrackingEngine2(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed_agent2.append(len(inputs.artifacts))
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("agent1").consumes(TypeA, TypeB).with_engines(TrackingEngine1())
+
+    orchestrator.agent("agent2").consumes(TypeA, TypeB).with_engines(TrackingEngine2())
+
+    # Act - Publish both types
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Both agents should trigger independently
+    assert len(executed_agent1) == 1, "Agent1 should trigger"
+    assert len(executed_agent2) == 1, "Agent2 should trigger"
+    assert executed_agent1[0] == 2, "Agent1 should receive 2 artifacts"
+    assert executed_agent2[0] == 2, "Agent2 should receive 2 artifacts"
+
+
+@pytest.mark.asyncio
+async def test_partial_match_does_not_trigger(orchestrator):
+    """
+    Test that partial matches don't trigger AND gate prematurely.
+
+    GIVEN: Agent with AND gate for TypeA and TypeB
+    WHEN: TypeA published multiple times but no TypeB
+    THEN: Agent should NEVER trigger (still waiting for TypeB)
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(True)
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("partial_test").consumes(TypeA, TypeB).with_engines(TrackingEngine())
+
+    # Act - Publish TypeA multiple times (but no TypeB)
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeA", "value": "a3", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should NEVER trigger (still waiting for TypeB)
+    assert len(executed) == 0, "Agent should not trigger without TypeB"
+
+
+# ============================================================================
+# Edge Cases and Error Scenarios
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_and_gate_with_single_type_triggers_immediately(orchestrator):
+    """
+    Test that `.consumes(TypeA)` with single type triggers immediately (no waiting).
+
+    GIVEN: Agent consumes only TypeA (no AND gate needed)
+    WHEN: TypeA published
+    THEN: Agent should trigger immediately (no waiting for additional types)
+
+    This ensures single-type subscriptions aren't affected by AND gate logic.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(len(inputs.artifacts))
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("single_type").consumes(TypeA).with_engines(TrackingEngine())
+
+    # Act
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger immediately with single artifact
+    assert len(executed) == 1, "Single-type subscription should trigger immediately"
+    assert executed[0] == 1, "Should receive single artifact"
+
+
+@pytest.mark.asyncio
+async def test_and_gate_does_not_accumulate_across_completions(orchestrator):
+    """
+    Test that AND gate waiting pool is cleared after triggering.
+
+    GIVEN: Agent with AND gate
+    WHEN: Both types published (first completion)
+    AND: Both types published again (second time)
+    THEN: Agent should trigger TWICE (independent waiting pools)
+
+    This ensures the waiting pool is cleared after each successful trigger.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(
+                {"count": len(inputs.artifacts), "values": [a.payload["value"] for a in inputs.artifacts]}
+            )
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("repeat_test").consumes(TypeA, TypeB).with_engines(TrackingEngine())
+
+    # Act - First completion
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    assert len(executed) == 1, "Should trigger first time"
+
+    # Act - Second completion (new pair)
+    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeB", "value": "b2", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger second time independently
+    assert len(executed) == 2, "Should trigger second time with new pair"
+    assert executed[0]["count"] == 2, "First trigger should have 2 artifacts"
+    assert executed[1]["count"] == 2, "Second trigger should have 2 artifacts"
+
+    # Verify different values (not accumulated)
+    assert executed[0]["values"] == ["a1", "b1"], "First trigger should have first pair"
+    assert executed[1]["values"] == ["a2", "b2"], "Second trigger should have second pair"

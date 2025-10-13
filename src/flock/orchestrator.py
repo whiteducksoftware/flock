@@ -18,6 +18,7 @@ from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
 
 from flock.agent import Agent, AgentBuilder
+from flock.artifact_collector import ArtifactCollector
 from flock.artifacts import Artifact
 from flock.helper.cli_helper import init_console
 from flock.logging.auto_trace import AutoTracedMeta
@@ -128,6 +129,8 @@ class Flock(metaclass=AutoTracedMeta):
         self.max_agent_iterations: int = max_agent_iterations
         self._agent_iteration_count: dict[str, int] = {}
         self.is_dashboard: bool = False
+        # AND gate logic: Artifact collection for multi-type subscriptions
+        self._artifact_collector = ArtifactCollector()
         # Unified tracing support
         self._workflow_span = None
         self._auto_workflow_enabled = os.getenv("FLOCK_AUTO_WORKFLOW_TRACE", "false").lower() in {
@@ -881,10 +884,26 @@ class Flock(metaclass=AutoTracedMeta):
                     continue
                 if self._seen_before(artifact, agent):
                     continue
+
+                # AND GATE LOGIC: Use artifact collector for multi-type subscriptions
+                is_complete, artifacts = self._artifact_collector.add_artifact(
+                    agent, subscription, artifact
+                )
+
+                if not is_complete:
+                    # Still waiting for more types (AND gate incomplete)
+                    continue
+
+                # Complete! Schedule agent with all collected artifacts
                 # T068: Increment iteration counter
                 self._agent_iteration_count[agent.name] = iteration_count + 1
-                self._mark_processed(artifact, agent)
-                self._schedule_task(agent, [artifact])
+
+                # Mark all artifacts as processed (prevent duplicate triggers)
+                for collected_artifact in artifacts:
+                    self._mark_processed(collected_artifact, agent)
+
+                # Schedule agent with ALL artifacts (AND gate complete)
+                self._schedule_task(agent, artifacts)
 
     def _schedule_task(self, agent: Agent, artifacts: list[Artifact]) -> None:
         task = asyncio.create_task(self._run_agent_task(agent, artifacts))

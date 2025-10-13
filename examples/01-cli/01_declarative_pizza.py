@@ -26,7 +26,7 @@ pizza_master = (
 )
 
 async def main():
-    pizza_idea = MyDreamPizza(pizza_idea="pizza with tartufo")
+    pizza_idea = MyDreamPizza(pizza_idea="pizza with pineapple")
     await flock.publish(pizza_idea)
     await flock.run_until_idle()
     
