@@ -338,28 +338,48 @@ validator = flock.agent("validator").consumes(Image, Image, Metadata).publishes(
 - ✅ **Latest wins** - If 4 As arrive but need 3, uses the 3 most recent
 - ✅ **Zero configuration** - No manual coordination logic needed
 
-**Advanced subscriptions:**
+**Advanced subscriptions unlock crazy powerful patterns:**
 
 ```python
-# Conditional consumption - only high-severity cases
+# 🎯 Predicates - Smart filtering (only process critical cases)
 urgent_care = flock.agent("urgent").consumes(
     Diagnosis,
-    where=lambda d: d.severity in ["Critical", "High"]
+    where=lambda d: d.severity in ["Critical", "High"]  # Conditional routing!
 )
 
-# Batch processing - wait for 10 items
-batch_processor = flock.agent("batch").consumes(
-    Event,
-    batch=BatchSpec(size=10, timeout=timedelta(seconds=30))
+# 📦 BatchSpec - Cost optimization (process 10 at once = 90% cheaper API calls)
+payment_processor = flock.agent("payments").consumes(
+    Transaction,
+    batch=BatchSpec(size=25, timeout=timedelta(seconds=30))  # $5 saved per batch!
 )
 
-# Join operations - wait for multiple types within time window
-correlator = flock.agent("correlator").consumes(
-    SignalA,
-    SignalB,
-    join=JoinSpec(within=timedelta(minutes=5))
+# 🔗 JoinSpec - Data correlation (match orders + shipments by ID)
+customer_service = flock.agent("notifications").consumes(
+    Order,
+    Shipment,
+    join=JoinSpec(by=lambda x: x.order_id, within=timedelta(hours=24))  # Correlated!
+)
+
+# 🏭 Combined Features - Correlate sensors, THEN batch for analysis
+quality_control = flock.agent("qc").consumes(
+    TemperatureSensor,
+    PressureSensor,
+    join=JoinSpec(by=lambda x: x.device_id, within=timedelta(seconds=30)),
+    batch=BatchSpec(size=5, timeout=timedelta(seconds=45))  # IoT at scale!
 )
 ```
+
+**What just happened:**
+- ✅ **Predicates** route work by business rules ("only critical severity")
+- ✅ **BatchSpec** optimizes costs (25 transactions = 1 API call instead of 25)
+- ✅ **JoinSpec** correlates related data (orders ↔ shipments, sensors ↔ readings)
+- ✅ **Combined** delivers production-grade multi-stage pipelines
+
+**Real-world impact:**
+- 💰 E-commerce: Save $5 per batch on payment processing fees
+- 🏥 Healthcare: Correlate patient scans + lab results for diagnosis
+- 🏭 Manufacturing: Monitor 1000+ IoT sensors with efficient batching
+- 📊 Finance: Match trades + confirmations within 5-minute windows
 
 ### Visibility Controls (The Security)
 
