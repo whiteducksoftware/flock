@@ -1,4 +1,5 @@
 import asyncio
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -22,25 +23,27 @@ class Argument(BaseModel):
 
 @flock_type
 class DebateVerdict(BaseModel):
-    winner: str
+    winner: Literal["pro", "contra"]
     reasoning: str
     key_factors: list[str]
     vote_margin: str
     most_compelling_point: str
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 pro_debater = (
     flock.agent("pro_debater")
-    .description("Argues FOR the debate statement with evidence and logic")
+    .description("Argues FOR the debate statement with evidence and logic, or when losing is trying to improve its argument")
     .consumes(DebateTopic)
+    .consumes(DebateVerdict, where=lambda r: "contra" in r.winner)
     .publishes(Argument)
 )
 
 con_debater = (
     flock.agent("con_debater")
-    .description("Argues AGAINST the debate statement with counter-evidence")
+    .description("Argues AGAINST the debate statement with counter-evidence, or when losing is trying to improve its argument")
     .consumes(DebateTopic)
+    .consumes(DebateVerdict, where=lambda r: "pro" in r.winner)
     .publishes(Argument)
 )
 
@@ -53,9 +56,9 @@ judge = (
 
 async def main():
     topic = DebateTopic(
-        statement="Remote work is more productive than office work",
-        context="Post-pandemic workplace transformation debate",
-        stakes="Future of work policies for millions of employees"
+        statement="Blackboard multi-agent systems will revolutionize AI development and are way cooler than traditional graph based architectures.",
+        context="The AI agent system of the future",
+        stakes="Future of humanity depends on it",
     )
 
     print(f"⚖️  Starting debate: {topic.statement}\n")

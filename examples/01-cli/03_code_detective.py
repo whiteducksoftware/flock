@@ -23,7 +23,7 @@ class BugDiagnosis(BaseModel):
     requires_hotfix: bool
     confidence_score: float = Field(ge=0.0, le=1.0)
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 code_detective = (
     flock.agent("code_detective")
@@ -48,10 +48,8 @@ async def main():
         )
     ]
 
-    for report in bug_reports:
-        print(f"🐛 Processing: {report.title}")
-        await flock.publish(report)
 
+    await flock.publish_many(bug_reports)
     await flock.run_until_idle()
 
     diagnoses = await flock.store.get_by_type(BugDiagnosis)

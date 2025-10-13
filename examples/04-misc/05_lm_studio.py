@@ -17,7 +17,8 @@ class Pizza(BaseModel):
     crust_type: str
     step_by_step_instructions: list[str]
 
-flock = Flock()
+# Use OPENAI_BASE_URL="http://localhost:1234/v1" in .env to point to LM Studio
+flock = Flock("openai/gpt-oss-20b")
 
 pizza_master = (
     flock.agent("pizza_master")

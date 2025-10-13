@@ -17,7 +17,7 @@ class Response(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     sources: list[str]
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 assistant = (
     flock.agent("assistant")

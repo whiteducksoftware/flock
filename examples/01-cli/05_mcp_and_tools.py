@@ -15,7 +15,7 @@ def write_report(string: str, file_name: str) -> None:
     directory = file_path.parent
     if directory and not directory.exists():
         directory.mkdir(parents=True)
-    with open(file_path, "w") as f:
+    with open(file_path, "w", encoding="utf-8") as f:
         f.write(string)
     print(f"✍️  Wrote file: {file_path}")
 
@@ -36,7 +36,7 @@ class Report(BaseModel):
     researched_urls: list[str]
     high_impact_info: dict[str, str]
 
-flock = Flock(model="openai/gpt-4.1")
+flock = Flock()
 
 try:
     flock.add_mcp(
