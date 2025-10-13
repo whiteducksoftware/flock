@@ -110,9 +110,8 @@ class ArtifactCollector:
 
             del self._waiting_pools[pool_key]  # Clear for next cycle
             return (True, artifacts)
-        else:
-            # Incomplete - still waiting for more artifacts
-            return (False, [])
+        # Incomplete - still waiting for more artifacts
+        return (False, [])
 
     def get_waiting_status(
         self, agent: Agent, subscription_index: int

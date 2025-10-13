@@ -11,9 +11,9 @@ Supports BatchSpec-based batching:
 
 from __future__ import annotations
 
-from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import TYPE_CHECKING
+
 
 if TYPE_CHECKING:
     from flock.artifacts import Artifact
@@ -184,7 +184,7 @@ class BatchEngine:
             # This will work correctly if all groups are the same size
 
             # Actually, let's track group count properly:
-            if not hasattr(accumulator, '_group_count'):
+            if not hasattr(accumulator, "_group_count"):
                 accumulator._group_count = 0
 
             accumulator._group_count += 1
@@ -249,4 +249,4 @@ class BatchEngine:
         return results
 
 
-__all__ = ["BatchEngine", "BatchAccumulator"]
+__all__ = ["BatchAccumulator", "BatchEngine"]
