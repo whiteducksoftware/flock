@@ -152,6 +152,148 @@ code_reviewer = (
 
 ---
 
+## Logic Operations (AND/OR Gates)
+
+Flock provides intuitive syntax for coordinating multiple input types through **AND gates**, **OR gates**, and **count-based logic**. This enables powerful coordination patterns without manual wiring.
+
+### AND Gates: Wait for ALL types
+
+**Use `.consumes(A, B)` to wait for multiple types before triggering:**
+
+```python
+# Diagnostician waits for BOTH inputs
+diagnostician = (
+    flock.agent("diagnostician")
+    .consumes(XRayAnalysis, LabResults)  # AND gate: waits for both
+    .publishes(Diagnosis)
+)
+```
+
+**How it works:**
+- Agent collects artifacts as they arrive
+- Triggers only when **ALL required types** are present
+- Order-independent: `XRay → Lab` or `Lab → XRay` both work
+- After triggering, the waiting pool clears for next cycle
+
+**Example timeline:**
+```
+Time 0: XRayAnalysis published → diagnostician waits...
+Time 1: LabResults published   → diagnostician triggers! ✅
+Time 2: Agent executes with BOTH artifacts
+```
+
+**Use cases:**
+- Multi-modal fusion (images + text + metadata)
+- Parallel analysis aggregation (multiple perspectives → final decision)
+- Dependency coordination (wait for prerequisites)
+
+### OR Gates: Trigger on ANY type
+
+**Use chained `.consumes()` to trigger on multiple types independently:**
+
+```python
+# Alert handler triggers on EITHER alert type
+alert_handler = (
+    flock.agent("alert_handler")
+    .consumes(SystemAlert)      # OR
+    .consumes(UserAlert)        # OR
+    .consumes(SecurityAlert)    # OR
+    .publishes(AlertResponse)
+)
+```
+
+**How it works:**
+- Each `.consumes()` creates a **separate subscription**
+- Agent triggers independently for each type
+- Single artifact per trigger (not accumulated)
+
+**Example timeline:**
+```
+Time 0: SystemAlert published   → alert_handler triggers ✅
+Time 1: UserAlert published     → alert_handler triggers AGAIN ✅
+Time 2: SystemAlert published   → alert_handler triggers AGAIN ✅
+```
+
+**Use cases:**
+- Polymorphic handling (multiple input types, same logic)
+- Event routing (different triggers, same response)
+- Flexible inputs (accept various formats)
+
+### Count-Based AND Gates: Wait for MULTIPLE instances
+
+**Use duplicate types to wait for multiple instances:**
+
+```python
+# Wait for THREE orders before processing
+batch_processor = (
+    flock.agent("batch_processor")
+    .consumes(Order, Order, Order)  # Waits for 3 Orders
+    .publishes(BatchSummary)
+)
+
+# Mixed counts: 2 Images + 1 Metadata
+validator = (
+    flock.agent("validator")
+    .consumes(Image, Image, Metadata)  # Waits for 2 Images AND 1 Metadata
+    .publishes(ValidationResult)
+)
+```
+
+**How it works:**
+- Flock counts required instances per type
+- Artifacts collected until counts satisfied
+- Order-independent (any arrival sequence works)
+- **Latest wins**: If 4 Orders arrive but need 3, uses 3 most recent
+
+**Example timeline:**
+```
+Time 0: Order #1 published → batch_processor waits... (need 3)
+Time 1: Order #2 published → batch_processor waits... (need 1 more)
+Time 2: Order #3 published → batch_processor triggers! ✅
+Time 3: Agent executes with all 3 Orders
+```
+
+**Use cases:**
+- Batch aggregation ("wait for 10 reviews before analyzing")
+- Quorum logic ("need 3 validator approvals")
+- Data fusion ("need 5 sensor readings before prediction")
+
+### Combining Logic Operations
+
+**Mix AND, OR, and count-based logic:**
+
+```python
+# Complex: (2 Images AND 1 Metadata) OR (3 Scans)
+processor = (
+    flock.agent("processor")
+    .consumes(Image, Image, Metadata)  # AND gate with counts
+    .consumes(Scan, Scan, Scan)        # OR gate: separate trigger path
+    .publishes(ProcessedData)
+)
+```
+
+**How it works:**
+- First `.consumes()` creates AND gate waiting for 2 Images + 1 Metadata
+- Second `.consumes()` creates OR gate waiting for 3 Scans
+- Agent triggers when **either condition** satisfied
+
+### Best Practices
+
+**✅ Do:**
+- Use AND gates for multi-modal fusion
+- Use OR gates for polymorphic inputs
+- Use count-based logic for batch operations
+- Choose syntax that matches your intent
+
+**❌ Don't:**
+- Mix AND/OR without understanding separate subscriptions
+- Forget that OR gates create independent triggers
+- Assume specific artifact ordering
+
+[**👉 See AND/OR gates in action: Debate Club**](https://github.com/whiteducksoftware/flock/blob/main/examples/02-dashboard/09_debate_club.py)
+
+---
+
 ## Advanced Subscriptions
 
 ### Conditional Consumption (Filtering)

@@ -70,11 +70,11 @@ sentiment_analyzer = flock.agent("sentiment").consumes(
     NewsArticle
 ).publishes(SentimentAlert)
 
-# Trade execution waits for CORRELATED signals
+# Trade execution with AND gate + time correlation
 trader = flock.agent("trader").consumes(
     VolatilityAlert,
     SentimentAlert,
-    join=JoinSpec(within=timedelta(minutes=5))  # Both within 5min window
+    join=JoinSpec(within=timedelta(minutes=5))  # AND gate: both within 5min window
 ).publishes(TradeOrder)
 ```
 
@@ -192,11 +192,11 @@ medical_historian = (
     )
 )
 
-# Diagnostician with explicit access (waits for ALL inputs)
+# Diagnostician with explicit access (AND gate: waits for ALL inputs)
 diagnostician = (
     flock.agent("diagnostician")
     .identity(AgentIdentity(name="diagnostician", labels={"role:physician"}))
-    .consumes(XRayAnalysis, LabResults, PatientHistory)  # Multi-modal fusion
+    .consumes(XRayAnalysis, LabResults, PatientHistory)  # AND gate: multi-modal fusion
     .publishes(
         Diagnosis,
         visibility=LabelledVisibility(required_labels={"role:physician"})
@@ -422,12 +422,12 @@ spam_checker = flock.agent("spam").consumes(
     visibility=TenantVisibility(tenant_id="{artifact.tenant_id}")
 )
 
-# Moderator waits for ALL checks (multi-agent consensus)
+# Moderator with AND gate (multi-agent consensus)
 moderator = flock.agent("moderator").consumes(
     ToxicityCheck,
     PIICheck,
     SpamCheck,
-    join=JoinSpec(within=timedelta(seconds=10))  # All checks within 10s
+    join=JoinSpec(within=timedelta(seconds=10))  # AND gate: all checks within 10s
 ).publishes(
     ModerationDecision,
     visibility=TenantVisibility(tenant_id="{artifact.tenant_id}")

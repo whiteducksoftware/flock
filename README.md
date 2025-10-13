@@ -233,7 +233,7 @@ flock = Flock(os.getenv("DEFAULT_MODEL", "openai/gpt-4.1"))
 bug_detector = flock.agent("bug_detector").consumes(CodeSubmission).publishes(BugAnalysis)
 security_auditor = flock.agent("security_auditor").consumes(CodeSubmission).publishes(SecurityAnalysis)
 
-# This agent AUTOMATICALLY waits for both analyses
+# AND gate: This agent AUTOMATICALLY waits for BOTH analyses before triggering
 final_reviewer = flock.agent("final_reviewer").consumes(BugAnalysis, SecurityAnalysis).publishes(FinalReview)
 
 # 4. Run with real-time dashboard
@@ -309,6 +309,34 @@ analyzer = (
     .publishes(PatientDiagnosis)             # What it produces
 )
 ```
+
+**Logic Operations (AND/OR Gates):**
+
+Flock provides intuitive syntax for coordinating multiple input types:
+
+```python
+# AND gate: Wait for BOTH types before triggering
+diagnostician = flock.agent("diagnostician").consumes(XRayAnalysis, LabResults).publishes(Diagnosis)
+# Agent triggers only when both XRayAnalysis AND LabResults are available
+
+# OR gate: Trigger on EITHER type (via chaining)
+alert_handler = flock.agent("alerts").consumes(SystemAlert).consumes(UserAlert).publishes(Response)
+# Agent triggers when SystemAlert OR UserAlert is published
+
+# Count-based AND gate: Wait for MULTIPLE instances of the same type
+aggregator = flock.agent("aggregator").consumes(Order, Order, Order).publishes(BatchSummary)
+# Agent triggers when THREE Order artifacts are available
+
+# Mixed counts: Different requirements per type
+validator = flock.agent("validator").consumes(Image, Image, Metadata).publishes(ValidationResult)
+# Agent triggers when TWO Images AND ONE Metadata are available
+```
+
+**What just happened:**
+- ✅ **Natural syntax** - Code clearly expresses intent ("wait for 3 orders")
+- ✅ **Order-independent** - Artifacts can arrive in any sequence
+- ✅ **Latest wins** - If 4 As arrive but need 3, uses the 3 most recent
+- ✅ **Zero configuration** - No manual coordination logic needed
 
 **Advanced subscriptions:**
 
