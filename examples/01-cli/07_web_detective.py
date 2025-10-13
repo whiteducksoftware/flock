@@ -8,12 +8,16 @@ from flock.registry import flock_tool, flock_type
 
 
 @flock_tool
-def save_research(content: str, filename: str) -> str:
+def save_research(html: str, file_name: str) -> None:
+    """Writes a research report to a html file. Beautifully styled."""
     from pathlib import Path
-    path = Path(".flock") / filename
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content)
-    return str(path)
+    file_path = Path(".flock") / file_name
+    directory = file_path.parent
+    if directory and not directory.exists():
+        directory.mkdir(parents=True)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"✍️  Wrote file: {file_path}")
 
 @flock_type
 class ResearchQuery(BaseModel):
@@ -30,7 +34,7 @@ class ResearchReport(BaseModel):
     confidence_level: float = Field(ge=0.0, le=1.0)
     file_path: str
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 try:
     flock.add_mcp(
@@ -63,15 +67,24 @@ web_detective = (
     .description("Research detective who searches and analyzes web content")
     .consumes(ResearchQuery)
     .with_mcps(["search", "web_reader"])
+    .publishes(ResearchReport)
+)
+
+web_digger = (
+    flock.agent("web_digger")
+    .description("Diggs deep into the web to find additional info to extend a research report and saves the final research to a file")
+    .consumes(ResearchReport)
+    .with_mcps(["search", "web_reader"])
     .with_tools([save_research])
     .publishes(ResearchReport)
 )
 
+
 async def main():
     query = ResearchQuery(
-        topic="Latest developments in quantum computing",
-        depth="comprehensive",
-        focus_areas=["hardware advances", "software frameworks", "commercial applications"]
+        topic="Are blackboard multi agent systems the future of AI?",
+        depth="comprehensive and detailed",
+        focus_areas=["potential research", "novel orchestration possibilities", "world changing applications"]
     )
 
     print(f"🔍 Starting research: {query.topic}\n")

@@ -56,7 +56,7 @@ class Movie(BaseModel):
         description="Main characters with full backstories and casting ideas",
     )
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 movie_master = (
     flock.agent("movie_master")
@@ -69,8 +69,8 @@ async def main():
     movie_idea = MovieIdea(idea="A movie about cat owners during the rise of AI")
     await flock.publish(movie_idea)
     await flock.run_until_idle()
-    movie = await flock.store.get_by_type(Movie)[0]
-    print(f"🎬 Title: {movie.fun_title}")
+    movies = await flock.store.get_by_type(Movie)
+    print(f"🎬 Title: {movies[0].fun_title}")
 
 if __name__ == "__main__":
     asyncio.run(main(), debug=True)

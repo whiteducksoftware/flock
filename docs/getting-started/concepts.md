@@ -433,6 +433,107 @@ analyzer = (
 
 ---
 
+## Logic Operations (AND/OR Gates)
+
+**Control how agents wait for multiple artifacts with declarative logic gates.**
+
+Flock Flow supports three coordination patterns for multi-artifact subscriptions:
+
+### AND Gates: Wait for ALL Types
+
+**Syntax:** `.consumes(TypeA, TypeB)` in a single call
+
+```python
+# Diagnostician waits for BOTH X-ray AND lab results
+diagnostician = (
+    flock.agent("diagnostician")
+    .consumes(XRayAnalysis, LabResults)  # AND gate: waits for both
+    .publishes(Diagnosis)
+)
+```
+
+**Timeline:**
+```
+t0: XRayAnalysis published → diagnostician WAITS (needs LabResults too)
+t1: LabResults published → diagnostician TRIGGERS with both artifacts
+```
+
+### OR Gates: Trigger on ANY Type
+
+**Syntax:** Chain multiple `.consumes()` calls
+
+```python
+# Alert handler triggers on EITHER system OR user alert
+alert_handler = (
+    flock.agent("alert_handler")
+    .consumes(SystemAlert)      # OR
+    .consumes(UserAlert)        # OR
+    .publishes(AlertResponse)
+)
+```
+
+**Timeline:**
+```
+t0: SystemAlert published → alert_handler TRIGGERS (doesn't need UserAlert)
+t1: UserAlert published → alert_handler TRIGGERS AGAIN (independent subscription)
+```
+
+### Count-Based AND Gates: Wait for MULTIPLE Instances
+
+**Syntax:** `.consumes(TypeA, TypeA, TypeA)` (repeat type N times)
+
+```python
+# Batch processor waits for THREE orders
+batch_processor = (
+    flock.agent("batch_processor")
+    .consumes(Order, Order, Order)  # AND gate: waits for 3 Orders
+    .publishes(BatchSummary)
+)
+```
+
+**Timeline:**
+```
+t0: Order #1 published → batch_processor WAITS (needs 2 more)
+t1: Order #2 published → batch_processor WAITS (needs 1 more)
+t2: Order #3 published → batch_processor TRIGGERS with all 3 Orders
+```
+
+**Mixed Counts:**
+```python
+# Wait for 2 images AND 1 metadata document
+validator = (
+    flock.agent("validator")
+    .consumes(Image, Image, Metadata)  # 2 Images + 1 Metadata
+    .publishes(ValidationResult)
+)
+```
+
+### Combining AND/OR Logic
+
+**AND + OR Pattern:**
+```python
+# Trigger on (TypeA AND TypeB) OR TypeC
+agent = (
+    flock.agent("flexible_agent")
+    .consumes(TypeA, TypeB)    # AND gate (waits for both)
+    .consumes(TypeC)           # OR (independent trigger)
+    .publishes(Result)
+)
+```
+
+**Timeline:**
+```
+Scenario 1: TypeA + TypeB published → agent TRIGGERS
+Scenario 2: TypeC published alone → agent TRIGGERS
+Scenario 3: TypeA alone → agent WAITS (needs TypeB for AND gate)
+```
+
+**Key Principle:** Each `.consumes()` call creates a separate subscription (OR). Multiple types in one call create an AND gate.
+
+[**👉 See complete AND/OR gate examples**](../guides/agents.md#logic-operations-andor-gates)
+
+---
+
 ## Visibility Controls (Zero-Trust Security)
 
 **Unlike other frameworks, Flock has zero-trust security built-in.** Control who sees what on the blackboard.
@@ -611,11 +712,33 @@ editor = flock.agent("editor").consumes(Draft).publishes(EditedDraft)
 publisher = flock.agent("publisher").consumes(EditedDraft).publishes(Article)
 ```
 
-**Parallel-Then-Join (A+B → C):**
+**Parallel-Then-Join with AND Gate (A+B → C):**
 ```python
 bugs = flock.agent("bugs").consumes(Code).publishes(BugReport)
 security = flock.agent("security").consumes(Code).publishes(SecurityReport)
+# AND gate: reviewer waits for BOTH BugReport AND SecurityReport
 reviewer = flock.agent("reviewer").consumes(BugReport, SecurityReport).publishes(FinalReview)
+```
+
+**OR Gate via Chaining (A OR B → C):**
+```python
+# OR gate: handler triggers on EITHER SystemAlert OR UserAlert
+alert_handler = (
+    flock.agent("alert_handler")
+    .consumes(SystemAlert)      # Triggers on SystemAlert
+    .consumes(UserAlert)        # OR triggers on UserAlert
+    .publishes(AlertResponse)
+)
+```
+
+**Count-Based AND Gate (3× A → B):**
+```python
+# Wait for THREE Order artifacts before triggering
+batch_processor = (
+    flock.agent("batch_processor")
+    .consumes(Order, Order, Order)  # AND gate: waits for 3 Orders
+    .publishes(BatchSummary)
+)
 ```
 
 **Fan-Out (A → B1, B2, ..., Bn):**

@@ -41,7 +41,7 @@ class PublishedStory(BaseModel):
     expected_reach: int
     follow_up_needed: bool
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 reporter = (
     flock.agent("reporter")
@@ -131,4 +131,4 @@ async def main():
         print(f"   Legal reviews required: {legal_reviews}")
 
 if __name__ == "__main__":
-    asyncio.run(main(), debug=True)
+    asyncio.run(main())

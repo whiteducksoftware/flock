@@ -22,7 +22,7 @@ class FileAnalysisReport(BaseModel):
     key_findings: list[str]
     line_count: int
 
-flock = Flock(model="openai/gpt-4.1")
+flock = Flock()
 
 current_dir = Path.cwd()
 

@@ -233,7 +233,7 @@ flock = Flock(os.getenv("DEFAULT_MODEL", "openai/gpt-4.1"))
 bug_detector = flock.agent("bug_detector").consumes(CodeSubmission).publishes(BugAnalysis)
 security_auditor = flock.agent("security_auditor").consumes(CodeSubmission).publishes(SecurityAnalysis)
 
-# This agent AUTOMATICALLY waits for both analyses
+# AND gate: This agent AUTOMATICALLY waits for BOTH analyses before triggering
 final_reviewer = flock.agent("final_reviewer").consumes(BugAnalysis, SecurityAnalysis).publishes(FinalReview)
 
 # 4. Run with real-time dashboard
@@ -310,28 +310,76 @@ analyzer = (
 )
 ```
 
-**Advanced subscriptions:**
+**Logic Operations (AND/OR Gates):**
+
+Flock provides intuitive syntax for coordinating multiple input types:
 
 ```python
-# Conditional consumption - only high-severity cases
+# AND gate: Wait for BOTH types before triggering
+diagnostician = flock.agent("diagnostician").consumes(XRayAnalysis, LabResults).publishes(Diagnosis)
+# Agent triggers only when both XRayAnalysis AND LabResults are available
+
+# OR gate: Trigger on EITHER type (via chaining)
+alert_handler = flock.agent("alerts").consumes(SystemAlert).consumes(UserAlert).publishes(Response)
+# Agent triggers when SystemAlert OR UserAlert is published
+
+# Count-based AND gate: Wait for MULTIPLE instances of the same type
+aggregator = flock.agent("aggregator").consumes(Order, Order, Order).publishes(BatchSummary)
+# Agent triggers when THREE Order artifacts are available
+
+# Mixed counts: Different requirements per type
+validator = flock.agent("validator").consumes(Image, Image, Metadata).publishes(ValidationResult)
+# Agent triggers when TWO Images AND ONE Metadata are available
+```
+
+**What just happened:**
+- ✅ **Natural syntax** - Code clearly expresses intent ("wait for 3 orders")
+- ✅ **Order-independent** - Artifacts can arrive in any sequence
+- ✅ **Latest wins** - If 4 As arrive but need 3, uses the 3 most recent
+- ✅ **Zero configuration** - No manual coordination logic needed
+
+**Advanced subscriptions unlock crazy powerful patterns:**
+
+```python
+# 🎯 Predicates - Smart filtering (only process critical cases)
 urgent_care = flock.agent("urgent").consumes(
     Diagnosis,
-    where=lambda d: d.severity in ["Critical", "High"]
+    where=lambda d: d.severity in ["Critical", "High"]  # Conditional routing!
 )
 
-# Batch processing - wait for 10 items
-batch_processor = flock.agent("batch").consumes(
-    Event,
-    batch=BatchSpec(size=10, timeout=timedelta(seconds=30))
+# 📦 BatchSpec - Cost optimization (process 10 at once = 90% cheaper API calls)
+payment_processor = flock.agent("payments").consumes(
+    Transaction,
+    batch=BatchSpec(size=25, timeout=timedelta(seconds=30))  # $5 saved per batch!
 )
 
-# Join operations - wait for multiple types within time window
-correlator = flock.agent("correlator").consumes(
-    SignalA,
-    SignalB,
-    join=JoinSpec(within=timedelta(minutes=5))
+# 🔗 JoinSpec - Data correlation (match orders + shipments by ID)
+customer_service = flock.agent("notifications").consumes(
+    Order,
+    Shipment,
+    join=JoinSpec(by=lambda x: x.order_id, within=timedelta(hours=24))  # Correlated!
+)
+
+# 🏭 Combined Features - Correlate sensors, THEN batch for analysis
+quality_control = flock.agent("qc").consumes(
+    TemperatureSensor,
+    PressureSensor,
+    join=JoinSpec(by=lambda x: x.device_id, within=timedelta(seconds=30)),
+    batch=BatchSpec(size=5, timeout=timedelta(seconds=45))  # IoT at scale!
 )
 ```
+
+**What just happened:**
+- ✅ **Predicates** route work by business rules ("only critical severity")
+- ✅ **BatchSpec** optimizes costs (25 transactions = 1 API call instead of 25)
+- ✅ **JoinSpec** correlates related data (orders ↔ shipments, sensors ↔ readings)
+- ✅ **Combined** delivers production-grade multi-stage pipelines
+
+**Real-world impact:**
+- 💰 E-commerce: Save $5 per batch on payment processing fees
+- 🏥 Healthcare: Correlate patient scans + lab results for diagnosis
+- 🏭 Manufacturing: Monitor 1000+ IoT sensors with efficient batching
+- 📊 Finance: Match trades + confirmations within 5-minute windows
 
 ### Visibility Controls (The Security)
 

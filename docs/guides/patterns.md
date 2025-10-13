@@ -1,6 +1,6 @@
 # Architectural Patterns
 
-This guide documents the 7 major architectural patterns in Flock Flow, extracted from production examples and battle-tested use cases.
+This guide documents the 8 major architectural patterns in Flock Flow, extracted from production examples and battle-tested use cases.
 
 ## Pattern Overview
 
@@ -9,10 +9,11 @@ This guide documents the 7 major architectural patterns in Flock Flow, extracted
 | [Single-Agent Transform](#1-single-agent-transform) | ⭐ Simple | Data enrichment, validation, format conversion | Pizza generator |
 | [Sequential Pipeline](#2-sequential-pipeline) | ⭐⭐ Moderate | Multi-step workflows, content pipelines | Band formation |
 | [Parallel-Then-Join](#3-parallel-then-join) | ⭐⭐ Moderate | Multi-perspective analysis, parallel validation | Bug detection |
-| [Conditional Routing](#4-conditional-routing) | ⭐⭐⭐ Advanced | Smart filtering, quality gates, threshold processing | Content moderation |
-| [Feedback Loops](#5-feedback-loops) | ⭐⭐⭐ Advanced | Iterative refinement, debate systems, quality improvement | Debate club |
-| [Fan-Out](#6-fan-out) | ⭐⭐⭐ Advanced | Broadcast processing, parallel analysis at scale | News agency |
-| [Security-Aware](#7-security-aware-routing) | ⭐⭐⭐⭐ Expert | Multi-tenant systems, HIPAA compliance, role-based access | Healthcare |
+| [Logic Gates (AND/OR)](#4-logic-gates-andor) | ⭐⭐ Moderate | Multi-artifact coordination, count-based triggers | Batch processing |
+| [Conditional Routing](#5-conditional-routing) | ⭐⭐⭐ Advanced | Smart filtering, quality gates, threshold processing | Content moderation |
+| [Feedback Loops](#6-feedback-loops) | ⭐⭐⭐ Advanced | Iterative refinement, debate systems, quality improvement | Debate club |
+| [Fan-Out](#7-fan-out) | ⭐⭐⭐ Advanced | Broadcast processing, parallel analysis at scale | News agency |
+| [Security-Aware](#8-security-aware-routing) | ⭐⭐⭐⭐ Expert | Multi-tenant systems, HIPAA compliance, role-based access | Healthcare |
 
 ---
 
@@ -204,7 +205,179 @@ await flock.run_until_idle()
 
 ---
 
-## 4. Conditional Routing
+## 4. Logic Gates (AND/OR)
+
+**Pattern:** Declarative multi-artifact coordination with AND/OR semantics
+
+**When to Use:**
+
+- Wait for multiple artifact types before triggering
+- Trigger on any one of several types (OR logic)
+- Collect multiple instances of the same type (count-based)
+- Flexible coordination without manual synchronization
+
+**AND Gate Example:**
+
+```python
+@flock_type
+class XRayAnalysis(BaseModel):
+    findings: list[str]
+    abnormalities: list[str]
+
+@flock_type
+class LabResults(BaseModel):
+    markers: dict[str, float]
+    flagged_values: list[str]
+
+@flock_type
+class Diagnosis(BaseModel):
+    condition: str
+    confidence: float
+    reasoning: str
+
+# AND gate: Wait for BOTH X-ray AND lab results
+diagnostician = (
+    flock.agent("diagnostician")
+    .consumes(XRayAnalysis, LabResults)  # Waits for both types
+    .publishes(Diagnosis)
+)
+```
+
+**Timeline:**
+```
+t0: XRayAnalysis published → diagnostician WAITS (needs LabResults)
+t1: LabResults published → diagnostician TRIGGERS with both artifacts
+```
+
+**OR Gate Example:**
+
+```python
+@flock_type
+class SystemAlert(BaseModel):
+    severity: str
+    message: str
+
+@flock_type
+class UserAlert(BaseModel):
+    user_id: str
+    notification: str
+
+@flock_type
+class AlertResponse(BaseModel):
+    action_taken: str
+    timestamp: datetime
+
+# OR gate: Trigger on EITHER alert type
+alert_handler = (
+    flock.agent("alert_handler")
+    .consumes(SystemAlert)      # First subscription (OR)
+    .consumes(UserAlert)        # Second subscription (OR)
+    .publishes(AlertResponse)
+)
+```
+
+**Timeline:**
+```
+t0: SystemAlert published → alert_handler TRIGGERS
+t1: UserAlert published → alert_handler TRIGGERS AGAIN (independent)
+```
+
+**Count-Based AND Gate Example:**
+
+```python
+@flock_type
+class Order(BaseModel):
+    order_id: str
+    amount: float
+    customer_id: str
+
+@flock_type
+class BatchSummary(BaseModel):
+    total_orders: int
+    total_amount: float
+    customer_ids: list[str]
+
+# Count-based AND gate: Wait for THREE orders
+batch_processor = (
+    flock.agent("batch_processor")
+    .consumes(Order, Order, Order)  # Waits for 3 Orders
+    .publishes(BatchSummary)
+)
+```
+
+**Timeline:**
+```
+t0: Order #1 published → batch_processor WAITS (needs 2 more)
+t1: Order #2 published → batch_processor WAITS (needs 1 more)
+t2: Order #3 published → batch_processor TRIGGERS with all 3 Orders
+```
+
+**Mixed Count Example:**
+
+```python
+@flock_type
+class Image(BaseModel):
+    url: str
+    dimensions: tuple[int, int]
+
+@flock_type
+class Metadata(BaseModel):
+    title: str
+    description: str
+    tags: list[str]
+
+@flock_type
+class ValidationResult(BaseModel):
+    approved: bool
+    issues: list[str]
+
+# Mixed count: 2 Images + 1 Metadata
+validator = (
+    flock.agent("validator")
+    .consumes(Image, Image, Metadata)  # 2 Images AND 1 Metadata
+    .publishes(ValidationResult)
+)
+```
+
+**Key Characteristics:**
+
+- **AND semantics:** Multiple types in single `.consumes()` → waits for all
+- **OR semantics:** Multiple `.consumes()` calls → independent triggers
+- **Count support:** Repeat type N times → waits for N instances
+- **Automatic synchronization:** No manual locks or coordination needed
+- **Type-safe:** Pydantic validation ensures correct artifact types
+
+**vs Manual Synchronization:**
+
+```python
+# ❌ Manual way (graph-based frameworks)
+class SyncNode:
+    def __init__(self):
+        self.xray = None
+        self.labs = None
+        self.lock = Lock()
+
+    async def receive_xray(self, xray):
+        async with self.lock:
+            self.xray = xray
+            if self.labs:  # Both ready?
+                await self.trigger_diagnostician()
+
+    async def receive_labs(self, labs):
+        async with self.lock:
+            self.labs = labs
+            if self.xray:  # Both ready?
+                await self.trigger_diagnostician()
+
+# ✅ Flock way: declarative, no locks
+diagnostician.consumes(XRayAnalysis, LabResults)  # That's it!
+```
+
+**Tutorial Value:** ⭐⭐⭐⭐ Essential coordination pattern
+
+---
+
+## 5. Conditional Routing
 
 **Pattern:** Agent consumes only when predicate matches
 
@@ -281,7 +454,7 @@ trader = (
 
 ---
 
-## 5. Feedback Loops
+## 6. Feedback Loops
 
 **Pattern:** Agent A → Type X → Agent B → Type Y → Agent A (if condition)
 
@@ -348,7 +521,7 @@ arguer_refiner = (
 
 ---
 
-## 6. Fan-Out
+## 7. Fan-Out
 
 **Pattern:** 1 input → N agents process in parallel
 
@@ -413,7 +586,7 @@ await flock.run_until_idle()
 
 ---
 
-## 7. Security-Aware Routing
+## 8. Security-Aware Routing
 
 **Pattern:** Visibility-controlled flow with access restrictions
 

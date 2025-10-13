@@ -17,7 +17,7 @@ class Pizza(BaseModel):
     crust_type: str
     step_by_step_instructions: list[str]
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 pizza_master = (
     flock.agent("pizza_master")
@@ -26,7 +26,7 @@ pizza_master = (
 )
 
 async def main():
-    pizza_idea = MyDreamPizza(pizza_idea="pizza with tartufo")
+    pizza_idea = MyDreamPizza(pizza_idea="pizza with pineapple")
     await flock.publish(pizza_idea)
     await flock.run_until_idle()
     

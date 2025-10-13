@@ -92,7 +92,16 @@ uv run python examples/02-dashboard/03_code_detective.py
 
 For deep dives into specific topics, see:
 
+**Core Architecture:**
 - **[Architecture & Blackboard](docs/guides/blackboard.md)** - Core pattern, structure, and behavior
+- **[Agent Guide](docs/guides/agents.md)** - Complete agent development reference
+
+**Logic Operations (Advanced Subscriptions):**
+- **[Predicates](docs/guides/predicates.md)** - Conditional consumption with `where=` filters
+- **[Join Operations](docs/guides/join-operations.md)** - Correlate related artifacts with JoinSpec
+- **[Batch Processing](docs/guides/batch-processing.md)** - Efficient bulk operations with BatchSpec
+
+**Development & Operations:**
 - **[Development Workflow](docs/about/contributing.md)** - Testing, quality, versioning, pre-commit
 - **[Frontend/Dashboard](docs/guides/dashboard.md)** - Dashboard usage and development
 - **[Configuration & Dependencies](docs/reference/configuration.md)** - Environment and setup

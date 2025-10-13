@@ -35,7 +35,7 @@ class MarketingCopy(BaseModel):
     target_demographics: list[str]
     tour_announcement: str
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 scout = (
     flock.agent("scout")

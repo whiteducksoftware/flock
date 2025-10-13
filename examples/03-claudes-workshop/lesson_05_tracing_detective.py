@@ -31,7 +31,7 @@ class CaseReport(BaseModel):
     evidence_strength: str
     recommendation: str
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 detective = (
     flock.agent("detective")
@@ -97,4 +97,4 @@ async def main():
     print("\n💡 Check .flock/traces.duckdb for complete execution tracing!")
 
 if __name__ == "__main__":
-    asyncio.run(main(), debug=True)
+    asyncio.run(main())

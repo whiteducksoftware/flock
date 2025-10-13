@@ -236,6 +236,7 @@ async def test_sqlite_store_schema_idempotent(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.order(1)  # Run early to avoid registry race conditions
 async def test_store_query_and_summary(store):
     """Verify filtering, pagination, and summaries across backends."""
     base_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
@@ -312,6 +313,7 @@ async def test_store_query_and_summary(store):
 
 
 @pytest.mark.asyncio
+@pytest.mark.order(2)  # Run early to avoid registry race conditions
 async def test_query_artifacts_embed_meta_returns_consumptions(store):
     now = datetime.now(timezone.utc)
     artifact = Artifact(
@@ -354,6 +356,7 @@ async def test_query_artifacts_embed_meta_returns_consumptions(store):
 
 
 @pytest.mark.asyncio
+@pytest.mark.order(3)  # Run early to avoid registry race conditions
 async def test_agent_history_summary_counts(store):
     now = datetime.now(timezone.utc)
     artifact = Artifact(

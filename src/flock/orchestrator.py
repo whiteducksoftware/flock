@@ -18,7 +18,10 @@ from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
 
 from flock.agent import Agent, AgentBuilder
+from flock.artifact_collector import ArtifactCollector
 from flock.artifacts import Artifact
+from flock.batch_accumulator import BatchEngine
+from flock.correlation_engine import CorrelationEngine
 from flock.helper.cli_helper import init_console
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.mcp import (
@@ -128,6 +131,12 @@ class Flock(metaclass=AutoTracedMeta):
         self.max_agent_iterations: int = max_agent_iterations
         self._agent_iteration_count: dict[str, int] = {}
         self.is_dashboard: bool = False
+        # AND gate logic: Artifact collection for multi-type subscriptions
+        self._artifact_collector = ArtifactCollector()
+        # JoinSpec logic: Correlation engine for correlated AND gates
+        self._correlation_engine = CorrelationEngine()
+        # BatchSpec logic: Batch accumulator for size/timeout batching
+        self._batch_engine = BatchEngine()
         # Unified tracing support
         self._workflow_span = None
         self._auto_workflow_enabled = os.getenv("FLOCK_AUTO_WORKFLOW_TRACE", "false").lower() in {
@@ -671,7 +680,11 @@ class Flock(metaclass=AutoTracedMeta):
         self.is_dashboard = is_dashboard
         # Only show banner in CLI mode, not dashboard mode
         if not self.is_dashboard:
-            init_console(clear_screen=True, show_banner=True, model=self.model)
+            try:
+                init_console(clear_screen=True, show_banner=True, model=self.model)
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                # Skip banner on Windows consoles with encoding issues (e.g., tests, CI)
+                pass
         # Handle different input types
         if isinstance(obj, Artifact):
             # Already an artifact - publish as-is
@@ -881,10 +894,90 @@ class Flock(metaclass=AutoTracedMeta):
                     continue
                 if self._seen_before(artifact, agent):
                     continue
+
+                # JoinSpec CORRELATION: Check if subscription has correlated AND gate
+                if subscription.join is not None:
+                    # Use CorrelationEngine for JoinSpec (correlated AND gates)
+                    subscription_index = agent.subscriptions.index(subscription)
+                    completed_group = self._correlation_engine.add_artifact(
+                        artifact=artifact,
+                        subscription=subscription,
+                        subscription_index=subscription_index,
+                    )
+
+                    if completed_group is None:
+                        # Still waiting for correlation to complete
+                        continue
+
+                    # Correlation complete! Get all correlated artifacts
+                    artifacts = completed_group.get_artifacts()
+                else:
+                    # AND GATE LOGIC: Use artifact collector for simple AND gates (no correlation)
+                    is_complete, artifacts = self._artifact_collector.add_artifact(
+                        agent, subscription, artifact
+                    )
+
+                    if not is_complete:
+                        # Still waiting for more types (AND gate incomplete)
+                        continue
+
+                # BatchSpec BATCHING: Check if subscription has batch accumulator
+                if subscription.batch is not None:
+                    # Add to batch accumulator
+                    subscription_index = agent.subscriptions.index(subscription)
+
+                    # COMBINED FEATURES: JoinSpec + BatchSpec
+                    # If we have JoinSpec, artifacts is a correlated GROUP - treat as single batch item
+                    # If we have AND gate, artifacts is a complete set - treat as single batch item
+                    # Otherwise (single type), add each artifact individually
+
+                    if subscription.join is not None or len(subscription.type_models) > 1:
+                        # JoinSpec or AND gate: Treat artifact group as ONE batch item
+                        should_flush = self._batch_engine.add_artifact_group(
+                            artifacts=artifacts,
+                            subscription=subscription,
+                            subscription_index=subscription_index,
+                        )
+                    else:
+                        # Single type subscription: Add each artifact individually
+                        should_flush = False
+                        for single_artifact in artifacts:
+                            should_flush = self._batch_engine.add_artifact(
+                                artifact=single_artifact,
+                                subscription=subscription,
+                                subscription_index=subscription_index,
+                            )
+
+                            if should_flush:
+                                # Size threshold reached! Flush batch now
+                                break
+
+                    if not should_flush:
+                        # Batch not full yet - wait for more artifacts
+                        continue
+
+                    # Flush the batch and get all accumulated artifacts
+                    batched_artifacts = self._batch_engine.flush_batch(
+                        agent.name, subscription_index
+                    )
+
+                    if batched_artifacts is None:
+                        # No batch to flush (shouldn't happen, but defensive)
+                        continue
+
+                    # Replace artifacts with batched artifacts
+                    artifacts = batched_artifacts
+
+                # Complete! Schedule agent with all collected artifacts
                 # T068: Increment iteration counter
                 self._agent_iteration_count[agent.name] = iteration_count + 1
-                self._mark_processed(artifact, agent)
-                self._schedule_task(agent, [artifact])
+
+                # Mark all artifacts as processed (prevent duplicate triggers)
+                for collected_artifact in artifacts:
+                    self._mark_processed(collected_artifact, agent)
+
+                # Schedule agent with ALL artifacts (batched, correlated, or AND gate complete)
+                self._schedule_task(agent, artifacts)
 
     def _schedule_task(self, agent: Agent, artifacts: list[Artifact]) -> None:
         task = asyncio.create_task(self._run_agent_task(agent, artifacts))
@@ -932,6 +1025,47 @@ class Flock(metaclass=AutoTracedMeta):
                 pass
             except Exception as exc:  # pragma: no cover - defensive logging
                 self._logger.exception("Failed to record artifact consumption: %s", exc)
+
+    # Batch Helpers --------------------------------------------------------
+
+    async def _check_batch_timeouts(self) -> None:
+        """Check all batches for timeout expiry and flush expired batches.
+
+        This method is called periodically or manually (in tests) to enforce
+        timeout-based batching.
+        """
+        expired_batches = self._batch_engine.check_timeouts()
+
+        for agent_name, subscription_index in expired_batches:
+            # Flush the expired batch
+            artifacts = self._batch_engine.flush_batch(agent_name, subscription_index)
+
+            if artifacts is None:
+                continue
+
+            # Get the agent
+            agent = self._agents.get(agent_name)
+            if agent is None:
+                continue
+
+            # Schedule agent with batched artifacts
+            self._schedule_task(agent, artifacts)
+
+    async def _flush_all_batches(self) -> None:
+        """Flush all partial batches (for shutdown - ensures zero data loss)."""
+        all_batches = self._batch_engine.flush_all()
+
+        for agent_name, subscription_index, artifacts in all_batches:
+            # Get the agent
+            agent = self._agents.get(agent_name)
+            if agent is None:
+                continue
+
+            # Schedule agent with partial batch
+            self._schedule_task(agent, artifacts)
+
+        # Wait for all scheduled tasks to complete
+        await self.run_until_idle()
 
     # Helpers --------------------------------------------------------------
 
