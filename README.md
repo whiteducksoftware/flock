@@ -340,6 +340,10 @@ validator = flock.agent("validator").consumes(Image, Image, Metadata).publishes(
 
 **Advanced subscriptions unlock crazy powerful patterns:**
 
+<p align="center">
+  <img alt="Event Join" src="docs/assets/images/join.png" width="800">
+</p>
+
 ```python
 # 🎯 Predicates - Smart filtering (only process critical cases)
 urgent_care = flock.agent("urgent").consumes(
@@ -380,6 +384,10 @@ quality_control = flock.agent("qc").consumes(
 - 🏥 Healthcare: Correlate patient scans + lab results for diagnosis
 - 🏭 Manufacturing: Monitor 1000+ IoT sensors with efficient batching
 - 📊 Finance: Match trades + confirmations within 5-minute windows
+
+<p align="center">
+  <img alt="Event Batch" src="docs/assets/images/batch.png" width="800">
+</p>
 
 ### Visibility Controls (The Security)
 
