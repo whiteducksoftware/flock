@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -26,9 +27,32 @@ class TextPredicate:
 
 @dataclass
 class JoinSpec:
-    kind: str
-    window: float
-    by: Callable[[Artifact], Any] | None = None
+    """
+    Specification for correlated AND gates.
+
+    Correlates artifacts by a common key within a time OR count window.
+
+    Examples:
+        # Time-based correlation (within 5 minutes)
+        JoinSpec(
+            by=lambda x: x.correlation_id,
+            within=timedelta(minutes=5)
+        )
+
+        # Count-based correlation (within next 10 artifacts)
+        JoinSpec(
+            by=lambda x: x.correlation_id,
+            within=10
+        )
+
+    Args:
+        by: Callable that extracts the correlation key from an artifact payload
+        within: Window for correlation
+            - timedelta: Time window (artifacts must arrive within this time)
+            - int: Count window (artifacts must arrive within N published artifacts)
+    """
+    by: Callable[[BaseModel], Any]  # Extract correlation key from payload
+    within: timedelta | int  # Time window OR count window for correlation
 
 
 @dataclass
