@@ -43,6 +43,270 @@ report.correlation_id == lab.id  # ❌ False - Lost lineage!
 
 ---
 
+## 🆔 Complete ID Inventory in Flock
+
+**Purpose**: Before diving into the correlation_id issue, let's understand ALL identifier types used in Flock. This helps clarify the relationships and potential overlaps.
+
+### Quick Summary
+
+Flock uses **11 distinct ID types** across 6 categories:
+
+| Category | IDs | Purpose |
+|----------|-----|---------|
+| **Artifact Identification** | `artifact.id`, `correlation_id`, `partition_key` | Identify & group artifacts |
+| **Execution Tracking** | `task_id`, `run_id` | Track agent executions |
+| **Agent/Component** | `agent.name`, `agent_id`, `tenant_id` | Identify agents & tenants |
+| **Correlation & Grouping** | `correlation_key` | Business-level grouping |
+| **External Systems** | `trace_id`, `span_id` | OpenTelemetry tracing |
+
+---
+
+### Category 1: Artifact Identification
+
+#### `artifact.id` (UUID)
+**File**: `src/flock/artifacts.py:18`
+
+```python
+id: UUID = Field(default_factory=uuid4)
+```
+
+- **What**: Unique identifier for a single artifact instance
+- **Scope**: Global - unique across all artifacts
+- **Lifetime**: Persistent (stored in blackboard)
+- **Generated**: Framework (`uuid4()`)
+- **Example**: Used for lookups, ConsumptionRecord references
+
+---
+
+#### `correlation_id` (UUID | None)
+**File**: `src/flock/artifacts.py:22`
+
+```python
+correlation_id: UUID | None = None
+```
+
+- **What**: Groups related artifacts across a distributed workflow
+- **Scope**: Workflow-wide - spans multiple artifacts and agents
+- **Lifetime**: Persistent (stored with artifact)
+- **Generated**: Framework (`uuid4()`) or user-provided
+- **Inheritance**: Propagated through agent execution chains
+- **Example**: `artifacts[0].correlation_id` becomes context's correlation_id
+
+**⚠️ THIS IS THE ID WE'RE INVESTIGATING IN THIS DOCUMENT**
+
+---
+
+#### `partition_key` (str | None)
+**File**: `src/flock/artifacts.py:23`
+
+```python
+partition_key: str | None = None
+```
+
+- **What**: Sharding/routing key for distributed deployments
+- **Scope**: Infrastructure-level
+- **Lifetime**: Persistent
+- **Generated**: User-provided
+- **Current Status**: Future-proofing placeholder, not actively used
+
+---
+
+### Category 2: Execution Tracking
+
+#### `task_id` (str)
+**File**: `src/flock/runtime.py:251`
+
+```python
+task_id: str
+```
+
+- **What**: Unique identifier for a single agent execution
+- **Scope**: Agent run - unique per invocation
+- **Lifetime**: Ephemeral (runtime) but recorded in ConsumptionRecord
+- **Generated**: Framework (`str(uuid4())`)
+- **Example**: Created on each `_run_agent_task()` call
+
+---
+
+#### `run_id` (str | None)
+**File**: `src/flock/store.py:86`
+
+```python
+run_id: str | None = None
+```
+
+- **What**: Same as `task_id` - tracks agent execution
+- **Scope**: Same as task_id
+- **Lifetime**: Persistent (stored in ConsumptionRecord)
+- **Generated**: Copied from `ctx.task_id`
+
+**⚠️ NAMING INCONSISTENCY**: `task_id` in Context but `run_id` in storage - **same concept, different names**
+
+---
+
+### Category 3: Agent/Component Identification
+
+#### `agent.name` (str)
+**File**: `src/flock/agent.py:94`
+
+- **What**: Primary identifier for agents
+- **Scope**: Orchestrator-wide - must be unique
+- **Lifetime**: Persistent (lifetime of Flock instance)
+- **Generated**: User-provided via `flock.agent(name)`
+- **Usage**: Used as `produced_by` in Artifact, `consumer` in ConsumptionRecord
+
+---
+
+#### `agent_id` (str)
+**Usage**: Parameter name in various methods
+
+- **What**: Alias for `agent.name`
+- **Scope**: Same as agent.name
+- **Generated**: Just a parameter naming convention
+
+**⚠️ NOT A SEPARATE ID**: Just `agent.name` called by different parameter name - creates confusion
+
+---
+
+#### `tenant_id` (str | None)
+**File**: `src/flock/visibility.py:21`
+
+- **What**: Multi-tenancy isolation identifier
+- **Scope**: Cross-system - isolates data between tenants
+- **Lifetime**: Persistent
+- **Generated**: User-provided
+- **Usage**: Part of AgentIdentity, used in TenantVisibility policy
+
+---
+
+### Category 4: Correlation & Grouping
+
+#### `correlation_key` (Any)
+**File**: `src/flock/correlation_engine.py:33`
+
+- **What**: Business-level correlation key (NOT framework correlation_id!)
+- **Scope**: Business process (e.g., same patient, order, session)
+- **Lifetime**: Ephemeral (only during correlation window)
+- **Generated**: Extracted from payload using `JoinSpec.by` lambda
+- **Example**: `lambda x: x.patient_id` extracts patient_id as correlation_key
+
+**CRITICAL DISTINCTION**:
+```python
+# Framework correlation_id (UUID): Distributed tracing
+artifact.correlation_id  # uuid1
+
+# Business correlation_key (Any): Grouping logic
+join_spec.by(artifact)  # "P123" (patient_id)
+```
+
+---
+
+### Category 5: External Systems (OpenTelemetry)
+
+#### `trace_id` (str - hex formatted)
+**File**: `src/flock/logging/logging.py:54-60`
+
+```python
+def get_current_trace_id() -> str:
+    span_context = trace.get_current_span().get_span_context()
+    return format(span_context.trace_id, "032x")
+```
+
+- **What**: OpenTelemetry distributed tracing identifier
+- **Scope**: Workflow-wide (similar to correlation_id but for observability)
+- **Lifetime**: Ephemeral (tracing session)
+- **Generated**: OpenTelemetry framework
+- **Usage**: Logging, telemetry databases, trace queries
+
+**⚠️ OVERLAPPING WITH correlation_id**: Both track workflows but serve different purposes:
+- `correlation_id`: Business workflow tracking (persistent, query blackboard)
+- `trace_id`: Technical tracing (ephemeral, debugging)
+
+---
+
+#### `span_id` (str - hex formatted)
+**File**: `src/flock/logging/telemetry_exporter/sqlite_exporter.py:42`
+
+- **What**: OpenTelemetry span identifier (sub-operation within trace)
+- **Scope**: Operation-level
+- **Lifetime**: Ephemeral
+- **Generated**: OpenTelemetry framework
+- **Usage**: Forms parent-child hierarchy, flame graphs
+
+---
+
+### Comparison Matrix: All IDs
+
+| ID Name | Type | Scope | Lifetime | Generated By | Purpose |
+|---------|------|-------|----------|--------------|---------|
+| `artifact.id` | UUID | Global | Persistent | Framework | Unique artifact identity |
+| `correlation_id` | UUID\|None | Workflow | Persistent | Framework/User | Workflow tracing |
+| `partition_key` | str\|None | Infrastructure | Persistent | User | Sharding (future) |
+| `task_id` | str | Agent run | Ephemeral | Framework | Execution tracking |
+| `run_id` | str\|None | Agent run | Persistent | Framework | Same as task_id (storage) |
+| `agent.name` | str | Orchestrator | Persistent | User | Agent identifier |
+| `agent_id` | str | N/A | N/A | User | Alias for agent.name |
+| `tenant_id` | str\|None | Cross-system | Persistent | User | Multi-tenancy |
+| `correlation_key` | Any | Business | Ephemeral | User lambda | Business grouping |
+| `trace_id` | str (hex) | Workflow | Ephemeral | OpenTelemetry | Observability |
+| `span_id` | str (hex) | Operation | Ephemeral | OpenTelemetry | Sub-operation tracing |
+
+---
+
+### Key Issues Identified in ID System
+
+#### Issue #1: Naming Inconsistency (task_id vs run_id)
+**Problem**: Same concept, different names
+```python
+Context.task_id  # In runtime
+ConsumptionRecord.run_id  # In storage (but = ctx.task_id)
+```
+
+---
+
+#### Issue #2: Type Inconsistency
+**Problem**: Both track execution but different types
+```python
+correlation_id: UUID  # Workflow-level
+task_id: str  # Execution-level (but internally str(uuid4()))
+```
+
+---
+
+#### Issue #3: Multiple "Agent" Identifiers
+**Problem**: Three related concepts creating confusion
+- `agent.name` - primary identifier
+- `agent_id` - just a parameter name (not separate ID)
+- `agent.identity` - composite object (not separate ID)
+
+---
+
+#### Issue #4: Overlapping Concepts (correlation_id vs trace_id)
+**Problem**: Both track workflows but different purposes
+- `correlation_id`: Business workflow (persistent, blackboard queries)
+- `trace_id`: Technical observability (ephemeral, debugging)
+
+**Currently**: Independent, not linked
+**Potential confusion**: Users might expect alignment
+
+---
+
+### Recommendations from ID Audit
+
+**Priority 1**: Rename `task_id` → `run_id` everywhere for consistency
+
+**Priority 2**: Document ID glossary with clear relationships
+
+**Priority 3**: Consider linking `trace_id` and `correlation_id` (optional)
+
+**Priority 4**: Clarify that `agent_id` is just parameter naming, not separate ID
+
+---
+
+**For complete ID audit report, see**: `ID_AUDIT_REPORT.md` in this directory
+
+---
+
 ## 📋 Code Flow Analysis
 
 ### Step 1: Artifact Creation at Publish
