@@ -60,7 +60,17 @@ class Subscription:
             raise ValueError("Subscription must declare at least one type.")
         self.agent_name = agent_name
         self.type_models: list[type[BaseModel]] = list(types)
-        self.type_names: set[str] = {type_registry.register(t) for t in types}
+
+        # Register all types and build counts (supports duplicates for count-based AND gates)
+        type_name_list = [type_registry.register(t) for t in types]
+        self.type_names: set[str] = set(type_name_list)  # Unique type names (for matching)
+
+        # Count-based AND gate: Track how many of each type are required
+        # Example: .consumes(A, A, B) → {"TypeA": 2, "TypeB": 1}
+        self.type_counts: dict[str, int] = {}
+        for type_name in type_name_list:
+            self.type_counts[type_name] = self.type_counts.get(type_name, 0) + 1
+
         self.where = list(where or [])
         self.text_predicates = list(text_predicates or [])
         self.from_agents = set(from_agents or [])

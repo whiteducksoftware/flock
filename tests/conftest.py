@@ -29,7 +29,10 @@ def orchestrator():
     Note: DSPyEngine auto-detects pytest and disables streaming for clean test output.
     The default stream=False in tests is automatic - no manual configuration needed.
     """
-    return Flock()
+    orch = Flock()
+    # Disable console initialization to avoid Windows encoding issues with emojis in tests
+    orch.is_dashboard = True  # Skips init_console() call in publish()
+    return orch
 
 
 @pytest.fixture

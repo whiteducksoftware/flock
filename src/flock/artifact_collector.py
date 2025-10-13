@@ -40,9 +40,12 @@ class ArtifactCollector:
 
     def __init__(self) -> None:
         """Initialize empty waiting pools."""
-        # Structure: {(agent_name, subscription_index): {type_name: artifact}}
-        # Example: {("diagnostician", 0): {"XRay": artifact1, "LabResult": artifact2}}
-        self._waiting_pools: dict[tuple[str, int], dict[str, Artifact]] = defaultdict(dict)
+        # Structure: {(agent_name, subscription_index): {type_name: [artifact1, artifact2, ...]}}
+        # Example: {("diagnostician", 0): {"XRay": [artifact1], "LabResult": [artifact2]}}
+        # For count-based AND gates: {"TypeA": [artifact1, artifact2, artifact3]} (3 As collected)
+        self._waiting_pools: dict[tuple[str, int], dict[str, list[Artifact]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
 
     def add_artifact(
         self,
@@ -63,17 +66,16 @@ class ArtifactCollector:
                 - artifacts: List of collected artifacts (empty if incomplete, all artifacts if complete)
 
         Design Notes:
-            - Single-type subscriptions (len(subscription.type_names) == 1) bypass the pool
-              and return immediately complete
-            - Multi-type subscriptions collect artifacts until all types present
-            - Latest artifact per type wins (overwrites previous)
+            - Single-type subscriptions with count=1 bypass the pool and return immediately complete
+            - Multi-type or count-based subscriptions collect artifacts until all required counts met
+            - Latest artifacts win (keeps most recent N artifacts per type)
             - After returning complete=True, the pool is automatically cleared
         """
-        # Single-type subscription: No waiting needed (immediate trigger)
-        if len(subscription.type_names) == 1:
+        # Single-type subscription with count=1: No waiting needed (immediate trigger)
+        if len(subscription.type_names) == 1 and subscription.type_counts[artifact.type] == 1:
             return (True, [artifact])
 
-        # Multi-type subscription: Use waiting pool (AND gate logic)
+        # Multi-type or count-based subscription: Use waiting pool (AND gate logic)
 
         # Find subscription index (agents can have multiple subscriptions)
         try:
@@ -87,23 +89,32 @@ class ArtifactCollector:
 
         pool_key = (agent.name, subscription_index)
 
-        # Add artifact to pool (latest wins for each type)
-        self._waiting_pools[pool_key][artifact.type] = artifact
+        # Add artifact to pool (collect in list for count-based logic)
+        self._waiting_pools[pool_key][artifact.type].append(artifact)
 
-        # Check if all required types are present
-        collected_types = set(self._waiting_pools[pool_key].keys())
-        required_types = subscription.type_names
+        # Check if all required counts are met
+        is_complete = True
+        for type_name, required_count in subscription.type_counts.items():
+            collected_count = len(self._waiting_pools[pool_key][type_name])
+            if collected_count < required_count:
+                is_complete = False
+                break
 
-        if collected_types >= required_types:
-            # Complete! Collect all artifacts and clear the pool
-            artifacts = list(self._waiting_pools[pool_key].values())
+        if is_complete:
+            # Complete! Collect all artifacts (flatten lists) and clear the pool
+            artifacts = []
+            for type_name, required_count in subscription.type_counts.items():
+                # Take exactly the required count (latest artifacts)
+                type_artifacts = self._waiting_pools[pool_key][type_name]
+                artifacts.extend(type_artifacts[:required_count])
+
             del self._waiting_pools[pool_key]  # Clear for next cycle
             return (True, artifacts)
         else:
-            # Incomplete - still waiting for more types
+            # Incomplete - still waiting for more artifacts
             return (False, [])
 
-    def get_waiting_status(self, agent: Agent, subscription_index: int) -> dict[str, Artifact]:
+    def get_waiting_status(self, agent: Agent, subscription_index: int) -> dict[str, list[Artifact]]:
         """Get current waiting pool contents for debugging/inspection.
 
         Args:
@@ -111,10 +122,12 @@ class ArtifactCollector:
             subscription_index: Index of the subscription
 
         Returns:
-            Dictionary mapping type names to collected artifacts (empty if none)
+            Dictionary mapping type names to lists of collected artifacts (empty if none)
         """
         pool_key = (agent.name, subscription_index)
-        return dict(self._waiting_pools.get(pool_key, {}))
+        # Return a copy to prevent external mutation
+        pool = self._waiting_pools.get(pool_key, {})
+        return {type_name: list(artifacts) for type_name, artifacts in pool.items()}
 
     def clear_waiting_pool(self, agent: Agent, subscription_index: int) -> None:
         """Manually clear a waiting pool.

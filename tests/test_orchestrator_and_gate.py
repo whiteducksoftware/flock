@@ -504,3 +504,180 @@ async def test_three_way_or_gate(orchestrator):
     assert executed[0]["types"] == ["TypeA"]
     assert executed[1]["types"] == ["TypeB"]
     assert executed[2]["types"] == ["TypeC"]
+
+
+# ============================================================================
+# Phase 1, Week 2, Day 3-5: Count-Based AND Gates
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_count_based_and_gate_waits_for_three_as(orchestrator):
+    """
+    Test that `.consumes(A, A, A)` waits for THREE distinct A artifacts.
+
+    GIVEN: Agent with `.consumes(TypeA, TypeA, TypeA)` (count-based AND)
+    WHEN: Only 2 TypeA artifacts published
+    THEN: Agent should NOT trigger (waiting for 3rd)
+    WHEN: 3rd TypeA published
+    THEN: Agent triggers with all 3 TypeA artifacts
+
+    This implements count-based AND gate logic for duplicate types.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(
+                {
+                    "artifact_count": len(inputs.artifacts),
+                    "types": [a.type for a in inputs.artifacts],
+                    "values": sorted([a.payload["value"] for a in inputs.artifacts]),
+                }
+            )
+            return EvalResult(artifacts=[])
+
+    # Create agent with count-based AND gate (3 TypeA)
+    orchestrator.agent("count_gate").consumes(TypeA, TypeA, TypeA).with_engines(TrackingEngine())
+
+    # Act - Publish 2 TypeA artifacts
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should NOT trigger yet (need 3)
+    assert len(executed) == 0, "Agent should NOT trigger with only 2 TypeA (need 3)"
+
+    # Act - Publish 3rd TypeA
+    await orchestrator.publish({"type": "TypeA", "value": "a3", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should NOW trigger with all 3 artifacts
+    assert len(executed) == 1, "Agent should trigger when 3 TypeA present"
+    assert executed[0]["artifact_count"] == 3, "Agent should receive 3 artifacts"
+    assert executed[0]["types"] == ["TypeA", "TypeA", "TypeA"], "All 3 should be TypeA"
+    assert executed[0]["values"] == ["a1", "a2", "a3"], "Should have all 3 values"
+
+
+@pytest.mark.asyncio
+async def test_count_based_and_gate_order_independence(orchestrator):
+    """
+    Test that count-based AND gate works regardless of publication order.
+
+    GIVEN: Agent with `.consumes(A, A)`
+    WHEN: TypeA artifacts published in any order
+    THEN: Agent triggers when count reaches 2
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(len(inputs.artifacts))
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("count_order").consumes(TypeA, TypeA).with_engines(TrackingEngine())
+
+    # Act - Publish 2 TypeA
+    await orchestrator.publish({"type": "TypeA", "value": "first", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+    assert len(executed) == 0, "Should not trigger with 1 TypeA"
+
+    await orchestrator.publish({"type": "TypeA", "value": "second", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert
+    assert len(executed) == 1, "Should trigger with 2 TypeA"
+    assert executed[0] == 2, "Should receive 2 artifacts"
+
+
+@pytest.mark.asyncio
+async def test_mixed_count_and_type_gate(orchestrator):
+    """
+    Test mixed count and type requirements: `.consumes(A, A, B)`.
+
+    GIVEN: Agent with `.consumes(TypeA, TypeA, TypeB)`
+    WHEN: 1 TypeA + 1 TypeB published
+    THEN: Agent should NOT trigger (need 2 TypeA)
+    WHEN: 2nd TypeA published
+    THEN: Agent triggers with 2 TypeA + 1 TypeB
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(
+                {
+                    "artifact_count": len(inputs.artifacts),
+                    "type_counts": {
+                        "TypeA": sum(1 for a in inputs.artifacts if a.type == "TypeA"),
+                        "TypeB": sum(1 for a in inputs.artifacts if a.type == "TypeB"),
+                    },
+                }
+            )
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("mixed_count").consumes(TypeA, TypeA, TypeB).with_engines(TrackingEngine())
+
+    # Act - Publish 1 TypeA + 1 TypeB (incomplete)
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    assert len(executed) == 0, "Should NOT trigger (need 2 TypeA, only have 1)"
+
+    # Act - Publish 2nd TypeA (complete)
+    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger with 2 TypeA + 1 TypeB
+    assert len(executed) == 1, "Should trigger with 2 TypeA + 1 TypeB"
+    assert executed[0]["artifact_count"] == 3, "Should receive 3 artifacts total"
+    assert executed[0]["type_counts"]["TypeA"] == 2, "Should have 2 TypeA"
+    assert executed[0]["type_counts"]["TypeB"] == 1, "Should have 1 TypeB"
+
+
+@pytest.mark.asyncio
+async def test_count_based_latest_artifacts_win(orchestrator):
+    """
+    Test that latest artifacts are used when exceeding required count.
+
+    GIVEN: Agent with `.consumes(A, A)` (need 2)
+    WHEN: 4 TypeA artifacts published
+    THEN: Agent triggers twice (first 2, then next 2)
+
+    This tests the "latest wins" behavior for each completion cycle.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(
+                {
+                    "artifact_count": len(inputs.artifacts),
+                    "values": sorted([a.payload["value"] for a in inputs.artifacts]),
+                }
+            )
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("latest_wins").consumes(TypeA, TypeA).with_engines(TrackingEngine())
+
+    # Act - Publish 4 TypeA artifacts
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    assert len(executed) == 1, "Should trigger first time with a1, a2"
+    assert executed[0]["values"] == ["a1", "a2"]
+
+    # Publish 2 more
+    await orchestrator.publish({"type": "TypeA", "value": "a3", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeA", "value": "a4", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger second time with a3, a4
+    assert len(executed) == 2, "Should trigger second time with a3, a4"
+    assert executed[1]["values"] == ["a3", "a4"]
