@@ -320,3 +320,187 @@ async def test_and_gate_does_not_accumulate_across_completions(orchestrator):
     # Verify different values (not accumulated)
     assert executed[0]["values"] == ["a1", "b1"], "First trigger should have first pair"
     assert executed[1]["values"] == ["a2", "b2"], "Second trigger should have second pair"
+
+
+# ============================================================================
+# Phase 1, Week 2: OR Gate via Chaining Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_or_gate_via_chaining(orchestrator):
+    """
+    Test that `.consumes(A).consumes(B)` implements OR gate logic.
+
+    GIVEN: Agent with chained consumes (OR gate)
+    WHEN: TypeA is published
+    THEN: Agent triggered with TypeA only
+    WHEN: TypeB is published
+    THEN: Agent triggered AGAIN with TypeB only
+
+    This verifies backward compatibility - chaining creates separate
+    subscriptions, each triggering independently.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(
+                {
+                    "trigger_count": len(executed) + 1,
+                    "artifact_count": len(inputs.artifacts),
+                    "types": [a.type for a in inputs.artifacts],
+                    "values": [a.payload["value"] for a in inputs.artifacts],
+                }
+            )
+            return EvalResult(artifacts=[])
+
+    # Create agent with OR gate subscription (chaining)
+    orchestrator.agent("or_gate_agent").consumes(TypeA).consumes(TypeB).with_engines(TrackingEngine())
+
+    # Act - Publish TypeA
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Agent should trigger with ONLY TypeA
+    assert len(executed) == 1, "Agent should trigger once with TypeA"
+    assert executed[0]["artifact_count"] == 1, "Agent should receive single artifact"
+    assert executed[0]["types"] == ["TypeA"], "Agent should receive only TypeA"
+    assert executed[0]["values"] == ["a1"]
+
+    # Act - Publish TypeB
+    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Agent should trigger AGAIN with ONLY TypeB
+    assert len(executed) == 2, "Agent should trigger second time with TypeB"
+    assert executed[1]["artifact_count"] == 1, "Agent should receive single artifact"
+    assert executed[1]["types"] == ["TypeB"], "Agent should receive only TypeB"
+    assert executed[1]["values"] == ["b1"]
+
+
+@pytest.mark.asyncio
+async def test_mixed_and_or_subscriptions(orchestrator):
+    """
+    Test agent with BOTH AND gate and OR gate subscriptions.
+
+    GIVEN: Agent with `.consumes(A, B)` AND `.consumes(C)`
+    WHEN: TypeC published
+    THEN: Agent triggers with only TypeC (OR gate)
+    WHEN: TypeA and TypeB published
+    THEN: Agent triggers with both TypeA and TypeB (AND gate)
+
+    This ensures AND and OR gates don't interfere with each other.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(
+                {
+                    "artifact_count": len(inputs.artifacts),
+                    "types": sorted([a.type for a in inputs.artifacts]),
+                }
+            )
+            return EvalResult(artifacts=[])
+
+    # Create agent with MIXED subscriptions
+    orchestrator.agent("mixed_agent").consumes(TypeA, TypeB).consumes(TypeC).with_engines(TrackingEngine())
+
+    # Act - Publish TypeC (OR gate should trigger)
+    await orchestrator.publish({"type": "TypeC", "value": "c1"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger with only TypeC
+    assert len(executed) == 1, "Should trigger with TypeC"
+    assert executed[0]["artifact_count"] == 1
+    assert executed[0]["types"] == ["TypeC"]
+
+    # Act - Publish TypeA (AND gate should wait)
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    assert len(executed) == 1, "Should NOT trigger yet (AND gate waiting for TypeB)"
+
+    # Act - Publish TypeB (AND gate should complete)
+    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger with both TypeA and TypeB
+    assert len(executed) == 2, "Should trigger with AND gate complete"
+    assert executed[1]["artifact_count"] == 2
+    assert executed[1]["types"] == ["TypeA", "TypeB"]
+
+
+@pytest.mark.asyncio
+async def test_or_gate_does_not_accumulate(orchestrator):
+    """
+    Test that OR gate triggers don't accumulate artifacts.
+
+    GIVEN: Agent with `.consumes(A).consumes(B)` (OR gate)
+    WHEN: TypeA published twice
+    THEN: Agent triggers twice, each time with single TypeA artifact
+
+    This ensures OR gate doesn't use the waiting pool.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append(len(inputs.artifacts))
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("or_test").consumes(TypeA).consumes(TypeB).with_engines(TrackingEngine())
+
+    # Act - Publish TypeA twice
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger twice, each with single artifact
+    assert len(executed) == 2, "Should trigger twice"
+    assert executed[0] == 1, "First trigger should have 1 artifact"
+    assert executed[1] == 1, "Second trigger should have 1 artifact"
+
+
+@pytest.mark.asyncio
+async def test_three_way_or_gate(orchestrator):
+    """
+    Test OR gate with three types via chaining.
+
+    GIVEN: Agent with `.consumes(A).consumes(B).consumes(C)`
+    WHEN: Any single type published
+    THEN: Agent triggers with only that type
+
+    This ensures chaining works for any number of types.
+    """
+    # Arrange
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append({"types": [a.type for a in inputs.artifacts]})
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("three_or").consumes(TypeA).consumes(TypeB).consumes(TypeC).with_engines(
+        TrackingEngine()
+    )
+
+    # Act - Publish each type individually
+    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.run_until_idle()
+
+    await orchestrator.publish({"type": "TypeC", "value": "c1"})
+    await orchestrator.run_until_idle()
+
+    # Assert - Should trigger three times, each with single type
+    assert len(executed) == 3, "Should trigger three times"
+    assert executed[0]["types"] == ["TypeA"]
+    assert executed[1]["types"] == ["TypeB"]
+    assert executed[2]["types"] == ["TypeC"]
