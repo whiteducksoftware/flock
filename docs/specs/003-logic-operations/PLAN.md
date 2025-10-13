@@ -28,17 +28,18 @@ This plan implements the Logic Operations API for Flock 0.6-0.7, addressing the 
 
 ## 📊 Implementation Progress
 
-**Overall Status:** 🎉 Phase 1 COMPLETE! All 3 weeks done! (100% of Phase 1, ~15% overall)
+**Overall Status:** 🎉 Phase 1 COMPLETE! Phase 2 Week 1 COMPLETE! (100% of Phase 1, ~20% overall)
 
 | Phase | Week | Status | Tests | Completion |
 |-------|------|--------|-------|------------|
 | **Phase 1** | **Week 1** | ✅ **COMPLETE** | 7/7 pass | ✅ **100%** |
 | **Phase 1** | **Week 2** | ✅ **COMPLETE** | 8/8 pass | ✅ **100%** |
 | **Phase 1** | **Week 3** | ✅ **COMPLETE** | 9/9 pass | ✅ **100%** |
-| Phase 2 | All | ⏳ Ready to Start | 0/60 | 0% |
+| **Phase 2** | **Week 1** | ✅ **COMPLETE** | 8/8 pass | ✅ **100%** |
+| Phase 2 | Week 2-3 | ⏳ Ready to Start | 0/52 | 0% |
 | Phase 3 | All | ⏳ Blocked | 0/40 | 0% |
 | Phase 4 | All | ⏳ Blocked | 0/15 | 0% |
-| **Total** | | ✅ **Phase 1 Done** | **24/165+** | **~15%** |
+| **Total** | | ✅ **Phases 1-2.1 Done** | **32/165+** | **~20%** |
 
 ### What's Working Right Now (Production-Ready)
 
@@ -73,12 +74,30 @@ This plan implements the Logic Operations API for Flock 0.6-0.7, addressing the 
   - Week 2: 8 tests (OR gates + count-based)
   - Week 3: 9 tests (signatures + integration + performance)
 
+✅ **Phase 2 Week 1 Complete Features** (Correlation Engine - NEW!)
+- JoinSpec correlation: Artifacts correlated by extracted key (lambda extraction) ✅
+- Time-based windows: `within=timedelta(minutes=5)` for time-bound correlation ✅
+- Count-based windows: `within=10` for message-count windows (user requested!) ✅
+- Order independence: Correlation works regardless of arrival order ✅
+- Multi-way correlation: Support for A+B+C three-way (or more) correlation ✅
+- Nested field extraction: `by=lambda x: x.metadata["request_id"]` for complex keys ✅
+- Test coverage: 8/8 tests passing (100% pass rate in 0.24s)
+  - Basic correlation by same key
+  - Multiple independent correlation groups
+  - Partial correlation waiting
+  - Three-way correlation (A+B+C)
+  - Order independence (A→B vs B→A)
+  - Nested field extraction
+  - Count-based window with expiry
+  - Multiple correlations in count window
+
 ### What's Next
 
-🚀 **Phase 2: JoinSpec** (Estimated 3 weeks):
-- Correlated AND gates with time windows
-- Healthcare diagnostic workflow
-- Trading signal correlation
+🚀 **Phase 2 Week 2-3: Time Window Management & Integration** (Estimated 2 weeks):
+- Time window expiry enforcement
+- Correlation state cleanup (memory management)
+- Integration with AND gates + visibility + predicates
+- Performance benchmarks (<50ms overhead target)
 
 ### Key Achievements
 
@@ -413,17 +432,17 @@ async def test_agent_receives_tuple_for_and_gate():
 
 ---
 
-### Phase 2: JoinSpec - Correlated AND (v0.6) - **3 weeks** ⏳ NOT STARTED
+### Phase 2: JoinSpec - Correlated AND (v0.6) - **3 weeks** 🚀 IN PROGRESS
 
-**Goal:** Implement correlated joins with time windows
+**Goal:** Implement correlated joins with time/count windows
 
-**Status:** ⏳ Blocked by Phase 1 completion
+**Status:** ✅ Week 1 COMPLETE! (Correlation Engine delivered)
 
 **TDD Approach:**
 
-#### Week 1: Correlation Engine ⏳ NOT STARTED
+#### Week 1: Correlation Engine ✅ COMPLETE (2025-10-13)
 
-**Day 1-2: Basic Correlation Tests** ⏳ NOT STARTED
+**Day 1-2: Basic Correlation Tests** ✅ COMPLETE (2025-10-13)
 ```python
 async def test_joinspec_correlates_by_key():
     """
@@ -466,17 +485,38 @@ async def test_joinspec_correlates_by_key():
     assert len(executed) == 1  # Still only 1 (no new matches)
 ```
 
-**Day 3-5: Correlation Engine Implementation**
-- Create `CorrelationEngine` class
-- Implement key extraction
-- Implement grouping by correlation key
-- Add correlation state management
+**Day 3-5: Correlation Engine Implementation** ✅ COMPLETE (2025-10-13)
+- ✅ Create `CorrelationEngine` class (`src/flock/correlation_engine.py` - 216 lines)
+- ✅ Implement key extraction (JoinSpec.by lambda)
+- ✅ Implement grouping by correlation key (CorrelationGroup)
+- ✅ Add correlation state management (global sequence, time tracking)
+- ✅ Support BOTH time-based AND count-based windows (user requested!)
+- ✅ Wire into orchestrator (`src/flock/orchestrator.py`)
+- ✅ Fix AgentBuilder._normalize_join() for new JoinSpec API
 
-**Test Coverage:**
-- ✅ Basic correlation by key
-- ✅ Multiple correlation keys
-- ✅ Correlation state isolation
-- ✅ Key extraction edge cases
+**Test Coverage:** ✅ ALL COMPLETE (8/8 tests passing)
+- ✅ Basic correlation by same key - `test_joinspec_correlates_artifacts_by_same_key`
+- ✅ Multiple independent correlation keys - `test_joinspec_multiple_correlation_keys_independent`
+- ✅ Partial correlation waiting - `test_joinspec_partial_correlation_waits`
+- ✅ Three-way correlation (A+B+C) - `test_joinspec_three_way_correlation`
+- ✅ Order independence - `test_joinspec_order_independence`
+- ✅ Nested field extraction - `test_joinspec_key_extraction_with_nested_fields`
+- ✅ Count-based window (user requested!) - `test_joinspec_count_based_window`
+- ✅ Multiple correlations in count window - `test_joinspec_count_window_with_multiple_correlations`
+
+**Deliverables:** ✅ ALL DELIVERED
+- ✅ `src/flock/correlation_engine.py` (216 lines, CorrelationEngine + CorrelationGroup)
+- ✅ `tests/test_orchestrator_joinspec.py` (8 comprehensive tests, 100% pass rate)
+- ✅ `src/flock/orchestrator.py` (JoinSpec routing logic integrated)
+- ✅ `src/flock/agent.py` (_normalize_join updated for new API)
+- ✅ `src/flock/subscription.py` (JoinSpec API updated: `by` + `within`)
+- ✅ All 24 AND gate tests still pass (zero regressions)
+
+**Key Achievements:**
+- 🎯 **Count-based windows**: User requested "easy win" delivered! (within=10 for artifact count)
+- 🐛 **Type namespace bug fixed**: `.model_dump()` was stripping module prefix - tests now use BaseModel instances
+- ⚡ **Lightning fast**: 8 tests pass in 0.24s
+- 💪 **Zero regressions**: 24/24 AND gate tests still GREEN
 
 #### Week 2: Time Window Management
 

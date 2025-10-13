@@ -988,10 +988,18 @@ class AgentBuilder:
     def _normalize_join(self, value: dict | JoinSpec | None) -> JoinSpec | None:
         if value is None or isinstance(value, JoinSpec):
             return value
+        # Phase 2: New JoinSpec API with 'by' and 'within' (time OR count)
+        from datetime import timedelta
+        within_value = value.get("within")
+        if isinstance(within_value, (int, float)):
+            # Count window or seconds as float - keep as is
+            within = int(within_value) if isinstance(within_value, int) else timedelta(seconds=within_value)
+        else:
+            # Default to 1 minute time window
+            within = timedelta(minutes=1)
         return JoinSpec(
-            kind=value.get("kind", "all_of"),
-            window=float(value.get("window", 0.0)),
-            by=value.get("by"),
+            by=value["by"],  # Required
+            within=within,
         )
 
     def _normalize_batch(self, value: dict | BatchSpec | None) -> BatchSpec | None:

@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from flock.agent import Agent, AgentBuilder
 from flock.artifact_collector import ArtifactCollector
 from flock.artifacts import Artifact
+from flock.correlation_engine import CorrelationEngine
 from flock.helper.cli_helper import init_console
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.mcp import (
@@ -131,6 +132,8 @@ class Flock(metaclass=AutoTracedMeta):
         self.is_dashboard: bool = False
         # AND gate logic: Artifact collection for multi-type subscriptions
         self._artifact_collector = ArtifactCollector()
+        # JoinSpec logic: Correlation engine for correlated AND gates
+        self._correlation_engine = CorrelationEngine()
         # Unified tracing support
         self._workflow_span = None
         self._auto_workflow_enabled = os.getenv("FLOCK_AUTO_WORKFLOW_TRACE", "false").lower() in {
@@ -674,7 +677,11 @@ class Flock(metaclass=AutoTracedMeta):
         self.is_dashboard = is_dashboard
         # Only show banner in CLI mode, not dashboard mode
         if not self.is_dashboard:
-            init_console(clear_screen=True, show_banner=True, model=self.model)
+            try:
+                init_console(clear_screen=True, show_banner=True, model=self.model)
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                # Skip banner on Windows consoles with encoding issues (e.g., tests, CI)
+                pass
         # Handle different input types
         if isinstance(obj, Artifact):
             # Already an artifact - publish as-is
@@ -885,14 +892,31 @@ class Flock(metaclass=AutoTracedMeta):
                 if self._seen_before(artifact, agent):
                     continue
 
-                # AND GATE LOGIC: Use artifact collector for multi-type subscriptions
-                is_complete, artifacts = self._artifact_collector.add_artifact(
-                    agent, subscription, artifact
-                )
+                # JoinSpec CORRELATION: Check if subscription has correlated AND gate
+                if subscription.join is not None:
+                    # Use CorrelationEngine for JoinSpec (correlated AND gates)
+                    subscription_index = agent.subscriptions.index(subscription)
+                    completed_group = self._correlation_engine.add_artifact(
+                        artifact=artifact,
+                        subscription=subscription,
+                        subscription_index=subscription_index,
+                    )
 
-                if not is_complete:
-                    # Still waiting for more types (AND gate incomplete)
-                    continue
+                    if completed_group is None:
+                        # Still waiting for correlation to complete
+                        continue
+
+                    # Correlation complete! Get all correlated artifacts
+                    artifacts = completed_group.get_artifacts()
+                else:
+                    # AND GATE LOGIC: Use artifact collector for simple AND gates (no correlation)
+                    is_complete, artifacts = self._artifact_collector.add_artifact(
+                        agent, subscription, artifact
+                    )
+
+                    if not is_complete:
+                        # Still waiting for more types (AND gate incomplete)
+                        continue
 
                 # Complete! Schedule agent with all collected artifacts
                 # T068: Increment iteration counter

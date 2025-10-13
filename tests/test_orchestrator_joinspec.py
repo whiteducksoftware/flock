@@ -93,8 +93,8 @@ async def test_joinspec_correlates_artifacts_by_same_key():
     )
 
     # Publish artifacts with SAME correlation ID
-    await orchestrator.publish({"type": "SignalA", "correlation_id": "patient-123", "data": "xray"})
-    await orchestrator.publish({"type": "SignalB", "correlation_id": "patient-123", "data": "labs"})
+    await orchestrator.publish(SignalA(correlation_id="patient-123", data="xray"))
+    await orchestrator.publish(SignalB(correlation_id="patient-123", data="labs"))
     await orchestrator.run_until_idle()
 
     # Should match!
@@ -106,8 +106,8 @@ async def test_joinspec_correlates_artifacts_by_same_key():
     assert all(p["correlation_id"] == "patient-123" for p in payloads), "All correlation IDs should match"
 
     # Publish artifacts with DIFFERENT correlation IDs
-    await orchestrator.publish({"type": "SignalA", "correlation_id": "patient-456", "data": "xray2"})
-    await orchestrator.publish({"type": "SignalB", "correlation_id": "patient-789", "data": "labs2"})
+    await orchestrator.publish(SignalA(correlation_id="patient-456", data="xray2"))
+    await orchestrator.publish(SignalB(correlation_id="patient-789", data="labs2"))
     await orchestrator.run_until_idle()
 
     # Should NOT create new matches (different keys)
@@ -150,16 +150,16 @@ async def test_joinspec_multiple_correlation_keys_independent():
 
     # Publish artifacts for THREE different correlation groups
     # Group 1: stock-AAPL
-    await orchestrator.publish(SignalA(correlation_id="stock-AAPL", data="volatility-high").model_dump())
-    await orchestrator.publish(SignalB(correlation_id="stock-AAPL", data="sentiment-negative").model_dump())
+    await orchestrator.publish(SignalA(correlation_id="stock-AAPL", data="volatility-high"))
+    await orchestrator.publish(SignalB(correlation_id="stock-AAPL", data="sentiment-negative"))
 
     # Group 2: stock-MSFT
-    await orchestrator.publish(SignalA(correlation_id="stock-MSFT", data="volatility-low").model_dump())
-    await orchestrator.publish(SignalB(correlation_id="stock-MSFT", data="sentiment-positive").model_dump())
+    await orchestrator.publish(SignalA(correlation_id="stock-MSFT", data="volatility-low"))
+    await orchestrator.publish(SignalB(correlation_id="stock-MSFT", data="sentiment-positive"))
 
     # Group 3: stock-TSLA
-    await orchestrator.publish(SignalA(correlation_id="stock-TSLA", data="volatility-high").model_dump())
-    await orchestrator.publish(SignalB(correlation_id="stock-TSLA", data="sentiment-neutral").model_dump())
+    await orchestrator.publish(SignalA(correlation_id="stock-TSLA", data="volatility-high"))
+    await orchestrator.publish(SignalB(correlation_id="stock-TSLA", data="sentiment-neutral"))
 
     await orchestrator.run_until_idle()
 
@@ -209,14 +209,14 @@ async def test_joinspec_partial_correlation_waits():
     )
 
     # Publish only SignalA
-    await orchestrator.publish(SignalA(correlation_id="session-abc", data="text-input").model_dump())
+    await orchestrator.publish(SignalA(correlation_id="session-abc", data="text-input"))
     await orchestrator.run_until_idle()
 
     # Should NOT trigger yet
     assert len(executed) == 0, "Should not trigger with only one signal"
 
     # Publish matching SignalB
-    await orchestrator.publish(SignalB(correlation_id="session-abc", data="image-upload").model_dump())
+    await orchestrator.publish(SignalB(correlation_id="session-abc", data="image-upload"))
     await orchestrator.run_until_idle()
 
     # NOW should trigger
@@ -260,9 +260,9 @@ async def test_joinspec_three_way_correlation():
     )
 
     # Publish all three with same key
-    await orchestrator.publish(SignalA(correlation_id="batch-001", data="temperature-ok").model_dump())
-    await orchestrator.publish(SignalB(correlation_id="batch-001", data="pressure-ok").model_dump())
-    await orchestrator.publish(SignalC(correlation_id="batch-001", data="viscosity-ok").model_dump())
+    await orchestrator.publish(SignalA(correlation_id="batch-001", data="temperature-ok"))
+    await orchestrator.publish(SignalB(correlation_id="batch-001", data="pressure-ok"))
+    await orchestrator.publish(SignalC(correlation_id="batch-001", data="viscosity-ok"))
     await orchestrator.run_until_idle()
 
     # Should trigger once with all three
@@ -317,15 +317,15 @@ async def test_joinspec_order_independence():
     )
 
     # Scenario 1: A→B (normal order)
-    await orchestrator.publish(SignalA(correlation_id="order-1", data="a1").model_dump())
-    await orchestrator.publish(SignalB(correlation_id="order-1", data="b1").model_dump())
+    await orchestrator.publish(SignalA(correlation_id="order-1", data="a1"))
+    await orchestrator.publish(SignalB(correlation_id="order-1", data="b1"))
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Should trigger for A→B order"
 
     # Scenario 2: B→A (reversed order)
-    await orchestrator.publish(SignalB(correlation_id="order-2", data="b2").model_dump())
-    await orchestrator.publish(SignalA(correlation_id="order-2", data="a2").model_dump())
+    await orchestrator.publish(SignalB(correlation_id="order-2", data="b2"))
+    await orchestrator.publish(SignalA(correlation_id="order-2", data="a2"))
     await orchestrator.run_until_idle()
 
     assert len(executed) == 2, "Should trigger for B→A order too"
@@ -376,10 +376,10 @@ async def test_joinspec_key_extraction_with_nested_fields():
 
     # Publish with nested correlation key
     await orchestrator.publish(
-        NestedSignalA(metadata={"request_id": "req-xyz", "source": "api"}, data="request").model_dump()
+        NestedSignalA(metadata={"request_id": "req-xyz", "source": "api"}, data="request")
     )
     await orchestrator.publish(
-        NestedSignalB(metadata={"request_id": "req-xyz", "source": "db"}, data="response").model_dump()
+        NestedSignalB(metadata={"request_id": "req-xyz", "source": "db"}, data="response")
     )
     await orchestrator.run_until_idle()
 
@@ -429,12 +429,12 @@ async def test_joinspec_count_based_window():
     )
 
     # Scenario 1: Artifacts within 10-message window
-    await orchestrator.publish({"type": "SignalA", "correlation_id": "batch-1", "data": "a1"})
+    await orchestrator.publish(SignalA(correlation_id="batch-1", data="a1"))
     # Publish 8 unrelated artifacts (noise)
     for i in range(8):
-        await orchestrator.publish({"type": "SignalA", "correlation_id": f"noise-{i}", "data": "noise"})
+        await orchestrator.publish(SignalA(correlation_id=f"noise-{i}", data="noise"))
     # Publish matching SignalB within window (9th artifact)
-    await orchestrator.publish({"type": "SignalB", "correlation_id": "batch-1", "data": "b1"})
+    await orchestrator.publish(SignalB(correlation_id="batch-1", data="b1"))
     await orchestrator.run_until_idle()
 
     # Should correlate (within 10-artifact window)
@@ -442,12 +442,12 @@ async def test_joinspec_count_based_window():
     assert executed[0]["payloads"][0]["correlation_id"] == "batch-1"
 
     # Scenario 2: Artifacts OUTSIDE 10-message window
-    await orchestrator.publish({"type": "SignalA", "correlation_id": "batch-2", "data": "a2"})
+    await orchestrator.publish(SignalA(correlation_id="batch-2", data="a2"))
     # Publish 11 unrelated artifacts (exceeds window)
     for i in range(11):
-        await orchestrator.publish({"type": "SignalA", "correlation_id": f"noise2-{i}", "data": "noise"})
+        await orchestrator.publish(SignalA(correlation_id=f"noise2-{i}", data="noise"))
     # Publish matching SignalB OUTSIDE window (12th artifact)
-    await orchestrator.publish({"type": "SignalB", "correlation_id": "batch-2", "data": "b2"})
+    await orchestrator.publish(SignalB(correlation_id="batch-2", data="b2"))
     await orchestrator.run_until_idle()
 
     # Should NOT correlate (outside 10-artifact window)
@@ -488,11 +488,11 @@ async def test_joinspec_count_window_with_multiple_correlations():
     )
 
     # Interleaved correlation groups
-    await orchestrator.publish({"type": "SignalA", "correlation_id": "req-1", "data": "a1"})
-    await orchestrator.publish({"type": "SignalA", "correlation_id": "req-2", "data": "a2"})
-    await orchestrator.publish({"type": "SignalB", "correlation_id": "req-1", "data": "b1"})  # req-1 completes (within 5)
-    await orchestrator.publish({"type": "SignalA", "correlation_id": "req-3", "data": "a3"})
-    await orchestrator.publish({"type": "SignalB", "correlation_id": "req-2", "data": "b2"})  # req-2 completes (within 5)
+    await orchestrator.publish(SignalA(correlation_id="req-1", data="a1"))
+    await orchestrator.publish(SignalA(correlation_id="req-2", data="a2"))
+    await orchestrator.publish(SignalB(correlation_id="req-1", data="b1"))  # req-1 completes (within 5)
+    await orchestrator.publish(SignalA(correlation_id="req-3", data="a3"))
+    await orchestrator.publish(SignalB(correlation_id="req-2", data="b2"))  # req-2 completes (within 5)
     await orchestrator.run_until_idle()
 
     # Should have 2 correlations (req-1 and req-2)
