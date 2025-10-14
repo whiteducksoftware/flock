@@ -572,11 +572,15 @@ class Flock(metaclass=AutoTracedMeta):
             self._agent_iteration_count.clear()
             return
 
+        # Notify components that orchestrator reached idle state
+        if self._components_initialized:
+            await self._run_idle()
+
         # T068: Reset circuit breaker counters when idle
         self._agent_iteration_count.clear()
 
         # Automatically shutdown MCP connections when idle
-        await self.shutdown()
+        await self.shutdown(include_components=False)
 
     async def direct_invoke(
         self, agent: Agent, inputs: Sequence[BaseModel | Mapping[str, Any] | Artifact]
@@ -645,8 +649,17 @@ class Flock(metaclass=AutoTracedMeta):
         """
         return asyncio.run(self.arun(agent_builder, *inputs))
 
-    async def shutdown(self) -> None:
-        """Shutdown orchestrator and clean up resources."""
+    async def shutdown(self, *, include_components: bool = True) -> None:
+        """Shutdown orchestrator and clean up resources.
+
+        Args:
+            include_components: Whether to invoke component shutdown hooks.
+                Internal callers (e.g., run_until_idle) disable this to avoid
+                tearing down component state between cascades.
+        """
+        if include_components and self._components_initialized:
+            await self._run_shutdown()
+
         # Cancel correlation cleanup task if running
         if self._correlation_cleanup_task and not self._correlation_cleanup_task.done():
             self._correlation_cleanup_task.cancel()
