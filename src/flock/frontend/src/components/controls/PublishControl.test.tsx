@@ -398,7 +398,7 @@ describe('PublishControl', () => {
   });
 
   // Auto-filter checkbox tests
-  it('should render auto-set filter checkbox checked by default', async () => {
+  it('should render auto-set filter checkbox unchecked by default', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ artifact_types: mockArtifactTypes }),
@@ -412,7 +412,7 @@ describe('PublishControl', () => {
 
     const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
     expect(checkbox).toBeInTheDocument();
-    expect(checkbox.checked).toBe(true);
+    expect(checkbox.checked).toBe(false);
   });
 
   it('should set filter to correlation ID when checkbox is checked and publish succeeds', async () => {
@@ -439,7 +439,8 @@ describe('PublishControl', () => {
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
 
-    // Checkbox should be checked by default
+    // Check the checkbox to enable auto-filter
+    fireEvent.click(checkbox);
     expect(checkbox.checked).toBe(true);
 
     fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
@@ -487,8 +488,7 @@ describe('PublishControl', () => {
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
 
-    // Uncheck the checkbox
-    fireEvent.click(checkbox);
+    // Checkbox should already be unchecked by default
     expect(checkbox.checked).toBe(false);
 
     // Clear any existing filter
@@ -529,15 +529,15 @@ describe('PublishControl', () => {
 
     const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
 
-    // Initially checked
-    expect(checkbox.checked).toBe(true);
-
-    // Uncheck
-    fireEvent.click(checkbox);
+    // Initially unchecked
     expect(checkbox.checked).toBe(false);
 
-    // Check again
+    // Check
     fireEvent.click(checkbox);
     expect(checkbox.checked).toBe(true);
+
+    // Uncheck again
+    fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(false);
   });
 });

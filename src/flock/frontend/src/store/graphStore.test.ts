@@ -468,7 +468,8 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(overlayWebSocketState).toHaveBeenCalledWith(
         mockMergedNodes,
         expect.any(Map), // agentStatus
-        expect.any(Map) // streamingTokens
+        expect.any(Map), // streamingTokens
+        expect.any(Map) // agentLogicOperations
       );
     });
   });

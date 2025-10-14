@@ -80,6 +80,9 @@ class AgentSnapshot:
     first_seen: datetime
     last_seen: datetime
     signature: str
+    logic_operations: list[dict] = field(
+        default_factory=list
+    )  # Phase 1.2: JoinSpec/BatchSpec config
 
 
 class DashboardEventCollector(AgentComponent):
@@ -514,6 +517,7 @@ class DashboardEventCollector(AgentComponent):
             first_seen=snapshot.first_seen,
             last_seen=snapshot.last_seen,
             signature=snapshot.signature,
+            logic_operations=[dict(op) for op in snapshot.logic_operations],  # Phase 1.2
         )
 
     def _snapshot_to_record(self, snapshot: AgentSnapshot) -> AgentSnapshotRecord:

@@ -22,7 +22,7 @@ const PublishControl: React.FC = () => {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [autoSetFilter, setAutoSetFilter] = useState(true); // Default: auto-set filter to correlation ID
+  const [autoSetFilter, setAutoSetFilter] = useState(false); // Default: unchecked (user can opt-in to auto-filter)
 
   const setShowControls = useSettingsStore((state) => state.setShowControls);
 

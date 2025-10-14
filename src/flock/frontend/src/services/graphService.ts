@@ -57,7 +57,8 @@ function randomPosition() {
 export function overlayWebSocketState(
   nodes: Node[],
   agentStatus: Map<string, string>,
-  streamingTokens: Map<string, string[]>
+  streamingTokens: Map<string, string[]>,
+  agentLogicOperations?: Map<string, any[]>
 ): Node[] {
   return nodes.map(node => {
     if (node.type === 'agent') {
@@ -67,6 +68,7 @@ export function overlayWebSocketState(
           ...node.data,
           status: agentStatus.get(node.id) || node.data.status,
           streamingTokens: streamingTokens.get(node.id) || [],
+          logicOperations: agentLogicOperations?.get(node.id) || node.data.logicOperations || [],
         },
       };
     }

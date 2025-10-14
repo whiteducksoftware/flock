@@ -79,7 +79,9 @@ class GraphEdge(BaseModel):
     id: str
     source: str
     target: str
-    type: Literal["message_flow", "transformation"]
+    type: Literal[
+        "message_flow", "transformation", "pending_join", "pending_batch"
+    ]  # Phase 1.5: Added pending edge types
     label: str | None = None
     data: dict[str, Any] = Field(default_factory=dict)
     marker_end: GraphMarker | None = Field(default=None, alias="markerEnd")
