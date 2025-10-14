@@ -84,6 +84,12 @@ uv run python examples/01-cli/03_code_detective.py
 uv run python examples/02-dashboard/01_declarative_pizza.py
 uv run python examples/02-dashboard/02_input_and_output.py
 uv run python examples/02-dashboard/03_code_detective.py
+
+# Engine + component playgrounds
+uv run python examples/05-engines/emoji_mood_engine.py
+uv run python examples/05-engines/potion_batch_engine.py
+uv run python examples/06-agent-components/plot_twist_component.py
+uv run python examples/06-agent-components/cheer_meter_component.py
 ```
 
 ---
