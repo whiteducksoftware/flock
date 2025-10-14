@@ -111,6 +111,7 @@ class RateLimiter(AgentComponent):
 
     max_calls: int = 10
     window_seconds: int = 60
+    priority: int = 0  # Lower = earlier execution (defaults to registration order)
 
     def __init__(self, max_calls: int = 10, window: int = 60):
         super().__init__(name="rate_limiter")
@@ -135,6 +136,14 @@ class RateLimiter(AgentComponent):
         self._calls.append(now)
         return inputs
 ```
+
+**Execution order & logging.** Agent utilities now support a `priority` field that mirrors
+the orchestrator component system. Components run in ascending priority order
+(default `0` preserves registration order thanks to stable sorting), and every
+hook invocation is logged with component name, priority, and agent context. This
+makes it easy to slot in cross-cutting utilities (e.g., telemetry collectors with
+`priority=-100`) without rewriting existing agents, while still getting detailed
+traceable logs for each lifecycle stage.
 
 ### EngineComponent (Replacing the Execution Engine)
 

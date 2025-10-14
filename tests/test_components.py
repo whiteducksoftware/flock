@@ -83,6 +83,46 @@ async def test_components_execute_in_registration_order():
 
 
 @pytest.mark.asyncio
+async def test_component_priority_controls_execution_order():
+    """Test that component priority overrides registration order."""
+    orchestrator = Flock()
+
+    execution_order = []
+
+    class LateComponent(AgentComponent):
+        priority: int = 50
+
+        async def on_pre_evaluate(self, agent, ctx, inputs):
+            execution_order.append("late")
+            return await super().on_pre_evaluate(agent, ctx, inputs)
+
+    class DefaultComponent(AgentComponent):
+        priority: int = 0
+
+        async def on_pre_evaluate(self, agent, ctx, inputs):
+            execution_order.append("default")
+            return await super().on_pre_evaluate(agent, ctx, inputs)
+
+    class EarlyComponent(AgentComponent):
+        priority: int = -10
+
+        async def on_pre_evaluate(self, agent, ctx, inputs):
+            execution_order.append("early")
+            return await super().on_pre_evaluate(agent, ctx, inputs)
+
+    agent = (
+        orchestrator.agent("priority_agent")
+        .consumes(ComponentInput)
+        .with_utilities(LateComponent(), DefaultComponent(), EarlyComponent())
+        .with_engines(SimpleTestEngine())
+    )
+
+    await orchestrator.invoke(agent, ComponentInput(data="test"), publish_outputs=False)
+
+    assert execution_order == ["early", "default", "late"]
+
+
+@pytest.mark.asyncio
 async def test_component_adds_state_in_pre_evaluate():
     """Test that component can add state in pre_evaluate."""
     # Arrange

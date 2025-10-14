@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -118,6 +119,31 @@ class Agent(metaclass=AutoTracedMeta):
     def identity(self) -> AgentIdentity:
         return AgentIdentity(name=self.name, labels=self.labels, tenant_id=self.tenant_id)
 
+    @staticmethod
+    def _component_display_name(component: AgentComponent) -> str:
+        return component.name or component.__class__.__name__
+
+    def _sorted_utilities(self) -> list[AgentComponent]:
+        if not self.utilities:
+            return []
+        return sorted(self.utilities, key=lambda comp: getattr(comp, "priority", 0))
+
+    def _add_utilities(self, components: Sequence[AgentComponent]) -> None:
+        if not components:
+            return
+        for component in components:
+            self.utilities.append(component)
+            comp_name = self._component_display_name(component)
+            priority = getattr(component, "priority", 0)
+            logger.info(
+                "Agent %s: utility added: component=%s, priority=%s, total_utilities=%s",
+                self.name,
+                comp_name,
+                priority,
+                len(self.utilities),
+            )
+        self.utilities.sort(key=lambda comp: getattr(comp, "priority", 0))
+
     def set_max_concurrency(self, value: int) -> None:
         self.max_concurrency = max(1, value)
         self._semaphore = asyncio.Semaphore(self.max_concurrency)
@@ -221,21 +247,59 @@ class Agent(metaclass=AutoTracedMeta):
             return []
 
     async def _run_initialize(self, ctx: Context) -> None:
-        for component in self.utilities:
-            await component.on_initialize(self, ctx)
+        for component in self._sorted_utilities():
+            comp_name = self._component_display_name(component)
+            priority = getattr(component, "priority", 0)
+            logger.debug(
+                f"Agent initialize: agent={self.name}, component={comp_name}, priority={priority}"
+            )
+            try:
+                await component.on_initialize(self, ctx)
+            except Exception as exc:
+                logger.exception(
+                    f"Agent initialize failed: agent={self.name}, component={comp_name}, "
+                    f"priority={priority}, error={exc!s}"
+                )
+                raise
         for engine in self.engines:
             await engine.on_initialize(self, ctx)
 
     async def _run_pre_consume(self, ctx: Context, inputs: list[Artifact]) -> list[Artifact]:
         current = inputs
-        for component in self.utilities:
-            current = await component.on_pre_consume(self, ctx, current)
+        for component in self._sorted_utilities():
+            comp_name = self._component_display_name(component)
+            priority = getattr(component, "priority", 0)
+            logger.debug(
+                f"Agent pre_consume: agent={self.name}, component={comp_name}, "
+                f"priority={priority}, input_count={len(current)}"
+            )
+            try:
+                current = await component.on_pre_consume(self, ctx, current)
+            except Exception as exc:
+                logger.exception(
+                    f"Agent pre_consume failed: agent={self.name}, component={comp_name}, "
+                    f"priority={priority}, error={exc!s}"
+                )
+                raise
         return current
 
     async def _run_pre_evaluate(self, ctx: Context, inputs: EvalInputs) -> EvalInputs:
         current = inputs
-        for component in self.utilities:
-            current = await component.on_pre_evaluate(self, ctx, current)
+        for component in self._sorted_utilities():
+            comp_name = self._component_display_name(component)
+            priority = getattr(component, "priority", 0)
+            logger.debug(
+                f"Agent pre_evaluate: agent={self.name}, component={comp_name}, "
+                f"priority={priority}, artifact_count={len(current.artifacts)}"
+            )
+            try:
+                current = await component.on_pre_evaluate(self, ctx, current)
+            except Exception as exc:
+                logger.exception(
+                    f"Agent pre_evaluate failed: agent={self.name}, component={comp_name}, "
+                    f"priority={priority}, error={exc!s}"
+                )
+                raise
         return current
 
     async def _run_engines(self, ctx: Context, inputs: EvalInputs) -> EvalResult:
@@ -263,7 +327,7 @@ class Agent(metaclass=AutoTracedMeta):
                         result = await engine.evaluate(self, ctx, current_inputs)
                 except NotImplementedError:
                     if use_batch_mode:
-                        logger.error(
+                        logger.exception(
                             "Agent %s: engine %s does not implement evaluate_batch()",
                             self.name,
                             engine.__class__.__name__,
@@ -310,8 +374,21 @@ class Agent(metaclass=AutoTracedMeta):
         self, ctx: Context, inputs: EvalInputs, result: EvalResult
     ) -> EvalResult:
         current = result
-        for component in self.utilities:
-            current = await component.on_post_evaluate(self, ctx, inputs, current)
+        for component in self._sorted_utilities():
+            comp_name = self._component_display_name(component)
+            priority = getattr(component, "priority", 0)
+            logger.debug(
+                f"Agent post_evaluate: agent={self.name}, component={comp_name}, "
+                f"priority={priority}, artifact_count={len(current.artifacts)}"
+            )
+            try:
+                current = await component.on_post_evaluate(self, ctx, inputs, current)
+            except Exception as exc:
+                logger.exception(
+                    f"Agent post_evaluate failed: agent={self.name}, component={comp_name}, "
+                    f"priority={priority}, error={exc!s}"
+                )
+                raise
         return current
 
     async def _make_outputs(self, ctx: Context, result: EvalResult) -> list[Artifact]:
@@ -341,9 +418,23 @@ class Agent(metaclass=AutoTracedMeta):
         return produced
 
     async def _run_post_publish(self, ctx: Context, artifacts: Sequence[Artifact]) -> None:
+        components = self._sorted_utilities()
         for artifact in artifacts:
-            for component in self.utilities:
-                await component.on_post_publish(self, ctx, artifact)
+            for component in components:
+                comp_name = self._component_display_name(component)
+                priority = getattr(component, "priority", 0)
+                logger.debug(
+                    f"Agent post_publish: agent={self.name}, component={comp_name}, "
+                    f"priority={priority}, artifact_id={artifact.id}"
+                )
+                try:
+                    await component.on_post_publish(self, ctx, artifact)
+                except Exception as exc:
+                    logger.exception(
+                        f"Agent post_publish failed: agent={self.name}, component={comp_name}, "
+                        f"priority={priority}, artifact_id={artifact.id}, error={exc!s}"
+                    )
+                    raise
 
     async def _invoke_call(self, ctx: Context, artifacts: Sequence[Artifact]) -> None:
         func = self.calls_func
@@ -359,14 +450,39 @@ class Agent(metaclass=AutoTracedMeta):
             await maybe_coro
 
     async def _run_error(self, ctx: Context, error: Exception) -> None:
-        for component in self.utilities:
-            await component.on_error(self, ctx, error)
+        for component in self._sorted_utilities():
+            comp_name = self._component_display_name(component)
+            priority = getattr(component, "priority", 0)
+            logger.debug(
+                f"Agent error hook: agent={self.name}, component={comp_name}, "
+                f"priority={priority}, error={error!s}"
+            )
+            try:
+                await component.on_error(self, ctx, error)
+            except Exception as exc:
+                logger.exception(
+                    f"Agent error hook failed: agent={self.name}, component={comp_name}, "
+                    f"priority={priority}, original_error={error!s}, hook_error={exc!s}"
+                )
+                raise
         for engine in self.engines:
             await engine.on_error(self, ctx, error)
 
     async def _run_terminate(self, ctx: Context) -> None:
-        for component in self.utilities:
-            await component.on_terminate(self, ctx)
+        for component in self._sorted_utilities():
+            comp_name = self._component_display_name(component)
+            priority = getattr(component, "priority", 0)
+            logger.debug(
+                f"Agent terminate: agent={self.name}, component={comp_name}, priority={priority}"
+            )
+            try:
+                await component.on_terminate(self, ctx)
+            except Exception as exc:
+                logger.exception(
+                    f"Agent terminate failed: agent={self.name}, component={comp_name}, "
+                    f"priority={priority}, error={exc!s}"
+                )
+                raise
         for engine in self.engines:
             await engine.on_terminate(self, ctx)
 
@@ -396,7 +512,7 @@ class Agent(metaclass=AutoTracedMeta):
             return []
 
         default_component = OutputUtilityComponent()
-        self.utilities = [default_component]
+        self._add_utilities([default_component])
         return self.utilities
 
     def _find_matching_artifact(
@@ -672,7 +788,8 @@ class AgentBuilder:
             - AgentComponent: Base class for custom components
             - Lifecycle hooks: on_initialize, on_pre_consume, on_post_publish, etc.
         """
-        self._agent.utilities.extend(components)
+        if components:
+            self._agent._add_utilities(list(components))
         return self
 
     def with_engines(self, *engines: EngineComponent) -> AgentBuilder:

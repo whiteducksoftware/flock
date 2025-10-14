@@ -737,8 +737,8 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Inject event collector into all existing agents
         for agent in self._agents.values():
-            # Insert at beginning of utilities list (highest priority)
-            agent.utilities.insert(0, event_collector)
+            # Add dashboard collector with priority ordering handled by agent
+            agent._add_utilities([event_collector])
 
         # Start dashboard launcher (npm process + browser)
         launcher_kwargs: dict[str, Any] = {"port": port}
