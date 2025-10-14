@@ -226,7 +226,7 @@ class VersionBumper:
             changed_files = self.get_changed_files()
 
             if not changed_files:
-                print("ℹ️  No changed files detected (checking git diff)")
+                print("Info: No changed files detected (checking git diff)")
                 print("   To bump versions anyway, use --force-backend or --force-frontend")
                 return
 

@@ -2,10 +2,11 @@ import asyncio
 
 from pydantic import BaseModel, Field
 
+from flock.logging.logging import configure_logging
 from flock.mcp import StdioServerParameters
 from flock.orchestrator import Flock
 from flock.registry import flock_tool, flock_type
-from flock.logging.logging import configure_logging
+
 
 configure_logging(flock_level="DEBUG", external_level="DEBUG")
 
@@ -14,6 +15,7 @@ configure_logging(flock_level="DEBUG", external_level="DEBUG")
 def write_report(string: str, file_name: str) -> None:
     """Writes a research report to a markdown file. FILE NAME IN CAPS AND WITH CURRENT DATE."""
     from pathlib import Path
+
     file_path = Path(".flock") / file_name
     directory = file_path.parent
     if directory and not directory.exists():
@@ -22,16 +24,22 @@ def write_report(string: str, file_name: str) -> None:
         f.write(string)
     print(f"[WRITE] Wrote file: {file_path}")
 
+
 @flock_tool
 def get_current_date() -> str:
     """Returns the current date in YYYY-MM-DD format."""
     from datetime import UTC, datetime
+
     return datetime.now(UTC).strftime("%Y-%m-%d")
+
 
 @flock_type
 class Task(BaseModel):
-    description: str = Field(default="Are blackboard multi agent systems the future of AI?",
-                             description="A concise description of the research task")
+    description: str = Field(
+        default="Are blackboard multi agent systems the future of AI?",
+        description="A concise description of the research task",
+    )
+
 
 @flock_type
 class Report(BaseModel):
@@ -39,6 +47,7 @@ class Report(BaseModel):
     title: str
     researched_urls: list[str]
     high_impact_info: dict[str, str]
+
 
 flock = Flock(model="openai/gpt-4.1")
 
@@ -82,4 +91,3 @@ except Exception as e:
 
 
 asyncio.run(flock.serve(dashboard=True), debug=True)
-

@@ -193,7 +193,7 @@ async def _run_engines(self, ctx: Context, inputs: EvalInputs) -> EvalResult:
         # ...
 ```
 
-**THE PROBLEM**: 
+**THE PROBLEM**:
 - Line 252 in `agent.py` **always calls `evaluate()`**
 - It never checks `ctx.is_batch` and routes to `evaluate_batch()`
 - This is **Phase 4** which hasn't been implemented yet!

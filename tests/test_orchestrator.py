@@ -1,5 +1,4 @@
 import asyncio
-from datetime import timedelta
 
 import pytest
 from pydantic import PrivateAttr
@@ -528,9 +527,7 @@ async def test_context_is_batch_flag_propagation():
     orchestrator, _agents = create_demo_orchestrator()
 
     # Agent 1: Single artifact consumption (no BatchSpec)
-    orchestrator.agent("single_consumer").consumes(Idea).with_engines(
-        ContextSpyEngine()
-    )
+    orchestrator.agent("single_consumer").consumes(Idea).with_engines(ContextSpyEngine())
 
     # Agent 2: Batch consumption (with BatchSpec)
     orchestrator.agent("batch_consumer").consumes(

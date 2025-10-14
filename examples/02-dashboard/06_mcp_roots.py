@@ -13,6 +13,7 @@ class FileSearchRequest(BaseModel):
     filename: str
     analysis_request: str = "Summarize the file's content"
 
+
 @flock_type
 class FileAnalysisReport(BaseModel):
     filename: str
@@ -21,6 +22,7 @@ class FileAnalysisReport(BaseModel):
     content_summary: str
     key_findings: list[str]
     line_count: int
+
 
 flock = Flock(model="openai/gpt-4.1")
 

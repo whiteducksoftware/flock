@@ -252,7 +252,9 @@ class TestFlockMCPClientManager:
         assert tools["test_server__test_tool"]["client"] == mock_client
 
         # Verify get_client was called
-        manager.get_client.assert_called_once_with("test_server", "agent_1", "run_1", mount_points=None)
+        manager.get_client.assert_called_once_with(
+            "test_server", "agent_1", "run_1", mount_points=None
+        )
 
     @pytest.mark.asyncio
     async def test_get_tools_for_agent_graceful_degradation(self, manager, mocker):

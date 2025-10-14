@@ -41,7 +41,7 @@ if isinstance(value, ModelResponseStream):
     signature_field = getattr(value, "signature_field_name", None)
 
     # ... rest of the code
-    
+
     if token:  # ❌ This check fails when delta.content is None!
         # Update display
         stream_buffers[buffer_key].append(str(token))
@@ -70,17 +70,17 @@ if isinstance(value, ModelResponseStream):
         logger.debug(f"[STREAMING] Tool call detected in delta: {tool_call_delta}")
 
     # ... handle different cases ...
-    
+
     elif has_tool_call:
         # ✅ Handle tool call streaming
         tool_call = tool_call_delta[0]
         tool_name = getattr(tool_call.function, "name", None) if hasattr(tool_call, "function") else None
-        
+
         if tool_name:
             tool_status = f"\n🔧 Calling tool: {tool_name}"
             stream_buffers[status_field].append(tool_status)
             display_data["status"] = "".join(stream_buffers[status_field])
-            
+
             # Refresh the display
             if formatter is not None:
                 _refresh_panel()
@@ -128,7 +128,7 @@ Watch the output - streaming should continue smoothly even when tools are called
 The DSPy streaming integration handles three types of stream chunks:
 
 1. **StatusMessage** - Internal status messages from DSPy
-2. **StreamResponse** - Field-specific responses with signature field names  
+2. **StreamResponse** - Field-specific responses with signature field names
 3. **ModelResponseStream** - Raw LiteLLM streaming chunks (this is where the bug was)
 
 ### Delta Structure

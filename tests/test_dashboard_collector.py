@@ -13,7 +13,6 @@ from pydantic import BaseModel
 
 from flock.artifacts import Artifact
 from flock.dashboard.collector import DashboardEventCollector
-from flock.store import InMemoryBlackboardStore
 from flock.dashboard.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
@@ -21,6 +20,7 @@ from flock.dashboard.events import (
     MessagePublishedEvent,
 )
 from flock.runtime import Context
+from flock.store import InMemoryBlackboardStore
 from flock.visibility import (
     LabelledVisibility,
     PrivateVisibility,

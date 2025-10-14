@@ -929,9 +929,7 @@ class TestDSPyEngineIntegration:
 
         engine = DSPyEngine(model="gpt-4", stream=False)
         spy_signature = mocker.spy(engine, "_prepare_signature_with_context")
-        mocker.patch.object(
-            DSPyEngine, "fetch_conversation_context", AsyncMock(return_value=[])
-        )
+        mocker.patch.object(DSPyEngine, "fetch_conversation_context", AsyncMock(return_value=[]))
 
         mock_program = Mock()
         engine._choose_program = Mock(return_value=mock_program)

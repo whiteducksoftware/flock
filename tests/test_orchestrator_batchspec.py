@@ -17,8 +17,6 @@ Test-Driven Development (TDD):
 """
 
 from datetime import timedelta
-
-import asyncio
 from unittest.mock import MagicMock
 
 import pytest
@@ -40,6 +38,8 @@ class BaseBatchTestEngine(EngineComponent):
     async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
         # Default behaviour for tests: reuse evaluate() implementation.
         return await self.evaluate(agent, ctx, inputs)
+
+
 from pydantic import BaseModel
 
 
@@ -50,12 +50,14 @@ from pydantic import BaseModel
 
 class Event(BaseModel):
     """Simple event for batching tests."""
+
     id: int
     data: str
 
 
 class OrderEvent(BaseModel):
     """Order event for e-commerce batching scenario."""
+
     order_id: str
     amount: float
     customer_id: str
@@ -82,10 +84,12 @@ async def test_batchspec_flushes_on_size_threshold():
 
     class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
-            executed.append({
-                "batch_size": len(inputs.artifacts),
-                "payloads": [a.payload for a in inputs.artifacts],
-            })
+            executed.append(
+                {
+                    "batch_size": len(inputs.artifacts),
+                    "payloads": [a.payload for a in inputs.artifacts],
+                }
+            )
             return EvalResult(artifacts=[])
 
     agent = (
@@ -483,9 +487,13 @@ async def test_batchspec_with_visibility_filters_before_batching():
 
     # Publish 4 events: 2 public, 2 private (team_b)
     await orchestrator.publish(Event(id=1, data="e1"), visibility=PublicVisibility())
-    await orchestrator.publish(Event(id=2, data="e2"), visibility=PrivateVisibility(labels={"team_b"}))
+    await orchestrator.publish(
+        Event(id=2, data="e2"), visibility=PrivateVisibility(labels={"team_b"})
+    )
     await orchestrator.publish(Event(id=3, data="e3"), visibility=PublicVisibility())
-    await orchestrator.publish(Event(id=4, data="e4"), visibility=PrivateVisibility(labels={"team_b"}))
+    await orchestrator.publish(
+        Event(id=4, data="e4"), visibility=PrivateVisibility(labels={"team_b"})
+    )
     await orchestrator.run_until_idle()
 
     # Only 2 public events should batch (team_b events filtered out)

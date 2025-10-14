@@ -119,7 +119,7 @@ All examples assume `from flock.orchestrator import Flock` and artifact schemas 
 - **Synopsis:** Control agents run bidding rounds where knowledge sources estimate utility vs. cost before execution.citeturn5search3
 - **Why Blackboard Matters:** Bids include references to the same artifacts, making trade-offs transparent.
 - **Support:** Planned. Requires a structured bidding API.
-- **API Idea:** 
+- **API Idea:**
   ```python
   async with flock.control_round(artifact) as round_ctx:
       await round_ctx.bid(agent="data_cleaner", utility=0.8, cost=3)

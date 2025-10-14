@@ -524,18 +524,18 @@ async def test_engine_component_evaluate_batch_raises_not_implemented():
     """Test that EngineComponent.evaluate_batch raises NotImplementedError with clear message."""
     # Arrange
     engine = EngineComponent()
-    
+
     # Create mock agent with name
     mock_agent = MagicMock()
     mock_agent.name = "test_agent"
-    
+
     mock_ctx = MagicMock()
     inputs = EvalInputs(artifacts=[], state={})
 
     # Act & Assert
     with pytest.raises(NotImplementedError) as exc_info:
         await engine.evaluate_batch(mock_agent, mock_ctx, inputs)
-    
+
     # Verify error message contains agent name and engine name
     error_msg = str(exc_info.value)
     assert "EngineComponent does not support batch processing" in error_msg

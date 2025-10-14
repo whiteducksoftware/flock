@@ -109,9 +109,7 @@ class EngineComponent(AgentComponent):
         """Override this method in your engine implementation."""
         raise NotImplementedError
 
-    async def evaluate_batch(
-        self, agent: Agent, ctx: Context, inputs: EvalInputs
-    ) -> EvalResult:
+    async def evaluate_batch(self, agent: Agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
         """Process batch of accumulated artifacts (BatchSpec).
 
         Override this method if your engine supports batch processing.

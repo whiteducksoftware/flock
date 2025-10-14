@@ -261,7 +261,7 @@ class Agent(metaclass=AutoTracedMeta):
                         result = await engine.evaluate_batch(self, ctx, current_inputs)
                     else:
                         result = await engine.evaluate(self, ctx, current_inputs)
-                except NotImplementedError as exc:
+                except NotImplementedError:
                     if use_batch_mode:
                         logger.error(
                             "Agent %s: engine %s does not implement evaluate_batch()",

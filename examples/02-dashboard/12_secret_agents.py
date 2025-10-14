@@ -14,6 +14,7 @@ class Mission(BaseModel):
     objective: str
     classification_level: str
 
+
 @flock_type
 class IntelReport(BaseModel):
     agent_id: str
@@ -21,6 +22,7 @@ class IntelReport(BaseModel):
     risk_assessment: str
     recommended_action: str
     confidence: float = Field(ge=0.0, le=1.0)
+
 
 @flock_type
 class ClassifiedBriefing(BaseModel):
@@ -30,12 +32,14 @@ class ClassifiedBriefing(BaseModel):
     assets_deployed: int
     success_probability: float
 
+
 @flock_type
 class PublicStatement(BaseModel):
     headline: str
     official_response: str
     media_talking_points: list[str]
     public_reassurance: str
+
 
 flock = Flock("openai/gpt-4.1")
 

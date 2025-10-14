@@ -117,7 +117,7 @@ print("\n🎨 Try different layouts:")
 print("  - Hierarchical (Vertical): Long vertical chain")
 print("  - Hierarchical (Horizontal): Long horizontal chain")
 print("  - Circular: Perfect circle of 100 nodes")
-print("  - Grid: 10×10 organized grid")
+print("  - Grid: 10x10 organized grid")
 print("  - Random: Stress test collision detection")
 print("\n🚀 Starting dashboard...")
 

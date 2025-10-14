@@ -210,13 +210,13 @@ for ann in announcements:
 
 The React dashboard (`src/flock/frontend/src/App.tsx`) already bootstraps historical artifacts (`fetchArtifacts`) and listens to WebSocket updates via `initializeWebSocket`. Announcements piggyback on the same primitives:
 
-- **Data Fetching**  
+- **Data Fetching**
   Extend `fetchArtifactSummary` / `fetchArtifacts` to accept `tags={"__announcement__"}`. During the initial load in `App.tsx`, store the result in a new slice (e.g., `useUIStore` or `useFilterStore`) dedicated to active announcements. Because announcements persist in the blackboard, IndexedDB persistence continues to work without extra plumbing.
 
-- **Live Updates**  
+- **Live Updates**
   When the WebSocket pushes an `ArtifactPublished` event, `mapArtifactToMessage` already normalizes payloads. Detect the announcement tag and dispatch a lightweight action (`uiStore.setAnnouncements([...])`). This matches how existing events populate the graph.
 
-- **Presentation Layer**  
+- **Presentation Layer**
   `DashboardLayout.tsx` renders the top header, control buttons, and filter pills. We can introduce an `AnnouncementBanner` component directly under `<header className="dashboard-header">`, borrowing design tokens from `DESIGN_SYSTEM.md` (callout background, iconography). Key states:
   - collapsed banner when no announcements.
   - stacked cards for multiple announcements with level-specific colors (`info`, `warning`, `critical`).
@@ -224,13 +224,13 @@ The React dashboard (`src/flock/frontend/src/App.tsx`) already bootstraps histor
 
   For denser contexts (e.g., blackboard graph), add a subtle indicator next to the `View` toggle or in `FilterPills` so users see that steering is active even when the banner is dismissed.
 
-- **Detail Windows & Modules**  
+- **Detail Windows & Modules**
   Each `DetailWindowContainer` entry already receives agent metadata. Add an icon or tooltip inside the agent detail panel showing which announcements apply (filtered by topics + visibility). This reuse of `useGraphStore` keeps agent-centric workflows aware of steering constraints without re-querying the backend.
 
-- **Settings & Controls**  
+- **Settings & Controls**
   In `SettingsPanel`, expose a toggle to show/hide the banner, plus a diagnostic table that lists announcements with their expiration and visibility. Operators can confirm that a post succeeded without hitting the REST API manually.
 
-- **Testing**  
+- **Testing**
   Frontend unit tests in `src/flock/frontend/src/__tests__` gain a suite that mocks the REST/WebSocket interfaces and asserts the banner renders level-specific styles, handles dismissals, and respects agent opt-out states when showing per-agent badges.
 
 This UI plan stays consistent with existing layout primitives and avoids new network contracts beyond tagging announcements, while giving operators immediate visual feedback when steering is active.

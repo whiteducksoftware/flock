@@ -71,7 +71,9 @@ quality_analyzer = (
 )
 
 
-async def simulate_device_readings(flock: Flock, device_id: str, location: str, temp: float, pressure: float):
+async def simulate_device_readings(
+    flock: Flock, device_id: str, location: str, temp: float, pressure: float
+):
     """Simulate sensor readings from one device"""
     timestamp = f"2025-10-13 14:{30 + int(device_id[-1]) * 2}:00"
 
@@ -171,10 +173,10 @@ async def main():
         if analysis.anomalies_detected:
             print(f"   ⚠️  Anomalies:      {', '.join(analysis.anomalies_detected)}")
         else:
-            print(f"   ✅ No Anomalies")
+            print("   ✅ No Anomalies")
 
         if analysis.recommendations:
-            print(f"   💡 Recommendations:")
+            print("   💡 Recommendations:")
             for rec in analysis.recommendations:
                 print(f"      • {rec}")
 

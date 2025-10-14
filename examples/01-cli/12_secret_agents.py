@@ -14,6 +14,7 @@ class Mission(BaseModel):
     objective: str
     classification_level: str
 
+
 @flock_type
 class IntelReport(BaseModel):
     agent_id: str
@@ -21,6 +22,7 @@ class IntelReport(BaseModel):
     risk_assessment: str
     recommended_action: str
     confidence: float = Field(ge=0.0, le=1.0)
+
 
 @flock_type
 class ClassifiedBriefing(BaseModel):
@@ -30,12 +32,14 @@ class ClassifiedBriefing(BaseModel):
     assets_deployed: int
     success_probability: float
 
+
 @flock_type
 class PublicStatement(BaseModel):
     headline: str
     official_response: str
     media_talking_points: list[str]
     public_reassurance: str
+
 
 flock = Flock("openai/gpt-4.1")
 
@@ -60,12 +64,13 @@ press_secretary = (
     .publishes(PublicStatement, visibility=Visibility.PUBLIC)
 )
 
+
 async def main():
     mission = Mission(
         codename="Operation Nightfall",
         target="Foreign intelligence network",
         objective="Identify and neutralize security threat to diplomatic summit",
-        classification_level="TOP SECRET"
+        classification_level="TOP SECRET",
     )
 
     print(f"🕵️  Starting mission: {mission.codename}\n")
@@ -77,16 +82,17 @@ async def main():
     briefings = await flock.store.get_by_type(ClassifiedBriefing)
     public_statements = await flock.store.get_by_type(PublicStatement)
 
-    print(f"🔒 CLASSIFIED SUMMARY:")
+    print("🔒 CLASSIFIED SUMMARY:")
     print(f"   Intelligence reports: {len(intel_reports)} (PRIVATE)")
     print(f"   Strategic briefings: {len(briefings)} (PRIVATE)")
     print(f"   Public statements: {len(public_statements)} (PUBLIC)")
 
     if public_statements:
         statement = public_statements[0]
-        print(f"\n📢 PUBLIC INFORMATION:")
+        print("\n📢 PUBLIC INFORMATION:")
         print(f"   {statement.headline}")
         print(f"   {statement.official_response[:100]}...")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

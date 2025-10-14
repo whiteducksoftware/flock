@@ -5,7 +5,7 @@ Real-world scenario: Online store batches payment processing to reduce
 transaction fees. Instead of processing one order at a time ($0.30/transaction),
 batch 25 orders together for bulk discount ($0.10/transaction).
 
-Cost savings: 25 orders × $0.20 saved = $5.00 per batch!
+Cost savings: 25 orders x $0.20 saved = $5.00 per batch!
 """
 
 import asyncio
@@ -82,7 +82,7 @@ async def main():
     print("📊 Pricing:")
     print("   ❌ Single transaction: $0.30 per order")
     print("   ✅ Batch transaction:  $0.10 per order (25+ orders)")
-    print("   💵 Savings:            $0.20 per order × 25 = $5.00/batch\n")
+    print("   💵 Savings:            $0.20 per order x 25 = $5.00/batch\n")
 
     print("⚙️  Batch Configuration:")
     print("   📦 Size threshold:  25 orders")

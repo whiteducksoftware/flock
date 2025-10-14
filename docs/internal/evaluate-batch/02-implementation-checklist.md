@@ -334,7 +334,7 @@ Same pattern as batch timeout: `cleanup_expired()` method in correlation engine 
 
 **INVESTIGATION IN PROGRESS**: The comparison test `test_joinspec_time_expiry_vs_batch_timeout_behavior` fails because batch timeout doesn't work when combined with JoinSpec correlation agent.
 
-**Status**: 
+**Status**:
 - ✅ Batch timeout works in isolation (`test_context_is_batch_flag_propagation` passes)
 - ✅ JoinSpec cleanup works (`test_joinspec_time_based_expiry_discards_partial_correlation` passes)
 - ❌ Batch timeout fails in multi-agent scenario (comparison test fails)

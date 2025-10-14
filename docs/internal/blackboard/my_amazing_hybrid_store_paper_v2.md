@@ -1,6 +1,6 @@
 # Hybrid Blackboard Architectures: Storage-Polymorphic Coordination for Multi-Agent Systems
 
-**Working Draft (v2)**  
+**Working Draft (v2)**
 _Updated with tightened abstract, structured contributions, focused evaluation plan, and clarified terminology._
 
 ---

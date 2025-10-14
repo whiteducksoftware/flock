@@ -482,8 +482,7 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Determine whether any deferred work (timeouts/cleanup) is still pending.
         pending_batches = any(
-            accumulator.artifacts
-            for accumulator in self._batch_engine.batches.values()
+            accumulator.artifacts for accumulator in self._batch_engine.batches.values()
         )
         pending_correlations = any(
             groups and any(group.waiting_artifacts for group in groups.values())
@@ -494,16 +493,12 @@ class Flock(metaclass=AutoTracedMeta):
         if pending_batches and (
             self._batch_timeout_task is None or self._batch_timeout_task.done()
         ):
-            self._batch_timeout_task = asyncio.create_task(
-                self._batch_timeout_checker_loop()
-            )
+            self._batch_timeout_task = asyncio.create_task(self._batch_timeout_checker_loop())
 
         if pending_correlations and (
             self._correlation_cleanup_task is None or self._correlation_cleanup_task.done()
         ):
-            self._correlation_cleanup_task = asyncio.create_task(
-                self._correlation_cleanup_loop()
-            )
+            self._correlation_cleanup_task = asyncio.create_task(self._correlation_cleanup_loop())
 
         # If deferred work is still outstanding, consider the orchestrator quiescent for
         # now but leave watchdog tasks running to finish the job.
@@ -964,7 +959,10 @@ class Flock(metaclass=AutoTracedMeta):
                     )
 
                     # Start correlation cleanup task if time-based window and not running
-                    if isinstance(subscription.join.within, timedelta) and self._correlation_cleanup_task is None:
+                    if (
+                        isinstance(subscription.join.within, timedelta)
+                        and self._correlation_cleanup_task is None
+                    ):
                         self._correlation_cleanup_task = asyncio.create_task(
                             self._correlation_cleanup_loop()
                         )
@@ -1008,7 +1006,7 @@ class Flock(metaclass=AutoTracedMeta):
                             subscription=subscription,
                             subscription_index=subscription_index,
                         )
-                        
+
                         # Start timeout checker if this batch has a timeout and checker not running
                         if subscription.batch.timeout and self._batch_timeout_task is None:
                             self._batch_timeout_task = asyncio.create_task(
@@ -1073,9 +1071,7 @@ class Flock(metaclass=AutoTracedMeta):
     def _schedule_task(
         self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
     ) -> None:
-        task = asyncio.create_task(
-            self._run_agent_task(agent, artifacts, is_batch=is_batch)
-        )
+        task = asyncio.create_task(self._run_agent_task(agent, artifacts, is_batch=is_batch))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
@@ -1237,7 +1233,7 @@ class Flock(metaclass=AutoTracedMeta):
 
     async def _correlation_cleanup_loop(self) -> None:
         """Background task that periodically cleans up expired correlation groups.
-        
+
         Runs continuously until all correlation groups are cleared or orchestrator shuts down.
         Checks every 100ms for time-based expired correlations and discards them.
         """
@@ -1245,7 +1241,7 @@ class Flock(metaclass=AutoTracedMeta):
             while True:
                 await asyncio.sleep(self._correlation_cleanup_interval)
                 self._cleanup_expired_correlations()
-                
+
                 # Stop if no correlation groups remain
                 if not self._correlation_engine.correlation_groups:
                     self._correlation_cleanup_task = None
@@ -1257,17 +1253,19 @@ class Flock(metaclass=AutoTracedMeta):
 
     def _cleanup_expired_correlations(self) -> None:
         """Clean up all expired correlation groups across all subscriptions.
-        
+
         Called periodically by background task to enforce time-based correlation windows.
         Discards incomplete correlations that have exceeded their time window.
         """
         # Get all active subscription keys
-        for (agent_name, subscription_index) in list(self._correlation_engine.correlation_groups.keys()):
+        for agent_name, subscription_index in list(
+            self._correlation_engine.correlation_groups.keys()
+        ):
             self._correlation_engine.cleanup_expired(agent_name, subscription_index)
 
     async def _batch_timeout_checker_loop(self) -> None:
         """Background task that periodically checks for batch timeouts.
-        
+
         Runs continuously until all batches are cleared or orchestrator shuts down.
         Checks every 100ms for expired batches and flushes them.
         """
@@ -1275,7 +1273,7 @@ class Flock(metaclass=AutoTracedMeta):
             while True:
                 await asyncio.sleep(self._batch_timeout_interval)
                 await self._check_batch_timeouts()
-                
+
                 # Stop if no batches remain
                 if not self._batch_engine.batches:
                     self._batch_timeout_task = None

@@ -203,14 +203,14 @@ def mount(
     validate: bool = False
 ) -> AgentBuilder:
     """Mount agent in specific directories for MCP root access.
-    
+
     .. deprecated:: 0.2.0
         Use `.with_mcps({"server_name": ["/path"]})` instead.
-        
+
     Args:
         paths: Single path or list of paths to mount
         validate: If True, validate that paths exist
-        
+
     Returns:
         AgentBuilder for method chaining
     """

@@ -13,6 +13,7 @@ class FileSearchRequest(BaseModel):
     filename: str
     analysis_request: str = "Summarize the file's content"
 
+
 @flock_type
 class FileAnalysisReport(BaseModel):
     filename: str
@@ -21,6 +22,7 @@ class FileAnalysisReport(BaseModel):
     content_summary: str
     key_findings: list[str]
     line_count: int
+
 
 flock = Flock()
 
@@ -79,6 +81,7 @@ except Exception as e:
     .publishes(FileAnalysisReport)
 )
 
+
 async def main():
     request = FileSearchRequest(
         filename="README.md",
@@ -106,6 +109,7 @@ async def main():
     else:
         print("❌ No analysis was generated!")
         print("💡 Make sure the filesystem MCP is installed (see prerequisites)")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

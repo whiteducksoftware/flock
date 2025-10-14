@@ -15,6 +15,7 @@ class NewsEvent(BaseModel):
     initial_details: str
     source_credibility: float = Field(ge=0.0, le=1.0)
 
+
 @flock_type
 class NewsArticle(BaseModel):
     title: str
@@ -25,6 +26,7 @@ class NewsArticle(BaseModel):
     fact_check_status: str
     urgency_level: str
 
+
 @flock_type
 class EditorialDecision(BaseModel):
     article_approved: bool
@@ -33,6 +35,7 @@ class EditorialDecision(BaseModel):
     required_edits: list[str]
     legal_review_needed: bool
 
+
 @flock_type
 class PublishedStory(BaseModel):
     final_headline: str
@@ -40,6 +43,7 @@ class PublishedStory(BaseModel):
     distribution_channels: list[str]
     expected_reach: int
     follow_up_needed: bool
+
 
 flock = Flock("openai/gpt-4.1")
 

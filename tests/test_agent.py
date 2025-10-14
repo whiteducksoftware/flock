@@ -353,11 +353,7 @@ async def test_agent_best_of_one_skips_parallel_execution(orchestrator):
 async def test_agent_routes_to_evaluate_batch_when_context_is_batch(orchestrator):
     """Agent should call evaluate_batch() when ctx.is_batch is True."""
     engine = BatchRoutingEngine()
-    builder = (
-        orchestrator.agent("batch_routing")
-        .consumes(AgentInput)
-        .with_engines(engine)
-    )
+    builder = orchestrator.agent("batch_routing").consumes(AgentInput).with_engines(engine)
 
     ctx = Context(
         board=None,
@@ -378,11 +374,7 @@ async def test_agent_routes_to_evaluate_batch_when_context_is_batch(orchestrator
 async def test_agent_routes_to_evaluate_for_single_execution(orchestrator):
     """Agent should call evaluate() when ctx.is_batch is False."""
     engine = BatchRoutingEngine()
-    builder = (
-        orchestrator.agent("single_routing")
-        .consumes(AgentInput)
-        .with_engines(engine)
-    )
+    builder = orchestrator.agent("single_routing").consumes(AgentInput).with_engines(engine)
 
     ctx = Context(
         board=None,
@@ -408,9 +400,7 @@ async def test_agent_batch_mode_without_batch_support_raises(orchestrator):
             return EvalResult(artifacts=[], state={})
 
     builder = (
-        orchestrator.agent("non_batch_engine")
-        .consumes(AgentInput)
-        .with_engines(NonBatchEngine())
+        orchestrator.agent("non_batch_engine").consumes(AgentInput).with_engines(NonBatchEngine())
     )
 
     ctx = Context(

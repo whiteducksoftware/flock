@@ -251,8 +251,7 @@ class Context(BaseModel):
     task_id: str
     state: dict[str, Any] = Field(default_factory=dict)
     is_batch: bool = Field(
-        default=False,
-        description="True if this execution is processing a BatchSpec accumulation"
+        default=False, description="True if this execution is processing a BatchSpec accumulation"
     )
 
     def get_variable(self, key: str, default: Any = None) -> Any:

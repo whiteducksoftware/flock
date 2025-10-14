@@ -115,7 +115,7 @@ async def main() -> None:
         print(f"\n✨ {payload['title']}")
         print(f"   Incantation: {payload['incantation']}")
         print(f"   Tasting notes: {payload['tasting_notes']}")
-        print(f"   Ingredient lineup:")
+        print("   Ingredient lineup:")
         for entry in payload["ingredients"]:
             print(f"     • {entry}")
 

@@ -155,9 +155,7 @@ class DSPyEngine(EngineComponent):
     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:  # type: ignore[override]
         return await self._evaluate_internal(agent, ctx, inputs, batched=False)
 
-    async def evaluate_batch(
-        self, agent, ctx, inputs: EvalInputs
-    ) -> EvalResult:  # type: ignore[override]
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:  # type: ignore[override]
         return await self._evaluate_internal(agent, ctx, inputs, batched=True)
 
     async def _evaluate_internal(
@@ -219,15 +217,14 @@ class DSPyEngine(EngineComponent):
             execution_payload = {"input": validated_input}
             if has_context:
                 execution_payload["context"] = context_history
+        elif has_context:
+            execution_payload = {
+                "input": validated_input,
+                "context": context_history,
+            }
         else:
-            if has_context:
-                execution_payload = {
-                    "input": validated_input,
-                    "context": context_history,
-                }
-            else:
-                # Backwards compatible - direct input
-                execution_payload = validated_input
+            # Backwards compatible - direct input
+            execution_payload = validated_input
 
         # Merge native tools with MCP tools
         native_tools = list(agent.tools or [])

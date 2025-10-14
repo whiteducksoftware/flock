@@ -151,7 +151,9 @@ async def test_three_way_and_gate(orchestrator):
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs):
-            executed.append({"count": len(inputs.artifacts), "types": [a.type for a in inputs.artifacts]})
+            executed.append(
+                {"count": len(inputs.artifacts), "types": [a.type for a in inputs.artifacts]}
+            )
             return EvalResult(artifacts=[])
 
     orchestrator.agent("three_way").consumes(TypeA, TypeB, TypeC).with_engines(TrackingEngine())
@@ -294,7 +296,10 @@ async def test_and_gate_does_not_accumulate_across_completions(orchestrator):
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(
-                {"count": len(inputs.artifacts), "values": [a.payload["value"] for a in inputs.artifacts]}
+                {
+                    "count": len(inputs.artifacts),
+                    "values": [a.payload["value"] for a in inputs.artifacts],
+                }
             )
             return EvalResult(artifacts=[])
 
@@ -357,7 +362,9 @@ async def test_or_gate_via_chaining(orchestrator):
             return EvalResult(artifacts=[])
 
     # Create agent with OR gate subscription (chaining)
-    orchestrator.agent("or_gate_agent").consumes(TypeA).consumes(TypeB).with_engines(TrackingEngine())
+    orchestrator.agent("or_gate_agent").consumes(TypeA).consumes(TypeB).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish TypeA
     await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
@@ -407,7 +414,9 @@ async def test_mixed_and_or_subscriptions(orchestrator):
             return EvalResult(artifacts=[])
 
     # Create agent with MIXED subscriptions
-    orchestrator.agent("mixed_agent").consumes(TypeA, TypeB).consumes(TypeC).with_engines(TrackingEngine())
+    orchestrator.agent("mixed_agent").consumes(TypeA, TypeB).consumes(TypeC).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish TypeC (OR gate should trigger)
     await orchestrator.publish({"type": "TypeC", "value": "c1"})
@@ -778,7 +787,9 @@ async def test_count_based_gate_provides_all_instances_to_agent(orchestrator):
             received_artifacts.extend(inputs.artifacts)
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("count_signature").consumes(TypeA, TypeA, TypeA).with_engines(CountInspectorEngine())
+    orchestrator.agent("count_signature").consumes(TypeA, TypeA, TypeA).with_engines(
+        CountInspectorEngine()
+    )
 
     # Act
     await orchestrator.publish({"type": "TypeA", "value": "first", "correlation_id": "test"})
@@ -806,7 +817,6 @@ async def test_and_gate_with_visibility_filter(orchestrator):
     WHEN: Artifacts with different visibility published
     THEN: AND gate only considers visible artifacts
     """
-    from flock.visibility import PrivateVisibility, PublicVisibility
 
     # Arrange
     executed = []
@@ -865,7 +875,9 @@ async def test_and_gate_with_where_predicate(orchestrator):
         # TypeB: always allow
         return True
 
-    orchestrator.agent("where_test").consumes(TypeA, TypeB, where=predicate).with_engines(TrackingEngine())
+    orchestrator.agent("where_test").consumes(TypeA, TypeB, where=predicate).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish TypeA (doesn't match predicate) + TypeB
     # TypeB will be accepted and wait in the pool since TypeB always passes predicate
@@ -902,7 +914,9 @@ async def test_and_gate_with_prevent_self_trigger(orchestrator):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             # Publish TypeA (should be ignored by self)
-            return EvalResult(artifacts=[{"type": "TypeA", "value": "self_published", "correlation_id": "test"}])
+            return EvalResult(
+                artifacts=[{"type": "TypeA", "value": "self_published", "correlation_id": "test"}]
+            )
 
     # Create agent that publishes TypeA (which it also consumes)
     orchestrator.agent("self_trigger_test").consumes(TypeA, TypeB).with_engines(
@@ -935,7 +949,10 @@ async def test_and_gate_with_multiple_subscriptions_same_agent(orchestrator):
     class MultiSubscriptionEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(
-                {"count": len(inputs.artifacts), "types": sorted([a.type for a in inputs.artifacts])}
+                {
+                    "count": len(inputs.artifacts),
+                    "types": sorted([a.type for a in inputs.artifacts]),
+                }
             )
             return EvalResult(artifacts=[])
 

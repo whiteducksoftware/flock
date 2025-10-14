@@ -10,6 +10,7 @@ from flock.registry import flock_type
 class MyDreamPizza(BaseModel):
     pizza_idea: str
 
+
 @flock_type
 class Pizza(BaseModel):
     ingredients: list[str]
@@ -17,18 +18,17 @@ class Pizza(BaseModel):
     crust_type: str
     step_by_step_instructions: list[str]
 
+
 flock = Flock()
 
-pizza_master = (
-    flock.agent("pizza_master")
-    .consumes(MyDreamPizza)
-    .publishes(Pizza)
-)
+pizza_master = flock.agent("pizza_master").consumes(MyDreamPizza).publishes(Pizza)
+
 
 async def main():
     pizza_idea = MyDreamPizza(pizza_idea="pizza with pineapple")
     await flock.publish(pizza_idea)
     await flock.run_until_idle()
-    
+
+
 if __name__ == "__main__":
     asyncio.run(main(), debug=True)
