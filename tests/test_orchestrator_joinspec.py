@@ -745,3 +745,134 @@ async def test_joinspec_performance_correlation_overhead():
     elapsed_ms = (end - start) * 1000
     print(f"\nCorrelation performance: {elapsed_ms:.2f}ms for 10 pairs ({elapsed_ms/10:.2f}ms per pair)")
     assert elapsed_ms < 1000, f"Performance target: <1000ms total (got {elapsed_ms:.2f}ms)"
+
+
+@pytest.mark.asyncio
+async def test_joinspec_time_based_expiry_discards_partial_correlation():
+    """
+    GIVEN: Agent with JoinSpec with time-based window (1 second)
+    WHEN: Only 1 of 2 required types arrives, then timeout expires
+    THEN: Partial correlation is DISCARDED (not flushed), agent never runs
+
+    This test verifies:
+    1. Background cleanup task starts for time-based correlations
+    2. Expired partial correlations are discarded (not flushed like batches)
+    3. Agent does NOT run with incomplete data
+    """
+    import asyncio
+
+    orchestrator = Flock()
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            executed.append({
+                "artifacts": len(inputs.artifacts),
+                "types": [a.type for a in inputs.artifacts]
+            })
+            return EvalResult(artifacts=[])
+
+    agent = (
+        orchestrator.agent("time_expiry_test")
+        .consumes(
+            SignalA,
+            SignalB,
+            join=JoinSpec(
+                by=lambda x: x.correlation_id,
+                within=timedelta(seconds=1.0)  # 1 second time window
+            )
+        )
+        .with_engines(TrackingEngine())
+    )
+
+    # Publish ONLY SignalA (missing SignalB)
+    await orchestrator.publish(SignalA(correlation_id="incomplete-1", data="a"))
+    await orchestrator.run_until_idle()
+
+    # Verify agent hasn't run yet (partial correlation waiting)
+    assert len(executed) == 0, "Agent should not run with partial correlation"
+
+    # Wait for timeout to expire (1.0s + margin)
+    await asyncio.sleep(1.2)
+    await orchestrator.run_until_idle()
+
+    # Verify agent STILL hasn't run (partial correlation discarded)
+    assert len(executed) == 0, "Agent should not run - partial correlation discarded after timeout"
+
+    # Now publish a complete pair with SAME correlation_id (should start fresh)
+    await orchestrator.publish(SignalA(correlation_id="incomplete-1", data="a2"))
+    await orchestrator.publish(SignalB(correlation_id="incomplete-1", data="b2"))
+    await orchestrator.run_until_idle()
+
+    # Now agent should run (new complete correlation)
+    assert len(executed) == 1, "Agent should run with complete correlation"
+    assert executed[0]["artifacts"] == 2, "Should have both artifacts"
+
+
+@pytest.mark.asyncio
+async def test_joinspec_time_expiry_vs_batch_timeout_behavior():
+    """
+    COMPARISON TEST: JoinSpec expiry vs BatchSpec timeout behavior
+
+    GIVEN: Two agents - one with JoinSpec (correlation), one with BatchSpec (batching)
+    WHEN: Both receive partial data and timeout expires
+    THEN:
+    - JoinSpec: DISCARDS partial correlation (agent never runs)
+    - BatchSpec: FLUSHES partial batch (agent runs with partial data)
+
+    This test documents the fundamental difference in timeout behavior.
+    """
+    import asyncio
+    from flock.subscription import BatchSpec
+
+    orchestrator = Flock()
+    correlation_executed = []
+    batch_executed = []
+    batch_count = 0
+
+    class CorrelationEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            correlation_executed.append(len(inputs.artifacts))
+            return EvalResult(artifacts=[])
+
+    class BatchEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            nonlocal batch_count
+            batch_count += 1
+            batch_executed.append(len(inputs.artifacts))
+            return EvalResult(artifacts=[])
+
+    # Agent 1: JoinSpec correlation (requires A+B, 1s timeout)
+    orchestrator.agent("correlation_agent").consumes(
+        SignalA,
+        SignalB,
+        join=JoinSpec(
+            by=lambda x: x.correlation_id,
+            within=timedelta(seconds=1.0)
+        )
+    ).with_engines(CorrelationEngine())
+
+    # Agent 2: BatchSpec batching (batches SignalC, 1s timeout)
+    orchestrator.agent("batch_agent").consumes(
+        SignalC,
+        batch=BatchSpec(size=10, timeout=timedelta(seconds=1.0))
+    ).with_engines(BatchEngine())
+
+    # Publish partial data for both
+    await orchestrator.publish(SignalA(correlation_id="test", data="a"))  # Only A, missing B
+    await orchestrator.publish(SignalC(correlation_id="test", data="c1"))  # Only 1 item
+    await orchestrator.run_until_idle()
+
+    # Both waiting
+    assert len(correlation_executed) == 0, "Correlation waiting for SignalB"
+    assert len(batch_executed) == 0, "Batch waiting for more items or timeout"
+
+    # Wait for timeout (1.5s to be safe)
+    await asyncio.sleep(3.5)
+    await orchestrator.run_until_idle()
+
+    # DIFFERENT BEHAVIORS:
+    assert len(correlation_executed) == 0, "JoinSpec: partial correlation DISCARDED (agent never runs)"
+    assert batch_count == 1
+    assert len(batch_executed) == 1, "BatchSpec: partial batch FLUSHED (agent runs)"
+    assert batch_executed[0] == 1, "BatchSpec: agent received 1 item from partial flush"
