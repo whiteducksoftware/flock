@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 
 import pytest
 from pydantic import PrivateAttr
@@ -497,3 +498,57 @@ async def test_agent_consuming_and_publishing_same_type_does_not_loop(orchestrat
 
     # Assert - Should execute exactly once (only external input, not own output)
     assert executed_count[0] == 1
+
+
+@pytest.mark.asyncio
+async def test_context_is_batch_flag_propagation():
+    """Test that is_batch flag is correctly set in Context for batch vs single executions."""
+    from datetime import timedelta
+
+    from pydantic import BaseModel, Field
+
+    from flock.subscription import BatchSpec
+
+    # Track Context.is_batch values
+    context_flags = []
+
+    class ContextSpyEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            # Record the is_batch flag
+            context_flags.append(ctx.is_batch)
+            # Return original artifacts
+            return EvalResult(artifacts=list(inputs.artifacts))
+
+    # Define test artifact (simple Pydantic model)
+    class BatchItem(BaseModel):
+        value: int = Field(...)
+
+    orchestrator, _agents = create_demo_orchestrator()
+
+    # Agent 1: Single artifact consumption (no BatchSpec)
+    orchestrator.agent("single_consumer").consumes(Idea).with_engines(
+        ContextSpyEngine()
+    )
+
+    # Agent 2: Batch consumption (with BatchSpec)
+    orchestrator.agent("batch_consumer").consumes(
+        BatchItem, batch=BatchSpec(size=3, timeout=timedelta(seconds=1.0))
+    ).with_engines(ContextSpyEngine())
+
+    # Test 1: Single artifact execution (is_batch should be False)
+    context_flags.clear()
+    await orchestrator.publish(Idea(topic="Test", genre="comedy"))
+    await orchestrator.run_until_idle()
+    assert len(context_flags) == 1
+    assert context_flags[0] is False, "Single artifact should have is_batch=False"
+
+    # Test 2: Batch execution (is_batch should be True)
+    context_flags.clear()
+    # Publish 3 items to trigger batch flush (size=3)
+    await orchestrator.publish(BatchItem(value=1))
+    await orchestrator.publish(BatchItem(value=2))
+    await orchestrator.publish(BatchItem(value=3))  # Triggers size flush
+    await orchestrator.run_until_idle()
+
+    assert len(context_flags) == 1
+    assert context_flags[0] is True, "Batch flush should have is_batch=True"

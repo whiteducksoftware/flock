@@ -994,10 +994,16 @@ class Flock(metaclass=AutoTracedMeta):
                     self._mark_processed(collected_artifact, agent)
 
                 # Schedule agent with ALL artifacts (batched, correlated, or AND gate complete)
-                self._schedule_task(agent, artifacts)
+                # NEW: Mark as batch execution if flushed from BatchSpec
+                is_batch_execution = subscription.batch is not None
+                self._schedule_task(agent, artifacts, is_batch=is_batch_execution)
 
-    def _schedule_task(self, agent: Agent, artifacts: list[Artifact]) -> None:
-        task = asyncio.create_task(self._run_agent_task(agent, artifacts))
+    def _schedule_task(
+        self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
+    ) -> None:
+        task = asyncio.create_task(
+            self._run_agent_task(agent, artifacts, is_batch=is_batch)
+        )
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
@@ -1012,14 +1018,17 @@ class Flock(metaclass=AutoTracedMeta):
         key = (str(artifact.id), agent.name)
         return key in self._processed
 
-    async def _run_agent_task(self, agent: Agent, artifacts: list[Artifact]) -> None:
+    async def _run_agent_task(
+        self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
+    ) -> None:
         correlation_id = artifacts[0].correlation_id if artifacts else uuid4()
 
         ctx = Context(
             board=BoardHandle(self),
             orchestrator=self,
             task_id=str(uuid4()),
-            correlation_id=correlation_id,  # NEW!
+            correlation_id=correlation_id,
+            is_batch=is_batch,  # NEW!
         )
         self._record_agent_run(agent)
         await agent.execute(ctx, artifacts)
@@ -1174,8 +1183,8 @@ class Flock(metaclass=AutoTracedMeta):
             if agent is None:
                 continue
 
-            # Schedule agent with batched artifacts
-            self._schedule_task(agent, artifacts)
+            # Schedule agent with batched artifacts (timeout flush)
+            self._schedule_task(agent, artifacts, is_batch=True)
 
     async def _flush_all_batches(self) -> None:
         """Flush all partial batches (for shutdown - ensures zero data loss)."""
@@ -1187,8 +1196,8 @@ class Flock(metaclass=AutoTracedMeta):
             if agent is None:
                 continue
 
-            # Schedule agent with partial batch
-            self._schedule_task(agent, artifacts)
+            # Schedule agent with partial batch (shutdown flush)
+            self._schedule_task(agent, artifacts, is_batch=True)
 
         # Wait for all scheduled tasks to complete
         await self.run_until_idle()
