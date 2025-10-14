@@ -1,6 +1,6 @@
-# Configuring Flock Flow for Ollama
+# Configuring Flock for Ollama
 
-This guide explains how to configure Flock Flow to connect to your Ollama instance running on `localhost:1134` with the `granite3.3:2b` model.
+This guide explains how to configure Flock to connect to your Ollama instance running on `localhost:1134` with the `granite3.3:2b` model.
 
 ## Quick Setup
 
@@ -33,7 +33,7 @@ export TRELLIS_MODEL="ollama/granite3.3:2b"
 export OLLAMA_API_BASE="http://localhost:1134"
 ```
 
-### Step 4: Run Your Flock Flow Application
+### Step 4: Run Your Flock Application
 
 ```python
 from flock.orchestrator import Flock
@@ -206,7 +206,7 @@ import os
 # Enable LiteLLM debug logging
 os.environ["LITELLM_LOG"] = "DEBUG"
 
-# Now run your Flock Flow application
+# Now run your Flock application
 from flock.orchestrator import Flock
 orchestrator = Flock("ollama/granite3.3:2b")
 ```
@@ -229,7 +229,7 @@ uv run python examples/showcase/07_ollama_example.py
 - **LiteLLM Ollama Documentation:** https://docs.litellm.ai/docs/providers/ollama
 - **Ollama Documentation:** https://github.com/ollama/ollama/blob/main/docs/api.md
 - **DSPy Documentation:** https://dspy-docs.vercel.app/
-- **Flock Flow AGENTS.md:** See the root `AGENTS.md` file for framework details
+- **Flock AGENTS.md:** See the root `AGENTS.md` file for framework details
 
 ## Summary
 

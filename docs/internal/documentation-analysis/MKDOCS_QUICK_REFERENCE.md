@@ -210,7 +210,7 @@ See full research document for complete script that:
 
 ```markdown
 ---
-title: Quick Start Guide - Flock Flow
+title: Quick Start Guide - Flock
 description: Get started in 5 minutes with AI agents
 search:
   boost: 2              # Higher ranking
@@ -377,7 +377,7 @@ Track:
 
 ---
 
-## Quick Wins for Flock Flow
+## Quick Wins for Flock
 
 1. Add `getting-started/tutorial-pizza.md` using existing example
 2. Create section index pages (`guides/index.md`, etc.)

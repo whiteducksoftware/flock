@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-This guide provides step-by-step instructions for **completely replacing** the Flock Flow dashboard's client-side graph construction (1,400 lines) with backend snapshot consumption (200 lines).
+This guide provides step-by-step instructions for **completely replacing** the Flock dashboard's client-side graph construction (1,400 lines) with backend snapshot consumption (200 lines).
 
 **Strategy**: **Aggressive migration** - delete old code immediately, ship new implementation.
 

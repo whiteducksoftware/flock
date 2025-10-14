@@ -1,10 +1,10 @@
-# Flock Flow Dashboard
+# Flock Dashboard
 
-A real-time visualization dashboard for monitoring and controlling Flock Flow agent orchestration systems. Built with modern web technologies to provide an intuitive, high-performance interface for observing multi-agent workflows.
+A real-time visualization dashboard for monitoring and controlling Flock agent orchestration systems. Built with modern web technologies to provide an intuitive, high-performance interface for observing multi-agent workflows.
 
 ## Overview
 
-The Flock Flow Dashboard provides real-time visibility into your agent orchestration system through an interactive graph-based interface. Watch agents activate, messages flow, and data transform in real-time as your multi-agent system operates.
+The Flock Dashboard provides real-time visibility into your agent orchestration system through an interactive graph-based interface. Watch agents activate, messages flow, and data transform in real-time as your multi-agent system operates.
 
 The dashboard offers two complementary visualization modes:
 - **Agent View**: Shows agents as nodes with message flows as edges - perfect for understanding agent communication patterns
@@ -149,7 +149,7 @@ Launch the module via the context menu (or `Add Module → Historical Blackboard
 
 - **Node.js**: Version 18 or higher
 - **Package Manager**: npm (included with Node.js) or yarn
-- **Flock Flow Backend**: Running orchestrator instance (typically on port 8344)
+- **Flock Backend**: Running orchestrator instance (typically on port 8344)
 
 ### Installation
 

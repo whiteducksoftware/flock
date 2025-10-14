@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The examples/ directory demonstrates a **mature, pedagogically structured approach** to teaching Flock Flow through 7 major categories. The organization follows a clear **beginner-to-advanced progression** with extensive inline documentation. However, **4 of 7 categories are placeholders** (marked 🚧), creating gaps between what's implemented and what needs documentation.
+The examples/ directory demonstrates a **mature, pedagogically structured approach** to teaching Flock through 7 major categories. The organization follows a clear **beginner-to-advanced progression** with extensive inline documentation. However, **4 of 7 categories are placeholders** (marked 🚧), creating gaps between what's implemented and what needs documentation.
 
 **Key Finding:** Examples are **tutorial-first** with production patterns baked in from day one. They demonstrate real-world use cases (bug diagnosis, music studios, intelligence agencies) rather than trivial "hello world" scenarios.
 

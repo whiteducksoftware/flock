@@ -11,11 +11,13 @@ class UserRequest(BaseModel):
     message: str
     priority: str = "normal"
 
+
 @flock_type
 class Response(BaseModel):
     answer: str
     confidence: float = Field(ge=0.0, le=1.0)
     sources: list[str]
+
 
 flock = Flock()
 
@@ -26,10 +28,10 @@ assistant = (
     .publishes(Response)
 )
 
+
 async def main():
     request = UserRequest(
-        message="What are the key benefits of async programming?",
-        priority="high"
+        message="What are the key benefits of async programming?", priority="high"
     )
 
     print(f"❓ Question: {request.message}")
@@ -46,6 +48,7 @@ async def main():
         print(f"📚 Sources: {len(response.sources)}")
         for i, source in enumerate(response.sources, 1):
             print(f"   {i}. {source}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

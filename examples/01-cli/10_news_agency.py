@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
@@ -15,6 +15,7 @@ class NewsEvent(BaseModel):
     initial_details: str
     source_credibility: float = Field(ge=0.0, le=1.0)
 
+
 @flock_type
 class NewsArticle(BaseModel):
     title: str
@@ -25,6 +26,7 @@ class NewsArticle(BaseModel):
     fact_check_status: str
     urgency_level: str
 
+
 @flock_type
 class EditorialDecision(BaseModel):
     article_approved: bool
@@ -33,6 +35,7 @@ class EditorialDecision(BaseModel):
     required_edits: list[str]
     legal_review_needed: bool
 
+
 @flock_type
 class PublishedStory(BaseModel):
     final_headline: str
@@ -40,6 +43,7 @@ class PublishedStory(BaseModel):
     distribution_channels: list[str]
     expected_reach: int
     follow_up_needed: bool
+
 
 flock = Flock("openai/gpt-4.1")
 
@@ -65,13 +69,14 @@ publisher = (
     .publishes(PublishedStory)
 )
 
+
 async def main():
     event = NewsEvent(
         headline="Major Tech Company Announces Breakthrough in Quantum Computing",
         location="Silicon Valley, CA",
-        timestamp=datetime.now(),
+        timestamp=datetime.now(timezone.utc),
         initial_details="Leading technology corporation claims quantum supremacy with new 1000-qubit processor.",
-        source_credibility=0.9
+        source_credibility=0.9,
     )
 
     print(f"🔴 Breaking: {event.headline}\n")
@@ -83,10 +88,11 @@ async def main():
 
     if published:
         story = published[0]
-        print(f"📰 PUBLISHED:")
+        print("📰 PUBLISHED:")
         print(f"   {story.final_headline}")
         print(f"   Channels: {', '.join(story.distribution_channels)}")
         print(f"   Expected reach: {story.expected_reach:,}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

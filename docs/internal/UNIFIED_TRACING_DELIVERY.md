@@ -8,7 +8,7 @@
 
 ## 📦 Executive Summary
 
-Successfully implemented **unified workflow tracing** for Flock Flow with complete backward compatibility. All operations within a workflow can now be grouped under a single parent trace for superior observability and debugging.
+Successfully implemented **unified workflow tracing** for Flock with complete backward compatibility. All operations within a workflow can now be grouped under a single parent trace for superior observability and debugging.
 
 **Key Achievement**: Solved the trace fragmentation issue where `publish()`, `run_until_idle()`, and other operations created separate root traces, making it difficult to visualize complete workflows.
 

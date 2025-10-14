@@ -192,10 +192,10 @@ async def main():
         if report.anomalies_detected:
             print(f"   ⚠️  Anomalies: {', '.join(report.anomalies_detected)}")
         else:
-            print(f"   ✅ No Anomalies Detected")
+            print("   ✅ No Anomalies Detected")
 
         if report.recommendations:
-            print(f"   💡 Recommendations:")
+            print("   💡 Recommendations:")
             for rec in report.recommendations:
                 print(f"      • {rec}")
 
@@ -255,7 +255,7 @@ async def main():
         if report.anomalies_detected:
             print(f"   ⚠️  Anomalies: {', '.join(report.anomalies_detected)}")
         else:
-            print(f"   ✅ No Anomalies Detected")
+            print("   ✅ No Anomalies Detected")
 
     # Final Analysis
     print("\n" + "=" * 60)

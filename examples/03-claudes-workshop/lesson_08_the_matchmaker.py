@@ -138,7 +138,7 @@ async def main():
         await flock.publish(order)
 
     await flock.run_until_idle()
-    print(f"\n   ⏳ Orders received, waiting for shipment updates...")
+    print("\n   ⏳ Orders received, waiting for shipment updates...")
 
     # Step 2: Publish shipment updates (only 2 of 3!)
     print("\n" + "=" * 60)
@@ -164,10 +164,12 @@ async def main():
     ]
 
     for shipment in shipments:
-        print(f"   📮 Shipment for {shipment.order_id}: {shipment.carrier} - {shipment.current_location}")
+        print(
+            f"   📮 Shipment for {shipment.order_id}: {shipment.carrier} - {shipment.current_location}"
+        )
         await flock.publish(shipment)
 
-    print(f"\n   🔗 JoinSpec is correlating orders with shipments...")
+    print("\n   🔗 JoinSpec is correlating orders with shipments...")
     await flock.run_until_idle()
 
     # Step 3: Check results

@@ -2,7 +2,7 @@
 
 **Welcome, AI coding agent!** 👋
 
-This is Flock Flow, a production-grade blackboard-first AI agent orchestration framework. This guide gets you up to speed quickly on the current project state and development patterns.
+This is Flock, a production-grade blackboard-first AI agent orchestration framework. This guide gets you up to speed quickly on the current project state and development patterns.
 
 **Current Version:** Backend: 0.5.0b63 • Frontend: 0.1.4
 **Architecture:** Hybrid Python/TypeScript with real-time dashboard
@@ -13,7 +13,7 @@ This is Flock Flow, a production-grade blackboard-first AI agent orchestration f
 
 ## 🎯 Project Snapshot
 
-### What Is Flock Flow?
+### What Is Flock?
 
 A blackboard architecture framework where specialized AI agents collaborate through a shared typed workspace—no direct coupling, no rigid workflows, just emergent intelligence.
 
@@ -84,6 +84,12 @@ uv run python examples/01-cli/03_code_detective.py
 uv run python examples/02-dashboard/01_declarative_pizza.py
 uv run python examples/02-dashboard/02_input_and_output.py
 uv run python examples/02-dashboard/03_code_detective.py
+
+# Engine + component playgrounds
+uv run python examples/05-engines/emoji_mood_engine.py
+uv run python examples/05-engines/potion_batch_engine.py
+uv run python examples/06-agent-components/plot_twist_component.py
+uv run python examples/06-agent-components/cheer_meter_component.py
 ```
 
 ---

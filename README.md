@@ -24,6 +24,8 @@ Flock is a production-focused framework for orchestrating AI agents through **de
 **Quick links:**
 - **[Getting Started](https://whiteducksoftware.github.io/flock/getting-started/installation/)** - Installation and first steps
 - **[Tutorials](https://whiteducksoftware.github.io/flock/tutorials/)** - Step-by-step learning path
+  - [Custom Engines: Emoji Vibes & Batch Brews](https://whiteducksoftware.github.io/flock/tutorials/custom-engines/)
+  - [Custom Agent Components: Foreshadow & Hype](https://whiteducksoftware.github.io/flock/tutorials/custom-agent-components/)
 - **[User Guides](https://whiteducksoftware.github.io/flock/guides/)** - In-depth feature documentation
 - **[API Reference](https://whiteducksoftware.github.io/flock/reference/api/)** - Complete API documentation
 - **[Roadmap](https://whiteducksoftware.github.io/flock/about/roadmap/)** - What's coming in v1.0

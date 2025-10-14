@@ -1,4 +1,4 @@
-# Smart Versioning Guide for Flock Flow
+# Smart Versioning Guide for Flock
 
 This document explains the intelligent versioning system that only bumps versions for components that actually changed.
 

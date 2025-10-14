@@ -1,7 +1,7 @@
 # Documentation Transformation Analysis - Executive Summary
 
 **Date:** October 8, 2025
-**Project:** Flock Flow v0.5.0b
+**Project:** Flock v0.5.0b
 **Analysis Type:** Comprehensive Documentation Architecture Review
 
 ---
@@ -368,7 +368,7 @@ A: Track stub elimination, documentation coverage, time-to-first-success, and us
 
 **Transformation is feasible and high-impact.**
 
-The analysis reveals that Flock Flow's documentation challenge is **not a content problem** - it's an **organization problem**. The content exists (README.md, examples, inline comments) and is high quality. The task is extraction and reorganization according to modern best practices (Diataxis framework, MkDocs Material theme).
+The analysis reveals that Flock's documentation challenge is **not a content problem** - it's an **organization problem**. The content exists (README.md, examples, inline comments) and is high quality. The task is extraction and reorganization according to modern best practices (Diataxis framework, MkDocs Material theme).
 
 **Recommendation:** Approve Phase 1 implementation immediately. The critical stubs block user success and can be eliminated in one focused week.
 

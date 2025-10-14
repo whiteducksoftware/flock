@@ -1,6 +1,6 @@
 # Visibility Controls
 
-Flock Flow's **visibility system** provides zero-trust security for multi-agent systems—controlling which agents can see which artifacts on the [blackboard](blackboard.md).
+Flock's **visibility system** provides zero-trust security for multi-agent systems—controlling which agents can see which artifacts on the [blackboard](blackboard.md).
 
 **Think of it like classified documents:** not everyone in an organization can see every document. Field agents see different data than executives, and customer data stays isolated between tenants.
 
@@ -460,7 +460,7 @@ if user.has_permission("read_sensitive"):
     process(data)  # Manual checks everywhere
 ```
 
-### Flock Flow
+### Flock
 
 ```python
 # ✅ Producer-controlled access

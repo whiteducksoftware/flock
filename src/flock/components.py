@@ -109,6 +109,38 @@ class EngineComponent(AgentComponent):
         """Override this method in your engine implementation."""
         raise NotImplementedError
 
+    async def evaluate_batch(self, agent: Agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
+        """Process batch of accumulated artifacts (BatchSpec).
+
+        Override this method if your engine supports batch processing.
+
+        Args:
+            agent: Agent instance executing this engine
+            ctx: Execution context (ctx.is_batch will be True)
+            inputs: EvalInputs with inputs.artifacts containing batch items
+
+        Returns:
+            EvalResult with processed artifacts
+
+        Raises:
+            NotImplementedError: If engine doesn't support batching
+
+        Example:
+            >>> async def evaluate_batch(self, agent, ctx, inputs):
+            ...     events = inputs.all_as(Event)  # Get ALL items
+            ...     results = await bulk_process(events)
+            ...     return EvalResult.from_objects(*results, agent=agent)
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support batch processing.\n\n"
+            f"To fix this:\n"
+            f"1. Remove BatchSpec from agent subscription, OR\n"
+            f"2. Implement evaluate_batch() in {self.__class__.__name__}, OR\n"
+            f"3. Use a batch-aware engine (e.g., CustomBatchEngine)\n\n"
+            f"Agent: {agent.name}\n"
+            f"Engine: {self.__class__.__name__}"
+        )
+
     async def fetch_conversation_context(
         self,
         ctx: Context,

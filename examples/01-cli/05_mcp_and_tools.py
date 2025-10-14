@@ -11,6 +11,7 @@ from flock.registry import flock_tool, flock_type
 def write_report(string: str, file_name: str) -> None:
     """Writes a research report to a markdown file. FILE NAME IN CAPS AND WITH CURRENT DATE."""
     from pathlib import Path
+
     file_path = Path(".flock") / file_name
     directory = file_path.parent
     if directory and not directory.exists():
@@ -19,15 +20,19 @@ def write_report(string: str, file_name: str) -> None:
         f.write(string)
     print(f"✍️  Wrote file: {file_path}")
 
+
 @flock_tool
 def get_current_date() -> str:
     """Returns the current date in YYYY-MM-DD format."""
     from datetime import UTC, datetime
+
     return datetime.now(UTC).strftime("%Y-%m-%d")
+
 
 @flock_type
 class Task(BaseModel):
     description: str
+
 
 @flock_type
 class Report(BaseModel):
@@ -35,6 +40,7 @@ class Report(BaseModel):
     title: str
     researched_urls: list[str]
     high_impact_info: dict[str, str]
+
 
 flock = Flock()
 
@@ -76,6 +82,7 @@ except Exception as e:
     .publishes(Report)
 )
 
+
 async def main():
     task = Task(description="Are blackboard multi agent systems the future of AI?")
     print(f"�� Research task: {task.description}")
@@ -103,6 +110,7 @@ async def main():
     else:
         print("❌ No report was generated!")
         print("💡 Make sure the MCPs are installed (see prerequisites above)")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

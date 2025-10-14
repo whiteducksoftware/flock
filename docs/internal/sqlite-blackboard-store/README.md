@@ -1,6 +1,6 @@
 # SQLiteBlackboardStore Research Packet
 
-Welcome! This folder collects the working notes for implementing a persistent `SQLiteBlackboardStore`. Start here to understand what already exists and how to extend Flock Flow’s storage layer safely.
+Welcome! This folder collects the working notes for implementing a persistent `SQLiteBlackboardStore`. Start here to understand what already exists and how to extend Flock’s storage layer safely.
 
 ## Quickstart
 

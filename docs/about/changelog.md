@@ -1,6 +1,6 @@
 ---
 title: Changelog
-description: Recent changes, updates, and release history for Flock Flow
+description: Recent changes, updates, and release history for Flock
 tags:
   - changelog
   - releases

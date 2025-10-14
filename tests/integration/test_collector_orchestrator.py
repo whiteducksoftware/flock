@@ -10,13 +10,13 @@ from pydantic import BaseModel
 
 from flock.components import EngineComponent
 from flock.dashboard.collector import DashboardEventCollector
-from flock.store import InMemoryBlackboardStore
 from flock.dashboard.events import (
     AgentCompletedEvent,
     MessagePublishedEvent,
 )
 from flock.orchestrator import Flock
 from flock.runtime import EvalInputs, EvalResult
+from flock.store import InMemoryBlackboardStore
 
 
 class Idea(BaseModel):

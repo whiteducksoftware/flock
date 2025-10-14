@@ -95,9 +95,8 @@ def should_exclude_path(path: Path, exclude_patterns: list[str], tests_mode: str
         return True
 
     # Check custom exclude patterns
-    for pattern in exclude_patterns:
-        if fnmatch.fnmatch(path_str, f"*{pattern}*"):
-            return True
+    if any(fnmatch.fnmatch(path_str, f"*{pattern}*") for pattern in exclude_patterns):
+        return True
 
     return False
 
@@ -111,7 +110,7 @@ def get_file_metadata(path: Path, root: Path) -> dict:
     try:
         with open(path, encoding="utf-8") as f:
             lines = len(f.readlines())
-    except:
+    except Exception:
         lines = 0
 
     return {
@@ -249,7 +248,7 @@ def read_frontmatter() -> str:
         try:
             with open(agents_md, encoding="utf-8") as f:
                 content = f.read()
-            return f"# 🚀 Flock Flow Framework Documentation\n\n{content}\n\n{'='*80}\n\n"
+            return f"# 🚀 Flock Framework Documentation\n\n{content}\n\n{'=' * 80}\n\n"
         except Exception as e:
             print(f"⚠️  Warning: Could not read AGENTS.md: {e}", file=sys.stderr)
     else:

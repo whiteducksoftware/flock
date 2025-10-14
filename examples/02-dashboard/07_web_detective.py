@@ -10,16 +10,19 @@ from flock.registry import flock_tool, flock_type
 @flock_tool
 def save_research(content: str, filename: str) -> str:
     from pathlib import Path
+
     path = Path(".flock") / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
     return str(path)
+
 
 @flock_type
 class ResearchQuery(BaseModel):
     topic: str
     depth: str
     focus_areas: list[str]
+
 
 @flock_type
 class ResearchReport(BaseModel):
@@ -30,7 +33,8 @@ class ResearchReport(BaseModel):
     confidence_level: float = Field(ge=0.0, le=1.0)
     file_path: str
 
-flock = Flock("openai/gpt-4.1")
+
+flock = Flock()
 
 try:
     flock.add_mcp(

@@ -1,6 +1,6 @@
 # Tutorials
 
-Welcome to Flock Flow tutorials! These hands-on guides will take you from zero to building production-ready multi-agent systems.
+Welcome to Flock tutorials! These hands-on guides will take you from zero to building production-ready multi-agent systems.
 
 ## Learning Path
 
@@ -11,11 +11,15 @@ graph LR
     A[Your First Agent<br/>⏱️ 15 min] --> B[Multi-Agent Workflow<br/>⏱️ 30 min]
     B --> C[Conditional Routing<br/>⏱️ 30 min]
     C --> D[Advanced Patterns<br/>⏱️ 45 min]
+    D --> E[Custom Engines<br/>⏱️ 25 min]
+    E --> F[Custom Agent Components<br/>⏱️ 25 min]
 
     style A fill:#e1f5e1,stroke:#2d5016,stroke-width:2px,color:#1a1a1a
     style B fill:#fff4e6,stroke:#8b6914,stroke-width:2px,color:#1a1a1a
     style C fill:#ffe6e6,stroke:#8b1a1a,stroke-width:2px,color:#1a1a1a
     style D fill:#f0e6ff,stroke:#5a1a8b,stroke-width:2px,color:#1a1a1a
+    style E fill:#e6f7ff,stroke:#0b6796,stroke-width:2px,color:#1a1a1a
+    style F fill:#fff0f6,stroke:#a61e4d,stroke-width:2px,color:#1a1a1a
 ```
 
 ## Tutorial Overview
@@ -99,6 +103,44 @@ Master parallel processing at scale with Flock's blackboard architecture. Build 
 **Prerequisites:** Complete all previous tutorials
 
 [Start Tutorial →](advanced-patterns.md){ .md-button .md-button--primary }
+
+---
+
+### 5. Custom Engines: Emoji Vibes & Batch Brews
+**Difficulty:** ⭐⭐ Intermediate | **Time:** 25 minutes
+
+Discover how to implement bespoke `EngineComponent`s—one that reacts instantly to mood messages and another that waits for BatchSpec flushes before revealing a potion recipe.
+
+**What You'll Learn:**
+
+- Building single-artifact engines with `EvalResult.from_object`
+- Crafting batch-aware engines with `evaluate_batch`
+- When to split logic into helper functions for clarity
+
+**What You'll Build:** An emoji mood interpreter and a potion brewer that only speaks when the cauldron is full
+
+**Prerequisites:** Comfortable with single-agent basics
+
+[Start Tutorial →](custom-engines.md){ .md-button .md-button--primary }
+
+---
+
+### 6. Custom Agent Components: Foreshadow & Hype
+**Difficulty:** ⭐⭐ Intermediate | **Time:** 25 minutes
+
+Learn how lifecycle hooks let you augment an agent without touching its engine—by adding foreshadowing hints before evaluation and tracking crowd energy afterwards.
+
+**What You'll Learn:**
+
+- `on_pre_evaluate`, `on_post_evaluate`, and `on_post_publish` hook patterns
+- Passing state between components and engines
+- Emitting metrics/logs from components
+
+**What You'll Build:** A campfire storyteller with subtle hints and a hype meter that reports audience applause
+
+**Prerequisites:** Complete “Custom Engines” or have equivalent experience
+
+[Start Tutorial →](custom-agent-components.md){ .md-button .md-button--primary }
 
 ---
 

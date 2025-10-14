@@ -13,12 +13,14 @@ class BandConcept(BaseModel):
     unique_selling_point: str
     inspiration: str
 
+
 @flock_type
 class BandLineup(BaseModel):
     band_name: str
     members: list[dict[str, str]]
     formation_story: str
     musical_style: str
+
 
 @flock_type
 class Album(BaseModel):
@@ -28,12 +30,14 @@ class Album(BaseModel):
     producer_notes: str
     genre_fusion: list[str]
 
+
 @flock_type
 class MarketingCopy(BaseModel):
     press_release: str
     social_media_hooks: list[str]
     target_demographics: list[str]
     tour_announcement: str
+
 
 flock = Flock()
 
@@ -58,36 +62,38 @@ marketer = (
     .publishes(MarketingCopy)
 )
 
+
 async def main():
     concepts = [
         BandConcept(
             genre="Folk-Electronic Fusion",
             target_audience="Millennials who love both nature and technology",
             unique_selling_point="Acoustic instruments processed through AI-generated harmonies",
-            inspiration="What if Bon Iver collaborated with Daft Punk?"
+            inspiration="What if Bon Iver collaborated with Daft Punk?",
         ),
         BandConcept(
             genre="Jazz-Punk",
             target_audience="Music theory students and underground scene enthusiasts",
             unique_selling_point="Complex time signatures with rebellious energy",
-            inspiration="Bebop meets Bad Brains"
-        )
+            inspiration="Bebop meets Bad Brains",
+        ),
     ]
-    
+
     for concept in concepts:
         print(f"🎵 Starting band formation: {concept.genre}")
         await flock.publish(concept)
-    
+
     await flock.run_until_idle()
-    
+
     marketing_materials = await flock.store.get_by_type(MarketingCopy)
-    
+
     for i, copy in enumerate(marketing_materials):
-        print(f"\n🎯 MARKETING CAMPAIGN {i+1}:")
+        print(f"\n🎯 MARKETING CAMPAIGN {i + 1}:")
         print("Press Release:")
         print(f"   {copy.press_release[:200]}...")
         print(f"Social Hooks: {copy.social_media_hooks[:2]}")
         print(f"Demographics: {copy.target_demographics}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -21,8 +21,8 @@ The deadlock occurred due to a **circular wait condition** in the async event lo
 
 This creates a **circular dependency**:
 ```
-Streaming loop → await broadcast() → await client.send_text() → 
-  → client waiting for response → agent waiting to send → 
+Streaming loop → await broadcast() → await client.send_text() →
+  → client waiting for response → agent waiting to send →
     → agent blocked on MCP tool → deadlock!
 ```
 
@@ -37,12 +37,12 @@ Streaming loop → await broadcast() → await client.send_text() →
 async for value in stream_generator:
     if isinstance(value, StatusMessage):
         # ... process token ...
-        
+
         # BLOCKING: Waits for WebSocket to complete send
         await ws_manager.broadcast(event)  # ← DEADLOCK HERE
-        
+
     # ... later ...
-    
+
     # MCP tool call happens here
     result = await server.call_tool(...)  # ← Can't reach if blocked above
 ```

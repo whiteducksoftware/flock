@@ -1,6 +1,6 @@
 # Agent Components
 
-Agent Components are one of Flock Flow's most powerful features, enabling you to customize agent behavior through lifecycle hooks without modifying agent logic.
+Agent Components are one of Flock's most powerful features, enabling you to customize agent behavior through lifecycle hooks without modifying agent logic.
 
 ---
 
@@ -303,6 +303,8 @@ class RuleBasedEngine(EngineComponent):
 - **Performance** - Skip LLM overhead for computational tasks
 - **Custom integrations** - Use specific libraries (Instructor, Guidance, local models)
 - **Hybrid workflows** - Some agents use LLMs, others use rules
+
+📚 **Want step-by-step examples?** Check out the [Custom Engines tutorial](../tutorials/custom-engines.md). It walks through two fully runnable engines—including the [`SimpleBatchEngine`](../../src/flock/engines/examples/simple_batch_engine.py) reference implementation added in `examples/05-engines/`.
 
 ---
 

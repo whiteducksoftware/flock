@@ -85,8 +85,6 @@ def build_orchestrator(db_path: Path) -> tuple[Flock, SQLiteBlackboardStore]:
 async def bake_pizzas(flock: Flock, ideas: Iterable[str]) -> None:
     """Publish pizza ideas and wait for the agent cascade to finish."""
 
-    
-
 
 async def show_recent_history(flock: Flock) -> None:
     """Print a preview of artifacts now persisted in SQLite."""
@@ -101,7 +99,7 @@ async def main() -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     flock, store = build_orchestrator(db_path)
-    #await flock.serve(dashboard_v2=True)
+    # await flock.serve(dashboard_v2=True)
     try:
         await store.ensure_schema()
 

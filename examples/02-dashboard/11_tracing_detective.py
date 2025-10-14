@@ -13,6 +13,7 @@ class CrimeScene(BaseModel):
     witness_statements: list[str]
     time_of_incident: str
 
+
 @flock_type
 class Investigation(BaseModel):
     case_id: str
@@ -20,6 +21,7 @@ class Investigation(BaseModel):
     suspect_profiles: list[dict[str, str]]
     timeline: list[str]
     confidence_level: float
+
 
 @flock_type
 class CaseReport(BaseModel):
@@ -30,6 +32,7 @@ class CaseReport(BaseModel):
     opportunity: str
     evidence_strength: str
     recommendation: str
+
 
 flock = Flock("openai/gpt-4.1")
 

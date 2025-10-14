@@ -13,12 +13,14 @@ class BandConcept(BaseModel):
     unique_selling_point: str
     inspiration: str
 
+
 @flock_type
 class BandLineup(BaseModel):
     band_name: str
     members: list[dict[str, str]]
     formation_story: str
     musical_style: str
+
 
 @flock_type
 class Album(BaseModel):
@@ -28,12 +30,14 @@ class Album(BaseModel):
     producer_notes: str
     genre_fusion: list[str]
 
+
 @flock_type
 class MarketingCopy(BaseModel):
     press_release: str
     social_media_hooks: list[str]
     target_demographics: list[str]
     tour_announcement: str
+
 
 flock = Flock()
 
@@ -58,12 +62,13 @@ marketer = (
     .publishes(MarketingCopy)
 )
 
+
 async def main():
     concept = BandConcept(
         genre="Folk-Electronic Fusion",
         target_audience="Millennials who love both nature and technology",
         unique_selling_point="Acoustic instruments processed through AI-generated harmonies",
-        inspiration="What if Bon Iver collaborated with Daft Punk?"
+        inspiration="What if Bon Iver collaborated with Daft Punk?",
     )
 
     print(f"🎵 Starting band formation: {concept.genre}\n")
@@ -75,10 +80,11 @@ async def main():
 
     if marketing_materials:
         copy = marketing_materials[0]
-        print(f"🎯 MARKETING CAMPAIGN:")
+        print("🎯 MARKETING CAMPAIGN:")
         print(f"   Press Release: {copy.press_release[:200]}...")
         print(f"   Social Hooks: {copy.social_media_hooks[:2]}")
         print(f"   Demographics: {copy.target_demographics}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

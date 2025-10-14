@@ -165,7 +165,7 @@ async def main():
         await flock.publish(transaction)
 
         if (i - 25) % 5 == 0:
-            print(f"   💳 {i-25}/10 transactions received...")
+            print(f"   💳 {i - 25}/10 transactions received...")
 
     print("\n   ⏳ Only 10 transactions (not enough for size=25)...")
     print("   ⌛ Waiting for 30-second timeout to flush partial batch...")

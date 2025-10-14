@@ -11,6 +11,7 @@ from flock.registry import flock_type
 class MovieIdea(BaseModel):
     idea: str
 
+
 @flock_type
 class Character(BaseModel):
     name: str
@@ -26,6 +27,7 @@ class Character(BaseModel):
             "Example: {'Ryan Gosling': 'Perfect deadpan delivery, 9/10'}"
         ),
     )
+
 
 @flock_type
 class Movie(BaseModel):
@@ -56,6 +58,7 @@ class Movie(BaseModel):
         description="Main characters with full backstories and casting ideas",
     )
 
+
 flock = Flock()
 
 movie_master = (
@@ -65,12 +68,14 @@ movie_master = (
     .publishes(Movie)
 )
 
+
 async def main():
     movie_idea = MovieIdea(idea="A movie about cat owners during the rise of AI")
     await flock.publish(movie_idea)
     await flock.run_until_idle()
     movies = await flock.store.get_by_type(Movie)
     print(f"🎬 Title: {movies[0].fun_title}")
+
 
 if __name__ == "__main__":
     asyncio.run(main(), debug=True)

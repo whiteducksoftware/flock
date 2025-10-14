@@ -1,6 +1,6 @@
 # Common Tasks & Performance Guide for AI Agents
 
-This document covers common development tasks and performance optimization for AI agents working with Flock Flow.
+This document covers common development tasks and performance optimization for AI agents working with Flock.
 
 ## 🛠️ Common Tasks
 

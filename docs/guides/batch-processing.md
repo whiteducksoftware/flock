@@ -73,6 +73,40 @@ payment_processor = (
 
 ---
 
+## Reference Implementation: SimpleBatchEngine
+
+Need a concrete starting point? The repository bundles [`SimpleBatchEngine`](../../src/flock/engines/examples/simple_batch_engine.py), a lightweight batch-aware engine that:
+
+- Collects `BatchItem` artifacts via `BatchSpec(size=3)`
+- Publishes a `BatchSummary` artifact describing batch size and values
+- Demonstrates both `evaluate()` (single item) and `evaluate_batch()` (flush)
+
+```python
+from flock.engines.examples import SimpleBatchEngine
+from flock.subscription import BatchSpec
+
+(
+    flock.agent("simple_batch")
+    .consumes(BatchItem, batch=BatchSpec(size=3))
+    .publishes(BatchSummary)
+    .with_engines(SimpleBatchEngine())
+)
+```
+
+Run the example end-to-end:
+
+```bash
+uv run python examples/05-engines/potion_batch_engine.py
+```
+
+And explore the associated tests for deeper validation:
+
+```bash
+uv run pytest tests/test_orchestrator_batchspec.py -k simple_batch_engine -v
+```
+
+---
+
 ## How BatchSpec Works
 
 ### Dual-Trigger System

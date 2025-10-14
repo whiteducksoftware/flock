@@ -1,6 +1,6 @@
 # Flock Architecture Guide for AI Agents
 
-This document provides architectural details for AI agents working with Flock Flow.
+This document provides architectural details for AI agents working with Flock.
 
 ## 🏗️ Project Structure
 

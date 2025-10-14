@@ -2,7 +2,7 @@
 
 ## Overview
 
-Flock Flow now supports **unified tracing** - wrapping entire workflows in a single trace for better observability and debugging.
+Flock now supports **unified tracing** - wrapping entire workflows in a single trace for better observability and debugging.
 
 Previously, each top-level operation (`publish()`, `run_until_idle()`, `serve()`) created separate root traces, making it difficult to see the complete execution flow in trace viewers like Jaeger or the Flock dashboard.
 

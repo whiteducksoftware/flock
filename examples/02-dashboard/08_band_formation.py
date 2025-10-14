@@ -13,12 +13,14 @@ class BandConcept(BaseModel):
     unique_selling_point: str
     inspiration: str
 
+
 @flock_type
 class BandLineup(BaseModel):
     band_name: str
     members: list[dict[str, str]]
     formation_story: str
     musical_style: str
+
 
 @flock_type
 class Album(BaseModel):
@@ -28,12 +30,14 @@ class Album(BaseModel):
     producer_notes: str
     genre_fusion: list[str]
 
+
 @flock_type
 class MarketingCopy(BaseModel):
     press_release: str
     social_media_hooks: list[str]
     target_demographics: list[str]
     tour_announcement: str
+
 
 flock = Flock("openai/gpt-4.1")
 

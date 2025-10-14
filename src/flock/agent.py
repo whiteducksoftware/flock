@@ -249,7 +249,26 @@ class Agent(metaclass=AutoTracedMeta):
             accumulated_metrics: dict[str, float] = {}
             for engine in engines:
                 current_inputs = await engine.on_pre_evaluate(self, ctx, current_inputs)
-                result = await engine.evaluate(self, ctx, current_inputs)
+                use_batch_mode = bool(getattr(ctx, "is_batch", False))
+                try:
+                    if use_batch_mode:
+                        logger.debug(
+                            "Agent %s: routing %d artifacts to %s.evaluate_batch",
+                            self.name,
+                            len(current_inputs.artifacts),
+                            engine.__class__.__name__,
+                        )
+                        result = await engine.evaluate_batch(self, ctx, current_inputs)
+                    else:
+                        result = await engine.evaluate(self, ctx, current_inputs)
+                except NotImplementedError:
+                    if use_batch_mode:
+                        logger.error(
+                            "Agent %s: engine %s does not implement evaluate_batch()",
+                            self.name,
+                            engine.__class__.__name__,
+                        )
+                    raise
 
                 # AUTO-WRAP: If engine returns BaseModel instead of EvalResult, wrap it
                 from flock.runtime import EvalResult as ER

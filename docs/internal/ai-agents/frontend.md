@@ -1,6 +1,6 @@
 # Frontend & Dashboard Guide for AI Agents
 
-This document covers frontend development and dashboard usage for AI agents working with Flock Flow.
+This document covers frontend development and dashboard usage for AI agents working with Flock.
 
 ## 🚀 Running the Dashboard
 

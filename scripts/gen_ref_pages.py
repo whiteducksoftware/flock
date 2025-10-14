@@ -99,7 +99,7 @@ for dir_name in INCLUDE_DIRS:
         rel_path = py_file.relative_to(dir_path)
 
         # Create module path (e.g., dspy_engine.py -> engines.dspy_engine)
-        module_parts = [dir_name] + list(rel_path.parts[:-1]) + [rel_path.stem]
+        module_parts = [dir_name, *rel_path.parts[:-1], rel_path.stem]
         module_path_str = ".".join(module_parts)
         full_module = f"flock.{module_path_str}"
 

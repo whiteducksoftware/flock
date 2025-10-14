@@ -1,6 +1,6 @@
 # Pre-commit Hooks Setup Guide
 
-This document explains the pre-commit hook system for Flock Flow, designed to maintain code quality and prevent broken builds from being committed.
+This document explains the pre-commit hook system for Flock, designed to maintain code quality and prevent broken builds from being committed.
 
 ## 🎯 Overview
 

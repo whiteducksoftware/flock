@@ -9,7 +9,11 @@ from flock.registry import flock_type
 
 @flock_type
 class MovieIdea(BaseModel):
-    idea: str = Field(default="A movie about cat owners during the rise of AI", description="A short description of a movie idea")
+    idea: str = Field(
+        default="A movie about cat owners during the rise of AI",
+        description="A short description of a movie idea",
+    )
+
 
 @flock_type
 class Character(BaseModel):
@@ -26,6 +30,7 @@ class Character(BaseModel):
             "Example: {'Ryan Gosling': 'Perfect deadpan delivery, 9/10'}"
         ),
     )
+
 
 @flock_type
 class Movie(BaseModel):
@@ -55,6 +60,7 @@ class Movie(BaseModel):
         max_length=10,
         description="Main characters with full backstories and casting ideas",
     )
+
 
 flock = Flock("openai/gpt-4.1")
 

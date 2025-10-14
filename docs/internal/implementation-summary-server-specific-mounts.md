@@ -61,7 +61,7 @@ Comprehensive test suite with 12 test cases:
 
 1. **Format Tests:**
    - `test_with_mcps_dict_format` - Dict format for server-specific mounts
-   - `test_with_mcps_list_format` - List format for no mounts  
+   - `test_with_mcps_list_format` - List format for no mounts
    - `test_with_mcps_mixed_format` - Mixed format (backward compatible)
 
 2. **Validation Tests:**
@@ -82,7 +82,7 @@ Comprehensive test suite with 12 test cases:
 #### `tests/test_mcp_manager.py` (Updated)
 Fixed 3 existing tests to include `mount_points` parameter:
 - `test_get_tools_for_agent_success`
-- `test_get_tools_for_agent_multiple_servers`  
+- `test_get_tools_for_agent_multiple_servers`
 - `test_get_tools_for_agent_partial_failure`
 
 ### 4. Test Results

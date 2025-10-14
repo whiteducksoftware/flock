@@ -1,6 +1,6 @@
 # Development Workflow Guide for AI Agents
 
-This document covers testing strategy, development workflow, and quality standards for AI agents working with Flock Flow.
+This document covers testing strategy, development workflow, and quality standards for AI agents working with Flock.
 
 ## 🧪 Testing Strategy
 
@@ -125,7 +125,7 @@ For **Backend/Python changes:**
 
 ### Versioning
 
-Flock Flow uses **smart versioning** that only bumps versions for components that actually changed:
+Flock uses **smart versioning** that only bumps versions for components that actually changed:
 
 ```bash
 # Check what would be bumped (dry run)

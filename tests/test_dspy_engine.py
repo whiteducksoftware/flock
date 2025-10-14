@@ -541,6 +541,24 @@ class TestDSPyEngineSignature:
         assert "conversation context" in result.instruction
         assert "Return only JSON" in result.instruction
 
+    def test_prepare_signature_with_batch_schema(self):
+        """Test that batched signatures wrap input schema in a list."""
+        mock_dspy = MockDSPyModule()
+        engine = DSPyEngine()
+
+        signature = engine._prepare_signature_with_context(
+            mock_dspy,
+            description="Batch instructions",
+            input_schema=TestInput,
+            output_schema=TestOutput,
+            has_context=False,
+            batched=True,
+        )
+
+        assert isinstance(signature, MockSignature)
+        input_type, _ = signature.fields["input"]
+        assert input_type == list[TestInput]
+
 
 class TestDSPyEngineArtifactMaterialization:
     """Test artifact materialization logic."""
@@ -900,6 +918,54 @@ class TestDSPyEngineIntegration:
         # Assert
         assert isinstance(result, EvalResult)
         assert len(result.artifacts) > 0
+
+    @pytest.mark.asyncio
+    async def test_batch_evaluation_passes_list_payload(self, mocker):
+        """Batched evaluation should send list of validated inputs to DSPy."""
+        mock_dspy = MockDSPyModule()
+        mock_dspy.context.return_value = Mock()
+
+        mocker.patch.object(DSPyEngine, "_import_dspy", return_value=mock_dspy)
+
+        engine = DSPyEngine(model="gpt-4", stream=False)
+        spy_signature = mocker.spy(engine, "_prepare_signature_with_context")
+        mocker.patch.object(DSPyEngine, "fetch_conversation_context", AsyncMock(return_value=[]))
+
+        mock_program = Mock()
+        engine._choose_program = Mock(return_value=mock_program)
+
+        mock_execute = AsyncMock(return_value=MockPrediction({"response": "batch response"}))
+        mocker.patch.object(engine, "_execute_standard", mock_execute)
+
+        agent = Mock()
+        agent.name = "batch_agent"
+        agent.description = "Batch agent"
+        agent.outputs = []
+        agent.tools = []
+        agent._get_mcp_tools = AsyncMock(return_value=[])
+
+        ctx = Mock()
+        ctx.orchestrator = Mock()
+        ctx.orchestrator.store = Mock()
+        ctx.orchestrator.store.list = AsyncMock(return_value=[])
+        ctx.orchestrator._active_streams = 0
+
+        artifacts = [
+            Artifact(type="TestInput", payload={"prompt": "one"}, produced_by="test"),
+            Artifact(type="TestInput", payload={"prompt": "two"}, produced_by="test"),
+        ]
+        inputs = EvalInputs(artifacts=artifacts, state={})
+
+        result = await engine.evaluate_batch(agent, ctx, inputs)
+
+        assert isinstance(result, EvalResult)
+        mock_execute.assert_awaited_once()
+        payload = mock_execute.await_args.kwargs["payload"]
+        assert isinstance(payload["input"], list)
+        assert payload["input"][0]["prompt"] == "one"
+        assert payload["input"][1]["prompt"] == "two"
+        assert payload.get("context", []) == []
+        assert spy_signature.call_args.kwargs.get("batched") is True
 
     @pytest.mark.asyncio
     async def test_evaluation_with_complex_input_output(self, mocker):

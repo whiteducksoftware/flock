@@ -2,11 +2,11 @@
 
 ## Overview
 
-This document analyzes the implicit auto-layout and auto-zoom behaviors in the Flock Flow dashboard and provides a comprehensive removal plan. The goal is to make the kontext (context) menu the **sole trigger** for layout and zoom operations, removing all automatic/implicit behaviors.
+This document analyzes the implicit auto-layout and auto-zoom behaviors in the Flock dashboard and provides a comprehensive removal plan. The goal is to make the kontext (context) menu the **sole trigger** for layout and zoom operations, removing all automatic/implicit behaviors.
 
 **Analysis Date:** October 6, 2025
 **Target:** Frontend React Flow Dashboard
-**Framework:** Flock Flow 0.1.16 (React 19 + TypeScript + React Flow)
+**Framework:** Flock 0.1.16 (React 19 + TypeScript + React Flow)
 
 ---
 

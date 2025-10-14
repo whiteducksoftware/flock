@@ -8,7 +8,7 @@ import os
 from asyncio import Task
 from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -135,8 +135,14 @@ class Flock(metaclass=AutoTracedMeta):
         self._artifact_collector = ArtifactCollector()
         # JoinSpec logic: Correlation engine for correlated AND gates
         self._correlation_engine = CorrelationEngine()
+        # Background task for checking correlation expiry (time-based JoinSpec)
+        self._correlation_cleanup_task: Task[Any] | None = None
+        self._correlation_cleanup_interval: float = 0.1  # Check every 100ms
         # BatchSpec logic: Batch accumulator for size/timeout batching
         self._batch_engine = BatchEngine()
+        # Background task for checking batch timeouts
+        self._batch_timeout_task: Task[Any] | None = None
+        self._batch_timeout_interval: float = 0.1  # Check every 100ms
         # Phase 1.2: WebSocket manager for real-time dashboard events (set by serve())
         self._websocket_manager: Any = None
         # Unified tracing support
@@ -473,6 +479,33 @@ class Flock(metaclass=AutoTracedMeta):
             await asyncio.sleep(0.01)
             pending = {task for task in self._tasks if not task.done()}
             self._tasks = pending
+
+        # Determine whether any deferred work (timeouts/cleanup) is still pending.
+        pending_batches = any(
+            accumulator.artifacts for accumulator in self._batch_engine.batches.values()
+        )
+        pending_correlations = any(
+            groups and any(group.waiting_artifacts for group in groups.values())
+            for groups in self._correlation_engine.correlation_groups.values()
+        )
+
+        # Ensure watchdog loops remain active while pending work exists.
+        if pending_batches and (
+            self._batch_timeout_task is None or self._batch_timeout_task.done()
+        ):
+            self._batch_timeout_task = asyncio.create_task(self._batch_timeout_checker_loop())
+
+        if pending_correlations and (
+            self._correlation_cleanup_task is None or self._correlation_cleanup_task.done()
+        ):
+            self._correlation_cleanup_task = asyncio.create_task(self._correlation_cleanup_loop())
+
+        # If deferred work is still outstanding, consider the orchestrator quiescent for
+        # now but leave watchdog tasks running to finish the job.
+        if pending_batches or pending_correlations:
+            self._agent_iteration_count.clear()
+            return
+
         # T068: Reset circuit breaker counters when idle
         self._agent_iteration_count.clear()
 
@@ -548,6 +581,22 @@ class Flock(metaclass=AutoTracedMeta):
 
     async def shutdown(self) -> None:
         """Shutdown orchestrator and clean up resources."""
+        # Cancel correlation cleanup task if running
+        if self._correlation_cleanup_task and not self._correlation_cleanup_task.done():
+            self._correlation_cleanup_task.cancel()
+            try:
+                await self._correlation_cleanup_task
+            except asyncio.CancelledError:
+                pass
+
+        # Cancel batch timeout checker if running
+        if self._batch_timeout_task and not self._batch_timeout_task.done():
+            self._batch_timeout_task.cancel()
+            try:
+                await self._batch_timeout_task
+            except asyncio.CancelledError:
+                pass
+
         if self._mcp_manager is not None:
             await self._mcp_manager.cleanup_all()
             self._mcp_manager = None
@@ -909,6 +958,15 @@ class Flock(metaclass=AutoTracedMeta):
                         subscription_index=subscription_index,
                     )
 
+                    # Start correlation cleanup task if time-based window and not running
+                    if (
+                        isinstance(subscription.join.within, timedelta)
+                        and self._correlation_cleanup_task is None
+                    ):
+                        self._correlation_cleanup_task = asyncio.create_task(
+                            self._correlation_cleanup_loop()
+                        )
+
                     if completed_group is None:
                         # Still waiting for correlation to complete
                         # Phase 1.2: Emit real-time correlation update event
@@ -948,6 +1006,12 @@ class Flock(metaclass=AutoTracedMeta):
                             subscription=subscription,
                             subscription_index=subscription_index,
                         )
+
+                        # Start timeout checker if this batch has a timeout and checker not running
+                        if subscription.batch.timeout and self._batch_timeout_task is None:
+                            self._batch_timeout_task = asyncio.create_task(
+                                self._batch_timeout_checker_loop()
+                            )
                     else:
                         # Single type subscription: Add each artifact individually
                         should_flush = False
@@ -957,6 +1021,12 @@ class Flock(metaclass=AutoTracedMeta):
                                 subscription=subscription,
                                 subscription_index=subscription_index,
                             )
+
+                            # Start timeout checker if this batch has a timeout and checker not running
+                            if subscription.batch.timeout and self._batch_timeout_task is None:
+                                self._batch_timeout_task = asyncio.create_task(
+                                    self._batch_timeout_checker_loop()
+                                )
 
                             if should_flush:
                                 # Size threshold reached! Flush batch now
@@ -994,10 +1064,14 @@ class Flock(metaclass=AutoTracedMeta):
                     self._mark_processed(collected_artifact, agent)
 
                 # Schedule agent with ALL artifacts (batched, correlated, or AND gate complete)
-                self._schedule_task(agent, artifacts)
+                # NEW: Mark as batch execution if flushed from BatchSpec
+                is_batch_execution = subscription.batch is not None
+                self._schedule_task(agent, artifacts, is_batch=is_batch_execution)
 
-    def _schedule_task(self, agent: Agent, artifacts: list[Artifact]) -> None:
-        task = asyncio.create_task(self._run_agent_task(agent, artifacts))
+    def _schedule_task(
+        self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
+    ) -> None:
+        task = asyncio.create_task(self._run_agent_task(agent, artifacts, is_batch=is_batch))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
@@ -1012,14 +1086,17 @@ class Flock(metaclass=AutoTracedMeta):
         key = (str(artifact.id), agent.name)
         return key in self._processed
 
-    async def _run_agent_task(self, agent: Agent, artifacts: list[Artifact]) -> None:
+    async def _run_agent_task(
+        self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
+    ) -> None:
         correlation_id = artifacts[0].correlation_id if artifacts else uuid4()
 
         ctx = Context(
             board=BoardHandle(self),
             orchestrator=self,
             task_id=str(uuid4()),
-            correlation_id=correlation_id,  # NEW!
+            correlation_id=correlation_id,
+            is_batch=is_batch,  # NEW!
         )
         self._record_agent_run(agent)
         await agent.execute(ctx, artifacts)
@@ -1154,11 +1231,63 @@ class Flock(metaclass=AutoTracedMeta):
 
     # Batch Helpers --------------------------------------------------------
 
+    async def _correlation_cleanup_loop(self) -> None:
+        """Background task that periodically cleans up expired correlation groups.
+
+        Runs continuously until all correlation groups are cleared or orchestrator shuts down.
+        Checks every 100ms for time-based expired correlations and discards them.
+        """
+        try:
+            while True:
+                await asyncio.sleep(self._correlation_cleanup_interval)
+                self._cleanup_expired_correlations()
+
+                # Stop if no correlation groups remain
+                if not self._correlation_engine.correlation_groups:
+                    self._correlation_cleanup_task = None
+                    break
+        except asyncio.CancelledError:
+            # Clean shutdown
+            self._correlation_cleanup_task = None
+            raise
+
+    def _cleanup_expired_correlations(self) -> None:
+        """Clean up all expired correlation groups across all subscriptions.
+
+        Called periodically by background task to enforce time-based correlation windows.
+        Discards incomplete correlations that have exceeded their time window.
+        """
+        # Get all active subscription keys
+        for agent_name, subscription_index in list(
+            self._correlation_engine.correlation_groups.keys()
+        ):
+            self._correlation_engine.cleanup_expired(agent_name, subscription_index)
+
+    async def _batch_timeout_checker_loop(self) -> None:
+        """Background task that periodically checks for batch timeouts.
+
+        Runs continuously until all batches are cleared or orchestrator shuts down.
+        Checks every 100ms for expired batches and flushes them.
+        """
+        try:
+            while True:
+                await asyncio.sleep(self._batch_timeout_interval)
+                await self._check_batch_timeouts()
+
+                # Stop if no batches remain
+                if not self._batch_engine.batches:
+                    self._batch_timeout_task = None
+                    break
+        except asyncio.CancelledError:
+            # Clean shutdown
+            self._batch_timeout_task = None
+            raise
+
     async def _check_batch_timeouts(self) -> None:
         """Check all batches for timeout expiry and flush expired batches.
 
-        This method is called periodically or manually (in tests) to enforce
-        timeout-based batching.
+        This method is called periodically by the background timeout checker
+        or manually (in tests) to enforce timeout-based batching.
         """
         expired_batches = self._batch_engine.check_timeouts()
 
@@ -1174,8 +1303,8 @@ class Flock(metaclass=AutoTracedMeta):
             if agent is None:
                 continue
 
-            # Schedule agent with batched artifacts
-            self._schedule_task(agent, artifacts)
+            # Schedule agent with batched artifacts (timeout flush)
+            self._schedule_task(agent, artifacts, is_batch=True)
 
     async def _flush_all_batches(self) -> None:
         """Flush all partial batches (for shutdown - ensures zero data loss)."""
@@ -1187,8 +1316,8 @@ class Flock(metaclass=AutoTracedMeta):
             if agent is None:
                 continue
 
-            # Schedule agent with partial batch
-            self._schedule_task(agent, artifacts)
+            # Schedule agent with partial batch (shutdown flush)
+            self._schedule_task(agent, artifacts, is_batch=True)
 
         # Wait for all scheduled tasks to complete
         await self.run_until_idle()

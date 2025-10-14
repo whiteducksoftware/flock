@@ -1,4 +1,4 @@
-# Flock Flow Quality Gates CI/CD
+# Flock Quality Gates CI/CD
 # Runs comprehensive quality checks on all pull requests and pushes
 # Matches pre-commit hooks with additional test coverage requirements
 

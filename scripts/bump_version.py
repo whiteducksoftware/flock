@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smart version bumping script for Flock Flow.
+"""Smart version bumping script for Flock.
 
 Only bumps versions for components that actually changed:
 - Backend (src/) → pyproject.toml
@@ -226,7 +226,7 @@ class VersionBumper:
             changed_files = self.get_changed_files()
 
             if not changed_files:
-                print("ℹ️  No changed files detected (checking git diff)")
+                print("Info: No changed files detected (checking git diff)")
                 print("   To bump versions anyway, use --force-backend or --force-frontend")
                 return
 
@@ -293,7 +293,7 @@ class VersionBumper:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Smart version bumping for Flock Flow",
+        description="Smart version bumping for Flock",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

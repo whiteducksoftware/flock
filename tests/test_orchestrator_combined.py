@@ -21,24 +21,34 @@ Architecture:
     → Schedule Agent
 """
 
-import pytest
 from datetime import timedelta
+
+import pytest
 from pydantic import BaseModel
 
-from flock.orchestrator import Flock
-from flock.subscription import JoinSpec, BatchSpec
-from flock.registry import flock_type
 from flock.components import EngineComponent
-from flock.runtime import EvalResult
+from flock.orchestrator import Flock
+from flock.registry import flock_type
+from flock.runtime import EvalInputs, EvalResult
+from flock.subscription import BatchSpec, JoinSpec
+
+
+class BatchAwareEngine(EngineComponent):
+    """Helper that routes evaluate_batch to evaluate for batch-aware tests."""
+
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        return await self.evaluate(agent, ctx, inputs)
 
 
 # ============================================================================
 # Test Fixtures
 # ============================================================================
 
+
 @flock_type
 class DiagnosticRequest(BaseModel):
     """Medical diagnostic request (e.g., X-ray order)."""
+
     patient_id: str
     test_type: str
     priority: str = "normal"
@@ -47,6 +57,7 @@ class DiagnosticRequest(BaseModel):
 @flock_type
 class DiagnosticResult(BaseModel):
     """Medical diagnostic result (e.g., X-ray image + analysis)."""
+
     patient_id: str
     test_type: str
     findings: str
@@ -56,6 +67,7 @@ class DiagnosticResult(BaseModel):
 @flock_type
 class MarketSignal(BaseModel):
     """Trading signal with symbol correlation."""
+
     symbol: str
     signal_type: str  # "volatility" or "sentiment"
     value: float
@@ -64,6 +76,7 @@ class MarketSignal(BaseModel):
 @flock_type
 class SensorReading(BaseModel):
     """IoT sensor reading with device correlation."""
+
     device_id: str
     sensor_type: str  # "temperature" or "pressure"
     value: float
@@ -72,6 +85,7 @@ class SensorReading(BaseModel):
 # ============================================================================
 # Phase 4 Week 1: Core Combined Features
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_batched_correlated_joins_basic():
@@ -86,12 +100,14 @@ async def test_batched_correlated_joins_basic():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
-            executed.append({
-                "batch_size": len(inputs.artifacts),
-                "patient_ids": [a.payload["patient_id"] for a in inputs.artifacts],
-            })
+            executed.append(
+                {
+                    "batch_size": len(inputs.artifacts),
+                    "patient_ids": [a.payload["patient_id"] for a in inputs.artifacts],
+                }
+            )
             return EvalResult(artifacts=[])
 
     agent = (
@@ -99,11 +115,8 @@ async def test_batched_correlated_joins_basic():
         .consumes(
             DiagnosticRequest,
             DiagnosticResult,
-            join=JoinSpec(
-                by=lambda x: x.patient_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=2)  # Batch 2 correlated pairs
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=2),  # Batch 2 correlated pairs
         )
         .with_engines(TrackingEngine())
     )
@@ -111,7 +124,9 @@ async def test_batched_correlated_joins_basic():
     # Publish 2 correlated pairs
     # Pair 1: patient-001
     await orchestrator.publish(DiagnosticRequest(patient_id="patient-001", test_type="xray"))
-    await orchestrator.publish(DiagnosticResult(patient_id="patient-001", test_type="xray", findings="normal"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="patient-001", test_type="xray", findings="normal")
+    )
 
     # After first pair: correlation completes but batch not full yet
     await orchestrator.run_until_idle()
@@ -119,14 +134,18 @@ async def test_batched_correlated_joins_basic():
 
     # Pair 2: patient-002
     await orchestrator.publish(DiagnosticRequest(patient_id="patient-002", test_type="mri"))
-    await orchestrator.publish(DiagnosticResult(patient_id="patient-002", test_type="mri", findings="abnormal"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="patient-002", test_type="mri", findings="abnormal")
+    )
 
     # After second pair: batch should flush with 2 correlated pairs
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Batch flushed with 2 correlated pairs"
     assert executed[0]["batch_size"] == 4, "Batch contains 4 artifacts (2 pairs)"
-    assert set(executed[0]["patient_ids"]) == {"patient-001", "patient-002"}, "Both patients in batch"
+    assert set(executed[0]["patient_ids"]) == {"patient-001", "patient-002"}, (
+        "Both patients in batch"
+    )
 
 
 @pytest.mark.asyncio
@@ -141,7 +160,7 @@ async def test_batched_correlation_continues_after_flush():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["symbol"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -151,11 +170,8 @@ async def test_batched_correlation_continues_after_flush():
         .consumes(
             MarketSignal,
             MarketSignal,  # Two signals (volatility + sentiment) per symbol
-            join=JoinSpec(
-                by=lambda x: x.symbol,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=2)  # Batch 2 correlated pairs
+            join=JoinSpec(by=lambda x: x.symbol, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=2),  # Batch 2 correlated pairs
         )
         .with_engines(TrackingEngine())
     )
@@ -195,7 +211,7 @@ async def test_partial_correlation_waits_in_batch():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -205,11 +221,8 @@ async def test_partial_correlation_waits_in_batch():
         .consumes(
             DiagnosticRequest,
             DiagnosticResult,
-            join=JoinSpec(
-                by=lambda x: x.patient_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=2)
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=2),
         )
         .with_engines(TrackingEngine())
     )
@@ -221,14 +234,18 @@ async def test_partial_correlation_waits_in_batch():
     assert len(executed) == 0, "No flush (correlation incomplete)"
 
     # Publish matching Result - correlation completes
-    await orchestrator.publish(DiagnosticResult(patient_id="patient-999", test_type="xray", findings="normal"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="patient-999", test_type="xray", findings="normal")
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 0, "No flush yet (batch needs 2 pairs, only have 1)"
 
     # Publish another complete pair to trigger batch flush
     await orchestrator.publish(DiagnosticRequest(patient_id="patient-888", test_type="mri"))
-    await orchestrator.publish(DiagnosticResult(patient_id="patient-888", test_type="mri", findings="normal"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="patient-888", test_type="mri", findings="normal")
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Batch flushed with 2 pairs"
@@ -247,12 +264,14 @@ async def test_multiple_correlation_groups_batch_independently():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
-            executed.append({
-                "batch_size": len(inputs.artifacts),
-                "device_ids": list(set(a.payload["device_id"] for a in inputs.artifacts)),
-            })
+            executed.append(
+                {
+                    "batch_size": len(inputs.artifacts),
+                    "device_ids": list(set(a.payload["device_id"] for a in inputs.artifacts)),
+                }
+            )
             return EvalResult(artifacts=[])
 
     agent = (
@@ -260,39 +279,49 @@ async def test_multiple_correlation_groups_batch_independently():
         .consumes(
             SensorReading,
             SensorReading,  # Temperature + Pressure per device
-            join=JoinSpec(
-                by=lambda x: x.device_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=3)  # Batch 3 correlated device readings
+            join=JoinSpec(by=lambda x: x.device_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=3),  # Batch 3 correlated device readings
         )
         .with_engines(TrackingEngine())
     )
 
     # Device 1: temp + pressure
-    await orchestrator.publish(SensorReading(device_id="device-A", sensor_type="temperature", value=25.0))
-    await orchestrator.publish(SensorReading(device_id="device-A", sensor_type="pressure", value=101.3))
+    await orchestrator.publish(
+        SensorReading(device_id="device-A", sensor_type="temperature", value=25.0)
+    )
+    await orchestrator.publish(
+        SensorReading(device_id="device-A", sensor_type="pressure", value=101.3)
+    )
 
     # Device 2: temp + pressure
-    await orchestrator.publish(SensorReading(device_id="device-B", sensor_type="temperature", value=26.5))
-    await orchestrator.publish(SensorReading(device_id="device-B", sensor_type="pressure", value=100.8))
+    await orchestrator.publish(
+        SensorReading(device_id="device-B", sensor_type="temperature", value=26.5)
+    )
+    await orchestrator.publish(
+        SensorReading(device_id="device-B", sensor_type="pressure", value=100.8)
+    )
 
     await orchestrator.run_until_idle()
     assert len(executed) == 0, "Batch not full yet (need 3 devices)"
 
     # Device 3: temp + pressure → triggers batch flush
-    await orchestrator.publish(SensorReading(device_id="device-C", sensor_type="temperature", value=24.0))
-    await orchestrator.publish(SensorReading(device_id="device-C", sensor_type="pressure", value=102.1))
+    await orchestrator.publish(
+        SensorReading(device_id="device-C", sensor_type="temperature", value=24.0)
+    )
+    await orchestrator.publish(
+        SensorReading(device_id="device-C", sensor_type="pressure", value=102.1)
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Batch flushed with 3 devices"
-    assert executed[0]["batch_size"] == 6, "6 artifacts (3 devices × 2 sensors)"
+    assert executed[0]["batch_size"] == 6, "6 artifacts (3 devices x 2 sensors)"
     assert len(executed[0]["device_ids"]) == 3, "3 different devices"
 
 
 # ============================================================================
 # Phase 4 Week 1: Timeout Integration
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_batched_correlation_with_timeout():
@@ -310,7 +339,7 @@ async def test_batched_correlation_with_timeout():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -320,11 +349,8 @@ async def test_batched_correlation_with_timeout():
         .consumes(
             DiagnosticRequest,
             DiagnosticResult,
-            join=JoinSpec(
-                by=lambda x: x.patient_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=5, timeout=timedelta(milliseconds=100))
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=5, timeout=timedelta(milliseconds=100)),
         )
         .with_engines(TrackingEngine())
     )
@@ -360,7 +386,7 @@ async def test_batched_correlation_size_or_timeout_whichever_first():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -370,11 +396,8 @@ async def test_batched_correlation_size_or_timeout_whichever_first():
         .consumes(
             MarketSignal,
             MarketSignal,
-            join=JoinSpec(
-                by=lambda x: x.symbol,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=3, timeout=timedelta(milliseconds=200))
+            join=JoinSpec(by=lambda x: x.symbol, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=3, timeout=timedelta(milliseconds=200)),
         )
         .with_engines(TrackingEngine())
     )
@@ -397,8 +420,12 @@ async def test_batched_correlation_size_or_timeout_whichever_first():
 
     # Scenario 2: Size wins (3 pairs published quickly)
     for i in range(3):
-        await orchestrator.publish(MarketSignal(symbol=f"SYM{i}", signal_type="volatility", value=0.5))
-        await orchestrator.publish(MarketSignal(symbol=f"SYM{i}", signal_type="sentiment", value=0.5))
+        await orchestrator.publish(
+            MarketSignal(symbol=f"SYM{i}", signal_type="volatility", value=0.5)
+        )
+        await orchestrator.publish(
+            MarketSignal(symbol=f"SYM{i}", signal_type="sentiment", value=0.5)
+        )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 2, "Size flush (before timeout)"
@@ -417,7 +444,7 @@ async def test_batched_correlation_shutdown_flushes_partial():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -427,11 +454,8 @@ async def test_batched_correlation_shutdown_flushes_partial():
         .consumes(
             DiagnosticRequest,
             DiagnosticResult,
-            join=JoinSpec(
-                by=lambda x: x.patient_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=5)
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=5),
         )
         .with_engines(TrackingEngine())
     )
@@ -457,6 +481,7 @@ async def test_batched_correlation_shutdown_flushes_partial():
 # Phase 4 Week 2: Integration Tests
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_batched_correlation_with_visibility():
     """
@@ -466,12 +491,12 @@ async def test_batched_correlation_with_visibility():
 
     Mental model: Visibility → Correlation → Batching (in sequence)
     """
-    from flock.visibility import PublicVisibility, PrivateVisibility
+    from flock.visibility import PrivateVisibility, PublicVisibility
 
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["patient_id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -482,43 +507,38 @@ async def test_batched_correlation_with_visibility():
         .consumes(
             DiagnosticRequest,
             DiagnosticResult,
-            join=JoinSpec(
-                by=lambda x: x.patient_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=2)
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=2),
         )
         .with_engines(TrackingEngine())
     )
 
     # Pair 1: Both public → should correlate and batch
     await orchestrator.publish(
-        DiagnosticRequest(patient_id="p1", test_type="xray"),
-        visibility=PublicVisibility()
+        DiagnosticRequest(patient_id="p1", test_type="xray"), visibility=PublicVisibility()
     )
     await orchestrator.publish(
         DiagnosticResult(patient_id="p1", test_type="xray", findings="ok"),
-        visibility=PublicVisibility()
+        visibility=PublicVisibility(),
     )
 
     # Pair 2: Request private (hospital_b), Result public → NO correlation (Request filtered)
     await orchestrator.publish(
         DiagnosticRequest(patient_id="p2", test_type="mri"),
-        visibility=PrivateVisibility(labels={"hospital_b"})
+        visibility=PrivateVisibility(labels={"hospital_b"}),
     )
     await orchestrator.publish(
         DiagnosticResult(patient_id="p2", test_type="mri", findings="ok"),
-        visibility=PublicVisibility()
+        visibility=PublicVisibility(),
     )
 
     # Pair 3: Both public → should correlate, complete batch with pair 1
     await orchestrator.publish(
-        DiagnosticRequest(patient_id="p3", test_type="ct"),
-        visibility=PublicVisibility()
+        DiagnosticRequest(patient_id="p3", test_type="ct"), visibility=PublicVisibility()
     )
     await orchestrator.publish(
         DiagnosticResult(patient_id="p3", test_type="ct", findings="ok"),
-        visibility=PublicVisibility()
+        visibility=PublicVisibility(),
     )
 
     await orchestrator.run_until_idle()
@@ -540,7 +560,7 @@ async def test_batched_correlation_with_where_predicate():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["patient_id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -555,29 +575,34 @@ async def test_batched_correlation_with_where_predicate():
             DiagnosticRequest,
             DiagnosticResult,
             where=predicate,
-            join=JoinSpec(
-                by=lambda x: x.patient_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=2)
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=2),
         )
         .with_engines(TrackingEngine())
     )
 
     # Pair 1: Both high priority → should correlate and batch
-    await orchestrator.publish(DiagnosticRequest(patient_id="p1", test_type="xray", priority="high"))
-    await orchestrator.publish(DiagnosticResult(patient_id="p1", test_type="xray", findings="ok", priority="high"))
+    await orchestrator.publish(
+        DiagnosticRequest(patient_id="p1", test_type="xray", priority="high")
+    )
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p1", test_type="xray", findings="ok", priority="high")
+    )
 
     # Pair 2: Request high, Result normal → NO correlation (Result rejected)
     await orchestrator.publish(DiagnosticRequest(patient_id="p2", test_type="mri", priority="high"))
-    await orchestrator.publish(DiagnosticResult(patient_id="p2", test_type="mri", findings="ok", priority="normal"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p2", test_type="mri", findings="ok", priority="normal")
+    )
 
     await orchestrator.run_until_idle()
     assert len(executed) == 0, "Batch not full yet (only 1 pair passed predicate)"
 
     # Pair 3: Both high priority → completes batch with pair 1
     await orchestrator.publish(DiagnosticRequest(patient_id="p3", test_type="ct", priority="high"))
-    await orchestrator.publish(DiagnosticResult(patient_id="p3", test_type="ct", findings="ok", priority="high"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p3", test_type="ct", findings="ok", priority="high")
+    )
 
     await orchestrator.run_until_idle()
 
@@ -598,20 +623,24 @@ async def test_batched_correlation_state_isolation_per_agent():
     executed_agent1 = []
     executed_agent2 = []
 
-    class TrackingEngine1(EngineComponent):
+    class TrackingEngine1(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
-            executed_agent1.append({
-                "agent": agent.name,
-                "batch_size": len(inputs.artifacts),
-            })
+            executed_agent1.append(
+                {
+                    "agent": agent.name,
+                    "batch_size": len(inputs.artifacts),
+                }
+            )
             return EvalResult(artifacts=[])
 
-    class TrackingEngine2(EngineComponent):
+    class TrackingEngine2(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
-            executed_agent2.append({
-                "agent": agent.name,
-                "batch_size": len(inputs.artifacts),
-            })
+            executed_agent2.append(
+                {
+                    "agent": agent.name,
+                    "batch_size": len(inputs.artifacts),
+                }
+            )
             return EvalResult(artifacts=[])
 
     # Agent 1: Batch size 2
@@ -620,11 +649,8 @@ async def test_batched_correlation_state_isolation_per_agent():
         .consumes(
             MarketSignal,
             MarketSignal,
-            join=JoinSpec(
-                by=lambda x: x.symbol,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=2)
+            join=JoinSpec(by=lambda x: x.symbol, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=2),
         )
         .with_engines(TrackingEngine1())
     )
@@ -635,19 +661,20 @@ async def test_batched_correlation_state_isolation_per_agent():
         .consumes(
             MarketSignal,
             MarketSignal,
-            join=JoinSpec(
-                by=lambda x: x.symbol,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=3)
+            join=JoinSpec(by=lambda x: x.symbol, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=3),
         )
         .with_engines(TrackingEngine2())
     )
 
     # Publish 3 correlated pairs
     for i in range(3):
-        await orchestrator.publish(MarketSignal(symbol=f"STOCK{i}", signal_type="volatility", value=0.5))
-        await orchestrator.publish(MarketSignal(symbol=f"STOCK{i}", signal_type="sentiment", value=0.5))
+        await orchestrator.publish(
+            MarketSignal(symbol=f"STOCK{i}", signal_type="volatility", value=0.5)
+        )
+        await orchestrator.publish(
+            MarketSignal(symbol=f"STOCK{i}", signal_type="sentiment", value=0.5)
+        )
     await orchestrator.run_until_idle()
 
     # Agent 1: Should flush once (batch size 2, got 3 pairs → flush 2, wait 1)
@@ -673,7 +700,7 @@ async def test_batched_correlation_performance():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -683,11 +710,8 @@ async def test_batched_correlation_performance():
         .consumes(
             SensorReading,
             SensorReading,
-            join=JoinSpec(
-                by=lambda x: x.device_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=10)  # Batch 10 correlated pairs
+            join=JoinSpec(by=lambda x: x.device_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=10),  # Batch 10 correlated pairs
         )
         .with_engines(TrackingEngine())
     )
@@ -695,8 +719,12 @@ async def test_batched_correlation_performance():
     # Publish 10 correlated pairs (20 artifacts)
     start = time.time()
     for i in range(10):
-        await orchestrator.publish(SensorReading(device_id=f"device-{i}", sensor_type="temperature", value=25.0))
-        await orchestrator.publish(SensorReading(device_id=f"device-{i}", sensor_type="pressure", value=101.0))
+        await orchestrator.publish(
+            SensorReading(device_id=f"device-{i}", sensor_type="temperature", value=25.0)
+        )
+        await orchestrator.publish(
+            SensorReading(device_id=f"device-{i}", sensor_type="pressure", value=101.0)
+        )
     await orchestrator.run_until_idle()
     end = time.time()
 
@@ -714,6 +742,7 @@ async def test_batched_correlation_performance():
 # Phase 4 Week 2: Advanced Edge Cases
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_three_way_correlation_with_batching():
     """
@@ -723,6 +752,7 @@ async def test_three_way_correlation_with_batching():
 
     Real-world: Manufacturing correlates 3 sensor types per batch, then batches groups.
     """
+
     @flock_type
     class TempSensor(BaseModel):
         batch_id: str
@@ -741,12 +771,14 @@ async def test_three_way_correlation_with_batching():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
-            executed.append({
-                "batch_size": len(inputs.artifacts),
-                "batch_ids": list(set(a.payload["batch_id"] for a in inputs.artifacts)),
-            })
+            executed.append(
+                {
+                    "batch_size": len(inputs.artifacts),
+                    "batch_ids": list({a.payload["batch_id"] for a in inputs.artifacts}),
+                }
+            )
             return EvalResult(artifacts=[])
 
     agent = (
@@ -755,11 +787,8 @@ async def test_three_way_correlation_with_batching():
             TempSensor,
             PressureSensor,
             ViscositySensor,
-            join=JoinSpec(
-                by=lambda x: x.batch_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=2)  # Batch 2 three-way correlations
+            join=JoinSpec(by=lambda x: x.batch_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=2),  # Batch 2 three-way correlations
         )
         .with_engines(TrackingEngine())
     )
@@ -780,7 +809,7 @@ async def test_three_way_correlation_with_batching():
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Batch flushed with 2 three-way correlations"
-    assert executed[0]["batch_size"] == 6, "6 artifacts (2 batches × 3 sensors)"
+    assert executed[0]["batch_size"] == 6, "6 artifacts (2 batches x 3 sensors)"
     assert set(executed[0]["batch_ids"]) == {"batch-A", "batch-B"}, "Both batches present"
 
 
@@ -796,7 +825,7 @@ async def test_batched_correlation_with_mixed_completion_rates():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["patient_id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -806,11 +835,8 @@ async def test_batched_correlation_with_mixed_completion_rates():
         .consumes(
             DiagnosticRequest,
             DiagnosticResult,
-            join=JoinSpec(
-                by=lambda x: x.patient_id,
-                within=timedelta(minutes=5)
-            ),
-            batch=BatchSpec(size=3)
+            join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
+            batch=BatchSpec(size=3),
         )
         .with_engines(TrackingEngine())
     )

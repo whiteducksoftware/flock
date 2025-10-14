@@ -1,6 +1,6 @@
-# Flock Flow Documentation Transformation Checklist
+# Flock Documentation Transformation Checklist
 
-Action plan for transforming Flock Flow documentation from internal to professional end-user facing documentation.
+Action plan for transforming Flock documentation from internal to professional end-user facing documentation.
 
 **Status Legend:**
 - [ ] Not started

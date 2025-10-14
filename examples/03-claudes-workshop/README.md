@@ -1,6 +1,6 @@
 # 🎓 Claude's Flock Workshop: From Zero to Blackboard Master
 
-Welcome to an interactive, hands-on workshop for mastering Flock Flow! This course takes you from complete beginner to confidently building production-ready multi-agent systems using the blackboard architecture.
+Welcome to an interactive, hands-on workshop for mastering Flock! This course takes you from complete beginner to confidently building production-ready multi-agent systems using the blackboard architecture.
 
 ## 🎯 What You'll Learn
 
@@ -237,4 +237,4 @@ uv run examples/03-claudes-workshop/lesson_01_code_detective.py
 
 ---
 
-*Course designed and tested by Claude Code • Built on Flock Flow 0.5*
+*Course designed and tested by Claude Code • Built on Flock 0.5*

@@ -1,5 +1,5 @@
 /**
- * Flock Flow Documentation - Custom JavaScript Enhancements
+ * Flock Documentation - Custom JavaScript Enhancements
  * State-of-the-art interactive features for superior UX
  */
 

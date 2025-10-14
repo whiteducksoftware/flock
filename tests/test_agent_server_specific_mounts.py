@@ -30,12 +30,11 @@ def orchestrator():
 
 def test_with_mcps_dict_format(orchestrator):
     """Test .with_mcps() with dict format for server-specific mounts."""
-    agent = (
-        orchestrator.agent("test_agent")
-        .with_mcps({
+    agent = orchestrator.agent("test_agent").with_mcps(
+        {
             "filesystem": ["/workspace/src", "/data"],
             "github": ["/workspace/.git"],
-        })
+        }
     )
 
     # Check server names are registered
@@ -50,10 +49,7 @@ def test_with_mcps_dict_format(orchestrator):
 
 def test_with_mcps_list_format(orchestrator):
     """Test .with_mcps() with simple list format (no mounts)."""
-    agent = (
-        orchestrator.agent("test_agent")
-        .with_mcps(["filesystem", "github"])
-    )
+    agent = orchestrator.agent("test_agent").with_mcps(["filesystem", "github"])
 
     # Check server names are registered
     assert agent.agent.mcp_server_names == {"filesystem", "github"}
@@ -64,12 +60,11 @@ def test_with_mcps_list_format(orchestrator):
 
 def test_with_mcps_mixed_format(orchestrator):
     """Test .with_mcps() with mixed format (list of strings and dicts)."""
-    agent = (
-        orchestrator.agent("test_agent")
-        .with_mcps([
+    agent = orchestrator.agent("test_agent").with_mcps(
+        [
             "github",  # No mounts
             {"filesystem": ["/workspace/src"]},  # With mounts
-        ])
+        ]
     )
 
     # Check server names are registered
@@ -104,11 +99,7 @@ def test_mount_deprecation_warning(orchestrator):
 def test_mount_backward_compatibility(orchestrator):
     """Test .mount() still works for backward compatibility."""
     with pytest.warns(DeprecationWarning, match="Agent.mount"):
-        agent = (
-            orchestrator.agent("test_agent")
-            .with_mcps(["filesystem"])
-            .mount("/workspace/src")
-        )
+        agent = orchestrator.agent("test_agent").with_mcps(["filesystem"]).mount("/workspace/src")
 
     # Check old-style mount points are stored
     assert agent.agent.mcp_mount_points == ["/workspace/src"]
@@ -131,12 +122,11 @@ def test_mount_validation(orchestrator):
 
 def test_empty_mounts_in_dict(orchestrator):
     """Test .with_mcps() with empty list for a server (no restrictions)."""
-    agent = (
-        orchestrator.agent("test_agent")
-        .with_mcps({
+    agent = orchestrator.agent("test_agent").with_mcps(
+        {
             "filesystem": ["/workspace/src"],
             "github": [],  # Empty = no restrictions
-        })
+        }
     )
 
     assert agent.agent.mcp_server_names == {"filesystem", "github"}
@@ -152,18 +142,15 @@ async def test_get_mcp_tools_passes_server_mounts(orchestrator):
     from flock.orchestrator import BoardHandle
     from flock.runtime import Context
 
-    agent = (
-        orchestrator.agent("test_agent")
-        .with_mcps({
+    agent = orchestrator.agent("test_agent").with_mcps(
+        {
             "filesystem": ["/workspace/src"],
             "github": ["/workspace/.git"],
-        })
+        }
     )
 
     ctx = Context(
-        board=BoardHandle(orchestrator),
-        orchestrator=orchestrator,
-        task_id="test-run-123"
+        board=BoardHandle(orchestrator), orchestrator=orchestrator, task_id="test-run-123"
     )
 
     # Mock the manager
@@ -183,7 +170,7 @@ async def test_get_mcp_tools_passes_server_mounts(orchestrator):
             server_mounts={
                 "filesystem": ["/workspace/src"],
                 "github": ["/workspace/.git"],
-            }
+            },
         )
 
 
@@ -208,10 +195,7 @@ async def test_manager_passes_server_specific_mounts_to_client(orchestrator):
     get_client_calls = []
 
     async def mock_get_client(server_name, agent_id, run_id, mount_points=None):
-        get_client_calls.append({
-            "server_name": server_name,
-            "mount_points": mount_points
-        })
+        get_client_calls.append({"server_name": server_name, "mount_points": mount_points})
         # Don't actually connect
         mock_client = AsyncMock()
         mock_client.get_tools = AsyncMock(return_value=[])
@@ -224,7 +208,7 @@ async def test_manager_passes_server_specific_mounts_to_client(orchestrator):
         agent_id="test_agent",
         run_id="test-run",
         server_names={"filesystem", "github"},
-        server_mounts=server_mounts
+        server_mounts=server_mounts,
     )
 
     # Verify each server got its specific mounts

@@ -14,6 +14,7 @@ class BugReport(BaseModel):
     reporter: str
     timestamp: datetime = Field(default_factory=datetime.now)
 
+
 @flock_type
 class BugDiagnosis(BaseModel):
     severity: str
@@ -22,6 +23,7 @@ class BugDiagnosis(BaseModel):
     suggested_fix: str
     requires_hotfix: bool
     confidence_score: float = Field(ge=0.0, le=1.0)
+
 
 flock = Flock("openai/gpt-4.1")
 
