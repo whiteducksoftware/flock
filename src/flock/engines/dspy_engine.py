@@ -153,6 +153,21 @@ class DSPyEngine(EngineComponent):
     )
 
     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:  # type: ignore[override]
+        return await self._evaluate_internal(agent, ctx, inputs, batched=False)
+
+    async def evaluate_batch(
+        self, agent, ctx, inputs: EvalInputs
+    ) -> EvalResult:  # type: ignore[override]
+        return await self._evaluate_internal(agent, ctx, inputs, batched=True)
+
+    async def _evaluate_internal(
+        self,
+        agent,
+        ctx,
+        inputs: EvalInputs,
+        *,
+        batched: bool,
+    ) -> EvalResult:
         if not inputs.artifacts:
             return EvalResult(artifacts=[], state=dict(inputs.state))
 
@@ -169,7 +184,13 @@ class DSPyEngine(EngineComponent):
 
         primary_artifact = self._select_primary_artifact(inputs.artifacts)
         input_model = self._resolve_input_model(primary_artifact)
-        validated_input = self._validate_input_payload(input_model, primary_artifact.payload)
+        if batched:
+            validated_input = [
+                self._validate_input_payload(input_model, artifact.payload)
+                for artifact in inputs.artifacts
+            ]
+        else:
+            validated_input = self._validate_input_payload(input_model, primary_artifact.payload)
         output_model = self._resolve_output_model(agent)
 
         # Fetch conversation context from blackboard
@@ -183,6 +204,7 @@ class DSPyEngine(EngineComponent):
             input_schema=input_model,
             output_schema=output_model,
             has_context=has_context,
+            batched=batched,
         )
 
         sys_desc = self._system_description(self.instructions or agent.description)
@@ -193,14 +215,19 @@ class DSPyEngine(EngineComponent):
         pre_generated_artifact_id = uuid4()
 
         # Build execution payload with context
-        if has_context:
-            execution_payload = {
-                "input": validated_input,
-                "context": context_history,
-            }
+        if batched:
+            execution_payload = {"input": validated_input}
+            if has_context:
+                execution_payload["context"] = context_history
         else:
-            # Backwards compatible - direct input
-            execution_payload = validated_input
+            if has_context:
+                execution_payload = {
+                    "input": validated_input,
+                    "context": context_history,
+                }
+            else:
+                # Backwards compatible - direct input
+                execution_payload = validated_input
 
         # Merge native tools with MCP tools
         native_tools = list(agent.tools or [])
@@ -383,6 +410,7 @@ class DSPyEngine(EngineComponent):
         input_schema: type[BaseModel] | None,
         output_schema: type[BaseModel] | None,
         has_context: bool = False,
+        batched: bool = False,
     ) -> Any:
         """Prepare DSPy signature, optionally including context field."""
         fields = {
@@ -398,7 +426,15 @@ class DSPyEngine(EngineComponent):
                 ),
             )
 
-        fields["input"] = (input_schema or dict, dspy_mod.InputField())
+        if batched:
+            if input_schema is not None:
+                input_type = list[input_schema]
+            else:
+                input_type = list[dict[str, Any]]
+        else:
+            input_type = input_schema or dict
+
+        fields["input"] = (input_type, dspy_mod.InputField())
         fields["output"] = (output_schema or dict, dspy_mod.OutputField())
 
         signature = dspy_mod.Signature(fields)
@@ -406,6 +442,11 @@ class DSPyEngine(EngineComponent):
         instruction = description or "Produce a valid output that matches the 'output' schema."
         if has_context:
             instruction += " Consider the conversation context provided to inform your response."
+        if batched:
+            instruction += (
+                " The 'input' field will contain a list of items representing the batch; "
+                "process the entire collection coherently."
+            )
         instruction += " Return only JSON."
 
         return signature.with_instructions(instruction)
