@@ -466,10 +466,10 @@ Phase 4 (agent engine routing) is not yet implemented. Agents always call `evalu
 
 ### Tasks
 
-- [ ] **5.1** Create example batch engine file
+- [x] **5.1** Create example batch engine file
   - File: `src/flock/engines/examples/simple_batch_engine.py`
 
-- [ ] **5.2** Implement SimpleBatchEngine
+- [x] **5.2** Implement SimpleBatchEngine
   ```python
   """Example batch-aware engine for demonstration and testing."""
 
@@ -558,7 +558,7 @@ Phase 4 (agent engine routing) is not yet implemented. Agents always call `evalu
   __all__ = ["SimpleBatchEngine"]
   ```
 
-- [ ] **5.3** Create integration test using SimpleBatchEngine
+- [x] **5.3** Create integration test using SimpleBatchEngine
   - File: `tests/test_orchestrator_batchspec.py`
   - Test name: `test_simple_batch_engine_processes_all_artifacts`
   - Use SimpleBatchEngine with BatchSpec(size=3)
@@ -567,7 +567,7 @@ Phase 4 (agent engine routing) is not yet implemented. Agents always call `evalu
   - Verify all 3 artifacts processed
   - Verify batch_size=3 in results
 
-- [ ] **5.4** Create test for non-batch engine error
+- [x] **5.4** Create test for non-batch engine error
   - File: `tests/test_orchestrator_batchspec.py`
   - Test name: `test_batch_spec_with_non_batch_engine_raises_error`
   - Create simple engine without evaluate_batch
@@ -575,26 +575,26 @@ Phase 4 (agent engine routing) is not yet implemented. Agents always call `evalu
   - Verify NotImplementedError raised
   - Verify error message contains agent name and engine name
 
-- [ ] **5.5** Write front-facing tutorial for custom engines
+- [x] **5.5** Write front-facing tutorial for custom engines
   - File: `docs/guides/tutorials/custom-engine.md` (or nearest equivalent)
   - Build concrete scenario using `SimpleBatchEngine`
   - Highlight when to override `evaluate()` vs `evaluate_batch()`
   - Include runnable code snippets and `uv run` commands
   - Cross-link from BatchSpec docs and Quick Reference
 
-- [ ] **5.6** Write front-facing tutorial for custom agent components
+- [x] **5.6** Write front-facing tutorial for custom agent components
   - File: `docs/guides/tutorials/custom-agent-component.md` (or nearest equivalent)
   - Demonstrate lifecycle hooks (`on_pre_evaluate`, `on_post_evaluate`, etc.)
   - Explain interaction with batch mode (e.g., inspecting `ctx.is_batch`)
   - Provide end-to-end example that pairs with `SimpleBatchEngine`
   - Add pointers to existing component architecture docs
 
-- [ ] **5.7** Run full batch test suite
+- [x] **5.7** Run full batch test suite
   ```bash
   uv run pytest tests/test_orchestrator_batchspec.py -v
   ```
 
-- [ ] **5.8** Commit Phase 5
+- [x] **5.8** Commit Phase 5
   ```bash
   git add src/flock/engines/examples/ tests/test_orchestrator_batchspec.py
   git commit -m "feat: Add SimpleBatchEngine example and integration tests
@@ -611,11 +611,11 @@ Phase 4 (agent engine routing) is not yet implemented. Agents always call `evalu
   ```
 
 ### Success Criteria
-- [ ] SimpleBatchEngine exists and works
-- [ ] Integration test passes (3 artifacts processed together)
-- [ ] Error test passes (clear message for non-batch engine)
-- [ ] All batch tests pass
-- [ ] Front-facing tutorials document custom engine and component patterns
+- [x] SimpleBatchEngine exists and works
+- [x] Integration test passes (3 artifacts processed together)
+- [x] Error test passes (clear message for non-batch engine)
+- [x] All batch tests pass
+- [x] Front-facing tutorials document custom engine and component patterns
 
 ---
 

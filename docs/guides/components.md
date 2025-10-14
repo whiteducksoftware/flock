@@ -304,6 +304,8 @@ class RuleBasedEngine(EngineComponent):
 - **Custom integrations** - Use specific libraries (Instructor, Guidance, local models)
 - **Hybrid workflows** - Some agents use LLMs, others use rules
 
+📚 **Want step-by-step examples?** Check out the [Custom Engines tutorial](../tutorials/custom-engines.md). It walks through two fully runnable engines—including the [`SimpleBatchEngine`](../../src/flock/engines/examples/simple_batch_engine.py) reference implementation added in `examples/05-engines/`.
+
 ---
 
 ## Creating Custom Components

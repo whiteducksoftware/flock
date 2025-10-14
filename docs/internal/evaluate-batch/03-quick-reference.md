@@ -361,7 +361,7 @@ Quick checklist for "is this phase done?":
 - [ ] Logging shows routing decisions
 
 **Phase 5**:
-- [ ] SimpleBatchEngine exists
+- [x] SimpleBatchEngine exists
 - [ ] Integration test: 3 artifacts → all processed
 - [ ] Error test: non-batch engine → clear error
 - [ ] Manual test works
