@@ -375,6 +375,33 @@ class TestContext:
         assert context.correlation_id is None
         assert context.task_id == "task_789"
 
+    def test_context_is_batch_field(self):
+        """Test Context.is_batch field defaults to False and can be set to True."""
+        # Test default value is False
+        context = Context(
+            board=None,
+            orchestrator=None,
+            task_id="test_task",
+        )
+        assert context.is_batch is False
+
+        # Test can be set to True
+        context_batch = Context(
+            board=None,
+            orchestrator=None,
+            task_id="batch_task",
+            is_batch=True,
+        )
+        assert context_batch.is_batch is True
+
+        # Test serialization/deserialization works
+        context_dict = context_batch.model_dump()
+        assert context_dict["is_batch"] is True
+
+        # Test reconstruction from dict
+        reconstructed = Context(**context_dict)
+        assert reconstructed.is_batch is True
+
 
 class TestIntegration:
     """Integration tests for runtime components."""
