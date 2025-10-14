@@ -49,7 +49,7 @@ class Report(BaseModel):
     high_impact_info: dict[str, str]
 
 
-flock = Flock(model="openai/gpt-4.1")
+flock = Flock()
 
 try:
     flock.add_mcp(
