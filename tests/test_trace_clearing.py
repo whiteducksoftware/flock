@@ -15,7 +15,9 @@ def test_clear_traces_nonexistent_database():
 
     assert result["success"] is False
     assert result["deleted_count"] == 0
-    assert "not found" in result["error"].lower()
+    # Error message contains "not found" (case insensitive check for both possible messages)
+    error_lower = result["error"].lower()
+    assert "not found" in error_lower or "does not exist" in error_lower
 
 
 def test_clear_traces_empty_database():

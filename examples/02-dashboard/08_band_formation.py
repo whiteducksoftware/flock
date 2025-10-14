@@ -39,7 +39,7 @@ class MarketingCopy(BaseModel):
     tour_announcement: str
 
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 scout = (
     flock.agent("scout")

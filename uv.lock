@@ -957,7 +957,7 @@ name = "exceptiongroup"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0b/9f/a65090624ecf468cdca03533906e7c69ed7588582240cfe7cc9e770b50eb/exceptiongroup-1.3.0.tar.gz", hash = "sha256:b241f5885f560bc56a59ee63ca4c6a8bfa46ae4ad651af316d4e81817bb9fd88", size = 29749, upload-time = "2025-05-10T17:42:51.123Z" }
 wheels = [
@@ -1007,7 +1007,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.5.4"
+version = "0.5.5"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -3720,6 +3720,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/00/e9/3916abb671bffb00845408c604ff03480dc8dc273310d8268547a37be0fb/pydantic_core-2.41.3.tar.gz", hash = "sha256:cdebb34b36ad05e8d77b4e797ad38a2a775c2a07a8fa386d4f6943b7778dcd39", size = 457489, upload-time = "2025-10-13T19:34:51.666Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/01/8346969d4eef68f385a7cf6d9d18a6a82129177f2ac9ea36cc2cec4a7b3a/pydantic_core-2.41.3-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:1a572d7d06b9fa6efeec32fbcd18c73081af66942b345664669867cf8e69c7b0", size = 2110164, upload-time = "2025-10-13T19:30:43.025Z" },
     { url = "https://files.pythonhosted.org/packages/60/7d/7ac0e48368c67c1ce3b34ceae1949c780381ad45ae3662f4e63a3d9a1a51/pydantic_core-2.41.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:63d787ea760052585c6bfc34310aa379346f2cec363fe178659664f80421804b", size = 1919153, upload-time = "2025-10-13T19:30:44.783Z" },

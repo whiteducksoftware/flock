@@ -61,7 +61,7 @@ class BookOutline(BaseModel):
 
 
 # 2. Create orchestrator
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 # 3. Define agents (they auto-connect through the blackboard!)
 book_idea_agent = (

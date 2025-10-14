@@ -25,7 +25,7 @@ class BugDiagnosis(BaseModel):
     confidence_score: float = Field(ge=0.0, le=1.0)
 
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 code_detective = (
     flock.agent("code_detective")

@@ -3,7 +3,7 @@
 
 Only bumps versions for components that actually changed:
 - Backend (src/) → pyproject.toml
-- Frontend (frontend/) → package.json
+- Frontend (src/flock/frontend/) → package.json
 - Docs only → no version bump
 
 Usage:
@@ -30,7 +30,7 @@ class VersionBumper:
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root
         self.pyproject_path = repo_root / "pyproject.toml"
-        self.package_json_path = repo_root / "frontend" / "package.json"
+        self.package_json_path = repo_root / "src" / "flock" / "frontend" / "package.json"
 
     def get_changed_files(self, since: str = "HEAD~1") -> list[str]:
         """Get list of changed files since a git reference.
@@ -83,7 +83,7 @@ class VersionBumper:
         frontend_changed = False
 
         backend_paths = ["src/", "tests/", "pyproject.toml", "uv.lock"]
-        frontend_paths = ["frontend/"]
+        frontend_paths = ["src/flock/frontend/"]
 
         # Exclude docs, README, and config files from triggering version bumps
         excluded_paths = [
@@ -284,7 +284,9 @@ class VersionBumper:
         print()
         print("📝 Next steps:")
         print("   1. Review the changes: git diff")
-        print("   2. Stage the version files: git add pyproject.toml frontend/package.json")
+        print(
+            "   2. Stage the version files: git add pyproject.toml src/flock/frontend/package.json"
+        )
         print(
             f"   3. Commit: git commit -m 'chore: bump version to {new_backend_version if backend_changed else new_frontend_version}'"
         )

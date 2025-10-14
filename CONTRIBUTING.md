@@ -123,7 +123,7 @@ poe version-check  # See what would be bumped
 poe version-minor  # Bump version
 
 # 7. Commit version bump
-git add pyproject.toml frontend/package.json
+git add pyproject.toml src/flock/frontend/package.json
 git commit -m "chore: bump version to 0.2.0"
 
 # 8. Push (build checks run)

@@ -8,7 +8,7 @@ import os
 from asyncio import Task
 from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -31,9 +31,15 @@ from flock.mcp import (
     FlockMCPFeatureConfiguration,
     ServerParameters,
 )
+from flock.orchestrator_component import (
+    CollectionResult,
+    OrchestratorComponent,
+    ScheduleDecision,
+)
 from flock.registry import type_registry
 from flock.runtime import Context
 from flock.store import BlackboardStore, ConsumptionRecord, InMemoryBlackboardStore
+from flock.subscription import Subscription
 from flock.visibility import AgentIdentity, PublicVisibility, Visibility
 
 
@@ -153,6 +159,25 @@ class Flock(metaclass=AutoTracedMeta):
             "yes",
             "on",
         }
+
+        # Phase 2: OrchestratorComponent system
+        self._components: list[OrchestratorComponent] = []
+        self._components_initialized: bool = False
+
+        # Auto-add built-in components
+        from flock.orchestrator_component import (
+            BuiltinCollectionComponent,
+            CircuitBreakerComponent,
+            DeduplicationComponent,
+        )
+
+        self.add_component(CircuitBreakerComponent(max_iterations=max_agent_iterations))
+        self.add_component(DeduplicationComponent())
+        self.add_component(BuiltinCollectionComponent())
+
+        # Log orchestrator initialization
+        self._logger.debug("Orchestrator initialized: components=[]")
+
         if not model:
             self.model = os.getenv("DEFAULT_MODEL")
 
@@ -202,6 +227,47 @@ class Flock(metaclass=AutoTracedMeta):
     @property
     def agents(self) -> list[Agent]:
         return list(self._agents.values())
+
+    # Component management -------------------------------------------------
+
+    def add_component(self, component: OrchestratorComponent) -> Flock:
+        """Add an OrchestratorComponent to this orchestrator.
+
+        Components execute in priority order (lower priority number = earlier).
+        Multiple components can have the same priority.
+
+        Args:
+            component: Component to add (must be an OrchestratorComponent instance)
+
+        Returns:
+            Self for method chaining
+
+        Examples:
+            >>> # Add single component
+            >>> flock = Flock("openai/gpt-4.1")
+            >>> flock.add_component(CircuitBreakerComponent(max_iterations=500))
+
+            >>> # Method chaining
+            >>> flock.add_component(CircuitBreakerComponent()) \\
+            ...      .add_component(MetricsComponent()) \\
+            ...      .add_component(DeduplicationComponent())
+
+            >>> # Custom priority (lower = earlier)
+            >>> flock.add_component(
+            ...     CustomComponent(priority=5, name="early_component")
+            ... )
+        """
+        self._components.append(component)
+        self._components.sort(key=lambda c: c.priority)
+
+        # Log component addition
+        comp_name = component.name or component.__class__.__name__
+        self._logger.info(
+            f"Component added: name={comp_name}, "
+            f"priority={component.priority}, total_components={len(self._components)}"
+        )
+
+        return self
 
     # MCP management -------------------------------------------------------
 
@@ -506,11 +572,15 @@ class Flock(metaclass=AutoTracedMeta):
             self._agent_iteration_count.clear()
             return
 
+        # Notify components that orchestrator reached idle state
+        if self._components_initialized:
+            await self._run_idle()
+
         # T068: Reset circuit breaker counters when idle
         self._agent_iteration_count.clear()
 
         # Automatically shutdown MCP connections when idle
-        await self.shutdown()
+        await self.shutdown(include_components=False)
 
     async def direct_invoke(
         self, agent: Agent, inputs: Sequence[BaseModel | Mapping[str, Any] | Artifact]
@@ -579,8 +649,17 @@ class Flock(metaclass=AutoTracedMeta):
         """
         return asyncio.run(self.arun(agent_builder, *inputs))
 
-    async def shutdown(self) -> None:
-        """Shutdown orchestrator and clean up resources."""
+    async def shutdown(self, *, include_components: bool = True) -> None:
+        """Shutdown orchestrator and clean up resources.
+
+        Args:
+            include_components: Whether to invoke component shutdown hooks.
+                Internal callers (e.g., run_until_idle) disable this to avoid
+                tearing down component state between cascades.
+        """
+        if include_components and self._components_initialized:
+            await self._run_shutdown()
+
         # Cancel correlation cleanup task if running
         if self._correlation_cleanup_task and not self._correlation_cleanup_task.done():
             self._correlation_cleanup_task.cancel()
@@ -658,8 +737,8 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Inject event collector into all existing agents
         for agent in self._agents.values():
-            # Insert at beginning of utilities list (highest priority)
-            agent.utilities.insert(0, event_collector)
+            # Add dashboard collector with priority ordering handled by agent
+            agent._add_utilities([event_collector])
 
         # Start dashboard launcher (npm process + browser)
         launcher_kwargs: dict[str, Any] = {"port": port}
@@ -892,188 +971,340 @@ class Flock(metaclass=AutoTracedMeta):
 
         return outputs
 
-    # Keep publish_external as deprecated alias
-    async def publish_external(
-        self,
-        type_name: str,
-        payload: dict[str, Any],
-        *,
-        visibility: Visibility | None = None,
-        correlation_id: str | None = None,
-        partition_key: str | None = None,
-        tags: set[str] | None = None,
-    ) -> Artifact:
-        """Deprecated: Use publish() instead.
-
-        This method will be removed in v2.0.
-        """
-        import warnings
-
-        warnings.warn(
-            "publish_external() is deprecated. Use publish(obj) instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return await self.publish(
-            {"type": type_name, "payload": payload},
-            visibility=visibility,
-            correlation_id=correlation_id,
-            partition_key=partition_key,
-            tags=tags,
-        )
-
     async def _persist_and_schedule(self, artifact: Artifact) -> None:
         await self.store.publish(artifact)
         self.metrics["artifacts_published"] += 1
         await self._schedule_artifact(artifact)
 
+    # Component Hook Runners ───────────────────────────────────────
+
+    async def _run_initialize(self) -> None:
+        """Initialize all components in priority order (called once).
+
+        Executes on_initialize hook for each component. Sets _components_initialized
+        flag to prevent multiple initializations.
+        """
+        if self._components_initialized:
+            return
+
+        self._logger.info(f"Initializing {len(self._components)} orchestrator components")
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+            self._logger.debug(
+                f"Initializing component: name={comp_name}, priority={component.priority}"
+            )
+
+            try:
+                await component.on_initialize(self)
+            except Exception as e:
+                self._logger.exception(
+                    f"Component initialization failed: name={comp_name}, error={e!s}"
+                )
+                raise
+
+        self._components_initialized = True
+        self._logger.info(f"All components initialized: count={len(self._components)}")
+
+    async def _run_artifact_published(self, artifact: Artifact) -> Artifact | None:
+        """Run on_artifact_published hooks (returns modified artifact or None to block).
+
+        Components execute in priority order, each receiving the artifact from the
+        previous component (chaining). If any component returns None, the artifact
+        is blocked and scheduling stops.
+        """
+        current_artifact = artifact
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+            self._logger.debug(
+                f"Running on_artifact_published: component={comp_name}, "
+                f"artifact_type={current_artifact.type}, artifact_id={current_artifact.id}"
+            )
+
+            try:
+                result = await component.on_artifact_published(self, current_artifact)
+
+                if result is None:
+                    self._logger.info(
+                        f"Artifact blocked by component: component={comp_name}, "
+                        f"artifact_type={current_artifact.type}, artifact_id={current_artifact.id}"
+                    )
+                    return None
+
+                current_artifact = result
+            except Exception as e:
+                self._logger.exception(
+                    f"Component hook failed: component={comp_name}, "
+                    f"hook=on_artifact_published, error={e!s}"
+                )
+                raise
+
+        return current_artifact
+
+    async def _run_before_schedule(
+        self, artifact: Artifact, agent: Agent, subscription: Subscription
+    ) -> ScheduleDecision:
+        """Run on_before_schedule hooks (returns CONTINUE, SKIP, or DEFER).
+
+        Components execute in priority order. First component to return SKIP or
+        DEFER stops execution and returns that decision.
+        """
+        from flock.orchestrator_component import ScheduleDecision
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            self._logger.debug(
+                f"Running on_before_schedule: component={comp_name}, "
+                f"agent={agent.name}, artifact_type={artifact.type}"
+            )
+
+            try:
+                decision = await component.on_before_schedule(self, artifact, agent, subscription)
+
+                if decision == ScheduleDecision.SKIP:
+                    self._logger.info(
+                        f"Scheduling skipped by component: component={comp_name}, "
+                        f"agent={agent.name}, artifact_type={artifact.type}, decision=SKIP"
+                    )
+                    return ScheduleDecision.SKIP
+
+                if decision == ScheduleDecision.DEFER:
+                    self._logger.debug(
+                        f"Scheduling deferred by component: component={comp_name}, "
+                        f"agent={agent.name}, decision=DEFER"
+                    )
+                    return ScheduleDecision.DEFER
+
+            except Exception as e:
+                self._logger.exception(
+                    f"Component hook failed: component={comp_name}, "
+                    f"hook=on_before_schedule, error={e!s}"
+                )
+                raise
+
+        return ScheduleDecision.CONTINUE
+
+    async def _run_collect_artifacts(
+        self, artifact: Artifact, agent: Agent, subscription: Subscription
+    ) -> CollectionResult:
+        """Run on_collect_artifacts hooks (returns first non-None result).
+
+        Components execute in priority order. First component to return non-None
+        wins (short-circuit). If all return None, default is immediate scheduling.
+        """
+        from flock.orchestrator_component import CollectionResult
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            self._logger.debug(
+                f"Running on_collect_artifacts: component={comp_name}, "
+                f"agent={agent.name}, artifact_type={artifact.type}"
+            )
+
+            try:
+                result = await component.on_collect_artifacts(self, artifact, agent, subscription)
+
+                if result is not None:
+                    self._logger.debug(
+                        f"Collection handled by component: component={comp_name}, "
+                        f"complete={result.complete}, artifact_count={len(result.artifacts)}"
+                    )
+                    return result
+            except Exception as e:
+                self._logger.exception(
+                    f"Component hook failed: component={comp_name}, "
+                    f"hook=on_collect_artifacts, error={e!s}"
+                )
+                raise
+
+        # Default: immediate scheduling with single artifact
+        self._logger.debug(
+            f"No component handled collection, using default: "
+            f"agent={agent.name}, artifact_type={artifact.type}"
+        )
+        return CollectionResult.immediate([artifact])
+
+    async def _run_before_agent_schedule(
+        self, agent: Agent, artifacts: list[Artifact]
+    ) -> list[Artifact] | None:
+        """Run on_before_agent_schedule hooks (returns modified artifacts or None to block).
+
+        Components execute in priority order, each receiving artifacts from the
+        previous component (chaining). If any component returns None, scheduling
+        is blocked.
+        """
+        current_artifacts = artifacts
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            self._logger.debug(
+                f"Running on_before_agent_schedule: component={comp_name}, "
+                f"agent={agent.name}, artifact_count={len(current_artifacts)}"
+            )
+
+            try:
+                result = await component.on_before_agent_schedule(self, agent, current_artifacts)
+
+                if result is None:
+                    self._logger.info(
+                        f"Agent scheduling blocked by component: component={comp_name}, "
+                        f"agent={agent.name}"
+                    )
+                    return None
+
+                current_artifacts = result
+            except Exception as e:
+                self._logger.exception(
+                    f"Component hook failed: component={comp_name}, "
+                    f"hook=on_before_agent_schedule, error={e!s}"
+                )
+                raise
+
+        return current_artifacts
+
+    async def _run_agent_scheduled(
+        self, agent: Agent, artifacts: list[Artifact], task: Task[Any]
+    ) -> None:
+        """Run on_agent_scheduled hooks (notification only, non-blocking).
+
+        Components execute in priority order. Exceptions are logged but don't
+        prevent other components from executing or block scheduling.
+        """
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            self._logger.debug(
+                f"Running on_agent_scheduled: component={comp_name}, "
+                f"agent={agent.name}, artifact_count={len(artifacts)}"
+            )
+
+            try:
+                await component.on_agent_scheduled(self, agent, artifacts, task)
+            except Exception as e:
+                self._logger.warning(
+                    f"Component notification hook failed (non-critical): "
+                    f"component={comp_name}, hook=on_agent_scheduled, error={e!s}"
+                )
+                # Don't propagate - this is a notification hook
+
+    async def _run_idle(self) -> None:
+        """Run on_orchestrator_idle hooks when orchestrator becomes idle.
+
+        Components execute in priority order. Exceptions are logged but don't
+        prevent other components from executing.
+        """
+        self._logger.debug(
+            f"Running on_orchestrator_idle hooks: component_count={len(self._components)}"
+        )
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            try:
+                await component.on_orchestrator_idle(self)
+            except Exception as e:
+                self._logger.warning(
+                    f"Component idle hook failed (non-critical): "
+                    f"component={comp_name}, hook=on_orchestrator_idle, error={e!s}"
+                )
+
+    async def _run_shutdown(self) -> None:
+        """Run on_shutdown hooks when orchestrator shuts down.
+
+        Components execute in priority order. Exceptions are logged but don't
+        prevent shutdown of other components (best-effort cleanup).
+        """
+        self._logger.info(f"Shutting down {len(self._components)} orchestrator components")
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+            self._logger.debug(f"Shutting down component: name={comp_name}")
+
+            try:
+                await component.on_shutdown(self)
+            except Exception as e:
+                self._logger.exception(
+                    f"Component shutdown failed: component={comp_name}, "
+                    f"hook=on_shutdown, error={e!s}"
+                )
+                # Continue shutting down other components
+
+    # Scheduling ───────────────────────────────────────────────────
+
     async def _schedule_artifact(self, artifact: Artifact) -> None:
+        """Schedule agents for an artifact using component hooks.
+
+        Refactored to use OrchestratorComponent hook system for extensibility.
+        Components can modify artifact, control scheduling, and handle collection.
+        """
+        # Phase 3: Initialize components on first artifact
+        if not self._components_initialized:
+            await self._run_initialize()
+
+        # Phase 3: Component hook - artifact published (can transform or block)
+        artifact = await self._run_artifact_published(artifact)
+        if artifact is None:
+            return  # Artifact blocked by component
+
         for agent in self.agents:
             identity = agent.identity
             for subscription in agent.subscriptions:
                 if not subscription.accepts_events():
                     continue
+
                 # T066: Check prevent_self_trigger
                 if agent.prevent_self_trigger and artifact.produced_by == agent.name:
                     continue  # Skip - agent produced this artifact (prevents feedback loops)
-                # T068: Circuit breaker - check iteration limit
-                iteration_count = self._agent_iteration_count.get(agent.name, 0)
-                if iteration_count >= self.max_agent_iterations:
-                    # Agent hit iteration limit - possible infinite loop
-                    continue
+
+                # Visibility check
                 if not self._check_visibility(artifact, identity):
                     continue
+
+                # Subscription match check
                 if not subscription.matches(artifact):
                     continue
-                if self._seen_before(artifact, agent):
-                    continue
 
-                # JoinSpec CORRELATION: Check if subscription has correlated AND gate
-                if subscription.join is not None:
-                    # Use CorrelationEngine for JoinSpec (correlated AND gates)
-                    subscription_index = agent.subscriptions.index(subscription)
-                    completed_group = self._correlation_engine.add_artifact(
-                        artifact=artifact,
-                        subscription=subscription,
-                        subscription_index=subscription_index,
-                    )
+                # Phase 3: Component hook - before schedule (circuit breaker, deduplication, etc.)
+                from flock.orchestrator_component import ScheduleDecision
 
-                    # Start correlation cleanup task if time-based window and not running
-                    if (
-                        isinstance(subscription.join.within, timedelta)
-                        and self._correlation_cleanup_task is None
-                    ):
-                        self._correlation_cleanup_task = asyncio.create_task(
-                            self._correlation_cleanup_loop()
-                        )
+                decision = await self._run_before_schedule(artifact, agent, subscription)
+                if decision == ScheduleDecision.SKIP:
+                    continue  # Skip this subscription
+                if decision == ScheduleDecision.DEFER:
+                    continue  # Defer for later (batching/correlation)
 
-                    if completed_group is None:
-                        # Still waiting for correlation to complete
-                        # Phase 1.2: Emit real-time correlation update event
-                        await self._emit_correlation_updated_event(
-                            agent_name=agent.name,
-                            subscription_index=subscription_index,
-                            artifact=artifact,
-                        )
-                        continue
+                # Phase 3: Component hook - collect artifacts (handles AND gates, correlation, batching)
+                collection = await self._run_collect_artifacts(artifact, agent, subscription)
+                if not collection.complete:
+                    continue  # Still collecting (AND gate, correlation, or batch incomplete)
 
-                    # Correlation complete! Get all correlated artifacts
-                    artifacts = completed_group.get_artifacts()
-                else:
-                    # AND GATE LOGIC: Use artifact collector for simple AND gates (no correlation)
-                    is_complete, artifacts = self._artifact_collector.add_artifact(
-                        agent, subscription, artifact
-                    )
+                artifacts = collection.artifacts
 
-                    if not is_complete:
-                        # Still waiting for more types (AND gate incomplete)
-                        continue
+                # Phase 3: Component hook - before agent schedule (final validation/transformation)
+                artifacts = await self._run_before_agent_schedule(agent, artifacts)
+                if artifacts is None:
+                    continue  # Scheduling blocked by component
 
-                # BatchSpec BATCHING: Check if subscription has batch accumulator
-                if subscription.batch is not None:
-                    # Add to batch accumulator
-                    subscription_index = agent.subscriptions.index(subscription)
-
-                    # COMBINED FEATURES: JoinSpec + BatchSpec
-                    # If we have JoinSpec, artifacts is a correlated GROUP - treat as single batch item
-                    # If we have AND gate, artifacts is a complete set - treat as single batch item
-                    # Otherwise (single type), add each artifact individually
-
-                    if subscription.join is not None or len(subscription.type_models) > 1:
-                        # JoinSpec or AND gate: Treat artifact group as ONE batch item
-                        should_flush = self._batch_engine.add_artifact_group(
-                            artifacts=artifacts,
-                            subscription=subscription,
-                            subscription_index=subscription_index,
-                        )
-
-                        # Start timeout checker if this batch has a timeout and checker not running
-                        if subscription.batch.timeout and self._batch_timeout_task is None:
-                            self._batch_timeout_task = asyncio.create_task(
-                                self._batch_timeout_checker_loop()
-                            )
-                    else:
-                        # Single type subscription: Add each artifact individually
-                        should_flush = False
-                        for single_artifact in artifacts:
-                            should_flush = self._batch_engine.add_artifact(
-                                artifact=single_artifact,
-                                subscription=subscription,
-                                subscription_index=subscription_index,
-                            )
-
-                            # Start timeout checker if this batch has a timeout and checker not running
-                            if subscription.batch.timeout and self._batch_timeout_task is None:
-                                self._batch_timeout_task = asyncio.create_task(
-                                    self._batch_timeout_checker_loop()
-                                )
-
-                            if should_flush:
-                                # Size threshold reached! Flush batch now
-                                break
-
-                    if not should_flush:
-                        # Batch not full yet - wait for more artifacts
-                        # Phase 1.2: Emit real-time batch update event
-                        await self._emit_batch_item_added_event(
-                            agent_name=agent.name,
-                            subscription_index=subscription_index,
-                            subscription=subscription,
-                            artifact=artifact,
-                        )
-                        continue
-
-                    # Flush the batch and get all accumulated artifacts
-                    batched_artifacts = self._batch_engine.flush_batch(
-                        agent.name, subscription_index
-                    )
-
-                    if batched_artifacts is None:
-                        # No batch to flush (shouldn't happen, but defensive)
-                        continue
-
-                    # Replace artifacts with batched artifacts
-                    artifacts = batched_artifacts
-
-                # Complete! Schedule agent with all collected artifacts
-                # T068: Increment iteration counter
-                self._agent_iteration_count[agent.name] = iteration_count + 1
-
-                # Mark all artifacts as processed (prevent duplicate triggers)
-                for collected_artifact in artifacts:
-                    self._mark_processed(collected_artifact, agent)
-
-                # Schedule agent with ALL artifacts (batched, correlated, or AND gate complete)
-                # NEW: Mark as batch execution if flushed from BatchSpec
+                # Complete! Schedule agent with collected artifacts
+                # Schedule agent task
                 is_batch_execution = subscription.batch is not None
-                self._schedule_task(agent, artifacts, is_batch=is_batch_execution)
+                task = self._schedule_task(agent, artifacts, is_batch=is_batch_execution)
+
+                # Phase 3: Component hook - agent scheduled (notification)
+                await self._run_agent_scheduled(agent, artifacts, task)
 
     def _schedule_task(
         self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
-    ) -> None:
+    ) -> Task[Any]:
+        """Schedule agent task and return the task handle."""
         task = asyncio.create_task(self._run_agent_task(agent, artifacts, is_batch=is_batch))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        return task
 
     def _record_agent_run(self, agent: Agent) -> None:
         self.metrics["agent_runs"] += 1

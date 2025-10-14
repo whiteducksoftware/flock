@@ -56,6 +56,10 @@ class AgentComponent(BaseModel, metaclass=TracedModelMeta):
 
     name: str | None = None
     config: AgentComponentConfig = Field(default_factory=AgentComponentConfig)
+    priority: int = Field(
+        default=0,
+        description="Execution priority (lower numbers run earlier; default preserves add order).",
+    )
 
     async def on_initialize(
         self, agent: Agent, ctx: Context
