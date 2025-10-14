@@ -252,8 +252,8 @@ class TestFlockComponentManagement:
         orchestrator.add_component(component)
 
         assert component in orchestrator._components
-        # orchestrator has 2 built-ins + 1 added = 3 total
-        assert len(orchestrator._components) == 3
+        # orchestrator has 3 built-ins + 1 added = 4 total
+        assert len(orchestrator._components) == 4
 
     def test_flock_add_component_returns_self(self, orchestrator):
         """Test add_component() returns self for method chaining."""
@@ -275,8 +275,8 @@ class TestFlockComponentManagement:
         result = orchestrator.add_component(c1).add_component(c2)
 
         assert result is orchestrator
-        # Note: orchestrator has 2 built-ins + 2 added = 4 total
-        assert len(orchestrator._components) == 4
+        # Note: orchestrator has 3 built-ins + 2 added = 5 total
+        assert len(orchestrator._components) == 5
 
     def test_flock_add_component_sorts_by_priority(self, orchestrator):
         """Test components are sorted by priority after add."""
@@ -284,18 +284,19 @@ class TestFlockComponentManagement:
 
         c1 = OrchestratorComponent(priority=10, name="c1_user")  # Same as circuit_breaker
         c2 = OrchestratorComponent(priority=5, name="c2")
-        c3 = OrchestratorComponent(priority=20, name="c3")
+        c3 = OrchestratorComponent(priority=20, name="c3")  # Same as dedup
 
         orchestrator.add_component(c1)
         orchestrator.add_component(c2)
         orchestrator.add_component(c3)
 
-        # Should be sorted: [c2(5), circuit_breaker(10), c1_user(10), c3(20), builtin(100)]
+        # Should be sorted: [c2(5), circuit_breaker(10), c1_user(10), dedup(20), c3(20), builtin(100)]
         assert orchestrator._components[0].name == "c2"
         assert orchestrator._components[1].name == "circuit_breaker"
         assert orchestrator._components[2].name == "c1_user"
-        assert orchestrator._components[3].name == "c3"
-        assert orchestrator._components[4].name == "builtin_collection"
+        assert orchestrator._components[3].name == "deduplication"
+        assert orchestrator._components[4].name == "c3"
+        assert orchestrator._components[5].name == "builtin_collection"
 
     def test_flock_add_component_maintains_sort_order(self, orchestrator):
         """Test adding components maintains priority sort order."""
@@ -307,11 +308,11 @@ class TestFlockComponentManagement:
             OrchestratorComponent(priority=10, name="c10_user")
         )  # Will conflict with circuit_breaker at 10
         orchestrator.add_component(OrchestratorComponent(priority=30, name="c30"))
-        orchestrator.add_component(OrchestratorComponent(priority=20, name="c20"))
+        orchestrator.add_component(OrchestratorComponent(priority=20, name="c20"))  # Same as dedup
 
-        # Should be sorted: [circuit_breaker(10), c10_user(10), c20, c30, c50, builtin(100)]
+        # Should be sorted: [circuit_breaker(10), c10_user(10), dedup(20), c20(20), c30, c50, builtin(100)]
         priorities = [c.priority for c in orchestrator._components]
-        assert priorities == [10, 10, 20, 30, 50, 100]
+        assert priorities == [10, 10, 20, 20, 30, 50, 100]
 
     def test_flock_add_component_allows_duplicate_priorities(self, orchestrator):
         """Test multiple components can have same priority."""
@@ -323,8 +324,8 @@ class TestFlockComponentManagement:
         orchestrator.add_component(c1)
         orchestrator.add_component(c2)
 
-        # Should have: circuit(10) + builtin(100) + c1(15) + c2(15) = 4 total
-        assert len(orchestrator._components) == 4
+        # Should have: circuit(10) + dedup(20) + builtin(100) + c1(15) + c2(15) = 5 total
+        assert len(orchestrator._components) == 5
         # Two components with priority 15
         priority_15_count = sum(1 for c in orchestrator._components if c.priority == 15)
         assert priority_15_count == 2
@@ -1118,3 +1119,202 @@ class TestCircuitBreakerComponent:
         # Third call should return SKIP (circuit breaker engaged)
         result3 = await orchestrator._run_before_schedule(sample_artifact, agent, subscription)
         assert result3 == ScheduleDecision.SKIP
+
+
+# ──────────────────────────────────────────────────────────────────
+# Phase 6: DeduplicationComponent Tests
+# ──────────────────────────────────────────────────────────────────
+
+
+class TestDeduplicationComponent:
+    """Tests for DeduplicationComponent (Phase 6)."""
+
+    def test_deduplication_component_exists(self):
+        """Test DeduplicationComponent can be imported."""
+        from flock.orchestrator_component import DeduplicationComponent
+
+        component = DeduplicationComponent()
+        assert component.priority == 20
+        assert component.name == "deduplication"
+
+    @pytest.mark.asyncio
+    async def test_deduplication_allows_first_occurrence(self, sample_artifact):
+        """Test deduplication allows first occurrence of artifact for agent."""
+        from flock.orchestrator_component import (
+            DeduplicationComponent,
+            ScheduleDecision,
+        )
+        from unittest.mock import Mock
+
+        component = DeduplicationComponent()
+
+        agent = Mock()
+        agent.name = "test_agent"
+        subscription = Mock()
+        orchestrator = Mock()
+
+        # First occurrence should be CONTINUE
+        result = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result == ScheduleDecision.CONTINUE
+
+    @pytest.mark.asyncio
+    async def test_deduplication_blocks_duplicate(self, sample_artifact):
+        """Test deduplication blocks duplicate artifact for same agent."""
+        from flock.orchestrator_component import (
+            DeduplicationComponent,
+            ScheduleDecision,
+        )
+        from unittest.mock import Mock
+
+        component = DeduplicationComponent()
+
+        agent = Mock()
+        agent.name = "test_agent"
+        subscription = Mock()
+        orchestrator = Mock()
+
+        # First occurrence: CONTINUE
+        result1 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result1 == ScheduleDecision.CONTINUE
+
+        # Mark as processed (simulating on_before_agent_schedule)
+        await component.on_before_agent_schedule(orchestrator, agent, [sample_artifact])
+
+        # Second occurrence: SKIP (duplicate)
+        result2 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result2 == ScheduleDecision.SKIP
+
+    @pytest.mark.asyncio
+    async def test_deduplication_per_agent(self, sample_artifact):
+        """Test deduplication is per-agent (different agents can process same artifact)."""
+        from flock.orchestrator_component import (
+            DeduplicationComponent,
+            ScheduleDecision,
+        )
+        from unittest.mock import Mock
+
+        component = DeduplicationComponent()
+
+        agent1 = Mock()
+        agent1.name = "agent1"
+        agent2 = Mock()
+        agent2.name = "agent2"
+        subscription = Mock()
+        orchestrator = Mock()
+
+        # Agent1 processes artifact
+        result1 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent1, subscription
+        )
+        assert result1 == ScheduleDecision.CONTINUE
+
+        await component.on_before_agent_schedule(orchestrator, agent1, [sample_artifact])
+
+        # Agent1 tries again: SKIP (duplicate)
+        result2 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent1, subscription
+        )
+        assert result2 == ScheduleDecision.SKIP
+
+        # Agent2 should still be allowed (different agent)
+        result3 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent2, subscription
+        )
+        assert result3 == ScheduleDecision.CONTINUE
+
+    @pytest.mark.asyncio
+    async def test_deduplication_handles_multiple_artifacts(self, sample_artifact):
+        """Test deduplication handles multiple artifacts in before_agent_schedule."""
+        from flock.orchestrator_component import DeduplicationComponent
+        from flock.artifacts import Artifact
+        from unittest.mock import Mock
+
+        component = DeduplicationComponent()
+
+        agent = Mock()
+        agent.name = "test_agent"
+        orchestrator = Mock()
+
+        # Create multiple artifacts
+        artifact2 = Artifact(type="TestType", payload={"data": "test2"}, produced_by="test")
+        artifact3 = Artifact(type="TestType", payload={"data": "test3"}, produced_by="test")
+
+        # Mark all as processed
+        result = await component.on_before_agent_schedule(
+            orchestrator, agent, [sample_artifact, artifact2, artifact3]
+        )
+
+        # Should return the same list
+        assert result == [sample_artifact, artifact2, artifact3]
+
+        # All should be marked as processed
+        assert (str(sample_artifact.id), agent.name) in component._processed
+        assert (str(artifact2.id), agent.name) in component._processed
+        assert (str(artifact3.id), agent.name) in component._processed
+
+    @pytest.mark.asyncio
+    async def test_deduplication_auto_added_to_orchestrator(self, orchestrator):
+        """Test DeduplicationComponent is auto-added to orchestrator."""
+        from flock.orchestrator_component import DeduplicationComponent
+
+        # Check if deduplication component is in components list
+        dedup = next(
+            (c for c in orchestrator._components if isinstance(c, DeduplicationComponent)),
+            None,
+        )
+
+        assert dedup is not None
+        assert dedup.priority == 20
+
+    @pytest.mark.asyncio
+    async def test_deduplication_integration(self, orchestrator, sample_artifact):
+        """Test deduplication integration with orchestrator."""
+        from flock.orchestrator_component import ScheduleDecision
+        from unittest.mock import Mock
+
+        agent = Mock()
+        agent.name = "test_agent"
+        subscription = Mock()
+
+        # First call should return CONTINUE
+        result1 = await orchestrator._run_before_schedule(sample_artifact, agent, subscription)
+        assert result1 == ScheduleDecision.CONTINUE
+
+        # Simulate marking as processed
+        await orchestrator._run_before_agent_schedule(agent, [sample_artifact])
+
+        # Second call should return SKIP (deduplication engaged)
+        result2 = await orchestrator._run_before_schedule(sample_artifact, agent, subscription)
+        assert result2 == ScheduleDecision.SKIP
+
+    @pytest.mark.asyncio
+    async def test_deduplication_and_circuit_breaker_order(self, orchestrator, sample_artifact):
+        """Test circuit breaker runs before deduplication (priority order)."""
+        from flock.orchestrator_component import ScheduleDecision
+        from unittest.mock import Mock
+
+        # Set circuit breaker to 1 iteration
+        for component in orchestrator._components:
+            if component.name == "circuit_breaker":
+                component.max_iterations = 1
+
+        agent = Mock()
+        agent.name = "test_agent"
+        subscription = Mock()
+
+        # First call: circuit breaker allows, deduplication allows
+        result1 = await orchestrator._run_before_schedule(sample_artifact, agent, subscription)
+        assert result1 == ScheduleDecision.CONTINUE
+
+        # Mark as processed
+        await orchestrator._run_before_agent_schedule(agent, [sample_artifact])
+
+        # Second call: circuit breaker should block (runs at priority 10, before dedup at 20)
+        result2 = await orchestrator._run_before_schedule(sample_artifact, agent, subscription)
+        assert result2 == ScheduleDecision.SKIP

@@ -168,9 +168,11 @@ class Flock(metaclass=AutoTracedMeta):
         from flock.orchestrator_component import (
             BuiltinCollectionComponent,
             CircuitBreakerComponent,
+            DeduplicationComponent,
         )
 
         self.add_component(CircuitBreakerComponent(max_iterations=max_agent_iterations))
+        self.add_component(DeduplicationComponent())
         self.add_component(BuiltinCollectionComponent())
 
         # Log orchestrator initialization
@@ -1292,10 +1294,6 @@ class Flock(metaclass=AutoTracedMeta):
                 if decision == ScheduleDecision.DEFER:
                     continue  # Defer for later (batching/correlation)
 
-                # Deduplication check (TEMPORARY - will move to component in Phase 6)
-                if self._seen_before(artifact, agent):
-                    continue
-
                 # Phase 3: Component hook - collect artifacts (handles AND gates, correlation, batching)
                 collection = await self._run_collect_artifacts(artifact, agent, subscription)
                 if not collection.complete:
@@ -1309,10 +1307,6 @@ class Flock(metaclass=AutoTracedMeta):
                     continue  # Scheduling blocked by component
 
                 # Complete! Schedule agent with collected artifacts
-                # Mark as processed (TEMPORARY - will move to component in Phase 6)
-                for collected_artifact in artifacts:
-                    self._mark_processed(collected_artifact, agent)
-
                 # Schedule agent task
                 is_batch_execution = subscription.batch is not None
                 task = self._schedule_task(agent, artifacts, is_batch=is_batch_execution)
