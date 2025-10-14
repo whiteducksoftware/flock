@@ -31,6 +31,7 @@ from flock.mcp import (
     FlockMCPFeatureConfiguration,
     ServerParameters,
 )
+from flock.orchestrator_component import OrchestratorComponent
 from flock.registry import type_registry
 from flock.runtime import Context
 from flock.store import BlackboardStore, ConsumptionRecord, InMemoryBlackboardStore
@@ -153,6 +154,14 @@ class Flock(metaclass=AutoTracedMeta):
             "yes",
             "on",
         }
+
+        # Phase 2: OrchestratorComponent system
+        self._components: list[OrchestratorComponent] = []
+        self._components_initialized: bool = False
+
+        # Log orchestrator initialization
+        self._logger.debug("Orchestrator initialized: components=[]")
+
         if not model:
             self.model = os.getenv("DEFAULT_MODEL")
 
@@ -202,6 +211,47 @@ class Flock(metaclass=AutoTracedMeta):
     @property
     def agents(self) -> list[Agent]:
         return list(self._agents.values())
+
+    # Component management -------------------------------------------------
+
+    def add_component(self, component: OrchestratorComponent) -> Flock:
+        """Add an OrchestratorComponent to this orchestrator.
+
+        Components execute in priority order (lower priority number = earlier).
+        Multiple components can have the same priority.
+
+        Args:
+            component: Component to add (must be an OrchestratorComponent instance)
+
+        Returns:
+            Self for method chaining
+
+        Examples:
+            >>> # Add single component
+            >>> flock = Flock("openai/gpt-4.1")
+            >>> flock.add_component(CircuitBreakerComponent(max_iterations=500))
+
+            >>> # Method chaining
+            >>> flock.add_component(CircuitBreakerComponent()) \\
+            ...      .add_component(MetricsComponent()) \\
+            ...      .add_component(DeduplicationComponent())
+
+            >>> # Custom priority (lower = earlier)
+            >>> flock.add_component(
+            ...     CustomComponent(priority=5, name="early_component")
+            ... )
+        """
+        self._components.append(component)
+        self._components.sort(key=lambda c: c.priority)
+
+        # Log component addition
+        comp_name = component.name or component.__class__.__name__
+        self._logger.info(
+            f"Component added: name={comp_name}, "
+            f"priority={component.priority}, total_components={len(self._components)}"
+        )
+
+        return self
 
     # MCP management -------------------------------------------------------
 

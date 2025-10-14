@@ -223,3 +223,105 @@ class TestComponentPriorityOrdering:
 
         component = OrchestratorComponent()
         assert component.priority == 0
+
+
+# ──────────────────────────────────────────────────────────────────
+# Phase 2: Orchestrator Integration Tests
+# ──────────────────────────────────────────────────────────────────
+
+
+class TestFlockComponentManagement:
+    """Tests for Flock orchestrator component management (Phase 2)."""
+
+    def test_flock_has_components_list(self, orchestrator):
+        """Test Flock initializes with _components list."""
+        assert hasattr(orchestrator, "_components")
+        assert isinstance(orchestrator._components, list)
+
+    def test_flock_has_components_initialized_flag(self, orchestrator):
+        """Test Flock has _components_initialized flag."""
+        assert hasattr(orchestrator, "_components_initialized")
+        assert orchestrator._components_initialized is False
+
+    def test_flock_add_component_method_exists(self, orchestrator):
+        """Test Flock has add_component() method."""
+        assert hasattr(orchestrator, "add_component")
+        assert callable(orchestrator.add_component)
+
+    def test_flock_add_component_stores_component(self, orchestrator):
+        """Test add_component() stores component in _components list."""
+        from flock.orchestrator_component import OrchestratorComponent
+
+        component = OrchestratorComponent(name="test_comp", priority=5)
+        orchestrator.add_component(component)
+
+        assert component in orchestrator._components
+        assert len(orchestrator._components) == 1
+
+    def test_flock_add_component_returns_self(self, orchestrator):
+        """Test add_component() returns self for method chaining."""
+        from flock.orchestrator_component import OrchestratorComponent
+
+        component = OrchestratorComponent(name="test_comp")
+        result = orchestrator.add_component(component)
+
+        assert result is orchestrator
+
+    def test_flock_add_component_method_chaining(self, orchestrator):
+        """Test add_component() supports method chaining."""
+        from flock.orchestrator_component import OrchestratorComponent
+
+        c1 = OrchestratorComponent(name="c1")
+        c2 = OrchestratorComponent(name="c2")
+
+        # Should be able to chain
+        result = orchestrator.add_component(c1).add_component(c2)
+
+        assert result is orchestrator
+        assert len(orchestrator._components) == 2
+
+    def test_flock_add_component_sorts_by_priority(self, orchestrator):
+        """Test components are sorted by priority after add."""
+        from flock.orchestrator_component import OrchestratorComponent
+
+        c1 = OrchestratorComponent(priority=10, name="c1")
+        c2 = OrchestratorComponent(priority=5, name="c2")
+        c3 = OrchestratorComponent(priority=20, name="c3")
+
+        orchestrator.add_component(c1)
+        orchestrator.add_component(c2)
+        orchestrator.add_component(c3)
+
+        # Should be sorted: [c2(5), c1(10), c3(20)]
+        assert orchestrator._components[0].name == "c2"
+        assert orchestrator._components[1].name == "c1"
+        assert orchestrator._components[2].name == "c3"
+
+    def test_flock_add_component_maintains_sort_order(self, orchestrator):
+        """Test adding components maintains priority sort order."""
+        from flock.orchestrator_component import OrchestratorComponent
+
+        # Add in random order
+        orchestrator.add_component(OrchestratorComponent(priority=50, name="c50"))
+        orchestrator.add_component(OrchestratorComponent(priority=10, name="c10"))
+        orchestrator.add_component(OrchestratorComponent(priority=30, name="c30"))
+        orchestrator.add_component(OrchestratorComponent(priority=20, name="c20"))
+
+        # Should be sorted: [c10, c20, c30, c50]
+        priorities = [c.priority for c in orchestrator._components]
+        assert priorities == [10, 20, 30, 50]
+
+    def test_flock_add_component_allows_duplicate_priorities(self, orchestrator):
+        """Test multiple components can have same priority."""
+        from flock.orchestrator_component import OrchestratorComponent
+
+        c1 = OrchestratorComponent(priority=10, name="c1")
+        c2 = OrchestratorComponent(priority=10, name="c2")
+
+        orchestrator.add_component(c1)
+        orchestrator.add_component(c2)
+
+        # Both should be stored
+        assert len(orchestrator._components) == 2
+        # Both have priority 10
+        assert all(c.priority == 10 for c in orchestrator._components)
