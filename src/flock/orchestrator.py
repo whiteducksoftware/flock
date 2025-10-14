@@ -958,36 +958,6 @@ class Flock(metaclass=AutoTracedMeta):
 
         return outputs
 
-    # Keep publish_external as deprecated alias
-    async def publish_external(
-        self,
-        type_name: str,
-        payload: dict[str, Any],
-        *,
-        visibility: Visibility | None = None,
-        correlation_id: str | None = None,
-        partition_key: str | None = None,
-        tags: set[str] | None = None,
-    ) -> Artifact:
-        """Deprecated: Use publish() instead.
-
-        This method will be removed in v2.0.
-        """
-        import warnings
-
-        warnings.warn(
-            "publish_external() is deprecated. Use publish(obj) instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return await self.publish(
-            {"type": type_name, "payload": payload},
-            visibility=visibility,
-            correlation_id=correlation_id,
-            partition_key=partition_key,
-            tags=tags,
-        )
-
     async def _persist_and_schedule(self, artifact: Artifact) -> None:
         await self.store.publish(artifact)
         self.metrics["artifacts_published"] += 1
