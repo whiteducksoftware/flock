@@ -102,12 +102,20 @@ For deep dives into specific topics, see:
 - **[Architecture & Blackboard](docs/guides/blackboard.md)** - Core pattern, structure, and behavior
 - **[Agent Guide](docs/guides/agents.md)** - Complete agent development reference
 
+**Components & Extensibility:**
+- **[Agent Components](docs/guides/components.md)** - Extend agent behavior with lifecycle hooks
+- **[Orchestrator Components](docs/guides/orchestrator-components.md)** - Extend orchestrator behavior with lifecycle hooks (NEW!)
+
 **Logic Operations (Advanced Subscriptions):**
 - **[Predicates](docs/guides/predicates.md)** - Conditional consumption with `where=` filters
 - **[Join Operations](docs/guides/join-operations.md)** - Correlate related artifacts with JoinSpec
 - **[Batch Processing](docs/guides/batch-processing.md)** - Efficient bulk operations with BatchSpec
 
 **Development & Operations:**
+- **[Development Workflow](docs/guides/testing.md)** - Testing, quality, versioning, pre-commit
+- **[Frontend/Dashboard](docs/guides/dashboard.md)** - Dashboard usage and development
+- **[Configuration & Dependencies](CONTRIBUTING.md)** - Environment and setup
+- **[Patterns & Common Tasks](docs/guides/patterns.md)** - Recipes, performance, security
 - **[Development Workflow](docs/about/contributing.md)** - Testing, quality, versioning, pre-commit
 - **[Frontend/Dashboard](docs/guides/dashboard.md)** - Dashboard usage and development
 - **[Configuration & Dependencies](docs/reference/configuration.md)** - Environment and setup
@@ -408,24 +416,24 @@ Before creating a PR, verify:
 
 #### ⚠️ CRITICAL: PR Base Branch
 
-**ALL pull requests MUST target the `0.5.0b` branch, NOT `main`!**
+**ALL pull requests MUST target the `main` branch!**
 
 ```bash
-# ✅ CORRECT: PR into 0.5.0b branch
-gh pr create --base 0.5.0b --title "..." --body "..."
-
-# ❌ WRONG: PR into main branch
+# ✅ CORRECT: PR into main branch
 gh pr create --base main --title "..." --body "..."
+
+# ❌ WRONG: PR into other branches without discussion
+gh pr create --base some-other-branch --title "..." --body "..."
 ```
 
 **Why this matters:**
-- The `0.5.0b` branch is the active development branch for the 0.5.0 beta release
-- PRs into `main` bypass the beta testing process
-- Features need to be validated in beta before reaching `main`
+- The `main` branch is the active development branch
+- All features should be validated through PR review before merging
+- Keeps the project history clean and linear
 
-**If you accidentally create a PR against `main`:**
+**If you accidentally create a PR against the wrong branch:**
 1. Close the incorrect PR: `gh pr close <number>`
-2. Recreate against `0.5.0b`: `gh pr create --base 0.5.0b ...`
+2. Recreate against `main`: `gh pr create --base main ...`
 
 **Remember: It's better to increment versions too often than too rarely. Each meaningful change should get a version bump!**
 

@@ -1100,7 +1100,8 @@ class TestCircuitBreakerComponent:
         from flock.orchestrator_component import ScheduleDecision
         from unittest.mock import Mock
 
-        # Set max_iterations to 2 for testing
+        # Set max_iterations to 2 for testing (on both component AND orchestrator)
+        orchestrator.max_agent_iterations = 2  # Component checks orchestrator property first
         for component in orchestrator._components:
             if component.name == "circuit_breaker":
                 component.max_iterations = 2

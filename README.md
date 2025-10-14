@@ -451,13 +451,77 @@ await flock.run_until_idle()
 # Total time: ~1x single execution (parallel)
 ```
 
+### Agent Components (Agent Lifecycle Hooks)
+
+**Extend agent behavior through composable lifecycle hooks:**
+
+Agent components let you inject custom logic at specific points in an agent's execution without modifying core agent code:
+
+```python
+from flock.components import AgentComponent
+
+# Custom component: Log inputs/outputs
+class LoggingComponent(AgentComponent):
+    async def on_pre_evaluate(self, agent, ctx, inputs):
+        logger.info(f"Agent {agent.name} evaluating: {inputs}")
+        return inputs  # Pass through unchanged
+    
+    async def on_post_evaluate(self, agent, ctx, inputs, result):
+        logger.info(f"Agent {agent.name} produced: {result}")
+        return result
+
+# Attach to any agent
+analyzer = (
+    flock.agent("analyzer")
+    .consumes(Data)
+    .publishes(Report)
+    .with_utilities(LoggingComponent())
+)
+```
+
+**Built-in components**: Rate limiting, caching, metrics collection, budget tracking, guardrails
+
+**📖 [Learn more: Agent Components Guide](https://whiteducksoftware.github.io/flock/guides/components/)**
+
+---
+
+### Orchestrator Components (Orchestrator Lifecycle Hooks)
+
+**Extend orchestrator behavior through composable lifecycle hooks:**
+
+Orchestrator components let you inject custom logic into the orchestrator's scheduling pipeline:
+
+```python
+from flock.orchestrator_component import OrchestratorComponent, ScheduleDecision
+
+# Custom component: Skip scheduling during maintenance window
+class MaintenanceWindowComponent(OrchestratorComponent):
+    async def on_before_schedule(self, orch, artifact, agent, subscription):
+        if self.is_maintenance_window():
+            logger.info(f"Deferring {agent.name} during maintenance")
+            return ScheduleDecision.DEFER
+        return ScheduleDecision.CONTINUE
+
+# Add to orchestrator
+flock = Flock("openai/gpt-4.1")
+flock.add_component(MaintenanceWindowComponent())
+```
+
+**Built-in components**: 
+- `CircuitBreakerComponent` - Prevent runaway agent execution
+- `DeduplicationComponent` - Skip duplicate artifact/agent processing
+
+**8 Lifecycle Hooks**: Artifact publication, scheduling decisions, artifact collection, agent scheduling, idle/shutdown
+
+---
+
 ### Production Safety Features
 
 **Built-in safeguards prevent common production failures:**
 
 ```python
-# Circuit breakers prevent runaway costs
-flock = Flock("openai/gpt-4.1", max_agent_iterations=1000)
+# Circuit breakers prevent runaway costs (via OrchestratorComponent)
+flock = Flock("openai/gpt-4.1")  # Auto-adds CircuitBreakerComponent(max_iterations=1000)
 
 # Feedback loop protection
 critic = (

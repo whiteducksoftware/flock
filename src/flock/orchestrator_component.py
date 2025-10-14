@@ -581,10 +581,22 @@ class CircuitBreakerComponent(OrchestratorComponent):
 
         Returns SKIP if agent has reached max_iterations, preventing
         potential infinite loops.
+
+        Uses orchestrator.max_agent_iterations if available, otherwise
+        falls back to self.max_iterations.
         """
         current_count = self._iteration_counts.get(agent.name, 0)
 
-        if current_count >= self.max_iterations:
+        # Check orchestrator property first (allows runtime modification)
+        # Fall back to component's max_iterations if orchestrator property doesn't exist
+        max_limit = self.max_iterations
+        if hasattr(orchestrator, "max_agent_iterations"):
+            orch_limit = orchestrator.max_agent_iterations
+            # Only use orchestrator limit if it's a valid int
+            if isinstance(orch_limit, int):
+                max_limit = orch_limit
+
+        if current_count >= max_limit:
             # Circuit breaker tripped
             return ScheduleDecision.SKIP
 
