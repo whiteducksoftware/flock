@@ -202,6 +202,8 @@ nav:
     - Multi-Agent Workflow: tutorials/multi-agent-workflow.md
     - Conditional Routing: tutorials/conditional-routing.md
     - Advanced Patterns: tutorials/advanced-patterns.md
+    - Custom Engines: tutorials/custom-engines.md
+    - Custom Agent Components: tutorials/custom-agent-components.md
 
   - 📚 User Guides:
     - Overview: guides/index.md
