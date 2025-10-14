@@ -695,9 +695,40 @@ slow_components = conn.execute("""
 
 ---
 
+## Examples
+
+### Beginner Examples
+
+**Quest Tracker** - Game quest monitoring with scoring and leaderboards  
+[`examples/07-orchestrator-components/quest_tracker_component.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/07-orchestrator-components/quest_tracker_component.py)
+
+- Demonstrates: `on_pre_publish`, `on_post_publish`, `on_cycle_complete`
+- Use case: Real-time game state tracking
+- Complexity: ⭐ Beginner
+
+**Kitchen Monitor** - Restaurant kitchen performance monitoring  
+[`examples/07-orchestrator-components/kitchen_monitor_component.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/07-orchestrator-components/kitchen_monitor_component.py)
+
+- Demonstrates: Resource tracking, spice alerts, chef rankings
+- Use case: Multi-metric monitoring across agents
+- Complexity: ⭐⭐ Intermediate
+
+### Advanced Examples
+
+**Performance Monitor** - Production-grade service monitoring  
+[`examples/03-claudes-workshop/lesson_11_performance_monitor.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/03-claudes-workshop/lesson_11_performance_monitor.py)
+
+- Demonstrates: SLA monitoring, alerting, performance dashboards
+- Use case: Production system health monitoring
+- Complexity: ⭐⭐⭐ Advanced
+- Part of: Claude's Workshop
+
+---
+
 ## Next Steps
 
 - **[Agent Components](components.md)** - Agent-level lifecycle hooks
+- **[Custom Engines](../guides/custom-engines.md)** - Build deterministic logic engines
 - **[Testing Guide](testing.md)** - Testing orchestrator components
 - **[Patterns Guide](patterns.md)** - Common orchestrator patterns
 - **[API Reference](../reference/api/orchestrator_component.md)** - Full API documentation

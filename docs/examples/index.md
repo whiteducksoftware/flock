@@ -15,6 +15,27 @@ Explore the numbered example folders in this repository:
 - **02 — The Blackboard** (`examples/02-the-blackboard`) — architecture overview
 - **03 — The Dashboard** (`examples/03-the-dashboard`) — real-time monitoring
 
+### Component Examples
+**Learn to build custom components and engines**
+
+- **05 — Custom Engines** (`examples/05-engines`) — deterministic logic engines
+- **06 — Agent Components** (`examples/06-agent-components`) — per-agent behavior patterns
+- **07 — Orchestrator Components** (`examples/07-orchestrator-components`) — global coordination patterns
+
+These examples show how to extend Flock with custom logic:
+
+**Custom Engines** - Replace LLM calls with deterministic logic:
+- `emoji_mood_engine.py` - Pattern-based mood detection
+- `potion_batch_engine.py` - Batch processing rules
+
+**Agent Components** - Add per-agent behavior:
+- `cheer_meter_component.py` - Track agent-specific metrics
+- `plot_twist_component.py` - Dynamic agent state
+
+**Orchestrator Components** - Global coordination:
+- `quest_tracker_component.py` - Real-time quest scoring system
+- `kitchen_monitor_component.py` - Restaurant performance monitoring
+
 ### Feature Examples
 **Focused examples for specific capabilities**
 
@@ -28,6 +49,36 @@ Check out `examples/03-the-dashboard` to explore:
 - **Declarative Pizza** - Single-agent dashboard demo
 - **Edge Cases** - Multi-agent cascades and filtering
 - **Real-time Updates** - WebSocket streaming
+
+### Claude's Workshop
+**🎓 Interactive learning course from beginner to expert**
+
+Complete hands-on workshop: `examples/03-claudes-workshop`
+
+**Beginner Track:**
+- Lesson 01: Code Detective - Your first agent
+- Lesson 02: Band Formation - Multi-agent chaining
+
+**Intermediate Track:**
+- Lesson 03: Quality Gates - Conditional consumption
+- Lesson 04: Debate Club - Feedback loops
+- Lesson 05: Debugging Detective - Unified tracing
+
+**Advanced Track:**
+- Lesson 06: Secret Agent Network - Visibility controls
+- Lesson 07: News Agency - Parallel execution
+
+**Expert Track:**
+- Lesson 08: The Matchmaker - JoinSpec correlation
+- Lesson 09: Batch Optimizer - BatchSpec patterns
+- Lesson 10: Smart Factory - Combined features
+
+**Architecture Track:**
+- Lesson 11: Performance Monitor - Orchestrator components
+- Lesson 12: Confidence Booster - Agent components
+- Lesson 13: Regex Matcher - Custom engines
+
+Each lesson is self-contained with detailed comments and runnable code!
 
 ---
 

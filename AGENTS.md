@@ -40,7 +40,10 @@ A blackboard architecture framework where specialized AI agents collaborate thro
 - **Artifacts:** Typed data (Pydantic models) published to blackboard
 - **Subscriptions:** Declarative rules for when agents react
 - **Visibility:** Built-in access control (Public/Private/Tenant/Label-based/Time-based)
-- **Components:** Pluggable utilities (metrics, budgets, guards) + engines (DSPy, custom)
+- **Components:** Three levels of extensibility:
+  - **Orchestrator Components:** Global lifecycle hooks (monitoring, metrics, coordination)
+  - **Agent Components:** Per-agent behavior (quality gates, retry logic, validation)
+  - **Engines:** Custom processing logic (DSPy, regex, deterministic rules)
 - **Real-time Dashboard:** React/TypeScript interface for live monitoring
 
 ---
@@ -90,6 +93,8 @@ uv run python examples/05-engines/emoji_mood_engine.py
 uv run python examples/05-engines/potion_batch_engine.py
 uv run python examples/06-agent-components/plot_twist_component.py
 uv run python examples/06-agent-components/cheer_meter_component.py
+uv run python examples/07-orchestrator-components/quest_tracker_component.py
+uv run python examples/07-orchestrator-components/kitchen_monitor_component.py
 ```
 
 ---
@@ -412,7 +417,7 @@ Before creating a PR, verify:
 - [ ] Frontend version bumped in `package.json` (if any UI changes)
 - [ ] Version bump committed (separate commit is fine)
 - [ ] Pre-commit hooks pass
-- [ ] **PR targets `0.5.0b` branch (NOT `main`!)** ⚠️
+- [ ] **PR targets `main` branch** ✅
 
 #### ⚠️ CRITICAL: PR Base Branch
 

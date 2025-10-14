@@ -18,6 +18,9 @@ This workshop teaches you **declarative AI orchestration** through progressively
 - ✅ **Data Correlation** - JoinSpec for correlated AND gates
 - ✅ **Batch Processing** - BatchSpec for efficient batching
 - ✅ **Combined Features** - JoinSpec + BatchSpec together
+- ✅ **Orchestrator Components** - Global coordination and monitoring
+- ✅ **Agent Components** - Per-agent behavior and quality gates
+- ✅ **Custom Engines** - Deterministic logic without LLM costs
 
 ## 📚 Course Structure
 
@@ -95,6 +98,29 @@ Each lesson builds on the previous one, introducing new concepts with hands-on e
 - IoT sensor monitoring at scale
 - Production-grade patterns
 - **Time:** 30 minutes
+
+### 🏗️ Architecture Track - Custom Components
+
+**Lesson 11: The Performance Monitor**
+- Orchestrator components for global coordination
+- Cross-cutting concerns (monitoring, metrics, alerting)
+- Lifecycle hooks across all agents
+- Real-time performance dashboards
+- **Time:** 25 minutes
+
+**Lesson 12: The Confidence Booster**
+- Agent components for per-agent behavior
+- Confidence scoring and quality gates
+- Dynamic prompt enhancement
+- Retry logic and validation
+- **Time:** 25 minutes
+
+**Lesson 13: The Regex Matcher**
+- Custom engines for deterministic logic
+- Zero-cost pattern matching
+- Hybrid LLM + rule-based architectures
+- Cost optimization strategies
+- **Time:** 20 minutes
 
 ## 🛠️ Prerequisites
 
@@ -223,6 +249,9 @@ By the end of this workshop, you'll be able to:
 - ✅ Correlate related data with JoinSpec
 - ✅ Optimize processing with BatchSpec batching
 - ✅ Combine advanced features for production-grade systems
+- ✅ Build custom orchestrator components for global coordination
+- ✅ Create agent components for per-agent behavior patterns
+- ✅ Implement custom engines for deterministic logic
 - ✅ Scale to 100+ agents without graph complexity
 
 ## 🚀 Ready to Start?
