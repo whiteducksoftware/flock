@@ -137,6 +137,9 @@ class Flock(metaclass=AutoTracedMeta):
         self._correlation_engine = CorrelationEngine()
         # BatchSpec logic: Batch accumulator for size/timeout batching
         self._batch_engine = BatchEngine()
+        # Background task for checking batch timeouts
+        self._batch_timeout_task: Task[Any] | None = None
+        self._batch_timeout_interval: float = 0.1  # Check every 100ms
         # Phase 1.2: WebSocket manager for real-time dashboard events (set by serve())
         self._websocket_manager: Any = None
         # Unified tracing support
@@ -548,6 +551,14 @@ class Flock(metaclass=AutoTracedMeta):
 
     async def shutdown(self) -> None:
         """Shutdown orchestrator and clean up resources."""
+        # Cancel batch timeout checker if running
+        if self._batch_timeout_task and not self._batch_timeout_task.done():
+            self._batch_timeout_task.cancel()
+            try:
+                await self._batch_timeout_task
+            except asyncio.CancelledError:
+                pass
+
         if self._mcp_manager is not None:
             await self._mcp_manager.cleanup_all()
             self._mcp_manager = None
@@ -948,6 +959,12 @@ class Flock(metaclass=AutoTracedMeta):
                             subscription=subscription,
                             subscription_index=subscription_index,
                         )
+                        
+                        # Start timeout checker if this batch has a timeout and checker not running
+                        if subscription.batch.timeout and self._batch_timeout_task is None:
+                            self._batch_timeout_task = asyncio.create_task(
+                                self._batch_timeout_checker_loop()
+                            )
                     else:
                         # Single type subscription: Add each artifact individually
                         should_flush = False
@@ -957,6 +974,12 @@ class Flock(metaclass=AutoTracedMeta):
                                 subscription=subscription,
                                 subscription_index=subscription_index,
                             )
+
+                            # Start timeout checker if this batch has a timeout and checker not running
+                            if subscription.batch.timeout and self._batch_timeout_task is None:
+                                self._batch_timeout_task = asyncio.create_task(
+                                    self._batch_timeout_checker_loop()
+                                )
 
                             if should_flush:
                                 # Size threshold reached! Flush batch now
@@ -1163,11 +1186,31 @@ class Flock(metaclass=AutoTracedMeta):
 
     # Batch Helpers --------------------------------------------------------
 
+    async def _batch_timeout_checker_loop(self) -> None:
+        """Background task that periodically checks for batch timeouts.
+        
+        Runs continuously until all batches are cleared or orchestrator shuts down.
+        Checks every 100ms for expired batches and flushes them.
+        """
+        try:
+            while True:
+                await asyncio.sleep(self._batch_timeout_interval)
+                await self._check_batch_timeouts()
+                
+                # Stop if no batches remain
+                if not self._batch_engine.batches:
+                    self._batch_timeout_task = None
+                    break
+        except asyncio.CancelledError:
+            # Clean shutdown
+            self._batch_timeout_task = None
+            raise
+
     async def _check_batch_timeouts(self) -> None:
         """Check all batches for timeout expiry and flush expired batches.
 
-        This method is called periodically or manually (in tests) to enforce
-        timeout-based batching.
+        This method is called periodically by the background timeout checker
+        or manually (in tests) to enforce timeout-based batching.
         """
         expired_batches = self._batch_engine.check_timeouts()
 

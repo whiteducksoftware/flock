@@ -552,3 +552,12 @@ async def test_context_is_batch_flag_propagation():
 
     assert len(context_flags) == 1
     assert context_flags[0] is True, "Batch flush should have is_batch=True"
+
+    # Test 3: Batch timeout flush (is_batch should be True)
+    context_flags.clear()
+    await orchestrator.publish(BatchItem(value=4))  # Partial batch
+    await asyncio.sleep(1.2)  # Wait for timeout (1.0s + margin)
+    await orchestrator.run_until_idle()
+
+    assert len(context_flags) == 1, f"Expected 1 execution, got {len(context_flags)}"
+    assert context_flags[0] is True, "Batch timeout flush should have is_batch=True"
