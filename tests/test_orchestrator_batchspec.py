@@ -23,8 +23,16 @@ import pytest
 from flock import Flock
 from flock.artifacts import Artifact
 from flock.components import EngineComponent
-from flock.runtime import EvalResult
+from flock.runtime import EvalInputs, EvalResult
 from flock.subscription import BatchSpec
+
+
+class BaseBatchTestEngine(EngineComponent):
+    """Test helper ensuring batch executions reuse single-artifact logic."""
+
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        # Default behaviour for tests: reuse evaluate() implementation.
+        return await self.evaluate(agent, ctx, inputs)
 from pydantic import BaseModel
 
 
@@ -65,7 +73,7 @@ async def test_batchspec_flushes_on_size_threshold():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append({
                 "batch_size": len(inputs.artifacts),
@@ -108,7 +116,7 @@ async def test_batchspec_continues_batching_after_flush():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -141,7 +149,7 @@ async def test_batchspec_partial_batch_stays_pending():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -174,12 +182,12 @@ async def test_batchspec_multiple_agents_independent_batches():
     executed_agent1 = []
     executed_agent2 = []
 
-    class TrackingEngine1(EngineComponent):
+    class TrackingEngine1(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed_agent1.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
-    class TrackingEngine2(EngineComponent):
+    class TrackingEngine2(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed_agent2.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -224,7 +232,7 @@ async def test_batchspec_with_single_type_subscription():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -264,7 +272,7 @@ async def test_batchspec_flushes_on_timeout():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -310,7 +318,7 @@ async def test_batchspec_size_or_timeout_whichever_first():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -359,7 +367,7 @@ async def test_batchspec_timeout_resets_after_flush():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -408,7 +416,7 @@ async def test_batchspec_shutdown_flushes_partial_batch():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -454,7 +462,7 @@ async def test_batchspec_with_visibility_filters_before_batching():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -490,7 +498,7 @@ async def test_batchspec_with_where_predicate_filters_before_batching():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -528,7 +536,7 @@ async def test_batchspec_performance_batching_overhead():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BaseBatchTestEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])

@@ -575,12 +575,26 @@ Phase 4 (agent engine routing) is not yet implemented. Agents always call `evalu
   - Verify NotImplementedError raised
   - Verify error message contains agent name and engine name
 
-- [ ] **5.5** Run full batch test suite
+- [ ] **5.5** Write front-facing tutorial for custom engines
+  - File: `docs/guides/tutorials/custom-engine.md` (or nearest equivalent)
+  - Build concrete scenario using `SimpleBatchEngine`
+  - Highlight when to override `evaluate()` vs `evaluate_batch()`
+  - Include runnable code snippets and `uv run` commands
+  - Cross-link from BatchSpec docs and Quick Reference
+
+- [ ] **5.6** Write front-facing tutorial for custom agent components
+  - File: `docs/guides/tutorials/custom-agent-component.md` (or nearest equivalent)
+  - Demonstrate lifecycle hooks (`on_pre_evaluate`, `on_post_evaluate`, etc.)
+  - Explain interaction with batch mode (e.g., inspecting `ctx.is_batch`)
+  - Provide end-to-end example that pairs with `SimpleBatchEngine`
+  - Add pointers to existing component architecture docs
+
+- [ ] **5.7** Run full batch test suite
   ```bash
   uv run pytest tests/test_orchestrator_batchspec.py -v
   ```
 
-- [ ] **5.6** Commit Phase 5
+- [ ] **5.8** Commit Phase 5
   ```bash
   git add src/flock/engines/examples/ tests/test_orchestrator_batchspec.py
   git commit -m "feat: Add SimpleBatchEngine example and integration tests
@@ -601,6 +615,7 @@ Phase 4 (agent engine routing) is not yet implemented. Agents always call `evalu
 - [ ] Integration test passes (3 artifacts processed together)
 - [ ] Error test passes (clear message for non-batch engine)
 - [ ] All batch tests pass
+- [ ] Front-facing tutorials document custom engine and component patterns
 
 ---
 

@@ -3,12 +3,12 @@
 import asyncio
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from flock.artifacts import Artifact
 from flock.components import AgentComponent, EngineComponent
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
+from flock.runtime import Context, EvalInputs, EvalResult
 from flock.visibility import PublicVisibility
 
 
@@ -99,6 +99,31 @@ class FailingEngine(EngineComponent):
 
     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
         raise ValueError("Test error")
+
+
+class BatchRoutingEngine(EngineComponent):
+    """Engine used to verify batch routing behaviour."""
+
+    _evaluate_calls: int = PrivateAttr(default=0)
+    _evaluate_batch_calls: int = PrivateAttr(default=0)
+
+    @property
+    def evaluate_calls(self) -> int:
+        return self._evaluate_calls
+
+    @property
+    def evaluate_batch_calls(self) -> int:
+        return self._evaluate_batch_calls
+
+    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        self._evaluate_calls += 1
+        return EvalResult(artifacts=list(inputs.artifacts), state=dict(inputs.state))
+
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        self._evaluate_batch_calls += 1
+        state = dict(inputs.state)
+        state["batch_processed"] = True
+        return EvalResult(artifacts=list(inputs.artifacts), state=state)
 
 
 @pytest.mark.asyncio
@@ -322,6 +347,86 @@ async def test_agent_best_of_one_skips_parallel_execution(orchestrator):
 
     # Assert - Called once (no parallel execution for n=1)
     assert call_count[0] == 1
+
+
+@pytest.mark.asyncio
+async def test_agent_routes_to_evaluate_batch_when_context_is_batch(orchestrator):
+    """Agent should call evaluate_batch() when ctx.is_batch is True."""
+    engine = BatchRoutingEngine()
+    builder = (
+        orchestrator.agent("batch_routing")
+        .consumes(AgentInput)
+        .with_engines(engine)
+    )
+
+    ctx = Context(
+        board=None,
+        orchestrator=orchestrator,
+        task_id="batch-task",
+        is_batch=True,
+    )
+    inputs = EvalInputs(artifacts=[], state={})
+
+    result = await builder.agent._run_engines(ctx, inputs)
+
+    assert engine.evaluate_batch_calls == 1
+    assert engine.evaluate_calls == 0
+    assert result.state.get("batch_processed") is True
+
+
+@pytest.mark.asyncio
+async def test_agent_routes_to_evaluate_for_single_execution(orchestrator):
+    """Agent should call evaluate() when ctx.is_batch is False."""
+    engine = BatchRoutingEngine()
+    builder = (
+        orchestrator.agent("single_routing")
+        .consumes(AgentInput)
+        .with_engines(engine)
+    )
+
+    ctx = Context(
+        board=None,
+        orchestrator=orchestrator,
+        task_id="single-task",
+        is_batch=False,
+    )
+    inputs = EvalInputs(artifacts=[], state={})
+
+    result = await builder.agent._run_engines(ctx, inputs)
+
+    assert engine.evaluate_calls == 1
+    assert engine.evaluate_batch_calls == 0
+    assert "batch_processed" not in result.state
+
+
+@pytest.mark.asyncio
+async def test_agent_batch_mode_without_batch_support_raises(orchestrator):
+    """Agent should surface NotImplementedError when engine lacks batch support."""
+
+    class NonBatchEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            return EvalResult(artifacts=[], state={})
+
+    builder = (
+        orchestrator.agent("non_batch_engine")
+        .consumes(AgentInput)
+        .with_engines(NonBatchEngine())
+    )
+
+    ctx = Context(
+        board=None,
+        orchestrator=orchestrator,
+        task_id="non-batch-task",
+        is_batch=True,
+    )
+    inputs = EvalInputs(artifacts=[], state={})
+
+    with pytest.raises(NotImplementedError) as exc_info:
+        await builder.agent._run_engines(ctx, inputs)
+
+    error_message = str(exc_info.value)
+    assert "does not support batch processing" in error_message
+    assert "non_batch_engine" in error_message  # Agent name included
 
 
 # T061: Agent Output Fallback to State
