@@ -252,8 +252,8 @@ class TestFlockComponentManagement:
         orchestrator.add_component(component)
 
         assert component in orchestrator._components
-        # orchestrator has 1 built-in + 1 added = 2 total
-        assert len(orchestrator._components) == 2
+        # orchestrator has 2 built-ins + 1 added = 3 total
+        assert len(orchestrator._components) == 3
 
     def test_flock_add_component_returns_self(self, orchestrator):
         """Test add_component() returns self for method chaining."""
@@ -275,14 +275,14 @@ class TestFlockComponentManagement:
         result = orchestrator.add_component(c1).add_component(c2)
 
         assert result is orchestrator
-        # Note: orchestrator has 1 built-in component + 2 added = 3 total
-        assert len(orchestrator._components) == 3
+        # Note: orchestrator has 2 built-ins + 2 added = 4 total
+        assert len(orchestrator._components) == 4
 
     def test_flock_add_component_sorts_by_priority(self, orchestrator):
         """Test components are sorted by priority after add."""
         from flock.orchestrator_component import OrchestratorComponent
 
-        c1 = OrchestratorComponent(priority=10, name="c1")
+        c1 = OrchestratorComponent(priority=10, name="c1_user")  # Same as circuit_breaker
         c2 = OrchestratorComponent(priority=5, name="c2")
         c3 = OrchestratorComponent(priority=20, name="c3")
 
@@ -290,10 +290,12 @@ class TestFlockComponentManagement:
         orchestrator.add_component(c2)
         orchestrator.add_component(c3)
 
-        # Should be sorted: [c2(5), c1(10), c3(20)]
+        # Should be sorted: [c2(5), circuit_breaker(10), c1_user(10), c3(20), builtin(100)]
         assert orchestrator._components[0].name == "c2"
-        assert orchestrator._components[1].name == "c1"
-        assert orchestrator._components[2].name == "c3"
+        assert orchestrator._components[1].name == "circuit_breaker"
+        assert orchestrator._components[2].name == "c1_user"
+        assert orchestrator._components[3].name == "c3"
+        assert orchestrator._components[4].name == "builtin_collection"
 
     def test_flock_add_component_maintains_sort_order(self, orchestrator):
         """Test adding components maintains priority sort order."""
@@ -301,29 +303,31 @@ class TestFlockComponentManagement:
 
         # Add in random order
         orchestrator.add_component(OrchestratorComponent(priority=50, name="c50"))
-        orchestrator.add_component(OrchestratorComponent(priority=10, name="c10"))
+        orchestrator.add_component(
+            OrchestratorComponent(priority=10, name="c10_user")
+        )  # Will conflict with circuit_breaker at 10
         orchestrator.add_component(OrchestratorComponent(priority=30, name="c30"))
         orchestrator.add_component(OrchestratorComponent(priority=20, name="c20"))
 
-        # Should be sorted: [c10, c20, c30, c50, builtin(100)]
+        # Should be sorted: [circuit_breaker(10), c10_user(10), c20, c30, c50, builtin(100)]
         priorities = [c.priority for c in orchestrator._components]
-        assert priorities == [10, 20, 30, 50, 100]
+        assert priorities == [10, 10, 20, 30, 50, 100]
 
     def test_flock_add_component_allows_duplicate_priorities(self, orchestrator):
         """Test multiple components can have same priority."""
         from flock.orchestrator_component import OrchestratorComponent
 
-        c1 = OrchestratorComponent(priority=10, name="c1")
-        c2 = OrchestratorComponent(priority=10, name="c2")
+        c1 = OrchestratorComponent(priority=15, name="c1")
+        c2 = OrchestratorComponent(priority=15, name="c2")
 
         orchestrator.add_component(c1)
         orchestrator.add_component(c2)
 
-        # Should have: builtin(100) + c1(10) + c2(10) = 3 total
-        assert len(orchestrator._components) == 3
-        # Two components with priority 10 (plus one builtin with 100)
-        priority_10_count = sum(1 for c in orchestrator._components if c.priority == 10)
-        assert priority_10_count == 2
+        # Should have: circuit(10) + builtin(100) + c1(15) + c2(15) = 4 total
+        assert len(orchestrator._components) == 4
+        # Two components with priority 15
+        priority_15_count = sum(1 for c in orchestrator._components if c.priority == 15)
+        assert priority_15_count == 2
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -919,3 +923,198 @@ class TestHookRunnerShutdown:
 
         # Both should be called
         assert call_order == ["failing", "after"]
+
+
+# ──────────────────────────────────────────────────────────────────
+# Phase 5: CircuitBreakerComponent Tests
+# ──────────────────────────────────────────────────────────────────
+
+
+class TestCircuitBreakerComponent:
+    """Tests for CircuitBreakerComponent (Phase 5)."""
+
+    def test_circuit_breaker_component_exists(self):
+        """Test CircuitBreakerComponent can be imported."""
+        from flock.orchestrator_component import CircuitBreakerComponent
+
+        component = CircuitBreakerComponent(max_iterations=100)
+        assert component.max_iterations == 100
+        assert component.priority == 10
+        assert component.name == "circuit_breaker"
+
+    def test_circuit_breaker_default_max_iterations(self):
+        """Test default max_iterations is 1000."""
+        from flock.orchestrator_component import CircuitBreakerComponent
+
+        component = CircuitBreakerComponent()
+        assert component.max_iterations == 1000
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_allows_under_limit(self, sample_artifact):
+        """Test circuit breaker allows scheduling under limit."""
+        from flock.orchestrator_component import (
+            CircuitBreakerComponent,
+            ScheduleDecision,
+        )
+        from unittest.mock import Mock
+
+        component = CircuitBreakerComponent(max_iterations=3)
+
+        agent = Mock()
+        agent.name = "test_agent"
+        subscription = Mock()
+        orchestrator = Mock()
+
+        # First 3 calls should be CONTINUE
+        result1 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result1 == ScheduleDecision.CONTINUE
+
+        result2 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result2 == ScheduleDecision.CONTINUE
+
+        result3 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result3 == ScheduleDecision.CONTINUE
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_blocks_at_limit(self, sample_artifact):
+        """Test circuit breaker blocks scheduling at limit."""
+        from flock.orchestrator_component import (
+            CircuitBreakerComponent,
+            ScheduleDecision,
+        )
+        from unittest.mock import Mock
+
+        component = CircuitBreakerComponent(max_iterations=2)
+
+        agent = Mock()
+        agent.name = "test_agent"
+        subscription = Mock()
+        orchestrator = Mock()
+
+        # First 2 calls should be CONTINUE
+        await component.on_before_schedule(orchestrator, sample_artifact, agent, subscription)
+        await component.on_before_schedule(orchestrator, sample_artifact, agent, subscription)
+
+        # Third call should be SKIP (limit reached)
+        result = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result == ScheduleDecision.SKIP
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_per_agent_tracking(self, sample_artifact):
+        """Test circuit breaker tracks iterations per agent."""
+        from flock.orchestrator_component import (
+            CircuitBreakerComponent,
+            ScheduleDecision,
+        )
+        from unittest.mock import Mock
+
+        component = CircuitBreakerComponent(max_iterations=2)
+
+        agent1 = Mock()
+        agent1.name = "agent1"
+        agent2 = Mock()
+        agent2.name = "agent2"
+        subscription = Mock()
+        orchestrator = Mock()
+
+        # Agent1: 2 iterations
+        await component.on_before_schedule(orchestrator, sample_artifact, agent1, subscription)
+        await component.on_before_schedule(orchestrator, sample_artifact, agent1, subscription)
+
+        # Agent1: 3rd iteration should be blocked
+        result = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent1, subscription
+        )
+        assert result == ScheduleDecision.SKIP
+
+        # Agent2: should still be allowed (separate counter)
+        result = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent2, subscription
+        )
+        assert result == ScheduleDecision.CONTINUE
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_resets_on_idle(self, sample_artifact):
+        """Test circuit breaker resets counters on idle."""
+        from flock.orchestrator_component import (
+            CircuitBreakerComponent,
+            ScheduleDecision,
+        )
+        from unittest.mock import Mock
+
+        component = CircuitBreakerComponent(max_iterations=1)
+
+        agent = Mock()
+        agent.name = "test_agent"
+        subscription = Mock()
+        orchestrator = Mock()
+
+        # First call: CONTINUE
+        result1 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result1 == ScheduleDecision.CONTINUE
+
+        # Second call: SKIP (limit reached)
+        result2 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result2 == ScheduleDecision.SKIP
+
+        # Call on_orchestrator_idle (reset)
+        await component.on_orchestrator_idle(orchestrator)
+
+        # Third call: should be CONTINUE again (counter reset)
+        result3 = await component.on_before_schedule(
+            orchestrator, sample_artifact, agent, subscription
+        )
+        assert result3 == ScheduleDecision.CONTINUE
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_auto_added_to_orchestrator(self, orchestrator):
+        """Test CircuitBreakerComponent is auto-added to orchestrator."""
+        from flock.orchestrator_component import CircuitBreakerComponent
+
+        # Check if circuit breaker component is in components list
+        circuit_breaker = next(
+            (c for c in orchestrator._components if isinstance(c, CircuitBreakerComponent)),
+            None,
+        )
+
+        assert circuit_breaker is not None
+        assert circuit_breaker.max_iterations == 1000  # Default
+        assert circuit_breaker.priority == 10
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_integration(self, orchestrator, sample_artifact):
+        """Test circuit breaker integration with orchestrator."""
+        from flock.orchestrator_component import ScheduleDecision
+        from unittest.mock import Mock
+
+        # Set max_iterations to 2 for testing
+        for component in orchestrator._components:
+            if component.name == "circuit_breaker":
+                component.max_iterations = 2
+
+        agent = Mock()
+        agent.name = "test_agent"
+        subscription = Mock()
+
+        # First 2 calls should return CONTINUE
+        result1 = await orchestrator._run_before_schedule(sample_artifact, agent, subscription)
+        assert result1 == ScheduleDecision.CONTINUE
+
+        result2 = await orchestrator._run_before_schedule(sample_artifact, agent, subscription)
+        assert result2 == ScheduleDecision.CONTINUE
+
+        # Third call should return SKIP (circuit breaker engaged)
+        result3 = await orchestrator._run_before_schedule(sample_artifact, agent, subscription)
+        assert result3 == ScheduleDecision.SKIP

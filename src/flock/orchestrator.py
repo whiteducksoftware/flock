@@ -164,9 +164,13 @@ class Flock(metaclass=AutoTracedMeta):
         self._components: list[OrchestratorComponent] = []
         self._components_initialized: bool = False
 
-        # Auto-add built-in collection component (handles AND gates, correlation, batching)
-        from flock.orchestrator_component import BuiltinCollectionComponent
+        # Auto-add built-in components
+        from flock.orchestrator_component import (
+            BuiltinCollectionComponent,
+            CircuitBreakerComponent,
+        )
 
+        self.add_component(CircuitBreakerComponent(max_iterations=max_agent_iterations))
         self.add_component(BuiltinCollectionComponent())
 
         # Log orchestrator initialization
@@ -1288,11 +1292,6 @@ class Flock(metaclass=AutoTracedMeta):
                 if decision == ScheduleDecision.DEFER:
                     continue  # Defer for later (batching/correlation)
 
-                # T068: Circuit breaker - check iteration limit (TEMPORARY - will move to component in Phase 5)
-                iteration_count = self._agent_iteration_count.get(agent.name, 0)
-                if iteration_count >= self.max_agent_iterations:
-                    continue
-
                 # Deduplication check (TEMPORARY - will move to component in Phase 6)
                 if self._seen_before(artifact, agent):
                     continue
@@ -1310,9 +1309,6 @@ class Flock(metaclass=AutoTracedMeta):
                     continue  # Scheduling blocked by component
 
                 # Complete! Schedule agent with collected artifacts
-                # T068: Increment iteration counter (TEMPORARY - will move to component in Phase 5)
-                self._agent_iteration_count[agent.name] = iteration_count + 1
-
                 # Mark as processed (TEMPORARY - will move to component in Phase 6)
                 for collected_artifact in artifacts:
                     self._mark_processed(collected_artifact, agent)
