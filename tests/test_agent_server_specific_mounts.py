@@ -115,9 +115,10 @@ def test_mount_validation(orchestrator):
     agent = orchestrator.agent("test_agent").with_mcps(["filesystem"])
 
     # Should raise error for non-existent path
+    # Use a path that definitely doesn't exist on any system
     with pytest.warns(DeprecationWarning, match="Agent.mount"):
         with pytest.raises(ValueError, match="Mount path does not exist"):
-            agent.mount("/nonexistent/path", validate=True)
+            agent.mount("/absolutely/nonexistent/path/xyz123", validate=True)
 
 
 def test_empty_mounts_in_dict(orchestrator):
