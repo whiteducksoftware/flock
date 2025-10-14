@@ -252,7 +252,8 @@ class TestFlockComponentManagement:
         orchestrator.add_component(component)
 
         assert component in orchestrator._components
-        assert len(orchestrator._components) == 1
+        # orchestrator has 1 built-in + 1 added = 2 total
+        assert len(orchestrator._components) == 2
 
     def test_flock_add_component_returns_self(self, orchestrator):
         """Test add_component() returns self for method chaining."""
@@ -274,7 +275,8 @@ class TestFlockComponentManagement:
         result = orchestrator.add_component(c1).add_component(c2)
 
         assert result is orchestrator
-        assert len(orchestrator._components) == 2
+        # Note: orchestrator has 1 built-in component + 2 added = 3 total
+        assert len(orchestrator._components) == 3
 
     def test_flock_add_component_sorts_by_priority(self, orchestrator):
         """Test components are sorted by priority after add."""
@@ -303,9 +305,9 @@ class TestFlockComponentManagement:
         orchestrator.add_component(OrchestratorComponent(priority=30, name="c30"))
         orchestrator.add_component(OrchestratorComponent(priority=20, name="c20"))
 
-        # Should be sorted: [c10, c20, c30, c50]
+        # Should be sorted: [c10, c20, c30, c50, builtin(100)]
         priorities = [c.priority for c in orchestrator._components]
-        assert priorities == [10, 20, 30, 50]
+        assert priorities == [10, 20, 30, 50, 100]
 
     def test_flock_add_component_allows_duplicate_priorities(self, orchestrator):
         """Test multiple components can have same priority."""
@@ -317,10 +319,11 @@ class TestFlockComponentManagement:
         orchestrator.add_component(c1)
         orchestrator.add_component(c2)
 
-        # Both should be stored
-        assert len(orchestrator._components) == 2
-        # Both have priority 10
-        assert all(c.priority == 10 for c in orchestrator._components)
+        # Should have: builtin(100) + c1(10) + c2(10) = 3 total
+        assert len(orchestrator._components) == 3
+        # Two components with priority 10 (plus one builtin with 100)
+        priority_10_count = sum(1 for c in orchestrator._components if c.priority == 10)
+        assert priority_10_count == 2
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -606,24 +609,32 @@ class TestHookRunnerCollectArtifacts:
 
     @pytest.mark.asyncio
     async def test_run_collect_artifacts_default_immediate(self, orchestrator, sample_artifact):
-        """Test _run_collect_artifacts() returns immediate if all return None."""
+        """Test _run_collect_artifacts() uses builtin component for default collection."""
         from unittest.mock import Mock
 
         from flock.orchestrator_component import OrchestratorComponent
 
         class PassthroughComponent(OrchestratorComponent):
+            priority: int = 1  # Run before builtin (100)
+
             async def on_collect_artifacts(self, orch, artifact, agent, sub):
-                return None  # Let default handle
+                return None  # Let builtin handle
 
         orchestrator.add_component(PassthroughComponent())
 
         agent = Mock()
         agent.name = "test_agent"
         subscription = Mock()
+        # Mock all attributes that builtin component and artifact collector need
+        subscription.join = None
+        subscription.type_models = ["TestType"]  # Single type
+        subscription.batch = None
+        subscription.type_names = ["TestType"]
+        subscription.type_counts = {"TestType": 1}
 
         result = await orchestrator._run_collect_artifacts(sample_artifact, agent, subscription)
 
-        # Default behavior: immediate with single artifact
+        # Default behavior: builtin component returns immediate with single artifact
         assert result.complete is True
         assert result.artifacts == [sample_artifact]
 

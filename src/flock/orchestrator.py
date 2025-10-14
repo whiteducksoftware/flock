@@ -8,7 +8,7 @@ import os
 from asyncio import Task
 from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -163,6 +163,11 @@ class Flock(metaclass=AutoTracedMeta):
         # Phase 2: OrchestratorComponent system
         self._components: list[OrchestratorComponent] = []
         self._components_initialized: bool = False
+
+        # Auto-add built-in collection component (handles AND gates, correlation, batching)
+        from flock.orchestrator_component import BuiltinCollectionComponent
+
+        self.add_component(BuiltinCollectionComponent())
 
         # Log orchestrator initialization
         self._logger.debug("Orchestrator initialized: components=[]")
@@ -1242,152 +1247,91 @@ class Flock(metaclass=AutoTracedMeta):
     # Scheduling ───────────────────────────────────────────────────
 
     async def _schedule_artifact(self, artifact: Artifact) -> None:
+        """Schedule agents for an artifact using component hooks.
+
+        Refactored to use OrchestratorComponent hook system for extensibility.
+        Components can modify artifact, control scheduling, and handle collection.
+        """
+        # Phase 3: Initialize components on first artifact
+        if not self._components_initialized:
+            await self._run_initialize()
+
+        # Phase 3: Component hook - artifact published (can transform or block)
+        artifact = await self._run_artifact_published(artifact)
+        if artifact is None:
+            return  # Artifact blocked by component
+
         for agent in self.agents:
             identity = agent.identity
             for subscription in agent.subscriptions:
                 if not subscription.accepts_events():
                     continue
+
                 # T066: Check prevent_self_trigger
                 if agent.prevent_self_trigger and artifact.produced_by == agent.name:
                     continue  # Skip - agent produced this artifact (prevents feedback loops)
-                # T068: Circuit breaker - check iteration limit
-                iteration_count = self._agent_iteration_count.get(agent.name, 0)
-                if iteration_count >= self.max_agent_iterations:
-                    # Agent hit iteration limit - possible infinite loop
-                    continue
+
+                # Visibility check
                 if not self._check_visibility(artifact, identity):
                     continue
+
+                # Subscription match check
                 if not subscription.matches(artifact):
                     continue
+
+                # Phase 3: Component hook - before schedule (circuit breaker, deduplication, etc.)
+                from flock.orchestrator_component import ScheduleDecision
+
+                decision = await self._run_before_schedule(artifact, agent, subscription)
+                if decision == ScheduleDecision.SKIP:
+                    continue  # Skip this subscription
+                if decision == ScheduleDecision.DEFER:
+                    continue  # Defer for later (batching/correlation)
+
+                # T068: Circuit breaker - check iteration limit (TEMPORARY - will move to component in Phase 5)
+                iteration_count = self._agent_iteration_count.get(agent.name, 0)
+                if iteration_count >= self.max_agent_iterations:
+                    continue
+
+                # Deduplication check (TEMPORARY - will move to component in Phase 6)
                 if self._seen_before(artifact, agent):
                     continue
 
-                # JoinSpec CORRELATION: Check if subscription has correlated AND gate
-                if subscription.join is not None:
-                    # Use CorrelationEngine for JoinSpec (correlated AND gates)
-                    subscription_index = agent.subscriptions.index(subscription)
-                    completed_group = self._correlation_engine.add_artifact(
-                        artifact=artifact,
-                        subscription=subscription,
-                        subscription_index=subscription_index,
-                    )
+                # Phase 3: Component hook - collect artifacts (handles AND gates, correlation, batching)
+                collection = await self._run_collect_artifacts(artifact, agent, subscription)
+                if not collection.complete:
+                    continue  # Still collecting (AND gate, correlation, or batch incomplete)
 
-                    # Start correlation cleanup task if time-based window and not running
-                    if (
-                        isinstance(subscription.join.within, timedelta)
-                        and self._correlation_cleanup_task is None
-                    ):
-                        self._correlation_cleanup_task = asyncio.create_task(
-                            self._correlation_cleanup_loop()
-                        )
+                artifacts = collection.artifacts
 
-                    if completed_group is None:
-                        # Still waiting for correlation to complete
-                        # Phase 1.2: Emit real-time correlation update event
-                        await self._emit_correlation_updated_event(
-                            agent_name=agent.name,
-                            subscription_index=subscription_index,
-                            artifact=artifact,
-                        )
-                        continue
+                # Phase 3: Component hook - before agent schedule (final validation/transformation)
+                artifacts = await self._run_before_agent_schedule(agent, artifacts)
+                if artifacts is None:
+                    continue  # Scheduling blocked by component
 
-                    # Correlation complete! Get all correlated artifacts
-                    artifacts = completed_group.get_artifacts()
-                else:
-                    # AND GATE LOGIC: Use artifact collector for simple AND gates (no correlation)
-                    is_complete, artifacts = self._artifact_collector.add_artifact(
-                        agent, subscription, artifact
-                    )
-
-                    if not is_complete:
-                        # Still waiting for more types (AND gate incomplete)
-                        continue
-
-                # BatchSpec BATCHING: Check if subscription has batch accumulator
-                if subscription.batch is not None:
-                    # Add to batch accumulator
-                    subscription_index = agent.subscriptions.index(subscription)
-
-                    # COMBINED FEATURES: JoinSpec + BatchSpec
-                    # If we have JoinSpec, artifacts is a correlated GROUP - treat as single batch item
-                    # If we have AND gate, artifacts is a complete set - treat as single batch item
-                    # Otherwise (single type), add each artifact individually
-
-                    if subscription.join is not None or len(subscription.type_models) > 1:
-                        # JoinSpec or AND gate: Treat artifact group as ONE batch item
-                        should_flush = self._batch_engine.add_artifact_group(
-                            artifacts=artifacts,
-                            subscription=subscription,
-                            subscription_index=subscription_index,
-                        )
-
-                        # Start timeout checker if this batch has a timeout and checker not running
-                        if subscription.batch.timeout and self._batch_timeout_task is None:
-                            self._batch_timeout_task = asyncio.create_task(
-                                self._batch_timeout_checker_loop()
-                            )
-                    else:
-                        # Single type subscription: Add each artifact individually
-                        should_flush = False
-                        for single_artifact in artifacts:
-                            should_flush = self._batch_engine.add_artifact(
-                                artifact=single_artifact,
-                                subscription=subscription,
-                                subscription_index=subscription_index,
-                            )
-
-                            # Start timeout checker if this batch has a timeout and checker not running
-                            if subscription.batch.timeout and self._batch_timeout_task is None:
-                                self._batch_timeout_task = asyncio.create_task(
-                                    self._batch_timeout_checker_loop()
-                                )
-
-                            if should_flush:
-                                # Size threshold reached! Flush batch now
-                                break
-
-                    if not should_flush:
-                        # Batch not full yet - wait for more artifacts
-                        # Phase 1.2: Emit real-time batch update event
-                        await self._emit_batch_item_added_event(
-                            agent_name=agent.name,
-                            subscription_index=subscription_index,
-                            subscription=subscription,
-                            artifact=artifact,
-                        )
-                        continue
-
-                    # Flush the batch and get all accumulated artifacts
-                    batched_artifacts = self._batch_engine.flush_batch(
-                        agent.name, subscription_index
-                    )
-
-                    if batched_artifacts is None:
-                        # No batch to flush (shouldn't happen, but defensive)
-                        continue
-
-                    # Replace artifacts with batched artifacts
-                    artifacts = batched_artifacts
-
-                # Complete! Schedule agent with all collected artifacts
-                # T068: Increment iteration counter
+                # Complete! Schedule agent with collected artifacts
+                # T068: Increment iteration counter (TEMPORARY - will move to component in Phase 5)
                 self._agent_iteration_count[agent.name] = iteration_count + 1
 
-                # Mark all artifacts as processed (prevent duplicate triggers)
+                # Mark as processed (TEMPORARY - will move to component in Phase 6)
                 for collected_artifact in artifacts:
                     self._mark_processed(collected_artifact, agent)
 
-                # Schedule agent with ALL artifacts (batched, correlated, or AND gate complete)
-                # NEW: Mark as batch execution if flushed from BatchSpec
+                # Schedule agent task
                 is_batch_execution = subscription.batch is not None
-                self._schedule_task(agent, artifacts, is_batch=is_batch_execution)
+                task = self._schedule_task(agent, artifacts, is_batch=is_batch_execution)
+
+                # Phase 3: Component hook - agent scheduled (notification)
+                await self._run_agent_scheduled(agent, artifacts, task)
 
     def _schedule_task(
         self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
-    ) -> None:
+    ) -> Task[Any]:
+        """Schedule agent task and return the task handle."""
         task = asyncio.create_task(self._run_agent_task(agent, artifacts, is_batch=is_batch))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        return task
 
     def _record_agent_run(self, agent: Agent) -> None:
         self.metrics["agent_runs"] += 1
