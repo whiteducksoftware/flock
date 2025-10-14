@@ -514,9 +514,11 @@ async def test_context_is_batch_flag_propagation():
 
     class ContextSpyEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
-            # Record the is_batch flag
             context_flags.append(ctx.is_batch)
-            # Return original artifacts
+            return EvalResult(artifacts=list(inputs.artifacts))
+
+        async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            context_flags.append(ctx.is_batch)
             return EvalResult(artifacts=list(inputs.artifacts))
 
     # Define test artifact (simple Pydantic model)

@@ -529,6 +529,7 @@ async def test_batchspec_with_where_predicate_filters_before_batching():
     assert executed[0] == [2, 4], "Only even IDs batched"
 
 
+@pytest.mark.order(1)
 @pytest.mark.asyncio
 async def test_simple_batch_engine_processes_all_artifacts():
     """
@@ -562,6 +563,7 @@ async def test_simple_batch_engine_processes_all_artifacts():
     assert summary["values"] == [1, 2, 3]
 
 
+@pytest.mark.order(2)
 @pytest.mark.asyncio
 async def test_batch_spec_with_non_batch_engine_logs_error(caplog):
     """

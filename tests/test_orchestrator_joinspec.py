@@ -842,6 +842,12 @@ async def test_joinspec_time_expiry_vs_batch_timeout_behavior():
             batch_executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
+        async def evaluate_batch(self, agent, ctx, inputs):
+            nonlocal batch_count
+            batch_count += 1
+            batch_executed.append(len(inputs.artifacts))
+            return EvalResult(artifacts=[])
+
     # Agent 1: JoinSpec correlation (requires A+B, 1s timeout)
     orchestrator.agent("correlation_agent").consumes(
         SignalA,

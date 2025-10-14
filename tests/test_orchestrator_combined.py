@@ -29,7 +29,14 @@ from flock.orchestrator import Flock
 from flock.subscription import JoinSpec, BatchSpec
 from flock.registry import flock_type
 from flock.components import EngineComponent
-from flock.runtime import EvalResult
+from flock.runtime import EvalInputs, EvalResult
+
+
+class BatchAwareEngine(EngineComponent):
+    """Helper that routes evaluate_batch to evaluate for batch-aware tests."""
+
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        return await self.evaluate(agent, ctx, inputs)
 
 
 # ============================================================================
@@ -86,7 +93,7 @@ async def test_batched_correlated_joins_basic():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append({
                 "batch_size": len(inputs.artifacts),
@@ -141,7 +148,7 @@ async def test_batched_correlation_continues_after_flush():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["symbol"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -195,7 +202,7 @@ async def test_partial_correlation_waits_in_batch():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -247,7 +254,7 @@ async def test_multiple_correlation_groups_batch_independently():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append({
                 "batch_size": len(inputs.artifacts),
@@ -310,7 +317,7 @@ async def test_batched_correlation_with_timeout():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -360,7 +367,7 @@ async def test_batched_correlation_size_or_timeout_whichever_first():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -417,7 +424,7 @@ async def test_batched_correlation_shutdown_flushes_partial():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -471,7 +478,7 @@ async def test_batched_correlation_with_visibility():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["patient_id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -540,7 +547,7 @@ async def test_batched_correlation_with_where_predicate():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["patient_id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
@@ -598,7 +605,7 @@ async def test_batched_correlation_state_isolation_per_agent():
     executed_agent1 = []
     executed_agent2 = []
 
-    class TrackingEngine1(EngineComponent):
+    class TrackingEngine1(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed_agent1.append({
                 "agent": agent.name,
@@ -606,7 +613,7 @@ async def test_batched_correlation_state_isolation_per_agent():
             })
             return EvalResult(artifacts=[])
 
-    class TrackingEngine2(EngineComponent):
+    class TrackingEngine2(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed_agent2.append({
                 "agent": agent.name,
@@ -673,7 +680,7 @@ async def test_batched_correlation_performance():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
@@ -741,7 +748,7 @@ async def test_three_way_correlation_with_batching():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append({
                 "batch_size": len(inputs.artifacts),
@@ -796,7 +803,7 @@ async def test_batched_correlation_with_mixed_completion_rates():
     orchestrator = Flock()
     executed = []
 
-    class TrackingEngine(EngineComponent):
+    class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs):
             executed.append([a.payload["patient_id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
