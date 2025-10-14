@@ -14,6 +14,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+
 if TYPE_CHECKING:
     from flock.artifacts import Artifact
     from flock.subscription import JoinSpec, Subscription
@@ -51,7 +52,9 @@ class CorrelationGroup:
     def add_artifact(self, artifact: Artifact, current_sequence: int) -> None:
         """Add artifact to this correlation group's waiting pool."""
         if self.created_at_time is None:
-            self.created_at_time = datetime.now()
+            from datetime import timezone
+
+            self.created_at_time = datetime.now(timezone.utc)
 
         self.waiting_artifacts[artifact.type].append(artifact)
 
@@ -67,11 +70,13 @@ class CorrelationGroup:
         if isinstance(self.window_spec, int):
             # Count window: expired if current sequence exceeds created + window
             return (current_sequence - self.created_at_sequence) > self.window_spec
-        elif isinstance(self.window_spec, timedelta):
+        if isinstance(self.window_spec, timedelta):
             # Time window: expired if current time exceeds created + window
             if self.created_at_time is None:
                 return False
-            elapsed = datetime.now() - self.created_at_time
+            from datetime import timezone
+
+            elapsed = datetime.now(timezone.utc) - self.created_at_time
             return elapsed > self.window_spec
         return False
 
@@ -154,7 +159,7 @@ class CorrelationEngine:
 
         try:
             correlation_key = join_spec.by(payload_instance)
-        except Exception as e:
+        except Exception:
             # Key extraction failed - skip this artifact
             # TODO: Log warning?
             return None

@@ -137,6 +137,8 @@ class Flock(metaclass=AutoTracedMeta):
         self._correlation_engine = CorrelationEngine()
         # BatchSpec logic: Batch accumulator for size/timeout batching
         self._batch_engine = BatchEngine()
+        # Phase 1.2: WebSocket manager for real-time dashboard events (set by serve())
+        self._websocket_manager: Any = None
         # Unified tracing support
         self._workflow_span = None
         self._auto_workflow_enabled = os.getenv("FLOCK_AUTO_WORKFLOW_TRACE", "false").lower() in {
@@ -602,6 +604,8 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Store collector reference for agents added later
         self._dashboard_collector = event_collector
+        # Store websocket manager for real-time event emission (Phase 1.2)
+        self._websocket_manager = websocket_manager
 
         # Inject event collector into all existing agents
         for agent in self._agents.values():
@@ -907,6 +911,12 @@ class Flock(metaclass=AutoTracedMeta):
 
                     if completed_group is None:
                         # Still waiting for correlation to complete
+                        # Phase 1.2: Emit real-time correlation update event
+                        await self._emit_correlation_updated_event(
+                            agent_name=agent.name,
+                            subscription_index=subscription_index,
+                            artifact=artifact,
+                        )
                         continue
 
                     # Correlation complete! Get all correlated artifacts
@@ -954,6 +964,13 @@ class Flock(metaclass=AutoTracedMeta):
 
                     if not should_flush:
                         # Batch not full yet - wait for more artifacts
+                        # Phase 1.2: Emit real-time batch update event
+                        await self._emit_batch_item_added_event(
+                            agent_name=agent.name,
+                            subscription_index=subscription_index,
+                            subscription=subscription,
+                            artifact=artifact,
+                        )
                         continue
 
                     # Flush the batch and get all accumulated artifacts
@@ -1026,6 +1043,115 @@ class Flock(metaclass=AutoTracedMeta):
             except Exception as exc:  # pragma: no cover - defensive logging
                 self._logger.exception("Failed to record artifact consumption: %s", exc)
 
+    # Phase 1.2: Logic Operations Event Emission ----------------------------
+
+    async def _emit_correlation_updated_event(
+        self, *, agent_name: str, subscription_index: int, artifact: Artifact
+    ) -> None:
+        """Emit CorrelationGroupUpdatedEvent for real-time dashboard updates.
+
+        Called when an artifact is added to a correlation group that is not yet complete.
+
+        Args:
+            agent_name: Name of the agent with the JoinSpec subscription
+            subscription_index: Index of the subscription in the agent's subscriptions list
+            artifact: The artifact that triggered this update
+        """
+        # Only emit if dashboard is enabled
+        if self._websocket_manager is None:
+            return
+
+        # Import _get_correlation_groups helper from dashboard service
+        from flock.dashboard.service import _get_correlation_groups
+
+        # Get current correlation groups state from engine
+        groups = _get_correlation_groups(self._correlation_engine, agent_name, subscription_index)
+
+        if not groups:
+            return  # No groups to report (shouldn't happen, but defensive)
+
+        # Find the group that was just updated (match by last updated time or artifact ID)
+        # For now, we'll emit an event for the FIRST group that's still waiting
+        # In practice, the artifact we just added should be in one of these groups
+        for group_state in groups:
+            if not group_state["is_complete"]:
+                # Import CorrelationGroupUpdatedEvent
+                from flock.dashboard.events import CorrelationGroupUpdatedEvent
+
+                # Build and emit event
+                event = CorrelationGroupUpdatedEvent(
+                    agent_name=agent_name,
+                    subscription_index=subscription_index,
+                    correlation_key=group_state["correlation_key"],
+                    collected_types=group_state["collected_types"],
+                    required_types=group_state["required_types"],
+                    waiting_for=group_state["waiting_for"],
+                    elapsed_seconds=group_state["elapsed_seconds"],
+                    expires_in_seconds=group_state["expires_in_seconds"],
+                    expires_in_artifacts=group_state["expires_in_artifacts"],
+                    artifact_id=str(artifact.id),
+                    artifact_type=artifact.type,
+                    is_complete=group_state["is_complete"],
+                )
+
+                # Broadcast via WebSocket
+                await self._websocket_manager.broadcast(event)
+                break  # Only emit one event per artifact addition
+
+    async def _emit_batch_item_added_event(
+        self,
+        *,
+        agent_name: str,
+        subscription_index: int,
+        subscription: Subscription,  # noqa: F821
+        artifact: Artifact,
+    ) -> None:
+        """Emit BatchItemAddedEvent for real-time dashboard updates.
+
+        Called when an artifact is added to a batch that hasn't reached flush threshold.
+
+        Args:
+            agent_name: Name of the agent with the BatchSpec subscription
+            subscription_index: Index of the subscription in the agent's subscriptions list
+            subscription: The subscription with BatchSpec configuration
+            artifact: The artifact that triggered this update
+        """
+        # Only emit if dashboard is enabled
+        if self._websocket_manager is None:
+            return
+
+        # Import _get_batch_state helper from dashboard service
+        from flock.dashboard.service import _get_batch_state
+
+        # Get current batch state from engine
+        batch_state = _get_batch_state(
+            self._batch_engine, agent_name, subscription_index, subscription.batch
+        )
+
+        if not batch_state:
+            return  # No batch to report (shouldn't happen, but defensive)
+
+        # Import BatchItemAddedEvent
+        from flock.dashboard.events import BatchItemAddedEvent
+
+        # Build and emit event
+        event = BatchItemAddedEvent(
+            agent_name=agent_name,
+            subscription_index=subscription_index,
+            items_collected=batch_state["items_collected"],
+            items_target=batch_state.get("items_target"),
+            items_remaining=batch_state.get("items_remaining"),
+            elapsed_seconds=batch_state["elapsed_seconds"],
+            timeout_seconds=batch_state.get("timeout_seconds"),
+            timeout_remaining_seconds=batch_state.get("timeout_remaining_seconds"),
+            will_flush=batch_state["will_flush"],
+            artifact_id=str(artifact.id),
+            artifact_type=artifact.type,
+        )
+
+        # Broadcast via WebSocket
+        await self._websocket_manager.broadcast(event)
+
     # Batch Helpers --------------------------------------------------------
 
     async def _check_batch_timeouts(self) -> None:
@@ -1055,7 +1181,7 @@ class Flock(metaclass=AutoTracedMeta):
         """Flush all partial batches (for shutdown - ensures zero data loss)."""
         all_batches = self._batch_engine.flush_all()
 
-        for agent_name, subscription_index, artifacts in all_batches:
+        for agent_name, _subscription_index, artifacts in all_batches:
             # Get the agent
             agent = self._agents.get(agent_name)
             if agent is None:

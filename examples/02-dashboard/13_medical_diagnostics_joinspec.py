@@ -25,18 +25,26 @@ from flock.subscription import JoinSpec
 
 @flock_type
 class XRayImage(BaseModel):
-    patient_id: str
-    exam_type: str = Field(description="Type of X-ray: chest, spine, etc.")
-    image_quality: str = Field(description="Image quality rating")
-    technician_notes: str = Field(description="Notes from imaging technician")
+    patient_id: str = Field(default="patient_123", description="Unique patient identifier")
+    exam_type: str = Field(default="chest_xray", description="Type of X-ray: chest, spine, etc.")
+    image_quality: str = Field(default="high", description="Image quality rating")
+    technician_notes: str = Field(
+        default="Clear lung fields, good positioning", description="Notes from imaging technician"
+    )
 
 
 @flock_type
 class LabResults(BaseModel):
-    patient_id: str
-    blood_work: dict = Field(description="Blood test results")
-    markers: list[str] = Field(description="Important medical markers found")
-    lab_notes: str = Field(description="Notes from lab technician")
+    patient_id: str = Field(default="patient_123", description="Unique patient identifier")
+    blood_work: dict = Field(
+        default={"wbc": 7500, "rbc": 4.8, "platelets": 250000}, description="Blood test results"
+    )
+    markers: list[str] = Field(
+        default=["normal_range", "no_infection"], description="Important medical markers found"
+    )
+    lab_notes: str = Field(
+        default="No significant findings", description="Notes from lab technician"
+    )
 
 
 @flock_type
@@ -68,6 +76,7 @@ radiologist = (
     )
     .publishes(DiagnosticReport)
 )
+
 
 # Start dashboard and let users publish X-rays and Lab results
 # Dashboard will show correlation matching in real-time!
