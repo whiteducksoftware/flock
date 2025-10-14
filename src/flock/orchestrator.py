@@ -31,10 +31,15 @@ from flock.mcp import (
     FlockMCPFeatureConfiguration,
     ServerParameters,
 )
-from flock.orchestrator_component import OrchestratorComponent
+from flock.orchestrator_component import (
+    CollectionResult,
+    OrchestratorComponent,
+    ScheduleDecision,
+)
 from flock.registry import type_registry
 from flock.runtime import Context
 from flock.store import BlackboardStore, ConsumptionRecord, InMemoryBlackboardStore
+from flock.subscription import Subscription
 from flock.visibility import AgentIdentity, PublicVisibility, Visibility
 
 
@@ -976,6 +981,265 @@ class Flock(metaclass=AutoTracedMeta):
         await self.store.publish(artifact)
         self.metrics["artifacts_published"] += 1
         await self._schedule_artifact(artifact)
+
+    # Component Hook Runners ───────────────────────────────────────
+
+    async def _run_initialize(self) -> None:
+        """Initialize all components in priority order (called once).
+
+        Executes on_initialize hook for each component. Sets _components_initialized
+        flag to prevent multiple initializations.
+        """
+        if self._components_initialized:
+            return
+
+        self._logger.info(f"Initializing {len(self._components)} orchestrator components")
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+            self._logger.debug(
+                f"Initializing component: name={comp_name}, priority={component.priority}"
+            )
+
+            try:
+                await component.on_initialize(self)
+            except Exception as e:
+                self._logger.exception(
+                    f"Component initialization failed: name={comp_name}, error={e!s}"
+                )
+                raise
+
+        self._components_initialized = True
+        self._logger.info(f"All components initialized: count={len(self._components)}")
+
+    async def _run_artifact_published(self, artifact: Artifact) -> Artifact | None:
+        """Run on_artifact_published hooks (returns modified artifact or None to block).
+
+        Components execute in priority order, each receiving the artifact from the
+        previous component (chaining). If any component returns None, the artifact
+        is blocked and scheduling stops.
+        """
+        current_artifact = artifact
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+            self._logger.debug(
+                f"Running on_artifact_published: component={comp_name}, "
+                f"artifact_type={current_artifact.type}, artifact_id={current_artifact.id}"
+            )
+
+            try:
+                result = await component.on_artifact_published(self, current_artifact)
+
+                if result is None:
+                    self._logger.info(
+                        f"Artifact blocked by component: component={comp_name}, "
+                        f"artifact_type={current_artifact.type}, artifact_id={current_artifact.id}"
+                    )
+                    return None
+
+                current_artifact = result
+            except Exception as e:
+                self._logger.exception(
+                    f"Component hook failed: component={comp_name}, "
+                    f"hook=on_artifact_published, error={e!s}"
+                )
+                raise
+
+        return current_artifact
+
+    async def _run_before_schedule(
+        self, artifact: Artifact, agent: Agent, subscription: Subscription
+    ) -> ScheduleDecision:
+        """Run on_before_schedule hooks (returns CONTINUE, SKIP, or DEFER).
+
+        Components execute in priority order. First component to return SKIP or
+        DEFER stops execution and returns that decision.
+        """
+        from flock.orchestrator_component import ScheduleDecision
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            self._logger.debug(
+                f"Running on_before_schedule: component={comp_name}, "
+                f"agent={agent.name}, artifact_type={artifact.type}"
+            )
+
+            try:
+                decision = await component.on_before_schedule(self, artifact, agent, subscription)
+
+                if decision == ScheduleDecision.SKIP:
+                    self._logger.info(
+                        f"Scheduling skipped by component: component={comp_name}, "
+                        f"agent={agent.name}, artifact_type={artifact.type}, decision=SKIP"
+                    )
+                    return ScheduleDecision.SKIP
+
+                if decision == ScheduleDecision.DEFER:
+                    self._logger.debug(
+                        f"Scheduling deferred by component: component={comp_name}, "
+                        f"agent={agent.name}, decision=DEFER"
+                    )
+                    return ScheduleDecision.DEFER
+
+            except Exception as e:
+                self._logger.exception(
+                    f"Component hook failed: component={comp_name}, "
+                    f"hook=on_before_schedule, error={e!s}"
+                )
+                raise
+
+        return ScheduleDecision.CONTINUE
+
+    async def _run_collect_artifacts(
+        self, artifact: Artifact, agent: Agent, subscription: Subscription
+    ) -> CollectionResult:
+        """Run on_collect_artifacts hooks (returns first non-None result).
+
+        Components execute in priority order. First component to return non-None
+        wins (short-circuit). If all return None, default is immediate scheduling.
+        """
+        from flock.orchestrator_component import CollectionResult
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            self._logger.debug(
+                f"Running on_collect_artifacts: component={comp_name}, "
+                f"agent={agent.name}, artifact_type={artifact.type}"
+            )
+
+            try:
+                result = await component.on_collect_artifacts(self, artifact, agent, subscription)
+
+                if result is not None:
+                    self._logger.debug(
+                        f"Collection handled by component: component={comp_name}, "
+                        f"complete={result.complete}, artifact_count={len(result.artifacts)}"
+                    )
+                    return result
+            except Exception as e:
+                self._logger.exception(
+                    f"Component hook failed: component={comp_name}, "
+                    f"hook=on_collect_artifacts, error={e!s}"
+                )
+                raise
+
+        # Default: immediate scheduling with single artifact
+        self._logger.debug(
+            f"No component handled collection, using default: "
+            f"agent={agent.name}, artifact_type={artifact.type}"
+        )
+        return CollectionResult.immediate([artifact])
+
+    async def _run_before_agent_schedule(
+        self, agent: Agent, artifacts: list[Artifact]
+    ) -> list[Artifact] | None:
+        """Run on_before_agent_schedule hooks (returns modified artifacts or None to block).
+
+        Components execute in priority order, each receiving artifacts from the
+        previous component (chaining). If any component returns None, scheduling
+        is blocked.
+        """
+        current_artifacts = artifacts
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            self._logger.debug(
+                f"Running on_before_agent_schedule: component={comp_name}, "
+                f"agent={agent.name}, artifact_count={len(current_artifacts)}"
+            )
+
+            try:
+                result = await component.on_before_agent_schedule(self, agent, current_artifacts)
+
+                if result is None:
+                    self._logger.info(
+                        f"Agent scheduling blocked by component: component={comp_name}, "
+                        f"agent={agent.name}"
+                    )
+                    return None
+
+                current_artifacts = result
+            except Exception as e:
+                self._logger.exception(
+                    f"Component hook failed: component={comp_name}, "
+                    f"hook=on_before_agent_schedule, error={e!s}"
+                )
+                raise
+
+        return current_artifacts
+
+    async def _run_agent_scheduled(
+        self, agent: Agent, artifacts: list[Artifact], task: Task[Any]
+    ) -> None:
+        """Run on_agent_scheduled hooks (notification only, non-blocking).
+
+        Components execute in priority order. Exceptions are logged but don't
+        prevent other components from executing or block scheduling.
+        """
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            self._logger.debug(
+                f"Running on_agent_scheduled: component={comp_name}, "
+                f"agent={agent.name}, artifact_count={len(artifacts)}"
+            )
+
+            try:
+                await component.on_agent_scheduled(self, agent, artifacts, task)
+            except Exception as e:
+                self._logger.warning(
+                    f"Component notification hook failed (non-critical): "
+                    f"component={comp_name}, hook=on_agent_scheduled, error={e!s}"
+                )
+                # Don't propagate - this is a notification hook
+
+    async def _run_idle(self) -> None:
+        """Run on_orchestrator_idle hooks when orchestrator becomes idle.
+
+        Components execute in priority order. Exceptions are logged but don't
+        prevent other components from executing.
+        """
+        self._logger.debug(
+            f"Running on_orchestrator_idle hooks: component_count={len(self._components)}"
+        )
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+
+            try:
+                await component.on_orchestrator_idle(self)
+            except Exception as e:
+                self._logger.warning(
+                    f"Component idle hook failed (non-critical): "
+                    f"component={comp_name}, hook=on_orchestrator_idle, error={e!s}"
+                )
+
+    async def _run_shutdown(self) -> None:
+        """Run on_shutdown hooks when orchestrator shuts down.
+
+        Components execute in priority order. Exceptions are logged but don't
+        prevent shutdown of other components (best-effort cleanup).
+        """
+        self._logger.info(f"Shutting down {len(self._components)} orchestrator components")
+
+        for component in self._components:
+            comp_name = component.name or component.__class__.__name__
+            self._logger.debug(f"Shutting down component: name={comp_name}")
+
+            try:
+                await component.on_shutdown(self)
+            except Exception as e:
+                self._logger.exception(
+                    f"Component shutdown failed: component={comp_name}, "
+                    f"hook=on_shutdown, error={e!s}"
+                )
+                # Continue shutting down other components
+
+    # Scheduling ───────────────────────────────────────────────────
 
     async def _schedule_artifact(self, artifact: Artifact) -> None:
         for agent in self.agents:
