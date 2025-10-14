@@ -1,4 +1,4 @@
-# 🏆 Ranked Research Agenda for Flock Flow
+# 🏆 Ranked Research Agenda for Flock
 ## Comprehensive Scoring & Prioritization
 
 **Generated:** 2025-10-08

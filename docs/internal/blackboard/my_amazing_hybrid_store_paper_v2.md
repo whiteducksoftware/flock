@@ -20,7 +20,7 @@ Blackboard architectures remain a cornerstone for coordinating specialist agents
 ### 1.2 Contributions
 1. **Architecture** – First generalized hybrid blackboard backend combining relational, graph, and vector layers with CDC synchronization.
 2. **Mechanisms** – Semantics-first subscriptions, provenance API, and failure-aware fallback semantics.
-3. **Implementation** – Open-source integration in Flock Flow with pluggable adapters and admin tooling.
+3. **Implementation** – Open-source integration in Flock with pluggable adapters and admin tooling.
 4. **Evaluation** – Empirical study on three pattern suites (semantic routing, provenance reasoning, bidirectional island driving) plus failure-mode analysis.
 5. **Insights** – Trade-off analysis for latency, accuracy, operational overhead, and replayability; guidelines on when each layer pays off.
 
@@ -76,7 +76,7 @@ Section 2 reviews blackboard history, graph/vector storage, and related hybrid e
 
 ---
 
-## 4. Implementation in Flock Flow
+## 4. Implementation in Flock
 ### 4.1 Storage Adapters
 - Relational (SQLite/Postgres via SQLAlchemy).
 - Graph adapter (Neo4j driver, optional PGGraph).

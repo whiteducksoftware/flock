@@ -1,8 +1,8 @@
-# Flock Flow Core Architecture Analysis
+# Flock Core Architecture Analysis
 
 ## Overview
 
-Flock Flow is a sophisticated blackboard architecture system designed for multi-agent orchestration and event-driven coordination. The system implements a production-ready blackboard pattern with advanced features including subscription mechanisms, visibility controls, artifact lifecycle management, and MCP (Model Context Protocol) integration.
+Flock is a sophisticated blackboard architecture system designed for multi-agent orchestration and event-driven coordination. The system implements a production-ready blackboard pattern with advanced features including subscription mechanisms, visibility controls, artifact lifecycle management, and MCP (Model Context Protocol) integration.
 
 ## Core Architectural Components
 

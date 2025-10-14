@@ -1,4 +1,4 @@
-# Flock Flow Dashboard Design System
+# Flock Dashboard Design System
 
 **Version:** 1.0.0
 **Last Updated:** October 2025

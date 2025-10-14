@@ -1,4 +1,4 @@
-# Documentation Structure Analysis - Flock Flow v0.5.0b
+# Documentation Structure Analysis - Flock v0.5.0b
 
 **Analysis Date:** 2025-10-08
 **Analyzed By:** Requirements Analysis Agent
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Flock Flow has undergone a major migration (October 6, 2025) where documentation was reorganized from a flat structure into a hierarchical MkDocs site. The migration moved many files to `docs/internal/` but left the public-facing docs mostly as stubs with "Coming soon" placeholders. Meanwhile, comprehensive documentation exists in the root directory (README.md, AGENTS.md, ROADMAP.md, etc.) that is NOT reflected in the MkDocs structure.
+Flock has undergone a major migration (October 6, 2025) where documentation was reorganized from a flat structure into a hierarchical MkDocs site. The migration moved many files to `docs/internal/` but left the public-facing docs mostly as stubs with "Coming soon" placeholders. Meanwhile, comprehensive documentation exists in the root directory (README.md, AGENTS.md, ROADMAP.md, etc.) that is NOT reflected in the MkDocs structure.
 
 **Key Finding:** The project has excellent documentation, but it's in the wrong places. Content that should be in `docs/` is in the root, and `docs/` contains mostly placeholders.
 
@@ -317,7 +317,7 @@ docs/
 
 ### 4.1 Drift Analysis (git history)
 
-**Major migration event:** October 6, 2025 (`3eface3`) - "chore: flock flow migration"
+**Major migration event:** October 6, 2025 (`3eface3`) - "chore: Flock migration"
 - Moved many docs to `docs/internal/`
 - Created new public docs structure
 - Left stubs in place
@@ -871,7 +871,7 @@ docs/
 - `eb5743e` (Oct 8) - Auto-layout improvements
 - `2f63193` (Oct 7) - Trace viewer with 7 views
 - `21df104` (Oct 7) - Comprehensive tracing guide
-- `3eface3` (Oct 6) - **Major migration** to flock flow
+- `3eface3` (Oct 6) - **Major migration** to Flock
 - `47879c6` (Sep 1) - Documentation overhaul to unified architecture
 
 **Documentation velocity:**

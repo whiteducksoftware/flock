@@ -12,7 +12,7 @@ search:
 
 # Agents
 
-Agents are the **autonomous workers** in Flock Flow. They consume data from the [blackboard](blackboard.md), transform it, and publish results back—all without knowing about each other.
+Agents are the **autonomous workers** in Flock. They consume data from the [blackboard](blackboard.md), transform it, and publish results back—all without knowing about each other.
 
 **Think of agents like skilled craftspeople in a workshop:** each specialist watches the shared workspace (blackboard) for materials they can work with, processes them independently, and places finished work back on the table for others.
 

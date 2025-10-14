@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The Flock Flow frontend currently implements **complex client-side graph construction** logic totaling **~1,400 lines** across two main files: `graphStore.ts` (state management) and `transforms.ts` (edge derivation algorithms). This logic is now **duplicated** on the backend via the `/api/dashboard/graph` endpoint.
+The Flock frontend currently implements **complex client-side graph construction** logic totaling **~1,400 lines** across two main files: `graphStore.ts` (state management) and `transforms.ts` (edge derivation algorithms). This logic is now **duplicated** on the backend via the `/api/dashboard/graph` endpoint.
 
 **Key Metrics**:
 - **Lines of graph construction code**: ~1,400 lines

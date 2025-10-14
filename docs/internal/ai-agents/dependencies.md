@@ -1,6 +1,6 @@
 # Dependencies & Package Management for AI Agents
 
-This document covers dependency management and package installation for AI agents working with Flock Flow.
+This document covers dependency management and package installation for AI agents working with Flock.
 
 ## 📦 Package Management with UV
 

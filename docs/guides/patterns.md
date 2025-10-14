@@ -1,6 +1,6 @@
 # Architectural Patterns
 
-This guide documents the 8 major architectural patterns in Flock Flow, extracted from production examples and battle-tested use cases.
+This guide documents the 8 major architectural patterns in Flock, extracted from production examples and battle-tested use cases.
 
 ## Pattern Overview
 

@@ -1,7 +1,7 @@
 """
 Dashboard Edge Case Showcase
 ========================
-This example demonstrates advanced features of the Flock Flow dashboard, including:
+This example demonstrates advanced features of the Flock dashboard, including:
 - Conditional consumption of artifacts based on their content
 - Dynamic updates to the dashboard as new artifacts are published
 - Virtual agent edge persistence (e.g., edges from orchestrator.publish())

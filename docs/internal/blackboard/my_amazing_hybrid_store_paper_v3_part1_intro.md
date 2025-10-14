@@ -52,7 +52,7 @@ This paper makes the following contributions:
 
 2. **Mechanisms** – We introduce **semantics-first subscriptions** (agents trigger on conceptual similarity, not exact types), a **provenance API** (native graph traversal for "why" queries), and **failure-aware fallback semantics** (graceful degradation when overlays are unavailable).
 
-3. **Implementation** – We provide an open-source integration inside **Flock Flow**, a multi-agent orchestrator with pluggable storage adapters. Our hybrid store supports SQLite/Postgres (relational), Neo4j (graph), and Milvus/FAISS (vector), with admin tooling for resync, embedding recomputation, and health monitoring.
+3. **Implementation** – We provide an open-source integration inside **Flock**, a multi-agent orchestrator with pluggable storage adapters. Our hybrid store supports SQLite/Postgres (relational), Neo4j (graph), and Milvus/FAISS (vector), with admin tooling for resync, embedding recomputation, and health monitoring.
 
 4. **Evaluation** – We conduct an empirical study on three coordination pattern suites:
    - **Semantic Routing Suite** (38% improvement in volunteer assignment accuracy)
@@ -67,7 +67,7 @@ This paper makes the following contributions:
 
 - **Section 2** reviews blackboard history, storage technologies, and related hybrid efforts.
 - **Section 3** presents the hybrid blackboard architecture (requirements, design, synchronization pipeline, APIs, fallback semantics).
-- **Section 4** details the Flock Flow implementation (storage adapters, CDC infrastructure, pattern integration, security).
+- **Section 4** details the Flock implementation (storage adapters, CDC infrastructure, pattern integration, security).
 - **Section 5** evaluates three coordination suites and analyzes failure/cost scenarios.
 - **Section 6** discusses trade-offs, design guidelines, limitations, and future work.
 - **Section 7** positions our work within related research.

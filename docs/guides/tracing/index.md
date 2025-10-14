@@ -14,7 +14,7 @@ search:
 
 # Distributed Tracing
 
-**Flock Flow includes production-grade distributed tracing** powered by OpenTelemetry and DuckDB. Understand emergent behavior, debug complex workflows, and monitor production systems with comprehensive observability.
+**Flock includes production-grade distributed tracing** powered by OpenTelemetry and DuckDB. Understand emergent behavior, debug complex workflows, and monitor production systems with comprehensive observability.
 
 **Unlike traditional logging:** Tracing captures parent-child relationships, timing data, input/output artifacts, and cross-agent dependencies—essential for blackboard systems where workflows emerge from subscriptions, not predefined graphs.
 
@@ -397,7 +397,7 @@ print(f"Cleared {result['deleted_count']} traces")
 
 **Other frameworks:** Designed for graph-based workflows with known edges
 
-**Flock Flow:** Designed for emergent behavior where agents communicate through artifacts
+**Flock:** Designed for emergent behavior where agents communicate through artifacts
 
 **Why it matters:** Dependencies view reveals actual agent interactions, not just predefined edges
 
@@ -405,7 +405,7 @@ print(f"Cleared {result['deleted_count']} traces")
 
 **Other frameworks:** Export to external trace collector (Jaeger, Zipkin)
 
-**Flock Flow:** Built-in DuckDB storage with SQL analytics
+**Flock:** Built-in DuckDB storage with SQL analytics
 
 **Why it matters:**
 - No external dependencies
@@ -417,7 +417,7 @@ print(f"Cleared {result['deleted_count']} traces")
 
 **Other frameworks:** Log timestamps and durations
 
-**Flock Flow:** Capture complete input/output artifacts (with size limits)
+**Flock:** Capture complete input/output artifacts (with size limits)
 
 **Why it matters:** See exactly what data agent consumed and produced, not just that it executed
 
@@ -425,7 +425,7 @@ print(f"Cleared {result['deleted_count']} traces")
 
 **Other frameworks:** Configure exporters, collectors, sampling
 
-**Flock Flow:** `export FLOCK_AUTO_TRACE=true`
+**Flock:** `export FLOCK_AUTO_TRACE=true`
 
 **Why it matters:** Works out of the box, no YAML configuration files
 
@@ -484,14 +484,14 @@ print(f"Cleared {result['deleted_count']} traces")
 
 **Related Guides:**
 - **[Dashboard Guide](../dashboard.md)** - Real-time visualization
-- **[Core Concepts](../../getting-started/concepts.md)** - Understand Flock Flow architecture
+- **[Core Concepts](../../getting-started/concepts.md)** - Understand Flock architecture
 - **[Quick Start](../../getting-started/quick-start.md)** - Build your first agent
 
 ---
 
 ## Summary
 
-**Flock Flow's distributed tracing provides:**
+**Flock's distributed tracing provides:**
 
 ✅ **OpenTelemetry auto-instrumentation** - Zero-code tracing for all agents
 ✅ **DuckDB storage** - Fast, embedded, no external dependencies

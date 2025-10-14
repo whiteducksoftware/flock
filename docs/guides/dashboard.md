@@ -1,6 +1,6 @@
 # Dashboard
 
-The **Flock Flow Dashboard** is a real-time visualization tool that makes your AI agent system observable, debuggable, and interactive. With professional UI/UX and WebSocket streaming, you can watch your agents execute, explore data lineage, and manually test workflows—all in your browser.
+The **Flock Dashboard** is a real-time visualization tool that makes your AI agent system observable, debuggable, and interactive. With professional UI/UX and WebSocket streaming, you can watch your agents execute, explore data lineage, and manually test workflows—all in your browser.
 
 **Think of it as a flight control center for your AI agents:** See who's working, what data is flowing, and how your system transforms information in real-time.
 
@@ -15,7 +15,7 @@ The **Flock Flow Dashboard** is a real-time visualization tool that makes your A
 
 **Traditional AI frameworks are black boxes.** You publish data, agents run, and you hope for the best. If something breaks, you're stuck adding print statements and guessing.
 
-**Flock Flow's dashboard makes everything visible:**
+**Flock's dashboard makes everything visible:**
 - ✅ **See agents execute in real-time** - Watch status change from idle → running → idle
 - ✅ **Track data lineage** - Follow how data transforms through your system
 - ✅ **Debug conditional consumption** - See which agents filtered which artifacts

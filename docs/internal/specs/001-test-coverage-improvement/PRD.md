@@ -19,10 +19,10 @@
 ## Product Overview
 
 ### Vision
-Achieve 80% test coverage with zero technical debt by eliminating API drift, removing code smells, and building a comprehensive test suite that ensures Flock Flow's reliability and maintainability.
+Achieve 80% test coverage with zero technical debt by eliminating API drift, removing code smells, and building a comprehensive test suite that ensures Flock's reliability and maintainability.
 
 ### Problem Statement
-The Flock Flow test suite is currently at 58% coverage (target: 80%), contains 52 instances of deprecated/legacy API usage creating test/implementation drift, and exhibits multiple code smells including real LLM connections in tests, broken mocks, and extensive code duplication. This creates three critical problems:
+The Flock test suite is currently at 58% coverage (target: 80%), contains 52 instances of deprecated/legacy API usage creating test/implementation drift, and exhibits multiple code smells including real LLM connections in tests, broken mocks, and extensive code duplication. This creates three critical problems:
 
 1. **Coverage Gap (22%)**: 35 source files lack dedicated tests, critical modules like `dspy_engine.py` (25% coverage) and `mcp/client.py` (19% coverage) are largely untested
 2. **API Drift**: Tests use deprecated `publish_external()` and legacy `arun()` methods while implementation has moved to `publish()` and `invoke()`, including production code using deprecated APIs

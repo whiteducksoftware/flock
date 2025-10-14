@@ -150,7 +150,7 @@ const ThemeSelector: React.FC = () => {
               justifyContent: 'space-between',
             }}>
               <span style={{ color: 'var(--color-text-primary)' }}>
-                {currentTheme === 'default' ? 'Default (Flock Flow)' : currentTheme}
+                {currentTheme === 'default' ? 'Default (Flock)' : currentTheme}
               </span>
               {currentTheme !== 'default' && (
                 <button
@@ -191,7 +191,7 @@ const ThemeSelector: React.FC = () => {
                     transition: 'var(--transition-all)',
                   }}
                 >
-                  Default (Flock Flow)
+                  Default (Flock)
                 </button>
               </div>
             </div>

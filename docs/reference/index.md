@@ -1,6 +1,6 @@
 # Reference Documentation
 
-Complete technical reference for Flock Flow API and configuration.
+Complete technical reference for Flock API and configuration.
 
 ---
 

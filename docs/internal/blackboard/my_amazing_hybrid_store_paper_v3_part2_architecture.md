@@ -471,7 +471,7 @@ async def find_related(self, artifact_id: UUID, mode: str, depth: int, limit: in
 
 ---
 
-## 4. Implementation in Flock Flow
+## 4. Implementation in Flock
 
 ### 4.1 Storage Adapters
 

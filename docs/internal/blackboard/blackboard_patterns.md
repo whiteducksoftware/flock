@@ -1,6 +1,6 @@
 # Blackboard-Native Coordination Patterns
 
-This catalog covers coordination patterns that only become practical when agents share a persistent, typed blackboard. For each pattern we outline what it is, why the blackboard is essential, how Flock Flow supports it today, and what API ideas would close remaining gaps. When a capability depends on future work we flag it explicitly.
+This catalog covers coordination patterns that only become practical when agents share a persistent, typed blackboard. For each pattern we outline what it is, why the blackboard is essential, how Flock supports it today, and what API ideas would close remaining gaps. When a capability depends on future work we flag it explicitly.
 
 Legend for support status:
 - **Built-in** – works today using existing APIs.

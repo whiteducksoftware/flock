@@ -2,7 +2,7 @@
 
 ## 🎯 What Was Delivered
 
-Successfully implemented unified tracing for Flock Flow with complete backward compatibility.
+Successfully implemented unified tracing for Flock with complete backward compatibility.
 
 ---
 

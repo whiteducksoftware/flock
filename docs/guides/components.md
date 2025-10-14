@@ -1,6 +1,6 @@
 # Agent Components
 
-Agent Components are one of Flock Flow's most powerful features, enabling you to customize agent behavior through lifecycle hooks without modifying agent logic.
+Agent Components are one of Flock's most powerful features, enabling you to customize agent behavior through lifecycle hooks without modifying agent logic.
 
 ---
 

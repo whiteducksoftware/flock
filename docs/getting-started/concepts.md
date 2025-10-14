@@ -14,15 +14,15 @@ search:
 
 # Core Concepts
 
-Welcome to Flock Flow! This page introduces the fundamental concepts that make Flock Flow different from traditional AI agent frameworks.
+Welcome to Flock! This page introduces the fundamental concepts that make Flock different from traditional AI agent frameworks.
 
-**If you're coming from other frameworks:** Flock Flow takes a different architectural approach—blackboard-first with declarative type contracts. The mental shift takes 10 minutes, but it's worth it.
+**If you're coming from other frameworks:** Flock takes a different architectural approach—blackboard-first with declarative type contracts. The mental shift takes 10 minutes, but it's worth it.
 
 ---
 
-## What is Flock Flow?
+## What is Flock?
 
-**Flock Flow is a production-focused framework for orchestrating AI agents through declarative type contracts and blackboard architecture.**
+**Flock is a production-focused framework for orchestrating AI agents through declarative type contracts and blackboard architecture.**
 
 Instead of writing prompts and defining workflow graphs, you:
 1. **Define typed artifacts** (Pydantic models that describe your data)
@@ -220,7 +220,7 @@ workflow.add_edge("performance_analyzer", "final_reviewer")  # Must update final
 - ❌ **No parallelism** - Sequential execution unless manually configured
 - ❌ **Orchestrator knows all** - God object anti-pattern
 
-### Flock Flow Approach (Blackboard-Based)
+### Flock Approach (Blackboard-Based)
 
 ```python
 # Agents subscribe to types (no edges!)
@@ -242,9 +242,9 @@ performance_analyzer = flock.agent("perf").consumes(CodeSubmission).publishes(Pe
 
 ---
 
-## When to Use Flock Flow
+## When to Use Flock
 
-### ✅ Flock Flow is Great For
+### ✅ Flock is Great For
 
 **Multi-agent orchestration with:**
 - Multiple agents processing same data type (parallel analysis)
@@ -277,7 +277,7 @@ performance_analyzer = flock.agent("perf").consumes(CodeSubmission).publishes(Pe
 
 ## Architecture Comparison
 
-### Flock Flow (Blackboard)
+### Flock (Blackboard)
 
 <p align="center">
   <img alt="Blackboard Architecture" src="../img/flock_ui_blackboard_view.png" width="800">
@@ -386,7 +386,7 @@ await flock.run_until_idle()
 
 ## Production Safety Features
 
-Flock Flow includes built-in safeguards to prevent common production failures:
+Flock includes built-in safeguards to prevent common production failures:
 
 ### Circuit Breakers
 
@@ -437,7 +437,7 @@ analyzer = (
 
 **Control how agents wait for multiple artifacts with declarative logic gates.**
 
-Flock Flow supports three coordination patterns for multi-artifact subscriptions:
+Flock supports three coordination patterns for multi-artifact subscriptions:
 
 ### AND Gates: Wait for ALL Types
 
@@ -804,7 +804,7 @@ Now that you understand the core concepts, explore these guides:
 - Parallel execution by default
 - Zero-trust security built-in
 
-**When to Use Flock Flow:**
+**When to Use Flock:**
 - Multi-agent orchestration with parallel processing
 - Complex dependency chains
 - Production systems needing safety and observability

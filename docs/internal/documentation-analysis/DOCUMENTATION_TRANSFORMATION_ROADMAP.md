@@ -1,4 +1,4 @@
-# Flock Flow Documentation Transformation Roadmap
+# Flock Documentation Transformation Roadmap
 
 **Date:** October 8, 2025
 **Version:** 0.5.0b
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This roadmap synthesizes research from three comprehensive analyses to transform Flock Flow's documentation from an internal, incomplete structure to state-of-the-art end-user facing documentation that developers love to use.
+This roadmap synthesizes research from three comprehensive analyses to transform Flock's documentation from an internal, incomplete structure to state-of-the-art end-user facing documentation that developers love to use.
 
 ### Current State Assessment
 
@@ -39,7 +39,7 @@ This roadmap synthesizes research from three comprehensive analyses to transform
 
 **Documentation Quality Score: 9.0+/10**
 
-Transform Flock Flow documentation into a **Diataxis-compliant, developer-loved documentation site** following industry best practices from FastAPI, Pydantic, and Material for MkDocs.
+Transform Flock documentation into a **Diataxis-compliant, developer-loved documentation site** following industry best practices from FastAPI, Pydantic, and Material for MkDocs.
 
 ### Success Metrics
 
@@ -220,10 +220,10 @@ docs/
 
 **1.2 Create Getting Started Concepts (4 hours)**
 - [ ] `getting-started/concepts.md` - Foundational understanding
-  - What is Flock Flow (blackboard orchestration)
+  - What is Flock (blackboard orchestration)
   - Core concepts: Flock, Agent, Artifact, Blackboard
   - Mental model (vs traditional workflows)
-  - When to use Flock Flow
+  - When to use Flock
   - Architecture diagram
   - Sources: README.md intro, AGENTS.md
 
@@ -645,7 +645,7 @@ markdown_extensions:
 
 | Content Section | Target Document | Lines |
 |----------------|-----------------|-------|
-| What is Flock Flow | getting-started/concepts.md | 1-50 |
+| What is Flock | getting-started/concepts.md | 1-50 |
 | Quick Start | getting-started/quick-start.md | 50-100 |
 | Core Concepts | getting-started/concepts.md | 100-150 |
 | Agent Workflow | guides/agents.md | 150-250 |

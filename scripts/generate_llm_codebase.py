@@ -249,7 +249,7 @@ def read_frontmatter() -> str:
         try:
             with open(agents_md, encoding="utf-8") as f:
                 content = f.read()
-            return f"# 🚀 Flock Flow Framework Documentation\n\n{content}\n\n{'='*80}\n\n"
+            return f"# 🚀 Flock Framework Documentation\n\n{content}\n\n{'='*80}\n\n"
         except Exception as e:
             print(f"⚠️  Warning: Could not read AGENTS.md: {e}", file=sys.stderr)
     else:

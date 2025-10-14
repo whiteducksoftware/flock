@@ -529,7 +529,7 @@ for i in range(100):
 **[Core Concepts](concepts.md)** ⭐ **Read this next**
 - Understand Flock, Agent, Artifact, Blackboard
 - Mental model: Blackboard vs traditional graphs
-- When to use Flock Flow
+- When to use Flock
 - **Time:** 15 minutes
 
 ### Comprehensive Guides

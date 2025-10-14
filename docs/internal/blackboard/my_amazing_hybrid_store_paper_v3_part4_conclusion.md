@@ -302,7 +302,7 @@ No prior system addresses **storage-polymorphic multi-agent coordination** with 
 
 We introduced **Hybrid Blackboard Stores**, a storage-polymorphic architecture that preserves relational auditability while unlocking graph-based provenance and vector-based semantic routing. Our design uses the relational core as the canonical log, with graph and vector overlays maintained via change-data-capture, enabling graceful degradation and deterministic replay.
 
-Implemented in the **Flock Flow** orchestrator, our hybrid store provides unified APIs (`add_relation`, `find_similar`, `find_related`) and subscription extensions (`consumes_similar`, `consumes_related`) that reshape multi-agent coordination patterns.
+Implemented in the **Flock** orchestrator, our hybrid store provides unified APIs (`add_relation`, `find_similar`, `find_related`) and subscription extensions (`consumes_similar`, `consumes_related`) that reshape multi-agent coordination patterns.
 
 Across three evaluation suites—**Semantic Routing**, **Provenance Reasoning**, and **Bidirectional Search**—we demonstrated:
 

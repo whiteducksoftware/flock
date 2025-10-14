@@ -1,5 +1,5 @@
 /**
- * IndexedDB Persistence Service for Flock Flow Dashboard
+ * IndexedDB Persistence Service for Flock Dashboard
  *
  * Provides persistent storage for dashboard data with LRU eviction strategy.
  * Implements separate layout storage for Agent View and Blackboard View.

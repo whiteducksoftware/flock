@@ -122,7 +122,7 @@ python your_agent.py
 
 **Related:**
 - **[Dashboard Guide](../dashboard.md)** - Real-time visualization
-- **[Core Concepts](../../getting-started/concepts.md)** - Understand Flock Flow
+- **[Core Concepts](../../getting-started/concepts.md)** - Understand Flock
 
 ---
 

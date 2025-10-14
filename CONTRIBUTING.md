@@ -1,6 +1,6 @@
-# Contributing to Flock Flow
+# Contributing to Flock
 
-Welcome to Flock Flow! We're excited to have you contribute to the future of AI agent orchestration. This guide will help you get set up and contributing quickly.
+Welcome to Flock! We're excited to have you contribute to the future of AI agent orchestration. This guide will help you get set up and contributing quickly.
 
 ## 🎯 Quick Start
 
@@ -219,7 +219,7 @@ async def test_your_feature():
 
 ## 📦 Versioning
 
-Flock Flow uses **smart versioning** that only bumps versions for components that actually changed.
+Flock uses **smart versioning** that only bumps versions for components that actually changed.
 
 ### Quick Reference
 
@@ -562,11 +562,11 @@ Contributors who make significant contributions will be:
 
 ## 📜 License
 
-By contributing to Flock Flow, you agree that your contributions will be licensed under the same license as the project.
+By contributing to Flock, you agree that your contributions will be licensed under the same license as the project.
 
 ---
 
-**Thank you for contributing to Flock Flow!** 🚀
+**Thank you for contributing to Flock!** 🚀
 
 Every contribution, no matter how small, helps build the future of AI agent orchestration.
 

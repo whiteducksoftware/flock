@@ -12,7 +12,7 @@ search:
 
 # Blackboard Architecture
 
-The **blackboard** is Flock Flow's central coordination mechanism—a shared workspace where [agents](agents.md) publish and consume typed data artifacts without directly knowing about each other.
+The **blackboard** is Flock's central coordination mechanism—a shared workspace where [agents](agents.md) publish and consume typed data artifacts without directly knowing about each other.
 
 **Think of it like a busy bulletin board:** experts post their findings on sticky notes, others see relevant notes and add their own contributions, and gradually the collective intelligence emerges—all without anyone orchestrating who does what.
 
@@ -52,7 +52,7 @@ Blackboard architecture isn't new—it's been solving complex AI problems since 
 - Distributed tracing shows complete execution history
 - Scales better than rigid graph topologies
 
-**Flock Flow applies 50+ years of proven patterns to modern AI.**
+**Flock applies 50+ years of proven patterns to modern AI.**
 
 ---
 

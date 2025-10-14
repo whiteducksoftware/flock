@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The Flock Flow dashboard currently implements **1,400 lines of complex client-side graph construction logic** that duplicates backend functionality. With the new `/api/dashboard/graph` endpoint, we can eliminate **71% of this code** (-690 lines) while improving performance and maintainability.
+The Flock dashboard currently implements **1,400 lines of complex client-side graph construction logic** that duplicates backend functionality. With the new `/api/dashboard/graph` endpoint, we can eliminate **71% of this code** (-690 lines) while improving performance and maintainability.
 
 ### Key Findings
 

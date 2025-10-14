@@ -2,7 +2,7 @@
 ## Comprehensive Guide for State-of-the-Art Developer Documentation (2024-2025)
 
 **Research Date:** October 8, 2025
-**Focus:** Transforming Flock Flow documentation into professional end-user facing documentation
+**Focus:** Transforming Flock documentation into professional end-user facing documentation
 **Framework:** MkDocs with Material theme for AI agent orchestration framework
 
 ---
@@ -177,7 +177,7 @@ The Diataxis framework is the industry standard for organizing technical documen
 
 **Key Principle:** Never mix these types. Each serves a distinct purpose and should be clearly separated.
 
-#### Applied to Flock Flow:
+#### Applied to Flock:
 
 ```
 nav:
@@ -261,7 +261,7 @@ nav:
 ```markdown
 # Quick Start
 
-Get started with Flock Flow in 5 minutes.
+Get started with Flock in 5 minutes.
 
 ## Installation
 
@@ -411,7 +411,7 @@ Every directory should have an `index.md` that serves as:
 ```markdown
 # How-To Guides
 
-Practical guides for accomplishing specific tasks with Flock Flow.
+Practical guides for accomplishing specific tasks with Flock.
 
 ## Agents
 
@@ -866,10 +866,10 @@ agent = Agent(name='demo')
 
 ```markdown
 ---
-title: Quick Start Guide - Flock Flow
-description: Get started with Flock Flow in 5 minutes. Learn how to create your first AI agent using the blackboard pattern.
+title: Quick Start Guide - Flock
+description: Get started with Flock in 5 minutes. Learn how to create your first AI agent using the blackboard pattern.
 keywords:
-  - flock flow
+  - Flock
   - ai agents
   - blackboard pattern
   - quick start
@@ -883,13 +883,13 @@ hide:
 
 # Quick Start Guide
 
-Get up and running with Flock Flow in just 5 minutes.
+Get up and running with Flock in just 5 minutes.
 ```
 
 **Site-Level Configuration:**
 
 ```yaml
-site_name: Flock Flow
+site_name: Flock
 site_description: Production-focused blackboard architecture for multi-agent AI orchestration
 site_url: https://flock-flow.dev
 site_author: white duck GmbH
@@ -1147,11 +1147,11 @@ docs/
 ```markdown
 # Quick Start
 
-Get started with Flock Flow in 5 minutes.
+Get started with Flock in 5 minutes.
 
 ## Installation
 
-Install Flock Flow using pip:
+Install Flock using pip:
 
 ```bash
 pip install flock-core
@@ -1199,7 +1199,7 @@ Hello, Developer!
 
 ## Next Steps
 
-Now that you have Flock Flow running, learn more:
+Now that you have Flock running, learn more:
 
 - **[Tutorial: Pizza Ordering System](tutorial-pizza.md)** - Build a complete multi-agent system (15 min)
 - **[Understand the Blackboard Pattern](../concepts/blackboard-pattern.md)** - Learn the core concept
@@ -1229,11 +1229,11 @@ Now that you have Flock Flow running, learn more:
 ```markdown
 # Tutorial: Pizza Ordering System
 
-Build a multi-agent pizza ordering system with Flock Flow.
+Build a multi-agent pizza ordering system with Flock.
 
 **Time:** 15 minutes
 **Difficulty:** Beginner
-**Prerequisites:** Python 3.9+, Flock Flow installed
+**Prerequisites:** Python 3.9+, Flock installed
 
 ## What We'll Build
 
@@ -1330,7 +1330,7 @@ cd flock/examples/pizza-ordering
 ```markdown
 # Examples
 
-Real-world examples demonstrating Flock Flow capabilities.
+Real-world examples demonstrating Flock capabilities.
 
 ## Featured Examples
 
@@ -1444,7 +1444,7 @@ python showcase/main.py
 
 ### 9.2 Specific Recommendations for AI/Agent Frameworks
 
-**Flock Flow Specific Patterns:**
+**Flock Specific Patterns:**
 
 ```markdown
 # Documentation Structure for AI Agent Framework
@@ -1758,9 +1758,9 @@ jobs:
 ```markdown
 # Accessible Image Example
 
-![Flock Flow architecture diagram showing three agents connected to a central blackboard. Agent 1 writes data, Agent 2 processes it, and Agent 3 generates output.](../assets/diagrams/architecture.svg){
+![Flock architecture diagram showing three agents connected to a central blackboard. Agent 1 writes data, Agent 2 processes it, and Agent 3 generates output.](../assets/diagrams/architecture.svg){
   loading=lazy
-  alt="Flock Flow architecture diagram showing three agents connected to a central blackboard. Agent 1 writes data, Agent 2 processes it, and Agent 3 generates output."
+  alt="Flock architecture diagram showing three agents connected to a central blackboard. Agent 1 writes data, Agent 2 processes it, and Agent 3 generates output."
 }
 
 **Description for screen readers:** The diagram illustrates the blackboard pattern
@@ -1819,11 +1819,11 @@ plugins:
 
 ## 11. Recommended MkDocs Material Configuration
 
-### 11.1 Complete `mkdocs.yml` Template for Flock Flow
+### 11.1 Complete `mkdocs.yml` Template for Flock
 
 ```yaml
 # Site Information
-site_name: Flock Flow
+site_name: Flock
 site_description: Production-focused blackboard architecture for multi-agent AI orchestration
 site_author: white duck GmbH
 site_url: https://flock-flow.dev  # Update with actual URL
@@ -2171,7 +2171,7 @@ watch:
 **`docs/stylesheets/extra.css`:**
 
 ```css
-/* Custom styles for Flock Flow documentation */
+/* Custom styles for Flock documentation */
 
 /* Better code block styling */
 .highlight {
@@ -2252,7 +2252,7 @@ watch:
 **`docs/javascripts/extra.js`:**
 
 ```javascript
-// Custom JavaScript for Flock Flow documentation
+// Custom JavaScript for Flock documentation
 
 // Add copy feedback to code blocks
 document.addEventListener('DOMContentLoaded', function() {
@@ -2344,7 +2344,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 ---
 
-## 13. Action Plan for Flock Flow Documentation
+## 13. Action Plan for Flock Documentation
 
 ### 13.1 Immediate Actions (Week 1)
 
@@ -2475,7 +2475,7 @@ State-of-the-art developer documentation in 2024-2025 requires:
 9. **Accessibility:** WCAG compliance, keyboard navigation, semantic HTML
 10. **Performance:** Fast loading, offline support, optimized assets
 
-For Flock Flow specifically:
+For Flock specifically:
 - Emphasize the **blackboard pattern** with clear diagrams
 - Showcase **tracing/observability** as a key differentiator
 - Provide **production-ready patterns** (not just toy examples)

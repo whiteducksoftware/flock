@@ -1,6 +1,6 @@
 # Tutorials
 
-Welcome to Flock Flow tutorials! These hands-on guides will take you from zero to building production-ready multi-agent systems.
+Welcome to Flock tutorials! These hands-on guides will take you from zero to building production-ready multi-agent systems.
 
 ## Learning Path
 
