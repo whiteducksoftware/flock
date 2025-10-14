@@ -41,7 +41,7 @@ class PublicStatement(BaseModel):
     public_reassurance: str
 
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 field_agent = (
     flock.agent("field_agent")

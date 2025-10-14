@@ -21,7 +21,7 @@ class Pizza(BaseModel):
     step_by_step_instructions: list[str]
 
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 pizza_master = flock.agent("pizza_master").consumes(MyDreamPizza).publishes(Pizza)
 

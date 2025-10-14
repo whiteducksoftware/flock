@@ -62,7 +62,7 @@ class Movie(BaseModel):
     )
 
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 movie_master = (
     flock.agent("movie_master")

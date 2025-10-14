@@ -34,7 +34,7 @@ class CaseReport(BaseModel):
     recommendation: str
 
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 detective = (
     flock.agent("detective")

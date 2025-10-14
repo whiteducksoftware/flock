@@ -47,7 +47,7 @@ class Signal(BaseModel):
 
 
 # Create orchestrator
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 # Create 100 agents in a chain
 # Agent 0 consumes Signal(hop=0)

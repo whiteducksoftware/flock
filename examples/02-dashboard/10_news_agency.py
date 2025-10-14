@@ -45,7 +45,7 @@ class PublishedStory(BaseModel):
     follow_up_needed: bool
 
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 reporter = (
     flock.agent("reporter")
