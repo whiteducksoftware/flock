@@ -24,7 +24,7 @@ class FileAnalysisReport(BaseModel):
     line_count: int
 
 
-flock = Flock(model="openai/gpt-4.1")
+flock = Flock()
 
 current_dir = Path.cwd()
 

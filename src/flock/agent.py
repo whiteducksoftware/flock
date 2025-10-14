@@ -453,9 +453,16 @@ class Agent(metaclass=AutoTracedMeta):
         for component in self._sorted_utilities():
             comp_name = self._component_display_name(component)
             priority = getattr(component, "priority", 0)
+
+            # Python 3.12+ TaskGroup raises BaseExceptionGroup - extract sub-exceptions
+            error_detail = str(error)
+            if isinstance(error, BaseExceptionGroup):
+                sub_exceptions = [f"{type(e).__name__}: {e}" for e in error.exceptions]
+                error_detail = f"{error!s} - Sub-exceptions: {sub_exceptions}"
+
             logger.debug(
                 f"Agent error hook: agent={self.name}, component={comp_name}, "
-                f"priority={priority}, error={error!s}"
+                f"priority={priority}, error={error_detail}"
             )
             try:
                 await component.on_error(self, ctx, error)
