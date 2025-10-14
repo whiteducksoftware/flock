@@ -30,7 +30,7 @@ class ResearchReport(BaseModel):
     confidence_level: float = Field(ge=0.0, le=1.0)
     file_path: str
 
-flock = Flock("openai/gpt-4.1")
+flock = Flock()
 
 try:
     flock.add_mcp(
