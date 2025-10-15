@@ -41,15 +41,14 @@ async def test_dspy_engine_evaluation_with_mock_llm(orchestrator, mocker):
 
     class MockPrediction:
         def __init__(self):
-            self.output = {"response": "mocked output"}
-            # Add attributes that might be accessed during materialization
-            self.EngineOutput = {"response": "mocked output"}
+            # DSPy engine uses snake_case field names (EngineOutput -> engine_output)
+            self.engine_output = {"response": "mocked output"}
 
     class MockPredict:
         def __init__(self, signature):
             self.signature = signature
 
-        def __call__(self, description=None, input=None, context=None):
+        def __call__(self, **kwargs):
             return MockPrediction()
 
     # Mock the entire DSPy module to avoid import issues

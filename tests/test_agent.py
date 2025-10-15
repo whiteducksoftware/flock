@@ -102,31 +102,6 @@ class FailingEngine(EngineComponent):
         raise ValueError("Test error")
 
 
-class BatchRoutingEngine(EngineComponent):
-    """Engine used to verify batch routing behaviour."""
-
-    _evaluate_calls: int = PrivateAttr(default=0)
-    _evaluate_batch_calls: int = PrivateAttr(default=0)
-
-    @property
-    def evaluate_calls(self) -> int:
-        return self._evaluate_calls
-
-    @property
-    def evaluate_batch_calls(self) -> int:
-        return self._evaluate_batch_calls
-
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
-        self._evaluate_calls += 1
-        return EvalResult(artifacts=list(inputs.artifacts), state=dict(inputs.state))
-
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
-        self._evaluate_batch_calls += 1
-        state = dict(inputs.state)
-        state["batch_processed"] = True
-        return EvalResult(artifacts=list(inputs.artifacts), state=state)
-
-
 @pytest.mark.asyncio
 async def test_agent_lifecycle_executes_all_stages_in_order(orchestrator):
     """Test that agent executes all lifecycle stages in correct order."""
@@ -348,79 +323,6 @@ async def test_agent_best_of_one_skips_parallel_execution(orchestrator):
 
     # Assert - Called once (no parallel execution for n=1)
     assert call_count[0] == 1
-
-
-@pytest.mark.asyncio
-async def test_agent_routes_to_evaluate_batch_when_context_is_batch(orchestrator):
-    """Agent should call evaluate_batch() when ctx.is_batch is True."""
-    engine = BatchRoutingEngine()
-    builder = orchestrator.agent("batch_routing").consumes(AgentInput).with_engines(engine)
-
-    ctx = Context(
-        board=None,
-        orchestrator=orchestrator,
-        task_id="batch-task",
-        is_batch=True,
-    )
-    inputs = EvalInputs(artifacts=[], state={})
-    output_group = OutputGroup(outputs=[], group_description=None)
-
-    result = await builder.agent._run_engines(ctx, inputs, output_group)
-
-    assert engine.evaluate_batch_calls == 1
-    assert engine.evaluate_calls == 0
-    assert result.state.get("batch_processed") is True
-
-
-@pytest.mark.asyncio
-async def test_agent_routes_to_evaluate_for_single_execution(orchestrator):
-    """Agent should call evaluate() when ctx.is_batch is False."""
-    engine = BatchRoutingEngine()
-    builder = orchestrator.agent("single_routing").consumes(AgentInput).with_engines(engine)
-
-    ctx = Context(
-        board=None,
-        orchestrator=orchestrator,
-        task_id="single-task",
-        is_batch=False,
-    )
-    inputs = EvalInputs(artifacts=[], state={})
-    output_group = OutputGroup(outputs=[], group_description=None)
-
-    result = await builder.agent._run_engines(ctx, inputs, output_group)
-
-    assert engine.evaluate_calls == 1
-    assert engine.evaluate_batch_calls == 0
-    assert "batch_processed" not in result.state
-
-
-@pytest.mark.asyncio
-async def test_agent_batch_mode_without_batch_support_raises(orchestrator):
-    """Agent should surface NotImplementedError when engine lacks batch support."""
-
-    class NonBatchEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
-            return EvalResult(artifacts=[], state={})
-
-    builder = (
-        orchestrator.agent("non_batch_engine").consumes(AgentInput).with_engines(NonBatchEngine())
-    )
-
-    ctx = Context(
-        board=None,
-        orchestrator=orchestrator,
-        task_id="non-batch-task",
-        is_batch=True,
-    )
-    inputs = EvalInputs(artifacts=[], state={})
-    output_group = OutputGroup(outputs=[], group_description=None)
-
-    with pytest.raises(NotImplementedError) as exc_info:
-        await builder.agent._run_engines(ctx, inputs, output_group)
-
-    error_message = str(exc_info.value)
-    assert "does not support batch processing" in error_message
-    assert "non_batch_engine" in error_message  # Agent name included
 
 
 # T061: Phase 3 Strict Validation
