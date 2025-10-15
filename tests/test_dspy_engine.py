@@ -953,6 +953,8 @@ class TestDSPyEngineIntegration:
         ctx.orchestrator.store = Mock()
         ctx.orchestrator.store.list = AsyncMock(return_value=[])
         ctx.orchestrator._active_streams = 0
+        # Phase 7: Set batch flag for auto-detection
+        ctx.is_batch = True
 
         artifacts = [
             Artifact(type="TestInput", payload={"prompt": "one"}, produced_by="test"),
@@ -961,7 +963,7 @@ class TestDSPyEngineIntegration:
         inputs = EvalInputs(artifacts=artifacts, state={})
         output_group = OutputGroup(outputs=[], group_description=None)
 
-        result = await engine.evaluate_batch(agent, ctx, inputs, output_group)
+        result = await engine.evaluate(agent, ctx, inputs, output_group)
 
         assert isinstance(result, EvalResult)
         mock_execute.assert_awaited_once()

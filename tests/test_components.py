@@ -562,33 +562,6 @@ async def test_engine_component_evaluate_not_implemented():
 
 
 @pytest.mark.asyncio
-async def test_engine_component_evaluate_batch_raises_not_implemented():
-    """Test that EngineComponent.evaluate_batch raises NotImplementedError with clear message."""
-    # Arrange
-    engine = EngineComponent()
-    output_group = OutputGroup(outputs=[], group_description=None)
-
-    # Create mock agent with name
-    mock_agent = MagicMock()
-    mock_agent.name = "test_agent"
-
-    mock_ctx = MagicMock()
-    inputs = EvalInputs(artifacts=[], state={})
-
-    # Act & Assert
-    with pytest.raises(NotImplementedError) as exc_info:
-        await engine.evaluate_batch(mock_agent, mock_ctx, inputs, output_group)
-
-    # Verify error message contains agent name and engine name
-    error_msg = str(exc_info.value)
-    assert "EngineComponent does not support batch processing" in error_msg
-    assert "test_agent" in error_msg  # Agent name in error
-    assert "EngineComponent" in error_msg  # Engine name in error
-    assert "Remove BatchSpec" in error_msg  # Actionable guidance
-    assert "Implement evaluate_batch" in error_msg  # Alternative solution
-
-
-@pytest.mark.asyncio
 async def test_agent_component_default_hooks():
     """Test AgentComponent default hook implementations."""
     component = AgentComponent()
