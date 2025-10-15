@@ -52,7 +52,6 @@ class CorrelationGroup:
     def add_artifact(self, artifact: Artifact, current_sequence: int) -> None:
         """Add artifact to this correlation group's waiting pool."""
         if self.created_at_time is None:
-
             self.created_at_time = datetime.now(UTC)
 
         self.waiting_artifacts[artifact.type].append(artifact)
