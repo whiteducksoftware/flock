@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -64,6 +64,21 @@ class MCPServerConfig(TypedDict, total=False):
 class AgentOutput:
     spec: ArtifactSpec
     default_visibility: Visibility
+    count: int = 1  # Number of artifacts to generate (fan-out)
+    filter_predicate: Callable[[BaseModel], bool] | None = None  # Where clause
+    validate_predicate: (
+        Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None
+    ) = None  # Validation logic
+    group_description: str | None = None  # Group description override
+
+    def __post_init__(self):
+        """Validate field constraints."""
+        if self.count < 1:
+            raise ValueError(f"count must be >= 1, got {self.count}")
+
+    def is_many(self) -> bool:
+        """Return True if this output generates multiple artifacts (count > 1)."""
+        return self.count > 1
 
     def apply(
         self,
@@ -85,6 +100,26 @@ class AgentOutput:
         )
 
 
+@dataclass
+class OutputGroup:
+    """Represents one .publishes() call.
+
+    Each OutputGroup triggers one engine execution that generates
+    all artifacts in the group together.
+    """
+    outputs: list[AgentOutput]
+    shared_visibility: Visibility | None = None
+    group_description: str | None = None  # Group-level description override
+
+    def is_single_call(self) -> bool:
+        """True if this is one engine call generating multiple artifacts.
+
+        Currently always returns True as each group = one engine call.
+        Future: Could return False for parallel sub-groups.
+        """
+        return True
+
+
 class Agent(metaclass=AutoTracedMeta):
     """Executable agent constructed via `AgentBuilder`.
 
@@ -96,7 +131,7 @@ class Agent(metaclass=AutoTracedMeta):
         self.description: str | None = None
         self._orchestrator = orchestrator
         self.subscriptions: list[Subscription] = []
-        self.outputs: list[AgentOutput] = []
+        self.output_groups: list[OutputGroup] = []
         self.utilities: list[AgentComponent] = []
         self.engines: list[EngineComponent] = []
         self.best_of_n: int = 1
@@ -114,6 +149,11 @@ class Agent(metaclass=AutoTracedMeta):
         self.mcp_mount_points: list[str] = []  # Deprecated: Use mcp_server_mounts instead
         self.mcp_server_mounts: dict[str, list[str]] = {}  # Server-specific mount points
         self.tool_whitelist: list[str] | None = None
+
+    @property
+    def outputs(self) -> list[AgentOutput]:
+        """Backwards compatibility: return flat list of all outputs from all groups."""
+        return [output for group in self.output_groups for output in group.outputs]
 
     @property
     def identity(self) -> AgentIdentity:
@@ -392,29 +432,34 @@ class Agent(metaclass=AutoTracedMeta):
         return current
 
     async def _make_outputs(self, ctx: Context, result: EvalResult) -> list[Artifact]:
-        if not self.outputs:
+        if not self.output_groups:
             # Utility agents may not publish anything
             return list(result.artifacts)
 
         produced: list[Artifact] = []
-        for output_decl in self.outputs:
-            # Phase 6: Find the matching artifact from engine result to preserve its ID
-            matching_artifact = self._find_matching_artifact(output_decl, result)
 
-            payload = self._select_payload(output_decl, result)
-            if payload is None:
-                continue
-            metadata = {
-                "correlation_id": ctx.correlation_id,
-            }
+        # For Phase 2: Iterate ALL output_groups (even though we only have 1 engine call)
+        # Phase 3 will modify this to call engine once PER group
+        for output_group in self.output_groups:
+            for output_decl in output_group.outputs:
+                # Phase 6: Find the matching artifact from engine result to preserve its ID
+                matching_artifact = self._find_matching_artifact(output_decl, result)
 
-            # Phase 6: Preserve artifact ID from engine (for streaming message preview)
-            if matching_artifact:
-                metadata["artifact_id"] = matching_artifact.id
+                payload = self._select_payload(output_decl, result)
+                if payload is None:
+                    continue
+                metadata = {
+                    "correlation_id": ctx.correlation_id,
+                }
 
-            artifact = output_decl.apply(payload, produced_by=self.name, metadata=metadata)
-            produced.append(artifact)
-            await ctx.board.publish(artifact)
+                # Phase 6: Preserve artifact ID from engine (for streaming message preview)
+                if matching_artifact:
+                    metadata["artifact_id"] = matching_artifact.id
+
+                artifact = output_decl.apply(payload, produced_by=self.name, metadata=metadata)
+                produced.append(artifact)
+                await ctx.board.publish(artifact)
+
         return produced
 
     async def _run_post_publish(self, ctx: Context, artifacts: Sequence[Artifact]) -> None:
@@ -706,43 +751,34 @@ class AgentBuilder:
         return self
 
     def publishes(
-        self, *types: type[BaseModel], visibility: Visibility | None = None
+        self,
+        *types: type[BaseModel],
+        visibility: Visibility | Callable[[BaseModel], Visibility] | None = None,
+        fan_out: int | None = None,
+        where: Callable[[BaseModel], bool] | None = None,
+        validate: Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None = None,
+        description: str | None = None
     ) -> PublishBuilder:
         """Declare which artifact types this agent produces.
 
-        Configures the output types and default visibility controls for artifacts
-        published by this agent. Can chain with .where() for conditional publishing.
-
         Args:
             *types: Artifact types (Pydantic models) to publish
-            visibility: Default visibility control for all outputs. Defaults to PublicVisibility.
-                Can be overridden per-publish or with .where() chaining.
+            visibility: Default visibility control OR callable for dynamic visibility
+            fan_out: Number of artifacts to publish (applies to ALL types)
+            where: Filter predicate for output artifacts
+            validate: Validation predicate(s) - callable or list of (callable, error_msg) tuples
+            description: Group-level description override
 
         Returns:
             PublishBuilder for conditional publishing configuration
 
         Examples:
-            >>> # Basic output declaration
-            >>> agent.publishes(Report)
-
-            >>> # Multiple output types
-            >>> agent.publishes(Summary, DetailedReport, Alert)
-
-            >>> # Private outputs (only specific agents can see)
-            >>> agent.publishes(
-            ...     SecretData,
-            ...     visibility=PrivateVisibility(agents={"admin", "auditor"})
-            ... )
-
-            >>> # Tenant-isolated outputs
-            >>> agent.publishes(
-            ...     Invoice,
-            ...     visibility=TenantVisibility()
-            ... )
-
-            >>> # Conditional publishing with chaining
-            >>> (agent.publishes(Alert)
-            ...  .where(lambda result: result.severity == "critical"))
+            >>> agent.publishes(Report)  # Publish 1 Report
+            >>> agent.publishes(Task, Task, Task)  # Publish 3 Tasks (duplicate counting)
+            >>> agent.publishes(Task, fan_out=3)  # Same as above (sugar syntax)
+            >>> agent.publishes(Task, where=lambda t: t.priority > 5)  # With filtering
+            >>> agent.publishes(Report, validate=lambda r: r.score > 0)  # With validation
+            >>> agent.publishes(Task, description="Special instructions")  # With description
 
         See Also:
             - PublicVisibility: Default, visible to all agents
@@ -750,14 +786,57 @@ class AgentBuilder:
             - TenantVisibility: Multi-tenant isolation
             - LabelledVisibility: Role-based access control
         """
-        outputs = []
-        for model in types:
-            spec = ArtifactSpec.from_model(model)
-            output = AgentOutput(spec=spec, default_visibility=ensure_visibility(visibility))
-            self._agent.outputs.append(output)
-            outputs.append(output)
-        # T074: Validate configuration after adding outputs
+        # Validate fan_out if provided
+        if fan_out is not None and fan_out < 1:
+            raise ValueError(f"fan_out must be >= 1, got {fan_out}")
+
+        # Resolve visibility
+        resolved_visibility = ensure_visibility(visibility) if not callable(visibility) else visibility
+
+        # Create AgentOutput objects for this group
+        outputs: list[AgentOutput] = []
+
+        if fan_out is not None:
+            # Apply fan_out to ALL types
+            for model in types:
+                spec = ArtifactSpec.from_model(model)
+                output = AgentOutput(
+                    spec=spec,
+                    default_visibility=resolved_visibility,
+                    count=fan_out,
+                    filter_predicate=where,
+                    validate_predicate=validate,
+                    group_description=description
+                )
+                outputs.append(output)
+        else:
+            # Create separate AgentOutput for each type (including duplicates)
+            # This preserves order: .publishes(A, B, A) → [A, B, A] (3 outputs)
+            for model in types:
+                spec = ArtifactSpec.from_model(model)
+                output = AgentOutput(
+                    spec=spec,
+                    default_visibility=resolved_visibility,
+                    count=1,
+                    filter_predicate=where,
+                    validate_predicate=validate,
+                    group_description=description
+                )
+                outputs.append(output)
+
+        # Create OutputGroup from outputs
+        group = OutputGroup(
+            outputs=outputs,
+            shared_visibility=resolved_visibility if not callable(resolved_visibility) else None,
+            group_description=description
+        )
+
+        # Append to agent's output_groups
+        self._agent.output_groups.append(group)
+
+        # Validate configuration
         self._validate_self_trigger_risk()
+
         return PublishBuilder(self, outputs)
 
     def with_utilities(self, *components: AgentComponent) -> AgentBuilder:
@@ -1088,7 +1167,11 @@ class AgentBuilder:
             consuming_types.update(sub.type_names)
 
         # Get types agent publishes
-        publishing_types = {output.spec.type_name for output in self._agent.outputs}
+        publishing_types = {
+            output.spec.type_name
+            for group in self._agent.output_groups
+            for output in group.outputs
+        }
 
         # Check for overlap
         overlap = consuming_types.intersection(publishing_types)
@@ -1232,4 +1315,6 @@ class Pipeline:
 __all__ = [
     "Agent",
     "AgentBuilder",
+    "AgentOutput",
+    "OutputGroup",
 ]
