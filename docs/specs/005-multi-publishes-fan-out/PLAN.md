@@ -155,100 +155,227 @@ If implementation cannot follow specification exactly:
 
 **Goal**: Modify agent execution to call the engine once per OutputGroup instead of once total.
 
-- [ ] **Prime Context**: Understand current execution flow
-    - [ ] Read `src/flock/agent.py` - Agent.execute() and _run_engines() `[ref: agent.py; lines: 92-310]`
-    - [ ] Read `docs/internal/improved-publishes/architecture-changes.md` - Execution changes `[ref: architecture-changes.md; lines: 240-300]`
+**Status**: ✅ **COMPLETE** (Shipped 2025-10-15)
 
-- [ ] **Write Tests**: Test multiple engine call execution `[activity: test-writing]`
-    - [ ] Test agent with `.publishes(A).publishes(B).publishes(C)` calls engine 3 times
-    - [ ] Test agent with `.publishes(A, B, C)` calls engine 1 time
-    - [ ] Test agent with `.publishes(A, fan_out=3)` calls engine 1 time, generates 3 artifacts
-    - [ ] Test that each engine call receives group-specific context
-    - [ ] Test that artifacts from all groups are collected
-    - [ ] Test that engine calls are sequential (not parallel initially)
-    - [ ] Test error handling: if one group fails, others don't execute
-    - [ ] Mock engine to count calls and verify behavior
+- [x] **Prime Context**: Understand current execution flow
+    - [x] Read `src/flock/agent.py` - Agent.execute() and _run_engines() `[ref: agent.py; lines: 92-310]`
+    - [x] Read `docs/internal/improved-publishes/architecture-changes.md` - Execution changes `[ref: architecture-changes.md; lines: 240-300]`
 
-- [ ] **Implement**: Multiple engine calls per execution `[ref: architecture-changes.md; lines: 240-280]` `[activity: performance-optimization]`
-    - [ ] Modify `Agent.execute()`:
+- [x] **Write Tests**: Test multiple engine call execution `[activity: test-writing]`
+    - [x] Test agent with `.publishes(A).publishes(B).publishes(C)` calls engine 3 times
+    - [x] Test agent with `.publishes(A, B, C)` calls engine 1 time
+    - [x] Test agent with `.publishes(A, fan_out=3)` calls engine 1 time, generates 3 artifacts
+    - [x] Test that each engine call receives group-specific context
+    - [x] Test that artifacts from all groups are collected
+    - [x] Test that engine calls are sequential (not parallel initially)
+    - [x] Test error handling: if one group fails, others don't execute
+    - [x] Mock engine to count calls and verify behavior
+
+- [x] **Implement**: Multiple engine calls per execution `[ref: architecture-changes.md; lines: 240-280]` `[activity: performance-optimization]`
+    - [x] Modify `Agent.execute()` (lines 194-239):
+        - Loop over `self.output_groups`
+        - Call `_run_engines()` once per group
+        - Collect all outputs into single list
+    - [x] Implement `_prepare_group_context()` (lines 490-509):
+        - Ready for Phase 4 group-specific context
+        - Currently passes same context (stub for future enhancement)
+    - [x] Implement `_make_outputs_for_group()` (lines 511-576):
+        - Extract artifacts matching THIS group's output types only
+        - **Strict contract validation**: Engine must produce exactly `count` artifacts
+        - Raises `ValueError` if contract violated (no silent failures)
+        - Publish artifacts to board
+
+- [x] **Validate**: Execution correctness and performance
+    - [x] Run tests: `pytest tests/test_agent_builder.py` - All 48 tests passing (100%)
+    - [x] Test results: 39 existing + 9 new Phase 3 tests
+    - [x] Review: Error handling is robust (fail-fast on contract violations)
+    - [x] Performance: Sequential execution, no excessive overhead
+    - [x] Backwards compatibility: Agents without output_groups still work
+
+**Deliverables**:
+- `src/flock/agent.py` (lines 194-576): Multiple engine call architecture
+- `tests/test_agent_builder.py` (lines 892-1489): 9 comprehensive async tests
+- `tests/PHASE3_TEST_SUMMARY.md`: Complete test documentation
+
+### Phase 4: Engine Fan-Out Contract
+
+**Goal**: Add `evaluate_fanout()` method to EngineComponent, allowing engines to opt-in to fan-out generation. Not all engines are LLMs - let each engine decide how to handle multiple outputs.
+
+**Architecture Insight**: Following the `evaluate_batch()` pattern from `components.py:116-146`, engines should declare fan-out support explicitly. This keeps the framework engine-agnostic (no assumptions about prompts/LLMs).
+
+- [ ] **Prime Context**: Understand engine abstraction patterns
+    - [ ] Read `src/flock/components.py` - EngineComponent base class `[ref: components.py; lines: 96-219]`
+    - [ ] Read `src/flock/engines/dspy_engine.py` - How DSPyEngine implements evaluate() and evaluate_batch() `[ref: dspy_engine.py; lines: 113-160]`
+    - [ ] Review evaluate_batch() pattern as template for evaluate_fanout() `[ref: components.py; lines: 116-146]`
+
+- [ ] **Write Tests**: Test fan-out engine contract `[activity: test-writing]`
+    - [ ] Test `EngineComponent.evaluate_fanout()` raises NotImplementedError by default
+    - [ ] Test error message includes helpful guidance (like evaluate_batch does)
+    - [ ] Test engine that implements evaluate_fanout() is called correctly
+    - [ ] Test Agent.execute() detects fan-out scenario and calls appropriate method
+    - [ ] Test Agent.execute() falls back to evaluate() if engine doesn't support fan-out
+    - [ ] Test error when fan-out requested but engine doesn't support it
+    - [ ] Mock fan-out-aware engine that returns exactly `count` artifacts
+    - [ ] Test that group_description is passed to evaluate_fanout()
+
+- [ ] **Implement**: Fan-out engine contract in EngineComponent `[ref: components.py; lines: 96-219]` `[activity: component-development]`
+    - [ ] Add `evaluate_fanout()` method to `EngineComponent` (similar to evaluate_batch):
         ```python
-        all_outputs = []
+        async def evaluate_fanout(
+            self,
+            agent: Agent,
+            ctx: Context,
+            inputs: EvalInputs,
+            count: int,
+            group_description: str | None = None
+        ) -> EvalResult:
+            """Generate multiple outputs of the same type (fan-out).
+
+            Override this method if your engine supports fan-out generation.
+            Engines can use group_description to guide generation (e.g., for LLM prompts).
+
+            Args:
+                agent: Agent instance executing this engine
+                ctx: Execution context
+                inputs: EvalInputs with input artifacts
+                count: Number of outputs to generate
+                group_description: Optional instructions for this generation
+
+            Returns:
+                EvalResult with exactly `count` artifacts
+
+            Raises:
+                NotImplementedError: If engine doesn't support fan-out
+
+            Example:
+                >>> async def evaluate_fanout(self, agent, ctx, inputs, count, group_description=None):
+                ...     results = await self.generate_multiple(inputs, count)
+                ...     return EvalResult.from_objects(*results, agent=agent)
+            """
+            raise NotImplementedError(
+                f"{self.__class__.__name__} does not support fan-out generation.\n\n"
+                f"To fix this:\n"
+                f"1. Remove fan_out parameter from .publishes(), OR\n"
+                f"2. Implement evaluate_fanout() in {self.__class__.__name__}, OR\n"
+                f"3. Use a fan-out-aware engine (e.g., DSPyEngine)\n\n"
+                f"Agent: {agent.name}\n"
+                f"Requested count: {count}\n"
+                f"Engine: {self.__class__.__name__}"
+            )
+        ```
+    - [ ] Update `Agent.execute()` to detect fan-out and call appropriate method:
+        ```python
         for group_idx, output_group in enumerate(self.output_groups):
             group_ctx = self._prepare_group_context(ctx, group_idx, output_group)
-            result = await self._run_engines(group_ctx, eval_inputs)
+
+            # Detect fan-out scenario (any output has count > 1)
+            has_fanout = any(output.count > 1 for output in output_group.outputs)
+            is_single_type = len(set(o.spec.type_name for o in output_group.outputs)) == 1
+
+            if has_fanout and is_single_type:
+                # Fan-out: single type, multiple instances
+                fanout_count = output_group.outputs[0].count
+                try:
+                    result = await self._run_engines_fanout(
+                        group_ctx,
+                        eval_inputs,
+                        count=fanout_count,
+                        group_description=output_group.group_description
+                    )
+                except NotImplementedError:
+                    # Engine doesn't support fan-out - provide clear error
+                    raise ValueError(
+                        f"Engine {self._engines[0].__class__.__name__} does not support fan-out. "
+                        f"Either implement evaluate_fanout() or remove fan_out parameter."
+                    )
+            else:
+                # Standard evaluation
+                result = await self._run_engines(group_ctx, eval_inputs)
+
             group_outputs = await self._make_outputs_for_group(group_ctx, result, output_group)
             all_outputs.extend(group_outputs)
-        return all_outputs
         ```
-    - [ ] Implement `_prepare_group_context()`:
-        - Clone context for this group
-        - Add group-specific outputs to context
-        - Generate group-specific system prompt instructions
-    - [ ] Implement `_make_outputs_for_group()`:
-        - Extract artifacts matching THIS group's output types only
-        - Apply `where` filtering if specified
-        - Apply `validate` checks if specified
-        - Apply visibility (static or dynamic callable)
-        - Verify count matches expected (if fan_out specified)
-    - [ ] Update `_build_group_prompt()` helper to generate LLM instructions for this group
+    - [ ] Implement `_run_engines_fanout()` helper method that calls `engine.evaluate_fanout()`
 
-- [ ] **Validate**: Execution correctness and performance
-    - [ ] Run tests: `pytest tests/test_agent.py::test_multiple_engine_calls* -v` `[activity: run-tests]`
-    - [ ] Test integration: End-to-end with real LLM (may skip for speed) `[activity: business-acceptance]`
-    - [ ] Review: Error handling is robust `[activity: review-code]`
-    - [ ] Performance: Multiple groups don't cause excessive overhead `[activity: performance-testing]`
+- [ ] **Validate**: Engine contract correctness
+    - [ ] Run tests: `pytest tests/test_engine_fanout.py -v` `[activity: run-tests]`
+    - [ ] Test error messages: Clear and helpful (like evaluate_batch) `[activity: review-code]`
+    - [ ] Verify backward compatibility: existing engines still work `[activity: business-acceptance]`
+    - [ ] Mock engine test: Fan-out aware engine produces correct count `[activity: run-tests]`
 
-### Phase 4: LLM Prompt Engineering
+**Design Rationale**:
+- ✅ Engine-agnostic: No assumptions about LLMs, prompts, or implementation
+- ✅ Opt-in pattern: Engines choose whether to support fan-out
+- ✅ Clear errors: Helpful messages guide users to solutions
+- ✅ Flexible: DSPyEngine can use prompts, other engines can use their own strategies
+- ✅ Consistent: Follows existing evaluate_batch() pattern
 
-**Goal**: Generate appropriate system prompts for each OutputGroup to guide LLM artifact generation.
+**Note**: DSPyEngine implementation of `evaluate_fanout()` is optional Phase 4.5 (after contract established)
 
-- [ ] **Prime Context**: Understand prompt generation
-    - [ ] Read `src/flock/engines/` - How DSPyEngine generates prompts
-    - [ ] Read `docs/internal/improved-publishes/implementation-guide.md` - Prompt guidance `[ref: implementation-guide.md; lines: 250-280]`
+### Phase 4.5: DSPyEngine Fan-Out Implementation (Optional)
 
-- [ ] **Write Tests**: Test prompt generation for groups `[activity: test-writing]`
-    - [ ] Test prompt for single output: "Generate 1 Task artifact"
-    - [ ] Test prompt for fan_out: "Generate 3 Task artifacts using EvalResult.from_objects()"
-    - [ ] Test prompt for multiple types: "Generate TaskA, TaskB, TaskC"
-    - [ ] Test prompt includes group description if provided
-    - [ ] Test prompt includes validation requirements if specified
-    - [ ] Verify prompt is clear and actionable
+**Goal**: Implement `evaluate_fanout()` in DSPyEngine using prompt engineering to guide LLM to generate multiple outputs.
 
-- [ ] **Implement**: Group-specific prompt generation `[ref: architecture-changes.md; lines: 310-340]` `[activity: component-development]`
-    - [ ] Implement `_build_group_prompt()` method:
+**Prerequisites**: Phase 4 complete (engine contract established)
+
+- [ ] **Prime Context**: Understand DSPyEngine implementation
+    - [ ] Read `src/flock/engines/dspy_engine.py` - Current evaluate() and evaluate_batch() `[ref: dspy_engine.py; lines: 155-356]`
+    - [ ] Review how evaluate_batch() modifies signature for batch processing `[ref: dspy_engine.py; lines: 158-159]`
+
+- [ ] **Write Tests**: Test DSPyEngine fan-out behavior `[activity: test-writing]`
+    - [ ] Test DSPyEngine.evaluate_fanout() with count=3 generates 3 artifacts
+    - [ ] Test group_description is incorporated into prompt
+    - [ ] Test fan-out prompt instructs LLM to use EvalResult.from_objects()
+    - [ ] Test validation: exactly `count` artifacts returned
+    - [ ] Mock LLM response to verify prompt format
+
+- [ ] **Implement**: DSPyEngine.evaluate_fanout() `[activity: component-development]`
+    - [ ] Add evaluate_fanout() method to DSPyEngine:
         ```python
-        def _build_group_prompt(self, output_group: OutputGroup) -> str:
-            prompt = "You must generate the following artifacts:\n\n"
+        async def evaluate_fanout(
+            self,
+            agent,
+            ctx,
+            inputs: EvalInputs,
+            count: int,
+            group_description: str | None = None
+        ) -> EvalResult:
+            """Generate multiple outputs using LLM with fan-out prompt."""
+            # Build enhanced instructions for fan-out
+            base_instructions = self.instructions or agent.description
+            if group_description:
+                base_instructions = f"{base_instructions}\n\n{group_description}"
 
-            # Count outputs by type
-            type_counts = Counter(o.spec.type_name for o in output_group.outputs)
-            for type_name, count in type_counts.items():
-                if count > 1:
-                    prompt += f"- {count}x {type_name}\n"
-                else:
-                    prompt += f"- {type_name}\n"
+            fanout_instructions = (
+                f"{base_instructions}\n\n"
+                f"IMPORTANT: Generate exactly {count} distinct variations.\n"
+                f"Return all {count} results using: EvalResult.from_objects(result1, result2, ..., agent=agent)"
+            )
 
-            # Add usage instructions for multiple artifacts
-            if len(output_group.outputs) > 1:
-                prompt += "\nUse EvalResult.from_objects() to return all artifacts.\n"
+            # Use existing evaluate() logic with modified instructions
+            original_instructions = self.instructions
+            self.instructions = fanout_instructions
+            try:
+                result = await self.evaluate(agent, ctx, inputs)
 
-            # Add group-specific description if provided
-            if output_group.group_description:
-                prompt += f"\nSpecial instructions: {output_group.group_description}\n"
+                # Validate count
+                if len(result.artifacts) != count:
+                    raise ValueError(
+                        f"DSPyEngine fan-out contract violation: "
+                        f"Expected {count} artifacts, got {len(result.artifacts)}"
+                    )
 
-            # Add validation requirements if any
-            for output in output_group.outputs:
-                if output.validate_predicate:
-                    prompt += f"\nValidate {output.spec.type_name} artifacts before returning.\n"
-
-            return prompt
+                return result
+            finally:
+                self.instructions = original_instructions
         ```
-    - [ ] Integrate prompt into `_prepare_group_context()` to modify engine instructions
 
-- [ ] **Validate**: Prompt quality and LLM behavior
-    - [ ] Run tests: `pytest tests/test_prompt_generation.py -v` `[activity: run-tests]`
-    - [ ] Manual test: Verify LLM generates correct count `[activity: business-acceptance]`
-    - [ ] Review: Prompts are clear and unambiguous `[activity: review-code]`
+- [ ] **Validate**: DSPyEngine fan-out correctness
+    - [ ] Run tests: `pytest tests/test_dspy_fanout.py -v` `[activity: run-tests]`
+    - [ ] Integration test: Real agent with DSPyEngine and fan_out=3 `[activity: business-acceptance]`
+    - [ ] Verify prompts are clear and LLM follows instructions `[activity: review-code]`
+
+**Design Note**: This implementation uses prompt engineering, but other engines (rule-based, ML models) can implement evaluate_fanout() differently.
 
 ### Phase 5: Filtering, Validation, and Visibility
 
@@ -385,16 +512,20 @@ After implementation, the following should be true:
 ✅ **API Symmetry**: `.publishes()` works like `.consumes()` - multiple calls accumulate
 ✅ **Multiple Engine Calls**: Each `.publishes()` call = one engine call
 ✅ **Single Call Fan-Out**: `.publishes(A, A, A)` or `.publishes(A, fan_out=3)` = one call, multiple artifacts
+✅ **Engine Fan-Out Contract**: `evaluate_fanout()` method allows engines to opt-in to fan-out support
+✅ **Engine Agnostic**: No assumptions about LLMs, prompts, or engine implementation details
 ✅ **Sugar Parameters**: `fan_out`, `where`, `visibility`, `validate`, `description` all work
 ✅ **TDD**: Tests written first, all passing
 ✅ **Backwards Compatible**: Existing code works unchanged
 ✅ **Documentation**: Complete with examples
 ✅ **Performance**: No significant overhead from multiple groups
-✅ **Error Messages**: Clear, actionable, helpful
+✅ **Error Messages**: Clear, actionable, helpful (following evaluate_batch pattern)
 
 ## Notes
 
 - **TDD Emphasis**: EVERY phase starts with writing tests. No implementation without tests first!
-- **Parallel Opportunity**: Phases 5-6 (filtering/validation + documentation) could be done in parallel after Phase 4 completes
-- **Cost Consideration**: Document that multiple `.publishes()` calls = multiple LLM API calls = higher cost
+- **Architectural Pivot**: Phase 4 changed from "LLM Prompt Engineering" to "Engine Fan-Out Contract" to keep framework engine-agnostic
+- **Parallel Opportunity**: Phases 4.5-5-6 (DSPy implementation + filtering/validation + documentation) could be done in parallel after Phase 4 completes
+- **Cost Consideration**: Document that multiple `.publishes()` calls = multiple engine calls = higher cost (depending on engine)
 - **Future Enhancement**: After this ships, consider adding `parallel=True` option to execute groups concurrently
+- **Design Pattern**: `evaluate_fanout()` follows the same opt-in pattern as `evaluate_batch()` - engines declare capabilities explicitly

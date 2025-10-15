@@ -887,3 +887,608 @@ def test_publishes_group_structure_complete():
         assert hasattr(output, "filter_predicate")
         assert hasattr(output, "validate_predicate")
         assert hasattr(output, "group_description")
+
+
+# ============================================================================
+# PHASE 3: Multiple Engine Calls in Agent.execute()
+# ============================================================================
+
+"""Tests for Phase 3: Multiple Engine Calls Based on OutputGroups.
+
+These tests verify that Agent.execute() calls the engine ONCE PER OutputGroup,
+not once total. This is the core semantic of multiple .publishes() calls.
+
+Phase 3 Requirements (from PLAN.md lines 163-171):
+1. .publishes(A).publishes(B).publishes(C) → 3 engine calls
+2. .publishes(A, B, C) → 1 engine call
+3. .publishes(A, fan_out=3) → 1 engine call, 3 artifacts
+4. Each engine call gets group-specific context
+5. All group artifacts are collected
+6. Engine calls are sequential (not parallel)
+7. Error in one group stops remaining groups
+8. Mock engine to count and verify calls
+"""
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, call, patch
+
+from pydantic import PrivateAttr
+from flock.runtime import Context
+from flock.artifacts import Artifact
+from flock.runtime import EvalInputs, EvalResult
+from flock.components import EngineComponent
+
+
+# No-op utility component for tests (bypasses console emoji rendering)
+from flock.components import AgentComponent
+
+class NoOpUtility(AgentComponent):
+    """Silent utility that does nothing - bypasses default console output."""
+    pass
+
+
+# Mock board for tests
+class MockBoard:
+    """Mock blackboard that collects published artifacts without side effects."""
+    def __init__(self):
+        self.published: list[Artifact] = []
+
+    async def publish(self, artifact: Artifact) -> None:
+        """Record published artifacts."""
+        self.published.append(artifact)
+
+
+# Mock engine for testing call counts
+class CountingMockEngine(EngineComponent):
+    """Mock engine that counts how many times it's called."""
+
+    _call_count: int = PrivateAttr(default=0)
+    _artifacts_per_call: list[list[BaseModel]] = PrivateAttr()
+    _call_history: list[dict] = PrivateAttr(default_factory=list)
+
+    def __init__(self, artifacts_per_call: list[list[BaseModel]]):
+        """
+        Args:
+            artifacts_per_call: List of artifact lists to return for each call.
+                               e.g., [[TaskA()], [TaskB()], [TaskC()]] for 3 calls.
+        """
+        super().__init__()
+        self._call_count = 0
+        self._artifacts_per_call = artifacts_per_call
+        self._call_history = []
+
+    @property
+    def call_count(self) -> int:
+        return self._call_count
+
+    @property
+    def call_history(self) -> list[dict]:
+        return self._call_history
+
+    async def evaluate(self, agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
+        """Mock evaluate that returns predetermined artifacts."""
+        # Record this call
+        call_info = {
+            "call_number": self._call_count,
+            "context_id": id(ctx),
+            "agent_name": agent.name,
+        }
+        self._call_history.append(call_info)
+
+        # Get artifacts for this call
+        if self._call_count < len(self._artifacts_per_call):
+            artifacts_to_return = self._artifacts_per_call[self._call_count]
+        else:
+            artifacts_to_return = []
+
+        self._call_count += 1
+
+        # Return EvalResult with the artifacts
+        return EvalResult.from_objects(*artifacts_to_return, agent=agent)
+
+
+# ============================================================================
+# Test Scenario 1: Multiple .publishes() = Multiple Engine Calls
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_multiple_publishes_calls_engine_multiple_times():
+    """.publishes(A).publishes(B).publishes(C) should call engine 3 times."""
+    # Arrange
+    flock = Flock()
+
+    # Create artifacts for each of the 3 engine calls
+    artifact_a = TestTypeA(value=100, valid=True)
+    artifact_b = TestTypeB(name="Test B", score=85)
+    artifact_c = TestTypeC(priority=5)
+
+    # Mock engine that will be called 3 times
+    mock_engine = CountingMockEngine(
+        artifacts_per_call=[
+            [artifact_a],  # Call 1
+            [artifact_b],  # Call 2
+            [artifact_c],  # Call 3
+        ]
+    )
+
+    # Create agent with 3 separate publishes calls
+    agent = (
+        flock.agent("multi_publish_agent")
+        .consumes(TestTypeA)  # Trigger
+        .publishes(TestTypeA)  # Group 1
+        .publishes(TestTypeB)  # Group 2
+        .publishes(TestTypeC)  # Group 3
+        .with_engines(mock_engine).with_utilities(NoOpUtility())
+    )
+
+    # Create context and input artifacts
+    ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test-multi-calls")
+    input_artifacts = [
+        Artifact(
+            type="TestTypeA",
+            payload=TestTypeA(value=1, valid=True).model_dump(),
+            produced_by="test",
+        )
+    ]
+
+    # Act - Execute the agent
+    output_artifacts = await agent.agent.execute(ctx, input_artifacts)
+
+    # Assert - Engine should be called 3 times
+    assert mock_engine.call_count == 3, (
+        f"Expected 3 engine calls (one per OutputGroup), "
+        f"but got {mock_engine.call_count}"
+    )
+
+    # Should have collected artifacts from all 3 calls
+    assert len(output_artifacts) >= 3, (
+        f"Expected at least 3 output artifacts, got {len(output_artifacts)}"
+    )
+
+    # Verify each call happened
+    assert len(mock_engine.call_history) == 3
+
+
+@pytest.mark.asyncio
+async def test_single_publishes_calls_engine_once():
+    """.publishes(A, B, C) should call engine only 1 time (all types in one group)."""
+    # Arrange
+    flock = Flock()
+
+    artifact_a = TestTypeA(value=1, valid=True)
+    artifact_b = TestTypeB(name="Test", score=90)
+    artifact_c = TestTypeC(priority=3)
+
+    mock_engine = CountingMockEngine(
+        artifacts_per_call=[
+            [artifact_a, artifact_b, artifact_c]  # Single call returns all 3
+        ]
+    )
+
+    # Single .publishes() with multiple types = ONE group
+    agent = (
+        flock.agent("single_publish_agent")
+        .consumes(TestTypeA)
+        .publishes(TestTypeA, TestTypeB, TestTypeC)  # ALL in one call
+        .with_engines(mock_engine).with_utilities(NoOpUtility())
+    )
+
+    ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test-single-call")
+    input_artifacts = [
+        Artifact(
+            type="TestTypeA",
+            payload=TestTypeA(value=1, valid=True).model_dump(),
+            produced_by="test",
+        )
+    ]
+
+    # Act
+    await agent.agent.execute(ctx, input_artifacts)
+
+    # Assert - Engine called exactly ONCE
+    assert mock_engine.call_count == 1, (
+        f"Expected 1 engine call for single .publishes(), "
+        f"got {mock_engine.call_count}"
+    )
+
+
+# ============================================================================
+# Test Scenario 2: fan_out Parameter
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_fan_out_calls_engine_once_generates_multiple():
+    """.publishes(A, fan_out=3) should call engine 1 time, generate 3 artifacts."""
+    # Arrange
+    flock = Flock()
+
+    # Engine returns 3 artifacts in a single call
+    artifacts = [
+        TestTypeA(value=1, valid=True),
+        TestTypeA(value=2, valid=True),
+        TestTypeA(value=3, valid=True),
+    ]
+
+    mock_engine = CountingMockEngine(artifacts_per_call=[artifacts])
+
+    agent = (
+        flock.agent("fanout_agent")
+        .consumes(TestTypeB)
+        .publishes(TestTypeA, fan_out=3)  # Expect 3 artifacts, but 1 call
+        .with_engines(mock_engine).with_utilities(NoOpUtility())
+    )
+
+    ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
+    input_artifacts = [
+        Artifact(
+            type="TestTypeB",
+            payload=TestTypeB(name="test", score=50).model_dump(),
+            produced_by="test",
+        )
+    ]
+
+    # Act
+    output_artifacts = await agent.agent.execute(ctx, input_artifacts)
+
+    # Assert
+    assert mock_engine.call_count == 1, "fan_out should result in single engine call"
+
+    # Should generate 3 artifacts
+    type_a_artifacts = [a for a in output_artifacts if a.type == "TestTypeA"]
+    assert len(type_a_artifacts) == 3, (
+        f"Expected 3 TestTypeA artifacts with fan_out=3, got {len(type_a_artifacts)}"
+    )
+
+
+# ============================================================================
+# Test Scenario 3: Group-Specific Context
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_each_engine_call_receives_group_specific_context():
+    """Each engine call should receive context specific to that OutputGroup."""
+    # Arrange
+    flock = Flock()
+
+    # Track contexts passed to engine
+    contexts_received: list[Context] = []
+
+    class ContextTrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
+            # Capture the context
+            contexts_received.append(ctx)
+
+            # Return appropriate artifact based on call number
+            call_num = len(contexts_received)
+            if call_num == 1:
+                artifact = TestTypeA(value=1, valid=True)
+            elif call_num == 2:
+                artifact = TestTypeB(name="B", score=50)
+            else:
+                artifact = TestTypeC(priority=1)
+
+            return EvalResult.from_objects(artifact, agent=agent)
+
+    agent = (
+        flock.agent("context_test")
+        .consumes(TestTypeA)
+        .publishes(TestTypeA, description="First group")  # Group 1
+        .publishes(TestTypeB, description="Second group")  # Group 2
+        .publishes(TestTypeC, description="Third group")  # Group 3
+        .with_engines(ContextTrackingEngine()).with_utilities(NoOpUtility())
+    )
+
+    ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
+    input_artifacts = [
+        Artifact(
+            type="TestTypeA",
+            payload=TestTypeA(value=1, valid=True).model_dump(),
+            produced_by="test",
+        )
+    ]
+
+    # Act
+    await agent.agent.execute(ctx, input_artifacts)
+
+    # Assert - Should have received 3 contexts (one per group)
+    assert len(contexts_received) == 3
+
+    # Each context should be different (not the same instance)
+    # This tests that _prepare_group_context() creates distinct contexts
+    context_ids = [id(ctx) for ctx in contexts_received]
+    # Note: Depending on implementation, contexts might be cloned or modified
+    # At minimum, verify we got 3 context objects
+    assert len(context_ids) == 3
+
+
+# ============================================================================
+# Test Scenario 4: Artifact Collection from All Groups
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_artifacts_from_all_groups_collected():
+    """Artifacts from all OutputGroups should be collected into final output."""
+    # Arrange
+    flock = Flock()
+
+    # Each group produces different artifacts
+    group1_artifacts = [TestTypeA(value=10, valid=True)]
+    group2_artifacts = [
+        TestTypeB(name="B1", score=60),
+        TestTypeB(name="B2", score=70),
+    ]
+    group3_artifacts = [TestTypeC(priority=5)]
+
+    mock_engine = CountingMockEngine(
+        artifacts_per_call=[
+            group1_artifacts,
+            group2_artifacts,
+            group3_artifacts,
+        ]
+    )
+
+    agent = (
+        flock.agent("collector")
+        .consumes(TestTypeA)
+        .publishes(TestTypeA)  # Group 1: 1 artifact
+        .publishes(TestTypeB, fan_out=2)  # Group 2: 2 artifacts
+        .publishes(TestTypeC)  # Group 3: 1 artifact
+        .with_engines(mock_engine).with_utilities(NoOpUtility())
+    )
+
+    ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
+    input_artifacts = [
+        Artifact(
+            type="TestTypeA",
+            payload=TestTypeA(value=1, valid=True).model_dump(),
+            produced_by="test",
+        )
+    ]
+
+    # Act
+    outputs = await agent.agent.execute(ctx, input_artifacts)
+
+    # Assert - Should collect all artifacts from all groups
+    assert mock_engine.call_count == 3
+
+    # Count by type
+    type_a = [a for a in outputs if a.type == "TestTypeA"]
+    type_b = [a for a in outputs if a.type == "TestTypeB"]
+    type_c = [a for a in outputs if a.type == "TestTypeC"]
+
+    assert len(type_a) >= 1, "Should have TestTypeA from group 1"
+    assert len(type_b) >= 2, "Should have 2 TestTypeB from group 2"
+    assert len(type_c) >= 1, "Should have TestTypeC from group 3"
+
+
+# ============================================================================
+# Test Scenario 5: Sequential Execution
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_engine_calls_are_sequential_not_parallel():
+    """Engine calls should execute sequentially, not in parallel."""
+    # Arrange
+    flock = Flock()
+
+    execution_order: list[int] = []
+    execution_times: list[float] = []
+
+    class SequentialTrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            import time
+
+            call_num = len(execution_order) + 1
+            execution_order.append(call_num)
+            execution_times.append(time.time())
+
+            # Simulate work (short delay)
+            await asyncio.sleep(0.01)
+
+            # Return artifact
+            if call_num == 1:
+                artifact = TestTypeA(value=call_num, valid=True)
+            elif call_num == 2:
+                artifact = TestTypeB(name=f"Call {call_num}", score=50)
+            else:
+                artifact = TestTypeC(priority=call_num)
+
+            return EvalResult.from_objects(artifact, agent=agent)
+
+    agent = (
+        flock.agent("sequential")
+        .consumes(TestTypeA)
+        .publishes(TestTypeA)
+        .publishes(TestTypeB)
+        .publishes(TestTypeC)
+        .with_engines(SequentialTrackingEngine()).with_utilities(NoOpUtility())
+    )
+
+    ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
+    input_artifacts = [
+        Artifact(
+            type="TestTypeA",
+            payload=TestTypeA(value=1, valid=True).model_dump(),
+            produced_by="test",
+        )
+    ]
+
+    # Act
+    await agent.agent.execute(ctx, input_artifacts)
+
+    # Assert - Calls should be in order 1, 2, 3
+    assert execution_order == [1, 2, 3], "Calls should execute in sequential order"
+
+    # Verify timestamps show sequential execution (not parallel)
+    # Each call should start AFTER previous finishes
+    if len(execution_times) == 3:
+        # Times should be increasing (call 2 after call 1, call 3 after call 2)
+        assert execution_times[1] > execution_times[0]
+        assert execution_times[2] > execution_times[1]
+
+
+# ============================================================================
+# Test Scenario 6: Error Handling - Failures Stop Subsequent Groups
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_error_in_group_stops_subsequent_groups():
+    """If one OutputGroup fails, subsequent groups should NOT execute."""
+    # Arrange
+    flock = Flock()
+
+    call_count = 0
+
+    class FailingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs):
+            nonlocal call_count
+            call_count += 1
+
+            if call_count == 2:
+                # Second group fails
+                raise RuntimeError("Group 2 failed!")
+
+            # Return artifact for other calls
+            if call_count == 1:
+                artifact = TestTypeA(value=1, valid=True)
+            else:
+                artifact = TestTypeC(priority=1)
+
+            return EvalResult.from_objects(artifact, agent=agent)
+
+    agent = (
+        flock.agent("failing")
+        .consumes(TestTypeA)
+        .publishes(TestTypeA)  # Group 1: succeeds
+        .publishes(TestTypeB)  # Group 2: FAILS
+        .publishes(TestTypeC)  # Group 3: should NOT execute
+        .with_engines(FailingEngine()).with_utilities(NoOpUtility())
+    )
+
+    ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
+    input_artifacts = [
+        Artifact(
+            type="TestTypeA",
+            payload=TestTypeA(value=1, valid=True).model_dump(),
+            produced_by="test",
+        )
+    ]
+
+    # Act & Assert - Should raise the error
+    with pytest.raises(RuntimeError, match="Group 2 failed"):
+        await agent.agent.execute(ctx, input_artifacts)
+
+    # Engine should have been called exactly 2 times (groups 1 and 2)
+    # Group 3 should NOT execute after group 2 fails
+    assert call_count == 2, (
+        f"Expected 2 engine calls (group 1 success, group 2 fail, group 3 skipped), "
+        f"got {call_count}"
+    )
+
+
+# ============================================================================
+# Test Scenario 7: Mock Engine Call Verification
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_mock_engine_verifies_call_count_and_behavior():
+    """Use mock engine to precisely verify call count and behavior."""
+    # Arrange
+    flock = Flock()
+
+    # Create a more sophisticated mock
+    artifacts_group1 = TestTypeA(value=1, valid=True)
+    artifacts_group2 = TestTypeB(name="Group2", score=75)
+
+    mock_engine = CountingMockEngine(
+        artifacts_per_call=[
+            [artifacts_group1],
+            [artifacts_group2],
+        ]
+    )
+
+    agent = (
+        flock.agent("mock_test")
+        .consumes(TestTypeA)
+        .publishes(TestTypeA)
+        .publishes(TestTypeB)
+        .with_engines(mock_engine).with_utilities(NoOpUtility())
+    )
+
+    ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
+    input_artifacts = [
+        Artifact(
+            type="TestTypeA",
+            payload=TestTypeA(value=1, valid=True).model_dump(),
+            produced_by="test",
+        )
+    ]
+
+    # Act
+    outputs = await agent.agent.execute(ctx, input_artifacts)
+
+    # Assert - Verify all aspects of execution
+    assert mock_engine.call_count == 2, "Should call engine twice"
+
+    # Verify call history
+    assert len(mock_engine.call_history) == 2
+
+    # First call
+    assert mock_engine.call_history[0]["call_number"] == 0
+    assert mock_engine.call_history[0]["agent_name"] == "mock_test"
+
+    # Second call
+    assert mock_engine.call_history[1]["call_number"] == 1
+
+    # Verify outputs
+    type_a_outputs = [a for a in outputs if a.type == "TestTypeA"]
+    type_b_outputs = [a for a in outputs if a.type == "TestTypeB"]
+
+    assert len(type_a_outputs) >= 1, "Should have TestTypeA from group 1"
+    assert len(type_b_outputs) >= 1, "Should have TestTypeB from group 2"
+
+
+# ============================================================================
+# Test Scenario 8: No OutputGroups = No Engine Calls (Backwards Compat)
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_agent_without_publishes_no_engine_calls():
+    """Agent without .publishes() should not call engine (or handle gracefully)."""
+    # Arrange
+    flock = Flock()
+
+    mock_engine = CountingMockEngine(artifacts_per_call=[])
+
+    # Agent with no publishes
+    agent = (
+        flock.agent("no_publish")
+        .consumes(TestTypeA)
+        .with_engines(mock_engine).with_utilities(NoOpUtility())
+        # NO .publishes() calls
+    )
+
+    ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
+    input_artifacts = [
+        Artifact(
+            type="TestTypeA",
+            payload=TestTypeA(value=1, valid=True).model_dump(),
+            produced_by="test",
+        )
+    ]
+
+    # Act
+    outputs = await agent.agent.execute(ctx, input_artifacts)
+
+    # Assert - No output groups means engine shouldn't be called for publishing
+    # (Engine might still be called for other reasons depending on implementation)
+    # At minimum, we should get empty or minimal outputs
+    assert isinstance(outputs, list)

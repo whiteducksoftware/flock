@@ -200,9 +200,34 @@ class Agent(metaclass=AutoTracedMeta):
                 processed_inputs = await self._run_pre_consume(ctx, artifacts)
                 eval_inputs = EvalInputs(artifacts=processed_inputs, state=dict(ctx.state))
                 eval_inputs = await self._run_pre_evaluate(ctx, eval_inputs)
-                result = await self._run_engines(ctx, eval_inputs)
-                result = await self._run_post_evaluate(ctx, eval_inputs, result)
-                outputs = await self._make_outputs(ctx, result)
+
+                # Phase 3: Call engine ONCE PER OutputGroup
+                all_outputs: list[Artifact] = []
+
+                if not self.output_groups:
+                    # No output groups: Utility agents or legacy agents
+                    result = await self._run_engines(ctx, eval_inputs)
+                    result = await self._run_post_evaluate(ctx, eval_inputs, result)
+                    outputs = list(result.artifacts)
+                else:
+                    # Loop over each output group
+                    for group_idx, output_group in enumerate(self.output_groups):
+                        # Prepare group-specific context
+                        group_ctx = self._prepare_group_context(ctx, group_idx, output_group)
+
+                        # Run engines for THIS group
+                        result = await self._run_engines(group_ctx, eval_inputs)
+                        result = await self._run_post_evaluate(group_ctx, eval_inputs, result)
+
+                        # Extract outputs for THIS group only
+                        group_outputs = await self._make_outputs_for_group(
+                            group_ctx, result, output_group
+                        )
+
+                        all_outputs.extend(group_outputs)
+
+                    outputs = all_outputs
+
                 await self._run_post_publish(ctx, outputs)
                 if self.calls_func:
                     await self._invoke_call(ctx, outputs or processed_inputs)
@@ -457,6 +482,94 @@ class Agent(metaclass=AutoTracedMeta):
                     metadata["artifact_id"] = matching_artifact.id
 
                 artifact = output_decl.apply(payload, produced_by=self.name, metadata=metadata)
+                produced.append(artifact)
+                await ctx.board.publish(artifact)
+
+        return produced
+
+    def _prepare_group_context(
+        self, ctx: Context, group_idx: int, output_group: OutputGroup
+    ) -> Context:
+        """Phase 3: Prepare context specific to this OutputGroup.
+
+        Creates a modified context for this group's engine call, potentially
+        with group-specific instructions or metadata.
+
+        Args:
+            ctx: Base context
+            group_idx: Index of this group (0-based)
+            output_group: The OutputGroup being processed
+
+        Returns:
+            Context for this group (may be the same instance or modified)
+        """
+        # For now, return the same context
+        # Phase 4 will add group-specific system prompts here
+        # Future: ctx.clone() and add group_description to system prompt
+        return ctx
+
+    async def _make_outputs_for_group(
+        self, ctx: Context, result: EvalResult, output_group: OutputGroup
+    ) -> list[Artifact]:
+        """Phase 3: Validate and publish artifacts for specific OutputGroup.
+
+        This function validates that the engine fulfilled its contract (produced the
+        expected number of artifacts of each type), then publishes them to the board.
+
+        Args:
+            ctx: Context for this group
+            result: EvalResult from engine for THIS group
+            output_group: OutputGroup defining expected outputs
+
+        Returns:
+            List of artifacts matching this group's outputs
+
+        Raises:
+            ValueError: If engine violated the contract (wrong number of artifacts)
+        """
+        produced: list[Artifact] = []
+
+        for output_decl in output_group.outputs:
+            # Find ALL matching artifacts for this type
+            from flock.registry import type_registry
+
+            expected_canonical = type_registry.resolve_name(output_decl.spec.type_name)
+
+            matching_artifacts: list[Artifact] = []
+            for artifact in result.artifacts:
+                try:
+                    artifact_canonical = type_registry.resolve_name(artifact.type)
+                    if artifact_canonical == expected_canonical:
+                        matching_artifacts.append(artifact)
+                except Exception:
+                    if artifact.type == output_decl.spec.type_name:
+                        matching_artifacts.append(artifact)
+
+            # STRICT VALIDATION: Engine must produce exactly what was promised
+            expected_count = output_decl.count
+            actual_count = len(matching_artifacts)
+
+            if actual_count != expected_count:
+                raise ValueError(
+                    f"Engine contract violation in agent '{self.name}': "
+                    f"Expected {expected_count} artifact(s) of type '{output_decl.spec.type_name}', "
+                    f"but engine produced {actual_count}. "
+                    f"Check your engine implementation to ensure it generates the correct number of outputs."
+                )
+
+            # Contract fulfilled - publish all artifacts
+            for artifact_from_engine in matching_artifacts:
+                metadata = {
+                    "correlation_id": ctx.correlation_id,
+                    "artifact_id": artifact_from_engine.id,  # Preserve engine's ID
+                }
+
+                # Re-wrap the artifact with agent metadata
+                artifact = output_decl.apply(
+                    artifact_from_engine.payload,
+                    produced_by=self.name,
+                    metadata=metadata
+                )
                 produced.append(artifact)
                 await ctx.board.publish(artifact)
 
