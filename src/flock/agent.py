@@ -608,10 +608,14 @@ class Agent(metaclass=AutoTracedMeta):
     async def _make_outputs_for_group(
         self, ctx: Context, result: EvalResult, output_group: OutputGroup
     ) -> list[Artifact]:
-        """Phase 3: Validate and publish artifacts for specific OutputGroup.
+        """Phase 3/5: Validate, filter, and publish artifacts for specific OutputGroup.
 
-        This function validates that the engine fulfilled its contract (produced the
-        expected number of artifacts of each type), then publishes them to the board.
+        This function:
+        1. Validates that the engine fulfilled its contract (produced expected count)
+        2. Applies WHERE filtering (reduces artifacts, no error)
+        3. Applies VALIDATE checks (raises ValueError if validation fails)
+        4. Applies visibility (static or dynamic)
+        5. Publishes artifacts to the board
 
         Args:
             ctx: Context for this group
@@ -622,12 +626,12 @@ class Agent(metaclass=AutoTracedMeta):
             List of artifacts matching this group's outputs
 
         Raises:
-            ValueError: If engine violated the contract (wrong number of artifacts)
+            ValueError: If engine violated contract or validation failed
         """
         produced: list[Artifact] = []
 
         for output_decl in output_group.outputs:
-            # Find ALL matching artifacts for this type
+            # 1. Find ALL matching artifacts for this type
             from flock.registry import type_registry
 
             expected_canonical = type_registry.resolve_name(output_decl.spec.type_name)
@@ -642,7 +646,8 @@ class Agent(metaclass=AutoTracedMeta):
                     if artifact.type == output_decl.spec.type_name:
                         matching_artifacts.append(artifact)
 
-            # STRICT VALIDATION: Engine must produce exactly what was promised
+            # 2. STRICT VALIDATION: Engine must produce exactly what was promised
+            # (This happens BEFORE filtering so engine contract is validated first)
             expected_count = output_decl.count
             actual_count = len(matching_artifacts)
 
@@ -654,12 +659,66 @@ class Agent(metaclass=AutoTracedMeta):
                     f"Check your engine implementation to ensure it generates the correct number of outputs."
                 )
 
-            # Contract fulfilled - publish all artifacts
+            # 3. Apply WHERE filtering (Phase 5)
+            # Filtering reduces the number of published artifacts (this is intentional)
+            # NOTE: Predicates expect Pydantic model instances, not dicts
+            model_cls = type_registry.resolve(output_decl.spec.type_name)
+
+            if output_decl.filter_predicate:
+                original_count = len(matching_artifacts)
+                filtered = []
+                for a in matching_artifacts:
+                    # Reconstruct Pydantic model from payload dict
+                    model_instance = model_cls(**a.payload)
+                    if output_decl.filter_predicate(model_instance):
+                        filtered.append(a)
+                matching_artifacts = filtered
+                logger.debug(
+                    f"Agent {self.name}: WHERE filter reduced artifacts from "
+                    f"{original_count} to {len(matching_artifacts)} for type {output_decl.spec.type_name}"
+                )
+
+            # 4. Apply VALIDATE checks (Phase 5)
+            # Validation failures raise errors (fail-fast)
+            if output_decl.validate_predicate:
+                if callable(output_decl.validate_predicate):
+                    # Single predicate
+                    for artifact in matching_artifacts:
+                        # Reconstruct Pydantic model from payload dict
+                        model_instance = model_cls(**artifact.payload)
+                        if not output_decl.validate_predicate(model_instance):
+                            raise ValueError(
+                                f"Validation failed for {output_decl.spec.type_name} "
+                                f"in agent '{self.name}'"
+                            )
+                elif isinstance(output_decl.validate_predicate, list):
+                    # List of (callable, error_msg) tuples
+                    for artifact in matching_artifacts:
+                        # Reconstruct Pydantic model from payload dict
+                        model_instance = model_cls(**artifact.payload)
+                        for check, error_msg in output_decl.validate_predicate:
+                            if not check(model_instance):
+                                raise ValueError(
+                                    f"{error_msg}: {output_decl.spec.type_name}"
+                                )
+
+            # 5. Apply visibility and publish artifacts (Phase 5)
             for artifact_from_engine in matching_artifacts:
                 metadata = {
                     "correlation_id": ctx.correlation_id,
                     "artifact_id": artifact_from_engine.id,  # Preserve engine's ID
                 }
+
+                # Determine visibility (static or dynamic)
+                visibility = output_decl.default_visibility
+                if callable(visibility):
+                    # Dynamic visibility based on artifact content
+                    # Reconstruct Pydantic model from payload dict
+                    model_instance = model_cls(**artifact_from_engine.payload)
+                    visibility = visibility(model_instance)
+
+                # Override metadata visibility
+                metadata["visibility"] = visibility
 
                 # Re-wrap the artifact with agent metadata
                 artifact = output_decl.apply(
