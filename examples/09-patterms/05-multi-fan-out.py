@@ -48,6 +48,7 @@ multi_master = (
 
 
 async def main():
+    await flock.serve(dashboard=True)
     idea = Idea(story_idea="An action thriller set in space")
     await flock.publish(idea)
     await flock.run_until_idle()

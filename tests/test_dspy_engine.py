@@ -569,6 +569,7 @@ class TestDSPyEngineArtifactMaterialization:
         mock_output = Mock()
         mock_output.spec.model = TestOutput
         mock_output.spec.type_name = "TestOutput"
+        mock_output.count = 1  # Single output (not fan-out)
 
         engine = DSPyEngine()
         artifacts, errors = engine._materialize_artifacts(
@@ -588,6 +589,7 @@ class TestDSPyEngineArtifactMaterialization:
         mock_output = Mock()
         mock_output.spec.model = TestOutput
         mock_output.spec.type_name = "TestOutput"
+        mock_output.count = 1  # Single output (not fan-out)
 
         engine = DSPyEngine()
         artifacts, errors = engine._materialize_artifacts(payload, [mock_output], "test_agent")
