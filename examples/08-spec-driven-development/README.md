@@ -6,7 +6,7 @@
 
 This example demonstrates how to implement a full spec-driven development workflow using Flock's blackboard architecture. Instead of rigid command-based orchestration, agents collaborate emergently through typed artifacts on the blackboard.
 
-## 📊 Current Status: **36% Complete** (2.5/7 phases)
+## 📊 Current Status: **57% Complete** (4/7 phases)
 
 ### ✅ What's Working
 
@@ -24,20 +24,43 @@ This example demonstrates how to implement a full spec-driven development workfl
 - 3 Analysis specialists
 - See: `agents.py`
 
-**Phase 3: Orchestrators (STRUCTURE COMPLETE)**
+**Phase 3: Orchestrators (COMPLETE)**
 - 4 main orchestrators (specify, implement, analyze, refactor)
 - 4 helper coordinators (research_aggregator, phase_validator, etc.)
 - Uses JoinSpec for research batching
 - Uses BatchSpec for phase execution
 - See: `orchestrators.py`
 
+**Phase 4: MCP Tool Integration (COMPLETE)**
+- All 27 agents wired with appropriate MCP tools
+- Filesystem MCP: For reading code and writing docs
+- DuckDuckGo MCP: For web research
+- Website Reader MCP: For deep content analysis
+- Agent-specific tool access (research gets web, implementers get filesystem, etc.)
+- See: `mcp_config.py`, `01_test_mcp_config.py`
+
 ### 🚧 What's In Progress
 
-- Orchestrator implementation logic (needs MCP tools for file I/O)
-- MCP tool integration (filesystem + web search)
+- Orchestrator implementation logic (custom classes for workflow execution)
 - End-to-end workflow examples
+- Custom Flock tools for spec management
 
-## 🏃 Quick Start - Test the Specialists!
+## 🏃 Quick Start - Test the System!
+
+### Test 1: MCP Configuration
+
+Verify that MCP tools are configured correctly:
+
+```bash
+cd examples/08-spec-driven-development
+uv run python 01_test_mcp_config.py
+```
+
+This tests filesystem, web search, and website reader MCPs. **Prerequisites:**
+- `npm` installed (for filesystem MCP)
+- `uvx` installed (for DuckDuckGo MCP)
+
+### Test 2: Specialist Agents
 
 Run the specialist validation example:
 
@@ -165,5 +188,5 @@ User → SpecifyRequest → specify_orchestrator → ResearchTask (artifacts)
 ---
 
 **Status:** Under active development
-**Progress:** 2.5/7 phases complete (36%)
+**Progress:** 4/7 phases complete (57%)
 **Last Updated:** 2025-10-15
