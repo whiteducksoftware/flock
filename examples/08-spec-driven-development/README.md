@@ -71,6 +71,38 @@ uv run python 00_test_specialists.py
 
 **Note:** This will take several minutes as the LLM agents actually execute!
 
+### Test 3: Specify Workflow (NEW!)
+
+Generate a complete Product Requirements Document (PRD):
+
+```bash
+cd examples/08-spec-driven-development
+uv run python 02_specify_workflow.py
+```
+
+This demonstrates:
+- Creating spec directory with custom tools
+- Research specialists executing in parallel
+- Synthesizing findings into PRD sections
+- Writing structured documentation to `.flock/specs/SXXX/PRD.md`
+
+**Note:** This is a real end-to-end workflow! It will take 5-10 minutes.
+
+### Test 4: Analyze Workflow (NEW!)
+
+Discover patterns in a codebase:
+
+```bash
+cd examples/08-spec-driven-development
+uv run python 03_analyze_workflow.py
+```
+
+This demonstrates:
+- Pattern discovery through code analysis
+- Multiple analysis specialists working in parallel
+- Emergent knowledge extraction via blackboard
+- Documentation generation from discovered patterns
+
 ### What You'll See
 
 1. **Research Specialists in Parallel**
@@ -137,9 +169,14 @@ examples/08-spec-driven-development/
 ├── artifacts.py                 # 26 artifact type definitions
 ├── agents.py                    # 19 specialist agent definitions
 ├── orchestrators.py             # 4 orchestrator + 4 helper agents
+├── mcp_config.py                # MCP tool configuration
+├── spec_tools.py                # Custom Flock tools for spec management
 ├── test_artifacts.py            # Artifact validation tests
 ├── test_agents.py               # Agent creation tests
-└── 00_test_specialists.py       # Live specialist demo
+├── 00_test_specialists.py       # Live specialist demo
+├── 01_test_mcp_config.py        # MCP configuration test
+├── 02_specify_workflow.py       # End-to-end PRD generation (NEW!)
+└── 03_analyze_workflow.py       # Pattern discovery workflow (NEW!)
 ```
 
 ## 🔄 Workflow Comparison

@@ -169,39 +169,53 @@ Transform the devflow spec-driven development system into a Flock blackboard orc
 
 ---
 
-## Phase 5: Example Implementation 📝
+## Phase 5: Example Implementation 📝 [IN PROGRESS]
+
+### 5.0 Custom Tools for Spec Management
+- [x] `spec_tools.py` - Custom Flock tools (@flock_tool decorators)
+- [x] `create_spec_directory()` - Generate spec ID and directory structure
+- [x] `append_to_document()` - Write content to PRD/SDD/PLAN
+- [x] `read_document()` - Read spec documents
+- [x] `list_specs()` - List all specifications
+- [x] `finalize_spec()` - Mark spec as complete
+- [x] `format_research_findings()` - Format research into markdown
+- [x] `parse_plan_phases()` - Parse PLAN.md into phases
+- [x] Date/time utilities
 
 ### 5.1 CLI Example: Specify Workflow
-- [ ] File: `examples/08-spec-driven-development/01_specify_workflow.py`
-- [ ] Demonstrate: SpecifyRequest → Full PRD/SDD/PLAN generation
-- [ ] Feature: "Add user authentication to todo app"
-- [ ] Show: Research tasks firing in parallel, documents being created, reviews
+- [x] File: `examples/08-spec-driven-development/02_specify_workflow.py`
+- [x] Demonstrate: SpecifyRequest → PRD generation (simplified)
+- [x] Feature: "Add user authentication with OAuth 2.0 and JWT tokens"
+- [x] Show: Research tasks firing in parallel, findings appended to PRD
+- [ ] Full implementation: Add SDD and PLAN phases
+- [ ] Full implementation: Add review cycles
+- [ ] Full implementation: Add user confirmation between phases
 
 ### 5.2 CLI Example: Implement Workflow
-- [ ] File: `examples/08-spec-driven-development/02_implement_workflow.py`
+- [ ] File: `examples/08-spec-driven-development/04_implement_workflow.py`
 - [ ] Demonstrate: ImplementRequest → Phase-by-phase execution
-- [ ] Load: Spec from 01_specify_workflow
+- [ ] Load: Spec from 02_specify_workflow
 - [ ] Show: Implementation tasks, validation, phase completion
 
 ### 5.3 CLI Example: Analyze Workflow
-- [ ] File: `examples/08-spec-driven-development/03_analyze_workflow.py`
-- [ ] Demonstrate: AnalyzeRequest → Pattern discovery
-- [ ] Target: Analyze Flock's own blackboard patterns
-- [ ] Show: Pattern documentation creation
+- [x] File: `examples/08-spec-driven-development/03_analyze_workflow.py`
+- [x] Demonstrate: AnalyzeRequest → Pattern discovery
+- [x] Target: Analyze spec-driven example itself
+- [x] Show: Pattern documentation creation, emergent discovery
 
 ### 5.4 CLI Example: Refactor Workflow
-- [ ] File: `examples/08-spec-driven-development/04_refactor_workflow.py`
+- [ ] File: `examples/08-spec-driven-development/05_refactor_workflow.py`
 - [ ] Demonstrate: RefactorRequest → Code quality improvements
 - [ ] Target: Refactor example code for better structure
 - [ ] Show: Incremental changes with validation
 
 ### 5.5 Dashboard Examples
-- [ ] File: `examples/08-spec-driven-development/05_specify_dashboard.py`
+- [ ] File: `examples/08-spec-driven-development/06_specify_dashboard.py`
 - [ ] Demonstrate: Real-time visualization of specify workflow
 - [ ] Show: Agent graph with research tasks firing in parallel
 - [ ] Show: Blackboard view with artifact transformations
 
-**Checkpoint:** All 4 workflows have working examples
+**Checkpoint:** ⚡ 2/4 CLI workflows working (specify PRD, analyze), custom tools complete
 
 ---
 
