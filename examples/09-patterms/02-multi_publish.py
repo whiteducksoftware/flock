@@ -32,7 +32,7 @@ flock = Flock()
 
 
 # Multi-Publish
-multi_master = flock.agent("multi_movie_master").consumes(Idea).publishes(Movie, Book)
+multi_master = flock.agent("multi_master").consumes(Idea).publishes(Movie, Book)
 
 
 async def main():
