@@ -164,7 +164,7 @@ class DSPyEngine(EngineComponent):
         Returns:
             EvalResult with artifacts matching output_group specifications
         """
-        return await self._evaluate_internal(agent, ctx, inputs, batched=False)
+        return await self._evaluate_internal(agent, ctx, inputs, batched=False, output_group=output_group)
 
     async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
         """Batch evaluation for processing multiple artifacts together.
@@ -178,7 +178,7 @@ class DSPyEngine(EngineComponent):
         Returns:
             EvalResult with processed artifacts
         """
-        return await self._evaluate_internal(agent, ctx, inputs, batched=True)
+        return await self._evaluate_internal(agent, ctx, inputs, batched=True, output_group=output_group)
 
     async def evaluate_fanout(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
         """Fan-out evaluation for producing multiple artifacts from single execution.
@@ -195,6 +195,7 @@ class DSPyEngine(EngineComponent):
         Returns:
             EvalResult with exactly `count` artifacts per output declaration
         """
+        return await self._evaluate_internal(agent, ctx, inputs, batched=False, output_group=output_group)
         if not inputs.artifacts:
             return EvalResult(artifacts=[], state=dict(inputs.state))
 
@@ -228,6 +229,7 @@ class DSPyEngine(EngineComponent):
         inputs: EvalInputs,
         *,
         batched: bool,
+        output_group = None,
     ) -> EvalResult:
         if not inputs.artifacts:
             return EvalResult(artifacts=[], state=dict(inputs.state))

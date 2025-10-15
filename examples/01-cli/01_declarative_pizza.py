@@ -21,7 +21,7 @@ class Pizza(BaseModel):
 
 flock = Flock()
 
-pizza_master = flock.agent("pizza_master").consumes(MyDreamPizza).publishes(Pizza)
+pizza_master = flock.agent("pizza_master").consumes(MyDreamPizza).publishes(Pizza, fan_out=3)
 
 
 async def main():
