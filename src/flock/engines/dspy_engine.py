@@ -269,6 +269,7 @@ class DSPyEngine(EngineComponent):
                 inputs=inputs,
                 output_group=output_group,
                 has_context=has_context,
+                batched=batched,
             )
         else:
             # Backward compatible single output path
@@ -610,17 +611,24 @@ class DSPyEngine(EngineComponent):
         inputs: EvalInputs,
         output_group,
         has_context: bool = False,
+        batched: bool = False,
     ) -> Any:
         """Prepare DSPy signature dynamically based on OutputGroup with semantic field names.
 
         This method generates signatures using semantic field naming:
         - Type names → snake_case field names (Task → "task", ResearchQuestion → "research_question")
         - Pluralization for fan-out (Idea → "ideas" for lists)
+        - Pluralization for batching (Task → "tasks" for list[Task])
+        - Multi-input support for joins (multiple input artifacts with semantic names)
         - Collision handling (same input/output type → prefix with "input_" or "output_")
 
         Examples:
             Single output: .consumes(Task).publishes(Report)
             → {"task": (Task, InputField()), "report": (Report, OutputField())}
+
+            Multiple inputs (joins): .consumes(Document, Guidelines).publishes(Report)
+            → {"document": (Document, InputField()), "guidelines": (Guidelines, InputField()),
+               "report": (Report, OutputField())}
 
             Multiple outputs: .consumes(Task).publishes(Summary, Analysis)
             → {"task": (Task, InputField()), "summary": (Summary, OutputField()),
@@ -629,12 +637,16 @@ class DSPyEngine(EngineComponent):
             Fan-out: .publishes(Idea, fan_out=5)
             → {"topic": (Topic, InputField()), "ideas": (list[Idea], OutputField(...))}
 
+            Batching: evaluate_batch([task1, task2, task3])
+            → {"tasks": (list[Task], InputField()), "reports": (list[Report], OutputField())}
+
         Args:
             dspy_mod: DSPy module
             agent: Agent instance
             inputs: EvalInputs with input artifacts
             output_group: OutputGroup defining what to generate
             has_context: Whether conversation context should be included
+            batched: Whether this is a batch evaluation (pluralizes input fields)
 
         Returns:
             DSPy Signature with semantic field names
@@ -656,18 +668,37 @@ class DSPyEngine(EngineComponent):
         used_field_names: set[str] = {"description", "context"}
 
         # 1. Generate INPUT fields with semantic names
-        #    For now, we'll use the primary artifact type as input
-        #    (full multi-input support can be added in future iterations)
+        #    Multi-input support: handle all input artifacts for joins
+        #    Batching support: pluralize field names and use list[Type] when batched=True
         if inputs.artifacts:
-            primary_artifact = self._select_primary_artifact(inputs.artifacts)
-            input_model = self._resolve_input_model(primary_artifact)
+            # Collect unique input types (avoid duplicates if multiple artifacts of same type)
+            input_types_seen: dict[type, list[Artifact]] = {}
+            for artifact in inputs.artifacts:
+                input_model = self._resolve_input_model(artifact)
+                if input_model is not None:
+                    if input_model not in input_types_seen:
+                        input_types_seen[input_model] = []
+                    input_types_seen[input_model].append(artifact)
 
-            if input_model is not None:
-                input_field_name = self._type_to_field_name(input_model)
-                used_field_names.add(input_field_name)
-                fields[input_field_name] = (input_model, dspy_mod.InputField())
-            else:
-                # Fallback to generic "input" if we can't resolve type
+            # Generate fields for each unique input type
+            for input_model, artifacts_of_type in input_types_seen.items():
+                field_name = self._type_to_field_name(input_model)
+
+                # Handle batching: pluralize field name and use list[Type]
+                if batched:
+                    field_name = self._pluralize(field_name)
+                    input_type = list[input_model]
+                    desc = f"Batch of {input_model.__name__} instances to process"
+                    fields[field_name] = (input_type, dspy_mod.InputField(desc=desc))
+                else:
+                    # Single input: use singular field name
+                    input_type = input_model
+                    fields[field_name] = (input_type, dspy_mod.InputField())
+
+                used_field_names.add(field_name)
+
+            # Fallback: if we couldn't resolve any types, use generic "input"
+            if not input_types_seen:
                 fields["input"] = (dict, dspy_mod.InputField())
                 used_field_names.add("input")
 
@@ -715,6 +746,10 @@ class DSPyEngine(EngineComponent):
 
         if has_context:
             instruction += " Consider the conversation context provided to inform your response."
+
+        # Add batching hint
+        if batched:
+            instruction += " Process the batch of inputs coherently, generating outputs for each item."
 
         # Add semantic field names to instruction for clarity
         output_field_names = [name for name in fields.keys() if name not in {"description", "context"}]
