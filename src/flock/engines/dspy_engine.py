@@ -8,6 +8,7 @@ import os
 from collections import OrderedDict, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import nullcontext
+from datetime import UTC
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -164,7 +165,9 @@ class DSPyEngine(EngineComponent):
         Returns:
             EvalResult with artifacts matching output_group specifications
         """
-        return await self._evaluate_internal(agent, ctx, inputs, batched=False, output_group=output_group)
+        return await self._evaluate_internal(
+            agent, ctx, inputs, batched=False, output_group=output_group
+        )
 
     async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
         """Batch evaluation for processing multiple artifacts together.
@@ -178,7 +181,9 @@ class DSPyEngine(EngineComponent):
         Returns:
             EvalResult with processed artifacts
         """
-        return await self._evaluate_internal(agent, ctx, inputs, batched=True, output_group=output_group)
+        return await self._evaluate_internal(
+            agent, ctx, inputs, batched=True, output_group=output_group
+        )
 
     async def evaluate_fanout(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
         """Fan-out evaluation for producing multiple artifacts from single execution.
@@ -195,7 +200,9 @@ class DSPyEngine(EngineComponent):
         Returns:
             EvalResult with exactly `count` artifacts per output declaration
         """
-        return await self._evaluate_internal(agent, ctx, inputs, batched=False, output_group=output_group)
+        return await self._evaluate_internal(
+            agent, ctx, inputs, batched=False, output_group=output_group
+        )
         if not inputs.artifacts:
             return EvalResult(artifacts=[], state=dict(inputs.state))
 
@@ -229,7 +236,7 @@ class DSPyEngine(EngineComponent):
         inputs: EvalInputs,
         *,
         batched: bool,
-        output_group = None,
+        output_group=None,
     ) -> EvalResult:
         if not inputs.artifacts:
             return EvalResult(artifacts=[], state=dict(inputs.state))
@@ -300,20 +307,19 @@ class DSPyEngine(EngineComponent):
                 context_history=context_history,
                 sys_desc=sys_desc,
             )
+        # Backward compatible single output path: use "input" field
+        elif batched:
+            execution_payload = {"input": validated_input}
+            if has_context:
+                execution_payload["context"] = context_history
+        elif has_context:
+            execution_payload = {
+                "input": validated_input,
+                "context": context_history,
+            }
         else:
-            # Backward compatible single output path: use "input" field
-            if batched:
-                execution_payload = {"input": validated_input}
-                if has_context:
-                    execution_payload["context"] = context_history
-            elif has_context:
-                execution_payload = {
-                    "input": validated_input,
-                    "context": context_history,
-                }
-            else:
-                # Backwards compatible - direct input
-                execution_payload = validated_input
+            # Backwards compatible - direct input
+            execution_payload = validated_input
 
         # Merge native tools with MCP tools
         native_tools = list(agent.tools or [])
@@ -517,7 +523,7 @@ class DSPyEngine(EngineComponent):
 
         name = type_class.__name__
         # Convert CamelCase to snake_case
-        snake_case = re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+        snake_case = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
         return snake_case
 
     def _pluralize(self, field_name: str) -> str:
@@ -537,15 +543,14 @@ class DSPyEngine(EngineComponent):
             Pluralized field name
         """
         # Simple English pluralization rules
-        if field_name.endswith('y') and len(field_name) > 1 and field_name[-2] not in 'aeiou':
+        if field_name.endswith("y") and len(field_name) > 1 and field_name[-2] not in "aeiou":
             # story → stories (consonant + y)
-            return field_name[:-1] + 'ies'
-        elif field_name.endswith(('s', 'x', 'z', 'ch', 'sh')):
+            return field_name[:-1] + "ies"
+        if field_name.endswith(("s", "x", "z", "ch", "sh")):
             # analysis → analyses, box → boxes
-            return field_name + 'es'
-        else:
-            # idea → ideas, movie → movies
-            return field_name + 's'
+            return field_name + "es"
+        # idea → ideas, movie → movies
+        return field_name + "s"
 
     def _needs_multioutput_signature(self, output_group) -> bool:
         """Determine if OutputGroup requires multi-output signature generation.
@@ -556,7 +561,7 @@ class DSPyEngine(EngineComponent):
         Returns:
             True if multi-output signature needed, False for single output (backward compat)
         """
-        if not output_group or not hasattr(output_group, 'outputs') or not output_group.outputs:
+        if not output_group or not hasattr(output_group, "outputs") or not output_group.outputs:
             return False
 
         # Multiple different types → multi-output
@@ -757,19 +762,27 @@ class DSPyEngine(EngineComponent):
 
         # 4. Build instruction
         description = self.instructions or agent.description
-        instruction = description or f"Process input and generate {len(output_group.outputs)} outputs."
+        instruction = (
+            description or f"Process input and generate {len(output_group.outputs)} outputs."
+        )
 
         if has_context:
             instruction += " Consider the conversation context provided to inform your response."
 
         # Add batching hint
         if batched:
-            instruction += " Process the batch of inputs coherently, generating outputs for each item."
+            instruction += (
+                " Process the batch of inputs coherently, generating outputs for each item."
+            )
 
         # Add semantic field names to instruction for clarity
-        output_field_names = [name for name in fields.keys() if name not in {"description", "context"}]
+        output_field_names = [
+            name for name in fields.keys() if name not in {"description", "context"}
+        ]
         if len(output_field_names) > 2:  # Multiple outputs
-            instruction += f" Generate ALL output fields as specified: {', '.join(output_field_names[1:])}."
+            instruction += (
+                f" Generate ALL output fields as specified: {', '.join(output_field_names[1:])}."
+            )
 
         instruction += " Return only valid JSON."
 
@@ -806,9 +819,7 @@ class DSPyEngine(EngineComponent):
             Multi-input: {"description": desc, "task": {...}, "topic": {...}}
             Batched: {"description": desc, "tasks": [{...}, {...}, {...}]}
         """
-        payload = {
-            "description": sys_desc
-        }
+        payload = {"description": sys_desc}
 
         # Add context if present
         if has_context and context_history:
@@ -1332,6 +1343,10 @@ class DSPyEngine(EngineComponent):
         if hasattr(agent, "outputs") and agent.outputs:
             artifact_type_name = agent.outputs[0].spec.type_name
 
+        for output in agent.outputs:
+            if output.spec.type_name not in artifact_type_name:
+                artifact_type_name += ", " + output.spec.type_name
+
         display_data["type"] = artifact_type_name
         display_data["payload"] = OrderedDict()
 
@@ -1585,19 +1600,23 @@ class DSPyEngine(EngineComponent):
                             if field_name != "description" and hasattr(final_result, field_name):
                                 field_value = getattr(final_result, field_name)
                                 # If the field is a BaseModel, unwrap it to dict
-                                if isinstance(field_value, BaseModel):
-                                    payload_data.update(field_value.model_dump())
-                                else:
-                                    payload_data[field_name] = field_value
+                                # if isinstance(field_value, BaseModel):
+                                #     payload_data.update(field_value.model_dump())
+                                # else:
+                                payload_data[field_name] = (
+                                    field_value.model_dump()
+                                    if isinstance(field_value, BaseModel)
+                                    else field_value
+                                )
 
                         # Update all fields with actual values
                         display_data["payload"].clear()
                         display_data["payload"].update(payload_data)
 
                         # Update timestamp
-                        from datetime import datetime, timezone
+                        from datetime import datetime
 
-                        display_data["created_at"] = datetime.now(timezone.utc).isoformat()
+                        display_data["created_at"] = datetime.now(UTC).isoformat()
 
                         # Remove status field from display
                         display_data.pop("status", None)
