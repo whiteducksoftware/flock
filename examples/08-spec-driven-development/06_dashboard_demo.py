@@ -23,7 +23,7 @@ from artifacts import (
     SpecifyRequest,
 )
 from mcp_config import configure_mcps
-from orchestrators import create_orchestrators
+from orchestrators import create_orchestrator_agents
 
 
 async def run_dashboard_demo():
@@ -64,14 +64,7 @@ async def run_dashboard_demo():
     print("    Example: Refactor spec_tools.py for better structure")
     print("    Agents: Implementers + validators + reviewers")
     print("    Flow: Analyze -> Apply (incremental) -> Validate -> Review")
-    print()
 
-    choice = input("Enter workflow number (1-4): ").strip()
-
-    if choice not in ["1", "2", "3", "4"]:
-        print(f"\n[ERROR] Invalid choice: {choice}")
-        print("Please run again and choose 1, 2, 3, or 4")
-        return
 
     # ===========================================================================
     # SETUP FLOCK WITH DASHBOARD
@@ -101,7 +94,7 @@ async def run_dashboard_demo():
     print(f"  + Created {len(specialists)} specialist agents")
 
     print("\n[Step 3] Creating orchestrator agents...")
-    orchestrators = create_orchestrators(flock)
+    orchestrators = create_orchestrator_agents(flock)
     print(f"  + Created {len(orchestrators)} orchestrator agents")
 
     total_agents = len(specialists) + len(orchestrators)
@@ -110,171 +103,11 @@ async def run_dashboard_demo():
     # ===========================================================================
     # WORKFLOW EXECUTION
     # ===========================================================================
-
+    await flock.serve(dashboard=True)
     print("\n" + "=" * 70)
     print("[EXECUTION] Starting workflow...")
     print("=" * 70)
 
-    if choice == "1":
-        # SPECIFY WORKFLOW
-        print("\n[WORKFLOW] Specify - Generate comprehensive specification")
-        feature = input("\nEnter feature description (or press Enter for demo): ").strip()
-        if not feature:
-            feature = "Add user authentication with OAuth 2.0 and JWT tokens, including social login options (Google, Microsoft), password reset flow, and session management with refresh tokens"
-
-        print(f"\n[FEATURE] {feature}")
-        print("\n[PUBLISHING] SpecifyRequest artifact...")
-
-        request = SpecifyRequest(
-            feature_description=feature,
-            spec_id=None,  # Will be auto-generated
-        )
-        await flock.publish(request)
-        print("  + Published to blackboard")
-
-        print("\n[AGENTS] These agents will react:")
-        print("  1. specify_orchestrator - Coordinates the workflow")
-        print("  2. research_market_analyst - Analyzes market and competition")
-        print("  3. research_technical_analyst - Evaluates technical approaches")
-        print("  4. research_security_analyst - Identifies security requirements")
-        print("  5. research_user_experience - Studies UX patterns")
-        print("  6. research_aggregator - Collects all findings (JoinSpec)")
-        print("  7. documenter_requirements - Creates PRD sections")
-        print("  8. documenter_design - Creates SDD sections")
-        print("  9. documenter_planning - Creates PLAN sections")
-        print("  10. reviewer_specification - Reviews documentation quality")
-
-        print("\n[FLOW] SpecifyRequest -> ResearchTask (4x parallel) ->")
-        print("       ResearchFindings (JoinSpec) -> PRDSection ->")
-        print("       SDDSection -> PLANSection -> SpecificationComplete")
-
-    elif choice == "2":
-        # ANALYZE WORKFLOW
-        print("\n[WORKFLOW] Analyze - Discover patterns and document architecture")
-        target = input("\nEnter path to analyze (or press Enter for demo): ").strip()
-        if not target:
-            target = "examples/08-spec-driven-development/"
-
-        print(f"\n[TARGET] {target}")
-        print("\n[PUBLISHING] AnalyzeRequest artifacts (3x parallel)...")
-
-        # Publish 3 analysis requests in parallel
-        for analysis_type in ["business", "technical", "security"]:
-            request = AnalyzeRequest(
-                analysis_area=analysis_type,
-                target_path=target,
-                focus_questions=[
-                    f"What {analysis_type} patterns exist?",
-                    f"What {analysis_type} rules are enforced?",
-                    f"What {analysis_type} interfaces are exposed?",
-                ],
-            )
-            await flock.publish(request)
-            print(f"  + Published AnalyzeRequest (area={analysis_type})")
-
-        print("\n[AGENTS] These agents will react:")
-        print("  1. analyzer_business_rules - Discovers business logic patterns")
-        print("  2. analyzer_architecture - Maps technical architecture")
-        print("  3. analyzer_security - Identifies security patterns")
-        print("  4. pattern_documenter - Creates pattern documentation (BatchSpec)")
-
-        print("\n[FLOW] AnalyzeRequest (3x parallel) -> PatternDiscovery (Nx) ->")
-        print("       DocumentationUpdate (BatchSpec) -> CycleComplete")
-
-    elif choice == "3":
-        # IMPLEMENT WORKFLOW
-        print("\n[WORKFLOW] Implement - Execute implementation plan")
-        spec_id = input("\nEnter spec ID (e.g., S001) or press Enter for demo: ").strip()
-        if not spec_id:
-            print("\n[DEMO MODE] Creating a sample implementation plan...")
-            spec_id = "DEMO"
-
-        print(f"\n[SPEC ID] {spec_id}")
-        print("\n[PUBLISHING] ImplementRequest artifact...")
-
-        request = ImplementRequest(
-            spec_id=spec_id,
-            plan_path=f".flock/specs/{spec_id}/PLAN.md" if spec_id != "DEMO" else None,
-            start_from_phase=1,
-        )
-        await flock.publish(request)
-        print("  + Published to blackboard")
-
-        print("\n[AGENTS] These agents will react:")
-        print("  1. implement_orchestrator - Coordinates phase execution")
-        print("  2. implementer_backend - Handles backend tasks")
-        print("  3. implementer_frontend - Handles frontend tasks")
-        print("  4. implementer_database - Handles database tasks")
-        print("  5. implementer_infrastructure - Handles infrastructure tasks")
-        print("  6. validator_tests - Runs test suites")
-        print("  7. validator_compilation - Checks build status")
-        print("  8. phase_validator - Aggregates results (BatchSpec)")
-        print("  9. reviewer_code - Reviews code quality")
-
-        print("\n[FLOW] ImplementRequest -> PhaseStart -> ImplementationTask (Nx) ->")
-        print("       CodeChange (parallel) -> ValidationRequest ->")
-        print("       ValidationResult -> PhaseComplete")
-
-    elif choice == "4":
-        # REFACTOR WORKFLOW
-        print("\n[WORKFLOW] Refactor - Improve code quality safely")
-        target = input("\nEnter file to refactor (or press Enter for demo): ").strip()
-        if not target:
-            target = str(Path(__file__).parent / "spec_tools.py")
-
-        print(f"\n[TARGET] {target}")
-        print("\n[PUBLISHING] RefactorRequest artifact...")
-
-        request = RefactorRequest(
-            target_path=target,
-            target_description="Improve code structure, add error handling, reduce duplication",
-            refactoring_goals=[
-                "Extract common patterns into helper functions",
-                "Add comprehensive error handling",
-                "Improve documentation",
-                "Reduce code duplication",
-            ],
-            constraints=[
-                "ALL tests must pass after every change",
-                "No behavior changes (refactoring only)",
-                "Incremental changes (one at a time)",
-            ],
-        )
-        await flock.publish(request)
-        print("  + Published to blackboard")
-
-        print("\n[AGENTS] These agents will react:")
-        print("  1. refactor_orchestrator - Coordinates refactoring")
-        print("  2. implementer_backend - Applies code changes")
-        print("  3. validator_tests - Validates after EVERY change")
-        print("  4. reviewer_code - Reviews quality improvement")
-        print("  5. refactor_validator - Ensures behavior preservation")
-
-        print("\n[FLOW] RefactorRequest -> ImplementationTask ->")
-        print("       CodeChange -> ValidationRequest -> ValidationResult ->")
-        print("       (if pass) ReviewRequest | (if fail) BlockedState")
-
-    # ===========================================================================
-    # RUN WITH DASHBOARD
-    # ===========================================================================
-
-    print("\n" + "=" * 70)
-    print("[DASHBOARD] Starting Flock dashboard...")
-    print("=" * 70)
-    print("\nThe dashboard will show:")
-    print("  + Agent execution graph (who's working on what)")
-    print("  + Blackboard artifacts (what data is flowing)")
-    print("  + Real-time updates as agents collaborate")
-    print("  + Artifact transformations and dependencies")
-    print()
-    print("Press Ctrl+C to stop the dashboard")
-    print("=" * 70 + "\n")
-
-    try:
-        # Run the flock with dashboard
-        await flock.run()
-    except KeyboardInterrupt:
-        print("\n\n[STOPPED] Dashboard stopped by user")
 
     # ===========================================================================
     # RESULTS SUMMARY

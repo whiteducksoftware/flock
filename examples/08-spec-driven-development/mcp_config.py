@@ -22,7 +22,7 @@ def configure_mcps(flock: Flock) -> dict[str, bool]:
     success_status = {}
 
     # Get the project root (two levels up from this file)
-    project_root = Path(__file__).parent.parent.parent
+    project_root = Path.cwd().joinpath(".flock/spec-test")
 
     # ==========================================================================
     # FILESYSTEM MCP - For reading code and writing documentation
@@ -35,7 +35,7 @@ def configure_mcps(flock: Flock) -> dict[str, bool]:
                 args=[
                     "-y",
                     "@modelcontextprotocol/server-filesystem",
-                    str(project_root),  # Root access to entire project
+                    "C:\\workspace\\whiteduck\\flock\\.flock\\spec-test",  # Root access to entire project
                 ],
             ),
             enable_roots_feature=True,

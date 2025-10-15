@@ -57,7 +57,7 @@ payment_processor = (
         Order,
         batch=BatchSpec(
             size=25,  # Flush when 25 orders accumulated
-            timeout=timedelta(seconds=10),  # OR flush every 30 seconds
+            timeout=timedelta(seconds=30),  # OR flush every 30 seconds
         ),
     )
     .publishes(PaymentBatch)
