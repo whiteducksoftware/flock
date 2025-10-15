@@ -566,7 +566,6 @@ class TestComplexScenarios:
         """
         assert False, "Not implemented"
 
-    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
     @pytest.mark.asyncio
     async def test_empty_inputs_returns_empty_result(self):
         """Test with empty inputs (edge case).
@@ -579,7 +578,34 @@ class TestComplexScenarios:
         - No DSPy call made
         - No errors
         """
-        assert False, "Not implemented"
+        engine = DSPyEngine(model="gpt-4")
+
+        # Create mock agent
+        mock_agent = Mock()
+        mock_agent.name = "test_agent"
+        mock_agent.description = "Test agent"
+        mock_agent.outputs = []
+        mock_agent.tools = None
+        mock_agent._get_mcp_tools = AsyncMock(return_value=[])
+
+        # Create mock context
+        mock_ctx = Mock()
+        mock_ctx.correlation_id = None
+        mock_ctx.task_id = "test-task"
+
+        # Empty inputs
+        inputs = EvalInputs(artifacts=[], state={})
+
+        # Create output group
+        output_group = create_output_group_with_semantic_types([(Report, 1)])
+
+        # Call evaluate
+        result = await engine.evaluate(mock_agent, mock_ctx, inputs, output_group)
+
+        # Should return empty result immediately
+        assert isinstance(result, EvalResult)
+        assert len(result.artifacts) == 0
+        assert result.state == {}
 
     @pytest.mark.skip(reason="Phase 4: Not implemented yet")
     @pytest.mark.asyncio
