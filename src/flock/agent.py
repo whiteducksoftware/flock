@@ -66,9 +66,9 @@ class AgentOutput:
     default_visibility: Visibility
     count: int = 1  # Number of artifacts to generate (fan-out)
     filter_predicate: Callable[[BaseModel], bool] | None = None  # Where clause
-    validate_predicate: (
-        Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None
-    ) = None  # Validation logic
+    validate_predicate: Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None = (
+        None  # Validation logic
+    )
     group_description: str | None = None  # Group description override
 
     def __post_init__(self):
@@ -107,6 +107,7 @@ class OutputGroup:
     Each OutputGroup triggers one engine execution that generates
     all artifacts in the group together.
     """
+
     outputs: list[AgentOutput]
     shared_visibility: Visibility | None = None
     group_description: str | None = None  # Group-level description override
@@ -603,9 +604,7 @@ class Agent(metaclass=AutoTracedMeta):
                         model_instance = model_cls(**artifact.payload)
                         for check, error_msg in output_decl.validate_predicate:
                             if not check(model_instance):
-                                raise ValueError(
-                                    f"{error_msg}: {output_decl.spec.type_name}"
-                                )
+                                raise ValueError(f"{error_msg}: {output_decl.spec.type_name}")
 
             # 5. Apply visibility and publish artifacts (Phase 5)
             for artifact_from_engine in matching_artifacts:
@@ -627,9 +626,7 @@ class Agent(metaclass=AutoTracedMeta):
 
                 # Re-wrap the artifact with agent metadata
                 artifact = output_decl.apply(
-                    artifact_from_engine.payload,
-                    produced_by=self.name,
-                    metadata=metadata
+                    artifact_from_engine.payload, produced_by=self.name, metadata=metadata
                 )
                 produced.append(artifact)
                 await ctx.board.publish(artifact)
@@ -931,7 +928,7 @@ class AgentBuilder:
         fan_out: int | None = None,
         where: Callable[[BaseModel], bool] | None = None,
         validate: Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None = None,
-        description: str | None = None
+        description: str | None = None,
     ) -> PublishBuilder:
         """Declare which artifact types this agent produces.
 
@@ -965,7 +962,9 @@ class AgentBuilder:
             raise ValueError(f"fan_out must be >= 1, got {fan_out}")
 
         # Resolve visibility
-        resolved_visibility = ensure_visibility(visibility) if not callable(visibility) else visibility
+        resolved_visibility = (
+            ensure_visibility(visibility) if not callable(visibility) else visibility
+        )
 
         # Create AgentOutput objects for this group
         outputs: list[AgentOutput] = []
@@ -980,7 +979,7 @@ class AgentBuilder:
                     count=fan_out,
                     filter_predicate=where,
                     validate_predicate=validate,
-                    group_description=description
+                    group_description=description,
                 )
                 outputs.append(output)
         else:
@@ -994,7 +993,7 @@ class AgentBuilder:
                     count=1,
                     filter_predicate=where,
                     validate_predicate=validate,
-                    group_description=description
+                    group_description=description,
                 )
                 outputs.append(output)
 
@@ -1002,7 +1001,7 @@ class AgentBuilder:
         group = OutputGroup(
             outputs=outputs,
             shared_visibility=resolved_visibility if not callable(resolved_visibility) else None,
-            group_description=description
+            group_description=description,
         )
 
         # Append to agent's output_groups
@@ -1342,9 +1341,7 @@ class AgentBuilder:
 
         # Get types agent publishes
         publishing_types = {
-            output.spec.type_name
-            for group in self._agent.output_groups
-            for output in group.outputs
+            output.spec.type_name for group in self._agent.output_groups for output in group.outputs
         }
 
         # Check for overlap

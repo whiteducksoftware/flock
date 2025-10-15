@@ -298,7 +298,9 @@ def create_rich_renderable(
                 )
             return Group(*sub_tables)
         rendered_items = [
-            create_rich_renderable("- " + str(item), level + 1, theme, styles, max_length=max_length)
+            create_rich_renderable(
+                "- " + str(item), level + 1, theme, styles, max_length=max_length
+            )
             for item in value
         ]
         if all(isinstance(item, str) for item in rendered_items):

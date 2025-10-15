@@ -11,7 +11,7 @@ import json
 import traceback
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import PrivateAttr
@@ -159,7 +159,7 @@ class DashboardEventCollector(AgentComponent):
             Unmodified inputs (pass-through)
         """
         # Record start time for duration calculation
-        self._run_start_times[ctx.task_id] = datetime.now(timezone.utc).timestamp()
+        self._run_start_times[ctx.task_id] = datetime.now(UTC).timestamp()
 
         # Extract consumed types and artifact IDs
         consumed_types = list({artifact.type for artifact in inputs})
@@ -280,7 +280,7 @@ class DashboardEventCollector(AgentComponent):
         # Calculate duration
         start_time = self._run_start_times.get(ctx.task_id)
         if start_time:
-            duration_ms = (datetime.now(timezone.utc).timestamp() - start_time) * 1000
+            duration_ms = (datetime.now(UTC).timestamp() - start_time) * 1000
             del self._run_start_times[ctx.task_id]
         else:
             duration_ms = 0.0
@@ -319,7 +319,7 @@ class DashboardEventCollector(AgentComponent):
             run.status = "completed"
             run.duration_ms = duration_ms
             run.metrics = dict(metrics)
-            run.completed_at = datetime.now(timezone.utc)
+            run.completed_at = datetime.now(UTC)
             for artifact_id in artifacts_produced:
                 if artifact_id not in run.produced_artifacts:
                     run.produced_artifacts.append(artifact_id)
@@ -345,7 +345,7 @@ class DashboardEventCollector(AgentComponent):
         error_traceback = "".join(
             traceback.format_exception(type(error), error, error.__traceback__)
         )
-        failed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        failed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
         # Clean up start time tracking
         if ctx.task_id in self._run_start_times:
@@ -374,7 +374,7 @@ class DashboardEventCollector(AgentComponent):
             )
             run.status = "error"
             run.error_message = error_message
-            run.completed_at = datetime.now(timezone.utc)
+            run.completed_at = datetime.now(UTC)
             self._agent_status[agent.name] = "error"
             await self._update_agent_snapshot_locked(agent)
 
@@ -442,7 +442,7 @@ class DashboardEventCollector(AgentComponent):
                 run_id=run_id,
                 agent_name=agent_name,
                 correlation_id=correlation_id,
-                started_at=datetime.now(timezone.utc) if ensure_started else None,
+                started_at=datetime.now(UTC) if ensure_started else None,
             )
             self._run_registry[run_id] = run
         else:
@@ -450,11 +450,11 @@ class DashboardEventCollector(AgentComponent):
             if correlation_id:
                 run.correlation_id = correlation_id
             if ensure_started and run.started_at is None:
-                run.started_at = datetime.now(timezone.utc)
+                run.started_at = datetime.now(UTC)
         return run
 
     async def _update_agent_snapshot_locked(self, agent: "Agent") -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         description = agent.description or ""
         subscriptions = sorted(
             {

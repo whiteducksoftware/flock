@@ -64,15 +64,14 @@ class SimpleBatchEngine(EngineComponent):
             state["processed_values"] = list(summary.values)
 
             return EvalResult.from_object(summary, agent=agent, state=state)
-        else:
-            # Single mode: Process one item
-            item = inputs.first_as(BatchItem)
-            if item is None:
-                return EvalResult.empty()
+        # Single mode: Process one item
+        item = inputs.first_as(BatchItem)
+        if item is None:
+            return EvalResult.empty()
 
-            annotated = BatchSummary(batch_size=1, values=[item.value])
-            state = dict(inputs.state)
-            state.setdefault("batch_size", annotated.batch_size)
-            state.setdefault("processed_values", list(annotated.values))
+        annotated = BatchSummary(batch_size=1, values=[item.value])
+        state = dict(inputs.state)
+        state.setdefault("batch_size", annotated.batch_size)
+        state.setdefault("processed_values", list(annotated.values))
 
-            return EvalResult.from_object(annotated, agent=agent, state=state)
+        return EvalResult.from_object(annotated, agent=agent, state=state)

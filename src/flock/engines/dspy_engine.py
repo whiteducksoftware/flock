@@ -550,7 +550,7 @@ class DSPyEngine(EngineComponent):
                 " The 'input' field will contain a list of items representing the batch; "
                 "process the entire collection coherently."
             )
-        #instruction += " Return only JSON."
+        # instruction += " Return only JSON."
 
         return signature.with_instructions(instruction)
 
@@ -848,7 +848,7 @@ class DSPyEngine(EngineComponent):
     def _system_description(self, description: str | None) -> str:
         if description:
             return description
-        return "Produce a valid output that matches the 'output' schema." #Return only JSON.
+        return "Produce a valid output that matches the 'output' schema."  # Return only JSON.
 
     def _normalize_output_payload(self, raw: Any) -> dict[str, Any]:
         if isinstance(raw, BaseModel):
@@ -1073,7 +1073,13 @@ class DSPyEngine(EngineComponent):
         # Get artifact type name for WebSocket events
         artifact_type_name = "output"
         # Use output_group.outputs (current group) if available, otherwise fallback to agent.outputs (all groups)
-        outputs_to_display = output_group.outputs if output_group and hasattr(output_group, "outputs") else agent.outputs if hasattr(agent, "outputs") else []
+        outputs_to_display = (
+            output_group.outputs
+            if output_group and hasattr(output_group, "outputs")
+            else agent.outputs
+            if hasattr(agent, "outputs")
+            else []
+        )
 
         if outputs_to_display:
             artifact_type_name = outputs_to_display[0].spec.type_name
@@ -1328,7 +1334,13 @@ class DSPyEngine(EngineComponent):
         # Get the artifact type name from agent configuration
         artifact_type_name = "output"
         # Use output_group.outputs (current group) if available, otherwise fallback to agent.outputs (all groups)
-        outputs_to_display = output_group.outputs if output_group and hasattr(output_group, "outputs") else agent.outputs if hasattr(agent, "outputs") else []
+        outputs_to_display = (
+            output_group.outputs
+            if output_group and hasattr(output_group, "outputs")
+            else agent.outputs
+            if hasattr(agent, "outputs")
+            else []
+        )
 
         if outputs_to_display:
             artifact_type_name = outputs_to_display[0].spec.type_name

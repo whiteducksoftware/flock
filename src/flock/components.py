@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 from pydantic import BaseModel, Field, create_model
 from pydantic._internal._model_construction import ModelMetaclass
-from typing_extensions import Self, TypeVar
+from typing_extensions import TypeVar
 
 from flock.logging.auto_trace import AutoTracedMeta
 

@@ -8,7 +8,7 @@ import os
 from asyncio import Task
 from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -1334,7 +1334,7 @@ class Flock(metaclass=AutoTracedMeta):
 
         if artifacts:
             try:
-                timestamp = datetime.now(timezone.utc)
+                timestamp = datetime.now(UTC)
                 records = [
                     ConsumptionRecord(
                         artifact_id=artifact.id,

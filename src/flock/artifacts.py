@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -23,7 +23,7 @@ class Artifact(BaseModel):
     partition_key: str | None = None
     tags: set[str] = Field(default_factory=set)
     visibility: Visibility = Field(default_factory=lambda: ensure_visibility(None))
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     version: int = 1
 
     def model_dump_payload(self) -> dict[str, Any]:  # pragma: no cover - convenience

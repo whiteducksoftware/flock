@@ -1,6 +1,6 @@
 """Represents a MCP Tool in a format which is compatible with Flock's ecosystem."""
 
-from typing import Any, TypeVar
+from typing import Any, Self, TypeVar
 
 from dspy import Tool as DSPyTool
 from dspy.adapters.types.tool import convert_input_schema_to_tool_args
@@ -8,7 +8,6 @@ from mcp import Tool
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from opentelemetry import trace
 from pydantic import BaseModel, Field
-from typing_extensions import Self
 
 from flock.logging.logging import get_logger
 

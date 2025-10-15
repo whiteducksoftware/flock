@@ -15,7 +15,7 @@ from asyncio import Lock
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypeVar
 from uuid import UUID
@@ -85,7 +85,7 @@ class ConsumptionRecord:
     consumer: str
     run_id: str | None = None
     correlation_id: str | None = None
-    consumed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    consumed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass(slots=True)

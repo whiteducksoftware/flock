@@ -1,10 +1,9 @@
 """Base Config for MCP Clients."""
 
 import importlib
-from typing import TYPE_CHECKING, Any, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
-from typing_extensions import Self
 
 from flock.mcp.types import (
     FlockListRootsMCPCallback,
