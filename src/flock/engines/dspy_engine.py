@@ -434,6 +434,9 @@ class DSPyEngine(EngineComponent):
             agent.name,
             pre_generated_id=pre_generated_artifact_id,
         )
+        logger.info(f"[_materialize_artifacts] normalized_output {normalized_output}")
+        logger.info(f"[_materialize_artifacts] artifacts {artifacts}")
+        logger.info(f"[_materialize_artifacts] errors {errors}")
 
         state = dict(inputs.state)
         state.setdefault("dspy", {})
@@ -989,14 +992,25 @@ class DSPyEngine(EngineComponent):
         model_cls: type[BaseModel],
         type_name: str,
     ) -> dict[str, Any]:
+        """Select the correct output payload from the normalized output dict.
+
+        Handles both simple type names and fully qualified names (with module prefix).
+        """
         candidates = [
-            payload.get(type_name),
-            payload.get(model_cls.__name__),
-            payload.get(model_cls.__name__.lower()),
+            payload.get(type_name),  # Try exact type_name (may be "__main__.Movie")
+            payload.get(model_cls.__name__),  # Try simple class name ("Movie")
+            payload.get(model_cls.__name__.lower()),  # Try lowercase ("movie")
         ]
+
+        # If the value is already a Pydantic instance, extract its dict
         for candidate in candidates:
-            if isinstance(candidate, Mapping):
-                return dict(candidate)
+            if candidate is not None:
+                if isinstance(candidate, BaseModel):
+                    return candidate.model_dump()
+                if isinstance(candidate, Mapping):
+                    return dict(candidate)
+
+        # Fallback: return entire payload (will likely fail validation)
         if isinstance(payload, Mapping):
             return dict(payload)
         return {}
