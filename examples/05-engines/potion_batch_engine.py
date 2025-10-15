@@ -26,58 +26,64 @@ class PotionRecipe(BaseModel):
 
 
 class PotionBatchEngine(EngineComponent):
-    """Engine that only reveals its magic once enough ingredients arrive."""
+    """Engine that only reveals its magic once enough ingredients arrive.
+
+    Auto-detects batch mode via ctx.is_batch flag to determine whether to
+    create a draft or full potion recipe.
+    """
 
     async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
-        """Process single ingredient (non-batch mode).
+        """Process single ingredient or batch with auto-detection.
+
+        Auto-detects batch mode via ctx.is_batch flag (set by orchestrator when
+        BatchSpec flushes accumulated ingredients).
 
         Args:
             agent: Agent instance
-            ctx: Execution context
+            ctx: Execution context (check ctx.is_batch for batch mode)
             inputs: EvalInputs with input artifacts
             output_group: OutputGroup defining what artifacts to produce
+
+        Returns:
+            EvalResult with PotionRecipe artifact
         """
-        # This path only runs if batching is disabled or the accumulator is flushed manually.
-        ingredient = inputs.first_as(PotionIngredient)
-        if not ingredient:
-            return EvalResult.empty()
+        # Auto-detect batch mode from context
+        is_batch = bool(getattr(ctx, "is_batch", False))
 
-        hint = (
-            f"{ingredient.name} whispers that patience is key. "
-            "Add a few more curious ingredients to coax the potion to life."
-        )
-        placeholder = PotionRecipe(
-            title="Potion Draft",
-            incantation="Not quite ready...",
-            tasting_notes=hint,
-            ingredients=[ingredient.name],
-        )
-        return EvalResult.from_object(placeholder, agent=agent)
+        if is_batch:
+            # Batch mode: Create full potion recipe from accumulated ingredients
+            ingredients = inputs.all_as(PotionIngredient)
+            if not ingredients:
+                return EvalResult.empty()
 
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
-        """Process batch of accumulated ingredients to create potion recipe.
+            title = self._name_potion(ingredients)
+            incantation = self._craft_incantation(ingredients)
+            tasting_notes = self._describe_feel(ingredients)
 
-        Args:
-            agent: Agent instance
-            ctx: Execution context
-            inputs: EvalInputs with batch of input artifacts
-            output_group: OutputGroup defining what artifacts to produce
-        """
-        ingredients = inputs.all_as(PotionIngredient)
-        if not ingredients:
-            return EvalResult.empty()
+            recipe = PotionRecipe(
+                title=title,
+                incantation=incantation,
+                tasting_notes=tasting_notes,
+                ingredients=[f"{item.name} ({item.effect})" for item in ingredients],
+            )
+            return EvalResult.from_object(recipe, agent=agent)
+        else:
+            # Single mode: Create draft placeholder
+            ingredient = inputs.first_as(PotionIngredient)
+            if not ingredient:
+                return EvalResult.empty()
 
-        title = self._name_potion(ingredients)
-        incantation = self._craft_incantation(ingredients)
-        tasting_notes = self._describe_feel(ingredients)
-
-        recipe = PotionRecipe(
-            title=title,
-            incantation=incantation,
-            tasting_notes=tasting_notes,
-            ingredients=[f"{item.name} ({item.effect})" for item in ingredients],
-        )
-        return EvalResult.from_object(recipe, agent=agent)
+            hint = (
+                f"{ingredient.name} whispers that patience is key. "
+                "Add a few more curious ingredients to coax the potion to life."
+            )
+            placeholder = PotionRecipe(
+                title="Potion Draft",
+                incantation="Not quite ready...",
+                tasting_notes=hint,
+                ingredients=[ingredient.name],
+            )
+            return EvalResult.from_object(placeholder, agent=agent)
 
     def _name_potion(self, ingredients: list[PotionIngredient]) -> str:
         anchors = [item.name for item in ingredients]

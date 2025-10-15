@@ -27,51 +27,52 @@ class BatchSummary(BaseModel):
 class SimpleBatchEngine(EngineComponent):
     """Example engine that processes items individually or in batches.
 
-    - ``evaluate`` is used when the agent is invoked directly without BatchSpec.
-    - ``evaluate_batch`` is triggered when BatchSpec flushes accumulated artifacts.
-
-    The engine simply annotates each item with the current batch size so tests can
-    verify that all artifacts were processed together.
+    The engine auto-detects batch mode via ctx.is_batch flag and processes
+    accordingly. It annotates each item with the current batch size so tests
+    can verify that all artifacts were processed together.
     """
 
     async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
-        """Process single item (non-batch mode).
+        """Process single item or batch with auto-detection.
+
+        Auto-detects batch mode via ctx.is_batch flag (set by orchestrator when
+        BatchSpec flushes accumulated artifacts).
 
         Args:
             agent: Agent instance
-            ctx: Execution context
+            ctx: Execution context (check ctx.is_batch for batch mode)
             inputs: EvalInputs with input artifacts
             output_group: OutputGroup defining what artifacts to produce
+
+        Returns:
+            EvalResult with BatchSummary artifact
         """
-        item = inputs.first_as(BatchItem)
-        if item is None:
-            return EvalResult.empty()
+        # Auto-detect batch mode from context
+        is_batch = bool(getattr(ctx, "is_batch", False))
 
-        annotated = BatchSummary(batch_size=1, values=[item.value])
-        state = dict(inputs.state)
-        state.setdefault("batch_size", annotated.batch_size)
-        state.setdefault("processed_values", list(annotated.values))
+        if is_batch:
+            # Batch mode: Process all items together
+            items = inputs.all_as(BatchItem)
+            if not items:
+                return EvalResult.empty()
 
-        return EvalResult.from_object(annotated, agent=agent, state=state)
+            batch_size = len(items)
+            summary = BatchSummary(batch_size=batch_size, values=[item.value for item in items])
 
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
-        """Process batch of accumulated items.
+            state = dict(inputs.state)
+            state["batch_size"] = summary.batch_size
+            state["processed_values"] = list(summary.values)
 
-        Args:
-            agent: Agent instance
-            ctx: Execution context
-            inputs: EvalInputs with batch of input artifacts
-            output_group: OutputGroup defining what artifacts to produce
-        """
-        items = inputs.all_as(BatchItem)
-        if not items:
-            return EvalResult.empty()
+            return EvalResult.from_object(summary, agent=agent, state=state)
+        else:
+            # Single mode: Process one item
+            item = inputs.first_as(BatchItem)
+            if item is None:
+                return EvalResult.empty()
 
-        batch_size = len(items)
-        summary = BatchSummary(batch_size=batch_size, values=[item.value for item in items])
+            annotated = BatchSummary(batch_size=1, values=[item.value])
+            state = dict(inputs.state)
+            state.setdefault("batch_size", annotated.batch_size)
+            state.setdefault("processed_values", list(annotated.values))
 
-        state = dict(inputs.state)
-        state["batch_size"] = summary.batch_size
-        state["processed_values"] = list(summary.values)
-
-        return EvalResult.from_object(summary, agent=agent, state=state)
+            return EvalResult.from_object(annotated, agent=agent, state=state)
