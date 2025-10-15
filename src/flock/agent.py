@@ -219,34 +219,9 @@ class Agent(metaclass=AutoTracedMeta):
                         # Prepare group-specific context
                         group_ctx = self._prepare_group_context(ctx, group_idx, output_group)
 
-                        # Phase 4: Detect fan-out scenario (single type, count > 1)
-                        has_fanout = any(output.count > 1 for output in output_group.outputs)
-                        is_single_type = len(set(o.spec.type_name for o in output_group.outputs)) == 1
-
-                        if has_fanout and is_single_type:
-                            # Fan-out: try to call evaluate_fanout()
-                            try:
-                                result = await self._run_engines_fanout(
-                                    group_ctx,
-                                    eval_inputs,
-                                    output_group=output_group
-                                )
-                            except NotImplementedError:
-                                # Engine doesn't support fan-out - provide clear error
-                                engine_name = self.engines[0].__class__.__name__ if self.engines else "Engine"
-                                fanout_count = output_group.outputs[0].count if output_group.outputs else 1
-                                raise ValueError(
-                                    f"{engine_name} does not support fan-out generation.\n\n"
-                                    f"To fix this:\n"
-                                    f"1. Remove fan_out parameter from .publishes(), OR\n"
-                                    f"2. Implement evaluate_fanout() in {engine_name}, OR\n"
-                                    f"3. Use a fan-out-aware engine (e.g., DSPyEngine)\n\n"
-                                    f"Agent: {self.name}\n"
-                                    f"Requested count: {fanout_count}"
-                                ) from None
-                        else:
-                            # Standard evaluation (no fan-out or multiple types)
-                            result = await self._run_engines(group_ctx, eval_inputs, output_group)
+                        # Phase 7: Single evaluation path with auto-detection
+                        # Engine's evaluate() auto-detects batch/fan-out from ctx and output_group
+                        result = await self._run_engines(group_ctx, eval_inputs, output_group)
 
                         result = await self._run_post_evaluate(group_ctx, eval_inputs, result)
 
@@ -421,26 +396,10 @@ class Agent(metaclass=AutoTracedMeta):
             accumulated_metrics: dict[str, float] = {}
             for engine in engines:
                 current_inputs = await engine.on_pre_evaluate(self, ctx, current_inputs)
-                use_batch_mode = bool(getattr(ctx, "is_batch", False))
-                try:
-                    if use_batch_mode:
-                        logger.debug(
-                            "Agent %s: routing %d artifacts to %s.evaluate_batch",
-                            self.name,
-                            len(current_inputs.artifacts),
-                            engine.__class__.__name__,
-                        )
-                        result = await engine.evaluate_batch(self, ctx, current_inputs, output_group)
-                    else:
-                        result = await engine.evaluate(self, ctx, current_inputs, output_group)
-                except NotImplementedError:
-                    if use_batch_mode:
-                        logger.exception(
-                            "Agent %s: engine %s does not implement evaluate_batch()",
-                            self.name,
-                            engine.__class__.__name__,
-                        )
-                    raise
+
+                # Phase 7: Single evaluation path with auto-detection
+                # Engine's evaluate() auto-detects batching via ctx.is_batch
+                result = await engine.evaluate(self, ctx, current_inputs, output_group)
 
                 # AUTO-WRAP: If engine returns BaseModel instead of EvalResult, wrap it
                 from flock.runtime import EvalResult as ER
@@ -477,60 +436,6 @@ class Agent(metaclass=AutoTracedMeta):
         if self.best_of_score is None:
             return results[0]
         return max(results, key=self.best_of_score)
-
-    async def _run_engines_fanout(
-        self,
-        ctx: Context,
-        inputs: EvalInputs,
-        output_group: OutputGroup
-    ) -> EvalResult:
-        """Phase 4: Run engines in fan-out mode (generate multiple outputs).
-
-        Calls engine.evaluate_fanout() instead of engine.evaluate(), passing the
-        OutputGroup so the engine knows exactly what types and counts to produce.
-
-        Args:
-            ctx: Execution context
-            inputs: EvalInputs with input artifacts
-            output_group: The OutputGroup defining what to generate
-
-        Returns:
-            EvalResult with artifacts matching output_group specifications
-
-        Raises:
-            NotImplementedError: If engine doesn't support fan-out
-        """
-        engines = self._resolve_engines()
-        if not engines:
-            return EvalResult(artifacts=inputs.artifacts, state=inputs.state)
-
-        # For fan-out, we only support single engine (no chaining)
-        # Multi-engine chaining with fan-out needs more design
-        if len(engines) > 1:
-            logger.warning(
-                f"Agent {self.name}: Fan-out with multiple engines not fully supported. "
-                f"Using first engine only."
-            )
-
-        engine = engines[0]
-        current_inputs = await engine.on_pre_evaluate(self, ctx, inputs)
-
-        # Call evaluate_fanout() on the engine with the output_group
-        count = output_group.outputs[0].count if output_group.outputs else 1
-        logger.debug(
-            f"Agent {self.name}: calling {engine.__class__.__name__}.evaluate_fanout(count={count})"
-        )
-        result = await engine.evaluate_fanout(self, ctx, current_inputs, output_group)
-
-        # AUTO-WRAP: If engine returns BaseModel instead of EvalResult, wrap it
-        from flock.runtime import EvalResult as ER
-
-        if isinstance(result, BaseModel) and not isinstance(result, ER):
-            result = ER.from_object(result, agent=self)
-
-        result = await engine.on_post_evaluate(self, ctx, current_inputs, result)
-
-        return result
 
     async def _run_post_evaluate(
         self, ctx: Context, inputs: EvalInputs, result: EvalResult
