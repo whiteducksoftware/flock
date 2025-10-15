@@ -40,6 +40,7 @@ A blackboard architecture framework where specialized AI agents collaborate thro
 - **Artifacts:** Typed data (Pydantic models) published to blackboard
 - **Subscriptions:** Declarative rules for when agents react
 - **Visibility:** Built-in access control (Public/Private/Tenant/Label-based/Time-based)
+- **Fan-Out Publishing:** Produce multiple artifacts from single agent execution with filtering/validation
 - **Components:** Three levels of extensibility:
   - **Orchestrator Components:** Global lifecycle hooks (monitoring, metrics, coordination)
   - **Agent Components:** Per-agent behavior (quality gates, retry logic, validation)
@@ -115,6 +116,9 @@ For deep dives into specific topics, see:
 - **[Predicates](docs/guides/predicates.md)** - Conditional consumption with `where=` filters
 - **[Join Operations](docs/guides/join-operations.md)** - Correlate related artifacts with JoinSpec
 - **[Batch Processing](docs/guides/batch-processing.md)** - Efficient bulk operations with BatchSpec
+
+**Publishing Patterns:**
+- **[Fan-Out Publishing](docs/guides/fan-out.md)** - Generate multiple outputs with filtering/validation ⭐ **NEW in 0.5**
 
 **Development & Operations:**
 - **[Development Workflow](docs/guides/testing.md)** - Testing, quality, versioning, pre-commit
@@ -1392,6 +1396,33 @@ agent = (
 **Run agent:**
 ```python
 await orchestrator.arun(agent, input_data)
+```
+
+**Fan-out publishing (multiple outputs):**
+```python
+# Generate 10 outputs per execution
+agent = (
+    orchestrator.agent("generator")
+    .consumes(InputType)
+    .publishes(OutputType, fan_out=10)
+)
+
+# With filtering (reduce noise)
+agent.publishes(OutputType, fan_out=20, where=lambda o: o.score >= 8.0)
+
+# With validation (enforce quality)
+agent.publishes(
+    OutputType,
+    fan_out=10,
+    validate=lambda o: o.field in ["valid", "values"]
+)
+
+# With dynamic visibility (per-artifact access control)
+agent.publishes(
+    OutputType,
+    fan_out=5,
+    visibility=lambda o: PrivateVisibility(agents=[o.recipient])
+)
 ```
 
 **Unified tracing:**

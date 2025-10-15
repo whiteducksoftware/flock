@@ -391,6 +391,66 @@ quality_control = flock.agent("qc").consumes(
   <img alt="Event Batch" src="docs/assets/images/batch.png" width="800">
 </p>
 
+### 🌟 Fan-Out Publishing (New in 0.5)
+
+**Produce multiple outputs from a single agent execution:**
+
+```python
+# Generate 10 diverse product ideas from one brief
+idea_generator = (
+    flock.agent("generator")
+    .consumes(ProductBrief)
+    .publishes(ProductIdea, fan_out=10)  # Produces 10 ideas per brief!
+)
+
+# With WHERE filtering - only publish high-quality ideas
+idea_generator = (
+    flock.agent("generator")
+    .consumes(ProductBrief)
+    .publishes(
+        ProductIdea,
+        fan_out=20,  # Generate 20 candidates
+        where=lambda idea: idea.score >= 8.0  # Only publish score >= 8
+    )
+)
+
+# With VALIDATE - enforce quality standards
+code_reviewer = (
+    flock.agent("reviewer")
+    .consumes(CodeSubmission)
+    .publishes(
+        BugReport,
+        fan_out=5,
+        validate=lambda bug: bug.severity in ["Critical", "High", "Medium", "Low"]
+    )
+)
+
+# With Dynamic Visibility - control access per artifact
+notification_agent = (
+    flock.agent("notifier")
+    .consumes(Alert)
+    .publishes(
+        Notification,
+        fan_out=3,
+        visibility=lambda n: PrivateVisibility(agents=[n.recipient])  # Dynamic!
+    )
+)
+```
+
+**What just happened:**
+- ✅ **fan_out=N** - Agent produces N artifacts per execution (not just 1!)
+- ✅ **where** - Filter outputs before publishing (reduce noise, save costs)
+- ✅ **validate** - Enforce quality standards (fail-fast on bad outputs)
+- ✅ **Dynamic visibility** - Control access per artifact based on content
+
+**Real-world impact:**
+- 🎯 **Content Generation** - Generate 10 blog post ideas, filter to top 3 by score
+- 🐛 **Code Review** - Produce 5 potential bugs, validate severity levels
+- 📧 **Notifications** - Create 3 notification variants, target specific agents
+- 🧪 **A/B Testing** - Generate N variations, filter by quality metrics
+
+**📖 [Full Fan-Out Guide →](https://whiteducksoftware.github.io/flock/guides/fan-out/)**
+
 ### Visibility Controls (The Security)
 
 **Unlike other frameworks, Flock has zero-trust security built-in:**
