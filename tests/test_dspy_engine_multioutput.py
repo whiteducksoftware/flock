@@ -34,11 +34,12 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.agent import AgentOutput, OutputGroup, Visibility
+from flock.agent import AgentOutput, OutputGroup
 from flock.artifacts import Artifact, ArtifactSpec
 from flock.engines.dspy_engine import DSPyEngine
 from flock.registry import flock_type
 from flock.runtime import EvalInputs, EvalResult
+from flock.visibility import PublicVisibility
 
 
 # ============================================================================
@@ -192,7 +193,6 @@ class TestBackwardCompatibilitySingleOutput:
         """
         assert False, "Not implemented"
 
-    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
     @pytest.mark.asyncio
     async def test_routing_logic_uses_old_path_for_single(self):
         """Test that routing logic detects single output.
@@ -202,7 +202,25 @@ class TestBackwardCompatibilitySingleOutput:
         - Uses backward compatible path
         - No performance regression
         """
-        assert False, "Not implemented"
+        # Create engine and output group
+        engine = DSPyEngine(model="gpt-4")
+
+        # Single output with count=1 should use old path
+        output_group = create_output_group_with_semantic_types([(Report, 1)])
+
+        # Test detection
+        needs_multi = engine._needs_multioutput_signature(output_group)
+        assert needs_multi is False, "Single output should use backward compatible path"
+
+        # Test with fan-out (count > 1) should use new path
+        output_group_fanout = create_output_group_with_semantic_types([(Report, 3)])
+        needs_multi_fanout = engine._needs_multioutput_signature(output_group_fanout)
+        assert needs_multi_fanout is True, "Fan-out should use multi-output path"
+
+        # Test with multiple outputs should use new path
+        output_group_multi = create_output_group_with_semantic_types([(Summary, 1), (Analysis, 1)])
+        needs_multi_multi = engine._needs_multioutput_signature(output_group_multi)
+        assert needs_multi_multi is True, "Multiple outputs should use multi-output path"
 
 
 # ============================================================================
@@ -393,7 +411,6 @@ class TestFanOutMultipleInstances:
         """
         assert False, "Not implemented"
 
-    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
     @pytest.mark.asyncio
     async def test_pluralization_rules(self):
         """Test pluralization helper function.
@@ -408,7 +425,27 @@ class TestFanOutMultipleInstances:
         - Simple English pluralization
         - Works with snake_case
         """
-        assert False, "Not implemented"
+        engine = DSPyEngine(model="gpt-4")
+
+        # Test simple pluralization
+        assert engine._pluralize("idea") == "ideas"
+        assert engine._pluralize("movie") == "movies"
+        assert engine._pluralize("report") == "reports"
+
+        # Test y → ies (consonant + y)
+        assert engine._pluralize("story") == "stories"
+        assert engine._pluralize("category") == "categories"
+
+        # Test s/x/z/ch/sh → es
+        # Note: "analysis" is irregular (sis→ses), but our simple impl does s→es
+        assert engine._pluralize("analysis") == "analysises"  # Simple rule
+        assert engine._pluralize("box") == "boxes"
+        assert engine._pluralize("class") == "classes"
+
+        # Test snake_case
+        assert engine._pluralize("research_question") == "research_questions"
+        assert engine._pluralize("meeting_transcript") == "meeting_transcripts"
+        assert engine._pluralize("action_item") == "action_items"
 
     @pytest.mark.skip(reason="Phase 2: Not implemented yet")
     @pytest.mark.asyncio
@@ -811,7 +848,7 @@ def create_output_group_with_semantic_types(
         )
         output = AgentOutput(
             spec=spec,
-            default_visibility=Visibility.PUBLIC,
+            default_visibility=PublicVisibility(),
             count=count,
             filter_predicate=None,
             validate_predicate=None,
