@@ -1,0 +1,853 @@
+"""Comprehensive tests for DSPy Engine Multi-Output & Semantic Field Naming.
+
+This test suite defines the expected behavior for DSPyEngine's multi-output support
+with semantic field naming. All tests are initially skipped and will be enabled as
+implementation progresses through Phases 2-5.
+
+**Test Philosophy (TDD):**
+- Tests define behavior BEFORE implementation
+- Each test documents what success looks like
+- Tests are organized by feature area (6 test groups)
+- All tests marked @pytest.mark.skip initially
+
+**Semantic Field Naming:**
+- Type names become field names: Task → "task", Movie → "movie"
+- CamelCase → snake_case: ResearchQuestion → "research_question"
+- Pluralization for fan-out: Idea → "ideas" (list)
+- Collision handling: Same type → "input_text", "output_text"
+
+**Test Groups:**
+1. Backward Compatibility - Ensure existing single-output code works
+2. Multiple Outputs - Generate different types in one call
+3. Fan-Out - Generate N instances of same type
+4. Complex Scenarios - Mixed patterns and edge cases
+5. Contract Validation - Strict enforcement of OutputGroup specs
+6. Integration - Full Agent.execute() → DSPyEngine → artifacts flow
+
+Target Coverage: 80%+ for new multi-output code paths
+"""
+
+from __future__ import annotations
+
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+from pydantic import BaseModel, Field
+
+from flock.agent import AgentOutput, OutputGroup, Visibility
+from flock.artifacts import Artifact, ArtifactSpec
+from flock.engines.dspy_engine import DSPyEngine
+from flock.registry import flock_type
+from flock.runtime import EvalInputs, EvalResult
+
+
+# ============================================================================
+# Test Artifact Types (Semantic Names!)
+# ============================================================================
+
+@flock_type(name="Task")
+class Task(BaseModel):
+    """A task to be analyzed."""
+    description: str = Field(description="Task description")
+    priority: int = Field(default=1, description="Priority level")
+
+
+@flock_type(name="Report")
+class Report(BaseModel):
+    """A report analyzing a task."""
+    summary: str = Field(description="Task summary")
+    findings: list[str] = Field(default_factory=list, description="Key findings")
+
+
+@flock_type(name="Summary")
+class Summary(BaseModel):
+    """A brief summary."""
+    text: str = Field(description="Summary text")
+    length: int = Field(description="Character count")
+
+
+@flock_type(name="Analysis")
+class Analysis(BaseModel):
+    """Detailed analysis."""
+    findings: list[str] = Field(default_factory=list)
+    score: float = Field(description="Analysis score 0-1")
+
+
+@flock_type(name="Sentiment")
+class Sentiment(BaseModel):
+    """Sentiment classification."""
+    label: str = Field(description="positive/negative/neutral")
+    confidence: float = Field(description="Confidence 0-1")
+
+
+@flock_type(name="Idea")
+class Idea(BaseModel):
+    """A creative idea."""
+    title: str = Field(description="Idea title")
+    description: str = Field(description="Idea description")
+
+
+@flock_type(name="Topic")
+class Topic(BaseModel):
+    """A topic for idea generation."""
+    name: str = Field(description="Topic name")
+    category: str = Field(description="Topic category")
+
+
+@flock_type(name="ResearchQuestion")
+class ResearchQuestion(BaseModel):
+    """A research question (tests snake_case conversion)."""
+    question: str = Field(description="The research question")
+    domain: str = Field(description="Research domain")
+
+
+@flock_type(name="MeetingTranscript")
+class MeetingTranscript(BaseModel):
+    """Meeting transcript (tests snake_case conversion)."""
+    content: str = Field(description="Transcript content")
+    participants: list[str] = Field(default_factory=list)
+
+
+@flock_type(name="ActionItems")
+class ActionItems(BaseModel):
+    """Action items from meeting (tests snake_case conversion)."""
+    items: list[str] = Field(default_factory=list)
+    deadline: str | None = None
+
+
+# ============================================================================
+# Test Group 1: Backward Compatibility (Single Output)
+# ============================================================================
+
+class TestBackwardCompatibilitySingleOutput:
+    """Ensure existing single-output code works unchanged.
+
+    **Goal**: Zero regressions. All existing single-output patterns must work.
+
+    **Expected Behavior**:
+    - Single input → Single output generates correct signature
+    - Semantic field names used: Task → "task", Report → "report"
+    - Extraction works correctly
+    - No changes to existing behavior
+    """
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_single_output_with_pydantic_model(self):
+        """Test single output with Pydantic model (backward compat).
+
+        **Setup**:
+        - .consumes(Task).publishes(Report)
+        - OutputGroup with single output
+
+        **Expected Signature**:
+        {
+            "description": (str, InputField()),
+            "task": (Task, InputField()),        # Semantic!
+            "report": (Report, OutputField())    # Semantic!
+        }
+
+        **Expected Behavior**:
+        - Signature generated with semantic names
+        - DSPy called with semantic fields
+        - Result extracted to single Report artifact
+        - Artifact type = "Report"
+        """
+        # Test implementation will verify:
+        # 1. Signature has "task" and "report" fields (not "input"/"output")
+        # 2. DSPy program returns Prediction(report=...)
+        # 3. Extraction creates Report artifact
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_single_output_with_primitive_type(self):
+        """Test single output with primitive type.
+
+        **Expected**:
+        - Still works (dict schema fallback)
+        - Semantic field names
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_single_output_with_dict_schema(self):
+        """Test single output with dict schema.
+
+        **Expected**:
+        - Works like current implementation
+        - Semantic field names
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_single_output_error_handling(self):
+        """Test error handling for single output scenarios.
+
+        **Expected**:
+        - Same error handling as current implementation
+        - Clear error messages
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_routing_logic_uses_old_path_for_single(self):
+        """Test that routing logic detects single output.
+
+        **Expected**:
+        - _needs_multioutput_signature() returns False
+        - Uses backward compatible path
+        - No performance regression
+        """
+        assert False, "Not implemented"
+
+
+# ============================================================================
+# Test Group 2: Multiple Outputs (Different Types)
+# ============================================================================
+
+class TestMultipleOutputsDifferentTypes:
+    """Test generating multiple different output types in one call.
+
+    **Goal**: DSPy can generate 2+ different types with semantic names.
+
+    **Expected Signature (2 outputs)**:
+    .consumes(Task).publishes(Summary, Analysis)
+    → {
+        "task": (Task, InputField()),
+        "summary": (Summary, OutputField()),      # Semantic!
+        "analysis": (Analysis, OutputField())     # Semantic!
+    }
+    """
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_two_different_output_types(self):
+        """Test 2 different output types with semantic names.
+
+        **Setup**:
+        - .consumes(Task).publishes(Summary, Analysis)
+        - OutputGroup with 2 outputs (count=1 each)
+
+        **Expected Signature**:
+        {
+            "description": (str, InputField()),
+            "task": (Task, InputField()),
+            "summary": (Summary, OutputField()),
+            "analysis": (Analysis, OutputField())
+        }
+
+        **Expected DSPy Result**:
+        Prediction(
+            summary={"text": "...", "length": 100},
+            analysis={"findings": [...], "score": 0.8}
+        )
+
+        **Expected Artifacts**:
+        - 2 artifacts: Summary, Analysis
+        - Correct payloads extracted
+        - Correct type names
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_three_different_output_types(self):
+        """Test 3 different output types with semantic names.
+
+        **Setup**:
+        - .consumes(Task).publishes(Summary, Analysis, Sentiment)
+
+        **Expected**: 3 artifacts with semantic field names
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_five_plus_output_types(self):
+        """Test 5+ output types (stress test signature generation).
+
+        **Expected**:
+        - Signature generated with 5+ semantic fields
+        - All artifacts extracted correctly
+        - Order preserved
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_mixed_pydantic_and_primitives(self):
+        """Test multiple outputs with mixed Pydantic and primitives.
+
+        **Expected**:
+        - Both Pydantic models and primitive types work
+        - Semantic names for all
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_snake_case_conversion_for_camel_case_types(self):
+        """Test CamelCase → snake_case conversion.
+
+        **Setup**:
+        - .consumes(MeetingTranscript).publishes(ActionItems)
+
+        **Expected Signature**:
+        {
+            "meeting_transcript": (MeetingTranscript, InputField()),  # snake_case!
+            "action_items": (ActionItems, OutputField())              # snake_case!
+        }
+
+        **Expected**:
+        - CamelCase types become snake_case fields
+        - DSPy result has snake_case fields
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 3: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_extraction_maps_semantic_fields_to_artifacts(self):
+        """Test that extraction correctly maps semantic fields.
+
+        **Expected**:
+        - Prediction(summary=..., analysis=...)
+        - Extracts "summary" → Summary artifact
+        - Extracts "analysis" → Analysis artifact
+        - Preserves order matching OutputGroup.outputs
+        """
+        assert False, "Not implemented"
+
+
+# ============================================================================
+# Test Group 3: Fan-Out (Single Type, Multiple Instances)
+# ============================================================================
+
+class TestFanOutMultipleInstances:
+    """Test generating N instances of same type (fan-out).
+
+    **Goal**: DSPy can generate lists with pluralized field names.
+
+    **Expected Signature (fan_out=5)**:
+    .consumes(Topic).publishes(Idea, fan_out=5)
+    → {
+        "topic": (Topic, InputField()),
+        "ideas": (list[Idea], OutputField(desc="Generate exactly 5 ideas"))  # Pluralized!
+    }
+    """
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_fan_out_three_artifacts(self):
+        """Test fan_out=3 generates exactly 3 artifacts with pluralization.
+
+        **Setup**:
+        - .consumes(Topic).publishes(Idea, fan_out=3)
+        - OutputGroup with output.count=3
+
+        **Expected Signature**:
+        {
+            "topic": (Topic, InputField()),
+            "ideas": (list[Idea], OutputField(desc="Generate exactly 3 ideas"))  # Plural!
+        }
+
+        **Expected DSPy Result**:
+        Prediction(
+            ideas=[
+                {"title": "Idea 1", "description": "..."},
+                {"title": "Idea 2", "description": "..."},
+                {"title": "Idea 3", "description": "..."}
+            ]
+        )
+
+        **Expected Artifacts**:
+        - 3 Idea artifacts
+        - Extracted from list
+        - Each validated separately
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_fan_out_ten_artifacts(self):
+        """Test fan_out=10 generates exactly 10 artifacts.
+
+        **Expected**:
+        - Signature with "ideas" (plural)
+        - list[Idea] type
+        - 10 artifacts extracted
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_fan_out_one_artifact(self):
+        """Test fan_out=1 edge case (should work like single output).
+
+        **Expected**:
+        - Still uses list[Type] signature
+        - Extracts 1 artifact from list
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_pluralization_rules(self):
+        """Test pluralization helper function.
+
+        **Cases**:
+        - "idea" → "ideas"
+        - "story" → "stories" (y → ies)
+        - "analysis" → "analyses" (s → es)
+        - "research_question" → "research_questions"
+
+        **Expected**:
+        - Simple English pluralization
+        - Works with snake_case
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_count_hint_in_field_description(self):
+        """Test that count hint appears in OutputField description.
+
+        **Expected Description**:
+        "Generate exactly 10 ideas"
+
+        **Purpose**:
+        - Guides LLM to generate correct count
+        - Natural language instruction
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 3: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_extraction_of_list_results(self):
+        """Test extraction of list results into separate artifacts.
+
+        **Expected**:
+        - Prediction(ideas=[...])
+        - Extract list items
+        - Create separate Idea artifact for each
+        - Validate each with Pydantic
+        """
+        assert False, "Not implemented"
+
+
+# ============================================================================
+# Test Group 4: Complex Scenarios
+# ============================================================================
+
+class TestComplexScenarios:
+    """Test mixed patterns and edge cases.
+
+    **Goal**: Handle complex real-world scenarios.
+    """
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_multiple_outputs_plus_fan_out(self):
+        """Test multiple outputs where some have fan-out.
+
+        **Setup**:
+        - OutputGroup with [Idea (count=3), Summary (count=1), Analysis (count=1)]
+
+        **Expected Signature**:
+        {
+            "input": (...),
+            "ideas": (list[Idea], OutputField(desc="Generate exactly 3 ideas")),  # Plural!
+            "summary": (Summary, OutputField()),
+            "analysis": (Analysis, OutputField())
+        }
+
+        **Expected**:
+        - 5 total artifacts (3 Ideas + 1 Summary + 1 Analysis)
+        - Correct field names
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_collision_same_input_output_type(self):
+        """Test collision handling when input/output are same type.
+
+        **Setup**:
+        - .consumes(Task).publishes(Task)
+
+        **Expected Signature**:
+        {
+            "input_task": (Task, InputField()),   # Prefixed!
+            "output_task": (Task, OutputField())  # Prefixed!
+        }
+
+        **Expected**:
+        - Collision detected
+        - Prefix added: "input_" and "output_"
+        - Both fields work correctly
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_multiple_inputs_multiple_outputs(self):
+        """Test multiple inputs AND multiple outputs.
+
+        **Setup**:
+        - .consumes(Task, Topic).publishes(Summary, Analysis)
+
+        **Expected Signature**:
+        {
+            "task": (Task, InputField()),
+            "topic": (Topic, InputField()),
+            "summary": (Summary, OutputField()),
+            "analysis": (Analysis, OutputField())
+        }
+
+        **Expected**:
+        - All semantic names
+        - All inputs available to LLM
+        - All outputs generated
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_group_description_override(self):
+        """Test custom group_description overrides default.
+
+        **Setup**:
+        - OutputGroup with group_description="Special instructions for this group"
+
+        **Expected**:
+        - group_description passed to signature
+        - Appears in instructions
+        - Overrides agent.description
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_empty_inputs_returns_empty_result(self):
+        """Test with empty inputs (edge case).
+
+        **Setup**:
+        - EvalInputs(artifacts=[], state={})
+
+        **Expected**:
+        - Returns empty EvalResult
+        - No DSPy call made
+        - No errors
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 4: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_state_management_across_complex_outputs(self):
+        """Test state preservation in multi-output scenario.
+
+        **Expected**:
+        - State dict preserved
+        - State from DSPy merged correctly
+        - No state leakage between outputs
+        """
+        assert False, "Not implemented"
+
+
+# ============================================================================
+# Test Group 5: Contract Validation
+# ============================================================================
+
+class TestContractValidation:
+    """Test strict enforcement of OutputGroup contracts.
+
+    **Goal**: Engine MUST produce exactly what OutputGroup requests.
+
+    **Philosophy**: Fail fast, clear errors, no silent failures.
+    """
+
+    @pytest.mark.skip(reason="Phase 4: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_contract_enforced_exact_count(self):
+        """Test that OutputGroup contract is strictly enforced.
+
+        **Setup**:
+        - OutputGroup requests 3 artifacts
+        - DSPy returns 3 artifacts
+
+        **Expected**:
+        - Success ✅
+        - Exactly 3 artifacts published
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 4: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_error_when_wrong_count(self):
+        """Test error when DSPy returns wrong count.
+
+        **Setup**:
+        - OutputGroup requests 5 artifacts
+        - DSPy returns 3 artifacts
+
+        **Expected Error**:
+        ValueError: "DSPy contract violation: Expected 5 artifacts, got 3.
+        OutputGroup: ['Idea', 'Idea', 'Idea', 'Idea', 'Idea']
+        Counts: [5]
+        Received: ['Idea', 'Idea', 'Idea']"
+
+        **Expected**:
+        - Fail fast
+        - Clear error message
+        - Includes expected vs actual
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 4: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_error_when_wrong_types(self):
+        """Test error when DSPy returns wrong types.
+
+        **Setup**:
+        - OutputGroup requests Summary
+        - DSPy returns Analysis
+
+        **Expected**:
+        - Type validation error
+        - Clear message about type mismatch
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 4: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_error_messages_guide_debugging(self):
+        """Test that error messages are helpful.
+
+        **Expected Error Format**:
+        - What was expected (types and counts)
+        - What was received
+        - Which fields are missing/wrong
+        - How to fix (implementation guidance)
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 4: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_validation_per_artifact_in_fan_out(self):
+        """Test that each artifact in fan-out is validated.
+
+        **Setup**:
+        - fan_out=5, one artifact fails Pydantic validation
+
+        **Expected**:
+        - Validation error
+        - Clear message about which artifact failed
+        - Include artifact index
+        """
+        assert False, "Not implemented"
+
+
+# ============================================================================
+# Test Group 6: Integration
+# ============================================================================
+
+class TestIntegrationFullFlow:
+    """Test complete flow from Agent.execute() to artifacts on blackboard.
+
+    **Goal**: Verify multi-output works end-to-end with all Phase 5 features.
+    """
+
+    @pytest.mark.skip(reason="Phase 5: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_agent_with_multi_output_dspy_engine(self):
+        """Test Agent.execute() → DSPyEngine → artifacts (multi-output).
+
+        **Setup**:
+        - Agent with .publishes(Summary, Analysis)
+        - DSPyEngine configured
+        - Execute agent
+
+        **Expected**:
+        - Engine called with OutputGroup
+        - Semantic signature generated
+        - 2 artifacts created
+        - Artifacts published to blackboard
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 5: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_multi_output_with_where_filtering(self):
+        """Test multi-output + WHERE filtering integration.
+
+        **Setup**:
+        - .publishes(Idea, fan_out=10, where=lambda i: i.score > 0.7)
+        - Engine generates 10 ideas
+        - Filter reduces to 3
+
+        **Expected**:
+        - 10 artifacts generated by engine
+        - 3 artifacts published (after filter)
+        - WHERE applied in _make_outputs_for_group()
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 5: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_multi_output_with_validate_predicates(self):
+        """Test multi-output + VALIDATE integration.
+
+        **Setup**:
+        - .publishes(Summary, validate=lambda s: s.length > 0)
+        - Engine generates Summary with length=0
+
+        **Expected**:
+        - Validation error
+        - Clear message about which check failed
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 5: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_multi_output_with_dynamic_visibility(self):
+        """Test multi-output + dynamic visibility.
+
+        **Setup**:
+        - .publishes(Summary, visibility=lambda s: "public" if s.length > 100 else "private")
+
+        **Expected**:
+        - Each artifact gets visibility based on content
+        - Visibility callable receives Pydantic model
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 5: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_complete_scenario_all_features(self):
+        """Test complete scenario with all features combined.
+
+        **Setup**:
+        - Agent with multiple publish groups
+        - Some groups have fan-out
+        - Some have WHERE filtering
+        - Some have VALIDATE predicates
+        - Dynamic visibility
+
+        **Expected**:
+        - All features work together
+        - Artifacts published correctly
+        - Traces show semantic field names
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 5: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_traces_show_semantic_field_names(self):
+        """Test that traces/logs show semantic field names.
+
+        **Expected Traces**:
+        - "Generating summary from task"
+        - "Generated: summary={...}, analysis={...}"
+        - NOT: "Generated: output_0={...}, output_1={...}"
+
+        **Purpose**:
+        - Better debugging experience
+        - Self-documenting traces
+        """
+        assert False, "Not implemented"
+
+
+# ============================================================================
+# Helper Functions for Test Implementation
+# ============================================================================
+
+def create_mock_dspy_signature_with_fields(field_names: list[str]) -> Mock:
+    """Helper to create mock DSPy signature with specific field names.
+
+    **Usage in tests**:
+    signature = create_mock_dspy_signature_with_fields(["task", "report"])
+    assert "task" in signature.fields
+    assert "report" in signature.fields
+    """
+    # Will be implemented when writing actual test bodies
+    pass
+
+
+def create_mock_dspy_prediction(field_dict: dict) -> Mock:
+    """Helper to create mock DSPy Prediction with semantic fields.
+
+    **Usage in tests**:
+    prediction = create_mock_dspy_prediction({
+        "summary": {"text": "...", "length": 100},
+        "analysis": {"findings": [...], "score": 0.8}
+    })
+    assert prediction.summary == {...}
+    """
+    # Will be implemented when writing actual test bodies
+    pass
+
+
+def create_output_group_with_semantic_types(
+    type_specs: list[tuple[type, int]]
+) -> OutputGroup:
+    """Helper to create OutputGroup with specific types and counts.
+
+    **Usage in tests**:
+    group = create_output_group_with_semantic_types([
+        (Summary, 1),
+        (Analysis, 1),
+        (Idea, 5)  # fan-out
+    ])
+    """
+    outputs = []
+    for type_cls, count in type_specs:
+        spec = ArtifactSpec(
+            type_name=type_cls.__name__,
+            description=f"{type_cls.__name__} artifact",
+            model=type_cls
+        )
+        output = AgentOutput(
+            spec=spec,
+            default_visibility=Visibility.PUBLIC,
+            count=count,
+            filter_predicate=None,
+            validate_predicate=None,
+            group_description=None
+        )
+        outputs.append(output)
+
+    return OutputGroup(outputs=outputs, shared_visibility=None, group_description=None)
+
+
+# ============================================================================
+# Test Summary
+# ============================================================================
+
+"""
+**Test Coverage Summary**:
+
+Test Group 1: Backward Compatibility - 5 tests
+Test Group 2: Multiple Outputs - 6 tests
+Test Group 3: Fan-Out - 6 tests
+Test Group 4: Complex Scenarios - 6 tests
+Test Group 5: Contract Validation - 5 tests
+Test Group 6: Integration - 6 tests
+
+**Total**: 34 comprehensive tests
+
+**Implementation Phases**:
+- Phase 2: Enable Test Groups 1-3 (signature generation)
+- Phase 3: Enable extraction tests
+- Phase 4: Enable Test Groups 4-5 (routing & validation)
+- Phase 5: Enable Test Group 6 (integration)
+
+**Success Criteria**:
+- All 34 tests passing
+- Zero regressions in existing tests
+- 80%+ coverage of new code paths
+- Clear, helpful error messages
+- Performance overhead < 5% for single-output path
+"""
