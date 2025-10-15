@@ -6,7 +6,7 @@
 
 This example demonstrates how to implement a full spec-driven development workflow using Flock's blackboard architecture. Instead of rigid command-based orchestration, agents collaborate emergently through typed artifacts on the blackboard.
 
-## 📊 Current Status: **57% Complete** (4/7 phases)
+## 📊 Current Status: **71% Complete** (5/7 phases)
 
 ### ✅ What's Working
 
@@ -39,11 +39,20 @@ This example demonstrates how to implement a full spec-driven development workfl
 - Agent-specific tool access (research gets web, implementers get filesystem, etc.)
 - See: `mcp_config.py`, `01_test_mcp_config.py`
 
+**Phase 5: Example Implementation (COMPLETE)**
+- Custom tools for spec management (`spec_tools.py`)
+- **Specify workflow**: End-to-end PRD generation from feature description
+- **Analyze workflow**: Pattern discovery through codebase analysis
+- **Implement workflow**: Phase-by-phase execution with validation gates
+- **Refactor workflow**: Safe, incremental code improvements
+- All 4 core workflows working with real file I/O
+- See: `02_specify_workflow.py`, `03_analyze_workflow.py`, `04_implement_workflow.py`, `05_refactor_workflow.py`
+
 ### 🚧 What's In Progress
 
-- Orchestrator implementation logic (custom classes for workflow execution)
-- End-to-end workflow examples
-- Custom Flock tools for spec management
+- Full orchestrator implementations with review cycles
+- Dashboard visualization (optional)
+- Testing and validation (Phase 6)
 
 ## 🏃 Quick Start - Test the System!
 
@@ -102,6 +111,39 @@ This demonstrates:
 - Multiple analysis specialists working in parallel
 - Emergent knowledge extraction via blackboard
 - Documentation generation from discovered patterns
+
+### Test 5: Implement Workflow (NEW!)
+
+Execute an implementation plan phase-by-phase:
+
+```bash
+cd examples/08-spec-driven-development
+uv run python 04_implement_workflow.py
+```
+
+This demonstrates:
+- Loading and parsing PLAN.md into phases
+- Publishing ImplementationTask artifacts
+- Routing tasks by activity_area (backend, frontend, database, infrastructure)
+- Parallel execution within phases
+- Validation gates (tests + build)
+- PhaseComplete signal for workflow control
+
+### Test 6: Refactor Workflow (NEW!)
+
+Improve code quality with safety checks:
+
+```bash
+cd examples/08-spec-driven-development
+uv run python 05_refactor_workflow.py
+```
+
+This demonstrates:
+- Analyzing code for refactoring opportunities
+- Incremental changes (one at a time)
+- Validation after EVERY change (tests must pass)
+- BlockedState if validation fails
+- Safe, reversible refactoring pattern
 
 ### What You'll See
 
@@ -175,8 +217,10 @@ examples/08-spec-driven-development/
 ├── test_agents.py               # Agent creation tests
 ├── 00_test_specialists.py       # Live specialist demo
 ├── 01_test_mcp_config.py        # MCP configuration test
-├── 02_specify_workflow.py       # End-to-end PRD generation (NEW!)
-└── 03_analyze_workflow.py       # Pattern discovery workflow (NEW!)
+├── 02_specify_workflow.py       # End-to-end PRD generation
+├── 03_analyze_workflow.py       # Pattern discovery workflow
+├── 04_implement_workflow.py     # Phase-by-phase implementation
+└── 05_refactor_workflow.py      # Incremental refactoring with safety
 ```
 
 ## 🔄 Workflow Comparison
@@ -225,5 +269,5 @@ User → SpecifyRequest → specify_orchestrator → ResearchTask (artifacts)
 ---
 
 **Status:** Under active development
-**Progress:** 4/7 phases complete (57%)
+**Progress:** 5/7 phases complete (71%)
 **Last Updated:** 2025-10-15
