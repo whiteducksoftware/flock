@@ -799,6 +799,243 @@ class TestMultiInputAndBatching:
 
 
 # ============================================================================
+# Test Group 3.6: Payload Preparation (NEW - Just Implemented!)
+# ============================================================================
+
+class TestPayloadPreparation:
+    """Test execution payload preparation with semantic field names.
+
+    **Goal**: Validate _prepare_execution_payload_for_output_group() logic.
+
+    This tests the NEW implementation that builds execution payloads matching
+    the dynamically generated signatures.
+    """
+
+    @pytest.mark.asyncio
+    async def test_payload_single_input_single_output(self):
+        """Test payload prep for single input → single output.
+
+        **Expected Payload**:
+        {
+            "description": "...",
+            "task": {"description": "...", "priority": 1}
+        }
+        """
+        engine = DSPyEngine(model="gpt-4")
+
+        # Create input artifact
+        task_artifact = Artifact(
+            type="Task",
+            payload={"description": "Build prototype", "priority": 1},
+            produced_by="test"
+        )
+        inputs = EvalInputs(artifacts=[task_artifact], state={})
+
+        # Create output group
+        output_group = create_output_group_with_semantic_types([(Report, 1)])
+
+        # Prepare payload
+        payload = engine._prepare_execution_payload_for_output_group(
+            inputs,
+            output_group,
+            batched=False,
+            has_context=False,
+            context_history=None,
+            sys_desc="Generate report from task"
+        )
+
+        # Validate payload structure
+        assert "description" in payload
+        assert "task" in payload
+        assert payload["description"] == "Generate report from task"
+        assert payload["task"] == {"description": "Build prototype", "priority": 1}
+
+    @pytest.mark.asyncio
+    async def test_payload_multi_input_join(self):
+        """Test payload prep for multi-input (joins).
+
+        **Expected Payload**:
+        {
+            "description": "...",
+            "task": {...},
+            "topic": {...}
+        }
+        """
+        engine = DSPyEngine(model="gpt-4")
+
+        # Create TWO input artifacts (join!)
+        task_artifact = Artifact(
+            type="Task",
+            payload={"description": "Build prototype", "priority": 1},
+            produced_by="test"
+        )
+        topic_artifact = Artifact(
+            type="Topic",
+            payload={"name": "AI Safety", "category": "Research"},
+            produced_by="test"
+        )
+        inputs = EvalInputs(artifacts=[task_artifact, topic_artifact], state={})
+
+        # Create output group
+        output_group = create_output_group_with_semantic_types([(Report, 1)])
+
+        # Prepare payload
+        payload = engine._prepare_execution_payload_for_output_group(
+            inputs,
+            output_group,
+            batched=False,
+            has_context=False,
+            context_history=None,
+            sys_desc="Generate report"
+        )
+
+        # Validate payload structure
+        assert "description" in payload
+        assert "task" in payload
+        assert "topic" in payload
+        assert payload["task"] == {"description": "Build prototype", "priority": 1}
+        assert payload["topic"] == {"name": "AI Safety", "category": "Research"}
+
+    @pytest.mark.asyncio
+    async def test_payload_batched_input_pluralized(self):
+        """Test payload prep for batching (pluralized input field).
+
+        **Expected Payload**:
+        {
+            "description": "...",
+            "tasks": [
+                {"description": "Task 1", "priority": 1},
+                {"description": "Task 2", "priority": 2},
+                {"description": "Task 3", "priority": 3}
+            ]
+        }
+        """
+        engine = DSPyEngine(model="gpt-4")
+
+        # Create THREE task artifacts (batch!)
+        task1 = Artifact(
+            type="Task",
+            payload={"description": "Task 1", "priority": 1},
+            produced_by="test"
+        )
+        task2 = Artifact(
+            type="Task",
+            payload={"description": "Task 2", "priority": 2},
+            produced_by="test"
+        )
+        task3 = Artifact(
+            type="Task",
+            payload={"description": "Task 3", "priority": 3},
+            produced_by="test"
+        )
+        inputs = EvalInputs(artifacts=[task1, task2, task3], state={})
+
+        # Create output group
+        output_group = create_output_group_with_semantic_types([(Report, 1)])
+
+        # Prepare payload with batched=True
+        payload = engine._prepare_execution_payload_for_output_group(
+            inputs,
+            output_group,
+            batched=True,  # CRITICAL!
+            has_context=False,
+            context_history=None,
+            sys_desc="Generate reports"
+        )
+
+        # Validate payload structure
+        assert "description" in payload
+        assert "tasks" in payload  # Plural!
+        assert isinstance(payload["tasks"], list)
+        assert len(payload["tasks"]) == 3
+        assert payload["tasks"][0] == {"description": "Task 1", "priority": 1}
+        assert payload["tasks"][1] == {"description": "Task 2", "priority": 2}
+        assert payload["tasks"][2] == {"description": "Task 3", "priority": 3}
+
+    @pytest.mark.asyncio
+    async def test_payload_with_context_history(self):
+        """Test payload prep includes context history.
+
+        **Expected Payload**:
+        {
+            "description": "...",
+            "task": {...},
+            "context": [...]
+        }
+        """
+        engine = DSPyEngine(model="gpt-4")
+
+        # Create input artifact
+        task_artifact = Artifact(
+            type="Task",
+            payload={"description": "Build prototype", "priority": 1},
+            produced_by="test"
+        )
+        inputs = EvalInputs(artifacts=[task_artifact], state={})
+
+        # Create output group
+        output_group = create_output_group_with_semantic_types([(Report, 1)])
+
+        # Prepare payload with context
+        context_history = [
+            {"role": "user", "content": "Previous message"},
+            {"role": "assistant", "content": "Previous response"}
+        ]
+        payload = engine._prepare_execution_payload_for_output_group(
+            inputs,
+            output_group,
+            batched=False,
+            has_context=True,
+            context_history=context_history,
+            sys_desc="Generate report"
+        )
+
+        # Validate payload structure
+        assert "description" in payload
+        assert "task" in payload
+        assert "context" in payload
+        assert payload["context"] == context_history
+
+    @pytest.mark.asyncio
+    async def test_payload_snake_case_field_names(self):
+        """Test payload prep converts CamelCase to snake_case.
+
+        **Expected Payload**:
+        {
+            "description": "...",
+            "meeting_transcript": {...},  # snake_case!
+        }
+        """
+        engine = DSPyEngine(model="gpt-4")
+
+        # Create CamelCase input artifact
+        transcript_artifact = Artifact(
+            type="MeetingTranscript",
+            payload={"content": "Meeting notes...", "participants": ["Alice", "Bob"]},
+            produced_by="test"
+        )
+        inputs = EvalInputs(artifacts=[transcript_artifact], state={})
+
+        # Create output group
+        output_group = create_output_group_with_semantic_types([(ActionItems, 1)])
+
+        # Prepare payload
+        payload = engine._prepare_execution_payload_for_output_group(
+            inputs,
+            output_group,
+            batched=False,
+            has_context=False,
+            context_history=None,
+            sys_desc="Extract action items"
+        )
+
+        # Validate payload structure
+        assert "description" in payload
+        assert "meeting_transcript" in payload  # snake_case!
+        assert payload["meeting_transcript"] == {"content": "Meeting notes...", "participants": ["Alice", "Bob"]}
+
+
+# ============================================================================
 # Test Group 4: Complex Scenarios
 # ============================================================================
 
