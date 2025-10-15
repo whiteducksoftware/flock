@@ -154,80 +154,41 @@ class DSPyEngine(EngineComponent):
     )
 
     async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
-        """Standard evaluation for single artifact processing.
+        """Universal evaluation with auto-detection of batch and fan-out modes.
+
+        This single method handles ALL evaluation scenarios by auto-detecting:
+        - Batching: Via ctx.is_batch flag (set by orchestrator for BatchSpec)
+        - Fan-out: Via output_group.outputs[*].count (signature building adapts)
+        - Multi-output: Via len(output_group.outputs) (multiple types in one call)
+
+        The signature building in _prepare_signature_for_output_group() automatically:
+        - Pluralizes field names for batching ("tasks" vs "task")
+        - Uses list[Type] for batching and fan-out
+        - Generates semantic field names for all modes
 
         Args:
             agent: Agent instance
-            ctx: Execution context
+            ctx: Execution context (ctx.is_batch indicates batch mode)
             inputs: EvalInputs with input artifacts
             output_group: OutputGroup defining what artifacts to produce
 
         Returns:
             EvalResult with artifacts matching output_group specifications
+
+        Examples:
+            Single: .publishes(Report) → {"report": Report}
+            Batch: BatchSpec(size=3) + ctx.is_batch=True → {"reports": list[Report]}
+            Fan-out: .publishes(Idea, fan_out=5) → {"ideas": list[Idea]}
+            Multi: .publishes(Summary, Analysis) → {"summary": Summary, "analysis": Analysis}
         """
+        # Auto-detect batching from context flag
+        batched = bool(getattr(ctx, "is_batch", False))
+
+        # Fan-out and multi-output detection happens automatically in signature building
+        # via output_group.outputs[*].count and len(output_group.outputs)
         return await self._evaluate_internal(
-            agent, ctx, inputs, batched=False, output_group=output_group
+            agent, ctx, inputs, batched=batched, output_group=output_group
         )
-
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
-        """Batch evaluation for processing multiple artifacts together.
-
-        Args:
-            agent: Agent instance
-            ctx: Execution context
-            inputs: EvalInputs with batch of input artifacts
-            output_group: OutputGroup defining what artifacts to produce
-
-        Returns:
-            EvalResult with processed artifacts
-        """
-        return await self._evaluate_internal(
-            agent, ctx, inputs, batched=True, output_group=output_group
-        )
-
-    async def evaluate_fanout(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
-        """Fan-out evaluation for producing multiple artifacts from single execution.
-
-        Generates exactly `count` artifacts for each output declaration in the output_group
-        by calling the DSPy program multiple times.
-
-        Args:
-            agent: Agent instance
-            ctx: Execution context
-            inputs: EvalInputs with input artifacts
-            output_group: OutputGroup defining what artifacts to produce (with counts)
-
-        Returns:
-            EvalResult with exactly `count` artifacts per output declaration
-        """
-        return await self._evaluate_internal(
-            agent, ctx, inputs, batched=False, output_group=output_group
-        )
-        if not inputs.artifacts:
-            return EvalResult(artifacts=[], state=dict(inputs.state))
-
-        # Calculate total number of artifacts to generate
-        total_count = output_group.total_count
-
-        # Generate artifacts by calling DSPy program multiple times
-        all_artifacts = []
-        state = dict(inputs.state)
-        all_logs = []
-
-        for i in range(total_count):
-            # Call DSPy program once per artifact
-            result = await self._evaluate_internal(agent, ctx, inputs, batched=False)
-
-            # Accumulate artifacts
-            all_artifacts.extend(result.artifacts)
-
-            # Merge state (keep last state)
-            state.update(result.state)
-
-            # Accumulate logs
-            all_logs.extend(result.logs)
-
-        return EvalResult(artifacts=all_artifacts, state=state, logs=all_logs)
 
     async def _evaluate_internal(
         self,
