@@ -52,9 +52,11 @@ If implementation cannot follow specification exactly:
 1. **Use DSPy's Native Multi-Field Support** - Don't hack prompts, leverage DSPy signatures properly
 2. **Dynamic Signature Generation** - Create signatures based on OutputGroup at runtime
 3. **Semantic Field Naming** - Use type names as field names (Task → "task", Movie → "movie") for better LLM understanding
-4. **Backward Compatibility** - Single-output path remains unchanged via routing logic
-5. **TDD First** - Tests define behavior before implementation
-6. **Contract Validation** - Engine must produce exactly what OutputGroup requests
+4. **Multi-Input Support** - Support multiple input artifacts with semantic names (for joins)
+5. **Batching Support** - Support `list[Type]` for batch processing via `evaluate_batch()`
+6. **Backward Compatibility** - Single-output path remains unchanged via routing logic
+7. **TDD First** - Tests define behavior before implementation
+8. **Contract Validation** - Engine must produce exactly what OutputGroup requests
 
 **Current Problem**:
 
@@ -62,8 +64,8 @@ The current `DSPyEngine._prepare_signature_with_context()` (lines 467-514) is ha
 ```python
 fields = {
     "description": (str, dspy_mod.InputField()),
-    "input": (input_type, dspy_mod.InputField()),
-    "output": (output_schema or dict, dspy_mod.OutputField())
+    "input": (input_type, dspy_mod.InputField()),      # SINGLE input (breaks joins!)
+    "output": (output_schema or dict, dspy_mod.OutputField())  # SINGLE output
 }
 ```
 
@@ -71,6 +73,8 @@ This doesn't leverage DSPy's ability to:
 - Have multiple InputFields and OutputFields in one signature
 - Use `list[Type]` in OutputField for generating multiple artifacts
 - Dynamically create signatures based on what needs to be generated
+- **Support multiple input artifacts with semantic names (CRITICAL for joins!)**
+- **Support batching with `list[Type]` on InputField (CRITICAL for `evaluate_batch()`!)**
 
 **Solution Approach**:
 
@@ -99,13 +103,20 @@ Create `_prepare_signature_for_output_group()` that generates signatures with **
     "ideas": (list[Idea], OutputField(desc="Generate exactly 10 ideas"))
 }
 
-# Multiple inputs + outputs
+# Multiple inputs + outputs (joins!)
 .consumes(Document, Guidelines).publishes(Report, Metadata)
 → fields = {
     "document": (Document, InputField()),
     "guidelines": (Guidelines, InputField()),
     "report": (Report, OutputField()),
     "metadata": (Metadata, OutputField())
+}
+
+# Batching (evaluate_batch with list[Type]!)
+.consumes(Task).publishes(Report)  # but called via evaluate_batch([task1, task2, task3])
+→ fields = {
+    "tasks": (list[Task], InputField(desc="Batch of tasks to process")),  # Pluralized list!
+    "reports": (list[Report], OutputField(desc="Batch of reports"))       # Pluralized list!
 }
 ```
 
@@ -225,11 +236,14 @@ Create `_prepare_signature_for_output_group()` that generates signatures with **
         ```python
         def _prepare_signature_for_output_group(
             self,
+            dspy_mod,
+            *,
             agent: Agent,
+            inputs: EvalInputs,
             output_group: OutputGroup,
-            input_type: type | None = None,
-            input_description: str | None = None
-        ) -> tuple[type, dict[str, Any]]:
+            has_context: bool = False,
+            batched: bool = False
+        ) -> Any:
             """
             Create a DSPy signature dynamically based on OutputGroup.
 
@@ -263,16 +277,23 @@ Create `_prepare_signature_for_output_group()` that generates signatures with **
         - [ ] Detect mixed case (some fan-out, some single)
 
     - [ ] Implement field generation:
-        - [ ] Create input field(s) from available inputs using semantic names (Type → snake_case)
-        - [ ] Create output fields based on detection:
+        - [ ] **Create INPUT field(s) from available inputs using semantic names (Type → snake_case)**:
+            - Single input: `"task": (Task, InputField())` (semantic name)
+            - Multiple inputs (joins): `"document": (Document, ...), "guidelines": (Guidelines, ...)` (semantic names)
+            - Batched input: `"tasks": (list[Task], InputField(desc="Batch of tasks"))` (pluralized list!)
+            - Detect batching via `batched` parameter passed to method
+            - Pluralize input field names when batched
+        - [ ] **Create OUTPUT fields based on detection**:
             - Single: `"movie": (Movie, OutputField())` (semantic name)
             - Multiple: `"summary": (Summary, ...), "sentiment": (Sentiment, ...)` (semantic names)
             - Fan-out: `"ideas": (list[Idea], OutputField(desc="Generate exactly {count} ideas"))` (pluralized!)
+            - Batched output: `"reports": (list[Report], OutputField())` (pluralized when batched!)
         - [ ] Implement `_type_to_field_name()` helper: CamelCase → snake_case
-        - [ ] Implement `_pluralize()` helper: "idea" → "ideas" for fan-out
+        - [ ] Implement `_pluralize()` helper: "idea" → "ideas" for fan-out AND batching
         - [ ] Handle collisions: If input and output have same name, prefix with "input_" or "output_"
         - [ ] Use agent description or group_description for context
         - [ ] Include count hints in field descriptions for fan-out
+        - [ ] Include batch hints in field descriptions for batching
 
     - [ ] Implement signature creation:
         - [ ] Use `dspy.Signature(fields)` with dict-based creation
@@ -284,13 +305,23 @@ Create `_prepare_signature_for_output_group()` that generates signatures with **
         ```python
         # Detect if we need multi-output signature
         if output_group and self._needs_multioutput_signature(output_group):
-            signature, ctx = self._prepare_signature_for_output_group(
-                agent, output_group, input_type, input_description
+            signature = self._prepare_signature_for_output_group(
+                dspy_mod,
+                agent=agent,
+                inputs=inputs,
+                output_group=output_group,
+                has_context=has_context,
+                batched=batched  # CRITICAL: Pass batching flag!
             )
         else:
             # Backward compatible path
-            signature, ctx = self._prepare_signature_with_context(
-                agent, input_type, output_schema, input_description
+            signature = self._prepare_signature_with_context(
+                dspy_mod,
+                description=agent.description,
+                input_schema=input_model,
+                output_schema=output_model,
+                has_context=has_context,
+                batched=batched  # Already supports batching!
             )
         ```
     - [ ] Implement `_needs_multioutput_signature()` helper:
