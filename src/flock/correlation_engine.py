@@ -11,7 +11,7 @@ Supports JoinSpec-based correlation:
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 
@@ -52,9 +52,7 @@ class CorrelationGroup:
     def add_artifact(self, artifact: Artifact, current_sequence: int) -> None:
         """Add artifact to this correlation group's waiting pool."""
         if self.created_at_time is None:
-            from datetime import timezone
-
-            self.created_at_time = datetime.now(timezone.utc)
+            self.created_at_time = datetime.now(UTC)
 
         self.waiting_artifacts[artifact.type].append(artifact)
 
@@ -74,9 +72,8 @@ class CorrelationGroup:
             # Time window: expired if current time exceeds created + window
             if self.created_at_time is None:
                 return False
-            from datetime import timezone
 
-            elapsed = datetime.now(timezone.utc) - self.created_at_time
+            elapsed = datetime.now(UTC) - self.created_at_time
             return elapsed > self.window_spec
         return False
 

@@ -1,1 +1,0 @@
-Artifacts for figures.

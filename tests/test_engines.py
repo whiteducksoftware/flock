@@ -41,15 +41,14 @@ async def test_dspy_engine_evaluation_with_mock_llm(orchestrator, mocker):
 
     class MockPrediction:
         def __init__(self):
-            self.output = {"response": "mocked output"}
-            # Add attributes that might be accessed during materialization
-            self.EngineOutput = {"response": "mocked output"}
+            # DSPy engine uses snake_case field names (EngineOutput -> engine_output)
+            self.engine_output = {"response": "mocked output"}
 
     class MockPredict:
         def __init__(self, signature):
             self.signature = signature
 
-        def __call__(self, description=None, input=None, context=None):
+        def __call__(self, **kwargs):
             return MockPrediction()
 
     # Mock the entire DSPy module to avoid import issues
@@ -103,7 +102,7 @@ async def test_engine_pre_generates_artifact_ids():
     generated_ids = []
 
     class IDCapturingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             # Create artifact with explicit ID
             artifact_id = UUID("12345678-1234-5678-1234-567812345678")
             generated_ids.append(artifact_id)
@@ -143,7 +142,7 @@ async def test_engine_handles_evaluation_errors_gracefully():
     errors_collected = []
 
     class ErrorCollectingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             try:
                 raise RuntimeError("Evaluation failed")
             except Exception as e:

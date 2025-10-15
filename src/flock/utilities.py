@@ -228,7 +228,7 @@ class LoggingUtility(AgentComponent):
             await queue.put({"kind": "end"})
         try:
             await asyncio.wait_for(task, timeout=2.0)
-        except asyncio.TimeoutError:  # pragma: no cover - defensive cancel
+        except TimeoutError:  # pragma: no cover - defensive cancel
             task.cancel()
 
     async def _abort_stream(self, agent, ctx: Context) -> None:

@@ -8,7 +8,7 @@ Provides real-time dashboard capabilities by:
 """
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -716,10 +716,10 @@ class DashboardHTTPService(BlackboardHTTPService):
                     if time_range and time_range[0]:
                         # Convert nanoseconds to datetime
                         oldest_trace = datetime.fromtimestamp(
-                            time_range[0] / 1_000_000_000, tz=timezone.utc
+                            time_range[0] / 1_000_000_000, tz=UTC
                         ).isoformat()
                         newest_trace = datetime.fromtimestamp(
-                            time_range[1] / 1_000_000_000, tz=timezone.utc
+                            time_range[1] / 1_000_000_000, tz=UTC
                         ).isoformat()
 
                 # Get file size
@@ -1051,7 +1051,7 @@ def _get_correlation_groups(
     if not groups:
         return []
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = []
 
     for corr_key, group in groups.items():
@@ -1059,7 +1059,7 @@ def _get_correlation_groups(
         if group.created_at_time:
             created_at_time = group.created_at_time
             if created_at_time.tzinfo is None:
-                created_at_time = created_at_time.replace(tzinfo=timezone.utc)
+                created_at_time = created_at_time.replace(tzinfo=UTC)
             elapsed = (now - created_at_time).total_seconds()
         else:
             elapsed = 0
@@ -1146,11 +1146,11 @@ def _get_batch_state(
     if not accumulator or not accumulator.artifacts:
         return None
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # Ensure accumulator.created_at is timezone-aware
     created_at = accumulator.created_at
     if created_at.tzinfo is None:
-        created_at = created_at.replace(tzinfo=timezone.utc)
+        created_at = created_at.replace(tzinfo=UTC)
     elapsed = (now - created_at).total_seconds()
 
     # Calculate items collected (needed for all batch types)

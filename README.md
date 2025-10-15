@@ -391,6 +391,101 @@ quality_control = flock.agent("qc").consumes(
   <img alt="Event Batch" src="docs/assets/images/batch.png" width="800">
 </p>
 
+### 🌟 Fan-Out Publishing (New in 0.5)
+
+**Produce multiple outputs from a single agent execution:**
+
+```python
+# Generate 10 diverse product ideas from one brief
+idea_generator = (
+    flock.agent("generator")
+    .consumes(ProductBrief)
+    .publishes(ProductIdea, fan_out=10)  # Produces 10 ideas per brief!
+)
+
+# With WHERE filtering - only publish high-quality ideas
+idea_generator = (
+    flock.agent("generator")
+    .consumes(ProductBrief)
+    .publishes(
+        ProductIdea,
+        fan_out=20,  # Generate 20 candidates
+        where=lambda idea: idea.score >= 8.0  # Only publish score >= 8
+    )
+)
+
+# With VALIDATE - enforce quality standards
+code_reviewer = (
+    flock.agent("reviewer")
+    .consumes(CodeSubmission)
+    .publishes(
+        BugReport,
+        fan_out=5,
+        validate=lambda bug: bug.severity in ["Critical", "High", "Medium", "Low"]
+    )
+)
+
+# With Dynamic Visibility - control access per artifact
+notification_agent = (
+    flock.agent("notifier")
+    .consumes(Alert)
+    .publishes(
+        Notification,
+        fan_out=3,
+        visibility=lambda n: PrivateVisibility(agents=[n.recipient])  # Dynamic!
+    )
+)
+```
+
+**What just happened:**
+- ✅ **fan_out=N** - Agent produces N artifacts per execution (not just 1!)
+- ✅ **where** - Filter outputs before publishing (reduce noise, save costs)
+- ✅ **validate** - Enforce quality standards (fail-fast on bad outputs)
+- ✅ **Dynamic visibility** - Control access per artifact based on content
+
+**Real-world impact:**
+- 🎯 **Content Generation** - Generate 10 blog post ideas, filter to top 3 by score
+- 🐛 **Code Review** - Produce 5 potential bugs, validate severity levels
+- 📧 **Notifications** - Create 3 notification variants, target specific agents
+- 🧪 **A/B Testing** - Generate N variations, filter by quality metrics
+
+**🤯 Multi-Output Fan-Out (New in 0.5)**
+
+**The truly mind-blowing part:** Fan-out works across **multiple output types**:
+
+```python
+# Generate 3 of EACH type = 9 total artifacts in ONE LLM call!
+multi_master = (
+    flock.agent("multi_master")
+    .consumes(Idea)
+    .publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
+)
+
+# Single execution produces:
+# - 3 complete Movie artifacts (with title, genre, cast, plot)
+# - 3 complete MovieScript artifacts (with characters, scenes, pages)
+# - 3 complete MovieCampaign artifacts (with taglines, poster descriptions)
+# = 9 complex artifacts, ~100+ fields total, full Pydantic validation, ONE LLM call!
+
+await flock.publish(Idea(story_idea="An action thriller set in space"))
+await flock.run_until_idle()
+
+# Result: 9 artifacts on the blackboard, all validated, all ready
+movies = await flock.store.get_by_type(Movie)  # 3 movies
+scripts = await flock.store.get_by_type(MovieScript)  # 3 scripts
+campaigns = await flock.store.get_by_type(MovieCampaign)  # 3 campaigns
+```
+
+**Why this is revolutionary:**
+- ⚡ **Massive efficiency** - 1 LLM call generates 9 production-ready artifacts
+- ✅ **Full validation** - All 100+ fields validated with Pydantic constraints
+- 🎯 **Coherent generation** - Movie/Script/Campaign are thematically aligned (same LLM context)
+- 💰 **Cost optimized** - 9 artifacts for the price of 1 API call
+
+**Can any other agent framework do this?** We haven't found one. 🚀
+
+**📖 [Full Fan-Out Guide →](https://whiteducksoftware.github.io/flock/guides/fan-out/)**
+
 ### Visibility Controls (The Security)
 
 **Unlike other frameworks, Flock has zero-trust security built-in:**

@@ -4,7 +4,7 @@ Defines 5 core event types that capture agent execution lifecycle.
 All schemas match DATA_MODEL.md specification exactly.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -40,7 +40,7 @@ class AgentActivatedEvent(BaseModel):
     # Event metadata
     correlation_id: str
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
     )
 
     # Agent identification
@@ -74,7 +74,7 @@ class MessagePublishedEvent(BaseModel):
     # Event metadata
     correlation_id: str
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
     )
 
     # Artifact identification
@@ -109,7 +109,7 @@ class StreamingOutputEvent(BaseModel):
     # Event metadata
     correlation_id: str
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
     )
 
     # Agent identification
@@ -137,7 +137,7 @@ class AgentCompletedEvent(BaseModel):
     # Event metadata
     correlation_id: str
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
     )
 
     # Agent identification
@@ -163,7 +163,7 @@ class AgentErrorEvent(BaseModel):
     # Event metadata
     correlation_id: str
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
     )
 
     # Agent identification
@@ -187,7 +187,7 @@ class CorrelationGroupUpdatedEvent(BaseModel):
 
     # Event metadata
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
     )
 
     # Agent identification
@@ -224,7 +224,7 @@ class BatchItemAddedEvent(BaseModel):
 
     # Event metadata
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
     )
 
     # Agent identification

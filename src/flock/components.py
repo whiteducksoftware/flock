@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 from pydantic import BaseModel, Field, create_model
 from pydantic._internal._model_construction import ModelMetaclass
-from typing_extensions import Self, TypeVar
+from typing_extensions import TypeVar
 
 from flock.logging.auto_trace import AutoTracedMeta
 
@@ -14,7 +14,7 @@ from flock.logging.auto_trace import AutoTracedMeta
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from uuid import UUID
 
-    from flock.agent import Agent
+    from flock.agent import Agent, OutputGroup
     from flock.artifacts import Artifact
     from flock.runtime import Context, EvalInputs, EvalResult
 
@@ -109,41 +109,49 @@ class EngineComponent(AgentComponent):
         default_factory=set, description="Artifact types to exclude from context"
     )
 
-    async def evaluate(self, agent: Agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
-        """Override this method in your engine implementation."""
-        raise NotImplementedError
+    async def evaluate(
+        self, agent: Agent, ctx: Context, inputs: EvalInputs, output_group: OutputGroup
+    ) -> EvalResult:
+        """Universal evaluation method with auto-detection of batch and fan-out modes.
 
-    async def evaluate_batch(self, agent: Agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
-        """Process batch of accumulated artifacts (BatchSpec).
+        This single method handles ALL evaluation scenarios:
+        - Single artifact → single output
+        - Batch processing (ctx.is_batch=True) → list[Type] signatures
+        - Fan-out (output_group.outputs[*].count > 1) → multiple artifacts
+        - Multi-output (len(output_group.outputs) > 1) → multiple types
 
-        Override this method if your engine supports batch processing.
+        Auto-detection happens automatically:
+        - Batching: Detected via ctx.is_batch flag
+        - Fan-out: Detected via output_group.outputs[*].count
+        - Multi-input: Detected via len(inputs.artifacts)
+        - Multi-output: Detected via len(output_group.outputs)
 
         Args:
             agent: Agent instance executing this engine
-            ctx: Execution context (ctx.is_batch will be True)
-            inputs: EvalInputs with inputs.artifacts containing batch items
+            ctx: Execution context (check ctx.is_batch for batch mode)
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+                         (inspect outputs[*].count for fan-out detection)
 
         Returns:
-            EvalResult with processed artifacts
+            EvalResult with artifacts matching output_group specifications
 
-        Raises:
-            NotImplementedError: If engine doesn't support batching
-
-        Example:
-            >>> async def evaluate_batch(self, agent, ctx, inputs):
-            ...     events = inputs.all_as(Event)  # Get ALL items
-            ...     results = await bulk_process(events)
-            ...     return EvalResult.from_objects(*results, agent=agent)
+        Implementation Guide:
+            >>> async def evaluate(self, agent, ctx, inputs, output_group):
+            ...     # Auto-detect batching from context
+            ...     batched = bool(getattr(ctx, "is_batch", False))
+            ...
+            ...     # Fan-out is auto-detected from output_group
+            ...     # Your signature building should check:
+            ...     # - output_group.outputs[i].count > 1 for fan-out
+            ...     # - len(output_group.outputs) > 1 for multi-output
+            ...
+            ...     # Build signature adapting to all modes
+            ...     signature = self._build_signature(inputs, output_group, batched)
+            ...     result = await self._execute(signature, inputs)
+            ...     return EvalResult.from_objects(*result, agent=agent)
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} does not support batch processing.\n\n"
-            f"To fix this:\n"
-            f"1. Remove BatchSpec from agent subscription, OR\n"
-            f"2. Implement evaluate_batch() in {self.__class__.__name__}, OR\n"
-            f"3. Use a batch-aware engine (e.g., CustomBatchEngine)\n\n"
-            f"Agent: {agent.name}\n"
-            f"Engine: {self.__class__.__name__}"
-        )
+        raise NotImplementedError
 
     async def fetch_conversation_context(
         self,

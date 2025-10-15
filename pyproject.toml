@@ -1,9 +1,9 @@
 [project]
 name = "flock-core"
-version = "0.5.7"
+version = "0.5.8"
 description = "Flock: A declrative framework for building and orchestrating AI agents."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [ "dspy==3.0.3", "litellm==1.78.0", "fastapi>=0.117.1", "httpx>=0.28.1", "aiosqlite>=0.20.0", "pydantic[email]>=2.11.9", "rich>=14.1.0", "typer>=0.19.2", "uvicorn>=0.37.0", "opentelemetry-api>=1.30.0", "opentelemetry-exporter-jaeger>=1.21.0", "opentelemetry-exporter-jaeger-proto-grpc>=1.21.0", "opentelemetry-exporter-otlp>=1.30.0", "opentelemetry-instrumentation-logging>=0.51b0", "opentelemetry-sdk>=1.30.0", "loguru>=0.7.3", "mcp>=1.7.1", "toml>=0.10.2", "poethepoet>=0.30.0", "devtools>=0.12.2", "websockets>=15.0.1", "duckdb>=1.1.0", "hanging-threads>=2.0.7",]
 [[project.authors]]
 name = "Andre Ratzenberger"
@@ -27,13 +27,13 @@ exclude_dirs = [ "tests/", "examples/",]
 skips = [ "B113",]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 line-length = 100
 indent-width = 4
 exclude = [ ".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".venv", "__pycache__", "dist", "build", "htmlcov", "logs", "metrics", "*.egg-info", "frontend/", "docs/", "src/flock/dashboard/graph_builder.py",]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true
@@ -79,6 +79,19 @@ init_typed = true
 warn_required_dynamic_aliases = true
 warn_untyped_fields = true
 
+[tool.ruff.lint]
+select = [ "E", "W", "F", "I", "N", "UP", "YTT", "ASYNC", "BLE", "B", "A", "C4", "DTZ", "T10", "EXE", "ISC", "ICN", "G", "PIE", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SIM", "TID", "TCH", "ARG", "PTH", "ERA", "PL", "TRY", "RUF",]
+ignore = [ "E501", "PLR0913", "PLR2004", "PLR0915", "PLR0912", "TRY003", "TRY300", "TRY002", "TRY301", "TRY401", "ISC001", "G004", "G201", "PLC0415", "N817", "ERA001", "BLE001", "B904", "N806", "ARG001", "ARG002", "PTH123", "E402", "SLF001", "A002", "PLW0603", "PLW2901", "SIM105", "SIM108", "SIM113", "SIM117", "SIM118", "TC001", "TC003", "UP007", "RUF002", "RUF003", "RUF012", "RUF100", "EXE001", "PLW0602", "PLC0206", "B008", "ARG003", "DTZ003",]
+fixable = [ "ALL",]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = [ "tests",]
@@ -118,22 +131,6 @@ version-minor = "python scripts/bump_version.py minor"
 version-major = "python scripts/bump_version.py major"
 version-check = "python scripts/bump_version.py patch --check"
 
-[tool.ruff.lint]
-select = [ "E", "W", "F", "I", "N", "UP", "YTT", "ASYNC", "BLE", "B", "A", "C4", "DTZ", "T10", "EXE", "ISC", "ICN", "G", "PIE", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SIM", "TID", "TCH", "ARG", "PTH", "ERA", "PL", "TRY", "RUF",]
-ignore = [ "E501", "PLR0913", "PLR2004", "PLR0915", "PLR0912", "TRY003", "TRY300", "TRY002", "TRY301", "TRY401", "ISC001", "G004", "G201", "PLC0415", "N817", "ERA001", "BLE001", "B904", "N806", "ARG001", "ARG002", "PTH123", "E402", "SLF001", "A002", "PLW0603", "PLW2901", "SIM105", "SIM108", "SIM113", "SIM117", "SIM118", "TC001", "TC003", "UP007", "RUF002", "RUF003", "RUF012", "RUF100", "EXE001", "PLW0602", "PLC0206", "B008", "ARG003", "DTZ003",]
-fixable = [ "ALL",]
-unfixable = []
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "lf"
-
-[tool.poe.tasks.clean]
-script = "poethepoet.scripts:rm('dist', 'htmlcov', 'logs','metrics','.mypy_cache', '.pytest_cache', './**/__pycache__')"
-
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [ "S101", "PLR2004", "PLR0912", "SLF001", "ARG001", "ARG002", "ARG005", "PT011", "E402", "F841", "B904", "TRY301", "TRY401", "PTH123", "E721", "A002", "SIM105", "SIM108", "SIM113", "PLW0603", "RUF059", "PT017", "RUF043", "B018", "PT012", "E741", "PLE1205", "F811", "PT015", "B011", "RSE102",]
 "examples/**/*.py" = [ "T201", "ARG001", "PLR2004",]
@@ -150,6 +147,9 @@ max-complexity = 10
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.poe.tasks.clean]
+script = "poethepoet.scripts:rm('dist', 'htmlcov', 'logs','metrics','.mypy_cache', '.pytest_cache', './**/__pycache__')"
 
 [tool.hatch.build.targets.wheel]
 packages = [ "src/flock",]

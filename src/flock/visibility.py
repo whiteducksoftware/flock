@@ -3,7 +3,7 @@ from __future__ import annotations
 
 """Artifact visibility policies."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
@@ -69,10 +69,10 @@ class AfterVisibility(Visibility):
     kind: Literal["After"] = "After"
     ttl: timedelta = Field(default=timedelta())
     then: Visibility | None = None
-    _created_at: datetime = PrivateAttr(default_factory=lambda: datetime.now(timezone.utc))
+    _created_at: datetime = PrivateAttr(default_factory=lambda: datetime.now(UTC))
 
     def allows(self, agent: AgentIdentity, *, now: datetime | None = None) -> bool:
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         if now - self._created_at >= self.ttl:
             if self.then:
                 return self.then.allows(agent, now=now)

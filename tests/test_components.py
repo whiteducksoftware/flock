@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, Field
 
+from flock.agent import OutputGroup
 from flock.artifacts import Artifact
 from flock.components import AgentComponent, AgentComponentConfig, EngineComponent
 from flock.orchestrator import Flock
@@ -39,7 +40,7 @@ class OrderTracker(AgentComponent):
 class SimpleTestEngine(EngineComponent):
     """Simple engine for testing."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         return EvalResult(artifacts=[], state={})
 
 
@@ -137,7 +138,7 @@ async def test_component_adds_state_in_pre_evaluate():
             return await super().on_pre_evaluate(agent, ctx, inputs)
 
     class StateCapturingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             state_captured.update(inputs.state)
             return EvalResult(artifacts=[], state=inputs.state)
 
@@ -177,7 +178,7 @@ async def test_metrics_component_adds_metrics():
             return await super().on_post_evaluate(agent, ctx, inputs, result)
 
     class MetricsCapturingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             return EvalResult(artifacts=[], state={})
 
     agent = (
@@ -213,7 +214,7 @@ async def test_component_on_error_hook_called():
             return await super().on_error(agent, ctx, exception)
 
     class FailingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             raise ValueError("Test exception")
 
     agent = (
@@ -554,35 +555,10 @@ async def test_engine_component_should_use_context():
 async def test_engine_component_evaluate_not_implemented():
     """Test that EngineComponent.evaluate raises NotImplementedError."""
     engine = EngineComponent()
+    output_group = OutputGroup(outputs=[], group_description=None)
 
     with pytest.raises(NotImplementedError):
-        await engine.evaluate(None, None, EvalInputs(artifacts=[], state={}))
-
-
-@pytest.mark.asyncio
-async def test_engine_component_evaluate_batch_raises_not_implemented():
-    """Test that EngineComponent.evaluate_batch raises NotImplementedError with clear message."""
-    # Arrange
-    engine = EngineComponent()
-
-    # Create mock agent with name
-    mock_agent = MagicMock()
-    mock_agent.name = "test_agent"
-
-    mock_ctx = MagicMock()
-    inputs = EvalInputs(artifacts=[], state={})
-
-    # Act & Assert
-    with pytest.raises(NotImplementedError) as exc_info:
-        await engine.evaluate_batch(mock_agent, mock_ctx, inputs)
-
-    # Verify error message contains agent name and engine name
-    error_msg = str(exc_info.value)
-    assert "EngineComponent does not support batch processing" in error_msg
-    assert "test_agent" in error_msg  # Agent name in error
-    assert "EngineComponent" in error_msg  # Engine name in error
-    assert "Remove BatchSpec" in error_msg  # Actionable guidance
-    assert "Implement evaluate_batch" in error_msg  # Alternative solution
+        await engine.evaluate(None, None, EvalInputs(artifacts=[], state={}), output_group)
 
 
 @pytest.mark.asyncio

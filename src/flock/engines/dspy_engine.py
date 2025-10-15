@@ -8,6 +8,7 @@ import os
 from collections import OrderedDict, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import nullcontext
+from datetime import UTC
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -152,11 +153,42 @@ class DSPyEngine(EngineComponent):
         description="Enable caching of DSPy program results",
     )
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:  # type: ignore[override]
-        return await self._evaluate_internal(agent, ctx, inputs, batched=False)
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
+        """Universal evaluation with auto-detection of batch and fan-out modes.
 
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:  # type: ignore[override]
-        return await self._evaluate_internal(agent, ctx, inputs, batched=True)
+        This single method handles ALL evaluation scenarios by auto-detecting:
+        - Batching: Via ctx.is_batch flag (set by orchestrator for BatchSpec)
+        - Fan-out: Via output_group.outputs[*].count (signature building adapts)
+        - Multi-output: Via len(output_group.outputs) (multiple types in one call)
+
+        The signature building in _prepare_signature_for_output_group() automatically:
+        - Pluralizes field names for batching ("tasks" vs "task")
+        - Uses list[Type] for batching and fan-out
+        - Generates semantic field names for all modes
+
+        Args:
+            agent: Agent instance
+            ctx: Execution context (ctx.is_batch indicates batch mode)
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+
+        Returns:
+            EvalResult with artifacts matching output_group specifications
+
+        Examples:
+            Single: .publishes(Report) → {"report": Report}
+            Batch: BatchSpec(size=3) + ctx.is_batch=True → {"reports": list[Report]}
+            Fan-out: .publishes(Idea, fan_out=5) → {"ideas": list[Idea]}
+            Multi: .publishes(Summary, Analysis) → {"summary": Summary, "analysis": Analysis}
+        """
+        # Auto-detect batching from context flag
+        batched = bool(getattr(ctx, "is_batch", False))
+
+        # Fan-out and multi-output detection happens automatically in signature building
+        # via output_group.outputs[*].count and len(output_group.outputs)
+        return await self._evaluate_internal(
+            agent, ctx, inputs, batched=batched, output_group=output_group
+        )
 
     async def _evaluate_internal(
         self,
@@ -165,6 +197,7 @@ class DSPyEngine(EngineComponent):
         inputs: EvalInputs,
         *,
         batched: bool,
+        output_group=None,
     ) -> EvalResult:
         if not inputs.artifacts:
             return EvalResult(artifacts=[], state=dict(inputs.state))
@@ -195,12 +228,12 @@ class DSPyEngine(EngineComponent):
         context_history = await self.fetch_conversation_context(ctx)
         has_context = bool(context_history) and self.should_use_context(inputs)
 
-        # Prepare signature with optional context field
-        signature = self._prepare_signature_with_context(
+        # Generate signature with semantic field naming
+        signature = self._prepare_signature_for_output_group(
             dspy_mod,
-            description=self.instructions or agent.description,
-            input_schema=input_model,
-            output_schema=output_model,
+            agent=agent,
+            inputs=inputs,
+            output_group=output_group,
             has_context=has_context,
             batched=batched,
         )
@@ -212,19 +245,15 @@ class DSPyEngine(EngineComponent):
 
         pre_generated_artifact_id = uuid4()
 
-        # Build execution payload with context
-        if batched:
-            execution_payload = {"input": validated_input}
-            if has_context:
-                execution_payload["context"] = context_history
-        elif has_context:
-            execution_payload = {
-                "input": validated_input,
-                "context": context_history,
-            }
-        else:
-            # Backwards compatible - direct input
-            execution_payload = validated_input
+        # Build execution payload with semantic field names matching signature
+        execution_payload = self._prepare_execution_payload_for_output_group(
+            inputs,
+            output_group,
+            batched=batched,
+            has_context=has_context,
+            context_history=context_history,
+            sys_desc=sys_desc,
+        )
 
         # Merge native tools with MCP tools
         native_tools = list(agent.tools or [])
@@ -292,6 +321,7 @@ class DSPyEngine(EngineComponent):
                             agent=agent,
                             ctx=ctx,
                             pre_generated_artifact_id=pre_generated_artifact_id,
+                            output_group=output_group,
                         )
                     else:
                         # CLI mode: Rich streaming with terminal display
@@ -310,6 +340,7 @@ class DSPyEngine(EngineComponent):
                             agent=agent,
                             ctx=ctx,
                             pre_generated_artifact_id=pre_generated_artifact_id,
+                            output_group=output_group,
                         )
                     if not self.no_output and ctx:
                         ctx.state["_flock_stream_live_active"] = True
@@ -331,13 +362,18 @@ class DSPyEngine(EngineComponent):
                     if orchestrator and hasattr(orchestrator, "_active_streams"):
                         orchestrator._active_streams = max(0, orchestrator._active_streams - 1)
 
-        normalized_output = self._normalize_output_payload(getattr(raw_result, "output", None))
+        # Extract semantic fields from Prediction
+        normalized_output = self._extract_multi_output_payload(raw_result, output_group)
+
         artifacts, errors = self._materialize_artifacts(
             normalized_output,
-            agent.outputs,
+            output_group.outputs,
             agent.name,
             pre_generated_id=pre_generated_artifact_id,
         )
+        logger.info(f"[_materialize_artifacts] normalized_output {normalized_output}")
+        logger.info(f"[_materialize_artifacts] artifacts {artifacts}")
+        logger.info(f"[_materialize_artifacts] errors {errors}")
 
         state = dict(inputs.state)
         state.setdefault("dspy", {})
@@ -358,10 +394,10 @@ class DSPyEngine(EngineComponent):
     # Helpers mirroring the design engine
 
     def _resolve_model_name(self) -> str:
-        model = self.model or os.getenv("TRELLIS_MODEL") or os.getenv("OPENAI_MODEL")
+        model = self.model or os.getenv("DEFAULT_MODEL")
         if not model:
             raise NotImplementedError(
-                "DSPyEngine requires a configured model (set TRELLIS_MODEL, OPENAI_MODEL, or pass model=...)."
+                "DSPyEngine requires a configured model (set DEFAULT_MODEL, or pass model=...)."
             )
         return model
 
@@ -398,6 +434,76 @@ class DSPyEngine(EngineComponent):
             return schema(**data).model_dump()
         except Exception:
             return data
+
+    def _type_to_field_name(self, type_class: type) -> str:
+        """Convert Pydantic model class name to snake_case field name.
+
+        Examples:
+            Movie → "movie"
+            ResearchQuestion → "research_question"
+            APIResponse → "api_response"
+            UserAuthToken → "user_auth_token"
+
+        Args:
+            type_class: The Pydantic model class
+
+        Returns:
+            snake_case field name
+        """
+        import re
+
+        name = type_class.__name__
+        # Convert CamelCase to snake_case
+        snake_case = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+        return snake_case
+
+    def _pluralize(self, field_name: str) -> str:
+        """Convert singular field name to plural for lists.
+
+        Examples:
+            "idea" → "ideas"
+            "movie" → "movies"
+            "story" → "stories" (y → ies)
+            "analysis" → "analyses" (is → es)
+            "research_question" → "research_questions"
+
+        Args:
+            field_name: Singular field name in snake_case
+
+        Returns:
+            Pluralized field name
+        """
+        # Simple English pluralization rules
+        if field_name.endswith("y") and len(field_name) > 1 and field_name[-2] not in "aeiou":
+            # story → stories (consonant + y)
+            return field_name[:-1] + "ies"
+        if field_name.endswith(("s", "x", "z", "ch", "sh")):
+            # analysis → analyses, box → boxes
+            return field_name + "es"
+        # idea → ideas, movie → movies
+        return field_name + "s"
+
+    def _needs_multioutput_signature(self, output_group) -> bool:
+        """Determine if OutputGroup requires multi-output signature generation.
+
+        Args:
+            output_group: OutputGroup to analyze
+
+        Returns:
+            True if multi-output signature needed, False for single output (backward compat)
+        """
+        if not output_group or not hasattr(output_group, "outputs") or not output_group.outputs:
+            return False
+
+        # Multiple different types → multi-output
+        if len(output_group.outputs) > 1:
+            return True
+
+        # Fan-out (single type, count > 1) → multi-output
+        if output_group.outputs[0].count > 1:
+            return True
+
+        return False
 
     def _prepare_signature_with_context(
         self,
@@ -444,9 +550,291 @@ class DSPyEngine(EngineComponent):
                 " The 'input' field will contain a list of items representing the batch; "
                 "process the entire collection coherently."
             )
-        instruction += " Return only JSON."
+        # instruction += " Return only JSON."
 
         return signature.with_instructions(instruction)
+
+    def _prepare_signature_for_output_group(
+        self,
+        dspy_mod,
+        *,
+        agent,
+        inputs: EvalInputs,
+        output_group,
+        has_context: bool = False,
+        batched: bool = False,
+    ) -> Any:
+        """Prepare DSPy signature dynamically based on OutputGroup with semantic field names.
+
+        This method generates signatures using semantic field naming:
+        - Type names → snake_case field names (Task → "task", ResearchQuestion → "research_question")
+        - Pluralization for fan-out (Idea → "ideas" for lists)
+        - Pluralization for batching (Task → "tasks" for list[Task])
+        - Multi-input support for joins (multiple input artifacts with semantic names)
+        - Collision handling (same input/output type → prefix with "input_" or "output_")
+
+        Examples:
+            Single output: .consumes(Task).publishes(Report)
+            → {"task": (Task, InputField()), "report": (Report, OutputField())}
+
+            Multiple inputs (joins): .consumes(Document, Guidelines).publishes(Report)
+            → {"document": (Document, InputField()), "guidelines": (Guidelines, InputField()),
+               "report": (Report, OutputField())}
+
+            Multiple outputs: .consumes(Task).publishes(Summary, Analysis)
+            → {"task": (Task, InputField()), "summary": (Summary, OutputField()),
+               "analysis": (Analysis, OutputField())}
+
+            Fan-out: .publishes(Idea, fan_out=5)
+            → {"topic": (Topic, InputField()), "ideas": (list[Idea], OutputField(...))}
+
+            Batching: evaluate_batch([task1, task2, task3])
+            → {"tasks": (list[Task], InputField()), "reports": (list[Report], OutputField())}
+
+        Args:
+            dspy_mod: DSPy module
+            agent: Agent instance
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what to generate
+            has_context: Whether conversation context should be included
+            batched: Whether this is a batch evaluation (pluralizes input fields)
+
+        Returns:
+            DSPy Signature with semantic field names
+        """
+        fields = {
+            "description": (str, dspy_mod.InputField()),
+        }
+
+        # Add context field if we have conversation history
+        if has_context:
+            fields["context"] = (
+                list,
+                dspy_mod.InputField(
+                    desc="Previous conversation artifacts providing context for this request"
+                ),
+            )
+
+        # Track used field names for collision detection
+        used_field_names: set[str] = {"description", "context"}
+
+        # 1. Generate INPUT fields with semantic names
+        #    Multi-input support: handle all input artifacts for joins
+        #    Batching support: pluralize field names and use list[Type] when batched=True
+        if inputs.artifacts:
+            # Collect unique input types (avoid duplicates if multiple artifacts of same type)
+            input_types_seen: dict[type, list[Artifact]] = {}
+            for artifact in inputs.artifacts:
+                input_model = self._resolve_input_model(artifact)
+                if input_model is not None:
+                    if input_model not in input_types_seen:
+                        input_types_seen[input_model] = []
+                    input_types_seen[input_model].append(artifact)
+
+            # Generate fields for each unique input type
+            for input_model, artifacts_of_type in input_types_seen.items():
+                field_name = self._type_to_field_name(input_model)
+
+                # Handle batching: pluralize field name and use list[Type]
+                if batched:
+                    field_name = self._pluralize(field_name)
+                    input_type = list[input_model]
+                    desc = f"Batch of {input_model.__name__} instances to process"
+                    fields[field_name] = (input_type, dspy_mod.InputField(desc=desc))
+                else:
+                    # Single input: use singular field name
+                    input_type = input_model
+                    fields[field_name] = (input_type, dspy_mod.InputField())
+
+                used_field_names.add(field_name)
+
+            # Fallback: if we couldn't resolve any types, use generic "input"
+            if not input_types_seen:
+                fields["input"] = (dict, dspy_mod.InputField())
+                used_field_names.add("input")
+
+        # 2. Generate OUTPUT fields with semantic names
+        for output_decl in output_group.outputs:
+            output_schema = output_decl.spec.model
+            type_name = output_decl.spec.type_name
+
+            # Generate semantic field name
+            field_name = self._type_to_field_name(output_schema)
+
+            # Handle fan-out: pluralize field name and use list[Type]
+            if output_decl.count > 1:
+                field_name = self._pluralize(field_name)
+                output_type = list[output_schema]
+
+                # Create description with count hint
+                desc = f"Generate exactly {output_decl.count} {type_name} instances"
+                if output_decl.group_description:
+                    desc = f"{desc}. {output_decl.group_description}"
+
+                fields[field_name] = (output_type, dspy_mod.OutputField(desc=desc))
+            else:
+                # Single output
+                output_type = output_schema
+
+                # Handle collision: if field name already used, prefix with "output_"
+                if field_name in used_field_names:
+                    field_name = f"output_{field_name}"
+
+                desc = f"{type_name} output"
+                if output_decl.group_description:
+                    desc = output_decl.group_description
+
+                fields[field_name] = (output_type, dspy_mod.OutputField(desc=desc))
+
+            used_field_names.add(field_name)
+
+        # 3. Create signature
+        signature = dspy_mod.Signature(fields)
+
+        # 4. Build instruction
+        description = self.instructions or agent.description
+        instruction = (
+            description or f"Process input and generate {len(output_group.outputs)} outputs."
+        )
+
+        if has_context:
+            instruction += " Consider the conversation context provided to inform your response."
+
+        # Add batching hint
+        if batched:
+            instruction += (
+                " Process the batch of inputs coherently, generating outputs for each item."
+            )
+
+        # Add semantic field names to instruction for clarity
+        output_field_names = [
+            name for name in fields.keys() if name not in {"description", "context"}
+        ]
+        if len(output_field_names) > 2:  # Multiple outputs
+            instruction += (
+                f" Generate ALL output fields as specified: {', '.join(output_field_names[1:])}."
+            )
+
+        # instruction += " Return only valid JSON."
+
+        return signature.with_instructions(instruction)
+
+    def _prepare_execution_payload_for_output_group(
+        self,
+        inputs: EvalInputs,
+        output_group,
+        *,
+        batched: bool,
+        has_context: bool,
+        context_history: list | None,
+        sys_desc: str,
+    ) -> dict[str, Any]:
+        """Prepare execution payload with semantic field names matching signature.
+
+        This method builds a payload dict with semantic field names that match the signature
+        generated by `_prepare_signature_for_output_group()`.
+
+        Args:
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup (not used here but kept for symmetry)
+            batched: Whether this is a batch evaluation
+            has_context: Whether conversation context should be included
+            context_history: Optional conversation history
+            sys_desc: System description for the "description" field
+
+        Returns:
+            Dict with semantic field names ready for DSPy program execution
+
+        Examples:
+            Single input: {"description": desc, "task": {...}}
+            Multi-input: {"description": desc, "task": {...}, "topic": {...}}
+            Batched: {"description": desc, "tasks": [{...}, {...}, {...}]}
+        """
+        payload = {"description": sys_desc}
+
+        # Add context if present
+        if has_context and context_history:
+            payload["context"] = context_history
+
+        # Build semantic input fields
+        if inputs.artifacts:
+            # Collect unique input types (same logic as signature generation)
+            input_types_seen: dict[type, list[Artifact]] = {}
+            for artifact in inputs.artifacts:
+                input_model = self._resolve_input_model(artifact)
+                if input_model is not None:
+                    if input_model not in input_types_seen:
+                        input_types_seen[input_model] = []
+                    input_types_seen[input_model].append(artifact)
+
+            # Generate payload fields for each unique input type
+            for input_model, artifacts_of_type in input_types_seen.items():
+                field_name = self._type_to_field_name(input_model)
+
+                # Validate and prepare payloads
+                validated_payloads = [
+                    self._validate_input_payload(input_model, art.payload)
+                    for art in artifacts_of_type
+                ]
+
+                if batched:
+                    # Batch mode: pluralize field name and use list
+                    field_name = self._pluralize(field_name)
+                    payload[field_name] = validated_payloads
+                else:
+                    # Single mode: use first (or only) artifact
+                    # For multi-input joins, we have one artifact per type
+                    payload[field_name] = validated_payloads[0] if validated_payloads else {}
+
+        return payload
+
+    def _extract_multi_output_payload(self, prediction, output_group) -> dict[str, Any]:
+        """Extract semantic fields from DSPy Prediction for multi-output scenarios.
+
+        Maps semantic field names (e.g., "movie", "ideas") back to type names (e.g., "Movie", "Idea")
+        for artifact materialization compatibility.
+
+        Args:
+            prediction: DSPy Prediction object with semantic field names
+            output_group: OutputGroup defining expected outputs
+
+        Returns:
+            Dict mapping type names to extracted values
+
+        Examples:
+            Prediction(movie={...}, summary={...})
+            → {"Movie": {...}, "Summary": {...}}
+
+            Prediction(ideas=[{...}, {...}, {...}])
+            → {"Idea": [{...}, {...}, {...}]}
+        """
+        payload = {}
+
+        for output_decl in output_group.outputs:
+            output_schema = output_decl.spec.model
+            type_name = output_decl.spec.type_name
+
+            # Generate the same semantic field name used in signature
+            field_name = self._type_to_field_name(output_schema)
+
+            # Handle fan-out: field name is pluralized
+            if output_decl.count > 1:
+                field_name = self._pluralize(field_name)
+
+            # Extract value from Prediction
+            if hasattr(prediction, field_name):
+                value = getattr(prediction, field_name)
+
+                # Store using type_name as key (for _select_output_payload compatibility)
+                payload[type_name] = value
+            else:
+                # Fallback: try with "output_" prefix (collision handling)
+                prefixed_name = f"output_{field_name}"
+                if hasattr(prediction, prefixed_name):
+                    value = getattr(prediction, prefixed_name)
+                    payload[type_name] = value
+
+        return payload
 
     def _choose_program(self, dspy_mod, signature, tools: Iterable[Any]):
         tools_list = list(tools or [])
@@ -460,7 +848,7 @@ class DSPyEngine(EngineComponent):
     def _system_description(self, description: str | None) -> str:
         if description:
             return description
-        return "Produce a valid output that matches the 'output' schema. Return only JSON."
+        return "Produce a valid output that matches the 'output' schema."  # Return only JSON.
 
     def _normalize_output_payload(self, raw: Any) -> dict[str, Any]:
         if isinstance(raw, BaseModel):
@@ -517,27 +905,68 @@ class DSPyEngine(EngineComponent):
         produced_by: str,
         pre_generated_id: Any = None,
     ):
+        """Materialize artifacts from payload, handling fan-out (count > 1).
+
+        For fan-out outputs (count > 1), splits the list into individual artifacts.
+        For single outputs (count = 1), creates one artifact from dict.
+
+        Args:
+            payload: Normalized output dict from DSPy
+            outputs: AgentOutput declarations defining what to create
+            produced_by: Agent name
+            pre_generated_id: Pre-generated ID for streaming (only used for single outputs)
+
+        Returns:
+            Tuple of (artifacts list, errors list)
+        """
         artifacts: list[Artifact] = []
         errors: list[str] = []
         for output in outputs or []:
             model_cls = output.spec.model
             data = self._select_output_payload(payload, model_cls, output.spec.type_name)
-            try:
-                instance = model_cls(**data)
-            except Exception as exc:  # noqa: BLE001 - collect validation errors for logs
-                errors.append(str(exc))
-                continue
 
-            # Use the pre-generated ID if provided (for streaming), otherwise let Artifact auto-generate
-            artifact_kwargs = {
-                "type": output.spec.type_name,
-                "payload": instance.model_dump(),
-                "produced_by": produced_by,
-            }
-            if pre_generated_id is not None:
-                artifact_kwargs["id"] = pre_generated_id
+            # FAN-OUT: If count > 1, data should be a list and we create multiple artifacts
+            if output.count > 1:
+                if not isinstance(data, list):
+                    errors.append(
+                        f"Fan-out expected list for {output.spec.type_name} (count={output.count}), "
+                        f"got {type(data).__name__}"
+                    )
+                    continue
 
-            artifacts.append(Artifact(**artifact_kwargs))
+                # Create one artifact for each item in the list
+                for item_data in data:
+                    try:
+                        instance = model_cls(**item_data)
+                    except Exception as exc:  # noqa: BLE001 - collect validation errors for logs
+                        errors.append(f"{output.spec.type_name}: {exc!s}")
+                        continue
+
+                    # Fan-out artifacts auto-generate their IDs (can't reuse pre_generated_id)
+                    artifact_kwargs = {
+                        "type": output.spec.type_name,
+                        "payload": instance.model_dump(),
+                        "produced_by": produced_by,
+                    }
+                    artifacts.append(Artifact(**artifact_kwargs))
+            else:
+                # SINGLE OUTPUT: Create one artifact from dict
+                try:
+                    instance = model_cls(**data)
+                except Exception as exc:  # noqa: BLE001 - collect validation errors for logs
+                    errors.append(str(exc))
+                    continue
+
+                # Use the pre-generated ID if provided (for streaming), otherwise let Artifact auto-generate
+                artifact_kwargs = {
+                    "type": output.spec.type_name,
+                    "payload": instance.model_dump(),
+                    "produced_by": produced_by,
+                }
+                if pre_generated_id is not None:
+                    artifact_kwargs["id"] = pre_generated_id
+
+                artifacts.append(Artifact(**artifact_kwargs))
         return artifacts, errors
 
     def _select_output_payload(
@@ -545,15 +974,36 @@ class DSPyEngine(EngineComponent):
         payload: Mapping[str, Any],
         model_cls: type[BaseModel],
         type_name: str,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        """Select the correct output payload from the normalized output dict.
+
+        Handles both simple type names and fully qualified names (with module prefix).
+        Returns either a dict (single output) or list[dict] (fan-out/batch).
+        """
         candidates = [
-            payload.get(type_name),
-            payload.get(model_cls.__name__),
-            payload.get(model_cls.__name__.lower()),
+            payload.get(type_name),  # Try exact type_name (may be "__main__.Movie")
+            payload.get(model_cls.__name__),  # Try simple class name ("Movie")
+            payload.get(model_cls.__name__.lower()),  # Try lowercase ("movie")
         ]
+
+        # Extract value based on type
         for candidate in candidates:
-            if isinstance(candidate, Mapping):
-                return dict(candidate)
+            if candidate is not None:
+                # Handle lists (fan-out and batching)
+                if isinstance(candidate, list):
+                    # Convert Pydantic instances to dicts
+                    return [
+                        item.model_dump() if isinstance(item, BaseModel) else item
+                        for item in candidate
+                    ]
+                # Handle single Pydantic instance
+                if isinstance(candidate, BaseModel):
+                    return candidate.model_dump()
+                # Handle dict
+                if isinstance(candidate, Mapping):
+                    return dict(candidate)
+
+        # Fallback: return entire payload (will likely fail validation)
         if isinstance(payload, Mapping):
             return dict(payload)
         return {}
@@ -562,7 +1012,12 @@ class DSPyEngine(EngineComponent):
         self, dspy_mod, program, *, description: str, payload: dict[str, Any]
     ) -> Any:
         """Execute DSPy program in standard mode (no streaming)."""
-        # Handle new format: {"input": ..., "context": ...}
+        # Handle semantic fields format: {"description": ..., "task": ..., "report": ...}
+        if isinstance(payload, dict) and "description" in payload:
+            # Semantic fields: pass all fields as kwargs
+            return program(**payload)
+
+        # Handle legacy format: {"input": ..., "context": ...}
         if isinstance(payload, dict) and "input" in payload:
             return program(
                 description=description,
@@ -584,6 +1039,7 @@ class DSPyEngine(EngineComponent):
         agent: Any,
         ctx: Any = None,
         pre_generated_artifact_id: Any = None,
+        output_group=None,
     ) -> tuple[Any, None]:
         """Execute streaming for WebSocket only (no Rich display).
 
@@ -616,8 +1072,17 @@ class DSPyEngine(EngineComponent):
 
         # Get artifact type name for WebSocket events
         artifact_type_name = "output"
-        if hasattr(agent, "outputs") and agent.outputs:
-            artifact_type_name = agent.outputs[0].spec.type_name
+        # Use output_group.outputs (current group) if available, otherwise fallback to agent.outputs (all groups)
+        outputs_to_display = (
+            output_group.outputs
+            if output_group and hasattr(output_group, "outputs")
+            else agent.outputs
+            if hasattr(agent, "outputs")
+            else []
+        )
+
+        if outputs_to_display:
+            artifact_type_name = outputs_to_display[0].spec.type_name
 
         # Prepare stream listeners
         listeners = []
@@ -638,13 +1103,18 @@ class DSPyEngine(EngineComponent):
         )
 
         # Execute with appropriate payload format
-        if isinstance(payload, dict) and "input" in payload:
+        if isinstance(payload, dict) and "description" in payload:
+            # Semantic fields: pass all fields as kwargs
+            stream_generator = streaming_task(**payload)
+        elif isinstance(payload, dict) and "input" in payload:
+            # Legacy format: {"input": ..., "context": ...}
             stream_generator = streaming_task(
                 description=description,
                 input=payload["input"],
                 context=payload.get("context", []),
             )
         else:
+            # Old format: direct payload
             stream_generator = streaming_task(description=description, input=payload, context=[])
 
         # Process stream (WebSocket only, no Rich display)
@@ -799,6 +1269,7 @@ class DSPyEngine(EngineComponent):
         agent: Any,
         ctx: Any = None,
         pre_generated_artifact_id: Any = None,
+        output_group=None,
     ) -> Any:
         """Execute DSPy program in streaming mode with Rich table updates."""
         from rich.console import Console
@@ -832,15 +1303,19 @@ class DSPyEngine(EngineComponent):
             stream_listeners=listeners if listeners else None,
         )
 
-        # Handle new format vs old format
-        if isinstance(payload, dict) and "input" in payload:
+        # Execute with appropriate payload format
+        if isinstance(payload, dict) and "description" in payload:
+            # Semantic fields: pass all fields as kwargs
+            stream_generator = streaming_task(**payload)
+        elif isinstance(payload, dict) and "input" in payload:
+            # Legacy format: {"input": ..., "context": ...}
             stream_generator = streaming_task(
                 description=description,
                 input=payload["input"],
                 context=payload.get("context", []),
             )
         else:
-            # Old format - backwards compatible
+            # Old format: direct payload
             stream_generator = streaming_task(description=description, input=payload, context=[])
 
         signature_order = []
@@ -858,8 +1333,20 @@ class DSPyEngine(EngineComponent):
 
         # Get the artifact type name from agent configuration
         artifact_type_name = "output"
-        if hasattr(agent, "outputs") and agent.outputs:
-            artifact_type_name = agent.outputs[0].spec.type_name
+        # Use output_group.outputs (current group) if available, otherwise fallback to agent.outputs (all groups)
+        outputs_to_display = (
+            output_group.outputs
+            if output_group and hasattr(output_group, "outputs")
+            else agent.outputs
+            if hasattr(agent, "outputs")
+            else []
+        )
+
+        if outputs_to_display:
+            artifact_type_name = outputs_to_display[0].spec.type_name
+            for output in outputs_to_display:
+                if output.spec.type_name not in artifact_type_name:
+                    artifact_type_name += ", " + output.spec.type_name
 
         display_data["type"] = artifact_type_name
         display_data["payload"] = OrderedDict()
@@ -1113,10 +1600,19 @@ class DSPyEngine(EngineComponent):
                         for field_name in signature_order:
                             if field_name != "description" and hasattr(final_result, field_name):
                                 field_value = getattr(final_result, field_name)
-                                # If the field is a BaseModel, unwrap it to dict
-                                if isinstance(field_value, BaseModel):
-                                    payload_data.update(field_value.model_dump())
+
+                                # Convert BaseModel instances to dicts for proper table rendering
+                                if isinstance(field_value, list):
+                                    # Handle lists of BaseModel instances (fan-out/batch)
+                                    payload_data[field_name] = [
+                                        item.model_dump() if isinstance(item, BaseModel) else item
+                                        for item in field_value
+                                    ]
+                                elif isinstance(field_value, BaseModel):
+                                    # Handle single BaseModel instance
+                                    payload_data[field_name] = field_value.model_dump()
                                 else:
+                                    # Handle primitive types
                                     payload_data[field_name] = field_value
 
                         # Update all fields with actual values
@@ -1124,9 +1620,9 @@ class DSPyEngine(EngineComponent):
                         display_data["payload"].update(payload_data)
 
                         # Update timestamp
-                        from datetime import datetime, timezone
+                        from datetime import datetime
 
-                        display_data["created_at"] = datetime.now(timezone.utc).isoformat()
+                        display_data["created_at"] = datetime.now(UTC).isoformat()
 
                         # Remove status field from display
                         display_data.pop("status", None)

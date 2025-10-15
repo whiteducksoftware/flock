@@ -573,7 +573,7 @@ async def test_collector_as_agent_component(orchestrator):
 
     # Create simple echo engine
     class EchoEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             # Transform input to output
             output = CollectorTestOutput(result=inputs.artifacts[0].payload["content"])
             return EvalResult.from_object(output, agent=agent)
