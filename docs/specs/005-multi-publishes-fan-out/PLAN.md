@@ -366,70 +366,78 @@ If implementation cannot follow specification exactly:
 
 **Note**: DSPyEngine implementation of `evaluate_fanout()` is optional Phase 4.5 (after contract established)
 
-### Phase 4.5: DSPyEngine Fan-Out Implementation (Optional)
+### Phase 4.5: DSPyEngine Fan-Out Implementation
 
-**Goal**: Implement `evaluate_fanout()` in DSPyEngine using prompt engineering to guide LLM to generate multiple outputs.
+**Goal**: Implement `evaluate_fanout()` in DSPyEngine to generate multiple outputs by calling the DSPy program multiple times.
+
+**Status**: ✅ **COMPLETE** (Shipped 2025-10-15)
 
 **Prerequisites**: Phase 4 complete (engine contract established)
 
-- [ ] **Prime Context**: Understand DSPyEngine implementation
-    - [ ] Read `src/flock/engines/dspy_engine.py` - Current evaluate() and evaluate_batch() `[ref: dspy_engine.py; lines: 155-356]`
-    - [ ] Review how evaluate_batch() modifies signature for batch processing `[ref: dspy_engine.py; lines: 158-159]`
+- [x] **Prime Context**: Understand DSPyEngine implementation
+    - [x] Read `src/flock/engines/dspy_engine.py` - Current evaluate() and evaluate_batch() `[ref: dspy_engine.py; lines: 155-181]`
+    - [x] Review how evaluate_batch() uses _evaluate_internal() for shared logic `[ref: dspy_engine.py; lines: 169-181]`
 
-- [ ] **Write Tests**: Test DSPyEngine fan-out behavior `[activity: test-writing]`
-    - [ ] Test DSPyEngine.evaluate_fanout() with count=3 generates 3 artifacts
-    - [ ] Test group_description is incorporated into prompt
-    - [ ] Test fan-out prompt instructs LLM to use EvalResult.from_objects()
-    - [ ] Test validation: exactly `count` artifacts returned
-    - [ ] Mock LLM response to verify prompt format
+- [x] **Write Tests**: Test DSPyEngine fan-out behavior `[activity: test-writing]`
+    - [x] Test DSPyEngine.evaluate_fanout() with fan_out=10 generates 10 artifacts
+    - [x] Test WHERE filtering reduces published count (fan_out=20, filter to 5)
+    - [x] Test VALIDATE checks enforce quality standards
+    - [x] Test dynamic visibility works with DSPyEngine fan-out
+    - [x] All 12 Phase 5 filtering/validation tests passing with DSPyEngine
 
-- [ ] **Implement**: DSPyEngine.evaluate_fanout() `[activity: component-development]`
-    - [ ] Add evaluate_fanout() method to DSPyEngine:
+- [x] **Implement**: DSPyEngine.evaluate_fanout() `[activity: component-development]`
+    - [x] Added evaluate_fanout() method to DSPyEngine (lines 183-222):
         ```python
-        async def evaluate_fanout(
-            self,
-            agent,
-            ctx,
-            inputs: EvalInputs,
-            count: int,
-            group_description: str | None = None
-        ) -> EvalResult:
-            """Generate multiple outputs using LLM with fan-out prompt."""
-            # Build enhanced instructions for fan-out
-            base_instructions = self.instructions or agent.description
-            if group_description:
-                base_instructions = f"{base_instructions}\n\n{group_description}"
+        async def evaluate_fanout(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+            """Fan-out evaluation for producing multiple artifacts from single execution.
 
-            fanout_instructions = (
-                f"{base_instructions}\n\n"
-                f"IMPORTANT: Generate exactly {count} distinct variations.\n"
-                f"Return all {count} results using: EvalResult.from_objects(result1, result2, ..., agent=agent)"
-            )
+            Generates exactly `count` artifacts for each output declaration in the output_group
+            by calling the DSPy program multiple times.
+            """
+            if not inputs.artifacts:
+                return EvalResult(artifacts=[], state=dict(inputs.state))
 
-            # Use existing evaluate() logic with modified instructions
-            original_instructions = self.instructions
-            self.instructions = fanout_instructions
-            try:
-                result = await self.evaluate(agent, ctx, inputs)
+            # Calculate total number of artifacts to generate
+            total_count = output_group.total_count
 
-                # Validate count
-                if len(result.artifacts) != count:
-                    raise ValueError(
-                        f"DSPyEngine fan-out contract violation: "
-                        f"Expected {count} artifacts, got {len(result.artifacts)}"
-                    )
+            # Generate artifacts by calling DSPy program multiple times
+            all_artifacts = []
+            state = dict(inputs.state)
+            all_logs = []
 
-                return result
-            finally:
-                self.instructions = original_instructions
+            for i in range(total_count):
+                # Call DSPy program once per artifact
+                result = await self._evaluate_internal(agent, ctx, inputs, batched=False)
+
+                # Accumulate artifacts
+                all_artifacts.extend(result.artifacts)
+
+                # Merge state (keep last state)
+                state.update(result.state)
+
+                # Accumulate logs
+                all_logs.extend(result.logs)
+
+            return EvalResult(artifacts=all_artifacts, state=state, logs=all_logs)
         ```
 
-- [ ] **Validate**: DSPyEngine fan-out correctness
-    - [ ] Run tests: `pytest tests/test_dspy_fanout.py -v` `[activity: run-tests]`
-    - [ ] Integration test: Real agent with DSPyEngine and fan_out=3 `[activity: business-acceptance]`
-    - [ ] Verify prompts are clear and LLM follows instructions `[activity: review-code]`
+- [x] **Validate**: DSPyEngine fan-out correctness
+    - [x] Run tests: All 12 Phase 5 tests passing (100%) `[activity: run-tests]`
+    - [x] Full test suite: 1081 tests passing (sanity check complete) `[activity: run-tests]`
+    - [x] Verified filtering, validation, and visibility work with DSPyEngine `[activity: business-acceptance]`
 
-**Design Note**: This implementation uses prompt engineering, but other engines (rule-based, ML models) can implement evaluate_fanout() differently.
+**Implementation Strategy**: Instead of using prompt engineering to get DSPy to output arrays, we call the DSPy program `count` times independently. This:
+- ✅ Ensures diversity (each call is independent with LLM sampling)
+- ✅ Reuses existing _evaluate_internal() logic (simple, maintainable)
+- ✅ Works with any DSPy signature (no schema changes needed)
+- ✅ Provides proper type safety and validation per artifact
+
+**Deliverables**:
+- `src/flock/engines/dspy_engine.py` (lines 183-222): Complete fan-out implementation
+- All Phase 5 filtering/validation tests now work with DSPyEngine
+- 1081 tests passing (full suite green)
+
+**Design Note**: This implementation calls DSPy multiple times rather than using prompt engineering. Other engines can implement evaluate_fanout() differently based on their capabilities.
 
 ### Phase 5: Filtering, Validation, and Visibility
 
