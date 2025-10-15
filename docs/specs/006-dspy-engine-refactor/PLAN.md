@@ -754,6 +754,218 @@ After implementation, the following should be true:
 - **Integration Focus**: Must work seamlessly with existing multi-publishes Phase 1-5 features
 - **No Shortcuts**: Every test must pass, every edge case must be handled
 
+---
+
+### Phase 7: Engine API Simplification (Eliminate Redundant Methods)
+
+**Goal**: Remove `evaluate_batch()` and `evaluate_fanout()` methods by consolidating all evaluation into a single `evaluate()` method with auto-detection.
+
+**Status**: 📋 **ARCHITECTURAL DECISION - DOCUMENTED**
+
+**Date Identified**: 2025-10-16
+
+**Problem Analysis**:
+
+Current architecture has THREE evaluation methods that all route to the SAME internal implementation:
+
+```python
+# DSPyEngine - ALL THREE JUST FORWARD TO _evaluate_internal()!
+async def evaluate(self, agent, ctx, inputs, output_group):
+    return await self._evaluate_internal(agent, ctx, inputs, batched=False, output_group=output_group)
+
+async def evaluate_batch(self, agent, ctx, inputs, output_group):
+    return await self._evaluate_internal(agent, ctx, inputs, batched=True, output_group=output_group)
+
+async def evaluate_fanout(self, agent, ctx, inputs, output_group):
+    return await self._evaluate_internal(agent, ctx, inputs, batched=False, output_group=output_group)
+```
+
+**Agent also has redundant routing logic**:
+
+```python
+# agent.py - Unnecessary branching
+use_batch_mode = bool(getattr(ctx, "is_batch", False))
+if use_batch_mode:
+    result = await engine.evaluate_batch(...)  # Just passes batched=True
+else:
+    result = await engine.evaluate(...)  # Just passes batched=False
+
+has_fanout = any(output.count > 1 for output in output_group.outputs)
+if has_fanout:
+    result = await engine.evaluate_fanout(...)  # Same as evaluate()!
+else:
+    result = await engine.evaluate(...)
+```
+
+**Why Both Methods Are Redundant**:
+
+| Information Needed | Current Approach | Already Available In |
+|---|---|---|
+| Is it batched? | Separate `evaluate_batch()` method | `ctx.is_batch` flag |
+| Is it fan-out? | Separate `evaluate_fanout()` method | `output_group.outputs[*].count` |
+| Input types? | Passed to all methods | `inputs.artifacts` |
+| Output types? | Passed to all methods | `output_group.outputs` |
+
+**The REAL logic already auto-detects everything in signature building**:
+
+```python
+# _prepare_signature_for_output_group() - Lines 467-630
+def _prepare_signature_for_output_group(..., batched: bool):
+    # Batching detection (from parameter)
+    if batched:
+        field_name = self._pluralize(field_name)  # "tasks" vs "task"
+        input_type = list[input_model]
+
+    # Fan-out detection (from output_group)
+    if output_decl.count > 1:
+        field_name = self._pluralize(field_name)  # "ideas" vs "idea"
+        output_type = list[output_schema]
+        desc = f"Generate exactly {output_decl.count} {type_name} instances"
+```
+
+**Proposed Simplification**:
+
+```python
+# components.py - Base class with SINGLE method
+class EngineComponent(AgentComponent):
+    async def evaluate(self, agent, ctx, inputs, output_group):
+        """Universal evaluation - handles single, batch, fan-out, and multi-output!
+
+        Auto-detects:
+        - Batching from ctx.is_batch flag
+        - Fan-out from output_group.outputs[*].count
+        - Multi-input from len(inputs.artifacts)
+        - Multi-output from len(output_group.outputs)
+        """
+        raise NotImplementedError
+
+    # REMOVE evaluate_batch() - REDUNDANT!
+    # REMOVE evaluate_fanout() - REDUNDANT!
+
+# agent.py - Simplified routing
+async def _run_engines(self, ctx, inputs, output_group):
+    # No more branching! Just call evaluate()
+    result = await engine.evaluate(self, ctx, inputs, output_group)
+
+    # REMOVE _run_engines_fanout() - REDUNDANT!
+    # REMOVE use_batch_mode checking - REDUNDANT!
+
+# dspy_engine.py - Auto-detection
+async def evaluate(self, agent, ctx, inputs, output_group):
+    # Auto-detect batching from context
+    batched = bool(getattr(ctx, "is_batch", False))
+
+    # Fan-out detection happens automatically in signature building
+    # from output_group.outputs[*].count - NO CODE NEEDED!
+
+    return await self._evaluate_internal(
+        agent, ctx, inputs,
+        batched=batched,  # Only thing we need to pass!
+        output_group=output_group  # Contains ALL fan-out info!
+    )
+```
+
+**What Gets Eliminated**:
+
+**components.py**:
+- ❌ `evaluate_batch()` method (lines 128-161)
+- ❌ `evaluate_fanout()` method (lines 163-196)
+
+**agent.py**:
+- ❌ `_run_engines_fanout()` method (lines 481-531)
+- ❌ Batching routing logic (lines 424-443)
+- ❌ Fan-out detection and routing (lines 223-249)
+
+**dspy_engine.py**:
+- ❌ `evaluate_batch()` wrapper (lines 172-186)
+- ❌ `evaluate_fanout()` wrapper (lines 188-205)
+- ✅ KEEP `evaluate()` with auto-detection
+- ✅ KEEP `_evaluate_internal()` (does the real work)
+
+**Migration Impact**:
+
+**Breaking Changes**:
+- Custom engines implementing `evaluate_batch()` must remove it
+- Custom engines implementing `evaluate_fanout()` must remove it
+- All batching/fan-out logic moves to `evaluate()` with auto-detection
+
+**Migration Steps**:
+1. Update base class `EngineComponent` - remove both methods
+2. Update all engine implementations:
+   - Remove `evaluate_batch()` and `evaluate_fanout()` wrappers
+   - Add auto-detection to `evaluate()`:
+     ```python
+     batched = bool(getattr(ctx, "is_batch", False))
+     ```
+3. Update `agent.py`:
+   - Remove `_run_engines_fanout()` method
+   - Remove batching/fan-out routing logic
+   - Always call `engine.evaluate()`
+4. Update all tests expecting separate methods
+5. Update documentation
+
+**Benefits**:
+
+✅ **Simpler API**: One method instead of three
+✅ **Less code**: ~200 lines eliminated
+✅ **Clearer intent**: "Evaluate these inputs with this output spec"
+✅ **Fewer bugs**: No routing logic to maintain
+✅ **Better architecture**: Information flows naturally through parameters
+✅ **Easier testing**: Test one method, not three paths
+
+**Implementation Checklist**:
+
+- [ ] **Phase 7.1**: Update base class `EngineComponent`
+    - [ ] Remove `evaluate_batch()` method definition
+    - [ ] Remove `evaluate_fanout()` method definition
+    - [ ] Update `evaluate()` docstring to explain auto-detection
+
+- [ ] **Phase 7.2**: Update DSPyEngine
+    - [ ] Remove `evaluate_batch()` wrapper
+    - [ ] Remove `evaluate_fanout()` wrapper
+    - [ ] Add auto-detection to `evaluate()`:
+      ```python
+      batched = bool(getattr(ctx, "is_batch", False))
+      ```
+    - [ ] Update docstring
+
+- [ ] **Phase 7.3**: Update SimpleBatchEngine and other example engines
+    - [ ] Remove `evaluate_batch()` implementations
+    - [ ] Add auto-detection logic
+
+- [ ] **Phase 7.4**: Simplify agent.py routing
+    - [ ] Remove `_run_engines_fanout()` method (lines 481-531)
+    - [ ] Remove fan-out detection and routing (lines 223-249)
+    - [ ] Remove batch mode checking (lines 424-443)
+    - [ ] Always call `_run_engines()` which calls `evaluate()`
+
+- [ ] **Phase 7.5**: Update tests
+    - [ ] Update test expectations (no more separate method calls)
+    - [ ] Verify auto-detection works correctly
+    - [ ] Test batched mode via `ctx.is_batch = True`
+    - [ ] Test fan-out via `output_group.outputs[*].count`
+
+- [ ] **Phase 7.6**: Update documentation
+    - [ ] Update engine development guide
+    - [ ] Update migration guide for custom engines
+    - [ ] Add examples of auto-detection patterns
+    - [ ] Document `ctx.is_batch` usage
+
+**Prerequisites**: Phases 1-6 complete
+
+**Estimated Effort**:
+- Implementation: 4-6 hours
+- Testing: 2-3 hours
+- Documentation: 1-2 hours
+- **Total**: ~1 day
+
+**Risk Assessment**:
+- **High**: Breaking change for custom engines
+- **Mitigation**: Clear migration guide, deprecation warnings
+- **Benefit**: Significantly simpler architecture long-term
+
+---
+
 ## Future Enhancements (Out of Scope)
 
 These are NOT part of this spec but could be considered later:
