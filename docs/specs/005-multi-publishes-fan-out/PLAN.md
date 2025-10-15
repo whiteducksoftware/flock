@@ -197,11 +197,15 @@ If implementation cannot follow specification exactly:
 - `tests/test_agent_builder.py` (lines 892-1489): 9 comprehensive async tests
 - `tests/PHASE3_TEST_SUMMARY.md`: Complete test documentation
 
-### Phase 4: Engine Fan-Out Contract
+### Phase 4: Engine Fan-Out Contract + Concurrency Fix
 
 **Goal**: Add `evaluate_fanout()` method to EngineComponent, allowing engines to opt-in to fan-out generation. Not all engines are LLMs - let each engine decide how to handle multiple outputs.
 
+**⚠️ BREAKING CHANGE**: All three engine methods (`evaluate`, `evaluate_batch`, `evaluate_fanout`) now receive `output_group: OutputGroup` parameter to fix critical concurrency bug. See `CONCURRENCY_FIX.md` for full rationale.
+
 **Architecture Insight**: Following the `evaluate_batch()` pattern from `components.py:116-146`, engines should declare fan-out support explicitly. This keeps the framework engine-agnostic (no assumptions about prompts/LLMs).
+
+**Concurrency Fix**: Engines must know which OutputGroup they're generating for. Passing `output_group` explicitly prevents shared-state bugs and makes the system thread-safe.
 
 - [ ] **Prime Context**: Understand engine abstraction patterns
     - [ ] Read `src/flock/components.py` - EngineComponent base class `[ref: components.py; lines: 96-219]`
@@ -218,40 +222,62 @@ If implementation cannot follow specification exactly:
     - [ ] Mock fan-out-aware engine that returns exactly `count` artifacts
     - [ ] Test that group_description is passed to evaluate_fanout()
 
-- [ ] **Implement**: Fan-out engine contract in EngineComponent `[ref: components.py; lines: 96-219]` `[activity: component-development]`
-    - [ ] Add `evaluate_fanout()` method to `EngineComponent` (similar to evaluate_batch):
+- [ ] **Implement**: Update ALL three engine methods in EngineComponent `[ref: components.py; lines: 96-219]` `[activity: component-development]`
+    - [ ] Update `evaluate()` signature - add `output_group` parameter:
+        ```python
+        async def evaluate(
+            self,
+            agent: Agent,
+            ctx: Context,
+            inputs: EvalInputs,
+            output_group: OutputGroup  # NEW - tells engine what to produce
+        ) -> EvalResult:
+            raise NotImplementedError
+        ```
+    - [ ] Update `evaluate_batch()` signature - add `output_group` parameter:
+        ```python
+        async def evaluate_batch(
+            self,
+            agent: Agent,
+            ctx: Context,
+            inputs: EvalInputs,
+            output_group: OutputGroup  # NEW - tells engine what to produce
+        ) -> EvalResult:
+            raise NotImplementedError(...)
+        ```
+    - [ ] Add `evaluate_fanout()` method - with `output_group` parameter:
         ```python
         async def evaluate_fanout(
             self,
             agent: Agent,
             ctx: Context,
             inputs: EvalInputs,
-            count: int,
-            group_description: str | None = None
+            output_group: OutputGroup  # Replaces count + group_description
         ) -> EvalResult:
-            """Generate multiple outputs of the same type (fan-out).
+            """Generate multiple outputs for an OutputGroup (fan-out).
 
             Override this method if your engine supports fan-out generation.
-            Engines can use group_description to guide generation (e.g., for LLM prompts).
+            The output_group tells you exactly what types and counts to produce.
 
             Args:
                 agent: Agent instance executing this engine
                 ctx: Execution context
                 inputs: EvalInputs with input artifacts
-                count: Number of outputs to generate
-                group_description: Optional instructions for this generation
+                output_group: OutputGroup defining what to generate
 
             Returns:
-                EvalResult with exactly `count` artifacts
-
-            Raises:
-                NotImplementedError: If engine doesn't support fan-out
+                EvalResult with artifacts matching output_group specs
 
             Example:
-                >>> async def evaluate_fanout(self, agent, ctx, inputs, count, group_description=None):
+                >>> async def evaluate_fanout(self, agent, ctx, inputs, output_group):
+                ...     count = output_group.outputs[0].count
+                ...     type_name = output_group.outputs[0].spec.type_name
+                ...     description = output_group.group_description
+                ...     # Generate artifacts accordingly
                 ...     results = await self.generate_multiple(inputs, count)
                 ...     return EvalResult.from_objects(*results, agent=agent)
             """
+            count = output_group.outputs[0].count if output_group.outputs else 1
             raise NotImplementedError(
                 f"{self.__class__.__name__} does not support fan-out generation.\n\n"
                 f"To fix this:\n"
@@ -263,7 +289,7 @@ If implementation cannot follow specification exactly:
                 f"Engine: {self.__class__.__name__}"
             )
         ```
-    - [ ] Update `Agent.execute()` to detect fan-out and call appropriate method:
+    - [ ] Update `Agent.execute()` to pass `output_group` to engine methods:
         ```python
         for group_idx, output_group in enumerate(self.output_groups):
             group_ctx = self._prepare_group_context(ctx, group_idx, output_group)
@@ -273,29 +299,41 @@ If implementation cannot follow specification exactly:
             is_single_type = len(set(o.spec.type_name for o in output_group.outputs)) == 1
 
             if has_fanout and is_single_type:
-                # Fan-out: single type, multiple instances
-                fanout_count = output_group.outputs[0].count
+                # Fan-out: call evaluate_fanout()
                 try:
                     result = await self._run_engines_fanout(
                         group_ctx,
                         eval_inputs,
-                        count=fanout_count,
-                        group_description=output_group.group_description
+                        output_group  # Pass group directly
                     )
                 except NotImplementedError:
                     # Engine doesn't support fan-out - provide clear error
-                    raise ValueError(
-                        f"Engine {self._engines[0].__class__.__name__} does not support fan-out. "
-                        f"Either implement evaluate_fanout() or remove fan_out parameter."
-                    )
+                    raise ValueError(...) from None
             else:
-                # Standard evaluation
-                result = await self._run_engines(group_ctx, eval_inputs)
+                # Standard: call evaluate()
+                result = await self._run_engines(
+                    group_ctx,
+                    eval_inputs,
+                    output_group  # Pass group directly
+                )
 
             group_outputs = await self._make_outputs_for_group(group_ctx, result, output_group)
             all_outputs.extend(group_outputs)
         ```
-    - [ ] Implement `_run_engines_fanout()` helper method that calls `engine.evaluate_fanout()`
+    - [ ] Update `_run_engines()` to pass `output_group`:
+        ```python
+        async def _run_engines(self, ctx, inputs, output_group):
+            for engine in engines:
+                result = await engine.evaluate(self, ctx, inputs, output_group)
+                # ... (or evaluate_batch if ctx.is_batch)
+        ```
+    - [ ] Update `_run_engines_fanout()` to pass `output_group`:
+        ```python
+        async def _run_engines_fanout(self, ctx, inputs, output_group):
+            engine = engines[0]
+            result = await engine.evaluate_fanout(self, ctx, inputs, output_group)
+            # ...
+        ```
 
 - [ ] **Validate**: Engine contract correctness
     - [ ] Run tests: `pytest tests/test_engine_fanout.py -v` `[activity: run-tests]`
