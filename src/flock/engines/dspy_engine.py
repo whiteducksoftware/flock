@@ -260,15 +260,26 @@ class DSPyEngine(EngineComponent):
         context_history = await self.fetch_conversation_context(ctx)
         has_context = bool(context_history) and self.should_use_context(inputs)
 
-        # Prepare signature with optional context field
-        signature = self._prepare_signature_with_context(
-            dspy_mod,
-            description=self.instructions or agent.description,
-            input_schema=input_model,
-            output_schema=output_model,
-            has_context=has_context,
-            batched=batched,
-        )
+        # Route signature generation: multi-output or backward-compatible single output
+        if output_group and self._needs_multioutput_signature(output_group):
+            # New multi-output path with semantic field naming
+            signature = self._prepare_signature_for_output_group(
+                dspy_mod,
+                agent=agent,
+                inputs=inputs,
+                output_group=output_group,
+                has_context=has_context,
+            )
+        else:
+            # Backward compatible single output path
+            signature = self._prepare_signature_with_context(
+                dspy_mod,
+                description=self.instructions or agent.description,
+                input_schema=input_model,
+                output_schema=output_model,
+                has_context=has_context,
+                batched=batched,
+            )
 
         sys_desc = self._system_description(self.instructions or agent.description)
 
@@ -396,7 +407,14 @@ class DSPyEngine(EngineComponent):
                     if orchestrator and hasattr(orchestrator, "_active_streams"):
                         orchestrator._active_streams = max(0, orchestrator._active_streams - 1)
 
-        normalized_output = self._normalize_output_payload(getattr(raw_result, "output", None))
+        # Route result extraction: multi-output or backward-compatible single output
+        if output_group and self._needs_multioutput_signature(output_group):
+            # New multi-output path: extract semantic fields from Prediction
+            normalized_output = self._extract_multi_output_payload(raw_result, output_group)
+        else:
+            # Backward compatible single output path: extract "output" field
+            normalized_output = self._normalize_output_payload(getattr(raw_result, "output", None))
+
         artifacts, errors = self._materialize_artifacts(
             normalized_output,
             agent.outputs,
@@ -464,6 +482,77 @@ class DSPyEngine(EngineComponent):
         except Exception:
             return data
 
+    def _type_to_field_name(self, type_class: type) -> str:
+        """Convert Pydantic model class name to snake_case field name.
+
+        Examples:
+            Movie → "movie"
+            ResearchQuestion → "research_question"
+            APIResponse → "api_response"
+            UserAuthToken → "user_auth_token"
+
+        Args:
+            type_class: The Pydantic model class
+
+        Returns:
+            snake_case field name
+        """
+        import re
+
+        name = type_class.__name__
+        # Convert CamelCase to snake_case
+        snake_case = re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+        return snake_case
+
+    def _pluralize(self, field_name: str) -> str:
+        """Convert singular field name to plural for lists.
+
+        Examples:
+            "idea" → "ideas"
+            "movie" → "movies"
+            "story" → "stories" (y → ies)
+            "analysis" → "analyses" (is → es)
+            "research_question" → "research_questions"
+
+        Args:
+            field_name: Singular field name in snake_case
+
+        Returns:
+            Pluralized field name
+        """
+        # Simple English pluralization rules
+        if field_name.endswith('y') and len(field_name) > 1 and field_name[-2] not in 'aeiou':
+            # story → stories (consonant + y)
+            return field_name[:-1] + 'ies'
+        elif field_name.endswith(('s', 'x', 'z', 'ch', 'sh')):
+            # analysis → analyses, box → boxes
+            return field_name + 'es'
+        else:
+            # idea → ideas, movie → movies
+            return field_name + 's'
+
+    def _needs_multioutput_signature(self, output_group) -> bool:
+        """Determine if OutputGroup requires multi-output signature generation.
+
+        Args:
+            output_group: OutputGroup to analyze
+
+        Returns:
+            True if multi-output signature needed, False for single output (backward compat)
+        """
+        if not output_group or not hasattr(output_group, 'outputs') or not output_group.outputs:
+            return False
+
+        # Multiple different types → multi-output
+        if len(output_group.outputs) > 1:
+            return True
+
+        # Fan-out (single type, count > 1) → multi-output
+        if output_group.outputs[0].count > 1:
+            return True
+
+        return False
+
     def _prepare_signature_with_context(
         self,
         dspy_mod,
@@ -512,6 +601,177 @@ class DSPyEngine(EngineComponent):
         instruction += " Return only JSON."
 
         return signature.with_instructions(instruction)
+
+    def _prepare_signature_for_output_group(
+        self,
+        dspy_mod,
+        *,
+        agent,
+        inputs: EvalInputs,
+        output_group,
+        has_context: bool = False,
+    ) -> Any:
+        """Prepare DSPy signature dynamically based on OutputGroup with semantic field names.
+
+        This method generates signatures using semantic field naming:
+        - Type names → snake_case field names (Task → "task", ResearchQuestion → "research_question")
+        - Pluralization for fan-out (Idea → "ideas" for lists)
+        - Collision handling (same input/output type → prefix with "input_" or "output_")
+
+        Examples:
+            Single output: .consumes(Task).publishes(Report)
+            → {"task": (Task, InputField()), "report": (Report, OutputField())}
+
+            Multiple outputs: .consumes(Task).publishes(Summary, Analysis)
+            → {"task": (Task, InputField()), "summary": (Summary, OutputField()),
+               "analysis": (Analysis, OutputField())}
+
+            Fan-out: .publishes(Idea, fan_out=5)
+            → {"topic": (Topic, InputField()), "ideas": (list[Idea], OutputField(...))}
+
+        Args:
+            dspy_mod: DSPy module
+            agent: Agent instance
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what to generate
+            has_context: Whether conversation context should be included
+
+        Returns:
+            DSPy Signature with semantic field names
+        """
+        fields = {
+            "description": (str, dspy_mod.InputField()),
+        }
+
+        # Add context field if we have conversation history
+        if has_context:
+            fields["context"] = (
+                list,
+                dspy_mod.InputField(
+                    desc="Previous conversation artifacts providing context for this request"
+                ),
+            )
+
+        # Track used field names for collision detection
+        used_field_names: set[str] = {"description", "context"}
+
+        # 1. Generate INPUT fields with semantic names
+        #    For now, we'll use the primary artifact type as input
+        #    (full multi-input support can be added in future iterations)
+        if inputs.artifacts:
+            primary_artifact = self._select_primary_artifact(inputs.artifacts)
+            input_model = self._resolve_input_model(primary_artifact)
+
+            if input_model is not None:
+                input_field_name = self._type_to_field_name(input_model)
+                used_field_names.add(input_field_name)
+                fields[input_field_name] = (input_model, dspy_mod.InputField())
+            else:
+                # Fallback to generic "input" if we can't resolve type
+                fields["input"] = (dict, dspy_mod.InputField())
+                used_field_names.add("input")
+
+        # 2. Generate OUTPUT fields with semantic names
+        for output_decl in output_group.outputs:
+            output_schema = output_decl.spec.model
+            type_name = output_decl.spec.type_name
+
+            # Generate semantic field name
+            field_name = self._type_to_field_name(output_schema)
+
+            # Handle fan-out: pluralize field name and use list[Type]
+            if output_decl.count > 1:
+                field_name = self._pluralize(field_name)
+                output_type = list[output_schema]
+
+                # Create description with count hint
+                desc = f"Generate exactly {output_decl.count} {type_name} instances"
+                if output_decl.group_description:
+                    desc = f"{desc}. {output_decl.group_description}"
+
+                fields[field_name] = (output_type, dspy_mod.OutputField(desc=desc))
+            else:
+                # Single output
+                output_type = output_schema
+
+                # Handle collision: if field name already used, prefix with "output_"
+                if field_name in used_field_names:
+                    field_name = f"output_{field_name}"
+
+                desc = f"{type_name} output"
+                if output_decl.group_description:
+                    desc = output_decl.group_description
+
+                fields[field_name] = (output_type, dspy_mod.OutputField(desc=desc))
+
+            used_field_names.add(field_name)
+
+        # 3. Create signature
+        signature = dspy_mod.Signature(fields)
+
+        # 4. Build instruction
+        description = self.instructions or agent.description
+        instruction = description or f"Process input and generate {len(output_group.outputs)} outputs."
+
+        if has_context:
+            instruction += " Consider the conversation context provided to inform your response."
+
+        # Add semantic field names to instruction for clarity
+        output_field_names = [name for name in fields.keys() if name not in {"description", "context"}]
+        if len(output_field_names) > 2:  # Multiple outputs
+            instruction += f" Generate ALL output fields as specified: {', '.join(output_field_names[1:])}."
+
+        instruction += " Return only valid JSON."
+
+        return signature.with_instructions(instruction)
+
+    def _extract_multi_output_payload(self, prediction, output_group) -> dict[str, Any]:
+        """Extract semantic fields from DSPy Prediction for multi-output scenarios.
+
+        Maps semantic field names (e.g., "movie", "ideas") back to type names (e.g., "Movie", "Idea")
+        for artifact materialization compatibility.
+
+        Args:
+            prediction: DSPy Prediction object with semantic field names
+            output_group: OutputGroup defining expected outputs
+
+        Returns:
+            Dict mapping type names to extracted values
+
+        Examples:
+            Prediction(movie={...}, summary={...})
+            → {"Movie": {...}, "Summary": {...}}
+
+            Prediction(ideas=[{...}, {...}, {...}])
+            → {"Idea": [{...}, {...}, {...}]}
+        """
+        payload = {}
+
+        for output_decl in output_group.outputs:
+            output_schema = output_decl.spec.model
+            type_name = output_decl.spec.type_name
+
+            # Generate the same semantic field name used in signature
+            field_name = self._type_to_field_name(output_schema)
+
+            # Handle fan-out: field name is pluralized
+            if output_decl.count > 1:
+                field_name = self._pluralize(field_name)
+
+            # Extract value from Prediction
+            if hasattr(prediction, field_name):
+                value = getattr(prediction, field_name)
+
+                # Store using type_name as key (for _select_output_payload compatibility)
+                payload[type_name] = value
+            else:
+                # Fallback: try with "output_" prefix (collision handling)
+                prefixed_name = f"output_{field_name}"
+                if hasattr(prediction, prefixed_name):
+                    value = getattr(prediction, prefixed_name)
+                    payload[type_name] = value
+
+        return payload
 
     def _choose_program(self, dspy_mod, signature, tools: Iterable[Any]):
         tools_list = list(tools or [])
