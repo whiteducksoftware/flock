@@ -1,6 +1,6 @@
 import asyncio
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from flock.orchestrator import Flock
 from flock.registry import flock_type
@@ -21,18 +21,26 @@ class Movie(BaseModel):
 
 
 @flock_type
-class Book(BaseModel):
-    title: str
-    author: str
-    genre: str
-    summary: str
+class MovieScript(BaseModel):
+    characters: list[str]
+    chapter_headings: list[str]
+    scenes: list[str]
+    pages: int
+
+
+@flock_type
+class MovieCampaign(BaseModel):
+    taglines: list[str] = Field(..., description="Catchy phrases to promote the movie. IN ALL CAPS")
+    poster_descriptions: list[str]
 
 
 flock = Flock()
 
 
 # Multi-Publish
-multi_master = flock.agent("multi_master").consumes(Idea).publishes(Movie, Book)
+multi_master = (
+    flock.agent("multi_master").consumes(Idea).publishes(Movie, MovieScript, MovieCampaign)
+)
 
 
 async def main():
