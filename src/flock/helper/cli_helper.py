@@ -2,7 +2,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 
 try:
-    __version__ = version("flock-flow")
+    __version__ = version("flock-core")
 except PackageNotFoundError:
     __version__ = "0.5.0b"
 
@@ -52,7 +52,7 @@ def init_console(clear_screen: bool = True, show_banner: bool = True, model: str
 │ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
 │ ▒█▀▀▀ █░░ █░░█ █░░ █▀▄ │
 │ ▒█░░░ ▀▀▀ ▀▀▀▀ ▀▀▀ ▀░▀ │
-╰━━━━━━━━v{__version__}━━━━━━━━━╯
+╰━━━━━━━━━v{__version__}━━━━━━━━━╯
 🦆     🐤    🐧     🐓
 """,
         justify="center",
