@@ -180,6 +180,47 @@ class DSPyEngine(EngineComponent):
         """
         return await self._evaluate_internal(agent, ctx, inputs, batched=True)
 
+    async def evaluate_fanout(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
+        """Fan-out evaluation for producing multiple artifacts from single execution.
+
+        Generates exactly `count` artifacts for each output declaration in the output_group
+        by calling the DSPy program multiple times.
+
+        Args:
+            agent: Agent instance
+            ctx: Execution context
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what artifacts to produce (with counts)
+
+        Returns:
+            EvalResult with exactly `count` artifacts per output declaration
+        """
+        if not inputs.artifacts:
+            return EvalResult(artifacts=[], state=dict(inputs.state))
+
+        # Calculate total number of artifacts to generate
+        total_count = output_group.total_count
+
+        # Generate artifacts by calling DSPy program multiple times
+        all_artifacts = []
+        state = dict(inputs.state)
+        all_logs = []
+
+        for i in range(total_count):
+            # Call DSPy program once per artifact
+            result = await self._evaluate_internal(agent, ctx, inputs, batched=False)
+
+            # Accumulate artifacts
+            all_artifacts.extend(result.artifacts)
+
+            # Merge state (keep last state)
+            state.update(result.state)
+
+            # Accumulate logs
+            all_logs.extend(result.logs)
+
+        return EvalResult(artifacts=all_artifacts, state=state, logs=all_logs)
+
     async def _evaluate_internal(
         self,
         agent,
