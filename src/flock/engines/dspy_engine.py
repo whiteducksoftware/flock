@@ -441,10 +441,10 @@ class DSPyEngine(EngineComponent):
     # Helpers mirroring the design engine
 
     def _resolve_model_name(self) -> str:
-        model = self.model or os.getenv("TRELLIS_MODEL") or os.getenv("OPENAI_MODEL")
+        model = self.model or os.getenv("DEFAULT_MODEL")
         if not model:
             raise NotImplementedError(
-                "DSPyEngine requires a configured model (set TRELLIS_MODEL, OPENAI_MODEL, or pass model=...)."
+                "DSPyEngine requires a configured model (set DEFAULT_MODEL, or pass model=...)."
             )
         return model
 

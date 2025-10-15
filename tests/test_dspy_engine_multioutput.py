@@ -546,6 +546,85 @@ class TestFanOutMultipleInstances:
 
 
 # ============================================================================
+# Test Group 3.5: Multi-Input & Batching Support
+# ============================================================================
+
+class TestMultiInputAndBatching:
+    """Test multi-input and batching support (CRITICAL for joins & batch processing).
+
+    **Goal**: Validate multiple INPUT fields and batching with list[Type].
+
+    **Multi-Input (Joins)**:
+    .consumes(Document, Guidelines).publishes(Report)
+    → {"document": (Document, InputField()), "guidelines": (Guidelines, InputField())}
+
+    **Batching**:
+    evaluate_batch([task1, task2, task3])
+    → {"tasks": (list[Task], InputField()), "reports": (list[Report], OutputField())}
+    """
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_multi_input_two_artifacts(self):
+        """Test two input artifacts generate semantic fields (joins).
+
+        **Setup**:
+        - .consumes(Task, Topic).publishes(Report)
+        - EvalInputs with Task and Topic artifacts
+
+        **Expected Signature**:
+        {
+            "task": (Task, InputField()),
+            "topic": (Topic, InputField()),
+            "report": (Report, OutputField())
+        }
+
+        **Expected**: Both input fields available to LLM with semantic names
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_batched_input_pluralized_field(self):
+        """Test batching creates list[Type] for inputs (evaluate_batch).
+
+        **Setup**:
+        - .consumes(Task).publishes(Report)
+        - evaluate_batch([task1, task2, task3])
+        - batched=True parameter
+
+        **Expected Signature**:
+        {
+            "tasks": (list[Task], InputField(desc="Batch of tasks")),  # Pluralized!
+            "reports": (list[Report], OutputField())                   # Pluralized!
+        }
+
+        **Expected**: Input field pluralized when batched=True
+        """
+        assert False, "Not implemented"
+
+    @pytest.mark.skip(reason="Phase 2: Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_batched_multi_output_all_lists(self):
+        """Test batching with multi-output creates lists for all fields.
+
+        **Setup**:
+        - .consumes(Task).publishes(Summary, Analysis)
+        - evaluate_batch([task1, task2, task3])
+
+        **Expected Signature**:
+        {
+            "tasks": (list[Task], InputField()),
+            "summaries": (list[Summary], OutputField()),     # Pluralized!
+            "analyses": (list[Analysis], OutputField())      # Pluralized!
+        }
+
+        **Expected**: All output fields pluralized for batching
+        """
+        assert False, "Not implemented"
+
+
+# ============================================================================
 # Test Group 4: Complex Scenarios
 # ============================================================================
 
