@@ -56,6 +56,9 @@ This example demonstrates how to implement a full spec-driven development workfl
 
 ## 🏃 Quick Start - Test the System!
 
+> **🎯 NEW USER? START HERE!** Try the [Dashboard Demo (Test 7)](#test-7-dashboard-demo-new-) first!
+> It's the most visual and impressive way to see 27 agents collaborating in real-time.
+
 ### Test 1: MCP Configuration
 
 Verify that MCP tools are configured correctly:
@@ -145,6 +148,30 @@ This demonstrates:
 - BlockedState if validation fails
 - Safe, reversible refactoring pattern
 
+### Test 7: Dashboard Demo (NEW! 🎯)
+
+**Interactive dashboard visualization** - Choose your workflow and watch the magic!
+
+```bash
+cd examples/08-spec-driven-development
+uv run python 06_dashboard_demo.py
+```
+
+This demonstrates:
+- **Interactive workflow selection** (Specify, Analyze, Implement, or Refactor)
+- **Real-time visualization** of 27 agents collaborating
+- **Blackboard artifact flow** shown live
+- **Agent execution graph** with dependencies
+- Perfect for demos and presentations!
+
+Choose from:
+1. **Specify**: Watch 4 research specialists work in parallel, then see documentation emerge
+2. **Analyze**: See 3 analyzers discover patterns simultaneously
+3. **Implement**: Watch phase-by-phase execution with validation gates
+4. **Refactor**: Observe incremental improvements with safety checks
+
+**Pro tip**: This is the BEST way to understand how blackboard orchestration works!
+
 ### What You'll See
 
 1. **Research Specialists in Parallel**
@@ -220,7 +247,8 @@ examples/08-spec-driven-development/
 ├── 02_specify_workflow.py       # End-to-end PRD generation
 ├── 03_analyze_workflow.py       # Pattern discovery workflow
 ├── 04_implement_workflow.py     # Phase-by-phase implementation
-└── 05_refactor_workflow.py      # Incremental refactoring with safety
+├── 05_refactor_workflow.py      # Incremental refactoring with safety
+└── 06_dashboard_demo.py         # Interactive dashboard visualization
 ```
 
 ## 🔄 Workflow Comparison
@@ -295,6 +323,7 @@ This example was built in 7 phases:
 - Conditional subscriptions enable smart routing
 - Loose coupling makes system easy to extend
 - Type safety prevents entire classes of bugs
+- **Dashboard visualization makes blackboard orchestration tangible and impressive!**
 
 ---
 
