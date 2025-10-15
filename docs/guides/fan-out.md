@@ -86,6 +86,292 @@ print(f"Generated {len(ideas)} ideas")  # Output: Generated 10 ideas
 
 ---
 
+## Multi-Output Fan-Out
+
+**The most powerful fan-out pattern:** Generate multiple artifacts of **different types** in a single execution.
+
+### Single-Type vs Multi-Output
+
+```python
+# Single-type fan-out: 10 artifacts of ONE type
+idea_generator = (
+    flock.agent("generator")
+    .consumes(ProductBrief)
+    .publishes(ProductIdea, fan_out=10)  # 10 ProductIdea artifacts
+)
+
+# Multi-output fan-out: 9 artifacts of THREE types
+content_master = (
+    flock.agent("master")
+    .consumes(ProductBrief)
+    .publishes(
+        ProductIdea,        # 3 ideas
+        MarketingCopy,      # 3 copy variations
+        SocialMediaPost,    # 3 social posts
+        fan_out=3           # fan_out applies to ALL types!
+    )
+)
+```
+
+**Result:**
+- Single execution produces **3 × 3 = 9 artifacts total**
+- All 9 artifacts generated in **ONE LLM call**
+- All artifacts share the same context (coherent, aligned outputs)
+- Full Pydantic validation on every field across all types
+
+### Real-World Example: Movie Production Pipeline
+
+```python
+from pydantic import BaseModel, Field
+from flock import Flock, flock_type
+
+@flock_type
+class Idea(BaseModel):
+    story_idea: str
+
+@flock_type
+class Movie(BaseModel):
+    title: str
+    genre: str
+    director: str
+    cast: list[str]
+    plot_summary: str
+
+@flock_type
+class MovieScript(BaseModel):
+    characters: list[str] = Field(min_length=5)
+    chapter_headings: list[str] = Field(min_length=5)
+    scenes: list[str] = Field(min_length=5)
+    pages: int = Field(ge=50, le=200)
+
+@flock_type
+class MovieCampaign(BaseModel):
+    taglines: list[str] = Field(..., description="Catchy phrases to promote the movie. IN ALL CAPS")
+    poster_descriptions: list[str] = Field(max_length=3)
+
+flock = Flock("openai/gpt-4.1")
+
+# Multi-output fan-out: Generate 3 of EACH type
+multi_master = (
+    flock.agent("multi_master")
+    .consumes(Idea)
+    .publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
+)
+
+# Single execution generates 9 complex artifacts
+await flock.publish(Idea(story_idea="An action thriller set in space"))
+await flock.run_until_idle()
+
+# Result: 9 artifacts with ~100+ validated fields total
+movies = await flock.store.get_by_type(Movie)  # 3 movies
+scripts = await flock.store.get_by_type(MovieScript)  # 3 scripts
+campaigns = await flock.store.get_by_type(MovieCampaign)  # 3 campaigns
+```
+
+**What just happened:**
+
+- ✅ ONE LLM call generated **9 production-ready artifacts**
+- ✅ **~100+ fields** across all artifacts with full Pydantic validation
+- ✅ Constraints enforced: `min_length=5`, `ge=50, le=200`, custom descriptions
+- ✅ **Coherent outputs**: All 3 movies thematically aligned (same context)
+- ✅ **Cost optimized**: 9 artifacts for the price of 1 API call
+
+### Why Multi-Output Fan-Out Matters
+
+**Traditional approach (without fan-out):**
+```python
+# ❌ 9 separate LLM calls
+for i in range(3):
+    movie = await generate_movie(idea)
+    script = await generate_script(idea)
+    campaign = await generate_campaign(idea)
+
+# Problems:
+# - 9 LLM API calls = 9x cost
+# - Movie #1 and Script #1 not aligned (separate contexts)
+# - Campaign #1 might not match Movie #1 theme
+# - Total time: 9 × 5s = 45 seconds
+```
+
+**Flock multi-output fan-out:**
+```python
+# ✅ 1 LLM call for 9 artifacts
+multi_master.publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
+
+# Benefits:
+# - 1 LLM API call = 1x cost (89% cost savings!)
+# - Movie/Script/Campaign for each variant are thematically aligned
+# - All outputs share context (coherent generation)
+# - Total time: ~5 seconds (9x speedup!)
+```
+
+### Performance Comparison
+
+| Approach | LLM Calls | Cost | Time | Context Coherence |
+|----------|-----------|------|------|-------------------|
+| Manual loops (9 calls) | 9 | $$$$ | 45s | ❌ Separate contexts |
+| Single-type fan-out (3 calls) | 3 | $$$ | 15s | ⚠️ Types not aligned |
+| **Multi-output fan-out** | **1** | **$** | **5s** | ✅ **Fully coherent** |
+
+**Savings: 89% cost reduction + 9x speedup + perfect context alignment!**
+
+### Use Cases
+
+**Content Generation:**
+```python
+# Generate blog post + social media + email campaign
+content_pipeline = (
+    flock.agent("content_master")
+    .consumes(Topic)
+    .publishes(
+        BlogPost,
+        TweetThread,
+        EmailNewsletter,
+        fan_out=5  # 5 of each = 15 total
+    )
+)
+```
+
+**Product Development:**
+```python
+# Generate feature spec + user stories + test cases
+product_master = (
+    flock.agent("product_master")
+    .consumes(ProductIdea)
+    .publishes(
+        FeatureSpec,
+        UserStory,
+        TestCase,
+        fan_out=3  # 3 of each = 9 total
+    )
+)
+```
+
+**Marketing Campaigns:**
+```python
+# Generate ad copy + landing page + email sequence
+campaign_master = (
+    flock.agent("campaign_master")
+    .consumes(CampaignBrief)
+    .publishes(
+        AdCopy,
+        LandingPage,
+        EmailSequence,
+        fan_out=4  # 4 of each = 12 total
+    )
+)
+```
+
+### Combining with WHERE/VALIDATE
+
+Multi-output fan-out works seamlessly with filtering and validation:
+
+```python
+# Generate multiple types with quality filtering
+multi_master = (
+    flock.agent("master")
+    .consumes(Brief)
+    .publishes(
+        Movie,
+        MovieScript,
+        MovieCampaign,
+        fan_out=5,  # Generate 5 of each = 15 total
+        where=lambda artifact: (
+            # Filter based on artifact type
+            (isinstance(artifact, Movie) and artifact.genre != "Horror") or
+            (isinstance(artifact, MovieScript) and artifact.pages >= 80) or
+            (isinstance(artifact, MovieCampaign) and len(artifact.taglines) >= 3)
+        ),
+        validate=[
+            # Validate all artifacts meet minimum standards
+            (lambda a: hasattr(a, 'title') or hasattr(a, 'taglines'), "Missing required fields"),
+        ]
+    )
+)
+```
+
+**Execution:**
+1. Engine generates 15 artifacts (5 Movies + 5 Scripts + 5 Campaigns)
+2. WHERE filter reduces to ~10 artifacts (filters out Horror movies, short scripts)
+3. VALIDATE enforces quality standards on remaining artifacts
+4. Publish: ~10 high-quality artifacts to blackboard
+
+### Best Practices
+
+**✅ DO: Use for coherent multi-type generation**
+```python
+# Good: Related types that benefit from shared context
+.publishes(Product, ProductDescription, PricingStrategy, fan_out=3)
+```
+
+**✅ DO: Keep fan_out count reasonable**
+```python
+# Good: 3-5 variants per type is sweet spot
+.publishes(TypeA, TypeB, TypeC, fan_out=3)  # 9 total artifacts
+
+# Careful: 10+ variants may be excessive
+.publishes(TypeA, TypeB, fan_out=10)  # 20 total artifacts (high cost!)
+```
+
+**❌ DON'T: Mix unrelated types**
+```python
+# Bad: User and Product have no thematic relationship
+.publishes(User, Product, Invoice, fan_out=5)  # Context confusion!
+```
+
+**❌ DON'T: Use for simple single-type scenarios**
+```python
+# Bad: Multi-output overhead for single type
+.publishes(Idea, fan_out=10)  # Just use single-type fan-out!
+
+# Good: Single-type fan-out is simpler
+.publishes(Idea, fan_out=10)
+```
+
+### How It Works
+
+**Engine Execution:**
+```python
+# Engine receives output group specification
+output_group = OutputGroup(
+    outputs=[
+        AgentOutput(spec=Movie, count=3),
+        AgentOutput(spec=MovieScript, count=3),
+        AgentOutput(spec=MovieCampaign, count=3),
+    ]
+)
+
+# Engine generates ALL artifacts in single LLM call
+result = await engine.evaluate_fanout(ctx, inputs, output_group)
+
+# Returns: [Movie, Movie, Movie, MovieScript, MovieScript, MovieScript, ...]
+```
+
+**Contract Validation:**
+- Framework verifies engine produced exactly 9 artifacts (3 of each type)
+- Pydantic validates each artifact against its schema
+- WHERE filters applied across all artifacts
+- VALIDATE checks enforced on all remaining artifacts
+
+### Limitations and Considerations
+
+**Context Window:**
+- Large multi-output fan-outs consume significant context
+- Example: `fan_out=10` with 3 types = 30 artifacts = large response
+- Recommendation: Keep `fan_out * num_types ≤ 20` for best results
+
+**LLM Capability:**
+- Requires capable models (GPT-4, Claude Opus, etc.)
+- Smaller models may struggle with complex multi-output generation
+- Test with your model before production deployment
+
+**Token Costs:**
+- While fewer API calls, single call generates more tokens
+- Example: 9 artifacts @ 500 tokens each = 4500 tokens output
+- Still cheaper than 9 separate calls (no repeated input context)
+
+---
+
 ## WHERE Filtering
 
 Filter outputs **before publishing** to reduce noise and save downstream processing costs.

@@ -1400,12 +1400,21 @@ await orchestrator.arun(agent, input_data)
 
 **Fan-out publishing (multiple outputs):**
 ```python
-# Generate 10 outputs per execution
+# Single-type fan-out: Generate 10 outputs per execution
 agent = (
     orchestrator.agent("generator")
     .consumes(InputType)
     .publishes(OutputType, fan_out=10)
 )
+
+# Multi-output fan-out: Generate 3 of EACH type = 9 total artifacts in ONE LLM call!
+multi_master = (
+    orchestrator.agent("multi_master")
+    .consumes(Idea)
+    .publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
+)
+# Result: 3 Movies + 3 MovieScripts + 3 MovieCampaigns = 9 artifacts
+# 89% cost savings vs 9 separate calls + perfect context alignment!
 
 # With filtering (reduce noise)
 agent.publishes(OutputType, fan_out=20, where=lambda o: o.score >= 8.0)

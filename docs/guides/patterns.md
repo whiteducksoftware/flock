@@ -17,6 +17,371 @@ This guide documents the 8 major architectural patterns in Flock, extracted from
 
 ---
 
+## Publishing Patterns Overview
+
+Before diving into orchestration patterns, let's understand **all the ways agents can publish artifacts** with `.publishes()`.
+
+### 1. Single Output (Default)
+
+**Pattern:** Agent produces one artifact per execution.
+
+```python
+agent.consumes(InputType).publishes(OutputType)
+```
+
+```mermaid
+graph LR
+    Input[InputType] -->|consumes| Agent[Agent]
+    Agent -->|publishes| Output[OutputType]
+
+    style Agent fill:#4A90E2,color:#fff
+    style Output fill:#50C878,color:#fff
+```
+
+**Example:**
+```python
+bug_detector = flock.agent("detector").consumes(BugReport).publishes(BugDiagnosis)
+# 1 BugReport → 1 BugDiagnosis
+```
+
+---
+
+### 2. Multiple Outputs (Multiple Types)
+
+**Pattern:** Agent produces multiple artifact types per execution.
+
+```python
+agent.consumes(InputType).publishes(OutputA, OutputB, OutputC)
+```
+
+```mermaid
+graph LR
+    Input[InputType] -->|consumes| Agent[Agent]
+    Agent -->|publishes| OutputA[OutputA]
+    Agent -->|publishes| OutputB[OutputB]
+    Agent -->|publishes| OutputC[OutputC]
+
+    style Agent fill:#4A90E2,color:#fff
+    style OutputA fill:#50C878,color:#fff
+    style OutputB fill:#50C878,color:#fff
+    style OutputC fill:#50C878,color:#fff
+```
+
+**Example:**
+```python
+code_analyzer = (
+    flock.agent("analyzer")
+    .consumes(CodeSubmission)
+    .publishes(BugAnalysis, SecurityAudit, PerformanceReport)
+)
+# 1 CodeSubmission → 1 BugAnalysis + 1 SecurityAudit + 1 PerformanceReport = 3 artifacts
+```
+
+---
+
+### 3. Fan-Out (Single Type, Multiple Artifacts)
+
+**Pattern:** Agent produces N artifacts of the same type per execution.
+
+```python
+agent.consumes(InputType).publishes(OutputType, fan_out=N)
+```
+
+```mermaid
+graph LR
+    Input[InputType] -->|consumes| Agent[Agent]
+    Agent -->|publishes fan_out=3| Output1[OutputType #1]
+    Agent -->|publishes fan_out=3| Output2[OutputType #2]
+    Agent -->|publishes fan_out=3| Output3[OutputType #3]
+
+    style Agent fill:#4A90E2,color:#fff
+    style Output1 fill:#50C878,color:#fff
+    style Output2 fill:#50C878,color:#fff
+    style Output3 fill:#50C878,color:#fff
+```
+
+**Example:**
+```python
+idea_generator = (
+    flock.agent("generator")
+    .consumes(ProductBrief)
+    .publishes(ProductIdea, fan_out=10)
+)
+# 1 ProductBrief → 10 ProductIdea artifacts in ONE execution
+```
+
+---
+
+### 4. Multi-Output Fan-Out (Multiple Types, Multiple Artifacts Each)
+
+**Pattern:** Agent produces N artifacts of EACH type per execution.
+
+```python
+agent.consumes(InputType).publishes(TypeA, TypeB, TypeC, fan_out=N)
+```
+
+```mermaid
+graph LR
+    Input[InputType] -->|consumes| Agent[Agent]
+
+    Agent -->|publishes fan_out=3| A1[TypeA #1]
+    Agent -->|publishes fan_out=3| A2[TypeA #2]
+    Agent -->|publishes fan_out=3| A3[TypeA #3]
+
+    Agent -->|publishes fan_out=3| B1[TypeB #1]
+    Agent -->|publishes fan_out=3| B2[TypeB #2]
+    Agent -->|publishes fan_out=3| B3[TypeB #3]
+
+    Agent -->|publishes fan_out=3| C1[TypeC #1]
+    Agent -->|publishes fan_out=3| C2[TypeC #2]
+    Agent -->|publishes fan_out=3| C3[TypeC #3]
+
+    style Agent fill:#4A90E2,color:#fff
+    style A1 fill:#50C878,color:#fff
+    style A2 fill:#50C878,color:#fff
+    style A3 fill:#50C878,color:#fff
+    style B1 fill:#FF6B6B,color:#fff
+    style B2 fill:#FF6B6B,color:#fff
+    style B3 fill:#FF6B6B,color:#fff
+    style C1 fill:#FFD93D,color:#fff
+    style C2 fill:#FFD93D,color:#fff
+    style C3 fill:#FFD93D,color:#fff
+```
+
+**Example:**
+```python
+multi_master = (
+    flock.agent("multi_master")
+    .consumes(Idea)
+    .publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
+)
+# 1 Idea → 3 Movies + 3 Scripts + 3 Campaigns = 9 artifacts in ONE LLM call!
+```
+
+---
+
+### 5. With Filtering (WHERE)
+
+**Pattern:** Filter outputs before publishing.
+
+```python
+agent.publishes(OutputType, fan_out=N, where=lambda o: o.score >= 8.0)
+```
+
+```mermaid
+graph LR
+    Input[InputType] -->|consumes| Agent[Agent]
+    Agent -->|generates| Gen[10 OutputType]
+    Gen -->|WHERE filter| Filter{score >= 8.0?}
+    Filter -->|pass| Output1[OutputType #1]
+    Filter -->|pass| Output2[OutputType #2]
+    Filter -->|pass| Output3[OutputType #3]
+    Filter -.reject.-> Reject[6 artifacts discarded]
+
+    style Agent fill:#4A90E2,color:#fff
+    style Filter fill:#FFA500,color:#fff
+    style Output1 fill:#50C878,color:#fff
+    style Output2 fill:#50C878,color:#fff
+    style Output3 fill:#50C878,color:#fff
+    style Reject fill:#ddd,color:#666
+```
+
+**Example:**
+```python
+quality_generator = (
+    flock.agent("generator")
+    .consumes(Brief)
+    .publishes(
+        Idea,
+        fan_out=20,  # Generate 20 candidates
+        where=lambda i: i.score >= 8.0  # Only publish high-quality (maybe 5 pass)
+    )
+)
+# 1 Brief → 20 generated → 5 published (high quality only)
+```
+
+---
+
+### 6. With Validation (VALIDATE)
+
+**Pattern:** Enforce quality standards (fail-fast).
+
+```python
+agent.publishes(
+    OutputType,
+    fan_out=N,
+    validate=lambda o: o.field in ["valid", "values"]
+)
+```
+
+```mermaid
+graph LR
+    Input[InputType] -->|consumes| Agent[Agent]
+    Agent -->|generates| Gen[5 OutputType]
+    Gen -->|VALIDATE checks| Validator{All valid?}
+    Validator -->|✅ all pass| Publish[Publish 5 artifacts]
+    Validator -.❌ any fail.-> Error[ValueError raised]
+
+    style Agent fill:#4A90E2,color:#fff
+    style Validator fill:#FF6B6B,color:#fff
+    style Publish fill:#50C878,color:#fff
+    style Error fill:#ff0000,color:#fff
+```
+
+**Example:**
+```python
+strict_generator = (
+    flock.agent("generator")
+    .consumes(Brief)
+    .publishes(
+        BugReport,
+        fan_out=5,
+        validate=lambda r: r.severity in ["Critical", "High", "Medium", "Low"]
+    )
+)
+# If ANY of the 5 BugReports has invalid severity → ValueError, nothing published
+```
+
+---
+
+### 7. With Dynamic Visibility
+
+**Pattern:** Control access per artifact based on content.
+
+```python
+agent.publishes(
+    OutputType,
+    fan_out=N,
+    visibility=lambda o: PrivateVisibility(agents=[o.recipient])
+)
+```
+
+```mermaid
+graph LR
+    Input[InputType] -->|consumes| Agent[Agent]
+    Agent -->|generates| Gen[3 Notifications]
+
+    Gen -->|visibility| N1[Notification #1<br/>recipient: admin]
+    Gen -->|visibility| N2[Notification #2<br/>recipient: operator]
+    Gen -->|visibility| N3[Notification #3<br/>recipient: security]
+
+    N1 -.only visible to.-> Admin[admin agent]
+    N2 -.only visible to.-> Operator[operator agent]
+    N3 -.only visible to.-> Security[security agent]
+
+    style Agent fill:#4A90E2,color:#fff
+    style N1 fill:#50C878,color:#fff
+    style N2 fill:#50C878,color:#fff
+    style N3 fill:#50C878,color:#fff
+    style Admin fill:#ddd,color:#333
+    style Operator fill:#ddd,color:#333
+    style Security fill:#ddd,color:#333
+```
+
+**Example:**
+```python
+notifier = (
+    flock.agent("notifier")
+    .consumes(Alert)
+    .publishes(
+        Notification,
+        fan_out=3,
+        visibility=lambda n: PrivateVisibility(agents=[n.recipient])
+    )
+)
+# Each notification only visible to its target agent
+```
+
+---
+
+### 8. Combined: WHERE + VALIDATE + Visibility
+
+**Pattern:** Filter, enforce standards, and control access.
+
+```python
+agent.publishes(
+    OutputType,
+    fan_out=20,
+    where=lambda o: o.score >= 8.0,
+    validate=lambda o: len(o.content) >= 100,
+    visibility=lambda o: PrivateVisibility(agents=[o.owner])
+)
+```
+
+```mermaid
+graph LR
+    Input[InputType] -->|consumes| Agent[Agent]
+    Agent -->|generates| Gen[20 candidates]
+
+    Gen -->|WHERE| Filter{score >= 8.0?}
+    Filter -->|pass ~5| Candidates[5 candidates]
+
+    Candidates -->|VALIDATE| Validator{len >= 100?}
+    Validator -->|✅ all pass| Visibility[Apply visibility]
+    Validator -.❌ any fail.-> Error[ValueError]
+
+    Visibility -->|publish| O1[Artifact #1<br/>visible to: alice]
+    Visibility -->|publish| O2[Artifact #2<br/>visible to: bob]
+    Visibility -->|publish| O3[Artifact #3<br/>visible to: carol]
+
+    style Agent fill:#4A90E2,color:#fff
+    style Filter fill:#FFA500,color:#fff
+    style Validator fill:#FF6B6B,color:#fff
+    style Visibility fill:#9B59B6,color:#fff
+    style O1 fill:#50C878,color:#fff
+    style O2 fill:#50C878,color:#fff
+    style O3 fill:#50C878,color:#fff
+```
+
+**Example:**
+```python
+sophisticated_agent = (
+    flock.agent("sophisticated")
+    .consumes(Request)
+    .publishes(
+        Response,
+        fan_out=20,  # Generate 20 candidates
+        where=lambda r: r.quality_score >= 8.5,  # Filter to ~5 high-quality
+        validate=[  # Enforce standards on remaining 5
+            (lambda r: len(r.content) >= 100, "Content too short"),
+            (lambda r: r.tone in ["professional", "friendly"], "Invalid tone"),
+        ],
+        visibility=lambda r: PrivateVisibility(agents=[r.assigned_to])  # Target recipient
+    )
+)
+# 1 Request → 20 generated → 5 filtered → validated → published with access control
+```
+
+---
+
+### Consumes Patterns Quick Reference
+
+| Pattern | Syntax | Behavior |
+|---------|--------|----------|
+| **Single input** | `.consumes(TypeA)` | Wait for 1 TypeA artifact |
+| **AND gate** | `.consumes(TypeA, TypeB)` | Wait for TypeA AND TypeB (both required) |
+| **OR gate** | `.consumes(TypeA).consumes(TypeB)` | Trigger on TypeA OR TypeB (independent) |
+| **Count-based AND** | `.consumes(TypeA, TypeA, TypeA)` | Wait for 3 TypeA artifacts |
+| **Mixed count** | `.consumes(TypeA, TypeA, TypeB)` | Wait for 2 TypeA AND 1 TypeB |
+| **With predicate** | `.consumes(TypeA, where=lambda a: a.score > 5)` | Only consume if predicate matches |
+| **With time window** | `.consumes(TypeA, TypeB, join=JoinSpec(within=timedelta(...)))` | Both must arrive within time window |
+| **With batch** | `.consumes(TypeA, batch=BatchSpec(size=10))` | Collect 10 TypeA artifacts before triggering |
+
+### Publishes Patterns Quick Reference
+
+| Pattern | Syntax | Artifacts Published |
+|---------|--------|---------------------|
+| **Single output** | `.publishes(TypeA)` | 1 TypeA |
+| **Multiple outputs** | `.publishes(TypeA, TypeB, TypeC)` | 1 TypeA + 1 TypeB + 1 TypeC = 3 total |
+| **Fan-out** | `.publishes(TypeA, fan_out=10)` | 10 TypeA |
+| **Multi-output fan-out** | `.publishes(TypeA, TypeB, fan_out=5)` | 5 TypeA + 5 TypeB = 10 total |
+| **With filtering** | `.publishes(TypeA, fan_out=20, where=...)` | Up to 20 TypeA (filtered) |
+| **With validation** | `.publishes(TypeA, fan_out=5, validate=...)` | 5 TypeA (or error if invalid) |
+| **With visibility** | `.publishes(TypeA, visibility=PrivateVisibility(...))` | 1 TypeA (access controlled) |
+| **Combined** | `.publishes(TypeA, fan_out=20, where=..., validate=..., visibility=...)` | Up to 20 TypeA (filtered, validated, access controlled) |
+
+---
+
 ## 1. Single-Agent Transform
 
 **Pattern:** Input Type → Agent → Output Type
@@ -521,18 +886,104 @@ arguer_refiner = (
 
 ---
 
-## 7. Fan-Out
+## 7. Fan-Out & Multi-Output Publishing
 
-**Pattern:** 1 input → N agents process in parallel
+**Pattern:** 1 execution → N artifacts (single or multiple types)
 
 **When to Use:**
 
+- Generate multiple variations from single execution
+- Produce coherent multi-type outputs
 - Broadcast processing
-- Multiple specialized analyses
-- Scalable architectures
-- Independent parallel work
+- Scalable parallel architectures
 
-**Example:**
+### Basic Fan-Out (Single Type)
+
+```python
+@flock_type
+class ProductBrief(BaseModel):
+    market: str
+    audience: str
+
+@flock_type
+class ProductIdea(BaseModel):
+    name: str
+    description: str
+    score: float
+
+# Generate 10 ideas from one brief
+idea_generator = (
+    flock.agent("generator")
+    .consumes(ProductBrief)
+    .publishes(ProductIdea, fan_out=10)  # 10 artifacts in ONE execution!
+)
+
+await flock.publish(ProductBrief(...))
+await flock.run_until_idle()
+
+# Result: 10 ProductIdea artifacts published to blackboard
+ideas = await flock.store.get_by_type(ProductIdea)  # 10 ideas
+```
+
+### Multi-Output Fan-Out (Multiple Types) 🤯
+
+**The game-changer:** Generate N artifacts of **EACH** type in a single execution!
+
+```python
+@flock_type
+class Idea(BaseModel):
+    story_idea: str
+
+@flock_type
+class Movie(BaseModel):
+    title: str
+    genre: str
+    cast: list[str]
+    plot_summary: str
+
+@flock_type
+class MovieScript(BaseModel):
+    characters: list[str]
+    scenes: list[str]
+    pages: int
+
+@flock_type
+class MovieCampaign(BaseModel):
+    taglines: list[str]
+    poster_descriptions: list[str]
+
+# Generate 3 of EACH type = 9 total artifacts in ONE LLM call!
+multi_master = (
+    flock.agent("multi_master")
+    .consumes(Idea)
+    .publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
+)
+
+await flock.publish(Idea(...))
+await flock.run_until_idle()
+
+# Result: 9 artifacts (3 movies + 3 scripts + 3 campaigns)
+movies = await flock.store.get_by_type(Movie)  # 3 movies
+scripts = await flock.store.get_by_type(MovieScript)  # 3 scripts
+campaigns = await flock.store.get_by_type(MovieCampaign)  # 3 campaigns
+```
+
+**What just happened:**
+- ✅ ONE LLM call generated **9 production-ready artifacts**
+- ✅ **~100+ fields** across all artifacts with full Pydantic validation
+- ✅ **Coherent outputs**: All 3 movie/script/campaign sets thematically aligned
+- ✅ **Cost optimized**: 89% cost savings vs 9 separate calls
+- ✅ **9x speedup**: One 5-second call instead of nine
+
+### Performance Comparison
+
+| Approach | LLM Calls | Cost | Time | Context Coherence |
+|----------|-----------|------|------|-------------------|
+| Manual loops (9 calls) | 9 | $$$$ | 45s | ❌ Separate contexts |
+| Single-type fan-out (3 calls) | 3 | $$$ | 15s | ⚠️ Types not aligned |
+| **Multi-output fan-out** | **1** | **$** | **5s** | ✅ **Fully coherent** |
+
+### Multi-Agent Parallel Fan-Out
 
 ```python
 @flock_type
@@ -545,14 +996,13 @@ class BreakingNews(BaseModel):
 class NewsAnalysis(BaseModel):
     category: str
     key_takeaways: list[str]
-    impact_assessment: str
 
-# Create 8 parallel analysts
+# Create 8 parallel analysts (all consume same type)
 categories = ["world", "tech", "business", "sports", "entertainment", "science", "politics", "health"]
 
 for category in categories:
     flock.agent(f"{category}_analyst") \
-        .consumes(BreakingNews) \  # ALL consume same type!
+        .consumes(BreakingNews) \
         .publishes(NewsAnalysis)
 
 # Aggregator collects all analyses
@@ -563,26 +1013,24 @@ editor = (
 )
 
 # Execution: 8 analysts run in parallel when BreakingNews published
-await flock.publish(BreakingNews(...))
-await flock.run_until_idle()
 ```
 
 **Performance:**
-
 - Sequential: `8 × 5s = 40 seconds`
 - Parallel (Flock): `MAX(5s) = 5 seconds` ⚡
 - **Speedup: 8x**
 
 **Scalability:**
-
 - 8 agents? 80 agents? Same pattern!
 - O(n) complexity, not O(n²)
-- No split/join nodes
-- Just add more subscriptions
+- No split/join nodes needed
 
-**Key Insight:** "O(n) complexity, not O(n²) edges"
+**Key Insights:**
+- **Single-agent fan-out**: 1 agent generates N artifacts of 1+ types
+- **Multi-agent fan-out**: N agents each generate 1 artifact from same input
+- **Multi-output fan-out**: 1 agent generates N artifacts of M types (N×M total)
 
-**Tutorial Value:** ⭐⭐⭐⭐⭐ Shows scalability advantage
+**Tutorial Value:** ⭐⭐⭐⭐⭐ Shows scalability + efficiency advantages
 
 ---
 

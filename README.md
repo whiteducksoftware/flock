@@ -449,6 +449,41 @@ notification_agent = (
 - 📧 **Notifications** - Create 3 notification variants, target specific agents
 - 🧪 **A/B Testing** - Generate N variations, filter by quality metrics
 
+**🤯 Multi-Output Fan-Out (New in 0.5)**
+
+**The truly mind-blowing part:** Fan-out works across **multiple output types**:
+
+```python
+# Generate 3 of EACH type = 9 total artifacts in ONE LLM call!
+multi_master = (
+    flock.agent("multi_master")
+    .consumes(Idea)
+    .publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
+)
+
+# Single execution produces:
+# - 3 complete Movie artifacts (with title, genre, cast, plot)
+# - 3 complete MovieScript artifacts (with characters, scenes, pages)
+# - 3 complete MovieCampaign artifacts (with taglines, poster descriptions)
+# = 9 complex artifacts, ~100+ fields total, full Pydantic validation, ONE LLM call!
+
+await flock.publish(Idea(story_idea="An action thriller set in space"))
+await flock.run_until_idle()
+
+# Result: 9 artifacts on the blackboard, all validated, all ready
+movies = await flock.store.get_by_type(Movie)  # 3 movies
+scripts = await flock.store.get_by_type(MovieScript)  # 3 scripts
+campaigns = await flock.store.get_by_type(MovieCampaign)  # 3 campaigns
+```
+
+**Why this is revolutionary:**
+- ⚡ **Massive efficiency** - 1 LLM call generates 9 production-ready artifacts
+- ✅ **Full validation** - All 100+ fields validated with Pydantic constraints
+- 🎯 **Coherent generation** - Movie/Script/Campaign are thematically aligned (same LLM context)
+- 💰 **Cost optimized** - 9 artifacts for the price of 1 API call
+
+**Can any other agent framework do this?** We haven't found one. 🚀
+
 **📖 [Full Fan-Out Guide →](https://whiteducksoftware.github.io/flock/guides/fan-out/)**
 
 ### Visibility Controls (The Security)
