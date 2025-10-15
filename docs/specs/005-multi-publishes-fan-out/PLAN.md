@@ -75,59 +75,59 @@ If implementation cannot follow specification exactly:
     - [x] Read `docs/internal/improved-publishes/architecture-changes.md` - Multiple engine calls design `[ref: architecture-changes.md; lines: 1-100]`
     - [x] Read `src/flock/agent.py` - Current AgentOutput structure `[ref: agent.py; lines: 63-86]`
 
-- [ ] **Write Tests**: Test OutputGroup and enhanced AgentOutput data structures `[activity: test-writing]`
-    - [ ] Test `OutputGroup` dataclass creation with multiple outputs
-    - [ ] Test `AgentOutput` with `fan_out`, `where`, `visibility`, `validate`, `description` fields
-    - [ ] Test that `OutputGroup.is_single_call()` returns True
-    - [ ] Test validation: `fan_out >= 1` or raise ValueError
-    - [ ] Test validation: `where` callable accepts BaseModel and returns bool
-    - [ ] Test validation: `validate` callable or list of (callable, error_msg) tuples
+- [x] **Write Tests**: Test OutputGroup and enhanced AgentOutput data structures `[activity: test-writing]`
+    - [x] Test `OutputGroup` dataclass creation with multiple outputs
+    - [x] Test `AgentOutput` with `fan_out`, `where`, `visibility`, `validate`, `description` fields
+    - [x] Test that `OutputGroup.is_single_call()` returns True
+    - [x] Test validation: `fan_out >= 1` or raise ValueError
+    - [x] Test validation: `where` callable accepts BaseModel and returns bool
+    - [x] Test validation: `validate` callable or list of (callable, error_msg) tuples
 
-- [ ] **Implement**: Create OutputGroup and enhance AgentOutput `[ref: architecture-changes.md; lines: 110-135]` `[activity: data-modeling]`
-    - [ ] Create `OutputGroup` dataclass in `src/flock/agent.py`:
+- [x] **Implement**: Create OutputGroup and enhance AgentOutput `[ref: architecture-changes.md; lines: 110-135]` `[activity: data-modeling]`
+    - [x] Create `OutputGroup` dataclass in `src/flock/agent.py`:
         ```python
         @dataclass
         class OutputGroup:
             outputs: list[AgentOutput]
-            shared_visibility: Visibility
+            shared_visibility: Visibility | None = None
             group_description: str | None = None
         ```
-    - [ ] Enhance `AgentOutput` dataclass to include:
+    - [x] Enhance `AgentOutput` dataclass to include:
         - `count: int = 1` - Number of artifacts to generate
         - `filter_predicate: Callable[[BaseModel], bool] | None = None` - Where clause
         - `validate_predicate: Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None = None`
         - `group_description: str | None = None` - Override agent description for this group
-    - [ ] Add `is_many()` method to AgentOutput: `return self.count > 1`
+    - [x] Add `is_many()` method to AgentOutput: `return self.count > 1`
 
-- [ ] **Validate**: Code quality and test passage
-    - [ ] Run tests: `pytest tests/test_agent_builder.py -v` `[activity: run-tests]`
-    - [ ] Lint code: Ensure dataclasses follow project style `[activity: lint-code]`
-    - [ ] Review: Data structures are immutable where appropriate `[activity: review-code]`
+- [x] **Validate**: Code quality and test passage
+    - [x] Run tests: `pytest tests/test_agent_builder.py -v` `[activity: run-tests]`
+    - [x] Lint code: Ensure dataclasses follow project style `[activity: lint-code]`
+    - [x] Review: Data structures are immutable where appropriate `[activity: review-code]`
 
 ### Phase 2: AgentBuilder.publishes() Enhancement
 
 **Goal**: Modify `.publishes()` to support multiple calls (creating groups) and new sugar parameters.
 
-- [ ] **Prime Context**: Understand current publishes() implementation
-    - [ ] Read `src/flock/agent.py` - AgentBuilder.publishes() `[ref: agent.py; lines: 646-699]`
-    - [ ] Read `docs/internal/improved-publishes/design.md` - API design `[ref: design.md; lines: 119-137]`
+- [x] **Prime Context**: Understand current publishes() implementation
+    - [x] Read `src/flock/agent.py` - AgentBuilder.publishes() `[ref: agent.py; lines: 646-699]`
+    - [x] Read `docs/internal/improved-publishes/design.md` - API design `[ref: design.md; lines: 119-137]`
 
-- [ ] **Write Tests**: Test enhanced .publishes() API `[activity: test-writing]`
-    - [ ] Test single `.publishes(A, B, C)` creates ONE OutputGroup with 3 outputs
-    - [ ] Test multiple `.publishes(A).publishes(B)` creates TWO OutputGroups (1 output each)
-    - [ ] Test `.publishes(A, A, A)` counts duplicates → 1 group, 3 A's
-    - [ ] Test `.publishes(A, fan_out=3)` creates 1 group with 3 A's (sugar syntax)
-    - [ ] Test `.publishes(A, where=lambda x: x.valid)` stores filter predicate
-    - [ ] Test `.publishes(A, visibility=lambda x: "public" if x.important else "private")` stores dynamic visibility
-    - [ ] Test `.publishes(A, validate=lambda x: x.score > 0)` stores validation
-    - [ ] Test `.publishes(A, description="Special instructions")` stores group description
-    - [ ] Test combining parameters: `.publishes(A, fan_out=3, where=..., validate=...)`
-    - [ ] Test that `fan_out=0` raises ValueError
-    - [ ] Test backwards compatibility: existing `.publishes(A)` still works
+- [x] **Write Tests**: Test enhanced .publishes() API `[activity: test-writing]`
+    - [x] Test single `.publishes(A, B, C)` creates ONE OutputGroup with 3 outputs
+    - [x] Test multiple `.publishes(A).publishes(B)` creates TWO OutputGroups (1 output each)
+    - [x] Test `.publishes(A, A, A)` counts duplicates → 1 group, 3 A's
+    - [x] Test `.publishes(A, fan_out=3)` creates 1 group with 3 A's (sugar syntax)
+    - [x] Test `.publishes(A, where=lambda x: x.valid)` stores filter predicate
+    - [x] Test `.publishes(A, visibility=lambda x: "public" if x.important else "private")` stores dynamic visibility
+    - [x] Test `.publishes(A, validate=lambda x: x.score > 0)` stores validation
+    - [x] Test `.publishes(A, description="Special instructions")` stores group description
+    - [x] Test combining parameters: `.publishes(A, fan_out=3, where=..., validate=...)`
+    - [x] Test that `fan_out=0` raises ValueError
+    - [x] Test backwards compatibility: existing `.publishes(A)` still works
 
-- [ ] **Implement**: Enhanced AgentBuilder.publishes() method `[ref: architecture-changes.md; lines: 150-200]` `[activity: api-development]`
-    - [ ] Change `Agent` class: replace `outputs: list[AgentOutput]` with `output_groups: list[OutputGroup]`
-    - [ ] Update `AgentBuilder.publishes()` signature:
+- [x] **Implement**: Enhanced AgentBuilder.publishes() method `[ref: architecture-changes.md; lines: 150-200]` `[activity: api-development]`
+    - [x] Change `Agent` class: replace `outputs: list[AgentOutput]` with `output_groups: list[OutputGroup]`
+    - [x] Update `AgentBuilder.publishes()` signature:
         ```python
         def publishes(
             self,
@@ -139,17 +139,17 @@ If implementation cannot follow specification exactly:
             description: str | None = None
         ) -> PublishBuilder:
         ```
-    - [ ] Implement duplicate counting when no `fan_out` provided (use `Counter`)
-    - [ ] Apply `fan_out` to ALL types when specified
-    - [ ] Create `OutputGroup` from outputs and append to `agent.output_groups`
-    - [ ] Store predicates and descriptions in each `AgentOutput`
-    - [ ] Validate `fan_out >= 1` if provided
-    - [ ] Return `PublishBuilder` for chaining
+    - [x] Implement duplicate counting when no `fan_out` provided (preserves order)
+    - [x] Apply `fan_out` to ALL types when specified
+    - [x] Create `OutputGroup` from outputs and append to `agent.output_groups`
+    - [x] Store predicates and descriptions in each `AgentOutput`
+    - [x] Validate `fan_out >= 1` if provided
+    - [x] Return `PublishBuilder` for chaining
 
-- [ ] **Validate**: API correctness and backwards compatibility
-    - [ ] Run tests: `pytest tests/test_agent_builder.py::test_publishes* -v` `[activity: run-tests]`
-    - [ ] Verify backwards compatibility: existing code doesn't break `[activity: business-acceptance]`
-    - [ ] Review: API is intuitive and consistent with `.consumes()` `[activity: review-code]`
+- [x] **Validate**: API correctness and backwards compatibility
+    - [x] Run tests: `pytest tests/test_agent_builder.py::test_publishes* -v` `[activity: run-tests]`
+    - [x] Verify backwards compatibility: existing code doesn't break `[activity: business-acceptance]`
+    - [x] Review: API is intuitive and consistent with `.consumes()` `[activity: review-code]`
 
 ### Phase 3: Multiple Engine Calls in Agent.execute()
 
