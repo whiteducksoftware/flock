@@ -22,16 +22,16 @@ class Movie(BaseModel):
 
 @flock_type
 class MovieScript(BaseModel):
-    characters: list[str]
-    chapter_headings: list[str]
-    scenes: list[str]
-    pages: int
+    characters: list[str] = Field(min_length=5)
+    chapter_headings: list[str] = Field(min_length=5)
+    scenes: list[str] = Field(min_length=5)
+    pages: int = Field(ge=50, le=200)
 
 
 @flock_type
 class MovieCampaign(BaseModel):
     taglines: list[str] = Field(..., description="Catchy phrases to promote the movie. IN ALL CAPS")
-    poster_descriptions: list[str]
+    poster_descriptions: list[str] = Field(max_length=3)
 
 
 flock = Flock()

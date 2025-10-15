@@ -32,7 +32,6 @@ flock = Flock()
 
 # Single Publish
 single_movie_master = flock.agent("single_movie_master").consumes(Idea).publishes(Movie)
-
 single_book_master = flock.agent("single_book_master").consumes(Idea).publishes(Book)
 
 
