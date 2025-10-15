@@ -24,6 +24,7 @@ from artifacts import (
     ValidationRequest,
     ValidationResult,
 )
+from mcp_config import format_mcp_config_for_agent
 
 
 def create_specialist_agents(flock: Flock):
@@ -48,6 +49,7 @@ def create_specialist_agents(flock: Flock):
             ResearchTask,
             where=lambda task: task.research_type == ResearchType.MARKET,
         )
+        .with_mcps(format_mcp_config_for_agent("research"))
         .publishes(ResearchFindings)
     )
 
@@ -62,6 +64,7 @@ def create_specialist_agents(flock: Flock):
             ResearchTask,
             where=lambda task: task.research_type == ResearchType.TECHNICAL,
         )
+        .with_mcps(format_mcp_config_for_agent("research"))
         .publishes(ResearchFindings)
     )
 
@@ -76,6 +79,7 @@ def create_specialist_agents(flock: Flock):
             ResearchTask,
             where=lambda task: task.research_type == ResearchType.SECURITY,
         )
+        .with_mcps(format_mcp_config_for_agent("research"))
         .publishes(ResearchFindings)
     )
 
@@ -90,6 +94,7 @@ def create_specialist_agents(flock: Flock):
             ResearchTask,
             where=lambda task: task.research_type == ResearchType.UX,
         )
+        .with_mcps(format_mcp_config_for_agent("research"))
         .publishes(ResearchFindings)
     )
 
@@ -105,6 +110,7 @@ def create_specialist_agents(flock: Flock):
             "Focuses on WHAT to build and WHY, avoiding implementation details."
         )
         .consumes(ResearchFindings)
+        .with_mcps(format_mcp_config_for_agent("documenter"))
         .publishes(PRDSection)
     )
 
@@ -116,6 +122,7 @@ def create_specialist_agents(flock: Flock):
             "Focuses on HOW to build it with architecture, data models, and APIs."
         )
         .consumes(PRDSection, ResearchFindings)
+        .with_mcps(format_mcp_config_for_agent("documenter"))
         .publishes(SDDSection)
     )
 
@@ -127,6 +134,7 @@ def create_specialist_agents(flock: Flock):
             "Creates executable roadmaps from specifications."
         )
         .consumes(SDDSection, PRDSection)
+        .with_mcps(format_mcp_config_for_agent("documenter"))
         .publishes(PLANSection)
     )
 
@@ -138,6 +146,7 @@ def create_specialist_agents(flock: Flock):
             "Creates clear, searchable pattern guides."
         )
         .consumes(PatternDiscovery)
+        .with_mcps(format_mcp_config_for_agent("documenter"))
         .publishes(DocumentationUpdate)
     )
 
@@ -156,6 +165,7 @@ def create_specialist_agents(flock: Flock):
             ImplementationTask,
             where=lambda task: task.activity_area == "backend",
         )
+        .with_mcps(format_mcp_config_for_agent("implementer"))
         .publishes(CodeChange)
     )
 
@@ -170,6 +180,7 @@ def create_specialist_agents(flock: Flock):
             ImplementationTask,
             where=lambda task: task.activity_area == "frontend",
         )
+        .with_mcps(format_mcp_config_for_agent("implementer"))
         .publishes(CodeChange)
     )
 
@@ -184,6 +195,7 @@ def create_specialist_agents(flock: Flock):
             ImplementationTask,
             where=lambda task: task.activity_area == "database",
         )
+        .with_mcps(format_mcp_config_for_agent("implementer"))
         .publishes(CodeChange)
     )
 
@@ -198,6 +210,7 @@ def create_specialist_agents(flock: Flock):
             ImplementationTask,
             where=lambda task: task.activity_area == "infrastructure",
         )
+        .with_mcps(format_mcp_config_for_agent("implementer"))
         .publishes(CodeChange)
     )
 
@@ -213,6 +226,7 @@ def create_specialist_agents(flock: Flock):
             "Provides constructive feedback and catches issues early."
         )
         .consumes(CodeChange)
+        .with_mcps(format_mcp_config_for_agent("reviewer"))
         .publishes(ReviewResult)
     )
 
@@ -224,6 +238,7 @@ def create_specialist_agents(flock: Flock):
             "Ensures specifications are ready for implementation."
         )
         .consumes(PRDSection, SDDSection, PLANSection)
+        .with_mcps(format_mcp_config_for_agent("reviewer"))
         .publishes(ReviewResult)
     )
 
@@ -238,6 +253,7 @@ def create_specialist_agents(flock: Flock):
             ValidationRequest,
             where=lambda req: req.validation_type.value == "tests",
         )
+        .with_mcps(format_mcp_config_for_agent("validator"))
         .publishes(ValidationResult)
     )
 
@@ -252,6 +268,7 @@ def create_specialist_agents(flock: Flock):
             ValidationRequest,
             where=lambda req: req.validation_type.value == "build",
         )
+        .with_mcps(format_mcp_config_for_agent("validator"))
         .publishes(ValidationResult)
     )
 
@@ -270,6 +287,7 @@ def create_specialist_agents(flock: Flock):
             AnalyzeRequest,
             where=lambda req: req.analysis_area == "business",
         )
+        .with_mcps(format_mcp_config_for_agent("analyzer"))
         .publishes(PatternDiscovery)
     )
 
@@ -284,6 +302,7 @@ def create_specialist_agents(flock: Flock):
             AnalyzeRequest,
             where=lambda req: req.analysis_area == "technical",
         )
+        .with_mcps(format_mcp_config_for_agent("analyzer"))
         .publishes(PatternDiscovery)
     )
 
@@ -298,6 +317,7 @@ def create_specialist_agents(flock: Flock):
             AnalyzeRequest,
             where=lambda req: req.analysis_area == "security",
         )
+        .with_mcps(format_mcp_config_for_agent("analyzer"))
         .publishes(PatternDiscovery)
     )
 

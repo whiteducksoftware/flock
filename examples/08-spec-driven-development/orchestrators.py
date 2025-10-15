@@ -37,6 +37,7 @@ from artifacts import (
     ValidationRequest,
     ValidationResult,
 )
+from mcp_config import format_mcp_config_for_agent
 
 
 def create_orchestrator_agents(flock: Flock):
@@ -69,6 +70,7 @@ def create_orchestrator_agents(flock: Flock):
             """
         )
         .consumes(SpecifyRequest)
+        .with_mcps(format_mcp_config_for_agent("orchestrator"))
         .publishes(
             SpecificationMetadata,
             ResearchTask,
@@ -127,6 +129,7 @@ def create_orchestrator_agents(flock: Flock):
             """
         )
         .consumes(ImplementRequest)
+        .with_mcps(format_mcp_config_for_agent("orchestrator"))
         .publishes(
             PhaseStart,
             ImplementationTask,
@@ -179,6 +182,7 @@ def create_orchestrator_agents(flock: Flock):
             """
         )
         .consumes(AnalyzeRequest)
+        .with_mcps(format_mcp_config_for_agent("orchestrator"))
         .publishes(
             ResearchTask,
             DocumentationUpdate,
@@ -203,6 +207,7 @@ def create_orchestrator_agents(flock: Flock):
                 timeout=timedelta(minutes=3),
             ),
         )
+        .with_mcps(format_mcp_config_for_agent("documenter"))
         .publishes(DocumentationUpdate)
     )
 
@@ -231,6 +236,7 @@ def create_orchestrator_agents(flock: Flock):
             """
         )
         .consumes(RefactorRequest)
+        .with_mcps(format_mcp_config_for_agent("orchestrator"))
         .publishes(
             ImplementationTask,  # Reuse implementation tasks for refactoring
             ValidationRequest,
