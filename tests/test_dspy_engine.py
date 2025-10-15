@@ -15,6 +15,7 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, Field
 
+from flock.agent import OutputGroup
 from flock.artifacts import Artifact
 from flock.engines.dspy_engine import (
     DSPyEngine,
@@ -820,8 +821,9 @@ class TestDSPyEngineErrorHandling:
         agent = Mock()
         ctx = Mock()
         inputs = EvalInputs(artifacts=[], state={})
+        output_group = OutputGroup(outputs=[], group_description=None)
 
-        result = await engine.evaluate(agent, ctx, inputs)
+        result = await engine.evaluate(agent, ctx, inputs, output_group)
 
         assert isinstance(result, EvalResult)
         assert len(result.artifacts) == 0
@@ -868,7 +870,8 @@ class TestDSPyEngineErrorHandling:
         engine._choose_program = Mock(return_value=mock_program)
 
         # Should not raise exception
-        result = await engine.evaluate(agent, ctx, inputs)
+        output_group = OutputGroup(outputs=[], group_description=None)
+        result = await engine.evaluate(agent, ctx, inputs, output_group)
 
         assert isinstance(result, EvalResult)
         # Should have log entry with representation of non-serializable object
@@ -913,7 +916,8 @@ class TestDSPyEngineIntegration:
         ctx.orchestrator._active_streams = 0
 
         # Act
-        result = await engine.evaluate(agent, ctx, inputs)
+        output_group = OutputGroup(outputs=[], group_description=None)
+        result = await engine.evaluate(agent, ctx, inputs, output_group)
 
         # Assert
         assert isinstance(result, EvalResult)
@@ -955,8 +959,9 @@ class TestDSPyEngineIntegration:
             Artifact(type="TestInput", payload={"prompt": "two"}, produced_by="test"),
         ]
         inputs = EvalInputs(artifacts=artifacts, state={})
+        output_group = OutputGroup(outputs=[], group_description=None)
 
-        result = await engine.evaluate_batch(agent, ctx, inputs)
+        result = await engine.evaluate_batch(agent, ctx, inputs, output_group)
 
         assert isinstance(result, EvalResult)
         mock_execute.assert_awaited_once()
@@ -1027,7 +1032,8 @@ class TestDSPyEngineIntegration:
         ctx.orchestrator._active_streams = 0
 
         # Act
-        result = await engine.evaluate(agent, ctx, inputs)
+        output_group = OutputGroup(outputs=[], group_description=None)
+        result = await engine.evaluate(agent, ctx, inputs, output_group)
 
         # Assert
         assert isinstance(result, EvalResult)

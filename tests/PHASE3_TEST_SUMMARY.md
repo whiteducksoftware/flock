@@ -49,7 +49,7 @@ class CountingMockEngine:
         self.artifacts_per_call = artifacts_per_call
         self.call_history: list[dict] = []
 
-    async def evaluate(self, agent, ctx, inputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs, output_group) -> EvalResult:
         # Records call, returns predetermined artifacts
         ...
 ```

@@ -34,7 +34,15 @@ class SimpleBatchEngine(EngineComponent):
     verify that all artifacts were processed together.
     """
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        """Process single item (non-batch mode).
+
+        Args:
+            agent: Agent instance
+            ctx: Execution context
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+        """
         item = inputs.first_as(BatchItem)
         if item is None:
             return EvalResult.empty()
@@ -46,7 +54,15 @@ class SimpleBatchEngine(EngineComponent):
 
         return EvalResult.from_object(annotated, agent=agent, state=state)
 
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        """Process batch of accumulated items.
+
+        Args:
+            agent: Agent instance
+            ctx: Execution context
+            inputs: EvalInputs with batch of input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+        """
         items = inputs.all_as(BatchItem)
         if not items:
             return EvalResult.empty()

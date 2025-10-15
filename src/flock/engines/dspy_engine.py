@@ -152,10 +152,32 @@ class DSPyEngine(EngineComponent):
         description="Enable caching of DSPy program results",
     )
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:  # type: ignore[override]
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
+        """Standard evaluation for single artifact processing.
+
+        Args:
+            agent: Agent instance
+            ctx: Execution context
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+
+        Returns:
+            EvalResult with artifacts matching output_group specifications
+        """
         return await self._evaluate_internal(agent, ctx, inputs, batched=False)
 
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:  # type: ignore[override]
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
+        """Batch evaluation for processing multiple artifacts together.
+
+        Args:
+            agent: Agent instance
+            ctx: Execution context
+            inputs: EvalInputs with batch of input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+
+        Returns:
+            EvalResult with processed artifacts
+        """
         return await self._evaluate_internal(agent, ctx, inputs, batched=True)
 
     async def _evaluate_internal(

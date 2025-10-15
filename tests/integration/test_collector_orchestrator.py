@@ -43,7 +43,7 @@ class Tagline(BaseModel):
 class MovieEngine(EngineComponent):
     """Test engine that generates movie from idea."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         idea = inputs.artifacts[0].payload
         movie = Movie(
             title=f"{idea['topic'].upper()} - THE MOVIE",
@@ -56,7 +56,7 @@ class MovieEngine(EngineComponent):
 class TaglineEngine(EngineComponent):
     """Test engine that generates tagline from movie."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         movie = inputs.artifacts[0].payload
         tagline = Tagline(tagline=f"{movie['title']}: Coming Soon!")
         return EvalResult.from_object(tagline, agent=agent)
@@ -73,6 +73,7 @@ async def test_full_lifecycle_event_capture():
     movie_agent = (
         orchestrator.agent("movie")
         .consumes(Idea)
+        .publishes(Movie)
         .with_utilities(collector)
         .with_engines(MovieEngine())
     )
@@ -80,6 +81,7 @@ async def test_full_lifecycle_event_capture():
     (
         orchestrator.agent("tagline")
         .consumes(Movie)
+        .publishes(Tagline)
         .with_utilities(collector)
         .with_engines(TaglineEngine())
     )
@@ -126,6 +128,7 @@ async def test_correlation_id_flow_through_pipeline():
     movie_agent = (
         orchestrator.agent("movie")
         .consumes(Idea)
+        .publishes(Movie)
         .with_utilities(collector)
         .with_engines(MovieEngine())
     )
@@ -133,6 +136,7 @@ async def test_correlation_id_flow_through_pipeline():
     (
         orchestrator.agent("tagline")
         .consumes(Movie)
+        .publishes(Tagline)
         .with_utilities(collector)
         .with_engines(TaglineEngine())
     )
@@ -159,13 +163,14 @@ async def test_error_event_capture():
 
     # Create engine that fails
     class FailingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             raise ValueError("Intentional test error")
 
     # Create agent with failing engine
     failing_agent = (
         orchestrator.agent("failing_agent")
         .consumes(Idea)
+        .publishes(Idea)
         .with_utilities(collector)
         .with_engines(FailingEngine())
     )
@@ -197,12 +202,13 @@ async def test_multiple_runs_accumulate_events():
 
     # Create simple agent
     class EchoEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             return EvalResult(artifacts=inputs.artifacts)
 
     agent = (
         orchestrator.agent("echo")
         .consumes(Idea)
+        .publishes(Idea)
         .with_utilities(collector)
         .with_engines(EchoEngine())
     )
@@ -227,13 +233,14 @@ async def test_concurrent_agents_event_capture():
 
     # Create two independent agents with higher concurrency
     class FastEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             await asyncio.sleep(0.01)  # Small delay
             return EvalResult(artifacts=inputs.artifacts)
 
     agent1 = (
         orchestrator.agent("agent1")
         .consumes(Idea)
+        .publishes(Idea)
         .with_utilities(collector)
         .with_engines(FastEngine())
     )
@@ -241,6 +248,7 @@ async def test_concurrent_agents_event_capture():
     agent2 = (
         orchestrator.agent("agent2")
         .consumes(Idea)
+        .publishes(Idea)
         .with_utilities(collector)
         .with_engines(FastEngine())
     )
@@ -275,6 +283,7 @@ async def test_message_published_contains_artifact_payload():
     movie_agent = (
         orchestrator.agent("movie")
         .consumes(Idea)
+        .publishes(Movie)
         .with_utilities(collector)
         .with_engines(MovieEngine())
     )
@@ -310,7 +319,7 @@ async def test_agent_completed_includes_metrics():
 
     # Create engine that sets metrics
     class MetricsEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             result = EvalResult(artifacts=inputs.artifacts)
             result.metrics = {
                 "test_metric": 42,
@@ -321,6 +330,7 @@ async def test_agent_completed_includes_metrics():
     agent = (
         orchestrator.agent("metrics_agent")
         .consumes(Idea)
+        .publishes(Idea)
         .with_utilities(collector)
         .with_engines(MetricsEngine())
     )

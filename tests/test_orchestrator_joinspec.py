@@ -77,7 +77,7 @@ async def test_joinspec_correlates_artifacts_by_same_key():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifacts": inputs.artifacts,
@@ -134,7 +134,7 @@ async def test_joinspec_multiple_correlation_keys_independent():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifacts": inputs.artifacts,
@@ -193,7 +193,7 @@ async def test_joinspec_partial_correlation_waits():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifacts": inputs.artifacts,
@@ -244,7 +244,7 @@ async def test_joinspec_three_way_correlation():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifacts": inputs.artifacts,
@@ -307,7 +307,7 @@ async def test_joinspec_order_independence():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifacts": inputs.artifacts,
@@ -365,7 +365,7 @@ async def test_joinspec_key_extraction_with_nested_fields():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifacts": inputs.artifacts,
@@ -422,7 +422,7 @@ async def test_joinspec_count_based_window():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifacts": inputs.artifacts,
@@ -483,7 +483,7 @@ async def test_joinspec_count_window_with_multiple_correlations():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "correlation_id": inputs.artifacts[0].payload["correlation_id"],
@@ -543,7 +543,7 @@ async def test_joinspec_with_visibility_controls():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifacts": inputs.artifacts,
@@ -603,7 +603,7 @@ async def test_joinspec_with_where_predicate_filters_before_correlation():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifacts": inputs.artifacts,
@@ -659,7 +659,7 @@ async def test_joinspec_correlation_state_isolation_per_agent():
     executed_agent2 = []
 
     class TrackingEngine1(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed_agent1.append(
                 {
                     "agent": agent.name,
@@ -669,7 +669,7 @@ async def test_joinspec_correlation_state_isolation_per_agent():
             return EvalResult(artifacts=[])
 
     class TrackingEngine2(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed_agent2.append(
                 {
                     "agent": agent.name,
@@ -729,7 +729,7 @@ async def test_joinspec_performance_correlation_overhead():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -780,7 +780,7 @@ async def test_joinspec_time_based_expiry_discards_partial_correlation():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {"artifacts": len(inputs.artifacts), "types": [a.type for a in inputs.artifacts]}
             )
@@ -846,18 +846,18 @@ async def test_joinspec_time_expiry_vs_batch_timeout_behavior():
     batch_count = 0
 
     class CorrelationEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             correlation_executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
     class BatchEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             nonlocal batch_count
             batch_count += 1
             batch_executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
-        async def evaluate_batch(self, agent, ctx, inputs):
+        async def evaluate_batch(self, agent, ctx, inputs, output_group):
             nonlocal batch_count
             batch_count += 1
             batch_executed.append(len(inputs.artifacts))

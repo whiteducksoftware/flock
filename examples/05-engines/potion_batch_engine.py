@@ -28,7 +28,15 @@ class PotionRecipe(BaseModel):
 class PotionBatchEngine(EngineComponent):
     """Engine that only reveals its magic once enough ingredients arrive."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        """Process single ingredient (non-batch mode).
+
+        Args:
+            agent: Agent instance
+            ctx: Execution context
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+        """
         # This path only runs if batching is disabled or the accumulator is flushed manually.
         ingredient = inputs.first_as(PotionIngredient)
         if not ingredient:
@@ -46,7 +54,15 @@ class PotionBatchEngine(EngineComponent):
         )
         return EvalResult.from_object(placeholder, agent=agent)
 
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        """Process batch of accumulated ingredients to create potion recipe.
+
+        Args:
+            agent: Agent instance
+            ctx: Execution context
+            inputs: EvalInputs with batch of input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+        """
         ingredients = inputs.all_as(PotionIngredient)
         if not ingredients:
             return EvalResult.empty()

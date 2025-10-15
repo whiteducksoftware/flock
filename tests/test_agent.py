@@ -5,6 +5,7 @@ import asyncio
 import pytest
 from pydantic import BaseModel, Field, PrivateAttr
 
+from flock.agent import OutputGroup
 from flock.artifacts import Artifact
 from flock.components import AgentComponent, EngineComponent
 from flock.registry import flock_type
@@ -61,7 +62,7 @@ class LifecycleTracker(AgentComponent):
 class SimpleEngine(EngineComponent):
     """Simple engine for testing."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         # Create output artifacts
         artifacts = [
             Artifact(
@@ -87,7 +88,7 @@ class StatefulEngine(EngineComponent):
 
     state_tracker: list[str] = Field(default_factory=list)  # Pydantic field with default_factory
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         # Check if state is available
         if "context" in inputs.state:
             self.state_tracker.append(inputs.state["context"])
@@ -97,7 +98,7 @@ class StatefulEngine(EngineComponent):
 class FailingEngine(EngineComponent):
     """Engine that always fails."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         raise ValueError("Test error")
 
 
@@ -115,11 +116,11 @@ class BatchRoutingEngine(EngineComponent):
     def evaluate_batch_calls(self) -> int:
         return self._evaluate_batch_calls
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         self._evaluate_calls += 1
         return EvalResult(artifacts=list(inputs.artifacts), state=dict(inputs.state))
 
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         self._evaluate_batch_calls += 1
         state = dict(inputs.state)
         state["batch_processed"] = True
@@ -270,7 +271,7 @@ async def test_agent_respects_max_concurrency(orchestrator):
     max_concurrent = 0
 
     class SlowEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             concurrent_count.append(1)
             nonlocal max_concurrent
             max_concurrent = max(max_concurrent, len(concurrent_count))
@@ -304,7 +305,7 @@ async def test_agent_best_of_n_selects_highest_score(orchestrator):
     invocation_count = [0]
 
     class ScoredEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             invocation_count[0] += 1
             score = invocation_count[0] * 10  # 10, 20, 30
             return EvalResult(artifacts=[], state={}, metrics={"confidence": score})
@@ -331,7 +332,7 @@ async def test_agent_best_of_one_skips_parallel_execution(orchestrator):
     call_count = [0]
 
     class CountingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             call_count[0] += 1
             return EvalResult(artifacts=[], state={})
 
@@ -362,8 +363,9 @@ async def test_agent_routes_to_evaluate_batch_when_context_is_batch(orchestrator
         is_batch=True,
     )
     inputs = EvalInputs(artifacts=[], state={})
+    output_group = OutputGroup(outputs=[], group_description=None)
 
-    result = await builder.agent._run_engines(ctx, inputs)
+    result = await builder.agent._run_engines(ctx, inputs, output_group)
 
     assert engine.evaluate_batch_calls == 1
     assert engine.evaluate_calls == 0
@@ -383,8 +385,9 @@ async def test_agent_routes_to_evaluate_for_single_execution(orchestrator):
         is_batch=False,
     )
     inputs = EvalInputs(artifacts=[], state={})
+    output_group = OutputGroup(outputs=[], group_description=None)
 
-    result = await builder.agent._run_engines(ctx, inputs)
+    result = await builder.agent._run_engines(ctx, inputs, output_group)
 
     assert engine.evaluate_calls == 1
     assert engine.evaluate_batch_calls == 0
@@ -396,7 +399,7 @@ async def test_agent_batch_mode_without_batch_support_raises(orchestrator):
     """Agent should surface NotImplementedError when engine lacks batch support."""
 
     class NonBatchEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             return EvalResult(artifacts=[], state={})
 
     builder = (
@@ -410,67 +413,67 @@ async def test_agent_batch_mode_without_batch_support_raises(orchestrator):
         is_batch=True,
     )
     inputs = EvalInputs(artifacts=[], state={})
+    output_group = OutputGroup(outputs=[], group_description=None)
 
     with pytest.raises(NotImplementedError) as exc_info:
-        await builder.agent._run_engines(ctx, inputs)
+        await builder.agent._run_engines(ctx, inputs, output_group)
 
     error_message = str(exc_info.value)
     assert "does not support batch processing" in error_message
     assert "non_batch_engine" in error_message  # Agent name included
 
 
-# T061: Agent Output Fallback to State
+# T061: Phase 3 Strict Validation
 @pytest.mark.asyncio
-async def test_agent_output_fallback_to_state(orchestrator):
-    """Test that agent falls back to state when no matching artifact in result."""
+async def test_agent_strict_validation_requires_artifacts(orchestrator):
+    """Phase 3: Engines MUST produce artifacts they declare - no fallback to state."""
     # Arrange
 
-    class StateFallbackEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
-            # Return state with output data instead of artifacts
+    class NonProducingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+            # Phase 3: Engine declares it will produce AgentOutput but doesn't
             return EvalResult(
-                artifacts=[],  # No artifacts!
-                state={"AgentOutput": {"result": "from state"}},  # Data in state
-                metrics={},
+                artifacts=[],  # Contract violation!
+                state={},
             )
 
     agent = (
         orchestrator.agent("test")
         .consumes(AgentInput)
-        .publishes(AgentOutput)
-        .with_engines(StateFallbackEngine())
+        .publishes(AgentOutput)  # Promises to produce AgentOutput
+        .with_engines(NonProducingEngine())
     )
 
-    # Act
-    results = await orchestrator.invoke(agent, AgentInput(data="test"))
-
-    # Assert - Should publish artifact using state data
-    assert len(results) == 1
-    assert results[0].type == "AgentOutput"
-    assert results[0].payload["result"] == "from state"
+    # Act & Assert - Phase 3 strict validation should raise ValueError
+    with pytest.raises(ValueError, match="Engine contract violation"):
+        await orchestrator.invoke(agent, AgentInput(data="test"))
 
 
 @pytest.mark.asyncio
-async def test_agent_no_output_when_no_artifacts_or_state(orchestrator):
-    """Test agent doesn't publish when no artifacts and no state match."""
+async def test_utility_agent_without_publishes_works(orchestrator):
+    """Utility agents without .publishes() can process side effects without producing artifacts."""
     # Arrange
+    side_effects = []
 
-    class EmptyEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
-            return EvalResult(artifacts=[], state={})  # Nothing
+    class SideEffectEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+            # Utility agent - no outputs declared, just side effects
+            side_effects.append(inputs.artifacts[0].payload["data"])
+            return EvalResult(artifacts=[], state={})
 
     agent = (
         orchestrator.agent("test")
         .consumes(AgentInput)
-        .publishes(AgentOutput)
-        .with_engines(EmptyEngine())
+        # NO .publishes() - utility agent!
+        .with_engines(SideEffectEngine())
     )
 
     # Act
     results = await orchestrator.invoke(agent, AgentInput(data="test"))
 
-    # Assert - No outputs published
+    # Assert - No outputs (utility agent), but side effect executed
     assert len(results) == 0
+    assert side_effects == ["test"]
 
 
 # T064: Prevent Self-Trigger Tests
@@ -491,7 +494,7 @@ async def test_agent_prevent_self_trigger_blocks_own_artifacts(orchestrator):
     executed_count = [0]
 
     class CountingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             executed_count[0] += 1
             # Publish same type the agent consumes
             return EvalResult(
@@ -530,7 +533,7 @@ async def test_agent_prevent_self_trigger_disabled_allows_feedback(orchestrator)
     executed_count = [0]
 
     class FeedbackEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             executed_count[0] += 1
             # Always publish (relies on circuit breaker to stop)
             return EvalResult(

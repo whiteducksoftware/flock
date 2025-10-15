@@ -65,7 +65,7 @@ async def test_simple_and_gate_waits_for_both_types(orchestrator):
     class TrackingEngine(EngineComponent):
         """Tracks agent execution with artifact details."""
 
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "agent": agent.name,
@@ -114,7 +114,7 @@ async def test_and_gate_order_independence(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -150,7 +150,7 @@ async def test_three_way_and_gate(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {"count": len(inputs.artifacts), "types": [a.type for a in inputs.artifacts]}
             )
@@ -189,12 +189,12 @@ async def test_multiple_agents_same_types_independent_waiting(orchestrator):
     executed_agent2 = []
 
     class TrackingEngine1(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed_agent1.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
     class TrackingEngine2(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed_agent2.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -227,7 +227,7 @@ async def test_partial_match_does_not_trigger(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(True)
             return EvalResult(artifacts=[])
 
@@ -263,7 +263,7 @@ async def test_and_gate_with_single_type_triggers_immediately(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -294,7 +294,7 @@ async def test_and_gate_does_not_accumulate_across_completions(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "count": len(inputs.artifacts),
@@ -350,7 +350,7 @@ async def test_or_gate_via_chaining(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "trigger_count": len(executed) + 1,
@@ -404,7 +404,7 @@ async def test_mixed_and_or_subscriptions(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifact_count": len(inputs.artifacts),
@@ -458,7 +458,7 @@ async def test_or_gate_does_not_accumulate(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -490,7 +490,7 @@ async def test_three_way_or_gate(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append({"types": [a.type for a in inputs.artifacts]})
             return EvalResult(artifacts=[])
 
@@ -537,7 +537,7 @@ async def test_count_based_and_gate_waits_for_three_as(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifact_count": len(inputs.artifacts),
@@ -582,7 +582,7 @@ async def test_count_based_and_gate_order_independence(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -616,7 +616,7 @@ async def test_mixed_count_and_type_gate(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifact_count": len(inputs.artifacts),
@@ -663,7 +663,7 @@ async def test_count_based_latest_artifacts_win(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "artifact_count": len(inputs.artifacts),
@@ -710,7 +710,7 @@ async def test_agent_receives_list_of_artifacts_for_and_gate(orchestrator):
     received_inputs = []
 
     class InspectionEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             # Capture the inputs object for inspection
             received_inputs.append(
                 {
@@ -749,7 +749,7 @@ async def test_agent_can_access_artifact_payloads_in_and_gate(orchestrator):
     payloads_received = []
 
     class PayloadExtractorEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             # Extract payloads from artifacts
             for artifact in inputs.artifacts:
                 payloads_received.append({"type": artifact.type, "payload": artifact.payload})
@@ -783,7 +783,7 @@ async def test_count_based_gate_provides_all_instances_to_agent(orchestrator):
     received_artifacts = []
 
     class CountInspectorEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             received_artifacts.extend(inputs.artifacts)
             return EvalResult(artifacts=[])
 
@@ -822,7 +822,7 @@ async def test_and_gate_with_visibility_filter(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -862,7 +862,7 @@ async def test_and_gate_with_where_predicate(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append([a.payload["value"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
 
@@ -911,7 +911,7 @@ async def test_and_gate_with_prevent_self_trigger(orchestrator):
     executed = []
 
     class SelfPublishingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             # Publish TypeA (should be ignored by self)
             return EvalResult(
@@ -947,7 +947,7 @@ async def test_and_gate_with_multiple_subscriptions_same_agent(orchestrator):
     executed = []
 
     class MultiSubscriptionEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "count": len(inputs.artifacts),
@@ -999,7 +999,7 @@ async def test_and_gate_performance_latency_target(orchestrator):
     executed = []
 
     class FastEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(time.time())
             return EvalResult(artifacts=[])
 
@@ -1036,7 +1036,7 @@ async def test_and_gate_performance_many_artifacts(orchestrator):
     executed = []
 
     class CountingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 

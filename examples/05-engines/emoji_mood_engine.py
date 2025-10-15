@@ -46,7 +46,15 @@ class EmojiMoodEngine(EngineComponent):
         "curious": "🤔",
     }
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        """Detect mood from message and return emoji representation.
+
+        Args:
+            agent: Agent instance
+            ctx: Execution context
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+        """
         prompt = inputs.first_as(MoodPrompt)
         if not prompt:
             return EvalResult.empty()

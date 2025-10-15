@@ -965,7 +965,7 @@ class CountingMockEngine(EngineComponent):
     def call_history(self) -> list[dict]:
         return self._call_history
 
-    async def evaluate(self, agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
         """Mock evaluate that returns predetermined artifacts."""
         # Record this call
         call_info = {
@@ -985,6 +985,11 @@ class CountingMockEngine(EngineComponent):
 
         # Return EvalResult with the artifacts
         return EvalResult.from_objects(*artifacts_to_return, agent=agent)
+
+    async def evaluate_fanout(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
+        """Mock evaluate_fanout that returns predetermined artifacts (same as evaluate)."""
+        # Fan-out is just evaluate with multiple artifacts of same type
+        return await self.evaluate(agent, ctx, inputs, output_group)
 
 
 # ============================================================================
@@ -1157,7 +1162,7 @@ async def test_each_engine_call_receives_group_specific_context():
     contexts_received: list[Context] = []
 
     class ContextTrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
             # Capture the context
             contexts_received.append(ctx)
 
@@ -1280,7 +1285,7 @@ async def test_engine_calls_are_sequential_not_parallel():
     execution_times: list[float] = []
 
     class SequentialTrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             import time
 
             call_num = len(execution_order) + 1
@@ -1346,7 +1351,7 @@ async def test_error_in_group_stops_subsequent_groups():
     call_count = 0
 
     class FailingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             nonlocal call_count
             call_count += 1
 

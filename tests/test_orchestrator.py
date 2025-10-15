@@ -35,7 +35,7 @@ class SpyEngine(EngineComponent):
         super().__init__()
         self._recordings = recordings
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         if self._recordings is not None:
             self._recordings.append(agent.name)
         return EvalResult(artifacts=list(inputs.artifacts))
@@ -82,7 +82,7 @@ async def test_orchestrator_schedules_matching_agent(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(agent.name)
             return EvalResult(artifacts=[])
 
@@ -103,7 +103,7 @@ async def test_orchestrator_skips_non_matching_agent(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(agent.name)
             return EvalResult(artifacts=[])
 
@@ -124,7 +124,7 @@ async def test_orchestrator_schedules_multiple_agents(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(agent.name)
             return EvalResult(artifacts=[])
 
@@ -148,7 +148,7 @@ async def test_orchestrator_prevents_duplicate_processing(orchestrator):
     execution_count = []
 
     class CountingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             execution_count.append(1)
             return EvalResult(artifacts=[])
 
@@ -177,7 +177,7 @@ async def test_orchestrator_enforces_private_visibility(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(agent.name)
             return EvalResult(artifacts=[])
 
@@ -223,7 +223,7 @@ async def test_run_until_idle_waits_for_tasks(orchestrator):
     completed = []
 
     class SlowEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             await asyncio.sleep(0.1)  # Simulate slow operation
             completed.append(agent.name)
             return EvalResult(artifacts=[])
@@ -245,7 +245,7 @@ async def test_concurrent_artifact_publishing(orchestrator):
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -351,7 +351,7 @@ async def test_orchestrator_direct_invoke_with_dict_input():
     executed = []
 
     class TrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(True)
             return EvalResult(artifacts=[])
 
@@ -398,7 +398,7 @@ async def test_orchestrator_circuit_breaker_limits_iterations():
     executed_count = [0]
 
     class InfiniteEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed_count[0] += 1
             # Always publish new artifact (would loop forever without circuit breaker)
             return EvalResult(
@@ -463,7 +463,7 @@ async def test_agent_consuming_and_publishing_same_type_does_not_loop(orchestrat
     executed_count = [0]
 
     class SelfPublishingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             executed_count[0] += 1
             # Publish same type (would loop if not prevented)
             return EvalResult(
@@ -512,11 +512,11 @@ async def test_context_is_batch_flag_propagation():
     context_flags = []
 
     class ContextSpyEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             context_flags.append(ctx.is_batch)
             return EvalResult(artifacts=list(inputs.artifacts))
 
-        async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             context_flags.append(ctx.is_batch)
             return EvalResult(artifacts=list(inputs.artifacts))
 

@@ -103,7 +103,7 @@ async def test_engine_pre_generates_artifact_ids():
     generated_ids = []
 
     class IDCapturingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             # Create artifact with explicit ID
             artifact_id = UUID("12345678-1234-5678-1234-567812345678")
             generated_ids.append(artifact_id)
@@ -143,7 +143,7 @@ async def test_engine_handles_evaluation_errors_gracefully():
     errors_collected = []
 
     class ErrorCollectingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             try:
                 raise RuntimeError("Evaluation failed")
             except Exception as e:

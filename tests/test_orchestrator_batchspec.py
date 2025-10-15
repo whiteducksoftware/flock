@@ -22,6 +22,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from flock import Flock
+from flock.agent import OutputGroup
 from flock.artifacts import Artifact
 from flock.components import EngineComponent
 from flock.engines.examples import SimpleBatchEngine
@@ -35,9 +36,9 @@ from flock.subscription import BatchSpec
 class BaseBatchTestEngine(EngineComponent):
     """Test helper ensuring batch executions reuse single-artifact logic."""
 
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
         # Default behaviour for tests: reuse evaluate() implementation.
-        return await self.evaluate(agent, ctx, inputs)
+        return await self.evaluate(agent, ctx, inputs, output_group)
 
 
 from pydantic import BaseModel
@@ -83,7 +84,7 @@ async def test_batchspec_flushes_on_size_threshold():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(
                 {
                     "batch_size": len(inputs.artifacts),
@@ -128,7 +129,7 @@ async def test_batchspec_continues_batching_after_flush():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append([a.payload["id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
 
@@ -161,7 +162,7 @@ async def test_batchspec_partial_batch_stays_pending():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -194,12 +195,12 @@ async def test_batchspec_multiple_agents_independent_batches():
     executed_agent2 = []
 
     class TrackingEngine1(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed_agent1.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
     class TrackingEngine2(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed_agent2.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -244,7 +245,7 @@ async def test_batchspec_with_single_type_subscription():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append([a.payload["id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
 
@@ -284,7 +285,7 @@ async def test_batchspec_flushes_on_timeout():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -330,7 +331,7 @@ async def test_batchspec_size_or_timeout_whichever_first():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -379,7 +380,7 @@ async def test_batchspec_timeout_resets_after_flush():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -428,7 +429,7 @@ async def test_batchspec_shutdown_flushes_partial_batch():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
@@ -474,7 +475,7 @@ async def test_batchspec_with_visibility_filters_before_batching():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append([a.payload["id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
 
@@ -514,7 +515,7 @@ async def test_batchspec_with_where_predicate_filters_before_batching():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append([a.payload["id"] for a in inputs.artifacts])
             return EvalResult(artifacts=[])
 
@@ -581,7 +582,7 @@ async def test_batch_spec_with_non_batch_engine_logs_error(caplog):
     """
 
     class NonBatchEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
             return EvalResult.empty()
 
     orchestrator = Flock()
@@ -617,8 +618,9 @@ async def test_batch_spec_with_non_batch_engine_logs_error(caplog):
 
     dummy_agent = MagicMock()
     dummy_agent.name = "dummy_agent"
+    output_group = OutputGroup(outputs=[], group_description=None)
     with pytest.raises(NotImplementedError):
-        await engine.evaluate_batch(dummy_agent, MagicMock(), inputs)
+        await engine.evaluate_batch(dummy_agent, MagicMock(), inputs, output_group)
 
 
 @pytest.mark.asyncio
@@ -636,7 +638,7 @@ async def test_batchspec_performance_batching_overhead():
     executed = []
 
     class TrackingEngine(BaseBatchTestEngine):
-        async def evaluate(self, agent, ctx, inputs):
+        async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 

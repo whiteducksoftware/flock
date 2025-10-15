@@ -454,7 +454,8 @@ def test_agent_output_validate_list_works_with_real_validation():
     # Act
     valid_report = TestReport(title="Good Report", score=85)
     invalid_title_report = TestReport(title="AB", score=50)
-    invalid_score_report = TestReport(title="Good", score=150)
+    # Use model_construct to bypass Pydantic validation for testing custom validators
+    invalid_score_report = TestReport.model_construct(title="Good", score=150)
 
     # Assert - Test each validator
     title_validator, title_msg = output.validate_predicate[0]

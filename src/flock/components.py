@@ -14,7 +14,7 @@ from flock.logging.auto_trace import AutoTracedMeta
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from uuid import UUID
 
-    from flock.agent import Agent
+    from flock.agent import Agent, OutputGroup
     from flock.artifacts import Artifact
     from flock.runtime import Context, EvalInputs, EvalResult
 
@@ -109,11 +109,25 @@ class EngineComponent(AgentComponent):
         default_factory=set, description="Artifact types to exclude from context"
     )
 
-    async def evaluate(self, agent: Agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
-        """Override this method in your engine implementation."""
+    async def evaluate(
+        self, agent: Agent, ctx: Context, inputs: EvalInputs, output_group: OutputGroup
+    ) -> EvalResult:
+        """Override this method in your engine implementation.
+
+        Args:
+            agent: Agent instance executing this engine
+            ctx: Execution context
+            inputs: EvalInputs with input artifacts
+            output_group: OutputGroup defining what artifacts to produce
+
+        Returns:
+            EvalResult with artifacts matching output_group specifications
+        """
         raise NotImplementedError
 
-    async def evaluate_batch(self, agent: Agent, ctx: Context, inputs: EvalInputs) -> EvalResult:
+    async def evaluate_batch(
+        self, agent: Agent, ctx: Context, inputs: EvalInputs, output_group: OutputGroup
+    ) -> EvalResult:
         """Process batch of accumulated artifacts (BatchSpec).
 
         Override this method if your engine supports batch processing.
@@ -122,6 +136,7 @@ class EngineComponent(AgentComponent):
             agent: Agent instance executing this engine
             ctx: Execution context (ctx.is_batch will be True)
             inputs: EvalInputs with inputs.artifacts containing batch items
+            output_group: OutputGroup defining what artifacts to produce
 
         Returns:
             EvalResult with processed artifacts
@@ -130,7 +145,7 @@ class EngineComponent(AgentComponent):
             NotImplementedError: If engine doesn't support batching
 
         Example:
-            >>> async def evaluate_batch(self, agent, ctx, inputs):
+            >>> async def evaluate_batch(self, agent, ctx, inputs, output_group):
             ...     events = inputs.all_as(Event)  # Get ALL items
             ...     results = await bulk_process(events)
             ...     return EvalResult.from_objects(*results, agent=agent)
@@ -142,6 +157,55 @@ class EngineComponent(AgentComponent):
             f"2. Implement evaluate_batch() in {self.__class__.__name__}, OR\n"
             f"3. Use a batch-aware engine (e.g., CustomBatchEngine)\n\n"
             f"Agent: {agent.name}\n"
+            f"Engine: {self.__class__.__name__}"
+        )
+
+    async def evaluate_fanout(
+        self,
+        agent: Agent,
+        ctx: Context,
+        inputs: EvalInputs,
+        output_group: OutputGroup,
+    ) -> EvalResult:
+        """Generate multiple outputs for an OutputGroup (fan-out).
+
+        Override this method if your engine supports fan-out generation.
+        The output_group parameter tells the engine exactly what types and counts to produce.
+
+        Args:
+            agent: Agent instance executing this engine
+            ctx: Execution context
+            inputs: EvalInputs with input artifacts
+            output_group: The OutputGroup defining what to generate (types, counts, description)
+
+        Returns:
+            EvalResult with artifacts matching output_group specifications
+
+        Raises:
+            NotImplementedError: If engine doesn't support fan-out
+
+        Example:
+            >>> async def evaluate_fanout(self, agent, ctx, inputs, output_group):
+            ...     # Inspect output_group to know what to produce
+            ...     count = output_group.outputs[0].count
+            ...     artifact_type = output_group.outputs[0].spec.type_name
+            ...     description = output_group.group_description
+            ...
+            ...     # For LLM engines: enhance prompt with count and description
+            ...     # For rule engines: run logic `count` times with different seeds
+            ...     # For ML engines: sample `count` times from model distribution
+            ...     results = await self.generate_multiple(inputs, count)
+            ...     return EvalResult.from_objects(*results, agent=agent)
+        """
+        count = output_group.outputs[0].count if output_group.outputs else 1
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support fan-out generation.\n\n"
+            f"To fix this:\n"
+            f"1. Remove fan_out parameter from .publishes(), OR\n"
+            f"2. Implement evaluate_fanout() in {self.__class__.__name__}, OR\n"
+            f"3. Use a fan-out-aware engine (e.g., DSPyEngine)\n\n"
+            f"Agent: {agent.name}\n"
+            f"Requested count: {count}\n"
             f"Engine: {self.__class__.__name__}"
         )
 
