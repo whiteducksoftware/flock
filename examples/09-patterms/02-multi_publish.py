@@ -2,6 +2,7 @@ import asyncio
 
 from pydantic import BaseModel
 
+from flock.engines.dspy_engine import DSPyEngine
 from flock.orchestrator import Flock
 from flock.registry import flock_type
 
@@ -32,7 +33,7 @@ flock = Flock()
 
 
 # Multi-Publish
-multi_master = flock.agent("multi_master").consumes(Idea).publishes(Movie, Book)
+multi_master = flock.agent("multi_master").consumes(Idea).publishes(Movie, Book).with_engines(DSPyEngine(stream=False))
 
 
 async def main():
