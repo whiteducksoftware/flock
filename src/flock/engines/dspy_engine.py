@@ -267,27 +267,15 @@ class DSPyEngine(EngineComponent):
         context_history = await self.fetch_conversation_context(ctx)
         has_context = bool(context_history) and self.should_use_context(inputs)
 
-        # Route signature generation: multi-output or backward-compatible single output
-        if output_group and self._needs_multioutput_signature(output_group):
-            # New multi-output path with semantic field naming
-            signature = self._prepare_signature_for_output_group(
-                dspy_mod,
-                agent=agent,
-                inputs=inputs,
-                output_group=output_group,
-                has_context=has_context,
-                batched=batched,
-            )
-        else:
-            # Backward compatible single output path
-            signature = self._prepare_signature_with_context(
-                dspy_mod,
-                description=self.instructions or agent.description,
-                input_schema=input_model,
-                output_schema=output_model,
-                has_context=has_context,
-                batched=batched,
-            )
+        # Generate signature with semantic field naming
+        signature = self._prepare_signature_for_output_group(
+            dspy_mod,
+            agent=agent,
+            inputs=inputs,
+            output_group=output_group,
+            has_context=has_context,
+            batched=batched,
+        )
 
         sys_desc = self._system_description(self.instructions or agent.description)
 
@@ -296,30 +284,15 @@ class DSPyEngine(EngineComponent):
 
         pre_generated_artifact_id = uuid4()
 
-        # Build execution payload: route between semantic fields (multi-output) and legacy (backward compat)
-        if output_group and self._needs_multioutput_signature(output_group):
-            # New multi-output path: semantic field names matching signature
-            execution_payload = self._prepare_execution_payload_for_output_group(
-                inputs,
-                output_group,
-                batched=batched,
-                has_context=has_context,
-                context_history=context_history,
-                sys_desc=sys_desc,
-            )
-        # Backward compatible single output path: use "input" field
-        elif batched:
-            execution_payload = {"input": validated_input}
-            if has_context:
-                execution_payload["context"] = context_history
-        elif has_context:
-            execution_payload = {
-                "input": validated_input,
-                "context": context_history,
-            }
-        else:
-            # Backwards compatible - direct input
-            execution_payload = validated_input
+        # Build execution payload with semantic field names matching signature
+        execution_payload = self._prepare_execution_payload_for_output_group(
+            inputs,
+            output_group,
+            batched=batched,
+            has_context=has_context,
+            context_history=context_history,
+            sys_desc=sys_desc,
+        )
 
         # Merge native tools with MCP tools
         native_tools = list(agent.tools or [])
@@ -387,6 +360,7 @@ class DSPyEngine(EngineComponent):
                             agent=agent,
                             ctx=ctx,
                             pre_generated_artifact_id=pre_generated_artifact_id,
+                            output_group=output_group,
                         )
                     else:
                         # CLI mode: Rich streaming with terminal display
@@ -405,6 +379,7 @@ class DSPyEngine(EngineComponent):
                             agent=agent,
                             ctx=ctx,
                             pre_generated_artifact_id=pre_generated_artifact_id,
+                            output_group=output_group,
                         )
                     if not self.no_output and ctx:
                         ctx.state["_flock_stream_live_active"] = True
@@ -426,17 +401,12 @@ class DSPyEngine(EngineComponent):
                     if orchestrator and hasattr(orchestrator, "_active_streams"):
                         orchestrator._active_streams = max(0, orchestrator._active_streams - 1)
 
-        # Route result extraction: multi-output or backward-compatible single output
-        if output_group and self._needs_multioutput_signature(output_group):
-            # New multi-output path: extract semantic fields from Prediction
-            normalized_output = self._extract_multi_output_payload(raw_result, output_group)
-        else:
-            # Backward compatible single output path: extract "output" field
-            normalized_output = self._normalize_output_payload(getattr(raw_result, "output", None))
+        # Extract semantic fields from Prediction
+        normalized_output = self._extract_multi_output_payload(raw_result, output_group)
 
         artifacts, errors = self._materialize_artifacts(
             normalized_output,
-            agent.outputs,
+            output_group.outputs,
             agent.name,
             pre_generated_id=pre_generated_artifact_id,
         )
@@ -619,7 +589,7 @@ class DSPyEngine(EngineComponent):
                 " The 'input' field will contain a list of items representing the batch; "
                 "process the entire collection coherently."
             )
-        instruction += " Return only JSON."
+        #instruction += " Return only JSON."
 
         return signature.with_instructions(instruction)
 
@@ -784,7 +754,7 @@ class DSPyEngine(EngineComponent):
                 f" Generate ALL output fields as specified: {', '.join(output_field_names[1:])}."
             )
 
-        instruction += " Return only valid JSON."
+        # instruction += " Return only valid JSON."
 
         return signature.with_instructions(instruction)
 
@@ -917,7 +887,7 @@ class DSPyEngine(EngineComponent):
     def _system_description(self, description: str | None) -> str:
         if description:
             return description
-        return "Produce a valid output that matches the 'output' schema. Return only JSON."
+        return "Produce a valid output that matches the 'output' schema." #Return only JSON.
 
     def _normalize_output_payload(self, raw: Any) -> dict[str, Any]:
         if isinstance(raw, BaseModel):
@@ -1057,6 +1027,7 @@ class DSPyEngine(EngineComponent):
         agent: Any,
         ctx: Any = None,
         pre_generated_artifact_id: Any = None,
+        output_group=None,
     ) -> tuple[Any, None]:
         """Execute streaming for WebSocket only (no Rich display).
 
@@ -1089,8 +1060,11 @@ class DSPyEngine(EngineComponent):
 
         # Get artifact type name for WebSocket events
         artifact_type_name = "output"
-        if hasattr(agent, "outputs") and agent.outputs:
-            artifact_type_name = agent.outputs[0].spec.type_name
+        # Use output_group.outputs (current group) if available, otherwise fallback to agent.outputs (all groups)
+        outputs_to_display = output_group.outputs if output_group and hasattr(output_group, "outputs") else agent.outputs if hasattr(agent, "outputs") else []
+
+        if outputs_to_display:
+            artifact_type_name = outputs_to_display[0].spec.type_name
 
         # Prepare stream listeners
         listeners = []
@@ -1277,6 +1251,7 @@ class DSPyEngine(EngineComponent):
         agent: Any,
         ctx: Any = None,
         pre_generated_artifact_id: Any = None,
+        output_group=None,
     ) -> Any:
         """Execute DSPy program in streaming mode with Rich table updates."""
         from rich.console import Console
@@ -1340,12 +1315,14 @@ class DSPyEngine(EngineComponent):
 
         # Get the artifact type name from agent configuration
         artifact_type_name = "output"
-        if hasattr(agent, "outputs") and agent.outputs:
-            artifact_type_name = agent.outputs[0].spec.type_name
+        # Use output_group.outputs (current group) if available, otherwise fallback to agent.outputs (all groups)
+        outputs_to_display = output_group.outputs if output_group and hasattr(output_group, "outputs") else agent.outputs if hasattr(agent, "outputs") else []
 
-        for output in agent.outputs:
-            if output.spec.type_name not in artifact_type_name:
-                artifact_type_name += ", " + output.spec.type_name
+        if outputs_to_display:
+            artifact_type_name = outputs_to_display[0].spec.type_name
+            for output in outputs_to_display:
+                if output.spec.type_name not in artifact_type_name:
+                    artifact_type_name += ", " + output.spec.type_name
 
         display_data["type"] = artifact_type_name
         display_data["payload"] = OrderedDict()
