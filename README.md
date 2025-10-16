@@ -510,6 +510,61 @@ agent.publishes(PublicReport, visibility=PublicVisibility())
 
 **Why this matters:** Financial services, healthcare, defense, SaaS platforms all need this for compliance. Other frameworks make you build it yourself.
 
+### Context Providers (The Smart Filter)
+
+**Control what agents see with custom Context Providers:**
+
+```python
+from flock.context_provider import FilteredContextProvider, PasswordRedactorProvider
+from flock.store import FilterConfig
+
+# Global filtering - all agents see only urgent items
+flock = Flock(
+    "openai/gpt-4.1",
+    context_provider=FilteredContextProvider(FilterConfig(tags={"urgent"}))
+)
+
+# Per-agent overrides - specialized context per agent
+error_agent = flock.agent("errors").consumes(Log).publishes(Alert)
+error_agent.context_provider = FilteredContextProvider(FilterConfig(tags={"ERROR"}))
+
+# Production-ready password filtering
+from examples.context_provider import PasswordRedactorProvider
+flock = Flock(
+    "openai/gpt-4.1",
+    context_provider=PasswordRedactorProvider()  # Auto-redacts sensitive data!
+)
+```
+
+**What just happened:**
+- ✅ **Filtered context** - Agents see only relevant artifacts (save tokens, improve performance)
+- ✅ **Security boundary** - Visibility enforcement + custom filtering (mandatory, cannot bypass)
+- ✅ **Sensitive data protection** - Auto-redact passwords, API keys, credit cards, SSN, JWT tokens
+- ✅ **Per-agent specialization** - Different agents, different context rules
+
+**Production patterns:**
+```python
+# Password/secret redaction (copy-paste ready!)
+provider = PasswordRedactorProvider(
+    custom_patterns={"internal_id": r"ID-\d{6}"},
+    redaction_text="[REDACTED]"
+)
+
+# Role-based access control
+junior_agent.context_provider = FilteredContextProvider(FilterConfig(tags={"ERROR"}))
+senior_agent.context_provider = FilteredContextProvider(FilterConfig(tags={"ERROR", "WARN"}))
+admin_agent.context_provider = None  # See everything (uses default)
+
+# Multi-tenant isolation
+agent.context_provider = FilteredContextProvider(
+    FilterConfig(tags={"tenant:customer_123"})
+)
+```
+
+**Why this matters:** Reduce token costs (90%+ with smart filtering), protect sensitive data (auto-redact secrets), improve performance (agents see only what they need).
+
+**📖 [Learn more: Context Providers Guide](https://whiteducksoftware.github.io/flock/guides/context-providers/) | [Steal production code →](examples/08-context-provider/)**
+
 ### Batching Pattern: Parallel Execution Control
 
 **A key differentiator:** The separation of `publish()` and `run_until_idle()` enables parallel execution.

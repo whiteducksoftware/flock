@@ -107,6 +107,7 @@ For deep dives into specific topics, see:
 **Core Architecture:**
 - **[Architecture & Blackboard](docs/guides/blackboard.md)** - Core pattern, structure, and behavior
 - **[Agent Guide](docs/guides/agents.md)** - Complete agent development reference
+- **[Context Providers](docs/guides/context-providers.md)** - Smart filtering & security boundaries for agent context ⭐ **NEW in 0.5**
 
 **Components & Extensibility:**
 - **[Agent Components](docs/guides/components.md)** - Extend agent behavior with lifecycle hooks
@@ -293,6 +294,277 @@ await flock.run_until_idle()
 Kick the tyres with `examples/02-the-blackboard/01_persistent_pizza.py`, then launch `examples/03-the-dashboard/04_persistent_pizza_dashboard.py` to inspect the retained history alongside live WebSocket updates.
 
 > **Heads-up:** The interface now returns `ArtifactEnvelope` objects when `embed_meta=True`. Future backends (Postgres, BigQuery, etc.) can implement the same contract to plug straight into the runtime and dashboard.
+
+---
+
+### 🔐 Context Providers - Smart Filtering & Security Boundaries
+
+**Context Providers are the intelligent filter layer between agents and the blackboard—controlling what each agent sees, reducing token costs by 90%+, and automatically redacting sensitive data.**
+
+#### Why Context Providers Matter
+
+**The Problem:**
+- Agents seeing ALL artifacts wastes tokens (costs)
+- No way to filter sensitive data before agents see it
+- Performance degrades as blackboard grows
+- Security vulnerabilities if agents bypass visibility
+
+**The Solution:**
+Context Providers enforce a security boundary that:
+- ✅ **Reduces token costs** - Agents see only relevant artifacts (90%+ savings)
+- ✅ **Protects sensitive data** - Auto-redact passwords, API keys, credit cards
+- ✅ **Improves performance** - Less context = faster agent execution
+- ✅ **Enforces security** - Agents cannot bypass provider filtering
+
+#### Quick Start: Global Filtering
+
+**Filter all agents to see only urgent items:**
+
+```python
+from flock import Flock
+from flock.context_provider import FilteredContextProvider
+from flock.store import FilterConfig
+
+# Create provider that filters by tags
+urgent_only = FilteredContextProvider(
+    FilterConfig(tags={"urgent", "high"}),
+    limit=50  # Max 50 artifacts
+)
+
+# Apply to ALL agents
+flock = Flock("openai/gpt-4.1", context_provider=urgent_only)
+
+# Publish with tags
+await flock.publish(Task(...), tags={"urgent"})  # ✅ Agents see this
+await flock.publish(Task(...), tags={"low"})     # ❌ Agents don't see this
+```
+
+#### Per-Agent Filtering (Role-Based)
+
+**Different agents see different context:**
+
+```python
+# Global: Errors only
+error_provider = FilteredContextProvider(FilterConfig(tags={"ERROR"}))
+flock = Flock("openai/gpt-4.1", context_provider=error_provider)
+
+# Junior engineer: Errors only (uses global)
+junior = flock.agent("junior").consumes(LogEntry).publishes(Report).agent
+
+# Senior engineer: Errors + Warnings (override global)
+warn_provider = FilteredContextProvider(FilterConfig(tags={"ERROR", "WARN"}))
+senior = flock.agent("senior").consumes(LogEntry).publishes(Analysis).agent
+senior.context_provider = warn_provider  # 🎯 Per-agent override!
+
+# Platform team: Everything (override global)
+all_provider = FilteredContextProvider(FilterConfig(tags={"DEBUG", "INFO", "WARN", "ERROR"}))
+platform = flock.agent("platform").consumes(LogEntry).publishes(Report).agent
+platform.context_provider = all_provider
+```
+
+**Provider Priority:**
+```
+Per-Agent Provider  >  Global Provider  >  DefaultContextProvider
+     (highest)            (medium)              (fallback)
+```
+
+#### Production-Ready: Password Redaction
+
+**Automatically redact sensitive data from agent context:**
+
+```python
+from examples.context_provider import PasswordRedactorProvider
+
+# Create provider with built-in patterns
+provider = PasswordRedactorProvider(
+    redaction_text="[REDACTED]",
+    redact_emails=True,
+    log_redactions=True  # Audit trail
+)
+
+flock = Flock("openai/gpt-4.1", context_provider=provider)
+
+# Publish data with secrets
+await flock.publish(UserData(
+    password="MySecret123",           # → [REDACTED]
+    api_key="sk-1234567890abcdef",    # → [REDACTED]
+    email="user@example.com"          # → [REDACTED]
+))
+
+# Agents see redacted version automatically!
+```
+
+**What gets redacted:**
+- 🔒 Passwords and secrets
+- 🔑 API keys (OpenAI, AWS, GitHub, GitLab, Stripe, Google)
+- 🎫 Bearer tokens and JWT
+- 💳 Credit card numbers (Visa, MC, Amex, Discover)
+- 🆔 Social Security Numbers
+- 🔐 Private keys (RSA, EC, OpenSSH)
+- 📧 Email addresses (optional)
+
+#### FilterConfig API Reference
+
+**Declarative filtering with multiple criteria:**
+
+```python
+from flock.store import FilterConfig
+
+# Combine multiple filters (AND logic)
+config = FilterConfig(
+    tags={"ERROR", "CRITICAL"},           # OR logic: any of these tags
+    type_names={"SystemEvent", "Alert"},  # OR logic: any of these types
+    produced_by=["monitor", "watchdog"],  # OR logic: from any of these agents
+    correlation_id="incident-123"         # Exact match
+)
+
+provider = FilteredContextProvider(config, limit=100)
+```
+
+**Criteria are combined with AND logic:**
+- Must have (ERROR OR CRITICAL) tag
+- AND must be (SystemEvent OR Alert) type
+- AND must be from (monitor OR watchdog) agent
+- AND must have correlation_id "incident-123"
+
+#### Custom Context Providers
+
+**Build your own filtering logic:**
+
+```python
+from flock.context_provider import ContextProvider, ContextRequest
+
+class TimeBoundProvider(ContextProvider):
+    """Only show artifacts from last 1 hour."""
+
+    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+        cutoff = datetime.now() - timedelta(hours=1)
+
+        # Query artifacts
+        artifacts, _ = await request.store.query_artifacts(limit=1000)
+
+        # MANDATORY: Filter by visibility
+        visible = [a for a in artifacts if a.visibility.allows(request.agent_identity)]
+
+        # Custom filtering: time-based
+        recent = [a for a in visible if a.created_at >= cutoff]
+
+        return [
+            {
+                "type": a.type,
+                "payload": a.payload,
+                "produced_by": a.produced_by,
+                "created_at": a.created_at,
+                "id": str(a.id),
+                "correlation_id": str(a.correlation_id) if a.correlation_id else None,
+                "tags": list(a.tags) if a.tags else [],
+            }
+            for a in recent
+        ]
+
+# Usage
+provider = TimeBoundProvider()
+flock = Flock("openai/gpt-4.1", context_provider=provider)
+```
+
+#### Real-World Use Cases
+
+**Healthcare (HIPAA Compliance):**
+```python
+# Redact PHI (Protected Health Information)
+from examples.context_provider import PasswordRedactorProvider
+
+phi_provider = PasswordRedactorProvider(
+    custom_patterns={
+        "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
+        "mrn": r"MRN[:\s]*\d{6,10}",
+        "dob": r"\b\d{2}/\d{2}/\d{4}\b",
+    }
+)
+
+flock = Flock("openai/gpt-4.1", context_provider=phi_provider)
+```
+
+**DevOps (Log Filtering):**
+```python
+# Error engineers see only errors
+error_provider = FilteredContextProvider(FilterConfig(tags={"ERROR", "CRITICAL"}))
+error_agent.context_provider = error_provider
+
+# Platform team sees everything
+all_provider = FilteredContextProvider(FilterConfig(tags={"DEBUG", "INFO", "WARN", "ERROR"}))
+platform_agent.context_provider = all_provider
+```
+
+**Multi-Tenant SaaS (Customer Isolation):**
+```python
+# Each tenant gets isolated context
+tenant_a_provider = FilteredContextProvider(FilterConfig(correlation_id=f"tenant_{customer_a.id}"))
+tenant_a_agent.context_provider = tenant_a_provider
+
+tenant_b_provider = FilteredContextProvider(FilterConfig(correlation_id=f"tenant_{customer_b.id}"))
+tenant_b_agent.context_provider = tenant_b_provider
+```
+
+#### Performance Impact
+
+**Token Cost Reduction:**
+
+```python
+# ❌ Before (no filtering): Agent sees 1000 artifacts = 200,000 tokens
+# Cost: $0.006 per agent call
+
+# ✅ After (smart filtering): Agent sees 10 relevant artifacts = 2,000 tokens
+# Cost: $0.00006 per agent call
+
+# 💰 99% cost reduction!
+
+provider = FilteredContextProvider(FilterConfig(tags={"urgent"}), limit=10)
+```
+
+#### Security Best Practices
+
+**✅ DO:**
+- Always enforce visibility (NEVER skip)
+- Use `FilteredContextProvider` for common patterns
+- Test redaction patterns with real data
+- Log security events for audit trails
+- Limit by default (start restrictive)
+
+**❌ DON'T:**
+- Don't skip visibility filtering (security boundary!)
+- Don't leak sensitive data in nested objects
+- Don't cache redacted data without re-applying redaction
+- Don't trust agent input (agents are untrusted)
+- Don't expose infrastructure details
+
+#### Learn More
+
+**📚 Complete Guide:** [docs/guides/context-providers.md](docs/guides/context-providers.md) - Architecture, security model, advanced patterns
+
+**💡 Examples:** [examples/08-context-provider/](examples/08-context-provider/) - 5 progressive examples from beginner to expert
+
+**🎁 Production Code:** [examples/08-context-provider/05_password_redactor.py](examples/08-context-provider/05_password_redactor.py) - Copy-paste ready password filtering
+
+#### Quick Reference
+
+```python
+# Global filtering
+flock = Flock("openai/gpt-4.1", context_provider=FilteredContextProvider(FilterConfig(tags={"urgent"})))
+
+# Per-agent override
+agent.context_provider = FilteredContextProvider(FilterConfig(tags={"ERROR", "WARN"}))
+
+# Password redaction
+from examples.context_provider import PasswordRedactorProvider
+flock = Flock("openai/gpt-4.1", context_provider=PasswordRedactorProvider())
+
+# Custom provider
+class MyProvider(ContextProvider):
+    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+        # Query + filter by visibility (MANDATORY) + your logic
+        pass
+```
 
 ---
 
