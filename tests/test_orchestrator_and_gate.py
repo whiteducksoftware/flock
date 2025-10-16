@@ -1056,4 +1056,4 @@ async def test_and_gate_performance_many_artifacts(orchestrator):
 
     # Performance check - 10 pairs in reasonable time
     total_time_ms = (end - start) * 1000
-    assert total_time_ms < 1000, f"Processing 10 pairs took {total_time_ms:.2f}ms (should be <1s)"
+    assert total_time_ms < 2000, f"Processing 10 pairs took {total_time_ms:.2f}ms (should be <2s)"

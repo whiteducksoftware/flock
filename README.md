@@ -7,8 +7,8 @@
   <img alt="Python Version" src="https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python">
   <a href="LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/github/license/whiteducksoftware/flock?style=for-the-badge"></a>
   <a href="https://whiteduck.de" target="_blank"><img alt="Built by white duck" src="https://img.shields.io/badge/Built%20by-white%20duck%20GmbH-white?style=for-the-badge&labelColor=black"></a>
-  <img alt="Test Coverage" src="https://img.shields.io/badge/coverage-77%25-green?style=for-the-badge">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-743%20passing-brightgreen?style=for-the-badge">
+  <a href="https://codecov.io/gh/whiteducksoftware/flock" target="_blank"><img alt="Test Coverage" src="https://codecov.io/gh/whiteducksoftware/flock/branch/main/graph/badge.svg?token=YOUR_TOKEN_HERE&style=for-the-badge"></a>
+  <img alt="Tests" src="https://img.shields.io/badge/tests-1300+-brightgreen?style=for-the-badge">
 </p>
 
 ---
