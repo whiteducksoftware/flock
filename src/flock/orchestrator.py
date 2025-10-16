@@ -95,6 +95,7 @@ class Flock(metaclass=AutoTracedMeta):
         *,
         store: BlackboardStore | None = None,
         max_agent_iterations: int = 1000,
+        context_provider: Any = None,
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
@@ -104,6 +105,8 @@ class Flock(metaclass=AutoTracedMeta):
             store: Custom blackboard storage backend. Defaults to InMemoryBlackboardStore.
             max_agent_iterations: Circuit breaker limit to prevent runaway agent loops.
                 Defaults to 1000 iterations per agent before reset.
+            context_provider: Global context provider for all agents (Phase 3 security fix).
+                If None, agents use DefaultContextProvider. Can be overridden per-agent.
 
         Examples:
             >>> # Basic initialization with default model
@@ -120,6 +123,13 @@ class Flock(metaclass=AutoTracedMeta):
             ...     "openai/gpt-4.1",
             ...     max_agent_iterations=500
             ... )
+
+            >>> # Global context provider (Phase 3 security fix)
+            >>> from flock.context_provider import DefaultContextProvider
+            >>> flock = Flock(
+            ...     "openai/gpt-4.1",
+            ...     context_provider=DefaultContextProvider()
+            ... )
         """
         self._patch_litellm_proxy_imports()
         self._logger = logging.getLogger(__name__)
@@ -130,6 +140,8 @@ class Flock(metaclass=AutoTracedMeta):
         self._processed: set[tuple[str, str]] = set()
         self._lock = asyncio.Lock()
         self.metrics: dict[str, float] = {"artifacts_published": 0, "agent_runs": 0}
+        # Phase 3: Global context provider (security fix)
+        self._default_context_provider = context_provider
         # MCP integration
         self._mcp_configs: dict[str, FlockMCPConfiguration] = {}
         self._mcp_manager: FlockMCPClientManager | None = None

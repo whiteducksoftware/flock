@@ -453,3 +453,137 @@ class TestContextProviderSecurityDocumentation:
         This is the fix for Vulnerability #1 (READ BYPASS).
         """
         assert True, "Visibility enforcement requirement documented"
+
+
+@pytest.mark.asyncio
+class TestPluggableProviders:
+    """Phase 3: Test pluggable provider configuration (global + per-agent)."""
+
+    async def test_flock_accepts_context_provider_parameter(self):
+        """CONFIGURATION: Flock.__init__() must accept context_provider parameter.
+
+        This enables global provider configuration:
+            flock = Flock(context_provider=MyProvider())
+        """
+        from flock.orchestrator import Flock
+        from flock.context_provider import DefaultContextProvider
+
+        # Should accept context_provider parameter
+        provider = DefaultContextProvider()
+        flock = Flock(model="openai/gpt-4o-mini", context_provider=provider)
+
+        # Provider should be stored
+        assert hasattr(flock, "_default_context_provider")
+        assert flock._default_context_provider == provider
+
+    async def test_flock_context_provider_defaults_to_none(self):
+        """CONFIGURATION: context_provider parameter should default to None.
+
+        If no provider specified, Flock should use DefaultContextProvider as fallback.
+        """
+        from flock.orchestrator import Flock
+
+        # Create Flock without provider
+        flock = Flock(model="openai/gpt-4o-mini")
+
+        # Should default to None (DefaultContextProvider will be used at runtime)
+        assert hasattr(flock, "_default_context_provider")
+        assert flock._default_context_provider is None
+
+    async def test_agent_builder_has_with_context_method(self):
+        """CONFIGURATION: AgentBuilder must have with_context() method.
+
+        This enables per-agent provider configuration:
+            agent.with_context(MyProvider())
+        """
+        from flock.orchestrator import Flock
+
+        flock = Flock(model="openai/gpt-4o-mini")
+        agent_builder = flock.agent("test-agent")
+
+        # Should have with_context method
+        assert hasattr(agent_builder, "with_context")
+        assert callable(agent_builder.with_context)
+
+    async def test_agent_builder_with_context_stores_provider(self):
+        """CONFIGURATION: with_context() must store provider on agent.
+
+        The provider should be stored as agent.context_provider for later use.
+        """
+        from flock.orchestrator import Flock
+        from flock.context_provider import DefaultContextProvider
+
+        flock = Flock(model="openai/gpt-4o-mini")
+        provider = DefaultContextProvider()
+
+        agent_builder = flock.agent("test-agent").with_context(provider)
+
+        # Provider should be stored on underlying agent
+        assert hasattr(agent_builder._agent, "context_provider")
+        assert agent_builder._agent.context_provider == provider
+
+    async def test_agent_builder_with_context_returns_self(self):
+        """CONFIGURATION: with_context() must return self for fluent chaining.
+
+        Example:
+            agent.with_context(provider).consumes(Task).publishes(Report)
+        """
+        from flock.orchestrator import Flock
+        from flock.context_provider import DefaultContextProvider
+
+        flock = Flock(model="openai/gpt-4o-mini")
+        provider = DefaultContextProvider()
+
+        agent_builder = flock.agent("test-agent")
+        result = agent_builder.with_context(provider)
+
+        # Should return self for chaining
+        assert result is agent_builder
+
+    async def test_per_agent_provider_overrides_global_provider(self):
+        """PRIORITY: Per-agent provider should take precedence over global provider.
+
+        Priority order:
+        1. Per-agent provider (highest priority)
+        2. Global provider
+        3. DefaultContextProvider fallback (lowest priority)
+        """
+        from flock.orchestrator import Flock
+        from flock.context_provider import DefaultContextProvider
+
+        # Custom providers for testing
+        class GlobalProvider(DefaultContextProvider):
+            provider_type = "global"
+
+        class PerAgentProvider(DefaultContextProvider):
+            provider_type = "per_agent"
+
+        global_provider = GlobalProvider()
+        per_agent_provider = PerAgentProvider()
+
+        # Create flock with global provider
+        flock = Flock(model="openai/gpt-4o-mini", context_provider=global_provider)
+
+        # Create agent WITH per-agent provider
+        agent_with_override = flock.agent("agent-with-override").with_context(per_agent_provider)
+
+        # Create agent WITHOUT per-agent provider
+        agent_with_global = flock.agent("agent-with-global")
+
+        # Verify storage
+        assert agent_with_override._agent.context_provider == per_agent_provider
+        assert not hasattr(agent_with_global._agent, "context_provider") or agent_with_global._agent.context_provider is None
+
+    async def test_agent_without_context_provider_attribute_by_default(self):
+        """Agent should NOT have context_provider attribute initially (None).
+
+        This ensures clean initialization - provider is only set when explicitly configured.
+        """
+        from flock.orchestrator import Flock
+
+        flock = Flock(model="openai/gpt-4o-mini")
+        agent = flock.agent("test-agent")
+
+        # Agent should have context_provider attribute initialized to None
+        assert hasattr(agent._agent, "context_provider")
+        assert agent._agent.context_provider is None

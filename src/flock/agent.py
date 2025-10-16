@@ -145,6 +145,8 @@ class Agent(metaclass=AutoTracedMeta):
         self.tenant_id: str | None = None
         self.model: str | None = None
         self.prevent_self_trigger: bool = True  # T065: Prevent infinite feedback loops
+        # Phase 3: Per-agent context provider (security fix)
+        self.context_provider: Any = None
         # MCP integration
         self.mcp_server_names: set[str] = set()
         self.mcp_mount_points: list[str] = []  # Deprecated: Use mcp_server_mounts instead
@@ -1111,6 +1113,39 @@ class AgentBuilder:
 
     def with_tools(self, funcs: Iterable[Callable[..., Any]]) -> AgentBuilder:
         self._agent.tools.update(funcs)
+        return self
+
+    def with_context(self, provider: Any) -> AgentBuilder:
+        """Configure a custom context provider for this agent (Phase 3 security fix).
+
+        Context providers control what artifacts an agent can see, enforcing
+        visibility filtering at the security boundary layer.
+
+        Args:
+            provider: ContextProvider instance for this agent
+
+        Returns:
+            self for method chaining
+
+        Examples:
+            >>> # Use custom provider for this agent
+            >>> agent.with_context(MyCustomProvider())
+
+            >>> # Use FilteredContextProvider for declarative filtering
+            >>> agent.with_context(
+            ...     FilteredContextProvider(FilterConfig(tags={"important"}))
+            ... )
+
+        Note:
+            Per-agent provider takes precedence over global provider configured
+            on Flock(context_provider=...). If neither is set, DefaultContextProvider
+            is used automatically.
+
+        See Also:
+            - DefaultContextProvider: Default security boundary with visibility enforcement
+            - FilteredContextProvider: Declarative filtering with FilterConfig
+        """
+        self._agent.context_provider = provider
         return self
 
     def with_mcps(
