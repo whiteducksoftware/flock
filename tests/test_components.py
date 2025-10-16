@@ -10,9 +10,12 @@ from pydantic import BaseModel, Field
 from flock.agent import OutputGroup
 from flock.artifacts import Artifact
 from flock.components import AgentComponent, AgentComponentConfig, EngineComponent
+from flock.context_provider import DefaultContextProvider
 from flock.orchestrator import Flock
 from flock.registry import flock_type
 from flock.runtime import EvalInputs, EvalResult
+from flock.store import FilterConfig
+from flock.visibility import AgentIdentity, PublicVisibility
 
 
 # Test artifact types
@@ -272,7 +275,7 @@ async def test_agent_component_config_with_fields():
 
 @pytest.mark.asyncio
 async def test_engine_component_fetch_conversation_context():
-    """Test EngineComponent.fetch_conversation_context() method."""
+    """Test EngineComponent.fetch_conversation_context() method with secure pattern."""
     # Create mock context and artifacts
     correlation_id = uuid4()
 
@@ -282,6 +285,7 @@ async def test_engine_component_fetch_conversation_context():
         payload={"message": "Hello"},
         produced_by="agent1",
         created_at=datetime.now(timezone.utc),
+        visibility=PublicVisibility(),
     )
 
     artifact2 = Artifact(
@@ -290,6 +294,7 @@ async def test_engine_component_fetch_conversation_context():
         payload={"message": "Hi there!"},
         produced_by="agent2",
         created_at=datetime.now(timezone.utc),
+        visibility=PublicVisibility(),
     )
 
     artifact3 = Artifact(
@@ -298,18 +303,34 @@ async def test_engine_component_fetch_conversation_context():
         payload={"message": "Not related"},
         produced_by="agent3",
         created_at=datetime.now(timezone.utc),
+        visibility=PublicVisibility(),
     )
 
-    mock_board = AsyncMock()
-    mock_board.list = AsyncMock(return_value=[artifact1, artifact2, artifact3])
+    # Create mock store with query_artifacts method that filters by correlation_id
+    async def mock_query_artifacts(filter_config, limit=-1):
+        # Filter artifacts by correlation_id if specified in filter_config
+        target_corr_id = filter_config.correlation_id if hasattr(filter_config, 'correlation_id') else None
+        if target_corr_id:
+            filtered = [a for a in [artifact1, artifact2, artifact3] if str(a.correlation_id) == target_corr_id]
+            return (filtered, None)
+        return ([artifact1, artifact2, artifact3], None)
 
+    mock_store = AsyncMock()
+    mock_store.query_artifacts = mock_query_artifacts
+
+    # Create mock agent with identity
+    mock_agent = MagicMock()
+    mock_agent.identity = AgentIdentity(name="test_agent")
+
+    # Create mock context with new secure pattern
     mock_ctx = MagicMock()
-    mock_ctx.board = mock_board
+    mock_ctx.provider = DefaultContextProvider()  # Use real provider with visibility enforcement
+    mock_ctx.store = mock_store
     mock_ctx.correlation_id = correlation_id
 
     # Test basic context fetching
     engine = EngineComponent()
-    context = await engine.fetch_conversation_context(mock_ctx)
+    context = await engine.fetch_conversation_context(mock_ctx, agent=mock_agent)
 
     assert len(context) == 2  # Only artifacts with matching correlation_id
     assert context[0]["type"] == "user_message"
@@ -324,7 +345,7 @@ async def test_engine_component_fetch_conversation_context():
 
 @pytest.mark.asyncio
 async def test_engine_component_fetch_context_with_max_artifacts():
-    """Test fetch_conversation_context with max_artifacts limit."""
+    """Test fetch_conversation_context with max_artifacts limit using secure pattern."""
     correlation_id = uuid4()
 
     # Create many artifacts
@@ -337,18 +358,28 @@ async def test_engine_component_fetch_context_with_max_artifacts():
             payload={"content": f"Content {i}"},
             produced_by=f"agent_{i}",
             created_at=base_time,
+            visibility=PublicVisibility(),
         )
         artifacts.append(artifact)
 
-    mock_board = AsyncMock()
-    mock_board.list = AsyncMock(return_value=artifacts)
+    # Create mock store with query_artifacts method
+    mock_store = AsyncMock()
+    mock_store.query_artifacts = AsyncMock(return_value=(artifacts, None))
 
+    # Create mock agent with identity
+    mock_agent = MagicMock()
+    mock_agent.identity = AgentIdentity(name="test_agent")
+
+    # Create mock context with new secure pattern
     mock_ctx = MagicMock()
-    mock_ctx.board = mock_board
+    mock_ctx.provider = DefaultContextProvider()
+    mock_ctx.store = mock_store
 
     # Test with max_artifacts parameter
     engine = EngineComponent()
-    context = await engine.fetch_conversation_context(mock_ctx, correlation_id, max_artifacts=3)
+    context = await engine.fetch_conversation_context(
+        mock_ctx, agent=mock_agent, correlation_id=correlation_id, max_artifacts=3
+    )
 
     assert len(context) == 3
     # Should get the last 3 artifacts
@@ -358,7 +389,9 @@ async def test_engine_component_fetch_context_with_max_artifacts():
 
     # Test with instance-level max_artifacts
     engine2 = EngineComponent(context_max_artifacts=5)
-    context2 = await engine2.fetch_conversation_context(mock_ctx, correlation_id)
+    context2 = await engine2.fetch_conversation_context(
+        mock_ctx, agent=mock_agent, correlation_id=correlation_id
+    )
 
     assert len(context2) == 5
     # Should get the last 5 artifacts
@@ -368,7 +401,7 @@ async def test_engine_component_fetch_context_with_max_artifacts():
 
 @pytest.mark.asyncio
 async def test_engine_component_fetch_context_with_exclude_types():
-    """Test fetch_conversation_context with excluded types."""
+    """Test fetch_conversation_context with excluded types using secure pattern."""
     correlation_id = uuid4()
 
     artifact1 = Artifact(
@@ -377,6 +410,7 @@ async def test_engine_component_fetch_context_with_exclude_types():
         payload={"message": "Hello"},
         produced_by="agent1",
         created_at=datetime.now(timezone.utc),
+        visibility=PublicVisibility(),
     )
 
     artifact2 = Artifact(
@@ -385,6 +419,7 @@ async def test_engine_component_fetch_context_with_exclude_types():
         payload={"info": "System info"},
         produced_by="system",
         created_at=datetime.now(timezone.utc),
+        visibility=PublicVisibility(),
     )
 
     artifact3 = Artifact(
@@ -393,17 +428,27 @@ async def test_engine_component_fetch_context_with_exclude_types():
         payload={"message": "Hi there!"},
         produced_by="agent2",
         created_at=datetime.now(timezone.utc),
+        visibility=PublicVisibility(),
     )
 
-    mock_board = AsyncMock()
-    mock_board.list = AsyncMock(return_value=[artifact1, artifact2, artifact3])
+    # Create mock store with query_artifacts method
+    mock_store = AsyncMock()
+    mock_store.query_artifacts = AsyncMock(return_value=([artifact1, artifact2, artifact3], None))
 
+    # Create mock agent with identity
+    mock_agent = MagicMock()
+    mock_agent.identity = AgentIdentity(name="test_agent")
+
+    # Create mock context with new secure pattern
     mock_ctx = MagicMock()
-    mock_ctx.board = mock_board
+    mock_ctx.provider = DefaultContextProvider()
+    mock_ctx.store = mock_store
 
     # Test with excluded types
     engine = EngineComponent(context_exclude_types={"system_log"})
-    context = await engine.fetch_conversation_context(mock_ctx, correlation_id)
+    context = await engine.fetch_conversation_context(
+        mock_ctx, agent=mock_agent, correlation_id=correlation_id
+    )
 
     assert len(context) == 2  # system_log should be excluded
     assert context[0]["type"] == "user_message"
@@ -460,7 +505,7 @@ async def test_engine_component_fetch_context_exception_handling():
 
 @pytest.mark.asyncio
 async def test_engine_component_get_latest_artifact_of_type():
-    """Test EngineComponent.get_latest_artifact_of_type() method."""
+    """Test EngineComponent.get_latest_artifact_of_type() method with secure pattern."""
     correlation_id = uuid4()
 
     artifact1 = Artifact(
@@ -469,6 +514,7 @@ async def test_engine_component_get_latest_artifact_of_type():
         payload={"message": "First message"},
         produced_by="agent1",
         created_at=datetime.now(timezone.utc),
+        visibility=PublicVisibility(),
     )
 
     artifact2 = Artifact(
@@ -477,6 +523,7 @@ async def test_engine_component_get_latest_artifact_of_type():
         payload={"message": "Second message"},
         produced_by="agent1",
         created_at=datetime.now(timezone.utc),
+        visibility=PublicVisibility(),
     )
 
     artifact3 = Artifact(
@@ -485,32 +532,44 @@ async def test_engine_component_get_latest_artifact_of_type():
         payload={"message": "Response"},
         produced_by="agent2",
         created_at=datetime.now(timezone.utc),
+        visibility=PublicVisibility(),
     )
 
-    mock_board = AsyncMock()
-    mock_board.list = AsyncMock(return_value=[artifact1, artifact2, artifact3])
+    # Create mock store with query_artifacts method
+    mock_store = AsyncMock()
+    mock_store.query_artifacts = AsyncMock(return_value=([artifact1, artifact2, artifact3], None))
 
+    # Create mock agent with identity
+    mock_agent = MagicMock()
+    mock_agent.identity = AgentIdentity(name="test_agent")
+
+    # Create mock context with new secure pattern
     mock_ctx = MagicMock()
-    mock_ctx.board = mock_board
+    mock_ctx.provider = DefaultContextProvider()
+    mock_ctx.store = mock_store
 
     engine = EngineComponent()
 
     # Test getting latest user_message
-    latest = await engine.get_latest_artifact_of_type(mock_ctx, "user_message", correlation_id)
+    latest = await engine.get_latest_artifact_of_type(
+        mock_ctx, "user_message", correlation_id, agent=mock_agent
+    )
     assert latest is not None
     assert latest["type"] == "user_message"
     assert latest["payload"] == {"message": "Second message"}  # Should get the latest one
 
     # Test getting assistant_response
     latest = await engine.get_latest_artifact_of_type(
-        mock_ctx, "assistant_response", correlation_id
+        mock_ctx, "assistant_response", correlation_id, agent=mock_agent
     )
     assert latest is not None
     assert latest["type"] == "assistant_response"
     assert latest["payload"] == {"message": "Response"}
 
     # Test getting non-existent type
-    latest = await engine.get_latest_artifact_of_type(mock_ctx, "non_existent", correlation_id)
+    latest = await engine.get_latest_artifact_of_type(
+        mock_ctx, "non_existent", correlation_id, agent=mock_agent
+    )
     assert latest is None
 
 

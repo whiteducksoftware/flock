@@ -79,8 +79,9 @@ async def test_dspy_engine_evaluation_with_mock_llm(orchestrator, mocker):
 
     input_artifact = EngineInput(prompt="test prompt")
 
-    # Act - use publish_outputs=False to avoid double execution
-    await orchestrator.invoke(agent, input_artifact, publish_outputs=False)
+    # Act
+    await orchestrator.invoke(agent, input_artifact)
+    await orchestrator.run_until_idle()
 
     # Assert - should complete without errors and produce artifacts
     artifacts = await orchestrator.store.list()

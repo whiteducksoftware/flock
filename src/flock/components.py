@@ -256,9 +256,20 @@ class EngineComponent(AgentComponent):
         ctx: Context,
         artifact_type: str,
         correlation_id: UUID | None = None,
+        agent: Agent | None = None,
     ) -> dict[str, Any] | None:
-        """Get the most recent artifact of a specific type in the conversation."""
-        context = await self.fetch_conversation_context(ctx, correlation_id)
+        """Get the most recent artifact of a specific type in the conversation.
+
+        Args:
+            ctx: Execution context
+            artifact_type: Type of artifact to find
+            correlation_id: Optional correlation ID override
+            agent: Agent instance for identity/visibility checks (required for security)
+
+        Returns:
+            Latest artifact dict of the specified type, or None if not found
+        """
+        context = await self.fetch_conversation_context(ctx, agent=agent, correlation_id=correlation_id)
         matching = [a for a in context if a["type"].endswith(artifact_type)]
         return matching[-1] if matching else None
 

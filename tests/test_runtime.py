@@ -319,20 +319,20 @@ class TestContext:
     """Tests for Context class."""
 
     def test_context_creation(self):
-        """Test Context creation with required fields."""
-        board = object()  # Mock board
-        orchestrator = object()  # Mock orchestrator
+        """Test Context creation with new secure fields (provider/store instead of board/orchestrator)."""
+        provider = object()  # Mock provider
+        store = object()  # Mock store
         correlation_id = uuid4()
 
         context = Context(
-            board=board,
-            orchestrator=orchestrator,
+            provider=provider,
+            store=store,
             correlation_id=correlation_id,
             task_id="task_123",
         )
 
-        assert context.board is board
-        assert context.orchestrator is orchestrator
+        assert context.provider is provider
+        assert context.store is store
         assert context.correlation_id == correlation_id
         assert context.task_id == "task_123"
         assert context.state == {}
@@ -342,8 +342,8 @@ class TestContext:
         state = {"key": "value", "count": 42}
 
         context = Context(
-            board=None,
-            orchestrator=None,
+            provider=None,
+            store=None,
             task_id="task_456",
             state=state,
         )
@@ -353,8 +353,8 @@ class TestContext:
     def test_get_variable(self):
         """Test get_variable method."""
         context = Context(
-            board=None,
-            orchestrator=None,
+            provider=None,
+            store=None,
             task_id="test",
             state={"var1": "value1", "var2": 123},
         )
@@ -367,8 +367,8 @@ class TestContext:
     def test_context_without_correlation_id(self):
         """Test Context creation without correlation_id."""
         context = Context(
-            board=None,
-            orchestrator=None,
+            provider=None,
+            store=None,
             task_id="task_789",
         )
 
@@ -379,16 +379,16 @@ class TestContext:
         """Test Context.is_batch field defaults to False and can be set to True."""
         # Test default value is False
         context = Context(
-            board=None,
-            orchestrator=None,
+            provider=None,
+            store=None,
             task_id="test_task",
         )
         assert context.is_batch is False
 
         # Test can be set to True
         context_batch = Context(
-            board=None,
-            orchestrator=None,
+            provider=None,
+            store=None,
             task_id="batch_task",
             is_batch=True,
         )
