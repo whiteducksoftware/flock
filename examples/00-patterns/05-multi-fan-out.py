@@ -12,11 +12,17 @@ class Idea(BaseModel):
 
 
 @flock_type
+class Character(BaseModel):
+    name: str
+    potential_actors: dict[str, str] = Field(..., description="Potential actors and reasons why they are a good fit")
+    backstory: str
+
+@flock_type
 class Movie(BaseModel):
     title: str
     genre: str
     director: str
-    cast: list[str]
+    characters: list[Character]
     plot_summary: str
 
 
@@ -48,7 +54,6 @@ multi_master = (
 
 
 async def main():
-    await flock.serve(dashboard=True)
     idea = Idea(story_idea="An action thriller set in space")
     await flock.publish(idea)
     await flock.run_until_idle()

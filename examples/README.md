@@ -1,262 +1,298 @@
-# 🦆 Flock Examples
+# 🦆 Flock Showcase 🦆
 
-Welcome to the Flock examples! This directory contains a carefully curated learning path that takes you from your first "Hello World" agent to advanced multi-agent systems with security controls.
+Welcome to the Flock examples repository! This carefully curated collection takes you from your first "Hello World" agent to advanced multi-agent systems with production-grade patterns.
 
-## 📁 Two Flavors: CLI and Dashboard
+## 📁 Repository Structure
 
-Each example comes in **two versions**:
+### 🏗️ Core Learning Path
 
-- **`01-cli/`** - Run examples from the command line with detailed console output
-- **`02-dashboard/`** - Launch the interactive web dashboard to visualize agent execution
+Start here for a systematic introduction to Flock:
 
-Both versions demonstrate the same concepts, just with different interfaces. Start with CLI to see what's happening under the hood, then switch to dashboard to visualize complex multi-agent interactions.
+#### **`00-patterns/`** - Publishing Patterns Reference
+Quick-reference examples showing different ways agents publish to the blackboard:
+- Single publish (1 input → 1 output)
+- Multi-publish (1 input → multiple types)
+- Fan-out (1 input → multiple instances)
+- Multi fan-out (1 input → multiple instances of multiple types)
 
-## 🎓 Learning Path
+👉 **[View Publishing Patterns Guide →](00-patterns/README.md)**
 
-The examples are ordered by complexity. Start at `01` and work your way up!
+#### **`01-cli/`** - Interactive CLI Examples (15 examples)
+Command-line examples with detailed console output. Perfect for learning and debugging:
+- 🔰 Beginner: Single agents, structured I/O
+- 🛠️ Tool Integration: MCP servers, filesystem access
+- 🔄 Multi-Agent: Pipelines, parallel execution
+- 🔬 Advanced: Tracing, security controls
+- 🚀 Expert: JoinSpec, BatchSpec, combined operations
 
-### 01 - Declarative Pizza 🍕
-**Concept**: Your first Flock agent - declarative agent creation
+👉 **[View CLI Examples Guide →](01-cli/README.md)**
 
-The simplest possible Flock application. One agent, one task, pure magic. Shows you how to:
-- Create a Flock orchestrator
-- Define an agent declaratively
-- Publish a message and let the agent handle it
+#### **`02-dashboard/`** - Visual Dashboard Examples (16 examples)
+Same examples as CLI but with interactive web interface:
+- Real-time agent execution visualization
+- Live WebSocket streaming
+- Agent and blackboard views
+- Manual artifact publishing via UI
 
-**Run it**:
-```bash
-# CLI version
-uv run examples/01-cli/01_declarative_pizza.py
-
-# Dashboard version
-uv run examples/02-dashboard/01_declarative_pizza.py
-```
-
----
-
-### 02 - Input and Output 📝
-**Concept**: Structured data with Pydantic models
-
-Learn how to use Pydantic models for type-safe input and output. Shows you:
-- Defining custom message types with `@flock_type`
-- Simple request/response pattern
-- Type validation and structured data
-
-**Run it**:
-```bash
-uv run examples/01-cli/02_input_and_output.py
-uv run examples/02-dashboard/02_input_and_output.py
-```
+👉 **[View Dashboard Examples Guide →](02-dashboard/README.md)**
 
 ---
 
-### 03 - Code Detective 🔍
-**Concept**: Complex structured outputs
+### 🎓 Structured Learning
 
-A bug diagnosis agent that outputs detailed structured analysis. Demonstrates:
-- Rich Pydantic models with nested data
-- Field descriptions and constraints
-- Real-world structured output patterns
+#### **`03-claudes-workshop/`** - Complete Workshop Course (13 lessons)
+Structured course from beginner to expert with hands-on lessons:
+- **Beginner Track** - First agent, chaining, structured output
+- **Intermediate Track** - Conditional consumption, feedback loops, tracing
+- **Advanced Track** - Security, parallel execution
+- **Expert Track** - JoinSpec correlation, BatchSpec batching, combined features
+- **Architecture Track** - Components, engines, extensibility
 
-**Run it**:
-```bash
-uv run examples/01-cli/03_code_detective.py
-uv run examples/02-dashboard/03_code_detective.py
-```
+👉 **[View Workshop Guide →](03-claudes-workshop/README.md)**
 
 ---
 
-### 04 - Input and Output (Advanced) 📊
-**Concept**: Multi-field structured data
+### 🧩 Advanced Features
 
-More complex input/output patterns with multiple fields and validation. Shows:
-- Advanced Pydantic field types
-- Validation constraints
-- Complex data transformation patterns
+#### **`04-misc/`** - Production Features (5 examples)
+Advanced capabilities and specialized use cases:
+- **Persistent storage** - SQLite blackboard for audit trails
+- **Dashboard edge cases** - Complex multi-agent testing scenarios
+- **Scale testing** - 100+ agent orchestration
+- **LM Studio** - Using local LLMs
 
-**Run it**:
-```bash
-uv run examples/01-cli/04_input_and_output.py
-uv run examples/02-dashboard/04_input_and_output.py
-```
+👉 **[View Advanced Features Guide →](04-misc/README.md)**
 
----
+#### **`05-engines/`** - Custom Processing Logic (2 examples)
+Deterministic business logic without LLM calls:
+- **Zero-cost operations** - Rule-based processing
+- **Hybrid architectures** - Mix LLM and deterministic logic
+- **Pattern matching** - Regex, keywords, calculations
 
-### 05 - MCP and Tools 🛠️
-**Concept**: MCP (Model Context Protocol) integration
+👉 **[View Custom Engines Guide →](05-engines/README.md)**
 
-Connect your agents to external tools and capabilities. Demonstrates:
-- Enabling MCP servers
-- Tool usage in agents
-- Extending agent capabilities beyond pure LLM reasoning
+#### **`06-agent-components/`** - Per-Agent Extensions (2 examples)
+Extend individual agents with lifecycle hooks:
+- **Quality gates** - Validation and filtering
+- **Metrics tracking** - Per-agent KPIs
+- **State injection** - Dynamic behavior modification
 
-**Run it**:
-```bash
-uv run examples/01-cli/05_mcp_and_tools.py
-uv run examples/02-dashboard/05_mcp_and_tools.py
-```
+👉 **[View Agent Components Guide →](06-agent-components/README.md)**
 
----
+#### **`07-orchestrator-components/`** - Global Coordination (2 examples)
+System-wide monitoring and coordination:
+- **Operational dashboards** - Real-time status boards
+- **Alerting** - Threshold-based notifications
+- **Cross-agent correlation** - Track workflows system-wide
 
-### 06 - MCP Roots 📂
-**Concept**: Advanced MCP configuration with filesystem access
-
-Control what parts of your filesystem agents can access. Shows:
-- MCP server configuration with roots
-- Filesystem security boundaries
-- Custom MCP server options
-
-**Run it**:
-```bash
-uv run examples/01-cli/06_mcp_roots.py
-uv run examples/02-dashboard/06_mcp_roots.py
-```
-
----
-
-### 07 - Web Detective 🌐
-**Concept**: MCP + Tools working together
-
-A research agent that combines web search with file tools. Demonstrates:
-- Multiple MCP servers in one application
-- Agents using different tools in concert
-- Real-world research workflow
-
-**Run it**:
-```bash
-uv run examples/01-cli/07_web_detective.py
-uv run examples/02-dashboard/07_web_detective.py
-```
-
----
-
-### 08 - Band Formation 🎸
-**Concept**: Linear multi-agent pipeline
-
-Three agents working in sequence: recruiter → audition → band manager. Shows:
-- Agent-to-agent communication
-- Linear workflow pipelines
-- Message passing between agents
-
-**Run it**:
-```bash
-uv run examples/01-cli/08_band_formation.py
-uv run examples/02-dashboard/08_band_formation.py
-```
-
----
-
-### 09 - Debate Club 🗣️
-**Concept**: Parallel agent execution
-
-Three agents working simultaneously: debater_pro, debater_con, and judge. Demonstrates:
-- Parallel agent activation
-- Multiple agents consuming the same message type
-- Consensus building patterns
-
-**Run it**:
-```bash
-uv run examples/01-cli/09_debate_club.py
-uv run examples/02-dashboard/09_debate_club.py
-```
-
----
-
-### 10 - News Agency 📰
-**Concept**: Complex multi-agent pipeline with multiple inputs
-
-A news organization with reporter, editor, and publisher. Shows:
-- Agents consuming multiple message types
-- Complex coordination patterns
-- Real-world workflow modeling
-
-**Run it**:
-```bash
-uv run examples/01-cli/10_news_agency.py
-uv run examples/02-dashboard/10_news_agency.py
-```
-
----
-
-### 11 - Tracing Detective 🔬
-**Concept**: Observability with traced runs
-
-Track and debug your multi-agent workflows. Demonstrates:
-- Using `flock.traced_run()` for observability
-- Execution tracing
-- Debugging complex agent interactions
-- Trace storage in `.flock/traces.duckdb`
-
-**Run it**:
-```bash
-uv run examples/01-cli/11_tracing_detective.py
-uv run examples/02-dashboard/11_tracing_detective.py
-```
-
----
-
-### 12 - Secret Agents 🕵️
-**Concept**: Visibility controls for sensitive data
-
-Intelligence agency with classified and public information flows. Shows:
-- `Visibility.PRIVATE` for sensitive data
-- `Visibility.PUBLIC` for shareable information
-- Security boundaries in multi-agent systems
-- Protecting classified information while sharing public statements
-
-**Run it**:
-```bash
-uv run examples/01-cli/12_secret_agents.py
-uv run examples/02-dashboard/12_secret_agents.py
-```
+👉 **[View Orchestrator Components Guide →](07-orchestrator-components/README.md)**
 
 ---
 
 ## 🚀 Quick Start
 
-1. **Install Flock**:
-   ```bash
-   uv pip install -e .
-   ```
+### Prerequisites
+- Python 3.10+ with UV package manager
+- OpenAI API key (or LM Studio for local models)
+- Node.js 18+ for dashboard examples
 
-2. **Pick an example** (start with 01):
-   ```bash
-   uv run examples/01-cli/01_declarative_pizza.py
-   ```
+### Installation
 
-3. **Try the dashboard version**:
-   ```bash
-   uv run examples/02-dashboard/01_declarative_pizza.py
-   ```
+```bash
+# Clone and enter repository
+cd flock-showcase
 
-4. **Work through the examples in order** - each builds on concepts from the previous ones!
+# Install dependencies
+uv pip install flock-flow
 
-## 💡 Tips
+# Set up environment
+export OPENAI_API_KEY="sk-..."
+export DEFAULT_MODEL="openai/gpt-4.1"
 
-- **Start with CLI** - See detailed output and understand what's happening
-- **Switch to Dashboard** - Visualize complex multi-agent interactions
-- **Read the code** - Each example is intentionally minimal and well-commented
-- **Experiment** - Modify examples to see how Flock responds
-- **Check traces** - After running example 11, explore `.flock/traces.duckdb`
-
-## 🎯 Key Concepts Progression
-
-```
-Simple → Complex
-Single Agent → Multi-Agent
-Synchronous → Parallel
-Unstructured → Structured
-Local → External Tools
-Open → Secured
+# Verify installation
+uv run python -c "from flock import Flock; print('✅ Ready!')"
 ```
 
-## 📚 Next Steps
+### Your First Example
 
-After completing these examples, you're ready to:
-- Build your own multi-agent systems
-- Integrate custom MCP servers
-- Design complex agent workflows
-- Implement security controls
-- Debug with tracing
+```bash
+# Start with the simplest example
+uv run 01-cli/01_declarative_pizza.py
 
-**Happy building! 🦆**
+# Try the dashboard version
+uv run 02-dashboard/01_declarative_pizza.py
+
+# Or dive into the workshop
+uv run 03-claudes-workshop/lesson_01_code_detective.py
+```
+
+---
+
+## 🎯 Recommended Learning Paths
+
+### Path 1: Quick Start (1-2 hours)
+Perfect for getting a feel for Flock:
+
+1. **Publishing Patterns** - `00-patterns/` (15 min)
+2. **First CLI Example** - `01-cli/01_declarative_pizza.py` (5 min)
+3. **Dashboard Version** - `02-dashboard/01_declarative_pizza.py` (10 min)
+4. **Multi-Agent** - `01-cli/08_band_formation.py` (15 min)
+5. **Advanced Features** - `01-cli/13_medical_diagnostics_joinspec.py` (20 min)
+
+### Path 2: Comprehensive Workshop (6-8 hours)
+For deep understanding:
+
+1. **Workshop Lessons 01-04** - Fundamentals (1.5 hours)
+2. **Workshop Lessons 05-07** - Advanced patterns (2 hours)
+3. **Workshop Lessons 08-10** - Expert logic operations (2.5 hours)
+4. **Workshop Lessons 11-13** - Architecture & extensibility (2 hours)
+
+### Path 3: Production Patterns (3-4 hours)
+For building real systems:
+
+1. **CLI Examples 01-07** - Core patterns (1 hour)
+2. **Persistent Storage** - `04-misc/01_persistent_pizza.py` (30 min)
+3. **Custom Engines** - `05-engines/` (45 min)
+4. **Components** - `06-agent-components/` + `07-orchestrator-components/` (1.5 hours)
+
+---
+
+## 📊 Example Catalog by Feature
+
+### Single Agent Patterns
+- `01-cli/01_declarative_pizza.py` - Simplest example
+- `01-cli/02_input_and_output.py` - Structured I/O
+- `01-cli/03_code_detective.py` - Complex outputs
+
+### Multi-Agent Coordination
+- `01-cli/08_band_formation.py` - Linear pipeline
+- `01-cli/09_debate_club.py` - Parallel execution
+- `01-cli/10_news_agency.py` - Complex coordination
+
+### Tool Integration (MCP)
+- `01-cli/05_mcp_and_tools.py` - Basic MCP
+- `01-cli/06_mcp_roots.py` - Filesystem boundaries
+- `01-cli/07_web_detective.py` - Multi-tool orchestration
+
+### Advanced Logic Operations
+- `01-cli/13_medical_diagnostics_joinspec.py` - JoinSpec (correlation)
+- `01-cli/14_ecommerce_batch_processing.py` - BatchSpec (batching)
+- `01-cli/15_iot_sensor_batching.py` - Combined JoinSpec + BatchSpec
+
+### Observability & Security
+- `01-cli/11_tracing_detective.py` - Distributed tracing
+- `01-cli/12_secret_agents.py` - Visibility controls
+
+### Publishing Patterns
+- `00-patterns/01-single_publish.py` - One output
+- `00-patterns/02-multi_publish.py` - Multiple types
+- `00-patterns/04-fan-out.py` - Multiple instances
+- `00-patterns/05-multi-fan-out.py` - Maximum creativity
+
+### Production Features
+- `04-misc/01_persistent_pizza.py` - SQLite storage
+- `04-misc/03-scale-test-100-agents.py` - Scale testing
+- `04-misc/05_lm_studio.py` - Local LLMs
+
+### Extensibility
+- `05-engines/emoji_mood_engine.py` - Deterministic logic
+- `06-agent-components/cheer_meter_component.py` - Per-agent hooks
+- `07-orchestrator-components/kitchen_monitor_component.py` - Global monitoring
+
+---
+
+## 💡 Tips for Success
+
+### Learning Tips
+- **Start simple** - Begin with `01-cli/01_declarative_pizza.py`
+- **Read the code** - Examples are intentionally minimal and well-commented
+- **Try both interfaces** - CLI for learning, Dashboard for visualization
+- **Enable tracing** - Set `FLOCK_AUTO_TRACE=true` to see what's happening
+- **Experiment** - Modify examples to understand behavior
+
+### Development Tips
+- **Use the workshop** - `03-claudes-workshop/` has detailed lessons
+- **Check folder READMEs** - Each folder has comprehensive guides
+- **Review patterns** - `00-patterns/` for publishing reference
+- **Study components** - Learn extensibility patterns
+
+### Debugging Tips
+- **Enable tracing** - `export FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true`
+- **Query trace DB** - Explore `.flock/traces.duckdb` after running
+- **Use CLI first** - Console output shows exactly what's happening
+- **Check AGENTS.md** - Complete debugging guide in main Flock repo
+
+---
+
+## 🎓 Key Concepts Progression
+
+```
+Publishing Patterns → Single Agent → Multi-Agent → Tools → Logic Operations
+    ↓                      ↓              ↓           ↓           ↓
+Simple Outputs      Structured I/O   Pipelines    MCP      JoinSpec/Batch
+Fan-out             Complex Models   Parallel     Tools    Correlation
+Multi-publish       Validation       Feedback     API      Batching
+```
+
+```
+Observability → Security → Storage → Extensibility
+     ↓              ↓          ↓           ↓
+ Tracing      Visibility  SQLite     Engines
+ Debugging    Private     Audit      Components
+ Metrics      Labels      Replay     Hybrid Logic
+```
+
+---
+
+## 📚 Additional Resources
+
+### Documentation
+- **[AGENTS.md](AGENTS.md)** - Complete AI agent development guide
+- **[Main Flock Repo](https://github.com/whiteducksoftware/flock)** - Framework source
+- **[Official Docs](https://whiteducksoftware.github.io/flock/)** - Comprehensive guides
+
+### Folder READMEs
+Each folder has its own detailed guide:
+- [Publishing Patterns](00-patterns/README.md)
+- [CLI Examples](01-cli/README.md)
+- [Dashboard Examples](02-dashboard/README.md)
+- [Workshop Course](03-claudes-workshop/README.md)
+- [Advanced Features](04-misc/README.md)
+- [Custom Engines](05-engines/README.md)
+- [Agent Components](06-agent-components/README.md)
+- [Orchestrator Components](07-orchestrator-components/README.md)
+
+---
+
+## 🆘 Getting Help
+
+### Common Questions
+- **"Where do I start?"** → `01-cli/01_declarative_pizza.py`
+- **"How do I visualize?"** → `02-dashboard/` examples
+- **"Want structured learning?"** → `03-claudes-workshop/`
+- **"Need production patterns?"** → `04-misc/` + components folders
+
+### Troubleshooting
+1. Check the folder README for specific guidance
+2. Enable tracing: `export FLOCK_AUTO_TRACE=true`
+3. Review AGENTS.md debugging section
+4. Compare CLI vs Dashboard output
+5. Open GitHub issue with details
+
+---
+
+## 🎯 What's Next?
+
+After completing these examples, you'll be ready to:
+- ✅ Build production multi-agent systems
+- ✅ Integrate external tools via MCP
+- ✅ Implement advanced logic operations (joins, batching)
+- ✅ Add observability and security
+- ✅ Extend with custom components and engines
+- ✅ Scale to 100+ agents
+
+**Ready to start? Pick your learning path above! 🚀**
+
+---
+
+*This is a showcase repository for [Flock](https://github.com/whiteducksoftware/flock) - a production-grade blackboard-first AI agent orchestration framework.*
