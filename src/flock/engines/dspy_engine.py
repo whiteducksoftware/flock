@@ -280,27 +280,28 @@ class DSPyEngine(EngineComponent):
 
             # Detect if there's already an active Rich Live context
             should_stream = self.stream
-            orchestrator = getattr(ctx, "orchestrator", None)
-            if orchestrator:
-                is_dashboard = getattr(orchestrator, "is_dashboard", False) if ctx else False
+            # Phase 6+7 Security Fix: Use ctx.state instead of removed ctx.orchestrator
+            if ctx:
+                is_dashboard = ctx.state.get("is_dashboard", False)
                 # if dashboard we always stream, streamin queue only for CLI output
-                if should_stream and ctx and not is_dashboard:
-                    if not hasattr(orchestrator, "_active_streams"):
-                        orchestrator._active_streams = 0
+                if should_stream and not is_dashboard:
+                    # Get current active streams count from ctx.state
+                    active_streams = ctx.state.get("_active_streams", 0)
 
-                    if orchestrator._active_streams > 0:
-                        should_stream = False
+                    if active_streams > 0:
+                        should_stream = False  # Suppress - another agent streaming
                     else:
-                        orchestrator._active_streams += 1
+                        ctx.state["_active_streams"] = active_streams + 1  # Mark as streaming
 
             try:
                 if should_stream:
                     # Choose streaming method based on dashboard mode
-                    is_dashboard = orchestrator and getattr(orchestrator, "is_dashboard", False)
+                    # Phase 6+7 Security Fix: Read from ctx.state instead of removed ctx.orchestrator
+                    is_dashboard = ctx.state.get("is_dashboard", False) if ctx else False
 
                     # DEBUG: Log routing decision
                     logger.info(
-                        f"[STREAMING ROUTER] agent={agent.name}, is_dashboard={is_dashboard}, orchestrator={orchestrator is not None}"
+                        f"[STREAMING ROUTER] agent={agent.name}, is_dashboard={is_dashboard}"
                     )
 
                     if is_dashboard:
@@ -345,22 +346,20 @@ class DSPyEngine(EngineComponent):
                     if not self.no_output and ctx:
                         ctx.state["_flock_stream_live_active"] = True
                 else:
-                    orchestrator = getattr(ctx, "orchestrator", None) if ctx else None
-
                     raw_result = await self._execute_standard(
                         dspy_mod,
                         program,
                         description=sys_desc,
                         payload=execution_payload,
                     )
-                    if ctx and orchestrator and getattr(orchestrator, "_active_streams", 0) > 0:
+                    # Phase 6+7 Security Fix: Check streaming state from ctx.state
+                    if ctx and ctx.state.get("_active_streams", 0) > 0:
                         ctx.state["_flock_output_queued"] = True
             finally:
+                # Phase 6+7 Security Fix: Decrement counter using ctx.state
                 if should_stream and ctx:
-                    if orchestrator is None:
-                        orchestrator = getattr(ctx, "orchestrator", None)
-                    if orchestrator and hasattr(orchestrator, "_active_streams"):
-                        orchestrator._active_streams = max(0, orchestrator._active_streams - 1)
+                    active_streams = ctx.state.get("_active_streams", 0)
+                    ctx.state["_active_streams"] = max(0, active_streams - 1)
 
         # Extract semantic fields from Prediction
         normalized_output = self._extract_multi_output_payload(raw_result, output_group)
@@ -1052,16 +1051,13 @@ class DSPyEngine(EngineComponent):
         """
         logger.info(f"Agent {agent.name}: Starting WebSocket-only streaming (dashboard mode)")
 
-        # Get WebSocketManager
-        ws_manager = None
+        # Get WebSocket broadcast function (security: wrapper prevents object traversal)
+        # Phase 6+7 Security Fix: Use broadcast wrapper from ctx.state (prevents GOD MODE restoration)
+        ws_broadcast = None
         if ctx:
-            orchestrator = getattr(ctx, "orchestrator", None)
-            if orchestrator:
-                collector = getattr(orchestrator, "_dashboard_collector", None)
-                if collector:
-                    ws_manager = getattr(collector, "_websocket_manager", None)
+            ws_broadcast = ctx.state.get("_websocket_broadcast")
 
-        if not ws_manager:
+        if not ws_broadcast:
             logger.warning(
                 f"Agent {agent.name}: No WebSocket manager, falling back to standard execution"
             )
@@ -1152,7 +1148,7 @@ class DSPyEngine(EngineComponent):
                             artifact_type=artifact_type_name,
                         )
                         # Fire-and-forget to avoid blocking DSPy's streaming loop
-                        task = asyncio.create_task(ws_manager.broadcast(event))
+                        task = asyncio.create_task(ws_broadcast(event))
                         ws_broadcast_tasks.add(task)
                         task.add_done_callback(ws_broadcast_tasks.discard)
                         stream_sequence += 1
@@ -1177,7 +1173,7 @@ class DSPyEngine(EngineComponent):
                             artifact_type=artifact_type_name,
                         )
                         # Fire-and-forget to avoid blocking DSPy's streaming loop
-                        task = asyncio.create_task(ws_manager.broadcast(event))
+                        task = asyncio.create_task(ws_broadcast(event))
                         ws_broadcast_tasks.add(task)
                         task.add_done_callback(ws_broadcast_tasks.discard)
                         stream_sequence += 1
@@ -1203,7 +1199,7 @@ class DSPyEngine(EngineComponent):
                             artifact_type=artifact_type_name,
                         )
                         # Fire-and-forget to avoid blocking DSPy's streaming loop
-                        task = asyncio.create_task(ws_manager.broadcast(event))
+                        task = asyncio.create_task(ws_broadcast(event))
                         ws_broadcast_tasks.add(task)
                         task.add_done_callback(ws_broadcast_tasks.discard)
                         stream_sequence += 1
@@ -1228,7 +1224,7 @@ class DSPyEngine(EngineComponent):
                         artifact_type=artifact_type_name,
                     )
                     # Fire-and-forget to avoid blocking DSPy's streaming loop
-                    task = asyncio.create_task(ws_manager.broadcast(event))
+                    task = asyncio.create_task(ws_broadcast(event))
                     ws_broadcast_tasks.add(task)
                     task.add_done_callback(ws_broadcast_tasks.discard)
 
@@ -1246,7 +1242,7 @@ class DSPyEngine(EngineComponent):
                         artifact_type=artifact_type_name,
                     )
                     # Fire-and-forget to avoid blocking DSPy's streaming loop
-                    task = asyncio.create_task(ws_manager.broadcast(event))
+                    task = asyncio.create_task(ws_broadcast(event))
                     ws_broadcast_tasks.add(task)
                     task.add_done_callback(ws_broadcast_tasks.discard)
                 except Exception as e:
@@ -1277,14 +1273,11 @@ class DSPyEngine(EngineComponent):
 
         console = Console()
 
-        # Get WebSocketManager for frontend streaming
-        ws_manager = None
+        # Get WebSocket broadcast function (security: wrapper prevents object traversal)
+        # Phase 6+7 Security Fix: Use broadcast wrapper from ctx.state (prevents GOD MODE restoration)
+        ws_broadcast = None
         if ctx:
-            orchestrator = getattr(ctx, "orchestrator", None)
-            if orchestrator:
-                collector = getattr(orchestrator, "_dashboard_collector", None)
-                if collector:
-                    ws_manager = getattr(collector, "_websocket_manager", None)
+            ws_broadcast = ctx.state.get("_websocket_broadcast")
 
         # Prepare stream listeners for output field
         listeners = []
@@ -1420,7 +1413,7 @@ class DSPyEngine(EngineComponent):
                         display_data["status"] = "".join(stream_buffers[status_field])
 
                         # Emit to WebSocket (non-blocking to prevent deadlock)
-                        if ws_manager and token:
+                        if ws_broadcast and token:
                             try:
                                 event = StreamingOutputEvent(
                                     correlation_id=str(ctx.correlation_id)
@@ -1438,7 +1431,7 @@ class DSPyEngine(EngineComponent):
                                     artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                 )
                                 # Use create_task to avoid blocking the streaming loop
-                                task = asyncio.create_task(ws_manager.broadcast(event))
+                                task = asyncio.create_task(ws_broadcast(event))
                                 ws_broadcast_tasks.add(task)
                                 task.add_done_callback(ws_broadcast_tasks.discard)
                                 stream_sequence += 1
@@ -1465,7 +1458,7 @@ class DSPyEngine(EngineComponent):
                             )
 
                             # Emit to WebSocket (non-blocking to prevent deadlock)
-                            if ws_manager:
+                            if ws_broadcast:
                                 logger.info(
                                     f"[STREAMING] Emitting StreamResponse token='{token}', sequence={stream_sequence}"
                                 )
@@ -1486,7 +1479,7 @@ class DSPyEngine(EngineComponent):
                                         artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                     )
                                     # Use create_task to avoid blocking the streaming loop
-                                    task = asyncio.create_task(ws_manager.broadcast(event))
+                                    task = asyncio.create_task(ws_broadcast(event))
                                     ws_broadcast_tasks.add(task)
                                     task.add_done_callback(ws_broadcast_tasks.discard)
                                     stream_sequence += 1
@@ -1516,7 +1509,7 @@ class DSPyEngine(EngineComponent):
                         display_data["status"] = "".join(stream_buffers[status_field])
 
                     # Emit to WebSocket (non-blocking to prevent deadlock)
-                    if ws_manager and token:
+                    if ws_broadcast and token:
                         try:
                             event = StreamingOutputEvent(
                                 correlation_id=str(ctx.correlation_id)
@@ -1536,7 +1529,7 @@ class DSPyEngine(EngineComponent):
                                 ],  # Phase 6: Artifact type name from display_data
                             )
                             # Use create_task to avoid blocking the streaming loop
-                            task = asyncio.create_task(ws_manager.broadcast(event))
+                            task = asyncio.create_task(ws_broadcast(event))
                             ws_broadcast_tasks.add(task)
                             task.add_done_callback(ws_broadcast_tasks.discard)
                             stream_sequence += 1
@@ -1551,7 +1544,7 @@ class DSPyEngine(EngineComponent):
                     final_result = value
 
                     # Emit final streaming event (non-blocking to prevent deadlock)
-                    if ws_manager:
+                    if ws_broadcast:
                         try:
                             event = StreamingOutputEvent(
                                 correlation_id=str(ctx.correlation_id)
@@ -1569,7 +1562,7 @@ class DSPyEngine(EngineComponent):
                                 artifact_type=display_data["type"],  # Phase 6: Artifact type name
                             )
                             # Use create_task to avoid blocking the streaming loop
-                            task = asyncio.create_task(ws_manager.broadcast(event))
+                            task = asyncio.create_task(ws_broadcast(event))
                             ws_broadcast_tasks.add(task)
                             task.add_done_callback(ws_broadcast_tasks.discard)
                             event = StreamingOutputEvent(
@@ -1588,7 +1581,7 @@ class DSPyEngine(EngineComponent):
                                 artifact_type=display_data["type"],  # Phase 6: Artifact type name
                             )
                             # Use create_task to avoid blocking the streaming loop
-                            task = asyncio.create_task(ws_manager.broadcast(event))
+                            task = asyncio.create_task(ws_broadcast(event))
                             ws_broadcast_tasks.add(task)
                             task.add_done_callback(ws_broadcast_tasks.discard)
                         except Exception as e:

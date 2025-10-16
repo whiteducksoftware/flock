@@ -14,7 +14,7 @@ Run: uv run examples/08-context-provider/01_basic_visibility.py
 """
 
 import asyncio
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from flock import Flock
 from flock.visibility import PublicVisibility, PrivateVisibility
@@ -32,8 +32,8 @@ class Report(BaseModel):
     """A report summarizing what an agent saw."""
 
     agent_name: str
-    messages_seen: int
-    message_contents: list[str]
+    messages_seen: int = Field(description="Number of messages the agent saw, including context")
+    message_contents: list[str] = Field(description="Contents of the messages the agent saw, including context")
 
 
 async def main():
@@ -43,7 +43,7 @@ async def main():
     print()
 
     # Create orchestrator
-    flock = Flock("openai/gpt-4o-mini")
+    flock = Flock()
 
     # Create two agents: one regular, one with clearance
     public_agent = (
@@ -51,7 +51,6 @@ async def main():
         .description("A regular agent without security clearance")
         .consumes(Message)
         .publishes(Report)
-        .agent
     )
 
     classified_agent = (
@@ -59,7 +58,6 @@ async def main():
         .description("An agent with security clearance")
         .consumes(Message)
         .publishes(Report)
-        .agent
     )
 
     # Publish some messages - mix of public and classified
@@ -72,6 +70,7 @@ async def main():
         visibility=PublicVisibility(),
     )
     print("✅ Published PUBLIC message: 'Hello world!'")
+    await flock.run_until_idle()
 
     # Classified message - only classified_agent can see
     await flock.publish(

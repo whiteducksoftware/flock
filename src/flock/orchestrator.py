@@ -134,6 +134,14 @@ class Flock(metaclass=AutoTracedMeta):
         self._patch_litellm_proxy_imports()
         self._logger = logging.getLogger(__name__)
         self.model = model
+
+        
+        try:
+            init_console(clear_screen=True, show_banner=True, model=self.model)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            # Skip banner on Windows consoles with encoding issues (e.g., tests, CI)
+            pass
+
         self.store: BlackboardStore = store or InMemoryBlackboardStore()
         self._agents: dict[str, Agent] = {}
         self._tasks: set[Task[Any]] = set()
@@ -608,10 +616,25 @@ class Flock(metaclass=AutoTracedMeta):
         provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
 
         # Phase 6+7: Create Context with provider and store (NO board/orchestrator)
+        # Initialize streaming coordination state for CLI mode
+        # SECURITY: Create broadcast wrapper to prevent object traversal back to orchestrator
+        ws_manager = getattr(self, "_websocket_manager", None)
+
+        async def _broadcast_wrapper(event):
+            """Isolated broadcast wrapper - no reference chain to orchestrator."""
+            if ws_manager:
+                return await ws_manager.broadcast(event)
+            return None
+
         ctx = Context(
             provider=provider,
             store=self.store,
-            task_id=str(uuid4())
+            task_id=str(uuid4()),
+            state={
+                "_active_streams": 0,
+                "is_dashboard": getattr(self, "is_dashboard", False),
+                "_websocket_broadcast": _broadcast_wrapper if ws_manager else None
+            }
         )
         self._record_agent_run(agent)
         return await agent.execute(ctx, artifacts)
@@ -833,13 +856,7 @@ class Flock(metaclass=AutoTracedMeta):
             >>> await orchestrator.publish(task, tags={"urgent", "backend"})
         """
         self.is_dashboard = is_dashboard
-        # Only show banner in CLI mode, not dashboard mode
-        if not self.is_dashboard:
-            try:
-                init_console(clear_screen=True, show_banner=True, model=self.model)
-            except (UnicodeEncodeError, UnicodeDecodeError):
-                # Skip banner on Windows consoles with encoding issues (e.g., tests, CI)
-                pass
+        
         # Handle different input types
         if isinstance(obj, Artifact):
             # Already an artifact - publish as-is
@@ -982,10 +999,25 @@ class Flock(metaclass=AutoTracedMeta):
         provider = getattr(agent_obj, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
 
         # Phase 6+7: Create Context with provider and store (NO board/orchestrator)
+        # Initialize streaming coordination state for CLI mode
+        # SECURITY: Create broadcast wrapper to prevent object traversal back to orchestrator
+        ws_manager = getattr(self, "_websocket_manager", None)
+
+        async def _broadcast_wrapper(event):
+            """Isolated broadcast wrapper - no reference chain to orchestrator."""
+            if ws_manager:
+                return await ws_manager.broadcast(event)
+            return None
+
         ctx = Context(
             provider=provider,
             store=self.store,
-            task_id=str(uuid4())
+            task_id=str(uuid4()),
+            state={
+                "_active_streams": 0,
+                "is_dashboard": getattr(self, "is_dashboard", False),
+                "_websocket_broadcast": _broadcast_wrapper if ws_manager else None
+            }
         )
         self._record_agent_run(agent_obj)
 
@@ -1361,12 +1393,27 @@ class Flock(metaclass=AutoTracedMeta):
         provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
 
         # Phase 6+7: Create Context with provider and store (NO board/orchestrator)
+        # Initialize streaming coordination state for CLI mode
+        # SECURITY: Create broadcast wrapper to prevent object traversal back to orchestrator
+        ws_manager = getattr(self, "_websocket_manager", None)
+
+        async def _broadcast_wrapper(event):
+            """Isolated broadcast wrapper - no reference chain to orchestrator."""
+            if ws_manager:
+                return await ws_manager.broadcast(event)
+            return None
+
         ctx = Context(
             provider=provider,
             store=self.store,
             task_id=str(uuid4()),
             correlation_id=correlation_id,
             is_batch=is_batch,
+            state={
+                "_active_streams": 0,
+                "is_dashboard": getattr(self, "is_dashboard", False),
+                "_websocket_broadcast": _broadcast_wrapper if ws_manager else None
+            }
         )
         self._record_agent_run(agent)
 
