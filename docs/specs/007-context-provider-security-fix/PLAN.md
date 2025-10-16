@@ -1,0 +1,471 @@
+# Implementation Plan: Context Provider Security Fix
+
+## Validation Checklist
+- [x] Context Ingestion section complete with all required specs
+- [x] Implementation phases logically organized
+- [x] Each phase starts with test definition (TDD approach)
+- [x] Dependencies between phases identified
+- [x] Parallel execution marked where applicable
+- [x] Multi-component coordination identified (if applicable)
+- [x] Final validation phase included
+- [x] No placeholder content remains
+
+## Specification Compliance Guidelines
+
+### How to Ensure Specification Adherence
+
+1. **Before Each Phase**: Complete the Pre-Implementation Specification Gate
+2. **During Implementation**: Reference specific security research sections in each task
+3. **After Each Task**: Run Specification Compliance checks
+4. **Phase Completion**: Verify all security requirements are met
+
+### Deviation Protocol
+
+If implementation cannot follow specification exactly:
+1. Document the deviation and reason
+2. Get approval before proceeding
+3. Update security analysis if the deviation is an improvement
+4. Never deviate without documentation
+
+## Metadata Reference
+
+- `[parallel: true]` - Tasks that can run concurrently
+- `[component: component-name]` - For multi-component features
+- `[ref: document/section; lines: 1, 2-3]` - Links to specifications, patterns, or interfaces and (if applicable) line(s)
+- `[activity: type]` - Activity hint for specialist agent selection
+
+---
+
+## Context Priming
+
+*GATE: You MUST fully read all files mentioned in this section before starting any implementation.*
+
+**Security Research Reference**:
+
+- `.flock/flock-research/context-provider/SECURITY_ANALYSIS.md` - **PRIMARY REFERENCE** - Complete security vulnerability analysis with 3 critical findings
+- `.flock/flock-research/context-provider/README.md` - Original Context Provider blueprint with security status header
+- `.flock/flock-research/context-provider/DRIFT_ANALYSIS.md` - Technical drift analysis showing current vs proposed architecture
+
+**Critical Security Findings** `[ref: SECURITY_ANALYSIS.md; lines: 11-50]`:
+
+**🔴 Vulnerability #1 (READ Bypass)**: Agents can access ANY artifact via `ctx.board.list()` - visibility not enforced at context level
+**🔴 Vulnerability #2 (WRITE Bypass)**: Agents can call `ctx.board.publish()` directly - validation bypassed
+**🔴 Vulnerability #3 (GOD MODE)**: Agents have unlimited `ctx.orchestrator` access - complete privilege escalation
+
+**Root Cause** `[ref: runtime.py; lines: 247-252]`:
+```python
+class Context(BaseModel):
+    board: Any          # ❌ Direct store access (agents have god mode)
+    orchestrator: Any   # ❌ Unlimited orchestrator access
+```
+
+**Key Design Decisions** `[ref: SECURITY_ANALYSIS.md; lines: 263-360]`:
+
+1. **Remove Infrastructure Access**: Delete `board` and `orchestrator` from `Context` - agents don't need direct access
+2. **Add Security Boundary**: Context Provider enforces visibility filtering BEFORE agents see data
+3. **Orchestrator Publishes**: Move publishing from `agent.py:632` up to orchestrator level - validation cannot be bypassed
+4. **No Backward Compatibility**: Engines MUST fail if they try old patterns (`.list()`, `.publish()`) - fail fast to enforce security
+
+**Implementation Context**:
+
+- **NO backward compatibility warnings** - Engines using old patterns must fail immediately
+- **Commands to run**: `pytest tests/` for security validation tests
+- **Patterns to follow**: Context Provider pattern `[ref: SECURITY_ANALYSIS.md; lines: 364-415]`
+- **Pluggability**: Global (`Flock(context_provider=...)`) and per-agent (`agent.with_context(...)`)
+- **Default Provider**: `DefaultContextProvider` with mandatory visibility enforcement
+- **Filtered Provider**: `FilteredContextProvider` wraps `FilterConfig` for declarative filtering
+
+---
+
+## Implementation Phases
+
+### Phase 1: Security Foundation - Remove Infrastructure Access
+
+**🎯 Deliverable**: Agents no longer have direct `board`/`orchestrator` access (breaks god mode)
+
+- [ ] **Prime Context**: Security analysis vulnerability documentation
+    - [ ] Read complete vulnerability analysis `[ref: SECURITY_ANALYSIS.md; lines: 11-229]`
+    - [ ] Understand current Context structure `[ref: runtime.py; lines: 247-260]`
+
+- [ ] **Write Tests**: Verify agents cannot access infrastructure `[activity: test-security]`
+    - [ ] Test that `Context` has no `board` attribute (AttributeError expected)
+    - [ ] Test that `Context` has no `orchestrator` attribute (AttributeError expected)
+    - [ ] Test that agents trying to access `ctx.board.list()` fail immediately
+    - [ ] Test that agents trying to call `ctx.board.publish()` fail immediately
+    - [ ] Test location: `tests/test_context_security.py::test_context_no_infrastructure_access`
+
+- [ ] **Implement**: Remove dangerous fields from Context `[activity: refactor-security]`
+    - [ ] Open `src/flock/runtime.py` and modify `Context` class (lines 247-260)
+    - [ ] Remove `board: Any` field
+    - [ ] Remove `orchestrator: Any` field
+    - [ ] Keep `correlation_id`, `task_id`, `state`, `is_batch` (safe fields)
+    - [ ] **Expected breakage**: All engines using `ctx.board` or `ctx.orchestrator` will fail (INTENDED)
+
+- [ ] **Validate**: Ensure security gates work `[activity: run-tests]`
+    - [ ] Run `pytest tests/test_context_security.py -v`
+    - [ ] Verify AttributeError when accessing `ctx.board`
+    - [ ] Verify AttributeError when accessing `ctx.orchestrator`
+
+---
+
+### Phase 2: Context Provider Protocol & Default Implementation
+
+**🎯 Deliverable**: Security boundary enforcing visibility filtering
+
+- [ ] **Prime Context**: Provider design and visibility enforcement
+    - [ ] Read provider architecture `[ref: SECURITY_ANALYSIS.md; lines: 364-415]`
+    - [ ] Review visibility system `[ref: src/flock/visibility.py; lines: 1-108]`
+    - [ ] Understand FilterConfig `[ref: src/flock/store.py; lines: 92-102]`
+
+- [ ] **Write Tests**: Provider protocol and visibility enforcement `[activity: test-security]`
+    - [ ] Test `ContextProvider` protocol is callable with `ContextRequest`
+    - [ ] Test `DefaultContextProvider` filters by visibility (agent can only see allowed artifacts)
+    - [ ] Test `DefaultContextProvider` respects `PrivateVisibility` (agent NOT in allowlist gets empty list)
+    - [ ] Test `DefaultContextProvider` respects `TenantVisibility` (different tenant gets empty list)
+    - [ ] Test `DefaultContextProvider` respects `LabelledVisibility` (missing label gets empty list)
+    - [ ] Test `DefaultContextProvider` respects correlation_id filtering
+    - [ ] Test location: `tests/test_context_provider.py::test_default_provider_security`
+
+- [ ] **Implement**: Create provider protocol `[activity: implement-security]`
+    - [ ] Create `src/flock/context_provider.py` (new file)
+    - [ ] Define `ContextRequest` dataclass with `agent: Agent`, `correlation_id: UUID`, `store: BlackboardStore`, `agent_identity: AgentIdentity`
+    - [ ] Define `ContextProvider` Protocol with `async def __call__(request: ContextRequest) -> list[dict[str, Any]]`
+    - [ ] **NO** advanced providers (CompositeProvider, RedactingProvider) - out of scope
+
+- [ ] **Implement**: Default provider with visibility enforcement `[activity: implement-security]`
+    - [ ] Implement `DefaultContextProvider` class in `src/flock/context_provider.py`
+    - [ ] In `__call__`: query artifacts using `FilterConfig(correlation_id=str(request.correlation_id))`
+    - [ ] **CRITICAL**: Filter results by `artifact.visibility.allows(request.agent_identity)` - THIS IS THE SECURITY FIX
+    - [ ] Return list of dicts: `[{"type": a.type, "payload": a.payload, "produced_by": a.produced_by, ...}]`
+    - [ ] Include docstring explaining security enforcement
+
+- [ ] **Validate**: Provider enforces security `[activity: run-tests]`
+    - [ ] Run `pytest tests/test_context_provider.py -v`
+    - [ ] Verify agents can ONLY see artifacts they're allowed to see
+    - [ ] Verify private/tenant/label visibility is enforced
+
+---
+
+### Phase 3: Pluggable Providers - Global & Per-Agent
+
+**🎯 Deliverable**: Users can configure custom providers globally or per-agent
+
+- [ ] **Component A**: Global provider configuration `[parallel: true]` `[component: orchestrator]`
+
+    - [ ] **Prime Context**: Orchestrator initialization
+        - [ ] Read orchestrator structure `[ref: src/flock/orchestrator.py; lines: 1-100]`
+
+    - [ ] **Write Tests**: Global provider configuration `[activity: test-integration]`
+        - [ ] Test `Flock(context_provider=MyProvider())` sets global provider
+        - [ ] Test agents use global provider if no per-agent provider configured
+        - [ ] Test location: `tests/test_context_provider.py::test_global_provider`
+
+    - [ ] **Implement**: Add provider to Flock `[activity: implement-integration]`
+        - [ ] Add `context_provider: ContextProvider | None = None` parameter to `Flock.__init__()` in `src/flock/orchestrator.py`
+        - [ ] Store as `self._default_context_provider`
+        - [ ] When creating Context for agent execution, pass provider to agents (mechanism TBD in Phase 4)
+
+    - [ ] **Validate**: Global provider works `[activity: run-tests]`
+        - [ ] Run `pytest tests/test_context_provider.py::test_global_provider -v`
+
+- [ ] **Component B**: Per-agent provider configuration `[parallel: true]` `[component: agent]`
+
+    - [ ] **Prime Context**: Agent builder API
+        - [ ] Read agent builder `[ref: src/flock/agent.py; lines: 799-1425]`
+
+    - [ ] **Write Tests**: Per-agent provider configuration `[activity: test-integration]`
+        - [ ] Test `agent.with_context(MyProvider())` sets agent-specific provider
+        - [ ] Test agent-specific provider overrides global provider
+        - [ ] Test location: `tests/test_context_provider.py::test_per_agent_provider`
+
+    - [ ] **Implement**: Add with_context to AgentBuilder `[activity: implement-integration]`
+        - [ ] Add `with_context(self, provider: ContextProvider) -> AgentBuilder` method to `AgentBuilder` in `src/flock/agent.py`
+        - [ ] Store as `self._agent.context_provider`
+        - [ ] Return `self` for fluent chaining
+
+    - [ ] **Validate**: Per-agent provider works `[activity: run-tests]`
+        - [ ] Run `pytest tests/test_context_provider.py::test_per_agent_provider -v`
+
+---
+
+### Phase 4: FilteredContextProvider - Declarative Filtering
+
+**🎯 Deliverable**: Ergonomic provider wrapping FilterConfig
+
+- [ ] **Prime Context**: FilterConfig and query API
+    - [ ] Read FilterConfig structure `[ref: src/flock/store.py; lines: 92-102]`
+    - [ ] Review query_artifacts API `[ref: src/flock/store.py; lines: 161-170]`
+
+- [ ] **Write Tests**: FilteredContextProvider functionality `[activity: test-integration]`
+    - [ ] Test `FilteredContextProvider(FilterConfig(tags={"important"}))` filters by tags
+    - [ ] Test `FilteredContextProvider(FilterConfig(type_names={"Task"}))` filters by type
+    - [ ] Test `FilteredContextProvider` still enforces visibility on top of filters
+    - [ ] Test `FilteredContextProvider(limit=10)` respects artifact limit
+    - [ ] Test location: `tests/test_context_provider.py::test_filtered_provider`
+
+- [ ] **Implement**: FilteredContextProvider class `[activity: implement-integration]`
+    - [ ] Add `FilteredContextProvider` class to `src/flock/context_provider.py`
+    - [ ] Constructor: `__init__(self, filter_config: FilterConfig, limit: int = 50)`
+    - [ ] In `__call__`: query using `store.query_artifacts(self.filter_config, limit=self.limit)`
+    - [ ] **CRITICAL**: Still filter by `artifact.visibility.allows(agent_identity)` - visibility is ALWAYS enforced
+    - [ ] Return filtered artifact dicts
+
+- [ ] **Validate**: FilteredContextProvider works `[activity: run-tests]`
+    - [ ] Run `pytest tests/test_context_provider.py::test_filtered_provider -v`
+    - [ ] Verify declarative filtering + visibility enforcement
+
+---
+
+### Phase 5: Engine Integration - Remove Direct Store Access
+
+**🎯 Deliverable**: Engines use provider instead of `ctx.board.list()`
+
+- [ ] **Prime Context**: Engine architecture and current fetch_conversation_context
+    - [ ] Read EngineComponent `[ref: src/flock/components.py; lines: 156-205]`
+    - [ ] Identify current inefficient pattern (uses `list()` instead of `query_artifacts`)
+
+- [ ] **Write Tests**: Engine context fetching via provider `[activity: test-integration]`
+    - [ ] Test `DSPyEngine.fetch_conversation_context()` uses provider (no direct `ctx.board` access)
+    - [ ] Test engine receives only visible artifacts (respects visibility)
+    - [ ] Test engine receives correlation-filtered artifacts by default
+    - [ ] Test custom provider works with engine
+    - [ ] Test location: `tests/test_engine_context.py::test_engine_uses_provider`
+
+- [ ] **Implement**: Update EngineComponent.fetch_conversation_context `[activity: implement-security]`
+    - [ ] Modify `src/flock/components.py` lines 156-205
+    - [ ] **REMOVE**: `all_artifacts = await ctx.board.list()` line (THIS IS THE VULNERABILITY)
+    - [ ] **ADD**: Get provider from context (orchestrator will inject it)
+    - [ ] Create `ContextRequest(agent=agent, correlation_id=ctx.correlation_id, store=store, agent_identity=agent.identity)`
+    - [ ] Call `context_items = await provider(request)` to get FILTERED context
+    - [ ] Apply `context_max_artifacts` limit if configured
+    - [ ] Apply `context_exclude_types` filtering
+    - [ ] Return filtered context
+    - [ ] **NO FALLBACK** to `ctx.board` - engines must fail if provider missing (fail fast)
+
+- [ ] **Validate**: Engines secure `[activity: run-tests]`
+    - [ ] Run `pytest tests/test_engine_context.py -v`
+    - [ ] Verify engines cannot bypass visibility
+    - [ ] Verify engines fail if trying old `ctx.board` pattern
+
+---
+
+### Phase 6: Orchestrator Publishing - Remove Agent Write Access
+
+**🎯 Deliverable**: Orchestrator validates & publishes (agents return data only)
+
+- [ ] **Prime Context**: Current agent publishing flow
+    - [ ] Read agent execute flow `[ref: src/flock/agent.py; lines: 195-246]`
+    - [ ] Read _make_outputs_for_group `[ref: src/flock/agent.py; lines: 514-634]`
+    - [ ] Identify current `await ctx.board.publish(artifact)` calls (lines 489, 632)
+
+- [ ] **Write Tests**: Orchestrator-controlled publishing `[activity: test-security]`
+    - [ ] Test agents return `EvalResult` with artifacts (NO direct publishing)
+    - [ ] Test orchestrator validates artifacts before publishing
+    - [ ] Test orchestrator publishes to store (agents cannot)
+    - [ ] Test malicious engine trying to publish fails (no `ctx.board.publish()` available)
+    - [ ] Test location: `tests/test_orchestrator_publishing.py::test_orchestrator_publishes`
+
+- [ ] **Implement**: Remove publishing from Agent class `[activity: implement-security]`
+    - [ ] Modify `src/flock/agent.py::_make_outputs_for_group` (lines 514-634)
+    - [ ] **REMOVE**: `await ctx.board.publish(artifact)` call (line 632)
+    - [ ] **CHANGE**: Return list of artifacts WITHOUT publishing
+    - [ ] Agents now return `produced` list to orchestrator (orchestrator will publish)
+
+- [ ] **Implement**: Add publishing to Orchestrator `[activity: implement-security]`
+    - [ ] Modify orchestrator's agent execution flow in `src/flock/orchestrator.py`
+    - [ ] After `result = await agent.execute(ctx, artifacts)` completes
+    - [ ] Orchestrator receives artifacts from agent
+    - [ ] Orchestrator validates artifacts (already done by agent._make_outputs_for_group validation logic)
+    - [ ] Orchestrator publishes to store: `await self.store.add(artifact)` for each artifact
+    - [ ] **Result**: Agents can NO LONGER publish directly (security fixed!)
+
+- [ ] **Validate**: Publishing security enforced `[activity: run-tests]`
+    - [ ] Run `pytest tests/test_orchestrator_publishing.py -v`
+    - [ ] Verify agents cannot publish (no `ctx.board.publish()`)
+    - [ ] Verify orchestrator handles publishing
+
+---
+
+### Phase 7: Context Injection - Wire Provider Through Orchestrator
+
+**🎯 Deliverable**: Orchestrator injects provider into agent execution context
+
+- [ ] **Prime Context**: Orchestrator agent execution flow
+    - [ ] Read orchestrator execution logic `[ref: src/flock/orchestrator.py; lines: 1-300]`
+    - [ ] Understand how Context is created for agents
+
+- [ ] **Write Tests**: Provider injection `[activity: test-integration]`
+    - [ ] Test orchestrator injects global provider into agent context
+    - [ ] Test orchestrator injects per-agent provider if configured
+    - [ ] Test provider fallback: per-agent > global > DefaultContextProvider
+    - [ ] Test location: `tests/test_context_injection.py::test_provider_injection`
+
+- [ ] **Implement**: Pass provider to engines via Context `[activity: implement-integration]`
+    - [ ] Add `provider: ContextProvider` field to `Context` in `src/flock/runtime.py`
+    - [ ] In orchestrator's agent execution (where Context is created)
+    - [ ] Resolve provider: `provider = agent.context_provider or self._default_context_provider or DefaultContextProvider()`
+    - [ ] Pass provider when creating Context: `Context(provider=provider, ...)`
+    - [ ] Pass store reference to provider (via ContextRequest in engines)
+
+- [ ] **Implement**: Update engine to use injected provider `[activity: implement-integration]`
+    - [ ] In `EngineComponent.fetch_conversation_context` (modified in Phase 5)
+    - [ ] Get provider from context: `provider = ctx.provider`
+    - [ ] Create ContextRequest with store: `ContextRequest(agent=agent, store=self._get_store(ctx), ...)`
+    - [ ] Note: Store access is infrastructure-level (engine component, not agent business logic)
+
+- [ ] **Validate**: Provider injection works end-to-end `[activity: run-tests]`
+    - [ ] Run `pytest tests/test_context_injection.py -v`
+    - [ ] Verify global provider is used
+    - [ ] Verify per-agent provider overrides
+    - [ ] Verify DefaultContextProvider fallback
+
+---
+
+### Integration & End-to-End Validation
+
+**🎯 Deliverable**: All security vulnerabilities fixed, system works correctly
+
+- [ ] **Security Validation**: All three vulnerabilities patched `[activity: test-security]`
+    - [ ] ✅ **Vulnerability #1 (READ)**: Agents CANNOT access `ctx.board.list()` (AttributeError)
+    - [ ] ✅ **Vulnerability #2 (WRITE)**: Agents CANNOT call `ctx.board.publish()` (AttributeError)
+    - [ ] ✅ **Vulnerability #3 (GOD MODE)**: Agents CANNOT access `ctx.orchestrator` (AttributeError)
+    - [ ] Test private artifact visibility: Agent without permission gets empty context
+    - [ ] Test tenant isolation: Agent from tenant A cannot see tenant B data
+    - [ ] Test label-based RBAC: Agent without required label cannot see classified data
+    - [ ] Test location: `tests/test_security_fixes.py` (comprehensive security test suite)
+
+- [ ] **Integration Tests**: Provider system works end-to-end `[activity: test-integration]`
+    - [ ] Test full workflow: publish → agent triggered → provider filters context → agent processes → orchestrator publishes result
+    - [ ] Test global provider configuration works
+    - [ ] Test per-agent provider configuration works
+    - [ ] Test FilteredContextProvider with various FilterConfig options
+    - [ ] Test provider receives correct store and agent identity
+    - [ ] Test location: `tests/test_context_provider_integration.py`
+
+- [ ] **Compatibility Tests**: Old engines fail fast (NO backward compatibility) `[activity: test-security]`
+    - [ ] Test engine using `ctx.board.list()` raises AttributeError immediately
+    - [ ] Test engine using `ctx.board.publish()` raises AttributeError immediately
+    - [ ] Test engine using `ctx.orchestrator` raises AttributeError immediately
+    - [ ] **EXPECTED BEHAVIOR**: Old engines MUST fail (enforces migration to secure pattern)
+    - [ ] Test location: `tests/test_no_backward_compatibility.py`
+
+- [ ] **Performance Validation**: Verify query optimization `[activity: test-performance]`
+    - [ ] Verify DefaultContextProvider uses `query_artifacts()` not `list()` (fixes performance bug)
+    - [ ] Test with 10,000 artifacts: verify O(log N) query time (indexed query)
+    - [ ] Compare memory usage: old (`list()` = O(N)) vs new (provider = O(M) where M = visible artifacts)
+    - [ ] Test location: `tests/test_context_provider_performance.py`
+
+- [ ] **Example Validation**: Update existing examples `[activity: update-docs]`
+    - [ ] Identify examples using `ctx.board` (will break)
+    - [ ] Update to use provider pattern OR accept context as-is from engine
+    - [ ] Verify all examples still work after security fix
+    - [ ] Examples location: `examples/` directory
+
+- [ ] **Documentation**: Security fix guide `[activity: update-docs]`
+    - [ ] Create `docs/migration/context-provider-security-fix.md`
+    - [ ] Document the three vulnerabilities that were fixed
+    - [ ] Explain new Context Provider pattern
+    - [ ] Show before/after code examples
+    - [ ] Explain why NO backward compatibility (security fix)
+    - [ ] Document global vs per-agent provider configuration
+    - [ ] Document FilteredContextProvider usage
+
+- [ ] **Test Coverage**: Ensure comprehensive security coverage `[activity: run-tests]`
+    - [ ] Run `pytest tests/ --cov=src/flock --cov-report=term-missing`
+    - [ ] Verify >90% coverage for `context_provider.py`, `runtime.py`, `components.py`, `agent.py`, `orchestrator.py`
+    - [ ] Verify all security test scenarios pass
+
+- [ ] **Final Security Audit**: Independent validation `[activity: review-security]`
+    - [ ] Review all code changes for security implications
+    - [ ] Verify no other code paths allow direct store access
+    - [ ] Verify visibility enforcement cannot be bypassed
+    - [ ] Verify orchestrator is sole publisher (agents cannot forge artifacts)
+    - [ ] Confirm attack scenarios from SECURITY_ANALYSIS.md are no longer possible
+
+- [ ] **Build Verification**: System builds and runs `[activity: run-tests]`
+    - [ ] Run `pytest tests/ -v` (all tests pass)
+    - [ ] Run any project-specific build commands
+    - [ ] Verify no runtime errors in examples
+    - [ ] Verify orchestrator starts correctly with new architecture
+
+---
+
+## Implementation Notes
+
+### Critical Security Requirements
+
+1. **NO Backward Compatibility**: Engines using old patterns (`ctx.board.list()`, `ctx.board.publish()`, `ctx.orchestrator`) MUST fail immediately with AttributeError
+2. **Mandatory Visibility**: Context Providers MUST ALWAYS filter by visibility - this cannot be optional or bypassable
+3. **Orchestrator Publishing**: ONLY the orchestrator can publish to the store - agents return data only
+4. **Fail Fast**: If provider is missing or misconfigured, system should fail immediately, not fall back to insecure pattern
+
+### Test-Driven Development Approach
+
+- **Red-Green-Refactor**: Write failing test → Implement minimal code to pass → Refactor
+- **Security-First**: Security tests drive implementation (agents CANNOT access infrastructure)
+- **No Mocking Security**: Test real visibility enforcement, not mocked behavior
+- **Integration Tests**: Test full workflow end-to-end with real store and visibility system
+
+### Parallel Execution Strategy
+
+- **Phase 3 Component A & B**: Can run in parallel (orchestrator and agent changes are independent)
+- **All other phases**: Must run sequentially (each phase depends on previous)
+
+### Reference Architecture
+
+**Before** (INSECURE):
+```
+Agent → ctx.board.list() → Store (NO FILTERING!)
+Agent → ctx.board.publish() → Store (NO VALIDATION!)
+Agent → ctx.orchestrator.* → (GOD MODE!)
+```
+
+**After** (SECURE):
+```
+Agent → provider(request) → [Visibility Filter] → Filtered Context
+Agent → return EvalResult → Orchestrator validates → Orchestrator publishes
+Agent → ctx.orchestrator REMOVED → (NO GOD MODE!)
+```
+
+### Key Files Modified
+
+- `src/flock/runtime.py`: Remove `board`, `orchestrator` from Context; add `provider`
+- `src/flock/context_provider.py`: NEW FILE - Provider protocol and implementations
+- `src/flock/components.py`: Update `fetch_conversation_context` to use provider
+- `src/flock/agent.py`: Remove `ctx.board.publish()` calls
+- `src/flock/orchestrator.py`: Add provider injection, handle publishing
+- `tests/test_context_security.py`: NEW FILE - Security validation tests
+- `tests/test_context_provider.py`: NEW FILE - Provider tests
+- `tests/test_security_fixes.py`: NEW FILE - Comprehensive security test suite
+
+### Success Criteria
+
+✅ All three vulnerabilities FIXED (agents cannot bypass security)
+✅ Visibility enforced at context level (mandatory, cannot be bypassed)
+✅ Validation enforced at orchestrator level (agents cannot forge artifacts)
+✅ NO backward compatibility (old patterns fail immediately)
+✅ Provider system pluggable (global and per-agent configuration)
+✅ FilteredContextProvider works with FilterConfig
+✅ All tests pass (security, integration, performance)
+✅ Documentation complete (migration guide)
+
+### Total Estimated Effort
+
+- **Phase 1**: 3 hours (remove infrastructure access)
+- **Phase 2**: 4 hours (provider protocol + default implementation)
+- **Phase 3**: 3 hours (pluggable providers, parallel execution)
+- **Phase 4**: 2 hours (FilteredContextProvider)
+- **Phase 5**: 3 hours (engine integration)
+- **Phase 6**: 4 hours (orchestrator publishing)
+- **Phase 7**: 3 hours (context injection)
+- **Integration**: 4 hours (end-to-end validation)
+
+**Total**: ~26 hours (~3-4 days with testing and validation)
+
+---
+
+## References
+
+- **Primary**: `.flock/flock-research/context-provider/SECURITY_ANALYSIS.md` - Complete security vulnerability analysis
+- **Blueprint**: `.flock/flock-research/context-provider/README.md` - Original Context Provider design
+- **Drift Analysis**: `.flock/flock-research/context-provider/DRIFT_ANALYSIS.md` - Current vs proposed architecture
