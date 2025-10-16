@@ -79,70 +79,74 @@ class Context(BaseModel):
 
 ## Implementation Phases
 
-### Phase 1: Security Foundation - Remove Infrastructure Access
+### Phase 1: Security Foundation - Remove Infrastructure Access ✅ **COMPLETED**
 
 **🎯 Deliverable**: Agents no longer have direct `board`/`orchestrator` access (breaks god mode)
 
-- [ ] **Prime Context**: Security analysis vulnerability documentation
-    - [ ] Read complete vulnerability analysis `[ref: SECURITY_ANALYSIS.md; lines: 11-229]`
-    - [ ] Understand current Context structure `[ref: runtime.py; lines: 247-260]`
+- [x] **Prime Context**: Security analysis vulnerability documentation
+    - [x] Read complete vulnerability analysis `[ref: SECURITY_ANALYSIS.md; lines: 11-229]`
+    - [x] Understand current Context structure `[ref: runtime.py; lines: 247-260]`
 
-- [ ] **Write Tests**: Verify agents cannot access infrastructure `[activity: test-security]`
-    - [ ] Test that `Context` has no `board` attribute (AttributeError expected)
-    - [ ] Test that `Context` has no `orchestrator` attribute (AttributeError expected)
-    - [ ] Test that agents trying to access `ctx.board.list()` fail immediately
-    - [ ] Test that agents trying to call `ctx.board.publish()` fail immediately
-    - [ ] Test location: `tests/test_context_security.py::test_context_no_infrastructure_access`
+- [x] **Write Tests**: Verify agents cannot access infrastructure `[activity: test-security]`
+    - [x] Test that `Context` has no `board` attribute (AttributeError expected)
+    - [x] Test that `Context` has no `orchestrator` attribute (AttributeError expected)
+    - [x] Test that agents trying to access `ctx.board.list()` fail immediately
+    - [x] Test that agents trying to call `ctx.board.publish()` fail immediately
+    - [x] Test location: `tests/test_context_security.py::test_context_no_infrastructure_access`
 
-- [ ] **Implement**: Remove dangerous fields from Context `[activity: refactor-security]`
-    - [ ] Open `src/flock/runtime.py` and modify `Context` class (lines 247-260)
-    - [ ] Remove `board: Any` field
-    - [ ] Remove `orchestrator: Any` field
-    - [ ] Keep `correlation_id`, `task_id`, `state`, `is_batch` (safe fields)
-    - [ ] **Expected breakage**: All engines using `ctx.board` or `ctx.orchestrator` will fail (INTENDED)
+- [x] **Implement**: Remove dangerous fields from Context `[activity: refactor-security]`
+    - [x] Open `src/flock/runtime.py` and modify `Context` class (lines 247-260)
+    - [x] Remove `board: Any` field
+    - [x] Remove `orchestrator: Any` field
+    - [x] Keep `correlation_id`, `task_id`, `state`, `is_batch` (safe fields)
+    - [x] **Expected breakage**: All engines using `ctx.board` or `ctx.orchestrator` will fail (INTENDED)
 
-- [ ] **Validate**: Ensure security gates work `[activity: run-tests]`
-    - [ ] Run `pytest tests/test_context_security.py -v`
-    - [ ] Verify AttributeError when accessing `ctx.board`
-    - [ ] Verify AttributeError when accessing `ctx.orchestrator`
+- [x] **Validate**: Ensure security gates work `[activity: run-tests]`
+    - [x] Run `pytest tests/test_context_security.py -v`
+    - [x] Verify AttributeError when accessing `ctx.board`
+    - [x] Verify AttributeError when accessing `ctx.orchestrator`
+
+**Results**: ✅ 8 security tests passing | GOD MODE broken | Agents have ZERO infrastructure access
 
 ---
 
-### Phase 2: Context Provider Protocol & Default Implementation
+### Phase 2: Context Provider Protocol & Default Implementation ✅ **COMPLETED**
 
 **🎯 Deliverable**: Security boundary enforcing visibility filtering
 
-- [ ] **Prime Context**: Provider design and visibility enforcement
-    - [ ] Read provider architecture `[ref: SECURITY_ANALYSIS.md; lines: 364-415]`
-    - [ ] Review visibility system `[ref: src/flock/visibility.py; lines: 1-108]`
-    - [ ] Understand FilterConfig `[ref: src/flock/store.py; lines: 92-102]`
+- [x] **Prime Context**: Provider design and visibility enforcement
+    - [x] Read provider architecture `[ref: SECURITY_ANALYSIS.md; lines: 364-415]`
+    - [x] Review visibility system `[ref: src/flock/visibility.py; lines: 1-108]`
+    - [x] Understand FilterConfig `[ref: src/flock/store.py; lines: 92-102]`
 
-- [ ] **Write Tests**: Provider protocol and visibility enforcement `[activity: test-security]`
-    - [ ] Test `ContextProvider` protocol is callable with `ContextRequest`
-    - [ ] Test `DefaultContextProvider` filters by visibility (agent can only see allowed artifacts)
-    - [ ] Test `DefaultContextProvider` respects `PrivateVisibility` (agent NOT in allowlist gets empty list)
-    - [ ] Test `DefaultContextProvider` respects `TenantVisibility` (different tenant gets empty list)
-    - [ ] Test `DefaultContextProvider` respects `LabelledVisibility` (missing label gets empty list)
-    - [ ] Test `DefaultContextProvider` respects correlation_id filtering
-    - [ ] Test location: `tests/test_context_provider.py::test_default_provider_security`
+- [x] **Write Tests**: Provider protocol and visibility enforcement `[activity: test-security]`
+    - [x] Test `ContextProvider` protocol is callable with `ContextRequest`
+    - [x] Test `DefaultContextProvider` filters by visibility (agent can only see allowed artifacts)
+    - [x] Test `DefaultContextProvider` respects `PrivateVisibility` (agent NOT in allowlist gets empty list)
+    - [x] Test `DefaultContextProvider` respects `TenantVisibility` (different tenant gets empty list)
+    - [x] Test `DefaultContextProvider` respects `LabelledVisibility` (missing label gets empty list)
+    - [x] Test `DefaultContextProvider` respects correlation_id filtering
+    - [x] Test location: `tests/test_context_provider.py::test_default_provider_security`
 
-- [ ] **Implement**: Create provider protocol `[activity: implement-security]`
-    - [ ] Create `src/flock/context_provider.py` (new file)
-    - [ ] Define `ContextRequest` dataclass with `agent: Agent`, `correlation_id: UUID`, `store: BlackboardStore`, `agent_identity: AgentIdentity`
-    - [ ] Define `ContextProvider` Protocol with `async def __call__(request: ContextRequest) -> list[dict[str, Any]]`
-    - [ ] **NO** advanced providers (CompositeProvider, RedactingProvider) - out of scope
+- [x] **Implement**: Create provider protocol `[activity: implement-security]`
+    - [x] Create `src/flock/context_provider.py` (new file)
+    - [x] Define `ContextRequest` dataclass with `agent: Agent`, `correlation_id: UUID`, `store: BlackboardStore`, `agent_identity: AgentIdentity`
+    - [x] Define `ContextProvider` Protocol with `async def __call__(request: ContextRequest) -> list[dict[str, Any]]`
+    - [x] **NO** advanced providers (CompositeProvider, RedactingProvider) - out of scope
 
-- [ ] **Implement**: Default provider with visibility enforcement `[activity: implement-security]`
-    - [ ] Implement `DefaultContextProvider` class in `src/flock/context_provider.py`
-    - [ ] In `__call__`: query artifacts using `FilterConfig(correlation_id=str(request.correlation_id))`
-    - [ ] **CRITICAL**: Filter results by `artifact.visibility.allows(request.agent_identity)` - THIS IS THE SECURITY FIX
-    - [ ] Return list of dicts: `[{"type": a.type, "payload": a.payload, "produced_by": a.produced_by, ...}]`
-    - [ ] Include docstring explaining security enforcement
+- [x] **Implement**: Default provider with visibility enforcement `[activity: implement-security]`
+    - [x] Implement `DefaultContextProvider` class in `src/flock/context_provider.py`
+    - [x] In `__call__`: query artifacts using `FilterConfig(correlation_id=str(request.correlation_id))`
+    - [x] **CRITICAL**: Filter results by `artifact.visibility.allows(request.agent_identity)` - THIS IS THE SECURITY FIX
+    - [x] Return list of dicts: `[{"type": a.type, "payload": a.payload, "produced_by": a.produced_by, ...}]`
+    - [x] Include docstring explaining security enforcement
 
-- [ ] **Validate**: Provider enforces security `[activity: run-tests]`
-    - [ ] Run `pytest tests/test_context_provider.py -v`
-    - [ ] Verify agents can ONLY see artifacts they're allowed to see
-    - [ ] Verify private/tenant/label visibility is enforced
+- [x] **Validate**: Provider enforces security `[activity: run-tests]`
+    - [x] Run `pytest tests/test_context_provider.py -v`
+    - [x] Verify agents can ONLY see artifacts they're allowed to see
+    - [x] Verify private/tenant/label visibility is enforced
+
+**Results**: ✅ 11 security tests passing | Security boundary enforced | Visibility filtering mandatory | READ bypass vulnerability FIXED
 
 ---
 

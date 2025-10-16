@@ -245,9 +245,22 @@ class EvalResult(BaseModel):
 
 
 class Context(BaseModel):
-    board: Any
-    orchestrator: Any
-    correlation_id: UUID | None = None  # NEW!
+    """Runtime context for agent execution.
+
+    SECURITY FIX (2025-10-16): Removed board and orchestrator fields.
+    Agents no longer have direct infrastructure access.
+
+    Vulnerabilities fixed:
+    - Vulnerability #1 (READ): Agents could bypass visibility via ctx.board.list()
+    - Vulnerability #2 (WRITE): Agents could bypass validation via ctx.board.publish()
+    - Vulnerability #3 (GOD MODE): Agents had unlimited ctx.orchestrator access
+
+    Agents now receive filtered context via ContextProvider and return data
+    via EvalResult. Orchestrator handles all infrastructure operations.
+    """
+    # ❌ REMOVED: board: Any (security vulnerability)
+    # ❌ REMOVED: orchestrator: Any (security vulnerability)
+    correlation_id: UUID | None = None
     task_id: str
     state: dict[str, Any] = Field(default_factory=dict)
     is_batch: bool = Field(
