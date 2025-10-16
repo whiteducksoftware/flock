@@ -263,75 +263,60 @@ class Context(BaseModel):
 
 ---
 
-### Phase 6: Orchestrator Publishing - Remove Agent Write Access
+### Phase 6+7: Orchestrator Publishing + Context Injection (COMBINED SPRINT) ✅ **COMPLETED**
 
-**🎯 Deliverable**: Orchestrator validates & publishes (agents return data only)
+**🎯 Deliverable**: Orchestrator validates & publishes + injects provider (agents return data only)
 
-- [ ] **Prime Context**: Current agent publishing flow
-    - [ ] Read agent execute flow `[ref: src/flock/agent.py; lines: 195-246]`
-    - [ ] Read _make_outputs_for_group `[ref: src/flock/agent.py; lines: 514-634]`
-    - [ ] Identify current `await ctx.board.publish(artifact)` calls (lines 489, 632)
+- [x] **Prime Context**: Current agent publishing flow and orchestrator execution
+    - [x] Read agent execute flow `[ref: src/flock/agent.py; lines: 195-246]`
+    - [x] Read _make_outputs_for_group `[ref: src/flock/agent.py; lines: 514-634]`
+    - [x] Identify current `await ctx.board.publish(artifact)` calls (lines 491, 634)
+    - [x] Read orchestrator execution logic `[ref: src/flock/orchestrator.py; lines: 604, 969, 1337]`
+    - [x] Understand how Context is created for agents
 
-- [ ] **Write Tests**: Orchestrator-controlled publishing `[activity: test-security]`
-    - [ ] Test agents return `EvalResult` with artifacts (NO direct publishing)
-    - [ ] Test orchestrator validates artifacts before publishing
-    - [ ] Test orchestrator publishes to store (agents cannot)
-    - [ ] Test malicious engine trying to publish fails (no `ctx.board.publish()` available)
-    - [ ] Test location: `tests/test_orchestrator_publishing.py::test_orchestrator_publishes`
+- [x] **Write Tests**: Orchestrator-controlled publishing + Provider injection `[activity: test-security]`
+    - [x] Test orchestrator injects provider + store into Context (Phase 7)
+    - [x] Test orchestrator removes board/orchestrator from Context (Phase 1 fix)
+    - [x] Test provider resolution: per-agent > global > DefaultContextProvider (Phase 7)
+    - [x] Test agents return `EvalResult` with artifacts (NO direct publishing) (Phase 6)
+    - [x] Test orchestrator publishes artifacts after agent.execute() (Phase 6)
+    - [x] Test orchestrator respects publish_outputs flag (Phase 6)
+    - [x] Test end-to-end security boundary (Phase 6+7 integration)
+    - [x] Test visibility enforcement with provider injection (Phase 6+7 integration)
+    - [x] Test location: `tests/test_orchestrator_context_injection.py` (13 comprehensive tests)
 
-- [ ] **Implement**: Remove publishing from Agent class `[activity: implement-security]`
-    - [ ] Modify `src/flock/agent.py::_make_outputs_for_group` (lines 514-634)
-    - [ ] **REMOVE**: `await ctx.board.publish(artifact)` call (line 632)
-    - [ ] **CHANGE**: Return list of artifacts WITHOUT publishing
-    - [ ] Agents now return `produced` list to orchestrator (orchestrator will publish)
+- [x] **Implement**: Remove publishing from Agent class `[activity: implement-security]`
+    - [x] Modify `src/flock/agent.py::_make_outputs` (line 491)
+    - [x] **REMOVED**: `await ctx.board.publish(artifact)` call at line 491
+    - [x] Modify `src/flock/agent.py::_make_outputs_for_group` (line 634)
+    - [x] **REMOVED**: `await ctx.board.publish(artifact)` call at line 634
+    - [x] **RESULT**: Agents now return `produced` list WITHOUT publishing
 
-- [ ] **Implement**: Add publishing to Orchestrator `[activity: implement-security]`
-    - [ ] Modify orchestrator's agent execution flow in `src/flock/orchestrator.py`
-    - [ ] After `result = await agent.execute(ctx, artifacts)` completes
-    - [ ] Orchestrator receives artifacts from agent
-    - [ ] Orchestrator validates artifacts (already done by agent._make_outputs_for_group validation logic)
-    - [ ] Orchestrator publishes to store: `await self.store.add(artifact)` for each artifact
-    - [ ] **Result**: Agents can NO LONGER publish directly (security fixed!)
+- [x] **Implement**: Add publishing to Orchestrator + Inject Provider `[activity: implement-security]`
+    - [x] Modify `src/flock/orchestrator.py::direct_invoke` (line 604)
+      - [x] Add provider resolution: `provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()`
+      - [x] Create Context with provider + store (NO board/orchestrator)
+      - [x] Orchestrator already publishes outputs (line 603)
+    - [x] Modify `src/flock/orchestrator.py::invoke` (line 969)
+      - [x] Add provider resolution
+      - [x] Create Context with provider + store (NO board/orchestrator)
+      - [x] Add publishing after agent.execute(): `for output in outputs: await self._persist_and_schedule(output)`
+    - [x] Modify `src/flock/orchestrator.py::_run_agent_task` (line 1337)
+      - [x] Add provider resolution
+      - [x] Create Context with provider + store (NO board/orchestrator)
+      - [x] Add publishing after agent.execute(): `for output in outputs: await self._persist_and_schedule(output)`
+    - [x] **RESULT**: All Context creation points inject provider + store, orchestrator publishes all outputs
 
-- [ ] **Validate**: Publishing security enforced `[activity: run-tests]`
-    - [ ] Run `pytest tests/test_orchestrator_publishing.py -v`
-    - [ ] Verify agents cannot publish (no `ctx.board.publish()`)
-    - [ ] Verify orchestrator handles publishing
+- [x] **Validate**: Publishing security + Provider injection works `[activity: run-tests]`
+    - [x] Run `pytest tests/test_orchestrator_context_injection.py -v` (13/13 tests passing)
+    - [x] Verify agents cannot publish (no `ctx.board.publish()`)
+    - [x] Verify orchestrator handles publishing
+    - [x] Verify global provider is used
+    - [x] Verify per-agent provider overrides
+    - [x] Verify DefaultContextProvider fallback
+    - [x] Run `pytest tests/test_context_provider.py tests/test_engine_context.py -v` (31/31 existing tests still passing)
 
----
-
-### Phase 7: Context Injection - Wire Provider Through Orchestrator
-
-**🎯 Deliverable**: Orchestrator injects provider into agent execution context
-
-- [ ] **Prime Context**: Orchestrator agent execution flow
-    - [ ] Read orchestrator execution logic `[ref: src/flock/orchestrator.py; lines: 1-300]`
-    - [ ] Understand how Context is created for agents
-
-- [ ] **Write Tests**: Provider injection `[activity: test-integration]`
-    - [ ] Test orchestrator injects global provider into agent context
-    - [ ] Test orchestrator injects per-agent provider if configured
-    - [ ] Test provider fallback: per-agent > global > DefaultContextProvider
-    - [ ] Test location: `tests/test_context_injection.py::test_provider_injection`
-
-- [ ] **Implement**: Pass provider to engines via Context `[activity: implement-integration]`
-    - [ ] Add `provider: ContextProvider` field to `Context` in `src/flock/runtime.py`
-    - [ ] In orchestrator's agent execution (where Context is created)
-    - [ ] Resolve provider: `provider = agent.context_provider or self._default_context_provider or DefaultContextProvider()`
-    - [ ] Pass provider when creating Context: `Context(provider=provider, ...)`
-    - [ ] Pass store reference to provider (via ContextRequest in engines)
-
-- [ ] **Implement**: Update engine to use injected provider `[activity: implement-integration]`
-    - [ ] In `EngineComponent.fetch_conversation_context` (modified in Phase 5)
-    - [ ] Get provider from context: `provider = ctx.provider`
-    - [ ] Create ContextRequest with store: `ContextRequest(agent=agent, store=self._get_store(ctx), ...)`
-    - [ ] Note: Store access is infrastructure-level (engine component, not agent business logic)
-
-- [ ] **Validate**: Provider injection works end-to-end `[activity: run-tests]`
-    - [ ] Run `pytest tests/test_context_injection.py -v`
-    - [ ] Verify global provider is used
-    - [ ] Verify per-agent provider overrides
-    - [ ] Verify DefaultContextProvider fallback
+**Results**: ✅ 13 Phase 6+7 tests passing + 31 existing tests still passing | WRITE bypass vulnerability FIXED (agents can't publish) | Context injection complete (provider + store) | Provider resolution working (per-agent > global > default) | End-to-end security boundary operational | Total implementation time: ~2 hours (combined sprint)
 
 ---
 

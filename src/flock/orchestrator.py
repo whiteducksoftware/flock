@@ -601,7 +601,18 @@ class Flock(metaclass=AutoTracedMeta):
         for artifact in artifacts:
             self._mark_processed(artifact, agent)
             await self._persist_and_schedule(artifact)
-        ctx = Context(board=BoardHandle(self), orchestrator=self, task_id=str(uuid4()))
+
+        # Phase 7: Inject provider + store (security boundary)
+        # Provider resolution: per-agent > global > DefaultContextProvider
+        from flock.context_provider import DefaultContextProvider
+        provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+
+        # Phase 6+7: Create Context with provider and store (NO board/orchestrator)
+        ctx = Context(
+            provider=provider,
+            store=self.store,
+            task_id=str(uuid4())
+        )
         self._record_agent_run(agent)
         return await agent.execute(ctx, artifacts)
 
@@ -965,8 +976,17 @@ class Flock(metaclass=AutoTracedMeta):
             visibility=PublicVisibility(),
         )
 
-        # Execute agent directly
-        ctx = Context(board=BoardHandle(self), orchestrator=self, task_id=str(uuid4()))
+        # Phase 7: Inject provider + store (security boundary)
+        # Provider resolution: per-agent > global > DefaultContextProvider
+        from flock.context_provider import DefaultContextProvider
+        provider = getattr(agent_obj, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+
+        # Phase 6+7: Create Context with provider and store (NO board/orchestrator)
+        ctx = Context(
+            provider=provider,
+            store=self.store,
+            task_id=str(uuid4())
+        )
         self._record_agent_run(agent_obj)
 
         # Execute with optional timeout
@@ -976,7 +996,8 @@ class Flock(metaclass=AutoTracedMeta):
         else:
             outputs = await agent_obj.execute(ctx, [artifact])
 
-        # Optionally publish outputs to blackboard
+        # Phase 6: Orchestrator publishes outputs (security fix)
+        # Agents return artifacts, orchestrator validates and publishes
         if publish_outputs:
             for output in outputs:
                 await self._persist_and_schedule(output)
@@ -1334,15 +1355,28 @@ class Flock(metaclass=AutoTracedMeta):
     ) -> None:
         correlation_id = artifacts[0].correlation_id if artifacts else uuid4()
 
+        # Phase 7: Inject provider + store (security boundary)
+        # Provider resolution: per-agent > global > DefaultContextProvider
+        from flock.context_provider import DefaultContextProvider
+        provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+
+        # Phase 6+7: Create Context with provider and store (NO board/orchestrator)
         ctx = Context(
-            board=BoardHandle(self),
-            orchestrator=self,
+            provider=provider,
+            store=self.store,
             task_id=str(uuid4()),
             correlation_id=correlation_id,
-            is_batch=is_batch,  # NEW!
+            is_batch=is_batch,
         )
         self._record_agent_run(agent)
-        await agent.execute(ctx, artifacts)
+
+        # Phase 6: Execute agent (returns artifacts, doesn't publish)
+        outputs = await agent.execute(ctx, artifacts)
+
+        # Phase 6: Orchestrator publishes outputs (security fix)
+        # This fixes Vulnerability #2 (WRITE Bypass) - agents can't bypass validation
+        for output in outputs:
+            await self._persist_and_schedule(output)
 
         if artifacts:
             try:

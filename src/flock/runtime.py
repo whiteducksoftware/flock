@@ -257,9 +257,24 @@ class Context(BaseModel):
 
     Agents now receive filtered context via ContextProvider and return data
     via EvalResult. Orchestrator handles all infrastructure operations.
+
+    Phase 6+7: Added provider and store for secure context fetching.
     """
     # ❌ REMOVED: board: Any (security vulnerability)
     # ❌ REMOVED: orchestrator: Any (security vulnerability)
+
+    # ✅ Phase 7: Provider for secure context fetching
+    provider: Any = Field(
+        default=None,
+        description="Context provider for secure artifact fetching with visibility enforcement"
+    )
+
+    # ✅ Phase 7: Store reference for provider queries
+    store: Any = Field(
+        default=None,
+        description="Blackboard store reference (used by provider, not directly by agents)"
+    )
+
     correlation_id: UUID | None = None
     task_id: str
     state: dict[str, Any] = Field(default_factory=dict)

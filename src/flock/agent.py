@@ -488,7 +488,8 @@ class Agent(metaclass=AutoTracedMeta):
 
                 artifact = output_decl.apply(payload, produced_by=self.name, metadata=metadata)
                 produced.append(artifact)
-                await ctx.board.publish(artifact)
+                # Phase 6: REMOVED publishing - orchestrator now handles it
+                # await ctx.board.publish(artifact)
 
         return produced
 
@@ -631,7 +632,9 @@ class Agent(metaclass=AutoTracedMeta):
                     artifact_from_engine.payload, produced_by=self.name, metadata=metadata
                 )
                 produced.append(artifact)
-                await ctx.board.publish(artifact)
+                # Phase 6 SECURITY FIX: REMOVED publishing - orchestrator now handles it
+                # This fixes Vulnerability #2 (WRITE Bypass) - agents can no longer publish directly
+                # await ctx.board.publish(artifact)
 
         return produced
 
