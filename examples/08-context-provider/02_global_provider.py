@@ -14,12 +14,24 @@ Run: uv run examples/08-context-provider/02_global_provider.py
 """
 
 import asyncio
+import sys
 from pydantic import BaseModel
 
 from flock import Flock
 from flock.context_provider import FilteredContextProvider
 from flock.store import FilterConfig
 from flock.visibility import PublicVisibility
+
+# Fix Windows console encoding for emojis
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Python < 3.7
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 
 # Define our data models
@@ -62,6 +74,10 @@ async def main():
         context_provider=urgent_only_provider  # 🎯 ALL agents will use this!
     )
 
+    # Create a shared correlation ID for this conversation
+    from uuid import uuid4
+    conversation_id = uuid4()
+
     # Create agents - they'll all use the global provider
     summarizer = (
         flock.agent("summarizer")
@@ -91,6 +107,7 @@ async def main():
         await flock.publish(
             task,
             visibility=PublicVisibility(),
+            correlation_id=conversation_id,
             tags=tags  # 🎯 These tags are used for filtering!
         )
 

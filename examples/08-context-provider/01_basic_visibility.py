@@ -14,10 +14,22 @@ Run: uv run examples/08-context-provider/01_basic_visibility.py
 """
 
 import asyncio
+import sys
 from pydantic import BaseModel, Field
 
 from flock import Flock
 from flock.visibility import PublicVisibility, PrivateVisibility
+
+# Fix Windows console encoding for emojis
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Python < 3.7
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 
 # Define our data models
@@ -45,6 +57,10 @@ async def main():
     # Create orchestrator
     flock = Flock()
 
+    # Create a shared correlation ID for this conversation
+    from uuid import uuid4
+    conversation_id = uuid4()
+
     # Create two agents: one regular, one with clearance
     public_agent = (
         flock.agent("public_agent")
@@ -68,6 +84,7 @@ async def main():
     await flock.publish(
         Message(content="Hello world!", classification="public"),
         visibility=PublicVisibility(),
+        correlation_id=conversation_id,
     )
     print("✅ Published PUBLIC message: 'Hello world!'")
     await flock.run_until_idle()
@@ -76,6 +93,7 @@ async def main():
     await flock.publish(
         Message(content="Secret operation at midnight", classification="classified"),
         visibility=PrivateVisibility(agents={"classified_agent"}),
+        correlation_id=conversation_id,
     )
     print("🔒 Published CLASSIFIED message: 'Secret operation at midnight'")
     print("   (Only visible to: classified_agent)")
@@ -84,6 +102,7 @@ async def main():
     await flock.publish(
         Message(content="Weather is nice today", classification="public"),
         visibility=PublicVisibility(),
+        correlation_id=conversation_id,
     )
     print("✅ Published PUBLIC message: 'Weather is nice today'")
 
@@ -91,6 +110,7 @@ async def main():
     await flock.publish(
         Message(content="Launch codes: alpha-bravo-charlie", classification="classified"),
         visibility=PrivateVisibility(agents={"classified_agent"}),
+        correlation_id=conversation_id,
     )
     print("🔒 Published CLASSIFIED message: 'Launch codes: alpha-bravo-charlie'")
     print("   (Only visible to: classified_agent)")

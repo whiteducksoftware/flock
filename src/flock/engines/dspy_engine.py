@@ -225,7 +225,7 @@ class DSPyEngine(EngineComponent):
         output_model = self._resolve_output_model(agent)
 
         # Fetch conversation context from blackboard
-        context_history = await self.fetch_conversation_context(ctx)
+        context_history = await self.fetch_conversation_context(ctx, agent=agent)
         has_context = bool(context_history) and self.should_use_context(inputs)
 
         # Generate signature with semantic field naming
@@ -280,24 +280,27 @@ class DSPyEngine(EngineComponent):
 
             # Detect if there's already an active Rich Live context
             should_stream = self.stream
-            # Phase 6+7 Security Fix: Use ctx.state instead of removed ctx.orchestrator
+            # Phase 6+7 Security Fix: Use Agent class variables for streaming coordination
             if ctx:
-                is_dashboard = ctx.state.get("is_dashboard", False)
-                # if dashboard we always stream, streamin queue only for CLI output
+                from flock.agent import Agent
+                # Check if dashboard mode (WebSocket broadcast is set)
+                is_dashboard = Agent._websocket_broadcast_global is not None
+                # if dashboard we always stream, streaming queue only for CLI output
                 if should_stream and not is_dashboard:
-                    # Get current active streams count from ctx.state
-                    active_streams = ctx.state.get("_active_streams", 0)
+                    # Get current active streams count from Agent class variable (shared across all agents)
+                    active_streams = Agent._streaming_counter
 
                     if active_streams > 0:
                         should_stream = False  # Suppress - another agent streaming
                     else:
-                        ctx.state["_active_streams"] = active_streams + 1  # Mark as streaming
+                        Agent._streaming_counter = active_streams + 1  # Mark as streaming
 
             try:
                 if should_stream:
                     # Choose streaming method based on dashboard mode
-                    # Phase 6+7 Security Fix: Read from ctx.state instead of removed ctx.orchestrator
-                    is_dashboard = ctx.state.get("is_dashboard", False) if ctx else False
+                    # Phase 6+7 Security Fix: Check dashboard mode via Agent class variable
+                    from flock.agent import Agent
+                    is_dashboard = Agent._websocket_broadcast_global is not None if ctx else False
 
                     # DEBUG: Log routing decision
                     logger.info(
@@ -352,14 +355,15 @@ class DSPyEngine(EngineComponent):
                         description=sys_desc,
                         payload=execution_payload,
                     )
-                    # Phase 6+7 Security Fix: Check streaming state from ctx.state
-                    if ctx and ctx.state.get("_active_streams", 0) > 0:
+                    # Phase 6+7 Security Fix: Check streaming state from Agent class variable
+                    from flock.agent import Agent
+                    if ctx and Agent._streaming_counter > 0:
                         ctx.state["_flock_output_queued"] = True
             finally:
-                # Phase 6+7 Security Fix: Decrement counter using ctx.state
+                # Phase 6+7 Security Fix: Decrement counter using Agent class variable
                 if should_stream and ctx:
-                    active_streams = ctx.state.get("_active_streams", 0)
-                    ctx.state["_active_streams"] = max(0, active_streams - 1)
+                    from flock.agent import Agent
+                    Agent._streaming_counter = max(0, Agent._streaming_counter - 1)
 
         # Extract semantic fields from Prediction
         normalized_output = self._extract_multi_output_payload(raw_result, output_group)
@@ -1052,10 +1056,9 @@ class DSPyEngine(EngineComponent):
         logger.info(f"Agent {agent.name}: Starting WebSocket-only streaming (dashboard mode)")
 
         # Get WebSocket broadcast function (security: wrapper prevents object traversal)
-        # Phase 6+7 Security Fix: Use broadcast wrapper from ctx.state (prevents GOD MODE restoration)
-        ws_broadcast = None
-        if ctx:
-            ws_broadcast = ctx.state.get("_websocket_broadcast")
+        # Phase 6+7 Security Fix: Use broadcast wrapper from Agent class variable (prevents GOD MODE restoration)
+        from flock.agent import Agent
+        ws_broadcast = Agent._websocket_broadcast_global
 
         if not ws_broadcast:
             logger.warning(
@@ -1274,10 +1277,9 @@ class DSPyEngine(EngineComponent):
         console = Console()
 
         # Get WebSocket broadcast function (security: wrapper prevents object traversal)
-        # Phase 6+7 Security Fix: Use broadcast wrapper from ctx.state (prevents GOD MODE restoration)
-        ws_broadcast = None
-        if ctx:
-            ws_broadcast = ctx.state.get("_websocket_broadcast")
+        # Phase 6+7 Security Fix: Use broadcast wrapper from Agent class variable (prevents GOD MODE restoration)
+        from flock.agent import Agent
+        ws_broadcast = Agent._websocket_broadcast_global
 
         # Prepare stream listeners for output field
         listeners = []
