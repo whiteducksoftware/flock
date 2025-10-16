@@ -30,12 +30,25 @@ class MockStore:
     async def query_artifacts(
         self, filters: FilterConfig | None = None, *, limit: int = 50, offset: int = 0
     ) -> tuple[list[Artifact], int]:
-        """Mock query that supports correlation_id filtering."""
+        """Mock query that supports full FilterConfig filtering."""
         results = self.artifacts
 
-        # Filter by correlation_id if provided
-        if filters and filters.correlation_id:
-            results = [a for a in results if str(a.correlation_id) == filters.correlation_id]
+        if filters:
+            # Filter by correlation_id
+            if filters.correlation_id:
+                results = [a for a in results if str(a.correlation_id) == filters.correlation_id]
+
+            # Filter by type_names
+            if filters.type_names:
+                results = [a for a in results if a.type in filters.type_names]
+
+            # Filter by tags (artifact must have at least one of the filter tags)
+            if filters.tags:
+                results = [a for a in results if a.tags and filters.tags.intersection(a.tags)]
+
+            # Filter by produced_by
+            if filters.produced_by:
+                results = [a for a in results if a.produced_by in filters.produced_by]
 
         # Apply limit
         if limit > 0:
@@ -587,3 +600,256 @@ class TestPluggableProviders:
         # Agent should have context_provider attribute initialized to None
         assert hasattr(agent._agent, "context_provider")
         assert agent._agent.context_provider is None
+
+
+@pytest.mark.asyncio
+class TestFilteredContextProvider:
+    """Phase 4: Test FilteredContextProvider for declarative filtering."""
+
+    async def test_filtered_provider_exists(self):
+        """FilteredContextProvider must be implemented."""
+        from flock.context_provider import FilteredContextProvider
+
+        # Should be able to import FilteredContextProvider
+        assert FilteredContextProvider is not None
+
+    async def test_filtered_provider_filters_by_tags(self):
+        """FilteredContextProvider must filter artifacts by tags.
+
+        Example: FilteredContextProvider(FilterConfig(tags={"important"}))
+        Only returns artifacts with "important" tag.
+        """
+        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.store import FilterConfig
+
+        correlation = uuid4()
+
+        # Create artifacts with different tags
+        important_artifact = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Critical bug"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+            tags={"important", "bug"},
+        )
+
+        normal_artifact = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Normal task"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+            tags={"feature"},
+        )
+
+        store = MockStore([important_artifact, normal_artifact])
+        agent = MockAgent("worker")
+
+        # Create provider that filters by "important" tag
+        provider = FilteredContextProvider(FilterConfig(tags={"important"}))
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=agent.identity,
+        )
+
+        context = await provider(request)
+
+        # Should only see artifact with "important" tag
+        assert len(context) == 1
+        assert context[0]["payload"]["title"] == "Critical bug"
+
+    async def test_filtered_provider_filters_by_type(self):
+        """FilteredContextProvider must filter artifacts by type.
+
+        Example: FilteredContextProvider(FilterConfig(type_names={"Task"}))
+        Only returns Task artifacts.
+        """
+        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.store import FilterConfig
+
+        correlation = uuid4()
+
+        # Create artifacts of different types
+        task_artifact = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Do something"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+        )
+
+        report_artifact = Artifact(
+            id=uuid4(),
+            type="Report",
+            payload={"content": "Analysis complete"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+        )
+
+        store = MockStore([task_artifact, report_artifact])
+        agent = MockAgent("worker")
+
+        # Create provider that filters by "Task" type
+        provider = FilteredContextProvider(FilterConfig(type_names={"Task"}))
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=agent.identity,
+        )
+
+        context = await provider(request)
+
+        # Should only see Task artifact
+        assert len(context) == 1
+        assert context[0]["type"] == "Task"
+
+    async def test_filtered_provider_still_enforces_visibility(self):
+        """SECURITY: FilteredContextProvider MUST enforce visibility on top of filters.
+
+        Even with declarative filtering, visibility is ALWAYS enforced.
+        This is the CRITICAL SECURITY REQUIREMENT from Phase 2.
+        """
+        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.store import FilterConfig
+
+        correlation = uuid4()
+
+        # Create artifacts with same tag but different visibility
+        public_important = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Public important task"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+            tags={"important"},
+        )
+
+        private_important = Artifact(
+            id=uuid4(),
+            type="Secret",
+            payload={"api_key": "sk-secret123"},
+            produced_by="admin",
+            correlation_id=correlation,
+            visibility=PrivateVisibility(agents={"admin"}),  # Only admin
+            tags={"important"},
+        )
+
+        store = MockStore([public_important, private_important])
+        untrusted_agent = MockAgent("untrusted")  # NOT in allowlist
+
+        # Create provider that filters by "important" tag
+        provider = FilteredContextProvider(FilterConfig(tags={"important"}))
+        request = ContextRequest(
+            agent=untrusted_agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=untrusted_agent.identity,
+        )
+
+        context = await provider(request)
+
+        # SECURITY: Should only see PUBLIC artifact with "important" tag
+        # Private artifact must be filtered out by visibility enforcement
+        assert len(context) == 1
+        assert context[0]["type"] == "Task"
+        assert context[0]["payload"]["title"] == "Public important task"
+
+        # Verify private artifact is NOT visible
+        assert not any(item["type"] == "Secret" for item in context)
+
+    async def test_filtered_provider_respects_limit(self):
+        """FilteredContextProvider must respect artifact limit.
+
+        Example: FilteredContextProvider(FilterConfig(tags={"test"}), limit=2)
+        Returns at most 2 artifacts.
+        """
+        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.store import FilterConfig
+
+        correlation = uuid4()
+
+        # Create 5 artifacts with same tag
+        artifacts = [
+            Artifact(
+                id=uuid4(),
+                type="Task",
+                payload={"title": f"Task {i}"},
+                produced_by="system",
+                correlation_id=correlation,
+                visibility=PublicVisibility(),
+                tags={"test"},
+            )
+            for i in range(5)
+        ]
+
+        store = MockStore(artifacts)
+        agent = MockAgent("worker")
+
+        # Create provider with limit=2
+        provider = FilteredContextProvider(FilterConfig(tags={"test"}), limit=2)
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=agent.identity,
+        )
+
+        context = await provider(request)
+
+        # Should only return 2 artifacts (limit)
+        assert len(context) == 2
+
+    async def test_filtered_provider_returns_correct_format(self):
+        """FilteredContextProvider must return same format as DefaultContextProvider.
+
+        Format: [{"type": ..., "payload": ..., "produced_by": ..., ...}]
+        """
+        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.store import FilterConfig
+
+        correlation = uuid4()
+
+        artifact = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Test task"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+            tags={"test"},
+        )
+
+        store = MockStore([artifact])
+        agent = MockAgent("worker")
+
+        provider = FilteredContextProvider(FilterConfig(tags={"test"}))
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=agent.identity,
+        )
+
+        context = await provider(request)
+
+        # Verify format
+        assert isinstance(context, list)
+        assert len(context) == 1
+        assert isinstance(context[0], dict)
+
+        # Verify required fields
+        item = context[0]
+        assert item["type"] == "Task"
+        assert item["payload"] == {"title": "Test task"}
+        assert item["produced_by"] == "system"
+        assert "created_at" in item
+        assert "id" in item

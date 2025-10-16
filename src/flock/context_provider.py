@@ -148,8 +148,89 @@ class DefaultContextProvider:
         ]
 
 
+class FilteredContextProvider:
+    """Context provider with declarative filtering + MANDATORY visibility enforcement.
+
+    This provider combines declarative filtering (FilterConfig) with security
+    enforcement (visibility). It implements Phase 4 of the security fix.
+
+    Security Properties:
+    - ✅ Filters by FilterConfig (declarative filtering: tags, types, correlation, etc.)
+    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED
+    - ✅ Returns only artifacts matching BOTH filters AND visibility
+    - ✅ No direct store access exposed to agents
+
+    Example:
+        >>> # Filter by tags + enforce visibility
+        >>> provider = FilteredContextProvider(
+        ...     FilterConfig(tags={"important", "urgent"}),
+        ...     limit=10
+        ... )
+        >>> agent.with_context(provider)
+
+        >>> # Filter by type + enforce visibility
+        >>> provider = FilteredContextProvider(
+        ...     FilterConfig(type_names={"Task", "Report"}),
+        ...     limit=50
+        ... )
+    """
+
+    def __init__(self, filter_config: FilterConfig, limit: int = 50):
+        """Initialize FilteredContextProvider with declarative filters.
+
+        Args:
+            filter_config: FilterConfig specifying declarative filters
+            limit: Maximum number of artifacts to return (default: 50)
+        """
+        self.filter_config = filter_config
+        self.limit = limit
+
+    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+        """Fetch context with declarative filtering + mandatory visibility enforcement.
+
+        SECURITY IMPLEMENTATION:
+        1. Query artifacts using FilterConfig (declarative filtering)
+        2. Filter by visibility (security filtering) - THIS IS CRITICAL
+        3. Return only artifacts matching BOTH filters AND visibility
+
+        Args:
+            request: Context request with agent identity and store
+
+        Returns:
+            List of artifact dicts matching filters AND visible to agent
+        """
+        # Step 1: Query by FilterConfig (declarative filtering)
+        artifacts, _ = await request.store.query_artifacts(
+            self.filter_config,
+            limit=self.limit,
+        )
+
+        # Step 2: CRITICAL SECURITY STEP - Filter by visibility
+        # This ensures visibility is ALWAYS enforced, even with declarative filters
+        visible_artifacts = [
+            artifact
+            for artifact in artifacts
+            if artifact.visibility.allows(request.agent_identity)
+        ]
+
+        # Step 3: Return serialized context
+        return [
+            {
+                "type": artifact.type,
+                "payload": artifact.payload,
+                "produced_by": artifact.produced_by,
+                "created_at": artifact.created_at,
+                "id": str(artifact.id),
+                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
+                "tags": list(artifact.tags) if artifact.tags else [],
+            }
+            for artifact in visible_artifacts
+        ]
+
+
 __all__ = [
     "ContextProvider",
     "ContextRequest",
     "DefaultContextProvider",
+    "FilteredContextProvider",
 ]

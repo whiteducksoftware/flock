@@ -194,31 +194,33 @@ class Context(BaseModel):
 
 ---
 
-### Phase 4: FilteredContextProvider - Declarative Filtering
+### Phase 4: FilteredContextProvider - Declarative Filtering ✅ **COMPLETED**
 
 **🎯 Deliverable**: Ergonomic provider wrapping FilterConfig
 
-- [ ] **Prime Context**: FilterConfig and query API
-    - [ ] Read FilterConfig structure `[ref: src/flock/store.py; lines: 92-102]`
-    - [ ] Review query_artifacts API `[ref: src/flock/store.py; lines: 161-170]`
+- [x] **Prime Context**: FilterConfig and query API
+    - [x] Read FilterConfig structure `[ref: src/flock/store.py; lines: 92-102]`
+    - [x] Review query_artifacts API `[ref: src/flock/store.py; lines: 161-170]`
 
-- [ ] **Write Tests**: FilteredContextProvider functionality `[activity: test-integration]`
-    - [ ] Test `FilteredContextProvider(FilterConfig(tags={"important"}))` filters by tags
-    - [ ] Test `FilteredContextProvider(FilterConfig(type_names={"Task"}))` filters by type
-    - [ ] Test `FilteredContextProvider` still enforces visibility on top of filters
-    - [ ] Test `FilteredContextProvider(limit=10)` respects artifact limit
-    - [ ] Test location: `tests/test_context_provider.py::test_filtered_provider`
+- [x] **Write Tests**: FilteredContextProvider functionality `[activity: test-integration]`
+    - [x] Test `FilteredContextProvider(FilterConfig(tags={"important"}))` filters by tags
+    - [x] Test `FilteredContextProvider(FilterConfig(type_names={"Task"}))` filters by type
+    - [x] Test `FilteredContextProvider` still enforces visibility on top of filters
+    - [x] Test `FilteredContextProvider(limit=10)` respects artifact limit
+    - [x] Test location: `tests/test_context_provider.py::TestFilteredContextProvider`
 
-- [ ] **Implement**: FilteredContextProvider class `[activity: implement-integration]`
-    - [ ] Add `FilteredContextProvider` class to `src/flock/context_provider.py`
-    - [ ] Constructor: `__init__(self, filter_config: FilterConfig, limit: int = 50)`
-    - [ ] In `__call__`: query using `store.query_artifacts(self.filter_config, limit=self.limit)`
-    - [ ] **CRITICAL**: Still filter by `artifact.visibility.allows(agent_identity)` - visibility is ALWAYS enforced
-    - [ ] Return filtered artifact dicts
+- [x] **Implement**: FilteredContextProvider class `[activity: implement-integration]`
+    - [x] Add `FilteredContextProvider` class to `src/flock/context_provider.py`
+    - [x] Constructor: `__init__(self, filter_config: FilterConfig, limit: int = 50)`
+    - [x] In `__call__`: query using `store.query_artifacts(self.filter_config, limit=self.limit)`
+    - [x] **CRITICAL**: Still filter by `artifact.visibility.allows(agent_identity)` - visibility is ALWAYS enforced
+    - [x] Return filtered artifact dicts
 
-- [ ] **Validate**: FilteredContextProvider works `[activity: run-tests]`
-    - [ ] Run `pytest tests/test_context_provider.py::test_filtered_provider -v`
-    - [ ] Verify declarative filtering + visibility enforcement
+- [x] **Validate**: FilteredContextProvider works `[activity: run-tests]`
+    - [x] Run `pytest tests/test_context_provider.py::TestFilteredContextProvider -v`
+    - [x] Verify declarative filtering + visibility enforcement
+
+**Results**: ✅ 6 declarative filtering tests passing | Tag filtering working | Type filtering working | Visibility enforcement on top of filters (CRITICAL SECURITY) | Limit respected | Format validated | Total: 24 tests passing (2 protocol + 9 DefaultContextProvider + 7 pluggable + 6 FilteredContextProvider)
 
 ---
 
