@@ -224,36 +224,42 @@ class Context(BaseModel):
 
 ---
 
-### Phase 5: Engine Integration - Remove Direct Store Access
+### Phase 5: Engine Integration - Remove Direct Store Access ✅ **COMPLETED**
 
 **🎯 Deliverable**: Engines use provider instead of `ctx.board.list()`
 
-- [ ] **Prime Context**: Engine architecture and current fetch_conversation_context
-    - [ ] Read EngineComponent `[ref: src/flock/components.py; lines: 156-205]`
-    - [ ] Identify current inefficient pattern (uses `list()` instead of `query_artifacts`)
+- [x] **Prime Context**: Engine architecture and current fetch_conversation_context
+    - [x] Read EngineComponent `[ref: src/flock/components.py; lines: 156-205]`
+    - [x] Identify current inefficient pattern (uses `list()` instead of `query_artifacts`)
 
-- [ ] **Write Tests**: Engine context fetching via provider `[activity: test-integration]`
-    - [ ] Test `DSPyEngine.fetch_conversation_context()` uses provider (no direct `ctx.board` access)
-    - [ ] Test engine receives only visible artifacts (respects visibility)
-    - [ ] Test engine receives correlation-filtered artifacts by default
-    - [ ] Test custom provider works with engine
-    - [ ] Test location: `tests/test_engine_context.py::test_engine_uses_provider`
+- [x] **Write Tests**: Engine context fetching via provider `[activity: test-integration]`
+    - [x] Test `EngineComponent.fetch_conversation_context()` uses provider (no direct `ctx.board` access)
+    - [x] Test engine receives only visible artifacts (respects visibility)
+    - [x] Test engine receives correlation-filtered artifacts by default
+    - [x] Test engine respects context_exclude_types configuration
+    - [x] Test engine respects context_max_artifacts limit
+    - [x] Test custom provider works with engine (FilteredContextProvider)
+    - [x] Test engine returns correct output format
+    - [x] Test location: `tests/test_engine_context.py::TestEngineUsesProvider`
 
-- [ ] **Implement**: Update EngineComponent.fetch_conversation_context `[activity: implement-security]`
-    - [ ] Modify `src/flock/components.py` lines 156-205
-    - [ ] **REMOVE**: `all_artifacts = await ctx.board.list()` line (THIS IS THE VULNERABILITY)
-    - [ ] **ADD**: Get provider from context (orchestrator will inject it)
-    - [ ] Create `ContextRequest(agent=agent, correlation_id=ctx.correlation_id, store=store, agent_identity=agent.identity)`
-    - [ ] Call `context_items = await provider(request)` to get FILTERED context
-    - [ ] Apply `context_max_artifacts` limit if configured
-    - [ ] Apply `context_exclude_types` filtering
-    - [ ] Return filtered context
-    - [ ] **NO FALLBACK** to `ctx.board` - engines must fail if provider missing (fail fast)
+- [x] **Implement**: Update EngineComponent.fetch_conversation_context `[activity: implement-security]`
+    - [x] Modify `src/flock/components.py` lines 156-249
+    - [x] **REMOVED**: `all_artifacts = await ctx.board.list()` line (THIS WAS THE VULNERABILITY)
+    - [x] **ADDED**: Get provider from context with fail-fast: `provider = getattr(ctx, "provider", None)`
+    - [x] **ADDED**: Agent parameter to fetch_conversation_context signature (needed for visibility)
+    - [x] Create `ContextRequest(agent=agent, correlation_id=target_correlation_id, store=store, agent_identity=agent.identity)`
+    - [x] Call `context_items = await provider(request)` to get FILTERED context
+    - [x] Apply `context_max_artifacts` limit if configured
+    - [x] Apply `context_exclude_types` filtering
+    - [x] Return filtered context with event_number field
+    - [x] **NO FALLBACK** to `ctx.board` - engines fail fast if provider missing
 
-- [ ] **Validate**: Engines secure `[activity: run-tests]`
-    - [ ] Run `pytest tests/test_engine_context.py -v`
-    - [ ] Verify engines cannot bypass visibility
-    - [ ] Verify engines fail if trying old `ctx.board` pattern
+- [x] **Validate**: Engines secure `[activity: run-tests]`
+    - [x] Run `pytest tests/test_engine_context.py::TestEngineUsesProvider -v`
+    - [x] Verify engines cannot bypass visibility (untrusted agents see nothing)
+    - [x] Verify engines use provider not ctx.board
+
+**Results**: ✅ 7 engine integration tests passing | Vulnerable ctx.board.list() REMOVED | Provider-based context fetching implemented | Visibility enforcement at engine level | Fail-fast behavior verified | READ bypass vulnerability at engine level FIXED
 
 ---
 

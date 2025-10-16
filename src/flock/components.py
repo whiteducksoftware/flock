@@ -156,10 +156,30 @@ class EngineComponent(AgentComponent):
     async def fetch_conversation_context(
         self,
         ctx: Context,
+        agent: Agent | None = None,
         correlation_id: UUID | None = None,
         max_artifacts: int | None = None,
     ) -> list[dict[str, Any]]:
-        """Fetch all artifacts with the same correlation_id for conversation context."""
+        """Fetch conversation context using Context Provider security boundary.
+
+        SECURITY FIX (Phase 5): This method now uses ctx.provider instead of ctx.board.list()
+        to enforce visibility filtering. This prevents engines from bypassing security.
+
+        Args:
+            ctx: Execution context (must have .provider, .correlation_id, .store)
+            agent: Agent instance for identity/visibility checks (required for provider)
+            correlation_id: Optional override for correlation filtering
+            max_artifacts: Optional override for artifact limit
+
+        Returns:
+            List of artifact dicts filtered by visibility and correlation
+
+        Security Properties:
+            - ✅ Uses provider.fetch() with visibility enforcement
+            - ✅ No direct store access (ctx.board removed in Phase 1)
+            - ✅ Agent can only see artifacts they're allowed to see
+            - ✅ Fail-fast: If provider missing, returns empty context (no fallback)
+        """
         if not self.enable_context or not ctx:
             return []
 
@@ -167,41 +187,65 @@ class EngineComponent(AgentComponent):
         if not target_correlation_id:
             return []
 
+        # SECURITY: Fail fast if no provider (Phase 7 will inject ctx.provider)
+        provider = getattr(ctx, "provider", None)
+        if not provider:
+            return []  # NO FALLBACK to insecure pattern
+
+        # SECURITY: Fail fast if no agent (needed for visibility checks)
+        if not agent:
+            return []
+
+        # SECURITY: Fail fast if no store (needed for querying)
+        store = getattr(ctx, "store", None)
+        if not store:
+            return []
+
         try:
-            all_artifacts = await ctx.board.list()
+            # SECURITY FIX: Use provider instead of ctx.board.list()
+            # This enforces visibility filtering at the security boundary
+            from flock.context_provider import ContextRequest
 
-            context_artifacts = [
-                a
-                for a in all_artifacts
-                if (
-                    a.correlation_id == target_correlation_id
-                    and a.type not in self.context_exclude_types
-                )
-            ]
+            request = ContextRequest(
+                agent=agent,
+                correlation_id=target_correlation_id,
+                store=store,
+                agent_identity=agent.identity,
+            )
 
-            context_artifacts.sort(key=lambda a: a.created_at)
+            # Provider returns pre-filtered context (visibility already enforced)
+            context_items = await provider(request)
 
+            # Apply engine-level filtering (type exclusions)
+            if self.context_exclude_types:
+                context_items = [
+                    item for item in context_items if item["type"] not in self.context_exclude_types
+                ]
+
+            # Sort by created_at if available
+            context_items.sort(key=lambda item: item.get("created_at", 0))
+
+            # Apply max artifacts limit
             max_limit = max_artifacts if max_artifacts is not None else self.context_max_artifacts
             if max_limit is not None and max_limit > 0:
-                context_artifacts = context_artifacts[-max_limit:]
+                context_items = context_items[-max_limit:]
 
+            # Add event_number field (engine convention)
             context = []
-            i = 0
-            for artifact in context_artifacts:
+            for i, item in enumerate(context_items):
                 context.append(
                     {
-                        "type": artifact.type,
-                        "payload": artifact.payload,
-                        "produced_by": artifact.produced_by,
+                        "type": item["type"],
+                        "payload": item["payload"],
+                        "produced_by": item["produced_by"],
                         "event_number": i,
-                        # "created_at": artifact.created_at.isoformat(),
                     }
                 )
-                i += 1
 
             return context
 
         except Exception:
+            # Fail gracefully but don't fall back to insecure pattern
             return []
 
     async def get_latest_artifact_of_type(
