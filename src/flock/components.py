@@ -159,6 +159,7 @@ class EngineComponent(AgentComponent):
         agent: Agent | None = None,
         correlation_id: UUID | None = None,
         max_artifacts: int | None = None,
+        exclude_ids: set[UUID] | None = None,
     ) -> list[dict[str, Any]]:
         """Fetch conversation context using Context Provider security boundary.
 
@@ -170,6 +171,7 @@ class EngineComponent(AgentComponent):
             agent: Agent instance for identity/visibility checks (required for provider)
             correlation_id: Optional override for correlation filtering
             max_artifacts: Optional override for artifact limit
+            exclude_ids: Optional set of artifact IDs to exclude (e.g., input artifacts to avoid duplication)
 
         Returns:
             List of artifact dicts filtered by visibility and correlation
@@ -211,6 +213,7 @@ class EngineComponent(AgentComponent):
                 correlation_id=target_correlation_id,
                 store=store,
                 agent_identity=agent.identity,
+                exclude_ids=exclude_ids,
             )
 
             # Provider returns pre-filtered context (visibility already enforced)

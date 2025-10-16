@@ -168,14 +168,16 @@ class OutputUtilityComponent(AgentComponent):
         # If output was queued due to concurrent stream, wait and then display
         if output_queued:
             # Wait for active streams to complete
-            # Phase 6+7 Security Fix: Use ctx.state instead of removed ctx.orchestrator
+            # Phase 6+7 Security Fix: Use Agent class variable instead of ctx.state
             if ctx:
                 import asyncio
+
+                from flock.agent import Agent
 
                 # Wait until no streams are active
                 max_wait = 30  # seconds
                 waited = 0
-                while ctx.state.get("_active_streams", 0) > 0 and waited < max_wait:
+                while Agent._streaming_counter > 0 and waited < max_wait:
                     await asyncio.sleep(0.1)
                     waited += 0.1
                 logger.debug(

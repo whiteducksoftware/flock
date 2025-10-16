@@ -97,7 +97,7 @@ async def main():
     )
     print("🔒 Published CLASSIFIED message: 'Secret operation at midnight'")
     print("   (Only visible to: classified_agent)")
-
+    await flock.run_until_idle()
     # Another public message
     await flock.publish(
         Message(content="Weather is nice today", classification="public"),
@@ -105,7 +105,7 @@ async def main():
         correlation_id=conversation_id,
     )
     print("✅ Published PUBLIC message: 'Weather is nice today'")
-
+    await flock.run_until_idle()
     # Another classified message
     await flock.publish(
         Message(content="Launch codes: alpha-bravo-charlie", classification="classified"),
@@ -115,7 +115,6 @@ async def main():
     print("🔒 Published CLASSIFIED message: 'Launch codes: alpha-bravo-charlie'")
     print("   (Only visible to: classified_agent)")
     print()
-
     # Wait for agents to process
     print("⏳ Agents processing messages...")
     await flock.run_until_idle()

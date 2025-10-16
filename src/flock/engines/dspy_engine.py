@@ -224,8 +224,11 @@ class DSPyEngine(EngineComponent):
             validated_input = self._validate_input_payload(input_model, primary_artifact.payload)
         output_model = self._resolve_output_model(agent)
 
-        # Fetch conversation context from blackboard
-        context_history = await self.fetch_conversation_context(ctx, agent=agent)
+        # Fetch conversation context from blackboard, excluding input artifacts to avoid duplication
+        # Collect input artifact IDs to exclude from context
+        exclude_ids = {artifact.id for artifact in inputs.artifacts} if inputs.artifacts else None
+        context_history = await self.fetch_conversation_context(ctx, agent=agent, exclude_ids=exclude_ids)
+
         has_context = bool(context_history) and self.should_use_context(inputs)
 
         # Generate signature with semantic field naming

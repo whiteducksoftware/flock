@@ -41,12 +41,14 @@ class ContextRequest:
         correlation_id: Workflow identifier for filtering
         store: Blackboard store for querying artifacts
         agent_identity: Agent identity for visibility checks (includes labels, tenant_id)
+        exclude_ids: Set of artifact IDs to exclude from context (e.g., input artifacts)
     """
 
     agent: Any  # Agent type to avoid circular import
     correlation_id: UUID
     store: BlackboardStore
     agent_identity: AgentIdentity
+    exclude_ids: set[UUID] | None = None
 
 
 class ContextProvider(Protocol):
@@ -133,6 +135,14 @@ class DefaultContextProvider:
             if artifact.visibility.allows(request.agent_identity)
         ]
 
+        # Step 2.5: Exclude specific artifacts (e.g., input artifacts to avoid duplication)
+        if request.exclude_ids:
+            visible_artifacts = [
+                artifact
+                for artifact in visible_artifacts
+                if artifact.id not in request.exclude_ids
+            ]
+
         # Step 3: Return serialized context
         return [
             {
@@ -212,6 +222,14 @@ class FilteredContextProvider:
             for artifact in artifacts
             if artifact.visibility.allows(request.agent_identity)
         ]
+
+        # Step 2.5: Exclude specific artifacts (e.g., input artifacts to avoid duplication)
+        if request.exclude_ids:
+            visible_artifacts = [
+                artifact
+                for artifact in visible_artifacts
+                if artifact.id not in request.exclude_ids
+            ]
 
         # Step 3: Return serialized context
         return [

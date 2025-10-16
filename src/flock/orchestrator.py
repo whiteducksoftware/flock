@@ -615,26 +615,11 @@ class Flock(metaclass=AutoTracedMeta):
         from flock.context_provider import DefaultContextProvider
         provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
 
-        # Phase 6+7: Create Context with provider and store (NO board/orchestrator)
-        # Initialize streaming coordination state for CLI mode
-        # SECURITY: Create broadcast wrapper to prevent object traversal back to orchestrator
-        ws_manager = getattr(self, "_websocket_manager", None)
-
-        async def _broadcast_wrapper(event):
-            """Isolated broadcast wrapper - no reference chain to orchestrator."""
-            if ws_manager:
-                return await ws_manager.broadcast(event)
-            return None
-
+        # Phase 6+7: Create Context (streaming coordination via Agent class variables)
         ctx = Context(
             provider=provider,
             store=self.store,
-            task_id=str(uuid4()),
-            state={
-                "_active_streams": 0,
-                "is_dashboard": getattr(self, "is_dashboard", False),
-                "_websocket_broadcast": _broadcast_wrapper if ws_manager else None
-            }
+            task_id=str(uuid4())
         )
         self._record_agent_run(agent)
         return await agent.execute(ctx, artifacts)
@@ -781,6 +766,14 @@ class Flock(metaclass=AutoTracedMeta):
         # Store websocket manager for real-time event emission (Phase 1.2)
         self._websocket_manager = websocket_manager
 
+        # Phase 6+7: Set class-level WebSocket broadcast wrapper (dashboard mode)
+        async def _broadcast_wrapper(event):
+            """Isolated broadcast wrapper - no reference chain to orchestrator."""
+            return await websocket_manager.broadcast(event)
+
+        from flock.agent import Agent
+        Agent._websocket_broadcast_global = _broadcast_wrapper
+
         # Inject event collector into all existing agents
         for agent in self._agents.values():
             # Add dashboard collector with priority ordering handled by agent
@@ -855,8 +848,6 @@ class Flock(metaclass=AutoTracedMeta):
             >>> # Publish with tags for channel routing
             >>> await orchestrator.publish(task, tags={"urgent", "backend"})
         """
-        self.is_dashboard = is_dashboard
-        
         # Handle different input types
         if isinstance(obj, Artifact):
             # Already an artifact - publish as-is
@@ -998,26 +989,11 @@ class Flock(metaclass=AutoTracedMeta):
         from flock.context_provider import DefaultContextProvider
         provider = getattr(agent_obj, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
 
-        # Phase 6+7: Create Context with provider and store (NO board/orchestrator)
-        # Initialize streaming coordination state for CLI mode
-        # SECURITY: Create broadcast wrapper to prevent object traversal back to orchestrator
-        ws_manager = getattr(self, "_websocket_manager", None)
-
-        async def _broadcast_wrapper(event):
-            """Isolated broadcast wrapper - no reference chain to orchestrator."""
-            if ws_manager:
-                return await ws_manager.broadcast(event)
-            return None
-
+        # Phase 6+7: Create Context (streaming coordination via Agent class variables)
         ctx = Context(
             provider=provider,
             store=self.store,
-            task_id=str(uuid4()),
-            state={
-                "_active_streams": 0,
-                "is_dashboard": getattr(self, "is_dashboard", False),
-                "_websocket_broadcast": _broadcast_wrapper if ws_manager else None
-            }
+            task_id=str(uuid4())
         )
         self._record_agent_run(agent_obj)
 
@@ -1392,28 +1368,13 @@ class Flock(metaclass=AutoTracedMeta):
         from flock.context_provider import DefaultContextProvider
         provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
 
-        # Phase 6+7: Create Context with provider and store (NO board/orchestrator)
-        # Initialize streaming coordination state for CLI mode
-        # SECURITY: Create broadcast wrapper to prevent object traversal back to orchestrator
-        ws_manager = getattr(self, "_websocket_manager", None)
-
-        async def _broadcast_wrapper(event):
-            """Isolated broadcast wrapper - no reference chain to orchestrator."""
-            if ws_manager:
-                return await ws_manager.broadcast(event)
-            return None
-
+        # Phase 6+7: Create Context (streaming coordination via Agent class variables)
         ctx = Context(
             provider=provider,
             store=self.store,
             task_id=str(uuid4()),
             correlation_id=correlation_id,
-            is_batch=is_batch,
-            state={
-                "_active_streams": 0,
-                "is_dashboard": getattr(self, "is_dashboard", False),
-                "_websocket_broadcast": _broadcast_wrapper if ws_manager else None
-            }
+            is_batch=is_batch
         )
         self._record_agent_run(agent)
 

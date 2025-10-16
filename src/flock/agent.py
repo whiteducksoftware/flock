@@ -127,6 +127,11 @@ class Agent(metaclass=AutoTracedMeta):
     All public methods are automatically traced via OpenTelemetry.
     """
 
+    # Phase 6+7: Class-level streaming coordination (SHARED across ALL agent instances)
+    # These class variables enable all agents to coordinate CLI streaming behavior
+    _streaming_counter: int = 0  # Global count of agents currently streaming to CLI
+    _websocket_broadcast_global: Any = None  # WebSocket broadcast wrapper (dashboard mode)
+
     def __init__(self, name: str, *, orchestrator: Flock) -> None:
         self.name = name
         self.description: str | None = None
@@ -409,6 +414,10 @@ class Agent(metaclass=AutoTracedMeta):
 
                 if isinstance(result, BaseModel) and not isinstance(result, ER):
                     result = ER.from_object(result, agent=self)
+
+                artifacts = result.artifacts
+                for artifact in artifacts:
+                    artifact.correlation_id = ctx.correlation_id
 
                 result = await engine.on_post_evaluate(self, ctx, current_inputs, result)
                 accumulated_logs.extend(result.logs)
