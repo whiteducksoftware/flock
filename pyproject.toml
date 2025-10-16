@@ -152,4 +152,4 @@ convention = "google"
 script = "poethepoet.scripts:rm('dist', 'htmlcov', 'logs','metrics','.mypy_cache', '.pytest_cache', './**/__pycache__')"
 
 [tool.hatch.build.targets.wheel]
-packages = [ "src/flock",]
+packages = [ "src/flock"]
