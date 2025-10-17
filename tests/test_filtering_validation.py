@@ -9,20 +9,20 @@ from pydantic import BaseModel, Field
 
 from flock import Flock
 from flock.artifacts import Artifact
-from flock.components import AgentComponent, EngineComponent
-from flock.runtime import Context, EvalInputs, EvalResult
+from flock.components.agent import AgentComponent, EngineComponent
+from flock.runtime import Context, EvalResult
 from flock.visibility import PrivateVisibility, PublicVisibility
 
 
 # NoOp utility to bypass console output issues
 class NoOpUtility(AgentComponent):
     """Silent utility that does nothing - bypasses default console output."""
-    pass
 
 
 # Test artifact types
 class ScoredResult(BaseModel):
     """Result with a score for filtering/validation tests."""
+
     id: int
     score: float = Field(ge=0, le=100)
     category: str
@@ -31,12 +31,14 @@ class ScoredResult(BaseModel):
 
 class FilteredOutput(BaseModel):
     """Output artifact for filtering tests."""
+
     value: int
     passed: bool
 
 
 class ValidatedData(BaseModel):
     """Data artifact for validation tests."""
+
     name: str
     priority: str
     confidence: float
@@ -45,6 +47,7 @@ class ValidatedData(BaseModel):
 # Mock board for tests
 class MockBoard:
     """Mock blackboard that collects published artifacts without side effects."""
+
     def __init__(self):
         self.published: list[Artifact] = []
 
@@ -91,7 +94,7 @@ async def test_where_filtering_reduces_published_artifacts():
         .publishes(
             ScoredResult,
             fan_out=10,
-            where=lambda r: r.score >= 70  # Only 70, 80, 90, 100 (4 artifacts)
+            where=lambda r: r.score >= 70,  # Only 70, 80, 90, 100 (4 artifacts)
         )
         .with_engines(FilteringEngine())
         .with_utilities(NoOpUtility())
@@ -105,7 +108,9 @@ async def test_where_filtering_reduces_published_artifacts():
 
     # Verify: Only 4 artifacts passed the filter (scores 70, 80, 90, 100)
     scored_results = [a for a in outputs if "ScoredResult" in a.type]
-    assert len(scored_results) == 4, f"Expected 4 filtered artifacts, got {len(scored_results)}"
+    assert len(scored_results) == 4, (
+        f"Expected 4 filtered artifacts, got {len(scored_results)}"
+    )
     scores = sorted([a.payload["score"] for a in scored_results])
     assert scores == [70.0, 80.0, 90.0, 100.0]
 
@@ -132,7 +137,7 @@ async def test_where_filtering_with_no_matches_publishes_nothing():
         .publishes(
             ScoredResult,
             fan_out=5,
-            where=lambda r: r.score >= 90  # No results meet this
+            where=lambda r: r.score >= 90,  # No results meet this
         )
         .with_engines(FilteringEngine())
         .with_utilities(NoOpUtility())
@@ -174,7 +179,7 @@ async def test_where_filtering_with_complex_predicate():
             ScoredResult,
             fan_out=5,
             # Complex filter: category A AND score >= 70 AND is_valid
-            where=lambda r: r.category == "A" and r.score >= 70 and r.is_valid
+            where=lambda r: r.category == "A" and r.score >= 70 and r.is_valid,
         )
         .with_engines(FilteringEngine())
         .with_utilities(NoOpUtility())
@@ -208,7 +213,9 @@ async def test_validate_single_predicate_rejects_invalid():
             # One valid, one invalid
             results = [
                 ValidatedData(name="Valid", priority="high", confidence=0.9),
-                ValidatedData(name="Invalid", priority="invalid_priority", confidence=0.8),
+                ValidatedData(
+                    name="Invalid", priority="invalid_priority", confidence=0.8
+                ),
             ]
             return EvalResult.from_objects(*results, agent=agent)
 
@@ -220,7 +227,7 @@ async def test_validate_single_predicate_rejects_invalid():
         .publishes(
             ValidatedData,
             fan_out=2,
-            validate=lambda d: d.priority in ["high", "medium", "low"]
+            validate=lambda d: d.priority in ["high", "medium", "low"],
         )
         .with_engines(ValidatingEngine())
         .with_utilities(NoOpUtility())
@@ -248,7 +255,9 @@ async def test_validate_list_of_tuples_with_custom_messages():
         async def evaluate(self, agent, ctx, inputs, output_group):
             # Create artifact that fails second validation
             results = [
-                ValidatedData(name="Test", priority="high", confidence=0.3),  # Low confidence
+                ValidatedData(
+                    name="Test", priority="high", confidence=0.3
+                ),  # Low confidence
             ]
             return EvalResult.from_objects(*results, agent=agent)
 
@@ -261,10 +270,13 @@ async def test_validate_list_of_tuples_with_custom_messages():
             ValidatedData,
             fan_out=1,
             validate=[
-                (lambda d: d.priority in ["high", "medium", "low"], "Priority must be high/medium/low"),
+                (
+                    lambda d: d.priority in ["high", "medium", "low"],
+                    "Priority must be high/medium/low",
+                ),
                 (lambda d: d.confidence >= 0.5, "Confidence must be at least 0.5"),
                 (lambda d: len(d.name) > 0, "Name cannot be empty"),
-            ]
+            ],
         )
         .with_engines(ValidatingEngine())
         .with_utilities(NoOpUtility())
@@ -290,7 +302,9 @@ async def test_validate_all_checks_must_pass():
         async def evaluate(self, agent, ctx, inputs, output_group):
             results = [
                 ValidatedData(name="A", priority="high", confidence=0.9),  # Passes all
-                ValidatedData(name="", priority="high", confidence=0.9),   # Fails name check
+                ValidatedData(
+                    name="", priority="high", confidence=0.9
+                ),  # Fails name check
             ]
             return EvalResult.from_objects(*results, agent=agent)
 
@@ -306,7 +320,7 @@ async def test_validate_all_checks_must_pass():
                 (lambda d: d.priority in ["high", "medium", "low"], "Invalid priority"),
                 (lambda d: d.confidence >= 0.5, "Confidence too low"),
                 (lambda d: len(d.name) > 0, "Name is required"),
-            ]
+            ],
         )
         .with_engines(ValidatingEngine())
         .with_utilities(NoOpUtility())
@@ -349,7 +363,7 @@ async def test_validate_passes_when_all_artifacts_valid():
                 (lambda d: d.priority in ["high", "medium", "low"], "Invalid priority"),
                 (lambda d: d.confidence >= 0.5, "Confidence too low"),
                 (lambda d: len(d.name) > 0, "Name is required"),
-            ]
+            ],
         )
         .with_engines(ValidatingEngine())
         .with_utilities(NoOpUtility())
@@ -393,7 +407,9 @@ async def test_dynamic_visibility_based_on_content():
         .publishes(
             ScoredResult,
             fan_out=3,
-            visibility=lambda r: PublicVisibility() if r.category == "important" else PrivateVisibility()
+            visibility=lambda r: PublicVisibility()
+            if r.category == "important"
+            else PrivateVisibility(),
         )
         .with_engines(VisibilityEngine())
         .with_utilities(NoOpUtility())
@@ -434,7 +450,7 @@ async def test_static_visibility_applied_to_all():
         .publishes(
             ScoredResult,
             fan_out=3,
-            visibility=PublicVisibility()  # Static visibility
+            visibility=PublicVisibility(),  # Static visibility
         )
         .with_engines(VisibilityEngine())
         .with_utilities(NoOpUtility())
@@ -466,10 +482,18 @@ async def test_where_and_validate_applied_in_order():
     class CombinedEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
             results = [
-                ScoredResult(id=1, score=95, category="A", is_valid=True),   # Passes filter AND validation
-                ScoredResult(id=2, score=50, category="A", is_valid=False),  # Filtered out (score < 70)
-                ScoredResult(id=3, score=85, category="A", is_valid=True),   # Passes filter AND validation
-                ScoredResult(id=4, score=75, category="A", is_valid=False),  # Passes filter, FAILS validation
+                ScoredResult(
+                    id=1, score=95, category="A", is_valid=True
+                ),  # Passes filter AND validation
+                ScoredResult(
+                    id=2, score=50, category="A", is_valid=False
+                ),  # Filtered out (score < 70)
+                ScoredResult(
+                    id=3, score=85, category="A", is_valid=True
+                ),  # Passes filter AND validation
+                ScoredResult(
+                    id=4, score=75, category="A", is_valid=False
+                ),  # Passes filter, FAILS validation
             ]
             return EvalResult.from_objects(*results, agent=agent)
 
@@ -482,7 +506,7 @@ async def test_where_and_validate_applied_in_order():
             ScoredResult,
             fan_out=4,
             where=lambda r: r.score >= 70,  # Filters to id=1, 3, 4
-            validate=lambda r: r.is_valid   # id=4 fails here
+            validate=lambda r: r.is_valid,  # id=4 fails here
         )
         .with_engines(CombinedEngine())
         .with_utilities(NoOpUtility())
@@ -509,7 +533,9 @@ async def test_where_validate_and_visibility_all_together():
                 ScoredResult(id=1, score=95, category="high", is_valid=True),
                 ScoredResult(id=2, score=85, category="medium", is_valid=True),
                 ScoredResult(id=3, score=75, category="high", is_valid=True),
-                ScoredResult(id=4, score=65, category="low", is_valid=True),   # Filtered out
+                ScoredResult(
+                    id=4, score=65, category="low", is_valid=True
+                ),  # Filtered out
             ]
             return EvalResult.from_objects(*results, agent=agent)
 
@@ -526,7 +552,9 @@ async def test_where_validate_and_visibility_all_together():
                 (lambda r: r.is_valid, "Must be valid"),
                 (lambda r: r.score > 0, "Score must be positive"),
             ],
-            visibility=lambda r: PublicVisibility() if r.category == "high" else PrivateVisibility()
+            visibility=lambda r: PublicVisibility()
+            if r.category == "high"
+            else PrivateVisibility(),
         )
         .with_engines(CompleteEngine())
         .with_utilities(NoOpUtility())
@@ -543,9 +571,9 @@ async def test_where_validate_and_visibility_all_together():
     assert len(scored_results) == 3
 
     # Check visibility
-    assert isinstance(scored_results[0].visibility, PublicVisibility)   # high
+    assert isinstance(scored_results[0].visibility, PublicVisibility)  # high
     assert isinstance(scored_results[1].visibility, PrivateVisibility)  # medium
-    assert isinstance(scored_results[2].visibility, PublicVisibility)   # high
+    assert isinstance(scored_results[2].visibility, PublicVisibility)  # high
 
     # Check filtered correctly
     ids = [a.payload["id"] for a in scored_results]
@@ -573,8 +601,11 @@ async def test_error_messages_include_artifact_type():
             ValidatedData,
             fan_out=1,
             validate=[
-                (lambda d: d.priority in ["high", "medium", "low"], "Priority must be high/medium/low"),
-            ]
+                (
+                    lambda d: d.priority in ["high", "medium", "low"],
+                    "Priority must be high/medium/low",
+                ),
+            ],
         )
         .with_engines(ErrorEngine())
         .with_utilities(NoOpUtility())

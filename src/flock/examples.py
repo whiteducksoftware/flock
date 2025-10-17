@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, Field
 
 from flock.artifacts import Artifact
-from flock.components import EngineComponent
+from flock.components.agent import EngineComponent
 from flock.orchestrator import Flock
 from flock.registry import flock_tool, flock_type, type_registry
 from flock.runtime import EvalInputs, EvalResult

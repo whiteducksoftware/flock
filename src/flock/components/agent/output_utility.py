@@ -1,12 +1,11 @@
-# src/flock/components/utility/output_utility_component.py
-"""Output formatting and display functionality for agents using unified component architecture."""
+"""Output formatting and display functionality for agents."""
 
 import re
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
 
-from flock.components import AgentComponent, AgentComponentConfig
+from flock.components.agent.base import AgentComponent, AgentComponentConfig
 from flock.logging.formatters.themed_formatter import (
     ThemedAgentResultFormatter,
 )
@@ -19,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover - type checking only
     from flock.agent import Agent
 
 
-logger = get_logger("components.utility.output")
+logger = get_logger("components.agent.output_utility")
 
 
 class OutputUtilityConfig(AgentComponentConfig):
@@ -244,3 +243,9 @@ class OutputUtilityComponent(AgentComponent):
     def add_custom_formatter(self, key: str, formatter_name: str) -> None:
         """Add a custom formatter for a specific output key."""
         self.config.custom_formatters[key] = formatter_name
+
+
+__all__ = [
+    "OutputUtilityComponent",
+    "OutputUtilityConfig",
+]

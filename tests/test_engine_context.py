@@ -15,17 +15,16 @@ The secure pattern (Phase 8):
 - Engine reads ctx.artifacts (no querying!)
 """
 
-import pytest
-from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
+from uuid import uuid4
 
-from flock.components import EngineComponent
-from flock.visibility import PublicVisibility, PrivateVisibility, AgentIdentity
+import pytest
+
 from flock.artifacts import Artifact
-from flock.context_provider import ContextProvider, ContextRequest, DefaultContextProvider
-from flock.store import FilterConfig
+from flock.components.agent import EngineComponent
+from flock.visibility import AgentIdentity
 
 
 class MockContext:
@@ -40,14 +39,18 @@ class MockContext:
 class MockAgent:
     """Mock agent for testing."""
 
-    def __init__(self, name: str, labels: set[str] | None = None, tenant_id: str | None = None):
+    def __init__(
+        self, name: str, labels: set[str] | None = None, tenant_id: str | None = None
+    ):
         self.name = name
         self.labels = labels or set()
         self.tenant_id = tenant_id
 
     @property
     def identity(self) -> AgentIdentity:
-        return AgentIdentity(name=self.name, labels=self.labels, tenant_id=self.tenant_id)
+        return AgentIdentity(
+            name=self.name, labels=self.labels, tenant_id=self.tenant_id
+        )
 
 
 class TestEngineComponent(EngineComponent):
@@ -85,7 +88,7 @@ class TestEngineUsesProvider:
                 type="Task",
                 payload={"title": "Public task"},
                 produced_by="system",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             # Private artifact NOT included (filtered by orchestrator's provider evaluation)
         ]
@@ -139,12 +142,14 @@ class TestEngineUsesProvider:
                 type="Task",
                 payload={"workflow": "A"},
                 produced_by="system",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             # Artifacts from workflow B NOT included (filtered by orchestrator)
         ]
 
-        ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation_a)
+        ctx = MockContext(
+            artifacts=pre_filtered_artifacts, correlation_id=correlation_a
+        )
 
         engine = TestEngineComponent()
         context = engine.get_conversation_context(ctx)
@@ -167,15 +172,15 @@ class TestEngineUsesProvider:
                 type="Task",
                 payload={"title": "Do something"},
                 produced_by="system",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
             Artifact(
                 id=uuid4(),
                 type="Log",
                 payload={"message": "Debug info"},
                 produced_by="system",
-                created_at=datetime.now(timezone.utc),
-            )
+                created_at=datetime.now(UTC),
+            ),
         ]
 
         ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
@@ -203,7 +208,7 @@ class TestEngineUsesProvider:
                 type="Task",
                 payload={"title": f"Task {i}"},
                 produced_by="system",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             for i in range(5)
         ]
@@ -234,7 +239,7 @@ class TestEngineUsesProvider:
                 type="Task",
                 payload={"title": "Critical bug"},
                 produced_by="system",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             # Normal artifact NOT included (filtered by custom provider)
         ]
@@ -260,7 +265,7 @@ class TestEngineUsesProvider:
                 type="Task",
                 payload={"title": "Do something"},
                 produced_by="planner",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
         ]
 

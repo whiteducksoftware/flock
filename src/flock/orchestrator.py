@@ -17,24 +17,23 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
 
+from flock._orchestrator import ComponentRunner, MCPManager
 from flock.agent import Agent, AgentBuilder
 from flock.artifact_collector import ArtifactCollector
 from flock.artifacts import Artifact
 from flock.batch_accumulator import BatchEngine
+from flock.components.orchestrator import (
+    CollectionResult,
+    OrchestratorComponent,
+    ScheduleDecision,
+)
 from flock.correlation_engine import CorrelationEngine
 from flock.helper.cli_helper import init_console
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.mcp import (
     FlockMCPClientManager,
     FlockMCPConfiguration,
-    FlockMCPConnectionConfiguration,
-    FlockMCPFeatureConfiguration,
     ServerParameters,
-)
-from flock.orchestrator_component import (
-    CollectionResult,
-    OrchestratorComponent,
-    ScheduleDecision,
 )
 from flock.registry import type_registry
 from flock.runtime import Context
@@ -142,9 +141,8 @@ class Flock(metaclass=AutoTracedMeta):
         self.metrics: dict[str, float] = {"artifacts_published": 0, "agent_runs": 0}
         # Phase 3: Global context provider (security fix)
         self._default_context_provider = context_provider
-        # MCP integration
-        self._mcp_configs: dict[str, FlockMCPConfiguration] = {}
-        self._mcp_manager: FlockMCPClientManager | None = None
+        # MCP integration - Phase 3 extracted to MCPManager
+        self._mcp_manager_instance = MCPManager()
         # T068: Circuit breaker for runaway agents
         self.max_agent_iterations: int = max_agent_iterations
         self._agent_iteration_count: dict[str, int] = {}
@@ -174,12 +172,11 @@ class Flock(metaclass=AutoTracedMeta):
             "on",
         }
 
-        # Phase 2: OrchestratorComponent system
+        # Phase 2: OrchestratorComponent system - Phase 3 extracted to ComponentRunner
         self._components: list[OrchestratorComponent] = []
-        self._components_initialized: bool = False
 
         # Auto-add built-in components
-        from flock.orchestrator_component import (
+        from flock.components.orchestrator import (
             BuiltinCollectionComponent,
             CircuitBreakerComponent,
             DeduplicationComponent,
@@ -188,6 +185,9 @@ class Flock(metaclass=AutoTracedMeta):
         self.add_component(CircuitBreakerComponent(max_iterations=max_agent_iterations))
         self.add_component(DeduplicationComponent())
         self.add_component(BuiltinCollectionComponent())
+
+        # Phase 3: Initialize ComponentRunner with sorted components
+        self._component_runner = ComponentRunner(self._components, self._logger)
 
         # Log orchestrator initialization
         self._logger.debug("Orchestrator initialized: components=[]")
@@ -274,6 +274,9 @@ class Flock(metaclass=AutoTracedMeta):
         self._components.append(component)
         self._components.sort(key=lambda c: c.priority)
 
+        # Phase 3: Update ComponentRunner with new sorted components
+        self._component_runner = ComponentRunner(self._components, self._logger)
+
         # Log component addition
         comp_name = component.name or component.__class__.__name__
         self._logger.info(
@@ -283,7 +286,7 @@ class Flock(metaclass=AutoTracedMeta):
 
         return self
 
-    # MCP management -------------------------------------------------------
+    # MCP management - Phase 3 extracted to MCPManager -------------------------------------------------------
 
     def add_mcp(
         self,
@@ -322,86 +325,20 @@ class Flock(metaclass=AutoTracedMeta):
         Raises:
             ValueError: If server name already registered
         """
-        if name in self._mcp_configs:
-            raise ValueError(f"MCP server '{name}' is already registered.")
-
-        # Detect transport type
-        from flock.mcp.types import (
-            SseServerParameters,
-            StdioServerParameters,
-            StreamableHttpServerParameters,
-            WebsocketServerParameters,
-        )
-
-        if isinstance(connection_params, StdioServerParameters):
-            transport_type = "stdio"
-        elif isinstance(connection_params, WebsocketServerParameters):
-            transport_type = "websockets"
-        elif isinstance(connection_params, SseServerParameters):
-            transport_type = "sse"
-        elif isinstance(connection_params, StreamableHttpServerParameters):
-            transport_type = "streamable_http"
-        else:
-            transport_type = "custom"
-
-        mcp_roots = None
-        if mount_points:
-            from pathlib import Path as PathLib
-
-            from flock.mcp.types import MCPRoot
-
-            mcp_roots = []
-            for path in mount_points:
-                # Normalize the path
-                if path.startswith("file://"):
-                    # Already a file URI
-                    uri = path
-                    # Extract path from URI for name
-                    path_str = path.replace("file://", "")
-                # the test:// path-prefix is used by testing servers such as the mcp-everything server.
-                elif path.startswith("test://"):
-                    # Already a test URI
-                    uri = path
-                    # Extract path from URI for name
-                    path_str = path.replace("test://", "")
-                else:
-                    # Convert to absolute path and create URI
-                    abs_path = PathLib(path).resolve()
-                    uri = f"file://{abs_path}"
-                    path_str = str(abs_path)
-
-                # Extract a meaningful name (last component of path)
-                name = (
-                    PathLib(path_str).name
-                    or path_str.rstrip("/").split("/")[-1]
-                    or "root"
-                )
-                mcp_roots.append(MCPRoot(uri=uri, name=name))
-
-        # Build configuration
-        connection_config = FlockMCPConnectionConfiguration(
-            max_retries=max_retries,
-            connection_parameters=connection_params,
-            transport_type=transport_type,
-            read_timeout_seconds=read_timeout_seconds,
-            mount_points=mcp_roots,
-        )
-
-        feature_config = FlockMCPFeatureConfiguration(
-            tools_enabled=enable_tools_feature,
-            prompts_enabled=enable_prompts_feature,
-            sampling_enabled=enable_sampling_feature,
-            roots_enabled=enable_roots_feature,
+        # Phase 3: Delegate to MCPManager
+        self._mcp_manager_instance.add_mcp(
+            name,
+            connection_params,
+            enable_tools_feature=enable_tools_feature,
+            enable_prompts_feature=enable_prompts_feature,
+            enable_sampling_feature=enable_sampling_feature,
+            enable_roots_feature=enable_roots_feature,
+            mount_points=mount_points,
             tool_whitelist=tool_whitelist,
+            read_timeout_seconds=read_timeout_seconds,
+            max_retries=max_retries,
+            **kwargs,
         )
-
-        mcp_config = FlockMCPConfiguration(
-            name=name,
-            connection_config=connection_config,
-            feature_config=feature_config,
-        )
-
-        self._mcp_configs[name] = mcp_config
         return self
 
     def get_mcp_manager(self) -> FlockMCPClientManager:
@@ -409,13 +346,18 @@ class Flock(metaclass=AutoTracedMeta):
 
         Architecture Decision: AD005 - Lazy Connection Establishment
         """
-        if not self._mcp_configs:
-            raise RuntimeError("No MCP servers registered. Call add_mcp() first.")
+        # Phase 3: Delegate to MCPManager
+        return self._mcp_manager_instance.get_mcp_manager()
 
-        if self._mcp_manager is None:
-            self._mcp_manager = FlockMCPClientManager(self._mcp_configs)
+    @property
+    def _mcp_configs(self) -> dict[str, FlockMCPConfiguration]:
+        """Get the dictionary of MCP configurations (Phase 3: delegated to MCPManager)."""
+        return self._mcp_manager_instance.configs
 
-        return self._mcp_manager
+    @property
+    def _mcp_manager(self) -> FlockMCPClientManager | None:
+        """Get the MCP manager instance (Phase 3: backward compatibility)."""
+        return self._mcp_manager_instance._client_manager
 
     # Unified Tracing ------------------------------------------------------
 
@@ -596,8 +538,8 @@ class Flock(metaclass=AutoTracedMeta):
             return
 
         # Notify components that orchestrator reached idle state
-        if self._components_initialized:
-            await self._run_idle()
+        if self._component_runner.is_initialized:
+            await self._component_runner.run_idle(self)
 
         # T068: Reset circuit breaker counters when idle
         self._agent_iteration_count.clear()
@@ -723,8 +665,8 @@ class Flock(metaclass=AutoTracedMeta):
                 Internal callers (e.g., run_until_idle) disable this to avoid
                 tearing down component state between cascades.
         """
-        if include_components and self._components_initialized:
-            await self._run_shutdown()
+        if include_components and self._component_runner.is_initialized:
+            await self._component_runner.run_shutdown(self)
 
         # Cancel correlation cleanup task if running
         if self._correlation_cleanup_task and not self._correlation_cleanup_task.done():
@@ -742,9 +684,8 @@ class Flock(metaclass=AutoTracedMeta):
             except asyncio.CancelledError:
                 pass
 
-        if self._mcp_manager is not None:
-            await self._mcp_manager.cleanup_all()
-            self._mcp_manager = None
+        # Phase 3: Delegate MCP cleanup to MCPManager
+        await self._mcp_manager_instance.cleanup()
 
     def cli(self) -> Flock:
         # Placeholder for CLI wiring (rich UI in Step 3)
@@ -1073,272 +1014,58 @@ class Flock(metaclass=AutoTracedMeta):
         self.metrics["artifacts_published"] += 1
         await self._schedule_artifact(artifact)
 
-    # Component Hook Runners ───────────────────────────────────────
+    # Component Hook Delegation (Phase 3: backward compatibility for tests) ───
 
     async def _run_initialize(self) -> None:
-        """Initialize all components in priority order (called once).
-
-        Executes on_initialize hook for each component. Sets _components_initialized
-        flag to prevent multiple initializations.
-        """
-        if self._components_initialized:
-            return
-
-        self._logger.info(
-            f"Initializing {len(self._components)} orchestrator components"
-        )
-
-        for component in self._components:
-            comp_name = component.name or component.__class__.__name__
-            self._logger.debug(
-                f"Initializing component: name={comp_name}, priority={component.priority}"
-            )
-
-            try:
-                await component.on_initialize(self)
-            except Exception as e:
-                self._logger.exception(
-                    f"Component initialization failed: name={comp_name}, error={e!s}"
-                )
-                raise
-
-        self._components_initialized = True
-        self._logger.info(f"All components initialized: count={len(self._components)}")
+        """Delegate to ComponentRunner (backward compatibility)."""
+        await self._component_runner.run_initialize(self)
 
     async def _run_artifact_published(self, artifact: Artifact) -> Artifact | None:
-        """Run on_artifact_published hooks (returns modified artifact or None to block).
-
-        Components execute in priority order, each receiving the artifact from the
-        previous component (chaining). If any component returns None, the artifact
-        is blocked and scheduling stops.
-        """
-        current_artifact = artifact
-
-        for component in self._components:
-            comp_name = component.name or component.__class__.__name__
-            self._logger.debug(
-                f"Running on_artifact_published: component={comp_name}, "
-                f"artifact_type={current_artifact.type}, artifact_id={current_artifact.id}"
-            )
-
-            try:
-                result = await component.on_artifact_published(self, current_artifact)
-
-                if result is None:
-                    self._logger.info(
-                        f"Artifact blocked by component: component={comp_name}, "
-                        f"artifact_type={current_artifact.type}, artifact_id={current_artifact.id}"
-                    )
-                    return None
-
-                current_artifact = result
-            except Exception as e:
-                self._logger.exception(
-                    f"Component hook failed: component={comp_name}, "
-                    f"hook=on_artifact_published, error={e!s}"
-                )
-                raise
-
-        return current_artifact
+        """Delegate to ComponentRunner (backward compatibility)."""
+        return await self._component_runner.run_artifact_published(self, artifact)
 
     async def _run_before_schedule(
         self, artifact: Artifact, agent: Agent, subscription: Subscription
     ) -> ScheduleDecision:
-        """Run on_before_schedule hooks (returns CONTINUE, SKIP, or DEFER).
-
-        Components execute in priority order. First component to return SKIP or
-        DEFER stops execution and returns that decision.
-        """
-        from flock.orchestrator_component import ScheduleDecision
-
-        for component in self._components:
-            comp_name = component.name or component.__class__.__name__
-
-            self._logger.debug(
-                f"Running on_before_schedule: component={comp_name}, "
-                f"agent={agent.name}, artifact_type={artifact.type}"
-            )
-
-            try:
-                decision = await component.on_before_schedule(
-                    self, artifact, agent, subscription
-                )
-
-                if decision == ScheduleDecision.SKIP:
-                    self._logger.info(
-                        f"Scheduling skipped by component: component={comp_name}, "
-                        f"agent={agent.name}, artifact_type={artifact.type}, decision=SKIP"
-                    )
-                    return ScheduleDecision.SKIP
-
-                if decision == ScheduleDecision.DEFER:
-                    self._logger.debug(
-                        f"Scheduling deferred by component: component={comp_name}, "
-                        f"agent={agent.name}, decision=DEFER"
-                    )
-                    return ScheduleDecision.DEFER
-
-            except Exception as e:
-                self._logger.exception(
-                    f"Component hook failed: component={comp_name}, "
-                    f"hook=on_before_schedule, error={e!s}"
-                )
-                raise
-
-        return ScheduleDecision.CONTINUE
+        """Delegate to ComponentRunner (backward compatibility)."""
+        return await self._component_runner.run_before_schedule(
+            self, artifact, agent, subscription
+        )
 
     async def _run_collect_artifacts(
         self, artifact: Artifact, agent: Agent, subscription: Subscription
     ) -> CollectionResult:
-        """Run on_collect_artifacts hooks (returns first non-None result).
-
-        Components execute in priority order. First component to return non-None
-        wins (short-circuit). If all return None, default is immediate scheduling.
-        """
-        from flock.orchestrator_component import CollectionResult
-
-        for component in self._components:
-            comp_name = component.name or component.__class__.__name__
-
-            self._logger.debug(
-                f"Running on_collect_artifacts: component={comp_name}, "
-                f"agent={agent.name}, artifact_type={artifact.type}"
-            )
-
-            try:
-                result = await component.on_collect_artifacts(
-                    self, artifact, agent, subscription
-                )
-
-                if result is not None:
-                    self._logger.debug(
-                        f"Collection handled by component: component={comp_name}, "
-                        f"complete={result.complete}, artifact_count={len(result.artifacts)}"
-                    )
-                    return result
-            except Exception as e:
-                self._logger.exception(
-                    f"Component hook failed: component={comp_name}, "
-                    f"hook=on_collect_artifacts, error={e!s}"
-                )
-                raise
-
-        # Default: immediate scheduling with single artifact
-        self._logger.debug(
-            f"No component handled collection, using default: "
-            f"agent={agent.name}, artifact_type={artifact.type}"
+        """Delegate to ComponentRunner (backward compatibility)."""
+        return await self._component_runner.run_collect_artifacts(
+            self, artifact, agent, subscription
         )
-        return CollectionResult.immediate([artifact])
 
     async def _run_before_agent_schedule(
         self, agent: Agent, artifacts: list[Artifact]
     ) -> list[Artifact] | None:
-        """Run on_before_agent_schedule hooks (returns modified artifacts or None to block).
-
-        Components execute in priority order, each receiving artifacts from the
-        previous component (chaining). If any component returns None, scheduling
-        is blocked.
-        """
-        current_artifacts = artifacts
-
-        for component in self._components:
-            comp_name = component.name or component.__class__.__name__
-
-            self._logger.debug(
-                f"Running on_before_agent_schedule: component={comp_name}, "
-                f"agent={agent.name}, artifact_count={len(current_artifacts)}"
-            )
-
-            try:
-                result = await component.on_before_agent_schedule(
-                    self, agent, current_artifacts
-                )
-
-                if result is None:
-                    self._logger.info(
-                        f"Agent scheduling blocked by component: component={comp_name}, "
-                        f"agent={agent.name}"
-                    )
-                    return None
-
-                current_artifacts = result
-            except Exception as e:
-                self._logger.exception(
-                    f"Component hook failed: component={comp_name}, "
-                    f"hook=on_before_agent_schedule, error={e!s}"
-                )
-                raise
-
-        return current_artifacts
+        """Delegate to ComponentRunner (backward compatibility)."""
+        return await self._component_runner.run_before_agent_schedule(
+            self, agent, artifacts
+        )
 
     async def _run_agent_scheduled(
         self, agent: Agent, artifacts: list[Artifact], task: Task[Any]
     ) -> None:
-        """Run on_agent_scheduled hooks (notification only, non-blocking).
-
-        Components execute in priority order. Exceptions are logged but don't
-        prevent other components from executing or block scheduling.
-        """
-        for component in self._components:
-            comp_name = component.name or component.__class__.__name__
-
-            self._logger.debug(
-                f"Running on_agent_scheduled: component={comp_name}, "
-                f"agent={agent.name}, artifact_count={len(artifacts)}"
-            )
-
-            try:
-                await component.on_agent_scheduled(self, agent, artifacts, task)
-            except Exception as e:
-                self._logger.warning(
-                    f"Component notification hook failed (non-critical): "
-                    f"component={comp_name}, hook=on_agent_scheduled, error={e!s}"
-                )
-                # Don't propagate - this is a notification hook
+        """Delegate to ComponentRunner (backward compatibility)."""
+        await self._component_runner.run_agent_scheduled(self, agent, artifacts, task)
 
     async def _run_idle(self) -> None:
-        """Run on_orchestrator_idle hooks when orchestrator becomes idle.
-
-        Components execute in priority order. Exceptions are logged but don't
-        prevent other components from executing.
-        """
-        self._logger.debug(
-            f"Running on_orchestrator_idle hooks: component_count={len(self._components)}"
-        )
-
-        for component in self._components:
-            comp_name = component.name or component.__class__.__name__
-
-            try:
-                await component.on_orchestrator_idle(self)
-            except Exception as e:
-                self._logger.warning(
-                    f"Component idle hook failed (non-critical): "
-                    f"component={comp_name}, hook=on_orchestrator_idle, error={e!s}"
-                )
+        """Delegate to ComponentRunner (backward compatibility)."""
+        await self._component_runner.run_idle(self)
 
     async def _run_shutdown(self) -> None:
-        """Run on_shutdown hooks when orchestrator shuts down.
+        """Delegate to ComponentRunner (backward compatibility)."""
+        await self._component_runner.run_shutdown(self)
 
-        Components execute in priority order. Exceptions are logged but don't
-        prevent shutdown of other components (best-effort cleanup).
-        """
-        self._logger.info(
-            f"Shutting down {len(self._components)} orchestrator components"
-        )
-
-        for component in self._components:
-            comp_name = component.name or component.__class__.__name__
-            self._logger.debug(f"Shutting down component: name={comp_name}")
-
-            try:
-                await component.on_shutdown(self)
-            except Exception as e:
-                self._logger.exception(
-                    f"Component shutdown failed: component={comp_name}, "
-                    f"hook=on_shutdown, error={e!s}"
-                )
-                # Continue shutting down other components
+    @property
+    def _components_initialized(self) -> bool:
+        """Delegate to ComponentRunner (backward compatibility)."""
+        return self._component_runner.is_initialized
 
     # Scheduling ───────────────────────────────────────────────────
 
@@ -1348,12 +1075,12 @@ class Flock(metaclass=AutoTracedMeta):
         Refactored to use OrchestratorComponent hook system for extensibility.
         Components can modify artifact, control scheduling, and handle collection.
         """
-        # Phase 3: Initialize components on first artifact
-        if not self._components_initialized:
-            await self._run_initialize()
+        # Phase 3: Initialize components on first artifact (delegated to ComponentRunner)
+        if not self._component_runner.is_initialized:
+            await self._component_runner.run_initialize(self)
 
         # Phase 3: Component hook - artifact published (can transform or block)
-        artifact = await self._run_artifact_published(artifact)
+        artifact = await self._component_runner.run_artifact_published(self, artifact)
         if artifact is None:
             return  # Artifact blocked by component
 
@@ -1376,10 +1103,10 @@ class Flock(metaclass=AutoTracedMeta):
                     continue
 
                 # Phase 3: Component hook - before schedule (circuit breaker, deduplication, etc.)
-                from flock.orchestrator_component import ScheduleDecision
+                from flock.components.orchestrator import ScheduleDecision
 
-                decision = await self._run_before_schedule(
-                    artifact, agent, subscription
+                decision = await self._component_runner.run_before_schedule(
+                    self, artifact, agent, subscription
                 )
                 if decision == ScheduleDecision.SKIP:
                     continue  # Skip this subscription
@@ -1387,8 +1114,8 @@ class Flock(metaclass=AutoTracedMeta):
                     continue  # Defer for later (batching/correlation)
 
                 # Phase 3: Component hook - collect artifacts (handles AND gates, correlation, batching)
-                collection = await self._run_collect_artifacts(
-                    artifact, agent, subscription
+                collection = await self._component_runner.run_collect_artifacts(
+                    self, artifact, agent, subscription
                 )
                 if not collection.complete:
                     continue  # Still collecting (AND gate, correlation, or batch incomplete)
@@ -1396,7 +1123,9 @@ class Flock(metaclass=AutoTracedMeta):
                 artifacts = collection.artifacts
 
                 # Phase 3: Component hook - before agent schedule (final validation/transformation)
-                artifacts = await self._run_before_agent_schedule(agent, artifacts)
+                artifacts = await self._component_runner.run_before_agent_schedule(
+                    self, agent, artifacts
+                )
                 if artifacts is None:
                     continue  # Scheduling blocked by component
 
@@ -1408,7 +1137,9 @@ class Flock(metaclass=AutoTracedMeta):
                 )
 
                 # Phase 3: Component hook - agent scheduled (notification)
-                await self._run_agent_scheduled(agent, artifacts, task)
+                await self._component_runner.run_agent_scheduled(
+                    self, agent, artifacts, task
+                )
 
     def _schedule_task(
         self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False

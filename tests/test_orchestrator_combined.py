@@ -26,7 +26,7 @@ from datetime import timedelta
 import pytest
 from pydantic import BaseModel
 
-from flock.components import EngineComponent
+from flock.components.agent import EngineComponent
 from flock.orchestrator import Flock
 from flock.registry import flock_type
 from flock.runtime import EvalInputs, EvalResult
@@ -36,7 +36,9 @@ from flock.subscription import BatchSpec, JoinSpec
 class BatchAwareEngine(EngineComponent):
     """Helper that routes evaluate_batch to evaluate for batch-aware tests."""
 
-    async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate_batch(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         return await self.evaluate(agent, ctx, inputs, output_group)
 
 
@@ -102,12 +104,10 @@ async def test_batched_correlated_joins_basic():
 
     class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "batch_size": len(inputs.artifacts),
-                    "patient_ids": [a.payload["patient_id"] for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "batch_size": len(inputs.artifacts),
+                "patient_ids": [a.payload["patient_id"] for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -123,7 +123,9 @@ async def test_batched_correlated_joins_basic():
 
     # Publish 2 correlated pairs
     # Pair 1: patient-001
-    await orchestrator.publish(DiagnosticRequest(patient_id="patient-001", test_type="xray"))
+    await orchestrator.publish(
+        DiagnosticRequest(patient_id="patient-001", test_type="xray")
+    )
     await orchestrator.publish(
         DiagnosticResult(patient_id="patient-001", test_type="xray", findings="normal")
     )
@@ -133,7 +135,9 @@ async def test_batched_correlated_joins_basic():
     assert len(executed) == 0, "Batch not full yet (need 2 pairs)"
 
     # Pair 2: patient-002
-    await orchestrator.publish(DiagnosticRequest(patient_id="patient-002", test_type="mri"))
+    await orchestrator.publish(
+        DiagnosticRequest(patient_id="patient-002", test_type="mri")
+    )
     await orchestrator.publish(
         DiagnosticResult(patient_id="patient-002", test_type="mri", findings="abnormal")
     )
@@ -177,20 +181,36 @@ async def test_batched_correlation_continues_after_flush():
     )
 
     # Batch 1: AAPL and MSFT
-    await orchestrator.publish(MarketSignal(symbol="AAPL", signal_type="volatility", value=0.8))
-    await orchestrator.publish(MarketSignal(symbol="AAPL", signal_type="sentiment", value=0.6))
-    await orchestrator.publish(MarketSignal(symbol="MSFT", signal_type="volatility", value=0.5))
-    await orchestrator.publish(MarketSignal(symbol="MSFT", signal_type="sentiment", value=0.7))
+    await orchestrator.publish(
+        MarketSignal(symbol="AAPL", signal_type="volatility", value=0.8)
+    )
+    await orchestrator.publish(
+        MarketSignal(symbol="AAPL", signal_type="sentiment", value=0.6)
+    )
+    await orchestrator.publish(
+        MarketSignal(symbol="MSFT", signal_type="volatility", value=0.5)
+    )
+    await orchestrator.publish(
+        MarketSignal(symbol="MSFT", signal_type="sentiment", value=0.7)
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "First batch flushed"
     # Note: batch contains 4 artifacts (2 pairs × 2 signals each)
 
     # Batch 2: TSLA and GOOGL
-    await orchestrator.publish(MarketSignal(symbol="TSLA", signal_type="volatility", value=1.2))
-    await orchestrator.publish(MarketSignal(symbol="TSLA", signal_type="sentiment", value=0.4))
-    await orchestrator.publish(MarketSignal(symbol="GOOGL", signal_type="volatility", value=0.3))
-    await orchestrator.publish(MarketSignal(symbol="GOOGL", signal_type="sentiment", value=0.9))
+    await orchestrator.publish(
+        MarketSignal(symbol="TSLA", signal_type="volatility", value=1.2)
+    )
+    await orchestrator.publish(
+        MarketSignal(symbol="TSLA", signal_type="sentiment", value=0.4)
+    )
+    await orchestrator.publish(
+        MarketSignal(symbol="GOOGL", signal_type="volatility", value=0.3)
+    )
+    await orchestrator.publish(
+        MarketSignal(symbol="GOOGL", signal_type="sentiment", value=0.9)
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 2, "Second batch flushed"
@@ -228,7 +248,9 @@ async def test_partial_correlation_waits_in_batch():
     )
 
     # Publish only Request (no matching Result)
-    await orchestrator.publish(DiagnosticRequest(patient_id="patient-999", test_type="xray"))
+    await orchestrator.publish(
+        DiagnosticRequest(patient_id="patient-999", test_type="xray")
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 0, "No flush (correlation incomplete)"
@@ -242,7 +264,9 @@ async def test_partial_correlation_waits_in_batch():
     assert len(executed) == 0, "No flush yet (batch needs 2 pairs, only have 1)"
 
     # Publish another complete pair to trigger batch flush
-    await orchestrator.publish(DiagnosticRequest(patient_id="patient-888", test_type="mri"))
+    await orchestrator.publish(
+        DiagnosticRequest(patient_id="patient-888", test_type="mri")
+    )
     await orchestrator.publish(
         DiagnosticResult(patient_id="patient-888", test_type="mri", findings="normal")
     )
@@ -266,12 +290,12 @@ async def test_multiple_correlation_groups_batch_independently():
 
     class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "batch_size": len(inputs.artifacts),
-                    "device_ids": list(set(a.payload["device_id"] for a in inputs.artifacts)),
-                }
-            )
+            executed.append({
+                "batch_size": len(inputs.artifacts),
+                "device_ids": list(
+                    set(a.payload["device_id"] for a in inputs.artifacts)
+                ),
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -357,9 +381,13 @@ async def test_batched_correlation_with_timeout():
 
     # Publish 2 correlated pairs (not enough for size=5)
     await orchestrator.publish(DiagnosticRequest(patient_id="p1", test_type="xray"))
-    await orchestrator.publish(DiagnosticResult(patient_id="p1", test_type="xray", findings="ok"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p1", test_type="xray", findings="ok")
+    )
     await orchestrator.publish(DiagnosticRequest(patient_id="p2", test_type="mri"))
-    await orchestrator.publish(DiagnosticResult(patient_id="p2", test_type="mri", findings="ok"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p2", test_type="mri", findings="ok")
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 0, "Batch not full, no immediate flush"
@@ -403,10 +431,18 @@ async def test_batched_correlation_size_or_timeout_whichever_first():
     )
 
     # Scenario 1: Timeout wins (2 pairs, wait for timeout)
-    await orchestrator.publish(MarketSignal(symbol="AAPL", signal_type="volatility", value=0.8))
-    await orchestrator.publish(MarketSignal(symbol="AAPL", signal_type="sentiment", value=0.6))
-    await orchestrator.publish(MarketSignal(symbol="MSFT", signal_type="volatility", value=0.5))
-    await orchestrator.publish(MarketSignal(symbol="MSFT", signal_type="sentiment", value=0.7))
+    await orchestrator.publish(
+        MarketSignal(symbol="AAPL", signal_type="volatility", value=0.8)
+    )
+    await orchestrator.publish(
+        MarketSignal(symbol="AAPL", signal_type="sentiment", value=0.6)
+    )
+    await orchestrator.publish(
+        MarketSignal(symbol="MSFT", signal_type="volatility", value=0.5)
+    )
+    await orchestrator.publish(
+        MarketSignal(symbol="MSFT", signal_type="sentiment", value=0.7)
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 0, "No flush yet"
@@ -462,9 +498,13 @@ async def test_batched_correlation_shutdown_flushes_partial():
 
     # Publish 2 correlated pairs (partial batch)
     await orchestrator.publish(DiagnosticRequest(patient_id="p1", test_type="xray"))
-    await orchestrator.publish(DiagnosticResult(patient_id="p1", test_type="xray", findings="ok"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p1", test_type="xray", findings="ok")
+    )
     await orchestrator.publish(DiagnosticRequest(patient_id="p2", test_type="mri"))
-    await orchestrator.publish(DiagnosticResult(patient_id="p2", test_type="mri", findings="ok"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p2", test_type="mri", findings="ok")
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 0, "Partial batch waiting"
@@ -515,7 +555,8 @@ async def test_batched_correlation_with_visibility():
 
     # Pair 1: Both public → should correlate and batch
     await orchestrator.publish(
-        DiagnosticRequest(patient_id="p1", test_type="xray"), visibility=PublicVisibility()
+        DiagnosticRequest(patient_id="p1", test_type="xray"),
+        visibility=PublicVisibility(),
     )
     await orchestrator.publish(
         DiagnosticResult(patient_id="p1", test_type="xray", findings="ok"),
@@ -534,7 +575,8 @@ async def test_batched_correlation_with_visibility():
 
     # Pair 3: Both public → should correlate, complete batch with pair 1
     await orchestrator.publish(
-        DiagnosticRequest(patient_id="p3", test_type="ct"), visibility=PublicVisibility()
+        DiagnosticRequest(patient_id="p3", test_type="ct"),
+        visibility=PublicVisibility(),
     )
     await orchestrator.publish(
         DiagnosticResult(patient_id="p3", test_type="ct", findings="ok"),
@@ -544,7 +586,9 @@ async def test_batched_correlation_with_visibility():
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Batch flushed with visible pairs only"
-    assert set(executed[0]) == {"p1", "p3"}, "Only visible pairs batched (p2 filtered out)"
+    assert set(executed[0]) == {"p1", "p3"}, (
+        "Only visible pairs batched (p2 filtered out)"
+    )
 
 
 @pytest.mark.asyncio
@@ -586,22 +630,32 @@ async def test_batched_correlation_with_where_predicate():
         DiagnosticRequest(patient_id="p1", test_type="xray", priority="high")
     )
     await orchestrator.publish(
-        DiagnosticResult(patient_id="p1", test_type="xray", findings="ok", priority="high")
+        DiagnosticResult(
+            patient_id="p1", test_type="xray", findings="ok", priority="high"
+        )
     )
 
     # Pair 2: Request high, Result normal → NO correlation (Result rejected)
-    await orchestrator.publish(DiagnosticRequest(patient_id="p2", test_type="mri", priority="high"))
     await orchestrator.publish(
-        DiagnosticResult(patient_id="p2", test_type="mri", findings="ok", priority="normal")
+        DiagnosticRequest(patient_id="p2", test_type="mri", priority="high")
+    )
+    await orchestrator.publish(
+        DiagnosticResult(
+            patient_id="p2", test_type="mri", findings="ok", priority="normal"
+        )
     )
 
     await orchestrator.run_until_idle()
     assert len(executed) == 0, "Batch not full yet (only 1 pair passed predicate)"
 
     # Pair 3: Both high priority → completes batch with pair 1
-    await orchestrator.publish(DiagnosticRequest(patient_id="p3", test_type="ct", priority="high"))
     await orchestrator.publish(
-        DiagnosticResult(patient_id="p3", test_type="ct", findings="ok", priority="high")
+        DiagnosticRequest(patient_id="p3", test_type="ct", priority="high")
+    )
+    await orchestrator.publish(
+        DiagnosticResult(
+            patient_id="p3", test_type="ct", findings="ok", priority="high"
+        )
     )
 
     await orchestrator.run_until_idle()
@@ -625,22 +679,18 @@ async def test_batched_correlation_state_isolation_per_agent():
 
     class TrackingEngine1(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed_agent1.append(
-                {
-                    "agent": agent.name,
-                    "batch_size": len(inputs.artifacts),
-                }
-            )
+            executed_agent1.append({
+                "agent": agent.name,
+                "batch_size": len(inputs.artifacts),
+            })
             return EvalResult(artifacts=[])
 
     class TrackingEngine2(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed_agent2.append(
-                {
-                    "agent": agent.name,
-                    "batch_size": len(inputs.artifacts),
-                }
-            )
+            executed_agent2.append({
+                "agent": agent.name,
+                "batch_size": len(inputs.artifacts),
+            })
             return EvalResult(artifacts=[])
 
     # Agent 1: Batch size 2
@@ -720,7 +770,9 @@ async def test_batched_correlation_performance():
     start = time.time()
     for i in range(10):
         await orchestrator.publish(
-            SensorReading(device_id=f"device-{i}", sensor_type="temperature", value=25.0)
+            SensorReading(
+                device_id=f"device-{i}", sensor_type="temperature", value=25.0
+            )
         )
         await orchestrator.publish(
             SensorReading(device_id=f"device-{i}", sensor_type="pressure", value=101.0)
@@ -773,12 +825,10 @@ async def test_three_way_correlation_with_batching():
 
     class TrackingEngine(BatchAwareEngine):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "batch_size": len(inputs.artifacts),
-                    "batch_ids": list({a.payload["batch_id"] for a in inputs.artifacts}),
-                }
-            )
+            executed.append({
+                "batch_size": len(inputs.artifacts),
+                "batch_ids": list({a.payload["batch_id"] for a in inputs.artifacts}),
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -810,7 +860,9 @@ async def test_three_way_correlation_with_batching():
 
     assert len(executed) == 1, "Batch flushed with 2 three-way correlations"
     assert executed[0]["batch_size"] == 6, "6 artifacts (2 batches x 3 sensors)"
-    assert set(executed[0]["batch_ids"]) == {"batch-A", "batch-B"}, "Both batches present"
+    assert set(executed[0]["batch_ids"]) == {"batch-A", "batch-B"}, (
+        "Both batches present"
+    )
 
 
 @pytest.mark.asyncio
@@ -843,20 +895,28 @@ async def test_batched_correlation_with_mixed_completion_rates():
 
     # Fast correlation: p1 completes immediately
     await orchestrator.publish(DiagnosticRequest(patient_id="p1", test_type="xray"))
-    await orchestrator.publish(DiagnosticResult(patient_id="p1", test_type="xray", findings="ok"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p1", test_type="xray", findings="ok")
+    )
 
     # Slow correlation: p2 only has Request (Result delayed)
     await orchestrator.publish(DiagnosticRequest(patient_id="p2", test_type="mri"))
 
     # Fast correlation: p3 completes immediately
     await orchestrator.publish(DiagnosticRequest(patient_id="p3", test_type="ct"))
-    await orchestrator.publish(DiagnosticResult(patient_id="p3", test_type="ct", findings="ok"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p3", test_type="ct", findings="ok")
+    )
 
     await orchestrator.run_until_idle()
-    assert len(executed) == 0, "Batch not full (only 2 correlations complete, p2 waiting)"
+    assert len(executed) == 0, (
+        "Batch not full (only 2 correlations complete, p2 waiting)"
+    )
 
     # Complete p2 correlation → batch should flush with all 3
-    await orchestrator.publish(DiagnosticResult(patient_id="p2", test_type="mri", findings="ok"))
+    await orchestrator.publish(
+        DiagnosticResult(patient_id="p2", test_type="mri", findings="ok")
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Batch flushed after p2 completed"

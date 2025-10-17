@@ -14,7 +14,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from flock.artifacts import Artifact
-from flock.components import EngineComponent
+from flock.components.agent import EngineComponent
 from flock.dashboard.events import StreamingOutputEvent
 from flock.logging.logging import get_logger
 from flock.registry import type_registry

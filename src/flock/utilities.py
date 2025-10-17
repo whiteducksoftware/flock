@@ -19,7 +19,7 @@ from rich.pretty import Pretty
 from rich.table import Table
 from rich.text import Text
 
-from flock.components import AgentComponent
+from flock.components.agent import AgentComponent
 
 
 if TYPE_CHECKING:

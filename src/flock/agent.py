@@ -10,13 +10,17 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 from pydantic import BaseModel
 
+from flock._agent.component_lifecycle import ComponentLifecycle
+from flock._agent.mcp_integration import MCPIntegration
+
+# Phase 4: Import extracted modules
+from flock._agent.output_processor import OutputProcessor
 from flock.artifacts import Artifact, ArtifactSpec
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
 from flock.registry import function_registry, type_registry
 from flock.runtime import Context, EvalInputs, EvalResult
 from flock.subscription import BatchSpec, JoinSpec, Subscription, TextPredicate
-from flock.utils.type_resolution import TypeResolutionHelper
 from flock.visibility import AgentIdentity, Visibility, ensure_visibility, only_for
 
 
@@ -25,7 +29,7 @@ logger = get_logger(__name__)
 if TYPE_CHECKING:  # pragma: no cover - type hints only
     from collections.abc import Callable, Iterable, Sequence
 
-    from flock.components import AgentComponent, EngineComponent
+    from flock.components.agent import AgentComponent, EngineComponent
     from flock.orchestrator import Flock
 
 
@@ -157,20 +161,53 @@ class Agent(metaclass=AutoTracedMeta):
         self.prevent_self_trigger: bool = True  # T065: Prevent infinite feedback loops
         # Phase 3: Per-agent context provider (security fix)
         self.context_provider: Any = None
-        # MCP integration
-        self.mcp_server_names: set[str] = set()
-        self.mcp_mount_points: list[
-            str
-        ] = []  # Deprecated: Use mcp_server_mounts instead
-        self.mcp_server_mounts: dict[
-            str, list[str]
-        ] = {}  # Server-specific mount points
-        self.tool_whitelist: list[str] | None = None
+
+        # Phase 4: Initialize extracted modules
+        self._output_processor = OutputProcessor(name)
+        self._mcp_integration = MCPIntegration(name, orchestrator)
+        self._component_lifecycle = ComponentLifecycle(name)
 
     @property
     def outputs(self) -> list[AgentOutput]:
         """Backwards compatibility: return flat list of all outputs from all groups."""
         return [output for group in self.output_groups for output in group.outputs]
+
+    # Phase 4: MCP properties - delegate to MCPIntegration for backward compatibility
+    @property
+    def mcp_server_names(self) -> set[str]:
+        """MCP server names assigned to this agent."""
+        return self._mcp_integration.mcp_server_names
+
+    @mcp_server_names.setter
+    def mcp_server_names(self, value: set[str]) -> None:
+        self._mcp_integration.mcp_server_names = value
+
+    @property
+    def mcp_server_mounts(self) -> dict[str, list[str]]:
+        """Server-specific mount points."""
+        return self._mcp_integration.mcp_server_mounts
+
+    @mcp_server_mounts.setter
+    def mcp_server_mounts(self, value: dict[str, list[str]]) -> None:
+        self._mcp_integration.mcp_server_mounts = value
+
+    @property
+    def mcp_mount_points(self) -> list[str]:
+        """Deprecated: Use mcp_server_mounts instead."""
+        return self._mcp_integration.mcp_mount_points
+
+    @mcp_mount_points.setter
+    def mcp_mount_points(self, value: list[str]) -> None:
+        self._mcp_integration.mcp_mount_points = value
+
+    @property
+    def tool_whitelist(self) -> list[str] | None:
+        """Tool whitelist for MCP servers."""
+        return self._mcp_integration.tool_whitelist
+
+    @tool_whitelist.setter
+    def tool_whitelist(self, value: list[str] | None) -> None:
+        self._mcp_integration.tool_whitelist = value
 
     @property
     def identity(self) -> AgentIdentity:
@@ -272,140 +309,28 @@ class Agent(metaclass=AutoTracedMeta):
                 await self._run_terminate(ctx)
 
     async def _get_mcp_tools(self, ctx: Context) -> list[Callable]:
-        """Lazy-load MCP tools from assigned servers.
-
-        Architecture Decision: AD001 - Two-Level Architecture
-        Agents fetch tools from servers registered at orchestrator level.
-
-        Architecture Decision: AD003 - Tool Namespacing
-        All tools are namespaced as {server}__{tool}.
-
-        Architecture Decision: AD007 - Graceful Degradation
-        If MCP loading fails, returns empty list so agent continues with native tools.
-
-        Args:
-            ctx: Current execution context with agent_id and run_id
-
-        Returns:
-            List of DSPy-compatible tool callables
-        """
-        if not self.mcp_server_names:
-            # No MCP servers assigned to this agent
-            return []
-
-        try:
-            # Get the MCP manager from orchestrator
-            manager = self._orchestrator.get_mcp_manager()
-
-            # Fetch tools from all assigned servers
-            tools_dict = await manager.get_tools_for_agent(
-                agent_id=self.name,
-                run_id=ctx.task_id,
-                server_names=self.mcp_server_names,
-                server_mounts=self.mcp_server_mounts,  # Pass server-specific mounts
-            )
-
-            # Whitelisting logic
-            tool_whitelist = self.tool_whitelist
-            if (
-                tool_whitelist is not None
-                and isinstance(tool_whitelist, list)
-                and len(tool_whitelist) > 0
-            ):
-                filtered_tools: dict[str, Any] = {}
-                for tool_key, tool_entry in tools_dict.items():
-                    if isinstance(tool_entry, dict):
-                        original_name = tool_entry.get("original_name", None)
-                        if (
-                            original_name is not None
-                            and original_name in tool_whitelist
-                        ):
-                            filtered_tools[tool_key] = tool_entry
-
-                tools_dict = filtered_tools
-
-            # Convert to DSPy tool callables
-            dspy_tools = []
-            for namespaced_name, tool_info in tools_dict.items():
-                tool_info["server_name"]
-                flock_tool = tool_info["tool"]  # Already a FlockMCPTool
-                client = tool_info["client"]
-
-                # Convert to DSPy tool
-                dspy_tool = flock_tool.as_dspy_tool(server=client)
-
-                # Update name to include namespace
-                dspy_tool.name = namespaced_name
-
-                dspy_tools.append(dspy_tool)
-
-            return dspy_tools
-
-        except Exception as e:
-            # Architecture Decision: AD007 - Graceful Degradation
-            # Agent continues with native tools only
-            logger.error(
-                f"Failed to load MCP tools for agent {self.name}: {e}", exc_info=True
-            )
-            return []
+        """Delegate to MCPIntegration (backward compatibility)."""
+        return await self._mcp_integration.get_mcp_tools(ctx)
 
     async def _run_initialize(self, ctx: Context) -> None:
-        for component in self._sorted_utilities():
-            comp_name = self._component_display_name(component)
-            priority = getattr(component, "priority", 0)
-            logger.debug(
-                f"Agent initialize: agent={self.name}, component={comp_name}, priority={priority}"
-            )
-            try:
-                await component.on_initialize(self, ctx)
-            except Exception as exc:
-                logger.exception(
-                    f"Agent initialize failed: agent={self.name}, component={comp_name}, "
-                    f"priority={priority}, error={exc!s}"
-                )
-                raise
-        for engine in self.engines:
-            await engine.on_initialize(self, ctx)
+        """Delegate to ComponentLifecycle (backward compatibility)."""
+        await self._component_lifecycle.run_initialize(
+            self, ctx, self._sorted_utilities(), self.engines
+        )
 
     async def _run_pre_consume(
         self, ctx: Context, inputs: list[Artifact]
     ) -> list[Artifact]:
-        current = inputs
-        for component in self._sorted_utilities():
-            comp_name = self._component_display_name(component)
-            priority = getattr(component, "priority", 0)
-            logger.debug(
-                f"Agent pre_consume: agent={self.name}, component={comp_name}, "
-                f"priority={priority}, input_count={len(current)}"
-            )
-            try:
-                current = await component.on_pre_consume(self, ctx, current)
-            except Exception as exc:
-                logger.exception(
-                    f"Agent pre_consume failed: agent={self.name}, component={comp_name}, "
-                    f"priority={priority}, error={exc!s}"
-                )
-                raise
-        return current
+        """Delegate to ComponentLifecycle (backward compatibility)."""
+        return await self._component_lifecycle.run_pre_consume(
+            self, ctx, inputs, self._sorted_utilities()
+        )
 
     async def _run_pre_evaluate(self, ctx: Context, inputs: EvalInputs) -> EvalInputs:
-        current = inputs
-        for component in self._sorted_utilities():
-            comp_name = self._component_display_name(component)
-            priority = getattr(component, "priority", 0)
-            logger.debug(
-                f"Agent pre_evaluate: agent={self.name}, component={comp_name}, "
-                f"priority={priority}, artifact_count={len(current.artifacts)}"
-            )
-            try:
-                current = await component.on_pre_evaluate(self, ctx, current)
-            except Exception as exc:
-                logger.exception(
-                    f"Agent pre_evaluate failed: agent={self.name}, component={comp_name}, "
-                    f"priority={priority}, error={exc!s}"
-                )
-                raise
-        return current
+        """Delegate to ComponentLifecycle (backward compatibility)."""
+        return await self._component_lifecycle.run_pre_evaluate(
+            self, ctx, inputs, self._sorted_utilities()
+        )
 
     async def _run_engines(
         self, ctx: Context, inputs: EvalInputs, output_group: OutputGroup
@@ -480,225 +405,40 @@ class Agent(metaclass=AutoTracedMeta):
     async def _run_post_evaluate(
         self, ctx: Context, inputs: EvalInputs, result: EvalResult
     ) -> EvalResult:
-        current = result
-        for component in self._sorted_utilities():
-            comp_name = self._component_display_name(component)
-            priority = getattr(component, "priority", 0)
-            logger.debug(
-                f"Agent post_evaluate: agent={self.name}, component={comp_name}, "
-                f"priority={priority}, artifact_count={len(current.artifacts)}"
-            )
-            try:
-                current = await component.on_post_evaluate(self, ctx, inputs, current)
-            except Exception as exc:
-                logger.exception(
-                    f"Agent post_evaluate failed: agent={self.name}, component={comp_name}, "
-                    f"priority={priority}, error={exc!s}"
-                )
-                raise
-        return current
+        """Delegate to ComponentLifecycle (backward compatibility)."""
+        return await self._component_lifecycle.run_post_evaluate(
+            self, ctx, inputs, result, self._sorted_utilities()
+        )
 
     async def _make_outputs(self, ctx: Context, result: EvalResult) -> list[Artifact]:
-        if not self.output_groups:
-            # Utility agents may not publish anything
-            return list(result.artifacts)
-
-        produced: list[Artifact] = []
-
-        # For Phase 2: Iterate ALL output_groups (even though we only have 1 engine call)
-        # Phase 3 will modify this to call engine once PER group
-        for output_group in self.output_groups:
-            for output_decl in output_group.outputs:
-                # Phase 6: Find the matching artifact from engine result to preserve its ID
-                matching_artifact = self._find_matching_artifact(output_decl, result)
-
-                payload = self._select_payload(output_decl, result)
-                if payload is None:
-                    continue
-                metadata = {
-                    "correlation_id": ctx.correlation_id,
-                }
-
-                # Phase 6: Preserve artifact ID from engine (for streaming message preview)
-                if matching_artifact:
-                    metadata["artifact_id"] = matching_artifact.id
-
-                artifact = output_decl.apply(
-                    payload, produced_by=self.name, metadata=metadata
-                )
-                produced.append(artifact)
-                # Phase 6: REMOVED publishing - orchestrator now handles it
-                # await ctx.board.publish(artifact)
-
-        return produced
+        """Delegate to OutputProcessor (backward compatibility)."""
+        return await self._output_processor.make_outputs(
+            ctx, result, self.output_groups
+        )
 
     def _prepare_group_context(
         self, ctx: Context, group_idx: int, output_group: OutputGroup
     ) -> Context:
-        """Phase 3: Prepare context specific to this OutputGroup.
-
-        Creates a modified context for this group's engine call, potentially
-        with group-specific instructions or metadata.
-
-        Args:
-            ctx: Base context
-            group_idx: Index of this group (0-based)
-            output_group: The OutputGroup being processed
-
-        Returns:
-            Context for this group (may be the same instance or modified)
-        """
-        # For now, return the same context
-        # Phase 4 will add group-specific system prompts here
-        # Future: ctx.clone() and add group_description to system prompt
-        return ctx
+        """Delegate to OutputProcessor (backward compatibility)."""
+        return self._output_processor.prepare_group_context(
+            ctx, group_idx, output_group
+        )
 
     async def _make_outputs_for_group(
         self, ctx: Context, result: EvalResult, output_group: OutputGroup
     ) -> list[Artifact]:
-        """Phase 3/5: Validate, filter, and publish artifacts for specific OutputGroup.
-
-        This function:
-        1. Validates that the engine fulfilled its contract (produced expected count)
-        2. Applies WHERE filtering (reduces artifacts, no error)
-        3. Applies VALIDATE checks (raises ValueError if validation fails)
-        4. Applies visibility (static or dynamic)
-        5. Publishes artifacts to the board
-
-        Args:
-            ctx: Context for this group
-            result: EvalResult from engine for THIS group
-            output_group: OutputGroup defining expected outputs
-
-        Returns:
-            List of artifacts matching this group's outputs
-
-        Raises:
-            ValueError: If engine violated contract or validation failed
-        """
-        produced: list[Artifact] = []
-
-        for output_decl in output_group.outputs:
-            # 1. Find ALL matching artifacts for this type
-            from flock.registry import type_registry
-
-            expected_canonical = type_registry.resolve_name(output_decl.spec.type_name)
-
-            matching_artifacts: list[Artifact] = []
-            for artifact in result.artifacts:
-                artifact_canonical = TypeResolutionHelper.safe_resolve(
-                    type_registry, artifact.type
-                )
-                if artifact_canonical == expected_canonical:
-                    matching_artifacts.append(artifact)
-
-            # 2. STRICT VALIDATION: Engine must produce exactly what was promised
-            # (This happens BEFORE filtering so engine contract is validated first)
-            expected_count = output_decl.count
-            actual_count = len(matching_artifacts)
-
-            if actual_count != expected_count:
-                raise ValueError(
-                    f"Engine contract violation in agent '{self.name}': "
-                    f"Expected {expected_count} artifact(s) of type '{output_decl.spec.type_name}', "
-                    f"but engine produced {actual_count}. "
-                    f"Check your engine implementation to ensure it generates the correct number of outputs."
-                )
-
-            # 3. Apply WHERE filtering (Phase 5)
-            # Filtering reduces the number of published artifacts (this is intentional)
-            # NOTE: Predicates expect Pydantic model instances, not dicts
-            model_cls = type_registry.resolve(output_decl.spec.type_name)
-
-            if output_decl.filter_predicate:
-                original_count = len(matching_artifacts)
-                filtered = []
-                for a in matching_artifacts:
-                    # Reconstruct Pydantic model from payload dict
-                    model_instance = model_cls(**a.payload)
-                    if output_decl.filter_predicate(model_instance):
-                        filtered.append(a)
-                matching_artifacts = filtered
-                logger.debug(
-                    f"Agent {self.name}: WHERE filter reduced artifacts from "
-                    f"{original_count} to {len(matching_artifacts)} for type {output_decl.spec.type_name}"
-                )
-
-            # 4. Apply VALIDATE checks (Phase 5)
-            # Validation failures raise errors (fail-fast)
-            if output_decl.validate_predicate:
-                if callable(output_decl.validate_predicate):
-                    # Single predicate
-                    for artifact in matching_artifacts:
-                        # Reconstruct Pydantic model from payload dict
-                        model_instance = model_cls(**artifact.payload)
-                        if not output_decl.validate_predicate(model_instance):
-                            raise ValueError(
-                                f"Validation failed for {output_decl.spec.type_name} "
-                                f"in agent '{self.name}'"
-                            )
-                elif isinstance(output_decl.validate_predicate, list):
-                    # List of (callable, error_msg) tuples
-                    for artifact in matching_artifacts:
-                        # Reconstruct Pydantic model from payload dict
-                        model_instance = model_cls(**artifact.payload)
-                        for check, error_msg in output_decl.validate_predicate:
-                            if not check(model_instance):
-                                raise ValueError(
-                                    f"{error_msg}: {output_decl.spec.type_name}"
-                                )
-
-            # 5. Apply visibility and publish artifacts (Phase 5)
-            for artifact_from_engine in matching_artifacts:
-                metadata = {
-                    "correlation_id": ctx.correlation_id,
-                    "artifact_id": artifact_from_engine.id,  # Preserve engine's ID
-                }
-
-                # Determine visibility (static or dynamic)
-                visibility = output_decl.default_visibility
-                if callable(visibility):
-                    # Dynamic visibility based on artifact content
-                    # Reconstruct Pydantic model from payload dict
-                    model_instance = model_cls(**artifact_from_engine.payload)
-                    visibility = visibility(model_instance)
-
-                # Override metadata visibility
-                metadata["visibility"] = visibility
-
-                # Re-wrap the artifact with agent metadata
-                artifact = output_decl.apply(
-                    artifact_from_engine.payload,
-                    produced_by=self.name,
-                    metadata=metadata,
-                )
-                produced.append(artifact)
-                # Phase 6 SECURITY FIX: REMOVED publishing - orchestrator now handles it
-                # This fixes Vulnerability #2 (WRITE Bypass) - agents can no longer publish directly
-                # await ctx.board.publish(artifact)
-
-        return produced
+        """Delegate to OutputProcessor (backward compatibility)."""
+        return await self._output_processor.make_outputs_for_group(
+            ctx, result, output_group
+        )
 
     async def _run_post_publish(
         self, ctx: Context, artifacts: Sequence[Artifact]
     ) -> None:
-        components = self._sorted_utilities()
-        for artifact in artifacts:
-            for component in components:
-                comp_name = self._component_display_name(component)
-                priority = getattr(component, "priority", 0)
-                logger.debug(
-                    f"Agent post_publish: agent={self.name}, component={comp_name}, "
-                    f"priority={priority}, artifact_id={artifact.id}"
-                )
-                try:
-                    await component.on_post_publish(self, ctx, artifact)
-                except Exception as exc:
-                    logger.exception(
-                        f"Agent post_publish failed: agent={self.name}, component={comp_name}, "
-                        f"priority={priority}, artifact_id={artifact.id}, error={exc!s}"
-                    )
-                    raise
+        """Delegate to ComponentLifecycle (backward compatibility)."""
+        await self._component_lifecycle.run_post_publish(
+            self, ctx, artifacts, self._sorted_utilities()
+        )
 
     async def _invoke_call(self, ctx: Context, artifacts: Sequence[Artifact]) -> None:
         func = self.calls_func
@@ -714,48 +454,16 @@ class Agent(metaclass=AutoTracedMeta):
             await maybe_coro
 
     async def _run_error(self, ctx: Context, error: Exception) -> None:
-        for component in self._sorted_utilities():
-            comp_name = self._component_display_name(component)
-            priority = getattr(component, "priority", 0)
-
-            # Python 3.12+ TaskGroup raises BaseExceptionGroup - extract sub-exceptions
-            error_detail = str(error)
-            if isinstance(error, BaseExceptionGroup):
-                sub_exceptions = [f"{type(e).__name__}: {e}" for e in error.exceptions]
-                error_detail = f"{error!s} - Sub-exceptions: {sub_exceptions}"
-
-            logger.debug(
-                f"Agent error hook: agent={self.name}, component={comp_name}, "
-                f"priority={priority}, error={error_detail}"
-            )
-            try:
-                await component.on_error(self, ctx, error)
-            except Exception as exc:
-                logger.exception(
-                    f"Agent error hook failed: agent={self.name}, component={comp_name}, "
-                    f"priority={priority}, original_error={error!s}, hook_error={exc!s}"
-                )
-                raise
-        for engine in self.engines:
-            await engine.on_error(self, ctx, error)
+        """Delegate to ComponentLifecycle (backward compatibility)."""
+        await self._component_lifecycle.run_error(
+            self, ctx, error, self._sorted_utilities(), self.engines
+        )
 
     async def _run_terminate(self, ctx: Context) -> None:
-        for component in self._sorted_utilities():
-            comp_name = self._component_display_name(component)
-            priority = getattr(component, "priority", 0)
-            logger.debug(
-                f"Agent terminate: agent={self.name}, component={comp_name}, priority={priority}"
-            )
-            try:
-                await component.on_terminate(self, ctx)
-            except Exception as exc:
-                logger.exception(
-                    f"Agent terminate failed: agent={self.name}, component={comp_name}, "
-                    f"priority={priority}, error={exc!s}"
-                )
-                raise
-        for engine in self.engines:
-            await engine.on_terminate(self, ctx)
+        """Delegate to ComponentLifecycle (backward compatibility)."""
+        await self._component_lifecycle.run_terminate(
+            self, ctx, self._sorted_utilities(), self.engines
+        )
 
     def _resolve_engines(self) -> list[EngineComponent]:
         if self.engines:
@@ -777,7 +485,7 @@ class Agent(metaclass=AutoTracedMeta):
         if self.utilities:
             return self.utilities
         try:
-            from flock.utility.output_utility_component import (
+            from flock.components.agent import (
                 OutputUtilityComponent,
             )
         except Exception:  # pragma: no cover - optional dependency issues
@@ -790,53 +498,14 @@ class Agent(metaclass=AutoTracedMeta):
     def _find_matching_artifact(
         self, output_decl: AgentOutput, result: EvalResult
     ) -> Artifact | None:
-        """Phase 6: Find artifact from engine result that matches this output declaration.
-
-        Returns the artifact object (with its ID) so we can preserve it when creating
-        the final published artifact. This ensures streaming events use the same ID.
-        """
-        from flock.registry import type_registry
-
-        if not result.artifacts:
-            return None
-
-        # Normalize the expected type name to canonical form
-        expected_canonical = type_registry.resolve_name(output_decl.spec.type_name)
-
-        for artifact in result.artifacts:
-            # Normalize artifact type name to canonical form for comparison
-            artifact_canonical = TypeResolutionHelper.safe_resolve(
-                type_registry, artifact.type
-            )
-            if artifact_canonical == expected_canonical:
-                return artifact
-
-        return None
+        """Delegate to OutputProcessor (backward compatibility)."""
+        return self._output_processor.find_matching_artifact(output_decl, result)
 
     def _select_payload(
         self, output_decl: AgentOutput, result: EvalResult
     ) -> dict[str, Any] | None:
-        from flock.registry import type_registry
-
-        if not result.artifacts:
-            return None
-
-        # Normalize the expected type name to canonical form
-        expected_canonical = type_registry.resolve_name(output_decl.spec.type_name)
-
-        for artifact in result.artifacts:
-            # Normalize artifact type name to canonical form for comparison
-            artifact_canonical = TypeResolutionHelper.safe_resolve(
-                type_registry, artifact.type
-            )
-            if artifact_canonical == expected_canonical:
-                return artifact.payload
-
-        # Fallback to state entries keyed by type name
-        maybe_data = result.state.get(output_decl.spec.type_name)
-        if isinstance(maybe_data, dict):
-            return maybe_data
-        return None
+        """Delegate to OutputProcessor (backward compatibility)."""
+        return self._output_processor.select_payload(output_decl, result)
 
 
 class AgentBuilder:
@@ -1194,118 +863,48 @@ class AgentBuilder:
     ) -> AgentBuilder:
         """Assign MCP servers to this agent with optional server-specific mount points.
 
-                Architecture Decision: AD001 - Two-Level Architecture
-                Agents reference servers registered at orchestrator level.
+        Architecture Decision: AD001 - Two-Level Architecture
+        Agents reference servers registered at orchestrator level.
 
-                Args:
-                    servers: One of:
-                        - List of server names (strings) - no specific mounts
-                        - Dict mapping server names to MCPServerConfig or list[str] (backward compatible)
-                        - Mixed list of strings and dicts for flexibility
+        Args:
+            servers: One of:
+                - List of server names (strings) - no specific mounts
+                - Dict mapping server names to MCPServerConfig or list[str] (backward compatible)
+                - Mixed list of strings and dicts for flexibility
 
-                Returns:
-                    self for method chaining
+        Returns:
+            self for method chaining
 
-                Raises:
-                    ValueError: If any server name is not registered with orchestrator
+        Raises:
+            ValueError: If any server name is not registered with orchestrator
 
-                Examples:
-                    >>> # Simple: no mount restrictions
-                    >>> agent.with_mcps(["filesystem", "github"])
+        Examples:
+            >>> # Simple: no mount restrictions
+            >>> agent.with_mcps(["filesystem", "github"])
 
-                    >>> # New format: Server-specific config with roots and tool whitelist
-                    >>> agent.with_mcps({
-                    ...     "filesystem": {
-                    ...         "roots": ["/workspace/dir/data"],
-                    ...         "tool_whitelist": ["read_file"],
-                    ...     },
-                    ...     "github": {},  # No restrictions for github
-                    ... })
+            >>> # New format: Server-specific config with roots and tool whitelist
+            >>> agent.with_mcps({
+            ...     "filesystem": {
+            ...         "roots": ["/workspace/dir/data"],
+            ...         "tool_whitelist": ["read_file"],
+            ...     },
+            ...     "github": {},  # No restrictions for github
+            ... })
 
-                    >>> # Old format: Direct list (backward compatible)
-                    >>> agent.with_mcps({
-                    ...     "filesystem": ["/workspace/dir/data"],  # Old format still works
-                    ... })
+            >>> # Old format: Direct list (backward compatible)
+            >>> agent.with_mcps({
+            ...     "filesystem": ["/workspace/dir/data"],  # Old format still works
+            ... })
 
-                    >>> # Mixed: backward compatible
-                    >>> agent.with_mcps([
-                    ...     "github",  # No mounts
-                    ...     {"filesystem": {"roots": ["mount1", "mount2"] } }
-        ```
-                    ... ])
+            >>> # Mixed: backward compatible
+            >>> agent.with_mcps([
+            ...     "github",  # No mounts
+            ...     {"filesystem": {"roots": ["mount1", "mount2"]}},
+            ... ])
         """
-        # Parse input into server_names and mounts
-        server_set: set[str] = set()
-        server_mounts: dict[str, list[str]] = {}
-        whitelist = None
-
-        if isinstance(servers, dict):
-            # Dict format: supports both old and new formats
-            # Old: {"server": ["/path1", "/path2"]}
-            # New: {"server": {"roots": ["/path1"], "tool_whitelist": ["tool1"]}}
-            for server_name, server_config in servers.items():
-                server_set.add(server_name)
-
-                # Check if it's the old format (direct list) or new format (MCPServerConfig dict)
-                if isinstance(server_config, list):
-                    # Old format: direct list of paths (backward compatibility)
-                    if len(server_config) > 0:
-                        server_mounts[server_name] = list(server_config)
-                elif isinstance(server_config, dict):
-                    # New format: MCPServerConfig with optional roots and tool_whitelist
-                    mounts = server_config.get("roots", None)
-                    if (
-                        mounts is not None
-                        and isinstance(mounts, list)
-                        and len(mounts) > 0
-                    ):
-                        server_mounts[server_name] = list(mounts)
-
-                    config_whitelist = server_config.get("tool_whitelist", None)
-                    if (
-                        config_whitelist is not None
-                        and isinstance(config_whitelist, list)
-                        and len(config_whitelist) > 0
-                    ):
-                        whitelist = config_whitelist
-        elif isinstance(servers, list):
-            # List format: can be mixed
-            for item in servers:
-                if isinstance(item, str):
-                    # Simple server name
-                    server_set.add(item)
-                elif isinstance(item, dict):
-                    # Dict with mounts
-                    for server_name, mounts in item.items():
-                        server_set.add(server_name)
-                        if mounts:
-                            server_mounts[server_name] = list(mounts)
-                else:
-                    raise TypeError(
-                        f"Invalid server specification: {item}. "
-                        f"Expected string or dict, got {type(item).__name__}"
-                    )
-        else:
-            # Assume it's an iterable of strings (backward compatibility)
-            server_set = set(servers)
-
-        # Validate all servers exist in orchestrator
+        # Delegate to MCPIntegration module
         registered_servers = set(self._orchestrator._mcp_configs.keys())
-        invalid_servers = server_set - registered_servers
-
-        if invalid_servers:
-            available = list(registered_servers) if registered_servers else ["none"]
-            raise ValueError(
-                f"MCP servers not registered: {invalid_servers}. "
-                f"Available servers: {available}. "
-                f"Register servers using orchestrator.add_mcp() first."
-            )
-
-        # Store in agent
-        self._agent.mcp_server_names = server_set
-        self._agent.mcp_server_mounts = server_mounts
-        self._agent.tool_whitelist = whitelist
-
+        self._agent._mcp_integration.configure_servers(servers, registered_servers)
         return self
 
     def mount(self, paths: str | list[str], *, validate: bool = False) -> AgentBuilder:
@@ -1332,33 +931,8 @@ class AgentBuilder:
             >>> # New way (recommended)
             >>> agent.with_mcps({"filesystem": ["/workspace/src"]})
         """
-        import warnings
-
-        warnings.warn(
-            "Agent.mount() is deprecated. Use .with_mcps({'server': ['/path']}) "
-            "for server-specific mounts instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        if isinstance(paths, str):
-            paths = [paths]
-        if validate:
-            from pathlib import Path
-
-            for path in paths:
-                if not Path(path).exists():
-                    raise ValueError(f"Mount path does not exist: {path}")
-
-        # Add to agent's mount points (cumulative) - for backward compatibility
-        self._agent.mcp_mount_points.extend(paths)
-
-        # Also add to all configured servers for backward compatibility
-        for server_name in self._agent.mcp_server_names:
-            if server_name not in self._agent.mcp_server_mounts:
-                self._agent.mcp_server_mounts[server_name] = []
-            self._agent.mcp_server_mounts[server_name].extend(paths)
-
+        # Delegate to MCPIntegration module
+        self._agent._mcp_integration.mount(paths, validate=validate)
         return self
 
     def labels(self, *labels: str) -> AgentBuilder:

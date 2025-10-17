@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 import pytest
 from pydantic import BaseModel
 
-from flock.components import EngineComponent
+from flock.components.agent import EngineComponent
 from flock.orchestrator import Flock
 from flock.registry import flock_type
 from flock.runtime import EvalResult
@@ -78,12 +78,10 @@ async def test_joinspec_correlates_artifacts_by_same_key():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifacts": inputs.artifacts,
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "artifacts": inputs.artifacts,
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -117,7 +115,9 @@ async def test_joinspec_correlates_artifacts_by_same_key():
     await orchestrator.run_until_idle()
 
     # Should NOT create new matches (different keys)
-    assert len(executed) == 1, "Should still only have 1 execution (no cross-correlation)"
+    assert len(executed) == 1, (
+        "Should still only have 1 execution (no cross-correlation)"
+    )
 
 
 @pytest.mark.asyncio
@@ -135,12 +135,10 @@ async def test_joinspec_multiple_correlation_keys_independent():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifacts": inputs.artifacts,
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "artifacts": inputs.artifacts,
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -155,16 +153,28 @@ async def test_joinspec_multiple_correlation_keys_independent():
 
     # Publish artifacts for THREE different correlation groups
     # Group 1: stock-AAPL
-    await orchestrator.publish(SignalA(correlation_id="stock-AAPL", data="volatility-high"))
-    await orchestrator.publish(SignalB(correlation_id="stock-AAPL", data="sentiment-negative"))
+    await orchestrator.publish(
+        SignalA(correlation_id="stock-AAPL", data="volatility-high")
+    )
+    await orchestrator.publish(
+        SignalB(correlation_id="stock-AAPL", data="sentiment-negative")
+    )
 
     # Group 2: stock-MSFT
-    await orchestrator.publish(SignalA(correlation_id="stock-MSFT", data="volatility-low"))
-    await orchestrator.publish(SignalB(correlation_id="stock-MSFT", data="sentiment-positive"))
+    await orchestrator.publish(
+        SignalA(correlation_id="stock-MSFT", data="volatility-low")
+    )
+    await orchestrator.publish(
+        SignalB(correlation_id="stock-MSFT", data="sentiment-positive")
+    )
 
     # Group 3: stock-TSLA
-    await orchestrator.publish(SignalA(correlation_id="stock-TSLA", data="volatility-high"))
-    await orchestrator.publish(SignalB(correlation_id="stock-TSLA", data="sentiment-neutral"))
+    await orchestrator.publish(
+        SignalA(correlation_id="stock-TSLA", data="volatility-high")
+    )
+    await orchestrator.publish(
+        SignalB(correlation_id="stock-TSLA", data="sentiment-neutral")
+    )
 
     await orchestrator.run_until_idle()
 
@@ -172,10 +182,18 @@ async def test_joinspec_multiple_correlation_keys_independent():
     assert len(executed) == 3, "Should trigger once per correlation group"
 
     # Verify each group has matching correlation IDs
-    correlation_ids = [p["correlation_id"] for group in executed for p in group["payloads"]]
-    assert correlation_ids.count("stock-AAPL") == 2, "AAPL group should have 2 artifacts"
-    assert correlation_ids.count("stock-MSFT") == 2, "MSFT group should have 2 artifacts"
-    assert correlation_ids.count("stock-TSLA") == 2, "TSLA group should have 2 artifacts"
+    correlation_ids = [
+        p["correlation_id"] for group in executed for p in group["payloads"]
+    ]
+    assert correlation_ids.count("stock-AAPL") == 2, (
+        "AAPL group should have 2 artifacts"
+    )
+    assert correlation_ids.count("stock-MSFT") == 2, (
+        "MSFT group should have 2 artifacts"
+    )
+    assert correlation_ids.count("stock-TSLA") == 2, (
+        "TSLA group should have 2 artifacts"
+    )
 
 
 @pytest.mark.asyncio
@@ -194,12 +212,10 @@ async def test_joinspec_partial_correlation_waits():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifacts": inputs.artifacts,
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "artifacts": inputs.artifacts,
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -220,7 +236,9 @@ async def test_joinspec_partial_correlation_waits():
     assert len(executed) == 0, "Should not trigger with only one signal"
 
     # Publish matching SignalB
-    await orchestrator.publish(SignalB(correlation_id="session-abc", data="image-upload"))
+    await orchestrator.publish(
+        SignalB(correlation_id="session-abc", data="image-upload")
+    )
     await orchestrator.run_until_idle()
 
     # NOW should trigger
@@ -245,12 +263,10 @@ async def test_joinspec_three_way_correlation():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifacts": inputs.artifacts,
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "artifacts": inputs.artifacts,
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -265,7 +281,9 @@ async def test_joinspec_three_way_correlation():
     )
 
     # Publish all three with same key
-    await orchestrator.publish(SignalA(correlation_id="batch-001", data="temperature-ok"))
+    await orchestrator.publish(
+        SignalA(correlation_id="batch-001", data="temperature-ok")
+    )
     await orchestrator.publish(SignalB(correlation_id="batch-001", data="pressure-ok"))
     await orchestrator.publish(SignalC(correlation_id="batch-001", data="viscosity-ok"))
     await orchestrator.run_until_idle()
@@ -308,12 +326,10 @@ async def test_joinspec_order_independence():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifacts": inputs.artifacts,
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "artifacts": inputs.artifacts,
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -366,12 +382,10 @@ async def test_joinspec_key_extraction_with_nested_fields():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifacts": inputs.artifacts,
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "artifacts": inputs.artifacts,
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -389,10 +403,14 @@ async def test_joinspec_key_extraction_with_nested_fields():
 
     # Publish with nested correlation key
     await orchestrator.publish(
-        NestedSignalA(metadata={"request_id": "req-xyz", "source": "api"}, data="request")
+        NestedSignalA(
+            metadata={"request_id": "req-xyz", "source": "api"}, data="request"
+        )
     )
     await orchestrator.publish(
-        NestedSignalB(metadata={"request_id": "req-xyz", "source": "db"}, data="response")
+        NestedSignalB(
+            metadata={"request_id": "req-xyz", "source": "db"}, data="response"
+        )
     )
     await orchestrator.run_until_idle()
 
@@ -423,12 +441,10 @@ async def test_joinspec_count_based_window():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifacts": inputs.artifacts,
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "artifacts": inputs.artifacts,
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -484,12 +500,10 @@ async def test_joinspec_count_window_with_multiple_correlations():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "correlation_id": inputs.artifacts[0].payload["correlation_id"],
-                    "artifact_count": len(inputs.artifacts),
-                }
-            )
+            executed.append({
+                "correlation_id": inputs.artifacts[0].payload["correlation_id"],
+                "artifact_count": len(inputs.artifacts),
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -544,12 +558,10 @@ async def test_joinspec_with_visibility_controls():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifacts": inputs.artifacts,
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "artifacts": inputs.artifacts,
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -584,7 +596,9 @@ async def test_joinspec_with_visibility_controls():
     )
     await orchestrator.run_until_idle()
 
-    assert len(executed) == 1, "Mixed visibility should NOT correlate (SignalA filtered out)"
+    assert len(executed) == 1, (
+        "Mixed visibility should NOT correlate (SignalA filtered out)"
+    )
 
 
 @pytest.mark.asyncio
@@ -604,12 +618,10 @@ async def test_joinspec_with_where_predicate_filters_before_correlation():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifacts": inputs.artifacts,
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "artifacts": inputs.artifacts,
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     # Predicate: Only accept SignalB with data starting with "completed"
@@ -638,7 +650,9 @@ async def test_joinspec_with_where_predicate_filters_before_correlation():
     assert len(executed) == 0, "SignalB rejected by predicate, no correlation"
 
     # Scenario 2: SignalB with "completed" status → ACCEPTED by predicate
-    await orchestrator.publish(SignalB(correlation_id="lab-1", data="completed-results"))
+    await orchestrator.publish(
+        SignalB(correlation_id="lab-1", data="completed-results")
+    )
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "SignalB accepted, correlation completes"
@@ -660,22 +674,18 @@ async def test_joinspec_correlation_state_isolation_per_agent():
 
     class TrackingEngine1(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed_agent1.append(
-                {
-                    "agent": agent.name,
-                    "correlation_id": inputs.artifacts[0].payload["correlation_id"],
-                }
-            )
+            executed_agent1.append({
+                "agent": agent.name,
+                "correlation_id": inputs.artifacts[0].payload["correlation_id"],
+            })
             return EvalResult(artifacts=[])
 
     class TrackingEngine2(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed_agent2.append(
-                {
-                    "agent": agent.name,
-                    "correlation_id": inputs.artifacts[0].payload["correlation_id"],
-                }
-            )
+            executed_agent2.append({
+                "agent": agent.name,
+                "correlation_id": inputs.artifacts[0].payload["correlation_id"],
+            })
             return EvalResult(artifacts=[])
 
     # Agent 1: Correlates SignalA + SignalB
@@ -759,7 +769,9 @@ async def test_joinspec_performance_correlation_overhead():
     print(
         f"\nCorrelation performance: {elapsed_ms:.2f}ms for 10 pairs ({elapsed_ms / 10:.2f}ms per pair)"
     )
-    assert elapsed_ms < 2000, f"Performance target: <2000ms total (got {elapsed_ms:.2f}ms)"
+    assert elapsed_ms < 2000, (
+        f"Performance target: <2000ms total (got {elapsed_ms:.2f}ms)"
+    )
 
 
 @pytest.mark.asyncio
@@ -781,9 +793,10 @@ async def test_joinspec_time_based_expiry_discards_partial_correlation():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {"artifacts": len(inputs.artifacts), "types": [a.type for a in inputs.artifacts]}
-            )
+            executed.append({
+                "artifacts": len(inputs.artifacts),
+                "types": [a.type for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -811,7 +824,9 @@ async def test_joinspec_time_based_expiry_discards_partial_correlation():
     await orchestrator.run_until_idle()
 
     # Verify agent STILL hasn't run (partial correlation discarded)
-    assert len(executed) == 0, "Agent should not run - partial correlation discarded after timeout"
+    assert len(executed) == 0, (
+        "Agent should not run - partial correlation discarded after timeout"
+    )
 
     # Now publish a complete pair with SAME correlation_id (should start fresh)
     await orchestrator.publish(SignalA(correlation_id="incomplete-1", data="a2"))
@@ -876,7 +891,9 @@ async def test_joinspec_time_expiry_vs_batch_timeout_behavior():
     ).with_engines(BatchEngine())
 
     # Publish partial data for both
-    await orchestrator.publish(SignalA(correlation_id="test", data="a"))  # Only A, missing B
+    await orchestrator.publish(
+        SignalA(correlation_id="test", data="a")
+    )  # Only A, missing B
     await orchestrator.publish(SignalC(correlation_id="test", data="c1"))  # Only 1 item
     await orchestrator.run_until_idle()
 

@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from flock.artifacts import Artifact
-from flock.components import EngineComponent
+from flock.components.agent import EngineComponent
 from flock.engines.dspy_engine import DSPyEngine
 from flock.orchestrator import Flock
 from flock.registry import flock_type
@@ -32,7 +32,9 @@ async def test_dspy_engine_evaluation_with_mock_llm(orchestrator, mocker):
     # Arrange
     # Mock DSPy LM to avoid real API calls
     class MockLM:
-        def __init__(self, model, temperature=None, max_tokens=None, cache=None, num_retries=None):
+        def __init__(
+            self, model, temperature=None, max_tokens=None, cache=None, num_retries=None
+        ):
             self.model = model
             self.temperature = temperature
             self.max_tokens = max_tokens
@@ -68,13 +70,17 @@ async def test_dspy_engine_evaluation_with_mock_llm(orchestrator, mocker):
     mock_dspy.OutputField = lambda **kwargs: "output_field"
     mock_dspy.context = lambda **kwargs: mocker.MagicMock()
 
-    mocker.patch("flock.engines.dspy_engine.DSPyEngine._import_dspy", return_value=mock_dspy)
+    mocker.patch(
+        "flock.engines.dspy_engine.DSPyEngine._import_dspy", return_value=mock_dspy
+    )
 
     agent = (
         orchestrator.agent("test_agent")
         .consumes(EngineInput)
         .publishes(EngineOutput)
-        .with_engines(DSPyEngine(model="gpt-4", stream=False))  # Disable streaming for testing
+        .with_engines(
+            DSPyEngine(model="gpt-4", stream=False)
+        )  # Disable streaming for testing
     )
 
     input_artifact = EngineInput(prompt="test prompt")
@@ -103,7 +109,9 @@ async def test_engine_pre_generates_artifact_ids():
     generated_ids = []
 
     class IDCapturingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             # Create artifact with explicit ID
             artifact_id = UUID("12345678-1234-5678-1234-567812345678")
             generated_ids.append(artifact_id)
@@ -143,7 +151,9 @@ async def test_engine_handles_evaluation_errors_gracefully():
     errors_collected = []
 
     class ErrorCollectingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             try:
                 raise RuntimeError("Evaluation failed")
             except Exception as e:
@@ -152,7 +162,9 @@ async def test_engine_handles_evaluation_errors_gracefully():
                 return EvalResult(artifacts=[], state={}, errors=[str(e)])
 
     agent = (
-        orchestrator.agent("test_agent").consumes(EngineInput).with_engines(ErrorCollectingEngine())
+        orchestrator.agent("test_agent")
+        .consumes(EngineInput)
+        .with_engines(ErrorCollectingEngine())
     )
 
     input_artifact = EngineInput(prompt="test")

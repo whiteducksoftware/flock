@@ -1,4 +1,4 @@
-"""Agent component abstractions."""
+"""Agent component base classes and configuration."""
 
 from __future__ import annotations
 
@@ -219,4 +219,5 @@ __all__ = [
     "AgentComponent",
     "AgentComponentConfig",
     "EngineComponent",
+    "TracedModelMeta",
 ]

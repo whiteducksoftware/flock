@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import PrivateAttr
 
-from flock.components import AgentComponent
+from flock.components.agent import AgentComponent
 from flock.dashboard.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
