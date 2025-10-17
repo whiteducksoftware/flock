@@ -272,7 +272,7 @@ class Context(BaseModel):
 
     # ✅ FINAL SOLUTION: Pre-filtered artifacts (evaluated by orchestrator)
     # Engines can only read this list - they cannot query for more data
-    artifacts: list[dict[str, Any]] = Field(
+    artifacts: list[Artifact] = Field(
         default_factory=list,
         description="Pre-filtered conversation context artifacts (evaluated by orchestrator using context provider)"
     )

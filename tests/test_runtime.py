@@ -322,8 +322,18 @@ class TestContext:
         """Test Context creation with Phase 8 security fix (pre-filtered artifacts only)."""
         correlation_id = uuid4()
         pre_filtered_artifacts = [
-            {"type": "Message", "payload": {"text": "hello"}, "produced_by": "user"},
-            {"type": "Response", "payload": {"text": "hi"}, "produced_by": "bot"},
+            Artifact(
+                id=uuid4(),
+                type="Message",
+                payload={"text": "hello"},
+                produced_by="user",
+            ),
+            Artifact(
+                id=uuid4(),
+                type="Response",
+                payload={"text": "hi"},
+                produced_by="bot",
+            ),
         ]
 
         context = Context(

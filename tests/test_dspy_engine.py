@@ -657,23 +657,37 @@ class TestDSPyEngineContext:
 
     def test_get_conversation_context_with_prefiltered_artifacts(self):
         """Phase 8: Test reading pre-filtered context from ctx.artifacts."""
+        from datetime import datetime, timezone
+
         engine = DSPyEngine()
 
-        # Phase 8: Context has pre-filtered artifacts (no orchestrator)
+        # Phase 8: Context has pre-filtered artifacts (Artifact objects)
         mock_ctx = Mock()
         mock_ctx.artifacts = [
-            {"type": "Message", "payload": {"text": "hello"}, "produced_by": "user"},
-            {"type": "Response", "payload": {"text": "hi"}, "produced_by": "bot"},
+            Artifact(
+                id=uuid4(),
+                type="Message",
+                payload={"text": "hello"},
+                produced_by="user",
+                created_at=datetime.now(timezone.utc),
+            ),
+            Artifact(
+                id=uuid4(),
+                type="Response",
+                payload={"text": "hi"},
+                produced_by="bot",
+                created_at=datetime.now(timezone.utc),
+            ),
         ]
 
         result = engine.get_conversation_context(mock_ctx)
 
-        # Should return artifacts with event_number added
+        # Should return Artifact objects (no serialization)
         assert len(result) == 2
-        assert result[0]["type"] == "Message"
-        assert result[1]["type"] == "Response"
-        assert result[0]["event_number"] == 0
-        assert result[1]["event_number"] == 1
+        assert result[0].type == "Message"
+        assert result[1].type == "Response"
+        assert result[0].payload["text"] == "hello"
+        assert result[1].payload["text"] == "hi"
 
     def test_get_conversation_context_with_empty_artifacts(self):
         """Phase 8: Test context reading with no artifacts."""

@@ -267,8 +267,8 @@ class TestContextSecurityPhase7IdentitySpoofing:
 
         # Engines can ONLY read pre-filtered artifacts
         assert len(ctx.artifacts) == 2
-        assert ctx.artifacts[0]["type"] == "Message"
-        assert ctx.artifacts[1]["type"] == "Response"
+        assert ctx.artifacts[0].type == "Message"
+        assert ctx.artifacts[1].type == "Response"
 
         # Engines CANNOT query for more data
         with pytest.raises(AttributeError):

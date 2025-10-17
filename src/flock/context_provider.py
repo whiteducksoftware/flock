@@ -75,15 +75,14 @@ class ContextProvider(Protocol):
         agent.with_context(MyProvider())
     """
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+    async def __call__(self, request: ContextRequest) -> list[Artifact]:
         """Fetch context with MANDATORY visibility enforcement.
 
         Args:
             request: Context request with agent identity and correlation
 
         Returns:
-            List of artifact dicts that agent is allowed to see.
-            Format: [{"type": ..., "payload": ..., "produced_by": ..., ...}]
+            List of Artifact objects that agent is allowed to see.
 
         SECURITY: Implementation MUST filter by visibility using:
             artifact.visibility.allows(request.agent_identity)
@@ -91,44 +90,19 @@ class ContextProvider(Protocol):
         ...
 
 
-def _serialize_artifacts(artifacts: list[Artifact]) -> list[dict[str, Any]]:
-    """Serialize artifacts to consistent dict format.
-
-    This is used by all context providers to ensure uniform serialization.
-
-    Args:
-        artifacts: List of artifacts to serialize
-
-    Returns:
-        List of artifact dicts with consistent format
-    """
-    return [
-        {
-            "type": artifact.type,
-            "payload": artifact.payload,
-            "produced_by": artifact.produced_by,
-            "created_at": artifact.created_at,
-            "id": str(artifact.id),
-            "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
-            "tags": list(artifact.tags) if artifact.tags else [],
-        }
-        for artifact in artifacts
-    ]
-
-
 class BaseContextProvider(ABC):
     """Base class enforcing MANDATORY visibility filtering for all context providers.
 
     **SECURITY BY DESIGN**: Subclasses implement get_artifacts() to query/filter
-    artifacts. Visibility filtering, exclude_ids handling, and serialization are
-    enforced by this base class and CANNOT BE BYPASSED.
+    artifacts. Visibility filtering and exclude_ids handling are enforced by this
+    base class and CANNOT BE BYPASSED.
 
     This makes it architecturally impossible to create an insecure provider that
     forgets to check visibility. The security logic is centralized and guaranteed.
 
     Architecture:
     - Subclass implements: get_artifacts() - custom query/filtering logic
-    - Base class enforces: visibility filtering, exclude_ids, serialization
+    - Base class enforces: visibility filtering, exclude_ids
     - Result: 75% less code, 100% security coverage
 
     Example:
@@ -158,20 +132,19 @@ class BaseContextProvider(ABC):
         """
         pass
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+    async def __call__(self, request: ContextRequest) -> list[Artifact]:
         """Fetch context with MANDATORY visibility enforcement (cannot be bypassed).
 
         SECURITY IMPLEMENTATION (enforced by base class):
         1. Get artifacts from subclass (custom filtering logic)
         2. Filter by visibility (security filtering) - MANDATORY, CANNOT BE BYPASSED
         3. Exclude specific artifacts (if requested)
-        4. Serialize to consistent dict format
 
         Args:
             request: Context request with agent identity
 
         Returns:
-            List of artifact dicts agent can see (visibility-filtered)
+            List of Artifact objects agent can see (visibility-filtered)
         """
         # Step 1: Get artifacts from subclass implementation
         artifacts = await self.get_artifacts(request)
@@ -185,7 +158,7 @@ class BaseContextProvider(ABC):
             if artifact.visibility.allows(request.agent_identity)
         ]
 
-        # Step 2.5: Exclude specific artifacts (e.g., input artifacts to avoid duplication)
+        # Step 3: Exclude specific artifacts (e.g., input artifacts to avoid duplication)
         if request.exclude_ids:
             visible_artifacts = [
                 artifact
@@ -193,8 +166,7 @@ class BaseContextProvider(ABC):
                 if artifact.id not in request.exclude_ids
             ]
 
-        # Step 3: Serialize to consistent format
-        return _serialize_artifacts(visible_artifacts)
+        return visible_artifacts
 
 
 class DefaultContextProvider(BaseContextProvider):
@@ -332,7 +304,7 @@ class BoundContextProvider:
         self._inner = inner_provider
         self._bound_identity = bound_agent_identity
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+    async def __call__(self, request: ContextRequest) -> list[Artifact]:
         """Fetch context using BOUND agent identity (ignoring request.agent_identity).
 
         SECURITY: This method ignores request.agent_identity because it could
@@ -343,7 +315,7 @@ class BoundContextProvider:
             request: Context request (agent_identity field is IGNORED)
 
         Returns:
-            List of artifact dicts filtered by BOUND identity (not request identity)
+            List of Artifact objects filtered by BOUND identity (not request identity)
         """
         # SECURITY: Replace untrusted agent_identity with trusted bound identity
         secure_request = ContextRequest(

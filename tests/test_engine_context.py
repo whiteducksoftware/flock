@@ -31,7 +31,7 @@ from flock.store import FilterConfig
 class MockContext:
     """Mock Context with pre-filtered artifacts (Phase 8 pattern)."""
 
-    def __init__(self, artifacts: list[dict[str, Any]], correlation_id: Any):
+    def __init__(self, artifacts: list[Artifact], correlation_id: Any):
         self.artifacts = artifacts  # Pre-filtered by orchestrator
         self.correlation_id = correlation_id
         # Phase 8: NO provider, NO store (engines can't query)
@@ -80,12 +80,13 @@ class TestEngineUsesProvider:
         # Phase 8: Orchestrator pre-filters context BEFORE creating Context
         # This simulates what the orchestrator does (applies visibility filtering)
         pre_filtered_artifacts = [
-            {
-                "id": str(uuid4()),
-                "type": "Task",
-                "payload": {"title": "Public task"},
-                "produced_by": "system",
-            }
+            Artifact(
+                id=uuid4(),
+                type="Task",
+                payload={"title": "Public task"},
+                produced_by="system",
+                created_at=datetime.now(timezone.utc),
+            )
             # Private artifact NOT included (filtered by orchestrator's provider evaluation)
         ]
 
@@ -98,8 +99,8 @@ class TestEngineUsesProvider:
 
         # SECURITY Phase 8: Engine sees only pre-filtered artifacts
         assert len(context) == 1
-        assert context[0]["type"] == "Task"
-        assert context[0]["payload"]["title"] == "Public task"
+        assert context[0].type == "Task"
+        assert context[0].payload["title"] == "Public task"
 
         # SECURITY Phase 8: Engine CANNOT query for more data
         assert not hasattr(ctx, "provider"), "Context must NOT have provider"
@@ -133,12 +134,13 @@ class TestEngineUsesProvider:
 
         # Phase 8: Orchestrator pre-filtered to include only correlation_a artifacts
         pre_filtered_artifacts = [
-            {
-                "id": str(uuid4()),
-                "type": "Task",
-                "payload": {"workflow": "A"},
-                "produced_by": "system",
-            }
+            Artifact(
+                id=uuid4(),
+                type="Task",
+                payload={"workflow": "A"},
+                produced_by="system",
+                created_at=datetime.now(timezone.utc),
+            )
             # Artifacts from workflow B NOT included (filtered by orchestrator)
         ]
 
@@ -149,7 +151,7 @@ class TestEngineUsesProvider:
 
         # Should only see artifacts from workflow A (orchestrator filtered others)
         assert len(context) == 1
-        assert context[0]["payload"]["workflow"] == "A"
+        assert context[0].payload["workflow"] == "A"
 
     async def test_engine_respects_context_exclude_types(self):
         """Phase 8: Engine excludes artifact types specified in context_exclude_types.
@@ -160,18 +162,20 @@ class TestEngineUsesProvider:
 
         # Phase 8: Orchestrator pre-filtered artifacts
         pre_filtered_artifacts = [
-            {
-                "id": str(uuid4()),
-                "type": "Task",
-                "payload": {"title": "Do something"},
-                "produced_by": "system",
-            },
-            {
-                "id": str(uuid4()),
-                "type": "Log",
-                "payload": {"message": "Debug info"},
-                "produced_by": "system",
-            }
+            Artifact(
+                id=uuid4(),
+                type="Task",
+                payload={"title": "Do something"},
+                produced_by="system",
+                created_at=datetime.now(timezone.utc),
+            ),
+            Artifact(
+                id=uuid4(),
+                type="Log",
+                payload={"message": "Debug info"},
+                produced_by="system",
+                created_at=datetime.now(timezone.utc),
+            )
         ]
 
         ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
@@ -182,8 +186,8 @@ class TestEngineUsesProvider:
 
         # Should only see Task (Log excluded by engine)
         assert len(context) == 1
-        assert context[0]["type"] == "Task"
-        assert not any(item["type"] == "Log" for item in context)
+        assert context[0].type == "Task"
+        assert not any(item.type == "Log" for item in context)
 
     async def test_engine_respects_context_max_artifacts(self):
         """Phase 8: Engine respects context_max_artifacts limit (engine-level limit).
@@ -194,12 +198,13 @@ class TestEngineUsesProvider:
 
         # Phase 8: Orchestrator pre-filtered 5 artifacts
         pre_filtered_artifacts = [
-            {
-                "id": str(uuid4()),
-                "type": "Task",
-                "payload": {"title": f"Task {i}"},
-                "produced_by": "system",
-            }
+            Artifact(
+                id=uuid4(),
+                type="Task",
+                payload={"title": f"Task {i}"},
+                produced_by="system",
+                created_at=datetime.now(timezone.utc),
+            )
             for i in range(5)
         ]
 
@@ -211,8 +216,8 @@ class TestEngineUsesProvider:
 
         # Should only return last 2 artifacts
         assert len(context) == 2
-        assert context[0]["payload"]["title"] == "Task 3"  # Second-to-last
-        assert context[1]["payload"]["title"] == "Task 4"  # Last
+        assert context[0].payload["title"] == "Task 3"  # Second-to-last
+        assert context[1].payload["title"] == "Task 4"  # Last
 
     async def test_engine_works_with_custom_provider(self):
         """Phase 8: Orchestrator can use custom provider to evaluate context.
@@ -224,12 +229,13 @@ class TestEngineUsesProvider:
         # Phase 8: Orchestrator used FilteredContextProvider with tag filter
         # Result: only artifacts with "important" tag
         pre_filtered_artifacts = [
-            {
-                "id": str(uuid4()),
-                "type": "Task",
-                "payload": {"title": "Critical bug"},
-                "produced_by": "system",
-            }
+            Artifact(
+                id=uuid4(),
+                type="Task",
+                payload={"title": "Critical bug"},
+                produced_by="system",
+                created_at=datetime.now(timezone.utc),
+            )
             # Normal artifact NOT included (filtered by custom provider)
         ]
 
@@ -240,20 +246,22 @@ class TestEngineUsesProvider:
 
         # Should only see artifact that passed custom provider's filter
         assert len(context) == 1
-        assert context[0]["payload"]["title"] == "Critical bug"
+        assert context[0].payload["title"] == "Critical bug"
 
     async def test_engine_returns_correct_format(self):
-        """Phase 8: Engine returns context with event_number added."""
+        """Phase 8: Engine returns Artifact objects with full metadata."""
         correlation = uuid4()
 
         # Phase 8: Orchestrator pre-filtered artifact
+        artifact_id = uuid4()
         pre_filtered_artifacts = [
-            {
-                "id": str(uuid4()),
-                "type": "Task",
-                "payload": {"title": "Do something"},
-                "produced_by": "planner",
-            }
+            Artifact(
+                id=artifact_id,
+                type="Task",
+                payload={"title": "Do something"},
+                produced_by="planner",
+                created_at=datetime.now(timezone.utc),
+            )
         ]
 
         ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
@@ -264,12 +272,12 @@ class TestEngineUsesProvider:
         # Verify format
         assert isinstance(context, list)
         assert len(context) == 1
-        assert isinstance(context[0], dict)
+        assert isinstance(context[0], Artifact)
 
-        # Verify required fields
+        # Verify Artifact fields (full metadata available)
         item = context[0]
-        assert item["type"] == "Task"
-        assert item["payload"] == {"title": "Do something"}
-        assert item["produced_by"] == "planner"
-        assert "event_number" in item  # Engine adds this field
-        assert item["event_number"] == 0  # First artifact
+        assert item.type == "Task"
+        assert item.payload == {"title": "Do something"}
+        assert item.produced_by == "planner"
+        assert item.id == artifact_id
+        assert item.created_at is not None

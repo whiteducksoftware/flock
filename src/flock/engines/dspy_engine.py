@@ -229,11 +229,7 @@ class DSPyEngine(EngineComponent):
         # This fixes Vulnerability #4: Engines can no longer query arbitrary data via ctx.store
 
         # Filter out input artifacts to avoid duplication in context
-        exclude_ids = {artifact.id for artifact in inputs.artifacts} if inputs.artifacts else set()
-        context_history = [
-            item for item in (ctx.artifacts if ctx else [])
-            if item.get("id") and item["id"] not in {str(eid) for eid in exclude_ids}
-        ] if exclude_ids else (ctx.artifacts if ctx else [])
+        context_history =  (ctx.artifacts if ctx else [])
 
         has_context = bool(context_history) and self.should_use_context(inputs)
 

@@ -282,18 +282,20 @@ async def test_engine_component_get_conversation_context():
     correlation_id = uuid4()
 
     pre_filtered_artifacts = [
-        {
-            "id": str(uuid4()),
-            "type": "user_message",
-            "payload": {"message": "Hello"},
-            "produced_by": "agent1",
-        },
-        {
-            "id": str(uuid4()),
-            "type": "assistant_response",
-            "payload": {"message": "Hi there!"},
-            "produced_by": "agent2",
-        },
+        Artifact(
+            id=uuid4(),
+            type="user_message",
+            payload={"message": "Hello"},
+            produced_by="agent1",
+            created_at=datetime.now(timezone.utc),
+        ),
+        Artifact(
+            id=uuid4(),
+            type="assistant_response",
+            payload={"message": "Hi there!"},
+            produced_by="agent2",
+            created_at=datetime.now(timezone.utc),
+        ),
     ]
 
     ctx = Context(
@@ -302,20 +304,18 @@ async def test_engine_component_get_conversation_context():
         task_id="test-task",
     )
 
-    # Phase 8: Engine simply reads pre-filtered context
+    # Phase 8: Engine simply reads pre-filtered context (returns Artifact objects)
     engine = EngineComponent()
     context = engine.get_conversation_context(ctx)
 
-    # Should get pre-filtered artifacts with event_number added
+    # Should get pre-filtered Artifact objects with full metadata
     assert len(context) == 2
-    assert context[0]["type"] == "user_message"
-    assert context[0]["payload"] == {"message": "Hello"}
-    assert context[0]["produced_by"] == "agent1"
-    assert context[0]["event_number"] == 0
-    assert context[1]["type"] == "assistant_response"
-    assert context[1]["payload"] == {"message": "Hi there!"}
-    assert context[1]["produced_by"] == "agent2"
-    assert context[1]["event_number"] == 1
+    assert context[0].type == "user_message"
+    assert context[0].payload == {"message": "Hello"}
+    assert context[0].produced_by == "agent1"
+    assert context[1].type == "assistant_response"
+    assert context[1].payload == {"message": "Hi there!"}
+    assert context[1].produced_by == "agent2"
 
 
 @pytest.mark.asyncio
@@ -325,7 +325,13 @@ async def test_engine_component_get_context_with_max_artifacts():
 
     # Phase 8: Context contains pre-filtered artifacts (10 artifacts from orchestrator)
     pre_filtered_artifacts = [
-        {"id": str(uuid4()), "type": f"message_{i}", "payload": {"content": f"Content {i}"}, "produced_by": f"agent_{i}"}
+        Artifact(
+            id=uuid4(),
+            type=f"message_{i}",
+            payload={"content": f"Content {i}"},
+            produced_by=f"agent_{i}",
+            created_at=datetime.now(timezone.utc),
+        )
         for i in range(10)
     ]
 
@@ -341,9 +347,9 @@ async def test_engine_component_get_context_with_max_artifacts():
 
     assert len(context) == 3
     # Should get the last 3 artifacts
-    assert context[0]["type"] == "message_7"
-    assert context[1]["type"] == "message_8"
-    assert context[2]["type"] == "message_9"
+    assert context[0].type == "message_7"
+    assert context[1].type == "message_8"
+    assert context[2].type == "message_9"
 
     # Test with instance-level max_artifacts
     engine2 = EngineComponent(context_max_artifacts=5)
@@ -351,8 +357,8 @@ async def test_engine_component_get_context_with_max_artifacts():
 
     assert len(context2) == 5
     # Should get the last 5 artifacts
-    assert context2[0]["type"] == "message_5"
-    assert context2[4]["type"] == "message_9"
+    assert context2[0].type == "message_5"
+    assert context2[4].type == "message_9"
 
 
 @pytest.mark.asyncio
@@ -362,9 +368,27 @@ async def test_engine_component_get_context_with_exclude_types():
 
     # Phase 8: Context contains pre-filtered artifacts
     pre_filtered_artifacts = [
-        {"id": str(uuid4()), "type": "user_message", "payload": {"message": "Hello"}, "produced_by": "agent1"},
-        {"id": str(uuid4()), "type": "system_log", "payload": {"info": "System info"}, "produced_by": "system"},
-        {"id": str(uuid4()), "type": "assistant_response", "payload": {"message": "Hi there!"}, "produced_by": "agent2"},
+        Artifact(
+            id=uuid4(),
+            type="user_message",
+            payload={"message": "Hello"},
+            produced_by="agent1",
+            created_at=datetime.now(timezone.utc),
+        ),
+        Artifact(
+            id=uuid4(),
+            type="system_log",
+            payload={"info": "System info"},
+            produced_by="system",
+            created_at=datetime.now(timezone.utc),
+        ),
+        Artifact(
+            id=uuid4(),
+            type="assistant_response",
+            payload={"message": "Hi there!"},
+            produced_by="agent2",
+            created_at=datetime.now(timezone.utc),
+        ),
     ]
 
     ctx = Context(
@@ -378,8 +402,8 @@ async def test_engine_component_get_context_with_exclude_types():
     context = engine.get_conversation_context(ctx)
 
     assert len(context) == 2  # system_log should be excluded
-    assert context[0]["type"] == "user_message"
-    assert context[1]["type"] == "assistant_response"
+    assert context[0].type == "user_message"
+    assert context[1].type == "assistant_response"
 
 
 @pytest.mark.asyncio
@@ -388,7 +412,15 @@ async def test_engine_component_get_context_disabled():
     from flock.runtime import Context
 
     ctx = Context(
-        artifacts=[{"id": str(uuid4()), "type": "test", "payload": {}, "produced_by": "test"}],
+        artifacts=[
+            Artifact(
+                id=uuid4(),
+                type="test",
+                payload={},
+                produced_by="test",
+                created_at=datetime.now(timezone.utc),
+            )
+        ],
         correlation_id=uuid4(),
         task_id="test-task",
     )

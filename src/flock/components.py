@@ -157,7 +157,7 @@ class EngineComponent(AgentComponent):
         self,
         ctx: Context,
         max_artifacts: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[Artifact]:
         """Get conversation context from Context (read-only helper).
 
         Phase 8 Security Fix: This method now simply reads pre-filtered artifacts from
@@ -177,7 +177,8 @@ class EngineComponent(AgentComponent):
             max_artifacts: Optional limit (applies to already-filtered list)
 
         Returns:
-            List of artifact dicts (pre-filtered by orchestrator via context provider)
+            List of Artifact objects (pre-filtered by orchestrator via context provider)
+            with full metadata (type, payload, produced_by, created_at, tags, etc.)
         """
         if not self.enable_context or not ctx:
             return []
@@ -187,7 +188,7 @@ class EngineComponent(AgentComponent):
         # Apply engine-level filtering (type exclusions)
         if self.context_exclude_types:
             context_items = [
-                item for item in context_items if item["type"] not in self.context_exclude_types
+                item for item in context_items if item.type not in self.context_exclude_types
             ]
 
         # Apply max artifacts limit
@@ -195,19 +196,7 @@ class EngineComponent(AgentComponent):
         if max_limit is not None and max_limit > 0:
             context_items = context_items[-max_limit:]
 
-        # Add event_number field (engine convention)
-        context = []
-        for i, item in enumerate(context_items):
-            context.append(
-                {
-                    "type": item["type"],
-                    "payload": item["payload"],
-                    "produced_by": item["produced_by"],
-                    "event_number": i,
-                }
-            )
-
-        return context
+        return context_items
 
     def should_use_context(self, inputs: EvalInputs) -> bool:
         """Determine if context should be included based on the current inputs."""

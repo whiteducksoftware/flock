@@ -170,11 +170,11 @@ class TestDefaultContextProviderSecurity:
         context = await provider(request)
 
         assert len(context) == 1
-        assert context[0]["type"] == "Task"
-        assert context[0]["payload"]["title"] == "Public task"
+        assert context[0].type == "Task"
+        assert context[0].payload["title"] == "Public task"
 
         # SECURITY: Private artifact must NOT be visible
-        assert not any(item["type"] == "Secret" for item in context)
+        assert not any(item.type == "Secret" for item in context)
 
     async def test_default_provider_respects_private_visibility(self):
         """SECURITY: Private visibility must be enforced.
@@ -227,7 +227,7 @@ class TestDefaultContextProviderSecurity:
 
         admin_context = await provider(admin_request)
         assert len(admin_context) == 1, "Admin should see private artifact"
-        assert admin_context[0]["type"] == "Secret"
+        assert admin_context[0].type == "Secret"
 
     async def test_default_provider_respects_tenant_visibility(self):
         """SECURITY: Tenant isolation must be enforced.
@@ -277,10 +277,10 @@ class TestDefaultContextProviderSecurity:
         context = await provider(request)
 
         assert len(context) == 1
-        assert context[0]["payload"]["ssn"] == "987-65-4321"
+        assert context[0].payload["ssn"] == "987-65-4321"
 
         # SECURITY: Tenant A's data must NOT be visible
-        assert not any(item["payload"]["ssn"] == "123-45-6789" for item in context)
+        assert not any(item.payload["ssn"] == "123-45-6789" for item in context)
 
     async def test_default_provider_respects_label_based_visibility(self):
         """SECURITY: Label-based RBAC must be enforced.
@@ -331,7 +331,7 @@ class TestDefaultContextProviderSecurity:
 
         authorized_context = await provider(authorized_request)
         assert len(authorized_context) == 1, "Agent with required label should see classified data"
-        assert authorized_context[0]["type"] == "ClassifiedDoc"
+        assert authorized_context[0].type == "ClassifiedDoc"
 
     async def test_default_provider_shows_all_artifacts(self):
         """DefaultContextProvider shows ALL artifacts (no correlation filtering).
@@ -380,7 +380,7 @@ class TestDefaultContextProviderSecurity:
         context = await provider(request)
 
         assert len(context) == 2
-        workflows = {item["payload"]["workflow"] for item in context}
+        workflows = {item.payload["workflow"] for item in context}
         assert workflows == {"A", "B"}
 
     async def test_default_provider_returns_correct_format(self):
@@ -418,13 +418,13 @@ class TestDefaultContextProviderSecurity:
         # Verify format
         assert isinstance(context, list)
         assert len(context) == 1
-        assert isinstance(context[0], dict)
+        assert isinstance(context[0], Artifact)
 
         # Verify required fields
         item = context[0]
-        assert item["type"] == "Task"
-        assert item["payload"] == {"title": "Do something"}
-        assert item["produced_by"] == "planner"
+        assert item.type == "Task"
+        assert item.payload == {"title": "Do something"}
+        assert item.produced_by == "planner"
 
 
 class TestContextProviderSecurityDocumentation:
@@ -661,7 +661,7 @@ class TestFilteredContextProvider:
 
         # Should only see artifact with "important" tag
         assert len(context) == 1
-        assert context[0]["payload"]["title"] == "Critical bug"
+        assert context[0].payload["title"] == "Critical bug"
 
     async def test_filtered_provider_filters_by_type(self):
         """FilteredContextProvider must filter artifacts by type.
@@ -709,7 +709,7 @@ class TestFilteredContextProvider:
 
         # Should only see Task artifact
         assert len(context) == 1
-        assert context[0]["type"] == "Task"
+        assert context[0].type == "Task"
 
     async def test_filtered_provider_still_enforces_visibility(self):
         """SECURITY: FilteredContextProvider MUST enforce visibility on top of filters.
@@ -760,11 +760,11 @@ class TestFilteredContextProvider:
         # SECURITY: Should only see PUBLIC artifact with "important" tag
         # Private artifact must be filtered out by visibility enforcement
         assert len(context) == 1
-        assert context[0]["type"] == "Task"
-        assert context[0]["payload"]["title"] == "Public important task"
+        assert context[0].type == "Task"
+        assert context[0].payload["title"] == "Public important task"
 
         # Verify private artifact is NOT visible
-        assert not any(item["type"] == "Secret" for item in context)
+        assert not any(item.type == "Secret" for item in context)
 
     async def test_filtered_provider_respects_limit(self):
         """FilteredContextProvider must respect artifact limit.
@@ -844,15 +844,15 @@ class TestFilteredContextProvider:
         # Verify format
         assert isinstance(context, list)
         assert len(context) == 1
-        assert isinstance(context[0], dict)
+        assert isinstance(context[0], Artifact)
 
         # Verify required fields
         item = context[0]
-        assert item["type"] == "Task"
-        assert item["payload"] == {"title": "Test task"}
-        assert item["produced_by"] == "system"
-        assert "created_at" in item
-        assert "id" in item
+        assert item.type == "Task"
+        assert item.payload == {"title": "Test task"}
+        assert item.produced_by == "system"
+        assert hasattr(item, "created_at")
+        assert hasattr(item, "id")
 
 
 @pytest.mark.asyncio
@@ -911,7 +911,7 @@ class TestCorrelatedContextProvider:
         context = await provider(request)
 
         assert len(context) == 1
-        assert context[0]["payload"]["workflow"] == "A"
+        assert context[0].payload["workflow"] == "A"
 
     async def test_correlated_provider_enforces_visibility(self):
         """SECURITY: CorrelatedContextProvider MUST enforce visibility."""
@@ -953,8 +953,8 @@ class TestCorrelatedContextProvider:
         context = await provider(request)
 
         assert len(context) == 1
-        assert context[0]["type"] == "Task"
-        assert not any(item["type"] == "Secret" for item in context)
+        assert context[0].type == "Task"
+        assert not any(item.type == "Secret" for item in context)
 
 
 @pytest.mark.asyncio
@@ -1007,8 +1007,8 @@ class TestRecentContextProvider:
         # Should only return 2 most recent artifacts
         assert len(context) == 2
         # Should be most recent first (Task 0, Task 1)
-        assert context[0]["payload"]["title"] == "Task 0"
-        assert context[1]["payload"]["title"] == "Task 1"
+        assert context[0].payload["title"] == "Task 0"
+        assert context[1].payload["title"] == "Task 1"
 
     async def test_recent_provider_enforces_visibility(self):
         """SECURITY: RecentContextProvider MUST enforce visibility."""
@@ -1053,8 +1053,8 @@ class TestRecentContextProvider:
         context = await provider(request)
 
         assert len(context) == 3
-        assert all(item["type"] == "Task" for item in context)
-        assert not any(item["type"] == "Secret" for item in context)
+        assert all(item.type == "Task" for item in context)
+        assert not any(item.type == "Secret" for item in context)
 
 
 @pytest.mark.asyncio
@@ -1113,7 +1113,7 @@ class TestTimeWindowContextProvider:
 
         # Should only see artifact from last hour
         assert len(context) == 1
-        assert context[0]["payload"]["title"] == "Recent task"
+        assert context[0].payload["title"] == "Recent task"
 
     async def test_time_window_provider_enforces_visibility(self):
         """SECURITY: TimeWindowContextProvider MUST enforce visibility."""
@@ -1159,8 +1159,8 @@ class TestTimeWindowContextProvider:
         context = await provider(request)
 
         assert len(context) == 1
-        assert context[0]["type"] == "Task"
-        assert not any(item["type"] == "Secret" for item in context)
+        assert context[0].type == "Task"
+        assert not any(item.type == "Secret" for item in context)
 
 
 @pytest.mark.asyncio
