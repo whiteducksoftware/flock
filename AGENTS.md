@@ -53,7 +53,7 @@ A blackboard architecture framework where specialized AI agents collaborate thro
 
 ### Prerequisites
 
-- **Python 3.10+** (we use modern async features)
+- **Python 3.12+** (we use modern async features)
 - **UV package manager** (faster than pip, handles virtual envs)
 - **Node.js 18+** (22+ recommended) for dashboard frontend
 - **OpenAI API key** (for running examples)
@@ -1618,7 +1618,7 @@ Add to existing test file if relevant, or create new file following naming conve
 
 ### Q: What Python version features can I use?
 
-Python 3.10+, so you can use:
+Python 3.12+, so you can use:
 - `match`/`case` statements
 - `TaskGroup` for parallel execution
 - Improved type hints (`list[str]` not `List[str]`)

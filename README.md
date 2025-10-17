@@ -4,7 +4,7 @@
 <p align="center">
   <a href="https://whiteducksoftware.github.io/flock/" target="_blank"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-blue?style=for-the-badge&logo=readthedocs"></a>
   <a href="https://pypi.org/project/flock-core/" target="_blank"><img alt="PyPI Version" src="https://img.shields.io/pypi/v/flock-core?style=for-the-badge&logo=pypi&label=pip%20version"></a>
-  <img alt="Python Version" src="https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python">
+  <img alt="Python Version" src="https://img.shields.io/badge/python-3.12%2B-blue?style=for-the-badge&logo=python">
   <a href="LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/github/license/whiteducksoftware/flock?style=for-the-badge"></a>
   <a href="https://whiteduck.de" target="_blank"><img alt="Built by white duck" src="https://img.shields.io/badge/Built%20by-white%20duck%20GmbH-white?style=for-the-badge&labelColor=black"></a>
   <a href="https://codecov.io/gh/whiteducksoftware/flock" target="_blank"><img alt="Test Coverage" src="https://codecov.io/gh/whiteducksoftware/flock/branch/main/graph/badge.svg?token=YOUR_TOKEN_HERE&style=for-the-badge"></a>
@@ -251,6 +251,39 @@ asyncio.run(main())
 - **Zero prompts written** - types defined the behavior
 - **Zero graph edges** - subscriptions created the workflow
 - **Full type safety** - Pydantic validates all outputs
+
+---
+
+## Context Provider Primer (Security + Cost)
+
+Context Providers are the security and efficiency layer between agents and the blackboard. They decide what each agent sees in its historical context and always enforce visibility rules.
+
+Why use them
+- Enforce access control (visibility is applied before engines see data)
+- Cut context size (often 90%+) by filtering to what matters
+- Specialize per agent or set a global default
+
+Copy/paste examples
+```python
+from flock import Flock
+from flock.context_provider import FilteredContextProvider
+from flock.store import FilterConfig
+
+# Global: show only urgent items (limit context size)
+flock = Flock(
+    "openai/gpt-4.1",
+    context_provider=FilteredContextProvider(FilterConfig(tags={"urgent"}), limit=50)
+)
+
+# Per-agent: override global for a specific role
+senior = flock.agent("senior").consumes(LogEntry).publishes(Analysis)
+senior.context_provider = FilteredContextProvider(
+    FilterConfig(tags={"ERROR", "WARN"}),
+    limit=200
+)
+```
+
+Learn more: docs/guides/context-providers.md
 
 ---
 
