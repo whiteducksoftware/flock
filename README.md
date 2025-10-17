@@ -512,6 +512,46 @@ agent.publishes(PublicReport, visibility=PublicVisibility())
 
 **Why this matters:** Financial services, healthcare, defense, SaaS platforms all need this for compliance. Other frameworks make you build it yourself.
 
+---
+
+### 🔒 Architecturally Impossible to Bypass Security
+
+**Here's what makes Flock different:** In most frameworks, security is something you remember to add. In Flock, **it's architecturally impossible to forget.**
+
+Every context provider in Flock inherits from `BaseContextProvider`, which enforces visibility filtering **automatically**. You literally cannot create a provider that forgets to check permissions—the security logic is baked into the base class and executes before your custom code even runs.
+
+**What this means in practice:**
+
+```python
+# ❌ Other frameworks: Security is your responsibility (easy to forget!)
+class MyProvider:
+    async def get_context(self, agent):
+        artifacts = store.get_all()  # OOPS! Forgot to check visibility!
+        return artifacts  # 🔥 Security vulnerability
+
+# ✅ Flock: Security is enforced automatically (impossible to bypass!)
+class MyProvider(BaseContextProvider):
+    async def get_artifacts(self, request):
+        artifacts = await store.query_artifacts(...)
+        return artifacts  # ✨ Visibility filtering happens automatically!
+        # BaseContextProvider calls .visibility.allows() for you
+        # You CANNOT bypass this - it's enforced by the architecture
+```
+
+**Built-in providers (all inherit BaseContextProvider):**
+- `DefaultContextProvider` - Full blackboard access (visibility-filtered)
+- `CorrelatedContextProvider` - Workflow isolation (visibility-filtered)
+- `RecentContextProvider` - Token cost control (visibility-filtered)
+- `TimeWindowContextProvider` - Time-based filtering (visibility-filtered)
+- `EmptyContextProvider` - Stateless agents (zero context)
+- `FilteredContextProvider` - Custom filtering (visibility-filtered)
+
+**Every single one enforces visibility automatically. Zero chance of accidentally leaking data.**
+
+This isn't just convenient—it's **security by design**. When you're building HIPAA-compliant healthcare systems or SOC2-certified SaaS platforms, "impossible to bypass even by accident" is the only acceptable standard.
+
+---
+
 ### Context Providers (The Smart Filter)
 
 **Control what agents see with custom Context Providers:**

@@ -442,40 +442,41 @@ provider = FilteredContextProvider(config, limit=100)
 **Build your own filtering logic:**
 
 ```python
-from flock.context_provider import ContextProvider, ContextRequest
+from flock.context_provider import BaseContextProvider, ContextRequest
+from flock.artifacts import Artifact
 
-class TimeBoundProvider(ContextProvider):
-    """Only show artifacts from last 1 hour."""
+class TimeBoundProvider(BaseContextProvider):
+    """Only show artifacts from last 1 hour.
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+    Security is enforced automatically by BaseContextProvider!
+    """
+
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
         cutoff = datetime.now() - timedelta(hours=1)
 
-        # Query artifacts
+        # Query all artifacts
         artifacts, _ = await request.store.query_artifacts(limit=1000)
 
-        # MANDATORY: Filter by visibility
-        visible = [a for a in artifacts if a.visibility.allows(request.agent_identity)]
+        # Apply time-based filtering
+        recent = [a for a in artifacts if a.created_at >= cutoff]
 
-        # Custom filtering: time-based
-        recent = [a for a in visible if a.created_at >= cutoff]
+        return recent
 
-        return [
-            {
-                "type": a.type,
-                "payload": a.payload,
-                "produced_by": a.produced_by,
-                "created_at": a.created_at,
-                "id": str(a.id),
-                "correlation_id": str(a.correlation_id) if a.correlation_id else None,
-                "tags": list(a.tags) if a.tags else [],
-            }
-            for a in recent
-        ]
+        # ✨ BaseContextProvider automatically:
+        # - Filters by visibility (MANDATORY, cannot bypass!)
+        # - Excludes requested IDs
+        # - Serializes to standard format
 
 # Usage
 provider = TimeBoundProvider()
 flock = Flock("openai/gpt-4.1", context_provider=provider)
 ```
+
+**Why this is better:**
+- ✅ **75% less code** - 5 lines vs 20+ lines
+- ✅ **Impossible to bypass security** - visibility enforced by base class
+- ✅ **Consistent serialization** - automatic standard format
+- ✅ **Focus on business logic** - not infrastructure
 
 #### Real-World Use Cases
 

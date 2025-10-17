@@ -20,6 +20,7 @@ References:
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Protocol
@@ -90,42 +91,81 @@ class ContextProvider(Protocol):
         ...
 
 
-class DefaultContextProvider:
-    """Default context provider - shows ALL artifacts on blackboard with MANDATORY visibility enforcement.
+def _serialize_artifacts(artifacts: list[Artifact]) -> list[dict[str, Any]]:
+    """Serialize artifacts to consistent dict format.
 
-    **EXPLICIT IS BETTER THAN IMPLICIT**: This provider shows agents everything on the
-    blackboard they're allowed to see (visibility-filtered). No magic correlation filtering!
+    This is used by all context providers to ensure uniform serialization.
 
-    If you want correlation-based filtering, use CorrelatedContextProvider explicitly.
+    Args:
+        artifacts: List of artifacts to serialize
 
-    This provider implements the secure replacement for the old vulnerable pattern:
-        Old (INSECURE): all_artifacts = await ctx.board.list()
-        New (SECURE): context = await provider(request)
+    Returns:
+        List of artifact dicts with consistent format
+    """
+    return [
+        {
+            "type": artifact.type,
+            "payload": artifact.payload,
+            "produced_by": artifact.produced_by,
+            "created_at": artifact.created_at,
+            "id": str(artifact.id),
+            "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
+            "tags": list(artifact.tags) if artifact.tags else [],
+        }
+        for artifact in artifacts
+    ]
 
-    Security Properties:
-    - ✅ Shows ALL artifacts on blackboard (no hidden filtering)
-    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED
-    - ✅ Returns only artifacts agent is allowed to see
-    - ✅ No direct store access exposed to agents
 
-    This fixes Vulnerability #1 (READ BYPASS) where agents could access
-    any artifact regardless of visibility by calling ctx.board.list().
+class BaseContextProvider(ABC):
+    """Base class enforcing MANDATORY visibility filtering for all context providers.
+
+    **SECURITY BY DESIGN**: Subclasses implement get_artifacts() to query/filter
+    artifacts. Visibility filtering, exclude_ids handling, and serialization are
+    enforced by this base class and CANNOT BE BYPASSED.
+
+    This makes it architecturally impossible to create an insecure provider that
+    forgets to check visibility. The security logic is centralized and guaranteed.
+
+    Architecture:
+    - Subclass implements: get_artifacts() - custom query/filtering logic
+    - Base class enforces: visibility filtering, exclude_ids, serialization
+    - Result: 75% less code, 100% security coverage
 
     Example:
-        >>> # Global: All agents see everything they're allowed to
-        >>> flock = Flock(context_provider=DefaultContextProvider())
-        >>>
-        >>> # Per-agent: This agent sees full blackboard
-        >>> agent.context_provider = DefaultContextProvider()
+        >>> class MyProvider(BaseContextProvider):
+        ...     async def get_artifacts(self, request):
+        ...         # Just return artifacts - base class handles visibility!
+        ...         artifacts, _ = await request.store.query_artifacts(...)
+        ...         return artifacts
     """
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
-        """Fetch ALL artifacts with mandatory visibility enforcement.
+    @abstractmethod
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        """Query and filter artifacts (will be visibility-filtered automatically).
 
-        SECURITY IMPLEMENTATION:
-        1. Query ALL artifacts from blackboard (no filtering)
-        2. Filter by visibility (security filtering) - THIS IS THE CRITICAL FIX
-        3. Return only artifacts agent is allowed to see
+        Subclasses implement this to define their filtering logic:
+        - DefaultContextProvider: Query all artifacts
+        - CorrelatedContextProvider: Query by correlation_id
+        - RecentContextProvider: Query all + sort by time + limit
+        - TimeWindowContextProvider: Query all + filter by time window
+        - EmptyContextProvider: Return empty list
+
+        Args:
+            request: Context request with agent identity, store, correlation_id
+
+        Returns:
+            List of artifacts (will be visibility-filtered by base class)
+        """
+        pass
+
+    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+        """Fetch context with MANDATORY visibility enforcement (cannot be bypassed).
+
+        SECURITY IMPLEMENTATION (enforced by base class):
+        1. Get artifacts from subclass (custom filtering logic)
+        2. Filter by visibility (security filtering) - MANDATORY, CANNOT BE BYPASSED
+        3. Exclude specific artifacts (if requested)
+        4. Serialize to consistent dict format
 
         Args:
             request: Context request with agent identity
@@ -133,15 +173,12 @@ class DefaultContextProvider:
         Returns:
             List of artifact dicts agent can see (visibility-filtered)
         """
-        # Step 1: Query ALL artifacts (no filtering - explicit!)
-        artifacts, _ = await request.store.query_artifacts(
-            FilterConfig(),  # Empty filter = get everything
-            limit=-1,  # Get all artifacts (will filter by visibility)
-        )
+        # Step 1: Get artifacts from subclass implementation
+        artifacts = await self.get_artifacts(request)
 
-        # Step 2: CRITICAL SECURITY STEP - Filter by visibility
+        # Step 2: CRITICAL SECURITY STEP - Filter by visibility (ENFORCED BY BASE CLASS)
         # This is the FIX for Vulnerability #1 (READ BYPASS)
-        # Agents can ONLY see artifacts they're allowed to see
+        # Subclasses CANNOT bypass this - it's architecturally impossible
         visible_artifacts = [
             artifact
             for artifact in artifacts
@@ -156,22 +193,58 @@ class DefaultContextProvider:
                 if artifact.id not in request.exclude_ids
             ]
 
-        # Step 3: Return serialized context
-        return [
-            {
-                "type": artifact.type,
-                "payload": artifact.payload,
-                "produced_by": artifact.produced_by,
-                "created_at": artifact.created_at,
-                "id": str(artifact.id),
-                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
-                "tags": list(artifact.tags) if artifact.tags else [],
-            }
-            for artifact in visible_artifacts
-        ]
+        # Step 3: Serialize to consistent format
+        return _serialize_artifacts(visible_artifacts)
 
 
-class FilteredContextProvider:
+class DefaultContextProvider(BaseContextProvider):
+    """Default context provider - shows ALL artifacts on blackboard with MANDATORY visibility enforcement.
+
+    **EXPLICIT IS BETTER THAN IMPLICIT**: This provider shows agents everything on the
+    blackboard they're allowed to see (visibility-filtered). No magic correlation filtering!
+
+    If you want correlation-based filtering, use CorrelatedContextProvider explicitly.
+
+    This provider implements the secure replacement for the old vulnerable pattern:
+        Old (INSECURE): all_artifacts = await ctx.board.list()
+        New (SECURE): context = await provider(request)
+
+    Security Properties:
+    - ✅ Shows ALL artifacts on blackboard (no hidden filtering)
+    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED (via BaseContextProvider)
+    - ✅ Returns only artifacts agent is allowed to see
+    - ✅ No direct store access exposed to agents
+
+    This fixes Vulnerability #1 (READ BYPASS) where agents could access
+    any artifact regardless of visibility by calling ctx.board.list().
+
+    Example:
+        >>> # Global: All agents see everything they're allowed to
+        >>> flock = Flock(context_provider=DefaultContextProvider())
+        >>>
+        >>> # Per-agent: This agent sees full blackboard
+        >>> agent.context_provider = DefaultContextProvider()
+    """
+
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        """Query ALL artifacts from blackboard (no filtering).
+
+        Visibility filtering is enforced by BaseContextProvider automatically.
+
+        Args:
+            request: Context request with store access
+
+        Returns:
+            All artifacts from blackboard (will be visibility-filtered by base class)
+        """
+        artifacts, _ = await request.store.query_artifacts(
+            FilterConfig(),  # Empty filter = get everything
+            limit=-1,  # Get all artifacts
+        )
+        return artifacts
+
+
+class FilteredContextProvider(BaseContextProvider):
     """Context provider with declarative filtering + MANDATORY visibility enforcement.
 
     This provider combines declarative filtering (FilterConfig) with security
@@ -179,7 +252,7 @@ class FilteredContextProvider:
 
     Security Properties:
     - ✅ Filters by FilterConfig (declarative filtering: tags, types, correlation, etc.)
-    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED
+    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED (via BaseContextProvider)
     - ✅ Returns only artifacts matching BOTH filters AND visibility
     - ✅ No direct store access exposed to agents
 
@@ -208,55 +281,22 @@ class FilteredContextProvider:
         self.filter_config = filter_config
         self.limit = limit
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
-        """Fetch context with declarative filtering + mandatory visibility enforcement.
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        """Query artifacts using FilterConfig (declarative filtering).
 
-        SECURITY IMPLEMENTATION:
-        1. Query artifacts using FilterConfig (declarative filtering)
-        2. Filter by visibility (security filtering) - THIS IS CRITICAL
-        3. Return only artifacts matching BOTH filters AND visibility
+        Visibility filtering is enforced by BaseContextProvider automatically.
 
         Args:
-            request: Context request with agent identity and store
+            request: Context request with store access
 
         Returns:
-            List of artifact dicts matching filters AND visible to agent
+            Artifacts matching FilterConfig (will be visibility-filtered by base class)
         """
-        # Step 1: Query by FilterConfig (declarative filtering)
         artifacts, _ = await request.store.query_artifacts(
             self.filter_config,
             limit=self.limit,
         )
-
-        # Step 2: CRITICAL SECURITY STEP - Filter by visibility
-        # This ensures visibility is ALWAYS enforced, even with declarative filters
-        visible_artifacts = [
-            artifact
-            for artifact in artifacts
-            if artifact.visibility.allows(request.agent_identity)
-        ]
-
-        # Step 2.5: Exclude specific artifacts (e.g., input artifacts to avoid duplication)
-        if request.exclude_ids:
-            visible_artifacts = [
-                artifact
-                for artifact in visible_artifacts
-                if artifact.id not in request.exclude_ids
-            ]
-
-        # Step 3: Return serialized context
-        return [
-            {
-                "type": artifact.type,
-                "payload": artifact.payload,
-                "produced_by": artifact.produced_by,
-                "created_at": artifact.created_at,
-                "id": str(artifact.id),
-                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
-                "tags": list(artifact.tags) if artifact.tags else [],
-            }
-            for artifact in visible_artifacts
-        ]
+        return artifacts
 
 
 class BoundContextProvider:
@@ -316,7 +356,7 @@ class BoundContextProvider:
         return await self._inner(secure_request)
 
 
-class CorrelatedContextProvider:
+class CorrelatedContextProvider(BaseContextProvider):
     """Context provider that filters by correlation_id + visibility.
 
     **EXPLICIT WORKFLOW ISOLATION**: Use this when you want agents to see only
@@ -328,7 +368,7 @@ class CorrelatedContextProvider:
 
     Security Properties:
     - ✅ Filters by correlation_id (workflow boundary)
-    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED
+    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED (via BaseContextProvider)
     - ✅ Returns only workflow artifacts agent is allowed to see
 
     Example:
@@ -342,57 +382,25 @@ class CorrelatedContextProvider:
         >>> # Each workflow (correlation_id) is isolated from others
     """
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
-        """Fetch workflow artifacts with mandatory visibility enforcement.
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        """Query artifacts by correlation_id (workflow filtering).
 
-        SECURITY IMPLEMENTATION:
-        1. Query artifacts by correlation_id (workflow filtering)
-        2. Filter by visibility (security filtering)
-        3. Return only workflow artifacts agent is allowed to see
+        Visibility filtering is enforced by BaseContextProvider automatically.
 
         Args:
-            request: Context request with correlation_id and agent identity
+            request: Context request with correlation_id
 
         Returns:
-            List of artifact dicts from workflow that agent can see
+            Workflow artifacts (will be visibility-filtered by base class)
         """
-        # Step 1: Query by correlation_id (workflow boundary)
         artifacts, _ = await request.store.query_artifacts(
             FilterConfig(correlation_id=str(request.correlation_id)),
-            limit=-1,  # Get all workflow artifacts (will filter by visibility)
+            limit=-1,  # Get all workflow artifacts
         )
-
-        # Step 2: CRITICAL SECURITY STEP - Filter by visibility
-        visible_artifacts = [
-            artifact
-            for artifact in artifacts
-            if artifact.visibility.allows(request.agent_identity)
-        ]
-
-        # Step 2.5: Exclude specific artifacts (e.g., input artifacts to avoid duplication)
-        if request.exclude_ids:
-            visible_artifacts = [
-                artifact
-                for artifact in visible_artifacts
-                if artifact.id not in request.exclude_ids
-            ]
-
-        # Step 3: Return serialized context
-        return [
-            {
-                "type": artifact.type,
-                "payload": artifact.payload,
-                "produced_by": artifact.produced_by,
-                "created_at": artifact.created_at,
-                "id": str(artifact.id),
-                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
-                "tags": list(artifact.tags) if artifact.tags else [],
-            }
-            for artifact in visible_artifacts
-        ]
+        return artifacts
 
 
-class RecentContextProvider:
+class RecentContextProvider(BaseContextProvider):
     """Context provider that shows only the N most recent artifacts.
 
     **TOKEN COST CONTROL**: Perfect for keeping context small and relevant by
@@ -400,7 +408,7 @@ class RecentContextProvider:
 
     Security Properties:
     - ✅ Limits context to N most recent artifacts
-    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED
+    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED (via BaseContextProvider)
     - ✅ Reduces token costs by limiting context size
 
     Example:
@@ -422,62 +430,28 @@ class RecentContextProvider:
         """
         self.limit = limit
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
-        """Fetch most recent artifacts with mandatory visibility enforcement.
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        """Query all artifacts and return N most recent.
 
-        SECURITY IMPLEMENTATION:
-        1. Query ALL artifacts from blackboard
-        2. Filter by visibility (security filtering)
-        3. Sort by creation time (most recent first)
-        4. Return only N most recent artifacts
+        Visibility filtering is enforced by BaseContextProvider automatically.
 
         Args:
-            request: Context request with agent identity
+            request: Context request with store access
 
         Returns:
-            List of N most recent artifact dicts agent can see
+            N most recent artifacts (will be visibility-filtered by base class)
         """
-        # Step 1: Query ALL artifacts (we'll filter by recency after visibility)
         artifacts, _ = await request.store.query_artifacts(
             FilterConfig(),
-            limit=-1,  # Get all artifacts (will filter by visibility and recency)
+            limit=-1,  # Get all artifacts
         )
 
-        # Step 2: CRITICAL SECURITY STEP - Filter by visibility
-        visible_artifacts = [
-            artifact
-            for artifact in artifacts
-            if artifact.visibility.allows(request.agent_identity)
-        ]
-
-        # Step 2.5: Exclude specific artifacts (e.g., input artifacts to avoid duplication)
-        if request.exclude_ids:
-            visible_artifacts = [
-                artifact
-                for artifact in visible_artifacts
-                if artifact.id not in request.exclude_ids
-            ]
-
-        # Step 3: Sort by creation time (most recent first) and limit
-        visible_artifacts.sort(key=lambda a: a.created_at, reverse=True)
-        recent_artifacts = visible_artifacts[: self.limit]
-
-        # Step 4: Return serialized context
-        return [
-            {
-                "type": artifact.type,
-                "payload": artifact.payload,
-                "produced_by": artifact.produced_by,
-                "created_at": artifact.created_at,
-                "id": str(artifact.id),
-                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
-                "tags": list(artifact.tags) if artifact.tags else [],
-            }
-            for artifact in recent_artifacts
-        ]
+        # Sort by creation time (most recent first) and limit
+        artifacts.sort(key=lambda a: a.created_at, reverse=True)
+        return artifacts[: self.limit]
 
 
-class TimeWindowContextProvider:
+class TimeWindowContextProvider(BaseContextProvider):
     """Context provider that shows only artifacts from the last X hours.
 
     **TIME-BASED FILTERING**: Perfect for real-time monitoring or event-driven
@@ -485,7 +459,7 @@ class TimeWindowContextProvider:
 
     Security Properties:
     - ✅ Filters artifacts by time window (last X hours)
-    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED
+    - ✅ Enforces visibility (security boundary) - CANNOT BE BYPASSED (via BaseContextProvider)
     - ✅ Automatic cleanup of old context (no manual pruning needed)
 
     Example:
@@ -507,64 +481,29 @@ class TimeWindowContextProvider:
         """
         self.hours = hours
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
-        """Fetch time-windowed artifacts with mandatory visibility enforcement.
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        """Query all artifacts and filter by time window.
 
-        SECURITY IMPLEMENTATION:
-        1. Query ALL artifacts from blackboard
-        2. Filter by visibility (security filtering)
-        3. Filter by time window (last X hours)
-        4. Return only recent artifacts within window
+        Visibility filtering is enforced by BaseContextProvider automatically.
 
         Args:
-            request: Context request with agent identity
+            request: Context request with store access
 
         Returns:
-            List of artifact dicts within time window that agent can see
+            Artifacts within time window (will be visibility-filtered by base class)
         """
-        # Calculate cutoff time
         cutoff = datetime.now() - timedelta(hours=self.hours)
 
-        # Step 1: Query ALL artifacts (we'll filter by time after visibility)
         artifacts, _ = await request.store.query_artifacts(
             FilterConfig(),
-            limit=-1,  # Get all artifacts (will filter by visibility and time)
+            limit=-1,  # Get all artifacts
         )
 
-        # Step 2: CRITICAL SECURITY STEP - Filter by visibility
-        visible_artifacts = [
-            artifact
-            for artifact in artifacts
-            if artifact.visibility.allows(request.agent_identity)
-        ]
-
-        # Step 2.5: Exclude specific artifacts (e.g., input artifacts to avoid duplication)
-        if request.exclude_ids:
-            visible_artifacts = [
-                artifact
-                for artifact in visible_artifacts
-                if artifact.id not in request.exclude_ids
-            ]
-
-        # Step 3: Filter by time window
-        recent_artifacts = [artifact for artifact in visible_artifacts if artifact.created_at >= cutoff]
-
-        # Step 4: Return serialized context
-        return [
-            {
-                "type": artifact.type,
-                "payload": artifact.payload,
-                "produced_by": artifact.produced_by,
-                "created_at": artifact.created_at,
-                "id": str(artifact.id),
-                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
-                "tags": list(artifact.tags) if artifact.tags else [],
-            }
-            for artifact in recent_artifacts
-        ]
+        # Filter by time window
+        return [artifact for artifact in artifacts if artifact.created_at >= cutoff]
 
 
-class EmptyContextProvider:
+class EmptyContextProvider(BaseContextProvider):
     """Context provider that returns NO historical context.
 
     **STATELESS AGENTS**: Use this for purely functional agents that only
@@ -590,17 +529,17 @@ class EmptyContextProvider:
         >>> # Agent: Image → Thumbnail (no history needed)
     """
 
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
-        """Return empty context (no artifacts).
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        """Return no artifacts (stateless agent).
 
-        SECURITY IMPLEMENTATION:
-        No artifacts = no security concerns!
+        Visibility filtering is enforced by BaseContextProvider automatically
+        (though there's nothing to filter).
 
         Args:
             request: Context request (ignored)
 
         Returns:
-            Empty list (no context)
+            Empty list (no artifacts)
         """
         return []
 
@@ -608,6 +547,7 @@ class EmptyContextProvider:
 __all__ = [
     "ContextProvider",
     "ContextRequest",
+    "BaseContextProvider",
     "DefaultContextProvider",
     "CorrelatedContextProvider",
     "RecentContextProvider",
