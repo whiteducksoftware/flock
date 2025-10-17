@@ -1,0 +1,62 @@
+Name                                                                    Stmts   Miss Branch BrPart   Cover   Missing
+--------------------------------------------------------------------------------------------------------------------
+src\flock\__init__.py                                                       5      0      0      0 100.00%
+src\flock\agent.py                                                        602    104    208     24  80.49%   187, 192, 211, 315-325, 330-340, 361-366, 383-388, 402-407, 425, 442, 475, 477, 502-533, 632->652, 640->652, 696-701, 706, 708, 724-725, 733-738, 751-756, 798-814, 822, 838, 942, 1093->1095, 1254->1246, 1281->1279, 1290, 1349->1354, 1350->1349, 1369-1370, 1402, 1405, 1469-1482, 1490, 1500, 1521-1523, 1533-1535, 1538-1539, 1542-1546, 1551, 1554-1555, 1558-1563
+src\flock\artifact_collector.py                                            42     10     12      0  77.78%   86-88, 131-134, 145-147, 154, 158
+src\flock\artifacts.py                                                     35      0      2      1  97.30%   69->72
+src\flock\batch_accumulator.py                                             75      5     32      6  89.72%   60, 71, 120, 158, 177->195, 210, 243->242
+src\flock\cli.py                                                           80      5     14      4  90.43%   78-84, 122->130, 130->132, 141->exit
+src\flock\components.py                                                    46      0     10      0 100.00%
+src\flock\context_provider.py                                              66      1      2      0  98.53%   90
+src\flock\correlation_engine.py                                            76      4     24      2  94.00%   80, 149, 161-164
+src\flock\dashboard\__init__.py                                             6      0      0      0 100.00%
+src\flock\dashboard\collector.py                                          233      4     50      9  95.41%   188->190, 257->259, 304, 309, 337->336, 396, 442->exit, 465->467, 468
+src\flock\dashboard\events.py                                              94      0      0      0 100.00%
+src\flock\dashboard\graph_builder.py                                      332    108    132     16  62.07%   84->92, 124-125, 201-204, 237, 364->349, 416-437, 450-514, 525-582, 595, 603, 618->605, 647-648, 699, 701, 727, 729, 732, 734, 742-746, 762-765, 770-835
+src\flock\dashboard\launcher.py                                           102     14     12      2  85.96%   80-82, 110-111, 130-134, 148->152, 213-214, 223-224
+src\flock\dashboard\models\__init__.py                                      0      0      0      0 100.00%
+src\flock\dashboard\models\graph.py                                       107      0      0      0 100.00%
+src\flock\dashboard\service.py                                            458    144    132     11  67.63%   112-136, 138->145, 158->157, 168, 495-560, 572-606, 619-625, 634-706, 722-789, 866-930, 966-981, 1003, 1009-1011, 1049-1051, 1063, 1131, 1134, 1276->1279, 1303->1306, 1394->1396, 1404->1406
+src\flock\dashboard\websocket.py                                           95      3     34      3  95.35%   146, 170, 186, 235->233
+src\flock\engines\__init__.py                                               2      0      0      0 100.00%
+src\flock\engines\dspy_engine.py                                          715    377    280     31  45.53%   64->69, 70-71, 78-109, 278-282, 297->314, 305-310, 318-369, 381, 385-387, 407->412, 410-411, 530, 570, 662->695, 667->665, 691-692, 710, 719, 723, 797->828, 802->800, 861, 871-874, 902->906, 907-910, 914-916, 924->919, 930, 973-994, 1009->1012, 1038, 1044, 1046->1033, 1052, 1096-1309, 1325-1705, 1711-1749, 1758-1780, 1796-1797
+src\flock\engines\examples\__init__.py                                      2      0      0      0 100.00%
+src\flock\engines\examples\simple_batch_engine.py                          33      9      6      2  66.67%   61, 74-83
+src\flock\examples.py                                                      49      1      2      1  96.08%   10
+src\flock\helper\cli_helper.py                                             35      4      8      1  88.37%   49->60, 53-58
+src\flock\mcp\__init__.py                                                   6      0      0      0 100.00%
+src\flock\mcp\client.py                                                   281     19     80     24  88.09%   160, 195-198, 207-209, 227, 274->281, 281->287, 287->292, 292->299, 299->308, 306, 308->319, 317, 319->332, 328, 332->exit, 339, 397, 403->388, 457, 466->exit, 486->exit, 498->exit, 516-520, 525->exit, 548->550, 551, 572, 632->635
+src\flock\mcp\config.py                                                   164     37     26      5  73.68%   214-216, 219, 225, 229, 236-242, 385-387, 394-427
+src\flock\mcp\manager.py                                                   87      8     28      2  91.30%   116-131, 149-153
+src\flock\mcp\servers\sse\__init__.py                                       0      0      0      0 100.00%
+src\flock\mcp\servers\sse\flock_sse_server.py                              39     16     14      0  43.40%   72-104
+src\flock\mcp\servers\stdio\__init__.py                                     0      0      0      0 100.00%
+src\flock\mcp\servers\stdio\flock_stdio_server.py                          37     15     14      0  43.14%   75-98
+src\flock\mcp\servers\streamable_http\__init__.py                           0      0      0      0 100.00%
+src\flock\mcp\servers\streamable_http\flock_streamable_http_server.py      46     20     16      0  41.94%   80-121
+src\flock\mcp\tool.py                                                      61      0      8      0 100.00%
+src\flock\mcp\types\__init__.py                                             3      0      0      0 100.00%
+src\flock\mcp\types\callbacks.py                                           24     14      8      0  31.25%   31-32, 41-54, 66-72, 81
+src\flock\mcp\types\factories.py                                           31      5      0      0  83.87%   43, 63-66, 88, 105
+src\flock\mcp\types\handlers.py                                           101      0     20      1  99.17%   229->234
+src\flock\mcp\types\types.py                                              129      7     20      7  90.60%   187->202, 198, 218->220, 228-229, 274->289, 285-287, 305->307, 315-316
+src\flock\mcp\util\__init__.py                                              0      0      0      0 100.00%
+src\flock\mcp\util\helpers.py                                               9      0      0      0 100.00%
+src\flock\orchestrator.py                                                 574     84    168     28  82.75%   57, 88-90, 133-135, 230, 235, 338-345, 349-379, 506, 692-694, 716, 727, 751, 777, 785, 807, 821-823, 889, 912, 926, 955-959, 1058-1059, 1181-1186, 1219-1231, 1265-1270, 1358, 1364, 1387, 1401, 1432-1433, 1487->exit, 1501-1502, 1533, 1538->exit, 1539->1538, 1594, 1632-1633, 1684, 1689, 1702, 1716, 1721-1725
+src\flock\orchestrator_component.py                                       121      2     36      3  96.82%   437, 539, 603->609
+src\flock\patches\__init__.py                                               2      0      0      0 100.00%
+src\flock\patches\dspy_streaming_patch.py                                  38     25      4      1  33.33%   28-48, 59->65, 72-74, 79-91
+src\flock\registry.py                                                      76      9     22      3  87.76%   28, 41, 88-89, 110-113, 144
+src\flock\runtime.py                                                       53      0      4      0 100.00%
+src\flock\service.py                                                       94      3     16      3  94.55%   100, 174, 190
+src\flock\store.py                                                        517     97    112     21  78.06%   48-56, 61, 63, 67-78, 192-193, 255-258, 298, 303, 305, 307, 355, 372, 374-375, 382, 416, 554, 668-686, 725-729, 880, 929-962, 965-991, 994-998, 1006->exit, 1013-1017, 1021-1030, 1050, 1187-1188, 1191-1195, 1202-1203
+src\flock\subscription.py                                                  64      2     16      2  95.00%   91, 151
+src\flock\utility\output_utility_component.py                             114     59     44     10  41.14%   71->73, 83-95, 99-114, 118-126, 132-138, 152->169, 160, 163, 166, 170-175, 179-182, 188-199, 207-216, 221, 237-238, 246
+src\flock\utils\__init__.py                                                 5      0      0      0 100.00%
+src\flock\utils\async_utils.py                                             17      0      0      0 100.00%
+src\flock\utils\type_resolution.py                                          9      0      0      0 100.00%
+src\flock\utils\validation.py                                              14      0      2      0 100.00%
+src\flock\utils\visibility.py                                              33      0     16      0 100.00%
+src\flock\visibility.py                                                    50      0      8      0 100.00%
+--------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                    6089   1215   1642    223  76.51%
