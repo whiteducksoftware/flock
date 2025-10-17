@@ -16,6 +16,7 @@ from flock.logging.logging import get_logger
 from flock.registry import function_registry, type_registry
 from flock.runtime import Context, EvalInputs, EvalResult
 from flock.subscription import BatchSpec, JoinSpec, Subscription, TextPredicate
+from flock.utils.type_resolution import TypeResolutionHelper
 from flock.visibility import AgentIdentity, Visibility, ensure_visibility, only_for
 
 
@@ -585,13 +586,11 @@ class Agent(metaclass=AutoTracedMeta):
 
             matching_artifacts: list[Artifact] = []
             for artifact in result.artifacts:
-                try:
-                    artifact_canonical = type_registry.resolve_name(artifact.type)
-                    if artifact_canonical == expected_canonical:
-                        matching_artifacts.append(artifact)
-                except Exception:
-                    if artifact.type == output_decl.spec.type_name:
-                        matching_artifacts.append(artifact)
+                artifact_canonical = TypeResolutionHelper.safe_resolve(
+                    type_registry, artifact.type
+                )
+                if artifact_canonical == expected_canonical:
+                    matching_artifacts.append(artifact)
 
             # 2. STRICT VALIDATION: Engine must produce exactly what was promised
             # (This happens BEFORE filtering so engine contract is validated first)
@@ -806,14 +805,11 @@ class Agent(metaclass=AutoTracedMeta):
 
         for artifact in result.artifacts:
             # Normalize artifact type name to canonical form for comparison
-            try:
-                artifact_canonical = type_registry.resolve_name(artifact.type)
-                if artifact_canonical == expected_canonical:
-                    return artifact
-            except Exception:
-                # If normalization fails, fall back to direct comparison
-                if artifact.type == output_decl.spec.type_name:
-                    return artifact
+            artifact_canonical = TypeResolutionHelper.safe_resolve(
+                type_registry, artifact.type
+            )
+            if artifact_canonical == expected_canonical:
+                return artifact
 
         return None
 
@@ -830,14 +826,11 @@ class Agent(metaclass=AutoTracedMeta):
 
         for artifact in result.artifacts:
             # Normalize artifact type name to canonical form for comparison
-            try:
-                artifact_canonical = type_registry.resolve_name(artifact.type)
-                if artifact_canonical == expected_canonical:
-                    return artifact.payload
-            except Exception:
-                # If normalization fails, fall back to direct comparison
-                if artifact.type == output_decl.spec.type_name:
-                    return artifact.payload
+            artifact_canonical = TypeResolutionHelper.safe_resolve(
+                type_registry, artifact.type
+            )
+            if artifact_canonical == expected_canonical:
+                return artifact.payload
 
         # Fallback to state entries keyed by type name
         maybe_data = result.state.get(output_decl.spec.type_name)

@@ -25,6 +25,7 @@ from opentelemetry import trace
 
 from flock.artifacts import Artifact
 from flock.registry import type_registry
+from flock.utils.type_resolution import TypeResolutionHelper
 from flock.visibility import (
     AfterVisibility,
     LabelledVisibility,
@@ -470,10 +471,9 @@ class SQLiteBlackboardStore(BlackboardStore):
             tags_json = json.dumps(sorted(artifact.tags))
             created_at = artifact.created_at.isoformat()
 
-            try:
-                canonical_type = type_registry.resolve_name(artifact.type)
-            except Exception:
-                canonical_type = artifact.type
+            canonical_type = TypeResolutionHelper.safe_resolve(
+                type_registry, artifact.type
+            )
 
             record = {
                 "artifact_id": str(artifact.id),
