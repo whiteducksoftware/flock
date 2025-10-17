@@ -52,7 +52,7 @@ def init_console(clear_screen: bool = True, show_banner: bool = True, model: str
 │ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
 │ ▒█▀▀▀ █░░ █░░█ █░░ █▀▄ │
 │ ▒█░░░ ▀▀▀ ▀▀▀▀ ▀▀▀ ▀░▀ │
-╰━━━━━━━━━v{__version__}━━━━━━━━━╯
+╰━━━━━━━━━v{__version__}━━━━━━━━╯
 🦆     🐤    🐧     🐓
 """,
         justify="center",
