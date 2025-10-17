@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.9"
+version = "0.5.10"
 description = "Flock: A declrative framework for building and orchestrating AI agents."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -28,7 +28,7 @@ skips = [ "B113",]
 
 [tool.ruff]
 target-version = "py312"
-line-length = 100
+line-length = 88
 indent-width = 4
 exclude = [ ".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".venv", "__pycache__", "dist", "build", "htmlcov", "logs", "metrics", "*.egg-info", "frontend/", "docs/", "src/flock/dashboard/graph_builder.py",]
 
@@ -80,7 +80,43 @@ warn_required_dynamic_aliases = true
 warn_untyped_fields = true
 
 [tool.ruff.lint]
-select = [ "E", "W", "F", "I", "N", "UP", "YTT", "ASYNC", "BLE", "B", "A", "C4", "DTZ", "T10", "EXE", "ISC", "ICN", "G", "PIE", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SIM", "TID", "TCH", "ARG", "PTH", "ERA", "PL", "TRY", "RUF",]
+select = [
+    "E", "W",      # pycodestyle errors & warnings
+    "F",           # pyflakes
+    "I",           # isort (import sorting)
+    "N",           # pep8-naming
+    "UP",          # pyupgrade (modernize Python)
+    "YTT",         # flake8-2020
+    "ASYNC",       # flake8-async
+    "BLE",         # flake8-blind-except
+    "B",           # flake8-bugbear
+    "A",           # flake8-builtins
+    "C4",          # flake8-comprehensions (beautiful comprehensions!)
+    "DTZ",         # flake8-datetimez
+    "T10",         # flake8-debugger
+    "EXE",         # flake8-executable
+    "ISC",         # flake8-implicit-str-concat
+    "ICN",         # flake8-import-conventions
+    "G",           # flake8-logging-format
+    "PIE",         # flake8-pie
+    "PYI",         # flake8-pyi
+    "PT",          # flake8-pytest-style
+    "Q",           # flake8-quotes
+    "RSE",         # flake8-raise
+    "RET",         # flake8-return
+    "SLF",         # flake8-self
+    "SIM",         # flake8-simplify (cleaner code!)
+    "TID",         # flake8-tidy-imports
+    "TCH",         # flake8-type-checking
+    "ARG",         # flake8-unused-arguments
+    "PTH",         # flake8-use-pathlib
+    "ERA",         # eradicate (remove commented code)
+    "PL",          # pylint
+    "TRY",         # tryceratops
+    "FURB",        # refurb (modernize code)
+    "PERF",        # perflint (performance improvements)
+    "RUF",         # ruff-specific rules
+]
 ignore = [ "E501", "PLR0913", "PLR2004", "PLR0915", "PLR0912", "TRY003", "TRY300", "TRY002", "TRY301", "TRY401", "ISC001", "G004", "G201", "PLC0415", "N817", "ERA001", "BLE001", "B904", "N806", "ARG001", "ARG002", "PTH123", "E402", "SLF001", "A002", "PLW0603", "PLW2901", "SIM105", "SIM108", "SIM113", "SIM117", "SIM118", "TC001", "TC003", "UP007", "RUF002", "RUF003", "RUF012", "RUF100", "EXE001", "PLW0602", "PLC0206", "B008", "ARG003", "DTZ003",]
 fixable = [ "ALL",]
 unfixable = []
@@ -91,6 +127,9 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "lf"
+preview = true
+docstring-code-format = true
+docstring-code-line-length = 72  # Narrower for better docstring readability
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

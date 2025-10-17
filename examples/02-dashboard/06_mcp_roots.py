@@ -64,20 +64,18 @@ except Exception as e:
         "Can search directories, extract metadata, and generate insights from file contents."
     )
     .consumes(FileSearchRequest)
-    .with_mcps(
-        {
-            "filesystem": {
-                "tool_whitelist": [
-                    "read_text_file",
-                    "list_directory",
-                    "list_directory_with_sizes",
-                    "search_files",
-                    "get_file_info",
-                    "list_allowed_directories",
-                ]
-            }
+    .with_mcps({
+        "filesystem": {
+            "tool_whitelist": [
+                "read_text_file",
+                "list_directory",
+                "list_directory_with_sizes",
+                "search_files",
+                "get_file_info",
+                "list_allowed_directories",
+            ]
         }
-    )
+    })
     .publishes(FileAnalysisReport)
 )
 

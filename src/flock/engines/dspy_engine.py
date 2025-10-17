@@ -62,7 +62,9 @@ def _ensure_live_crop_above() -> None:
     # Extend the accepted literal at runtime so type checks don't block the new option.
     current_args = getattr(_lr.VerticalOverflowMethod, "__args__", ())
     if "crop_above" not in current_args:
-        _lr.VerticalOverflowMethod = _Literal["crop", "crop_above", "ellipsis", "visible"]  # type: ignore[assignment]
+        _lr.VerticalOverflowMethod = _Literal[
+            "crop", "crop_above", "ellipsis", "visible"
+        ]  # type: ignore[assignment]
 
     if getattr(_lr.LiveRender.__rich_console__, "_flock_crop_above", False):
         _live_patch_applied = True
@@ -134,11 +136,13 @@ class DSPyEngine(EngineComponent):
         default=False,
         description="Disable output from the underlying DSPy program.",
     )
-    stream_vertical_overflow: Literal["crop", "ellipsis", "crop_above", "visible"] = Field(
-        default="crop_above",
-        description=(
-            "Rich Live vertical overflow strategy; select how tall output is handled; 'crop_above' keeps the most recent rows visible."
-        ),
+    stream_vertical_overflow: Literal["crop", "ellipsis", "crop_above", "visible"] = (
+        Field(
+            default="crop_above",
+            description=(
+                "Rich Live vertical overflow strategy; select how tall output is handled; 'crop_above' keeps the most recent rows visible."
+            ),
+        )
     )
     status_output_field: str = Field(
         default="_status_output",
@@ -153,7 +157,9 @@ class DSPyEngine(EngineComponent):
         description="Enable caching of DSPy program results",
     )
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:  # type: ignore[override]
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:  # type: ignore[override]
         """Universal evaluation with auto-detection of batch and fan-out modes.
 
         This single method handles ALL evaluation scenarios by auto-detecting:
@@ -221,11 +227,18 @@ class DSPyEngine(EngineComponent):
                 for artifact in inputs.artifacts
             ]
         else:
-            validated_input = self._validate_input_payload(input_model, primary_artifact.payload)
+            validated_input = self._validate_input_payload(
+                input_model, primary_artifact.payload
+            )
         output_model = self._resolve_output_model(agent)
 
-        # Fetch conversation context from blackboard
-        context_history = await self.fetch_conversation_context(ctx)
+        # Phase 8: Use pre-filtered conversation context from Context (security fix)
+        # Orchestrator evaluates context BEFORE creating Context, so engines just read ctx.artifacts
+        # This fixes Vulnerability #4: Engines can no longer query arbitrary data via ctx.store
+
+        # Filter out input artifacts to avoid duplication in context
+        context_history = ctx.artifacts if ctx else []
+
         has_context = bool(context_history) and self.should_use_context(inputs)
 
         # Generate signature with semantic field naming
@@ -280,27 +293,37 @@ class DSPyEngine(EngineComponent):
 
             # Detect if there's already an active Rich Live context
             should_stream = self.stream
-            orchestrator = getattr(ctx, "orchestrator", None)
-            if orchestrator:
-                is_dashboard = getattr(orchestrator, "is_dashboard", False) if ctx else False
-                # if dashboard we always stream, streamin queue only for CLI output
-                if should_stream and ctx and not is_dashboard:
-                    if not hasattr(orchestrator, "_active_streams"):
-                        orchestrator._active_streams = 0
+            # Phase 6+7 Security Fix: Use Agent class variables for streaming coordination
+            if ctx:
+                from flock.agent import Agent
 
-                    if orchestrator._active_streams > 0:
-                        should_stream = False
+                # Check if dashboard mode (WebSocket broadcast is set)
+                is_dashboard = Agent._websocket_broadcast_global is not None
+                # if dashboard we always stream, streaming queue only for CLI output
+                if should_stream and not is_dashboard:
+                    # Get current active streams count from Agent class variable (shared across all agents)
+                    active_streams = Agent._streaming_counter
+
+                    if active_streams > 0:
+                        should_stream = False  # Suppress - another agent streaming
                     else:
-                        orchestrator._active_streams += 1
+                        Agent._streaming_counter = (
+                            active_streams + 1
+                        )  # Mark as streaming
 
             try:
                 if should_stream:
                     # Choose streaming method based on dashboard mode
-                    is_dashboard = orchestrator and getattr(orchestrator, "is_dashboard", False)
+                    # Phase 6+7 Security Fix: Check dashboard mode via Agent class variable
+                    from flock.agent import Agent
+
+                    is_dashboard = (
+                        Agent._websocket_broadcast_global is not None if ctx else False
+                    )
 
                     # DEBUG: Log routing decision
                     logger.info(
-                        f"[STREAMING ROUTER] agent={agent.name}, is_dashboard={is_dashboard}, orchestrator={orchestrator is not None}"
+                        f"[STREAMING ROUTER] agent={agent.name}, is_dashboard={is_dashboard}"
                     )
 
                     if is_dashboard:
@@ -345,22 +368,23 @@ class DSPyEngine(EngineComponent):
                     if not self.no_output and ctx:
                         ctx.state["_flock_stream_live_active"] = True
                 else:
-                    orchestrator = getattr(ctx, "orchestrator", None) if ctx else None
-
                     raw_result = await self._execute_standard(
                         dspy_mod,
                         program,
                         description=sys_desc,
                         payload=execution_payload,
                     )
-                    if ctx and orchestrator and getattr(orchestrator, "_active_streams", 0) > 0:
+                    # Phase 6+7 Security Fix: Check streaming state from Agent class variable
+                    from flock.agent import Agent
+
+                    if ctx and Agent._streaming_counter > 0:
                         ctx.state["_flock_output_queued"] = True
             finally:
+                # Phase 6+7 Security Fix: Decrement counter using Agent class variable
                 if should_stream and ctx:
-                    if orchestrator is None:
-                        orchestrator = getattr(ctx, "orchestrator", None)
-                    if orchestrator and hasattr(orchestrator, "_active_streams"):
-                        orchestrator._active_streams = max(0, orchestrator._active_streams - 1)
+                    from flock.agent import Agent
+
+                    Agent._streaming_counter = max(0, Agent._streaming_counter - 1)
 
         # Extract semantic fields from Prediction
         normalized_output = self._extract_multi_output_payload(raw_result, output_group)
@@ -405,7 +429,9 @@ class DSPyEngine(EngineComponent):
         try:
             import dspy
         except Exception as exc:
-            raise NotImplementedError("DSPy is not installed or failed to import.") from exc
+            raise NotImplementedError(
+                "DSPy is not installed or failed to import."
+            ) from exc
         return dspy
 
     def _select_primary_artifact(self, artifacts: Sequence[Artifact]) -> Artifact:
@@ -474,7 +500,11 @@ class DSPyEngine(EngineComponent):
             Pluralized field name
         """
         # Simple English pluralization rules
-        if field_name.endswith("y") and len(field_name) > 1 and field_name[-2] not in "aeiou":
+        if (
+            field_name.endswith("y")
+            and len(field_name) > 1
+            and field_name[-2] not in "aeiou"
+        ):
             # story → stories (consonant + y)
             return field_name[:-1] + "ies"
         if field_name.endswith(("s", "x", "z", "ch", "sh")):
@@ -492,7 +522,11 @@ class DSPyEngine(EngineComponent):
         Returns:
             True if multi-output signature needed, False for single output (backward compat)
         """
-        if not output_group or not hasattr(output_group, "outputs") or not output_group.outputs:
+        if (
+            not output_group
+            or not hasattr(output_group, "outputs")
+            or not output_group.outputs
+        ):
             return False
 
         # Multiple different types → multi-output
@@ -542,9 +576,13 @@ class DSPyEngine(EngineComponent):
 
         signature = dspy_mod.Signature(fields)
 
-        instruction = description or "Produce a valid output that matches the 'output' schema."
+        instruction = (
+            description or "Produce a valid output that matches the 'output' schema."
+        )
         if has_context:
-            instruction += " Consider the conversation context provided to inform your response."
+            instruction += (
+                " Consider the conversation context provided to inform your response."
+            )
         if batched:
             instruction += (
                 " The 'input' field will contain a list of items representing the batch; "
@@ -694,26 +732,25 @@ class DSPyEngine(EngineComponent):
         # 4. Build instruction
         description = self.instructions or agent.description
         instruction = (
-            description or f"Process input and generate {len(output_group.outputs)} outputs."
+            description
+            or f"Process input and generate {len(output_group.outputs)} outputs."
         )
 
         if has_context:
-            instruction += " Consider the conversation context provided to inform your response."
+            instruction += (
+                " Consider the conversation context provided to inform your response."
+            )
 
         # Add batching hint
         if batched:
-            instruction += (
-                " Process the batch of inputs coherently, generating outputs for each item."
-            )
+            instruction += " Process the batch of inputs coherently, generating outputs for each item."
 
         # Add semantic field names to instruction for clarity
         output_field_names = [
             name for name in fields.keys() if name not in {"description", "context"}
         ]
         if len(output_field_names) > 2:  # Multiple outputs
-            instruction += (
-                f" Generate ALL output fields as specified: {', '.join(output_field_names[1:])}."
-            )
+            instruction += f" Generate ALL output fields as specified: {', '.join(output_field_names[1:])}."
 
         # instruction += " Return only valid JSON."
 
@@ -784,7 +821,9 @@ class DSPyEngine(EngineComponent):
                 else:
                     # Single mode: use first (or only) artifact
                     # For multi-input joins, we have one artifact per type
-                    payload[field_name] = validated_payloads[0] if validated_payloads else {}
+                    payload[field_name] = (
+                        validated_payloads[0] if validated_payloads else {}
+                    )
 
         return payload
 
@@ -840,7 +879,9 @@ class DSPyEngine(EngineComponent):
         tools_list = list(tools or [])
         try:
             if tools_list:
-                return dspy_mod.ReAct(signature, tools=tools_list, max_iters=self.max_tool_calls)
+                return dspy_mod.ReAct(
+                    signature, tools=tools_list, max_iters=self.max_tool_calls
+                )
             return dspy_mod.Predict(signature)
         except Exception:
             return dspy_mod.Predict(signature)
@@ -923,7 +964,9 @@ class DSPyEngine(EngineComponent):
         errors: list[str] = []
         for output in outputs or []:
             model_cls = output.spec.model
-            data = self._select_output_payload(payload, model_cls, output.spec.type_name)
+            data = self._select_output_payload(
+                payload, model_cls, output.spec.type_name
+            )
 
             # FAN-OUT: If count > 1, data should be a list and we create multiple artifacts
             if output.count > 1:
@@ -1050,18 +1093,17 @@ class DSPyEngine(EngineComponent):
         This method eliminates the Rich Live context that can cause deadlocks when
         combined with MCP tool execution and parallel agent streaming.
         """
-        logger.info(f"Agent {agent.name}: Starting WebSocket-only streaming (dashboard mode)")
+        logger.info(
+            f"Agent {agent.name}: Starting WebSocket-only streaming (dashboard mode)"
+        )
 
-        # Get WebSocketManager
-        ws_manager = None
-        if ctx:
-            orchestrator = getattr(ctx, "orchestrator", None)
-            if orchestrator:
-                collector = getattr(orchestrator, "_dashboard_collector", None)
-                if collector:
-                    ws_manager = getattr(collector, "_websocket_manager", None)
+        # Get WebSocket broadcast function (security: wrapper prevents object traversal)
+        # Phase 6+7 Security Fix: Use broadcast wrapper from Agent class variable (prevents GOD MODE restoration)
+        from flock.agent import Agent
 
-        if not ws_manager:
+        ws_broadcast = Agent._websocket_broadcast_global
+
+        if not ws_broadcast:
             logger.warning(
                 f"Agent {agent.name}: No WebSocket manager, falling back to standard execution"
             )
@@ -1091,7 +1133,9 @@ class DSPyEngine(EngineComponent):
             if streaming_mod and hasattr(streaming_mod, "StreamListener"):
                 for name, field in signature.output_fields.items():
                     if field.annotation is str:
-                        listeners.append(streaming_mod.StreamListener(signature_field_name=name))
+                        listeners.append(
+                            streaming_mod.StreamListener(signature_field_name=name)
+                        )
         except Exception:
             listeners = []
 
@@ -1115,7 +1159,9 @@ class DSPyEngine(EngineComponent):
             )
         else:
             # Old format: direct payload
-            stream_generator = streaming_task(description=description, input=payload, context=[])
+            stream_generator = streaming_task(
+                description=description, input=payload, context=[]
+            )
 
         # Process stream (WebSocket only, no Rich display)
         final_result = None
@@ -1152,7 +1198,7 @@ class DSPyEngine(EngineComponent):
                             artifact_type=artifact_type_name,
                         )
                         # Fire-and-forget to avoid blocking DSPy's streaming loop
-                        task = asyncio.create_task(ws_manager.broadcast(event))
+                        task = asyncio.create_task(ws_broadcast(event))
                         ws_broadcast_tasks.add(task)
                         task.add_done_callback(ws_broadcast_tasks.discard)
                         stream_sequence += 1
@@ -1177,7 +1223,7 @@ class DSPyEngine(EngineComponent):
                             artifact_type=artifact_type_name,
                         )
                         # Fire-and-forget to avoid blocking DSPy's streaming loop
-                        task = asyncio.create_task(ws_manager.broadcast(event))
+                        task = asyncio.create_task(ws_broadcast(event))
                         ws_broadcast_tasks.add(task)
                         task.add_done_callback(ws_broadcast_tasks.discard)
                         stream_sequence += 1
@@ -1203,7 +1249,7 @@ class DSPyEngine(EngineComponent):
                             artifact_type=artifact_type_name,
                         )
                         # Fire-and-forget to avoid blocking DSPy's streaming loop
-                        task = asyncio.create_task(ws_manager.broadcast(event))
+                        task = asyncio.create_task(ws_broadcast(event))
                         ws_broadcast_tasks.add(task)
                         task.add_done_callback(ws_broadcast_tasks.discard)
                         stream_sequence += 1
@@ -1228,7 +1274,7 @@ class DSPyEngine(EngineComponent):
                         artifact_type=artifact_type_name,
                     )
                     # Fire-and-forget to avoid blocking DSPy's streaming loop
-                    task = asyncio.create_task(ws_manager.broadcast(event))
+                    task = asyncio.create_task(ws_broadcast(event))
                     ws_broadcast_tasks.add(task)
                     task.add_done_callback(ws_broadcast_tasks.discard)
 
@@ -1246,16 +1292,20 @@ class DSPyEngine(EngineComponent):
                         artifact_type=artifact_type_name,
                     )
                     # Fire-and-forget to avoid blocking DSPy's streaming loop
-                    task = asyncio.create_task(ws_manager.broadcast(event))
+                    task = asyncio.create_task(ws_broadcast(event))
                     ws_broadcast_tasks.add(task)
                     task.add_done_callback(ws_broadcast_tasks.discard)
                 except Exception as e:
                     logger.warning(f"Failed to emit final streaming event: {e}")
 
         if final_result is None:
-            raise RuntimeError(f"Agent {agent.name}: Streaming did not yield a final prediction")
+            raise RuntimeError(
+                f"Agent {agent.name}: Streaming did not yield a final prediction"
+            )
 
-        logger.info(f"Agent {agent.name}: WebSocket streaming completed ({stream_sequence} tokens)")
+        logger.info(
+            f"Agent {agent.name}: WebSocket streaming completed ({stream_sequence} tokens)"
+        )
         return final_result, None
 
     async def _execute_streaming(
@@ -1277,14 +1327,11 @@ class DSPyEngine(EngineComponent):
 
         console = Console()
 
-        # Get WebSocketManager for frontend streaming
-        ws_manager = None
-        if ctx:
-            orchestrator = getattr(ctx, "orchestrator", None)
-            if orchestrator:
-                collector = getattr(orchestrator, "_dashboard_collector", None)
-                if collector:
-                    ws_manager = getattr(collector, "_websocket_manager", None)
+        # Get WebSocket broadcast function (security: wrapper prevents object traversal)
+        # Phase 6+7 Security Fix: Use broadcast wrapper from Agent class variable (prevents GOD MODE restoration)
+        from flock.agent import Agent
+
+        ws_broadcast = Agent._websocket_broadcast_global
 
         # Prepare stream listeners for output field
         listeners = []
@@ -1293,7 +1340,9 @@ class DSPyEngine(EngineComponent):
             if streaming_mod and hasattr(streaming_mod, "StreamListener"):
                 for name, field in signature.output_fields.items():
                     if field.annotation is str:
-                        listeners.append(streaming_mod.StreamListener(signature_field_name=name))
+                        listeners.append(
+                            streaming_mod.StreamListener(signature_field_name=name)
+                        )
         except Exception:
             listeners = []
 
@@ -1316,7 +1365,9 @@ class DSPyEngine(EngineComponent):
             )
         else:
             # Old format: direct payload
-            stream_generator = streaming_task(description=description, input=payload, context=[])
+            stream_generator = streaming_task(
+                description=description, input=payload, context=[]
+            )
 
         signature_order = []
         status_field = self.status_output_field
@@ -1386,7 +1437,9 @@ class DSPyEngine(EngineComponent):
                 styles,
                 agent_label,
             ) = self._prepare_stream_formatter(agent)
-            initial_panel = formatter.format_result(display_data, agent_label, theme_dict, styles)
+            initial_panel = formatter.format_result(
+                display_data, agent_label, theme_dict, styles
+            )
             live_cm = Live(
                 initial_panel,
                 console=console,
@@ -1402,7 +1455,11 @@ class DSPyEngine(EngineComponent):
             def _refresh_panel() -> None:
                 if formatter is None or live is None:
                     return
-                live.update(formatter.format_result(display_data, agent_label, theme_dict, styles))
+                live.update(
+                    formatter.format_result(
+                        display_data, agent_label, theme_dict, styles
+                    )
+                )
 
             async for value in stream_generator:
                 try:
@@ -1420,7 +1477,7 @@ class DSPyEngine(EngineComponent):
                         display_data["status"] = "".join(stream_buffers[status_field])
 
                         # Emit to WebSocket (non-blocking to prevent deadlock)
-                        if ws_manager and token:
+                        if ws_broadcast and token:
                             try:
                                 event = StreamingOutputEvent(
                                     correlation_id=str(ctx.correlation_id)
@@ -1438,14 +1495,16 @@ class DSPyEngine(EngineComponent):
                                     artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                 )
                                 # Use create_task to avoid blocking the streaming loop
-                                task = asyncio.create_task(ws_manager.broadcast(event))
+                                task = asyncio.create_task(ws_broadcast(event))
                                 ws_broadcast_tasks.add(task)
                                 task.add_done_callback(ws_broadcast_tasks.discard)
                                 stream_sequence += 1
                             except Exception as e:
                                 logger.warning(f"Failed to emit streaming event: {e}")
                         else:
-                            logger.debug("No WebSocket manager present for streaming event.")
+                            logger.debug(
+                                "No WebSocket manager present for streaming event."
+                            )
 
                         if formatter is not None:
                             _refresh_panel()
@@ -1465,7 +1524,7 @@ class DSPyEngine(EngineComponent):
                             )
 
                             # Emit to WebSocket (non-blocking to prevent deadlock)
-                            if ws_manager:
+                            if ws_broadcast:
                                 logger.info(
                                     f"[STREAMING] Emitting StreamResponse token='{token}', sequence={stream_sequence}"
                                 )
@@ -1486,12 +1545,14 @@ class DSPyEngine(EngineComponent):
                                         artifact_type=artifact_type_name,  # Phase 6: Artifact type name
                                     )
                                     # Use create_task to avoid blocking the streaming loop
-                                    task = asyncio.create_task(ws_manager.broadcast(event))
+                                    task = asyncio.create_task(ws_broadcast(event))
                                     ws_broadcast_tasks.add(task)
                                     task.add_done_callback(ws_broadcast_tasks.discard)
                                     stream_sequence += 1
                                 except Exception as e:
-                                    logger.warning(f"Failed to emit streaming event: {e}")
+                                    logger.warning(
+                                        f"Failed to emit streaming event: {e}"
+                                    )
 
                         if formatter is not None:
                             _refresh_panel()
@@ -1516,7 +1577,7 @@ class DSPyEngine(EngineComponent):
                         display_data["status"] = "".join(stream_buffers[status_field])
 
                     # Emit to WebSocket (non-blocking to prevent deadlock)
-                    if ws_manager and token:
+                    if ws_broadcast and token:
                         try:
                             event = StreamingOutputEvent(
                                 correlation_id=str(ctx.correlation_id)
@@ -1536,7 +1597,7 @@ class DSPyEngine(EngineComponent):
                                 ],  # Phase 6: Artifact type name from display_data
                             )
                             # Use create_task to avoid blocking the streaming loop
-                            task = asyncio.create_task(ws_manager.broadcast(event))
+                            task = asyncio.create_task(ws_broadcast(event))
                             ws_broadcast_tasks.add(task)
                             task.add_done_callback(ws_broadcast_tasks.discard)
                             stream_sequence += 1
@@ -1551,7 +1612,7 @@ class DSPyEngine(EngineComponent):
                     final_result = value
 
                     # Emit final streaming event (non-blocking to prevent deadlock)
-                    if ws_manager:
+                    if ws_broadcast:
                         try:
                             event = StreamingOutputEvent(
                                 correlation_id=str(ctx.correlation_id)
@@ -1560,16 +1621,19 @@ class DSPyEngine(EngineComponent):
                                 agent_name=agent.name,
                                 run_id=ctx.task_id if ctx else "",
                                 output_type="log",
-                                content="\nAmount of output tokens: " + str(stream_sequence),
+                                content="\nAmount of output tokens: "
+                                + str(stream_sequence),
                                 sequence=stream_sequence,
                                 is_final=True,  # Mark as final
                                 artifact_id=str(
                                     pre_generated_artifact_id
                                 ),  # Phase 6: Track artifact for message streaming
-                                artifact_type=display_data["type"],  # Phase 6: Artifact type name
+                                artifact_type=display_data[
+                                    "type"
+                                ],  # Phase 6: Artifact type name
                             )
                             # Use create_task to avoid blocking the streaming loop
-                            task = asyncio.create_task(ws_manager.broadcast(event))
+                            task = asyncio.create_task(ws_broadcast(event))
                             ws_broadcast_tasks.add(task)
                             task.add_done_callback(ws_broadcast_tasks.discard)
                             event = StreamingOutputEvent(
@@ -1585,10 +1649,12 @@ class DSPyEngine(EngineComponent):
                                 artifact_id=str(
                                     pre_generated_artifact_id
                                 ),  # Phase 6: Track artifact for message streaming
-                                artifact_type=display_data["type"],  # Phase 6: Artifact type name
+                                artifact_type=display_data[
+                                    "type"
+                                ],  # Phase 6: Artifact type name
                             )
                             # Use create_task to avoid blocking the streaming loop
-                            task = asyncio.create_task(ws_manager.broadcast(event))
+                            task = asyncio.create_task(ws_broadcast(event))
                             ws_broadcast_tasks.add(task)
                             task.add_done_callback(ws_broadcast_tasks.discard)
                         except Exception as e:
@@ -1598,14 +1664,18 @@ class DSPyEngine(EngineComponent):
                         # Update payload section with final values
                         payload_data = OrderedDict()
                         for field_name in signature_order:
-                            if field_name != "description" and hasattr(final_result, field_name):
+                            if field_name != "description" and hasattr(
+                                final_result, field_name
+                            ):
                                 field_value = getattr(final_result, field_name)
 
                                 # Convert BaseModel instances to dicts for proper table rendering
                                 if isinstance(field_value, list):
                                     # Handle lists of BaseModel instances (fan-out/batch)
                                     payload_data[field_name] = [
-                                        item.model_dump() if isinstance(item, BaseModel) else item
+                                        item.model_dump()
+                                        if isinstance(item, BaseModel)
+                                        else item
                                         for item in field_value
                                     ]
                                 elif isinstance(field_value, BaseModel):
@@ -1698,11 +1768,15 @@ class DSPyEngine(EngineComponent):
             str(artifact.correlation_id) if artifact.correlation_id else None
         )
         display_data["partition_key"] = artifact.partition_key
-        display_data["tags"] = "set()" if not artifact.tags else f"set({list(artifact.tags)})"
+        display_data["tags"] = (
+            "set()" if not artifact.tags else f"set({list(artifact.tags)})"
+        )
 
         # Print the final panel
         console = Console()
-        final_panel = formatter.format_result(display_data, agent_label, theme_dict, styles)
+        final_panel = formatter.format_result(
+            display_data, agent_label, theme_dict, styles
+        )
         console.print(final_panel)
 
 
@@ -1714,7 +1788,9 @@ _apply_live_patch_on_import()
 
 # Apply the DSPy streaming patch to fix deadlocks with MCP tools
 try:
-    from flock.patches.dspy_streaming_patch import apply_patch as apply_dspy_streaming_patch
+    from flock.patches.dspy_streaming_patch import (
+        apply_patch as apply_dspy_streaming_patch,
+    )
 
     apply_dspy_streaming_patch()
 except Exception:

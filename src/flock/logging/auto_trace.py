@@ -9,7 +9,12 @@ from flock.logging.trace_and_logged import _trace_filter_config, traced_and_logg
 
 
 # Check if auto-tracing is enabled via environment variable
-ENABLE_AUTO_TRACE = os.getenv("FLOCK_AUTO_TRACE", "true").lower() in {"true", "1", "yes", "on"}
+ENABLE_AUTO_TRACE = os.getenv("FLOCK_AUTO_TRACE", "true").lower() in {
+    "true",
+    "1",
+    "yes",
+    "on",
+}
 
 
 # Parse trace filter configuration from environment variables

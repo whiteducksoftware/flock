@@ -77,12 +77,20 @@ async def main():
         ResearchQuery(
             topic="Latest developments in quantum computing",
             depth="comprehensive",
-            focus_areas=["hardware advances", "software frameworks", "commercial applications"],
+            focus_areas=[
+                "hardware advances",
+                "software frameworks",
+                "commercial applications",
+            ],
         ),
         ResearchQuery(
             topic="Sustainable agriculture technologies 2025",
             depth="overview",
-            focus_areas=["vertical farming", "AI crop monitoring", "water conservation"],
+            focus_areas=[
+                "vertical farming",
+                "AI crop monitoring",
+                "water conservation",
+            ],
         ),
     ]
 

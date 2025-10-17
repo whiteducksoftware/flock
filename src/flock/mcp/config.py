@@ -159,15 +159,17 @@ class FlockMCPConnectionConfiguration(BaseModel):
         ..., description="Connection parameters for the server."
     )
 
-    transport_type: Literal["stdio", "websockets", "sse", "streamable_http", "custom"] = Field(
-        ..., description="Type of transport to use."
-    )
+    transport_type: Literal[
+        "stdio", "websockets", "sse", "streamable_http", "custom"
+    ] = Field(..., description="Type of transport to use.")
 
     mount_points: list[MCPRoot] | None = Field(
         default=None, description="Initial Mountpoints to operate under."
     )
 
-    read_timeout_seconds: float | int = Field(default=60 * 5, description="Read Timeout.")
+    read_timeout_seconds: float | int = Field(
+        default=60 * 5, description="Read Timeout."
+    )
 
     server_logging_level: LoggingLevel = Field(
         default="error",
@@ -187,7 +189,9 @@ class FlockMCPConnectionConfiguration(BaseModel):
             mode="json",
         )
 
-        data["connection_parameters"] = self.connection_parameters.to_dict(path_type=path_type)
+        data["connection_parameters"] = self.connection_parameters.to_dict(
+            path_type=path_type
+        )
 
         return data
 
@@ -235,7 +239,9 @@ class FlockMCPConnectionConfiguration(BaseModel):
                         )
                     case _:
                         # handle custom server params
-                        connection_params_obj = ServerParameters(**dict(connection_params.items()))
+                        connection_params_obj = ServerParameters(
+                            **dict(connection_params.items())
+                        )
 
         if connection_params_obj:
             data["connection_parameters"] = connection_params_obj

@@ -141,13 +141,22 @@ def generate_default_rich_block(theme: dict | None = None) -> dict[str, Any]:
     # Randomly choose non color properties.
     default_non_color_props = {
         "table_show_lines": random.choice([True, False]),
-        "table_box": random.choice(
-            ["ROUNDED", "SIMPLE", "SQUARE", "MINIMAL", "HEAVY", "DOUBLE_EDGE"]
-        ),
+        "table_box": random.choice([
+            "ROUNDED",
+            "SIMPLE",
+            "SQUARE",
+            "MINIMAL",
+            "HEAVY",
+            "DOUBLE_EDGE",
+        ]),
         "panel_padding": random.choice([[1, 2], [1, 1], [2, 2], [0, 2]]),
         "panel_title_align": random.choice(["left", "center", "right"]),
         # Add table_row_styles property.
-        "table_row_styles": random.choice([["", "dim"], ["", "italic"], ["", "underline"]]),
+        "table_row_styles": random.choice([
+            ["", "dim"],
+            ["", "italic"],
+            ["", "underline"],
+        ]),
     }
     # Extra table layout properties (non content properties).
     default_extra_table_props = {
@@ -294,7 +303,9 @@ def create_rich_renderable(
             for i, item in enumerate(value):
                 sub_tables.append(f"[bold]Item {i + 1}[/bold]")
                 sub_tables.append(
-                    create_rich_renderable(item, level + 1, theme, styles, max_length=max_length)
+                    create_rich_renderable(
+                        item, level + 1, theme, styles, max_length=max_length
+                    )
                 )
             return Group(*sub_tables)
         rendered_items = [
@@ -311,7 +322,10 @@ def create_rich_renderable(
     s = str(value).strip()
     if max_length > 0 and len(s) > max_length:
         omitted = len(s) - max_length
-        s = s[:max_length] + f"[bold bright_yellow]...(+{omitted}chars)[/bold bright_yellow]"
+        s = (
+            s[:max_length]
+            + f"[bold bright_yellow]...(+{omitted}chars)[/bold bright_yellow]"
+        )
     if isinstance(value, str) and "\n" in value:
         return f"\n{s}\n"
     return s
@@ -343,20 +357,18 @@ def load_syntax_theme_from_file(filepath: str) -> dict:
 
 def create_rich_syntax_theme(syntax_theme: dict) -> Theme:
     """Convert a syntax theme dict to a Rich-compatible Theme."""
-    return Theme(
-        {
-            "background": f"on {syntax_theme['background']}",
-            "text": syntax_theme["text"],
-            "keyword": f"bold {syntax_theme['keyword']}",
-            "builtin": f"bold {syntax_theme['builtin']}",
-            "string": syntax_theme["string"],
-            "name": syntax_theme["name"],
-            "number": syntax_theme["number"],
-            "operator": syntax_theme["operator"],
-            "punctuation": syntax_theme["punctuation"],
-            "error": f"bold {syntax_theme['error']}",
-        }
-    )
+    return Theme({
+        "background": f"on {syntax_theme['background']}",
+        "text": syntax_theme["text"],
+        "keyword": f"bold {syntax_theme['keyword']}",
+        "builtin": f"bold {syntax_theme['builtin']}",
+        "string": syntax_theme["string"],
+        "name": syntax_theme["name"],
+        "number": syntax_theme["number"],
+        "operator": syntax_theme["operator"],
+        "punctuation": syntax_theme["punctuation"],
+        "error": f"bold {syntax_theme['error']}",
+    })
 
 
 def create_pygments_syntax_theme(syntax_theme: dict) -> PygmentsSyntaxTheme:
@@ -485,7 +497,9 @@ class ThemedAgentResultFormatter:
         theme = self.theme
         themes_dir = pathlib.Path(__file__).parent.parent.parent / "themes"
         all_themes = list(themes_dir.glob("*.toml"))
-        theme = theme.value + ".toml" if not theme.value.endswith(".toml") else theme.value
+        theme = (
+            theme.value + ".toml" if not theme.value.endswith(".toml") else theme.value
+        )
         theme = pathlib.Path(__file__).parent.parent.parent / "themes" / theme
 
         if pathlib.Path(theme) not in all_themes:
@@ -495,7 +509,9 @@ class ThemedAgentResultFormatter:
 
         styles = get_default_styles(theme_dict)
         self.styles = styles
-        self.syntax_style = create_pygments_syntax_theme(load_syntax_theme_from_file(theme))
+        self.syntax_style = create_pygments_syntax_theme(
+            load_syntax_theme_from_file(theme)
+        )
 
         console = Console()
         for item in result:

@@ -177,7 +177,9 @@ def custom_format(record):
     # MAX_LENGTH = 500 # Example value
     if len(message) > MAX_LENGTH:
         truncated_chars = len(message) - MAX_LENGTH
-        message = message[:MAX_LENGTH] + f"<yellow>...+({truncated_chars} chars)</yellow>"
+        message = (
+            message[:MAX_LENGTH] + f"<yellow>...+({truncated_chars} chars)</yellow>"
+        )
 
     # Determine if category needs bolding (can refine this logic)
     needs_bold = category in BOLD_CATEGORIES
@@ -262,7 +264,10 @@ logging.basicConfig(level=LOG_LEVELS["ERROR"])  # Default to ERROR level for fal
 
 
 def get_default_severity(
-    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NO_LOGS", "SUCCESS"] | int,
+    level: Literal[
+        "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NO_LOGS", "SUCCESS"
+    ]
+    | int,
 ) -> int:
     """Get the default severity for a given level."""
     if isinstance(level, str):
@@ -272,13 +277,18 @@ def get_default_severity(
 
 
 def configure_logging(
-    flock_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NO_LOGS", "SUCCESS"]
+    flock_level: Literal[
+        "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NO_LOGS", "SUCCESS"
+    ]
     | int,
-    external_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NO_LOGS", "SUCCESS"]
+    external_level: Literal[
+        "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NO_LOGS", "SUCCESS"
+    ]
     | int,
     specific_levels: dict[
         str,
-        Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NO_LOGS", "SUCCESS"] | int,
+        Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NO_LOGS", "SUCCESS"]
+        | int,
     ]
     | None = None,
 ) -> None:
@@ -378,7 +388,9 @@ class FlockLogger:
         """Truncate a message if it exceeds max_length and add truncation indicator."""
         if len(message) > max_length:
             truncated_chars = len(message) - max_length
-            return message[:max_length] + f"...<yellow>+({truncated_chars} chars)</yellow>"
+            return (
+                message[:max_length] + f"...<yellow>+({truncated_chars} chars)</yellow>"
+            )
         return message
 
     def debug(
@@ -565,7 +577,9 @@ def truncate_for_logging(obj, max_item_length=100, max_items=10):
     if isinstance(obj, dict):
         if len(obj) > max_items:
             return {
-                k: truncate_for_logging(v) for i, (k, v) in enumerate(obj.items()) if i < max_items
+                k: truncate_for_logging(v)
+                for i, (k, v) in enumerate(obj.items())
+                if i < max_items
             }
         return {k: truncate_for_logging(v) for k, v in obj.items()}
     if isinstance(obj, list):

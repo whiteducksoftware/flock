@@ -14,7 +14,7 @@ class SubscriptionInfo(BaseModel):
     """Subscription configuration for an agent."""
 
     from_agents: list[str] = Field(default_factory=list)
-    channels: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     mode: str = "both"  # "both" | "events" | "direct"
 
 
@@ -123,8 +123,12 @@ class StreamingOutputEvent(BaseModel):
     is_final: bool = False  # True when agent completes this output stream
 
     # Artifact tracking (Phase 6: for message streaming preview)
-    artifact_id: str | None = None  # Pre-generated artifact ID for streaming message nodes
-    artifact_type: str | None = None  # Artifact type name (e.g., "__main__.BookOutline")
+    artifact_id: str | None = (
+        None  # Pre-generated artifact ID for streaming message nodes
+    )
+    artifact_type: str | None = (
+        None  # Artifact type name (e.g., "__main__.BookOutline")
+    )
 
 
 class AgentCompletedEvent(BaseModel):
@@ -149,7 +153,9 @@ class AgentCompletedEvent(BaseModel):
     artifacts_produced: list[str] = Field(default_factory=list)  # [artifact_id]
 
     # Metrics and state
-    metrics: dict[str, Any] = Field(default_factory=dict)  # {"tokens_used": 1234, "cost": 0.05}
+    metrics: dict[str, Any] = Field(
+        default_factory=dict
+    )  # {"tokens_used": 1234, "cost": 0.05}
     final_state: dict[str, Any] = Field(default_factory=dict)  # Context.state snapshot
 
 

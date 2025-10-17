@@ -62,7 +62,10 @@ async def main():
                 "Coffee cup with lipstick",
                 "Deleted security footage timestamp",
             ],
-            witness_statements=["Heard shouting around 9 PM", "Saw someone in maintenance uniform"],
+            witness_statements=[
+                "Heard shouting around 9 PM",
+                "Saw someone in maintenance uniform",
+            ],
             time_of_incident="2025-10-09 21:15",
         )
 

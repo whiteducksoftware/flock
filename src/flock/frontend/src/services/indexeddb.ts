@@ -46,7 +46,7 @@ interface AgentRecord {
   max_concurrency: number;
   consumes_types: string[];
   from_agents: string[];
-  channels: string[];
+  tags: string[];
   run_history: string[]; // [run_id] - last 100 runs
   total_runs: number;
   total_errors: number;

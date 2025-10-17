@@ -10,9 +10,12 @@ from pydantic import BaseModel, Field
 from flock.agent import OutputGroup
 from flock.artifacts import Artifact
 from flock.components import AgentComponent, AgentComponentConfig, EngineComponent
+from flock.context_provider import DefaultContextProvider
 from flock.orchestrator import Flock
 from flock.registry import flock_type
 from flock.runtime import EvalInputs, EvalResult
+from flock.store import FilterConfig
+from flock.visibility import AgentIdentity, PublicVisibility
 
 
 # Test artifact types
@@ -271,247 +274,170 @@ async def test_agent_component_config_with_fields():
 
 
 @pytest.mark.asyncio
-async def test_engine_component_fetch_conversation_context():
-    """Test EngineComponent.fetch_conversation_context() method."""
-    # Create mock context and artifacts
+async def test_engine_component_get_conversation_context():
+    """Test EngineComponent.get_conversation_context() method - Phase 8 pattern."""
+    from flock.runtime import Context
+
+    # Phase 8: Context contains pre-filtered artifacts (evaluated by orchestrator)
     correlation_id = uuid4()
 
-    artifact1 = Artifact(
+    pre_filtered_artifacts = [
+        Artifact(
+            id=uuid4(),
+            type="user_message",
+            payload={"message": "Hello"},
+            produced_by="agent1",
+            created_at=datetime.now(timezone.utc),
+        ),
+        Artifact(
+            id=uuid4(),
+            type="assistant_response",
+            payload={"message": "Hi there!"},
+            produced_by="agent2",
+            created_at=datetime.now(timezone.utc),
+        ),
+    ]
+
+    ctx = Context(
+        artifacts=pre_filtered_artifacts,
         correlation_id=correlation_id,
-        type="user_message",
-        payload={"message": "Hello"},
-        produced_by="agent1",
-        created_at=datetime.now(timezone.utc),
+        task_id="test-task",
     )
 
-    artifact2 = Artifact(
-        correlation_id=correlation_id,
-        type="assistant_response",
-        payload={"message": "Hi there!"},
-        produced_by="agent2",
-        created_at=datetime.now(timezone.utc),
-    )
-
-    artifact3 = Artifact(
-        correlation_id=uuid4(),  # Different correlation_id
-        type="other_message",
-        payload={"message": "Not related"},
-        produced_by="agent3",
-        created_at=datetime.now(timezone.utc),
-    )
-
-    mock_board = AsyncMock()
-    mock_board.list = AsyncMock(return_value=[artifact1, artifact2, artifact3])
-
-    mock_ctx = MagicMock()
-    mock_ctx.board = mock_board
-    mock_ctx.correlation_id = correlation_id
-
-    # Test basic context fetching
+    # Phase 8: Engine simply reads pre-filtered context (returns Artifact objects)
     engine = EngineComponent()
-    context = await engine.fetch_conversation_context(mock_ctx)
+    context = engine.get_conversation_context(ctx)
 
-    assert len(context) == 2  # Only artifacts with matching correlation_id
-    assert context[0]["type"] == "user_message"
-    assert context[0]["payload"] == {"message": "Hello"}
-    assert context[0]["produced_by"] == "agent1"
-    assert context[0]["event_number"] == 0
-    assert context[1]["type"] == "assistant_response"
-    assert context[1]["payload"] == {"message": "Hi there!"}
-    assert context[1]["produced_by"] == "agent2"
-    assert context[1]["event_number"] == 1
+    # Should get pre-filtered Artifact objects with full metadata
+    assert len(context) == 2
+    assert context[0].type == "user_message"
+    assert context[0].payload == {"message": "Hello"}
+    assert context[0].produced_by == "agent1"
+    assert context[1].type == "assistant_response"
+    assert context[1].payload == {"message": "Hi there!"}
+    assert context[1].produced_by == "agent2"
 
 
 @pytest.mark.asyncio
-async def test_engine_component_fetch_context_with_max_artifacts():
-    """Test fetch_conversation_context with max_artifacts limit."""
-    correlation_id = uuid4()
+async def test_engine_component_get_context_with_max_artifacts():
+    """Test get_conversation_context with max_artifacts limit - Phase 8 pattern."""
+    from flock.runtime import Context
 
-    # Create many artifacts
-    artifacts = []
-    base_time = datetime.now(timezone.utc)
-    for i in range(10):
-        artifact = Artifact(
-            correlation_id=correlation_id,
+    # Phase 8: Context contains pre-filtered artifacts (10 artifacts from orchestrator)
+    pre_filtered_artifacts = [
+        Artifact(
+            id=uuid4(),
             type=f"message_{i}",
             payload={"content": f"Content {i}"},
             produced_by=f"agent_{i}",
-            created_at=base_time,
+            created_at=datetime.now(timezone.utc),
         )
-        artifacts.append(artifact)
+        for i in range(10)
+    ]
 
-    mock_board = AsyncMock()
-    mock_board.list = AsyncMock(return_value=artifacts)
+    ctx = Context(
+        artifacts=pre_filtered_artifacts,
+        correlation_id=uuid4(),
+        task_id="test-task",
+    )
 
-    mock_ctx = MagicMock()
-    mock_ctx.board = mock_board
-
-    # Test with max_artifacts parameter
+    # Test with max_artifacts parameter (limits already-filtered list)
     engine = EngineComponent()
-    context = await engine.fetch_conversation_context(mock_ctx, correlation_id, max_artifacts=3)
+    context = engine.get_conversation_context(ctx, max_artifacts=3)
 
     assert len(context) == 3
     # Should get the last 3 artifacts
-    assert context[0]["type"] == "message_7"
-    assert context[1]["type"] == "message_8"
-    assert context[2]["type"] == "message_9"
+    assert context[0].type == "message_7"
+    assert context[1].type == "message_8"
+    assert context[2].type == "message_9"
 
     # Test with instance-level max_artifacts
     engine2 = EngineComponent(context_max_artifacts=5)
-    context2 = await engine2.fetch_conversation_context(mock_ctx, correlation_id)
+    context2 = engine2.get_conversation_context(ctx)
 
     assert len(context2) == 5
     # Should get the last 5 artifacts
-    assert context2[0]["type"] == "message_5"
-    assert context2[4]["type"] == "message_9"
+    assert context2[0].type == "message_5"
+    assert context2[4].type == "message_9"
 
 
 @pytest.mark.asyncio
-async def test_engine_component_fetch_context_with_exclude_types():
-    """Test fetch_conversation_context with excluded types."""
-    correlation_id = uuid4()
+async def test_engine_component_get_context_with_exclude_types():
+    """Test get_conversation_context with excluded types - Phase 8 pattern."""
+    from flock.runtime import Context
 
-    artifact1 = Artifact(
-        correlation_id=correlation_id,
-        type="user_message",
-        payload={"message": "Hello"},
-        produced_by="agent1",
-        created_at=datetime.now(timezone.utc),
+    # Phase 8: Context contains pre-filtered artifacts
+    pre_filtered_artifacts = [
+        Artifact(
+            id=uuid4(),
+            type="user_message",
+            payload={"message": "Hello"},
+            produced_by="agent1",
+            created_at=datetime.now(timezone.utc),
+        ),
+        Artifact(
+            id=uuid4(),
+            type="system_log",
+            payload={"info": "System info"},
+            produced_by="system",
+            created_at=datetime.now(timezone.utc),
+        ),
+        Artifact(
+            id=uuid4(),
+            type="assistant_response",
+            payload={"message": "Hi there!"},
+            produced_by="agent2",
+            created_at=datetime.now(timezone.utc),
+        ),
+    ]
+
+    ctx = Context(
+        artifacts=pre_filtered_artifacts,
+        correlation_id=uuid4(),
+        task_id="test-task",
     )
 
-    artifact2 = Artifact(
-        correlation_id=correlation_id,
-        type="system_log",  # This should be excluded
-        payload={"info": "System info"},
-        produced_by="system",
-        created_at=datetime.now(timezone.utc),
-    )
-
-    artifact3 = Artifact(
-        correlation_id=correlation_id,
-        type="assistant_response",
-        payload={"message": "Hi there!"},
-        produced_by="agent2",
-        created_at=datetime.now(timezone.utc),
-    )
-
-    mock_board = AsyncMock()
-    mock_board.list = AsyncMock(return_value=[artifact1, artifact2, artifact3])
-
-    mock_ctx = MagicMock()
-    mock_ctx.board = mock_board
-
-    # Test with excluded types
+    # Test with excluded types (engine-level filtering)
     engine = EngineComponent(context_exclude_types={"system_log"})
-    context = await engine.fetch_conversation_context(mock_ctx, correlation_id)
+    context = engine.get_conversation_context(ctx)
 
     assert len(context) == 2  # system_log should be excluded
-    assert context[0]["type"] == "user_message"
-    assert context[1]["type"] == "assistant_response"
+    assert context[0].type == "user_message"
+    assert context[1].type == "assistant_response"
 
 
 @pytest.mark.asyncio
-async def test_engine_component_fetch_context_disabled():
-    """Test fetch_conversation_context when context is disabled."""
-    engine = EngineComponent(enable_context=False)
-    mock_ctx = MagicMock()
+async def test_engine_component_get_context_disabled():
+    """Test get_conversation_context when context is disabled."""
+    from flock.runtime import Context
 
-    context = await engine.fetch_conversation_context(mock_ctx, uuid4())
+    ctx = Context(
+        artifacts=[
+            Artifact(
+                id=uuid4(),
+                type="test",
+                payload={},
+                produced_by="test",
+                created_at=datetime.now(timezone.utc),
+            )
+        ],
+        correlation_id=uuid4(),
+        task_id="test-task",
+    )
+
+    engine = EngineComponent(enable_context=False)
+    context = engine.get_conversation_context(ctx)
     assert context == []
 
 
 @pytest.mark.asyncio
-async def test_engine_component_fetch_context_no_ctx():
-    """Test fetch_conversation_context with no context."""
+async def test_engine_component_get_context_no_ctx():
+    """Test get_conversation_context with no context."""
     engine = EngineComponent()
 
     # Test with None ctx
-    context = await engine.fetch_conversation_context(None)
+    context = engine.get_conversation_context(None)
     assert context == []
-
-
-@pytest.mark.asyncio
-async def test_engine_component_fetch_context_no_correlation_id():
-    """Test fetch_conversation_context with no correlation_id."""
-    engine = EngineComponent()
-    mock_ctx = MagicMock()
-    mock_ctx.correlation_id = None
-
-    context = await engine.fetch_conversation_context(mock_ctx)
-    assert context == []
-
-
-@pytest.mark.asyncio
-async def test_engine_component_fetch_context_exception_handling():
-    """Test fetch_conversation_context exception handling."""
-    mock_board = AsyncMock()
-    mock_board.list = AsyncMock(side_effect=Exception("Database error"))
-
-    mock_ctx = MagicMock()
-    mock_ctx.board = mock_board
-    mock_ctx.correlation_id = uuid4()
-
-    engine = EngineComponent()
-    context = await engine.fetch_conversation_context(mock_ctx)
-
-    # Should return empty list on exception
-    assert context == []
-
-
-@pytest.mark.asyncio
-async def test_engine_component_get_latest_artifact_of_type():
-    """Test EngineComponent.get_latest_artifact_of_type() method."""
-    correlation_id = uuid4()
-
-    artifact1 = Artifact(
-        correlation_id=correlation_id,
-        type="user_message",
-        payload={"message": "First message"},
-        produced_by="agent1",
-        created_at=datetime.now(timezone.utc),
-    )
-
-    artifact2 = Artifact(
-        correlation_id=correlation_id,
-        type="user_message",
-        payload={"message": "Second message"},
-        produced_by="agent1",
-        created_at=datetime.now(timezone.utc),
-    )
-
-    artifact3 = Artifact(
-        correlation_id=correlation_id,
-        type="assistant_response",
-        payload={"message": "Response"},
-        produced_by="agent2",
-        created_at=datetime.now(timezone.utc),
-    )
-
-    mock_board = AsyncMock()
-    mock_board.list = AsyncMock(return_value=[artifact1, artifact2, artifact3])
-
-    mock_ctx = MagicMock()
-    mock_ctx.board = mock_board
-
-    engine = EngineComponent()
-
-    # Test getting latest user_message
-    latest = await engine.get_latest_artifact_of_type(mock_ctx, "user_message", correlation_id)
-    assert latest is not None
-    assert latest["type"] == "user_message"
-    assert latest["payload"] == {"message": "Second message"}  # Should get the latest one
-
-    # Test getting assistant_response
-    latest = await engine.get_latest_artifact_of_type(
-        mock_ctx, "assistant_response", correlation_id
-    )
-    assert latest is not None
-    assert latest["type"] == "assistant_response"
-    assert latest["payload"] == {"message": "Response"}
-
-    # Test getting non-existent type
-    latest = await engine.get_latest_artifact_of_type(mock_ctx, "non_existent", correlation_id)
-    assert latest is None
 
 
 @pytest.mark.asyncio

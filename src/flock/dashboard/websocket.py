@@ -72,7 +72,11 @@ class WebSocketManager:
         logger.info(f"WebSocket client added. Total clients: {len(self.clients)}")
 
         # Start heartbeat task if enabled and not already running
-        if self.enable_heartbeat and self._heartbeat_task is None and not self._shutdown:
+        if (
+            self.enable_heartbeat
+            and self._heartbeat_task is None
+            and not self._shutdown
+        ):
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
     async def remove_client(self, websocket: WebSocket) -> None:
@@ -167,7 +171,9 @@ class WebSocketManager:
 
                 # Send ping to all clients
                 ping_tasks = []
-                for client in list(self.clients):  # Copy to avoid modification during iteration
+                for client in list(
+                    self.clients
+                ):  # Copy to avoid modification during iteration
                     ping_tasks.append(self._ping_client(client))
 
                 # Execute pings concurrently
@@ -186,7 +192,10 @@ class WebSocketManager:
             client: WebSocket client to ping
         """
         try:
-            await client.send_json({"type": "ping", "timestamp": asyncio.get_event_loop().time()})
+            await client.send_json({
+                "type": "ping",
+                "timestamp": asyncio.get_event_loop().time(),
+            })
         except Exception as e:
             logger.warning(f"Failed to ping client: {e}")
             await self.remove_client(client)
@@ -197,7 +206,11 @@ class WebSocketManager:
         In production, heartbeat is disabled by default (enable_heartbeat=False).
         Only starts if enable_heartbeat=True.
         """
-        if self.enable_heartbeat and self._heartbeat_task is None and not self._shutdown:
+        if (
+            self.enable_heartbeat
+            and self._heartbeat_task is None
+            and not self._shutdown
+        ):
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
     async def shutdown(self) -> None:

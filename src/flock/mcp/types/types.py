@@ -128,7 +128,9 @@ class ServerParameters(BaseModel):
 class StdioServerParameters(_MCPStdioServerParameters, ServerParameters):
     """Base Type for Stdio Server parameters."""
 
-    transport_type: Literal["stdio"] = Field(default="stdio", description="Use stdio params.")
+    transport_type: Literal["stdio"] = Field(
+        default="stdio", description="Use stdio params."
+    )
 
     env: dict[str, str] | None = Field(
         default_factory=get_default_env,
@@ -169,7 +171,9 @@ class StreamableHttpServerParameters(ServerParameters):
         description="How long the client will wait before disconnecting from the server.",
     )
 
-    terminate_on_close: bool = Field(default=True, description="Terminate connection on close")
+    terminate_on_close: bool = Field(
+        default=True, description="Terminate connection on close"
+    )
 
     auth: httpx.Auth | None = Field(default=None, description="Httpx Auth Scheme")
 
@@ -241,7 +245,9 @@ class StreamableHttpServerParameters(ServerParameters):
 class SseServerParameters(ServerParameters):
     """Base Type for SSE Server params."""
 
-    transport_type: Literal["sse"] = Field(default="sse", description="Use sse server params.")
+    transport_type: Literal["sse"] = Field(
+        default="sse", description="Use sse server params."
+    )
 
     url: str | AnyUrl = Field(..., description="The url the server listens at.")
 

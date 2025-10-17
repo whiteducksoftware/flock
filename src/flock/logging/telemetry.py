@@ -137,7 +137,9 @@ class TelemetryConfig:
                     collector_endpoint=self.jaeger_endpoint,
                 )
             else:
-                raise ValueError("Invalid JAEGER_TRANSPORT specified. Use 'grpc' or 'http'.")
+                raise ValueError(
+                    "Invalid JAEGER_TRANSPORT specified. Use 'grpc' or 'http'."
+                )
 
             span_processors.append(SimpleSpanProcessor(jaeger_exporter))
 
@@ -168,12 +170,16 @@ class TelemetryConfig:
 
         # If a file path is provided, add the custom file exporter.
         if self.file_export_name and self.enable_file:
-            file_exporter = FileSpanExporter(self.local_logging_dir, self.file_export_name)
+            file_exporter = FileSpanExporter(
+                self.local_logging_dir, self.file_export_name
+            )
             span_processors.append(SimpleSpanProcessor(file_exporter))
 
         # If a SQLite database path is provided, ensure the DB exists and add the SQLite exporter.
         if self.sqlite_db_name and self.enable_sql:
-            sqlite_exporter = SqliteTelemetryExporter(self.local_logging_dir, self.sqlite_db_name)
+            sqlite_exporter = SqliteTelemetryExporter(
+                self.local_logging_dir, self.sqlite_db_name
+            )
             span_processors.append(SimpleSpanProcessor(sqlite_exporter))
 
         # If a DuckDB database path is provided, add the DuckDB exporter.

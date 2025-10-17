@@ -50,7 +50,9 @@ def announce(tagline: Tagline) -> dict[str, str]:
 
 
 class MovieEngine(EngineComponent):
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         idea = Idea(**inputs.artifacts[0].payload)
         synopsis = f"{idea.topic} told as a {idea.genre} adventure."
         movie = Movie(fun_title=idea.topic.upper(), runtime=120, synopsis=synopsis)
@@ -63,7 +65,9 @@ class MovieEngine(EngineComponent):
 
 
 class TaglineEngine(EngineComponent):
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         movie = Movie(**inputs.artifacts[0].payload)
         tagline = Tagline(line=f"Don't miss {movie.fun_title}!")
         artifact = Artifact(

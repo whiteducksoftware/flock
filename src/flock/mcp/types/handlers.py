@@ -161,7 +161,9 @@ async def handle_logging_message(
     metadata: dict[str, Any] = params.meta or {}  # type: ignore[assignment]
 
     str_level = "DEBUG"
-    prefix = f"Message from Remote MCP Logger '{logger_name}' for server '{server_name}': "
+    prefix = (
+        f"Message from Remote MCP Logger '{logger_name}' for server '{server_name}': "
+    )
 
     match level:
         case "info":

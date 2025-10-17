@@ -94,7 +94,9 @@ class DashboardLauncher:
 
     def _start_dev_server(self) -> None:
         """Start npm dev server for hot-reload development."""
-        print(f"[Dashboard] Starting dev server (DASHBOARD_DEV=1) on port {self.port}...")
+        print(
+            f"[Dashboard] Starting dev server (DASHBOARD_DEV=1) on port {self.port}..."
+        )
 
         try:
             self._npm_process = subprocess.Popen(

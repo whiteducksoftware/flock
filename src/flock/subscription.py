@@ -102,7 +102,7 @@ class Subscription:
         where: Sequence[Predicate] | None = None,
         text_predicates: Sequence[TextPredicate] | None = None,
         from_agents: Iterable[str] | None = None,
-        channels: Iterable[str] | None = None,
+        tags: Iterable[str] | None = None,
         join: JoinSpec | None = None,
         batch: BatchSpec | None = None,
         delivery: str = "exclusive",
@@ -116,7 +116,9 @@ class Subscription:
 
         # Register all types and build counts (supports duplicates for count-based AND gates)
         type_name_list = [type_registry.register(t) for t in types]
-        self.type_names: set[str] = set(type_name_list)  # Unique type names (for matching)
+        self.type_names: set[str] = set(
+            type_name_list
+        )  # Unique type names (for matching)
 
         # Count-based AND gate: Track how many of each type are required
         # Example: .consumes(A, A, B) → {"TypeA": 2, "TypeB": 1}
@@ -127,7 +129,7 @@ class Subscription:
         self.where = list(where or [])
         self.text_predicates = list(text_predicates or [])
         self.from_agents = set(from_agents or [])
-        self.channels = set(channels or [])
+        self.tags = set(tags or [])
         self.join = join
         self.batch = batch
         self.delivery = delivery
@@ -145,7 +147,7 @@ class Subscription:
             return False
         if self.from_agents and artifact.produced_by not in self.from_agents:
             return False
-        if self.channels and not artifact.tags.intersection(self.channels):
+        if self.tags and not artifact.tags.intersection(self.tags):
             return False
 
         # Evaluate where predicates on typed payloads

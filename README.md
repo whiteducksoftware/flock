@@ -4,7 +4,7 @@
 <p align="center">
   <a href="https://whiteducksoftware.github.io/flock/" target="_blank"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-blue?style=for-the-badge&logo=readthedocs"></a>
   <a href="https://pypi.org/project/flock-core/" target="_blank"><img alt="PyPI Version" src="https://img.shields.io/pypi/v/flock-core?style=for-the-badge&logo=pypi&label=pip%20version"></a>
-  <img alt="Python Version" src="https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python">
+  <img alt="Python Version" src="https://img.shields.io/badge/python-3.12%2B-blue?style=for-the-badge&logo=python">
   <a href="LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/github/license/whiteducksoftware/flock?style=for-the-badge"></a>
   <a href="https://whiteduck.de" target="_blank"><img alt="Built by white duck" src="https://img.shields.io/badge/Built%20by-white%20duck%20GmbH-white?style=for-the-badge&labelColor=black"></a>
   <a href="https://codecov.io/gh/whiteducksoftware/flock" target="_blank"><img alt="Test Coverage" src="https://codecov.io/gh/whiteducksoftware/flock/branch/main/graph/badge.svg?token=YOUR_TOKEN_HERE&style=for-the-badge"></a>
@@ -251,6 +251,39 @@ asyncio.run(main())
 - **Zero prompts written** - types defined the behavior
 - **Zero graph edges** - subscriptions created the workflow
 - **Full type safety** - Pydantic validates all outputs
+
+---
+
+## Context Provider Primer (Security + Cost)
+
+Context Providers are the security and efficiency layer between agents and the blackboard. They decide what each agent sees in its historical context and always enforce visibility rules.
+
+Why use them
+- Enforce access control (visibility is applied before engines see data)
+- Cut context size (often 90%+) by filtering to what matters
+- Specialize per agent or set a global default
+
+Copy/paste examples
+```python
+from flock import Flock
+from flock.context_provider import FilteredContextProvider
+from flock.store import FilterConfig
+
+# Global: show only urgent items (limit context size)
+flock = Flock(
+    "openai/gpt-4.1",
+    context_provider=FilteredContextProvider(FilterConfig(tags={"urgent"}), limit=50)
+)
+
+# Per-agent: override global for a specific role
+senior = flock.agent("senior").consumes(LogEntry).publishes(Analysis)
+senior.context_provider = FilteredContextProvider(
+    FilterConfig(tags={"ERROR", "WARN"}),
+    limit=200
+)
+```
+
+Learn more: docs/guides/context-providers.md
 
 ---
 
@@ -508,7 +541,104 @@ artifact.visibility = AfterVisibility(ttl=timedelta(hours=24), then=PublicVisibi
 agent.publishes(PublicReport, visibility=PublicVisibility())
 ```
 
+**Visibility has a dual purpose:** It controls both which agents can be **triggered** by an artifact AND which artifacts agents can **see** in their context. This ensures consistent security across agent execution and data access—agents cannot bypass visibility controls through subscription filters or context providers.
+
 **Why this matters:** Financial services, healthcare, defense, SaaS platforms all need this for compliance. Other frameworks make you build it yourself.
+
+---
+
+### 🔒 Architecturally Impossible to Bypass Security
+
+**Here's what makes Flock different:** In most frameworks, security is something you remember to add. In Flock, **it's architecturally impossible to forget.**
+
+Every context provider in Flock inherits from `BaseContextProvider`, which enforces visibility filtering **automatically**. You literally cannot create a provider that forgets to check permissions—the security logic is baked into the base class and executes before your custom code even runs.
+
+**What this means in practice:**
+
+```python
+# ❌ Other frameworks: Security is your responsibility (easy to forget!)
+class MyProvider:
+    async def get_context(self, agent):
+        artifacts = store.get_all()  # OOPS! Forgot to check visibility!
+        return artifacts  # 🔥 Security vulnerability
+
+# ✅ Flock: Security is enforced automatically (impossible to bypass!)
+class MyProvider(BaseContextProvider):
+    async def get_artifacts(self, request):
+        artifacts = await store.query_artifacts(...)
+        return artifacts  # ✨ Visibility filtering happens automatically!
+        # BaseContextProvider calls .visibility.allows() for you
+        # You CANNOT bypass this - it's enforced by the architecture
+```
+
+**Built-in providers (all inherit BaseContextProvider):**
+- `DefaultContextProvider` - Full blackboard access (visibility-filtered)
+- `CorrelatedContextProvider` - Workflow isolation (visibility-filtered)
+- `RecentContextProvider` - Token cost control (visibility-filtered)
+- `TimeWindowContextProvider` - Time-based filtering (visibility-filtered)
+- `EmptyContextProvider` - Stateless agents (zero context)
+- `FilteredContextProvider` - Custom filtering (visibility-filtered)
+
+**Every single one enforces visibility automatically. Zero chance of accidentally leaking data.**
+
+This isn't just convenient—it's **security by design**. When you're building HIPAA-compliant healthcare systems or SOC2-certified SaaS platforms, "impossible to bypass even by accident" is the only acceptable standard.
+
+---
+
+### Context Providers (The Smart Filter)
+
+**Control what agents see with custom Context Providers:**
+
+```python
+from flock.context_provider import FilteredContextProvider, PasswordRedactorProvider
+from flock.store import FilterConfig
+
+# Global filtering - all agents see only urgent items
+flock = Flock(
+    "openai/gpt-4.1",
+    context_provider=FilteredContextProvider(FilterConfig(tags={"urgent"}))
+)
+
+# Per-agent overrides - specialized context per agent
+error_agent = flock.agent("errors").consumes(Log).publishes(Alert)
+error_agent.context_provider = FilteredContextProvider(FilterConfig(tags={"ERROR"}))
+
+# Production-ready password filtering
+from examples.context_provider import PasswordRedactorProvider
+flock = Flock(
+    "openai/gpt-4.1",
+    context_provider=PasswordRedactorProvider()  # Auto-redacts sensitive data!
+)
+```
+
+**What just happened:**
+- ✅ **Filtered context** - Agents see only relevant artifacts (save tokens, improve performance)
+- ✅ **Security boundary** - Visibility enforcement + custom filtering (mandatory, cannot bypass)
+- ✅ **Sensitive data protection** - Auto-redact passwords, API keys, credit cards, SSN, JWT tokens
+- ✅ **Per-agent specialization** - Different agents, different context rules
+
+**Production patterns:**
+```python
+# Password/secret redaction (copy-paste ready!)
+provider = PasswordRedactorProvider(
+    custom_patterns={"internal_id": r"ID-\d{6}"},
+    redaction_text="[REDACTED]"
+)
+
+# Role-based access control
+junior_agent.context_provider = FilteredContextProvider(FilterConfig(tags={"ERROR"}))
+senior_agent.context_provider = FilteredContextProvider(FilterConfig(tags={"ERROR", "WARN"}))
+admin_agent.context_provider = None  # See everything (uses default)
+
+# Multi-tenant isolation
+agent.context_provider = FilteredContextProvider(
+    FilterConfig(tags={"tenant:customer_123"})
+)
+```
+
+**Why this matters:** Reduce token costs (90%+ with smart filtering), protect sensitive data (auto-redact secrets), improve performance (agents see only what they need).
+
+**📖 [Learn more: Context Providers Guide](https://whiteducksoftware.github.io/flock/guides/context-providers/) | [Steal production code →](examples/08-context-provider/)**
 
 ### Batching Pattern: Parallel Execution Control
 

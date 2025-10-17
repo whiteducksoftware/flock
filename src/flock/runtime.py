@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from flock.artifacts import Artifact
 
@@ -28,7 +28,9 @@ class EvalInputs(BaseModel):
 
         Example:
             >>> class TaskProcessor(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         task = inputs.first_as(Task)
             ...         if not task:
             ...             return EvalResult.empty()
@@ -88,9 +90,13 @@ class EvalResult(BaseModel):
 
         Example:
             >>> class TaskProcessor(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         task = inputs.first_as(Task)
-            ...         processed = Task(name=f"Done: {task.name}", priority=task.priority)
+            ...         processed = Task(
+            ...             name=f"Done: {task.name}", priority=task.priority
+            ...         )
             ...         return EvalResult.from_object(processed, agent=agent)
         """
         from flock.artifacts import Artifact
@@ -136,14 +142,16 @@ class EvalResult(BaseModel):
 
         Example:
             >>> class MovieEngine(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         idea = inputs.first_as(Idea)
-            ...         movie = Movie(title=idea.topic.upper(), runtime=240, synopsis="...")
+            ...         movie = Movie(
+            ...             title=idea.topic.upper(), runtime=240, synopsis="..."
+            ...         )
             ...         tagline = Tagline(line="Don't miss it!")
             ...         return EvalResult.from_objects(
-            ...             movie, tagline,
-            ...             agent=agent,
-            ...             metrics={"confidence": 0.9}
+            ...             movie, tagline, agent=agent, metrics={"confidence": 0.9}
             ...         )
         """
         from flock.artifacts import Artifact
@@ -190,7 +198,9 @@ class EvalResult(BaseModel):
 
         Example:
             >>> class ConditionalProcessor(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         task = inputs.first_as(Task)
             ...         if task.priority < 3:
             ...             return EvalResult.empty()  # Skip low priority
@@ -229,12 +239,15 @@ class EvalResult(BaseModel):
 
         Example:
             >>> class ValidationAgent(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         task = inputs.first_as(Task)
             ...         is_valid = task.priority >= 1
-            ...         return EvalResult.with_state(
-            ...             {"validation_passed": is_valid, "validator": "priority_check"}
-            ...         )
+            ...         return EvalResult.with_state({
+            ...             "validation_passed": is_valid,
+            ...             "validator": "priority_check",
+            ...         })
         """
         return cls(
             artifacts=[],
@@ -245,13 +258,51 @@ class EvalResult(BaseModel):
 
 
 class Context(BaseModel):
-    board: Any
-    orchestrator: Any
-    correlation_id: UUID | None = None  # NEW!
+    """Runtime context for agent execution.
+
+    SECURITY FIX (2025-10-17): Simplified to data-only design.
+    Context is now just pre-filtered data with ZERO capabilities.
+
+    Vulnerabilities fixed:
+    - Vulnerability #1 (READ): Agents could bypass visibility via ctx.board.list()
+    - Vulnerability #2 (WRITE): Agents could bypass validation via ctx.board.publish()
+    - Vulnerability #3 (GOD MODE): Agents had unlimited ctx.orchestrator access
+    - Vulnerability #4 (STORE ACCESS): Agents could access ctx.store or ctx.provider._store
+
+    Solution: Orchestrator evaluates context BEFORE creating Context.
+    Engines receive only pre-filtered artifact data via ctx.artifacts.
+    No provider, no store, no capabilities - just immutable data.
+
+    Design Philosophy: Engines are pure functions (input + context → output).
+    They don't query, they don't mutate - they only transform data.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    # ❌ REMOVED: board: Any (security vulnerability)
+    # ❌ REMOVED: orchestrator: Any (security vulnerability)
+    # ❌ REMOVED: provider: Any (security vulnerability - engines could call provider methods)
+    # ❌ REMOVED: store: Any (security vulnerability - direct store access)
+
+    # ✅ FINAL SOLUTION: Pre-filtered artifacts (evaluated by orchestrator)
+    # Engines can only read this list - they cannot query for more data
+    artifacts: list[Artifact] = Field(
+        default_factory=list,
+        description="Pre-filtered conversation context artifacts (evaluated by orchestrator using context provider)",
+    )
+
+    # ✅ Agent identity (informational only - used by orchestrator for logging/tracing)
+    agent_identity: Any = Field(
+        default=None,
+        description="Agent identity (informational) - engines cannot use this to query data",
+    )
+
+    correlation_id: UUID | None = None
     task_id: str
     state: dict[str, Any] = Field(default_factory=dict)
     is_batch: bool = Field(
-        default=False, description="True if this execution is processing a BatchSpec accumulation"
+        default=False,
+        description="True if this execution is processing a BatchSpec accumulation",
     )
 
     def get_variable(self, key: str, default: Any = None) -> Any:

@@ -59,7 +59,9 @@ async def get_theme(theme_name: str) -> dict[str, Any]:
         theme_path = THEMES_DIR / f"{theme_name}.toml"
 
         if not theme_path.exists():
-            raise HTTPException(status_code=404, detail=f"Theme '{theme_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Theme '{theme_name}' not found"
+            )
 
         # Load TOML theme
         theme_data = toml.load(theme_path)
@@ -68,4 +70,6 @@ async def get_theme(theme_name: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load theme '{theme_name}': {e!s}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load theme '{theme_name}': {e!s}"
+        )

@@ -28,8 +28,12 @@ class OutputUtilityConfig(AgentComponentConfig):
     theme: OutputTheme = Field(
         default=OutputTheme.catppuccin_mocha, description="Theme for output formatting"
     )
-    render_table: bool = Field(default=True, description="Whether to render output as a table")
-    max_length: int = Field(default=1000, description="Maximum length for displayed output")
+    render_table: bool = Field(
+        default=True, description="Whether to render output as a table"
+    )
+    max_length: int = Field(
+        default=1000, description="Maximum length for displayed output"
+    )
     truncate_long_values: bool = Field(
         default=True, description="Whether to truncate long values in display"
     )
@@ -61,7 +65,9 @@ class OutputUtilityComponent(AgentComponent):
         default_factory=OutputUtilityConfig, description="Output configuration"
     )
 
-    def __init__(self, name: str = "output", config: OutputUtilityConfig | None = None, **data):
+    def __init__(
+        self, name: str = "output", config: OutputUtilityConfig | None = None, **data
+    ):
         if config is None:
             config = OutputUtilityConfig()
         super().__init__(name=name, config=config, **data)
@@ -96,7 +102,11 @@ class OutputUtilityComponent(AgentComponent):
         items = []
         prefix = "  " * indent
         for key, value in d.items():
-            if self.config.truncate_long_values and isinstance(value, str) and len(value) > 100:
+            if (
+                self.config.truncate_long_values
+                and isinstance(value, str)
+                and len(value) > 100
+            ):
                 value = value[:97] + "..."
             formatted_value = self._format_value(value, key)
             items.append(f"{prefix}  {key}: {formatted_value}")
@@ -125,7 +135,9 @@ class OutputUtilityComponent(AgentComponent):
             return f"[CODE:{language}]\n{code}\n[/CODE]"
 
         # Replace markdown-style code blocks
-        return re.sub(r"```(\w+)?\n(.*?)\n```", replace_code_block, text, flags=re.DOTALL)
+        return re.sub(
+            r"```(\w+)?\n(.*?)\n```", replace_code_block, text, flags=re.DOTALL
+        )
 
     async def on_post_evaluate(
         self, agent: "Agent", ctx: Context, inputs: EvalInputs, result: EvalResult
@@ -138,7 +150,9 @@ class OutputUtilityComponent(AgentComponent):
         streamed_artifact_id = None
 
         if ctx:
-            streaming_live_handled = bool(ctx.get_variable("_flock_stream_live_active", False))
+            streaming_live_handled = bool(
+                ctx.get_variable("_flock_stream_live_active", False)
+            )
             output_queued = bool(ctx.get_variable("_flock_output_queued", False))
             streamed_artifact_id = ctx.get_variable("_flock_streamed_artifact_id")
 
@@ -162,20 +176,24 @@ class OutputUtilityComponent(AgentComponent):
 
         # Skip output if streaming already handled it (and no ID to update)
         if streaming_live_handled:
-            logger.debug("Skipping static table because streaming rendered live output.")
+            logger.debug(
+                "Skipping static table because streaming rendered live output."
+            )
             return result
 
         # If output was queued due to concurrent stream, wait and then display
         if output_queued:
             # Wait for active streams to complete
-            orchestrator = getattr(ctx, "orchestrator", None)
-            if orchestrator:
+            # Phase 6+7 Security Fix: Use Agent class variable instead of ctx.state
+            if ctx:
                 import asyncio
+
+                from flock.agent import Agent
 
                 # Wait until no streams are active
                 max_wait = 30  # seconds
                 waited = 0
-                while getattr(orchestrator, "_active_streams", 0) > 0 and waited < max_wait:
+                while Agent._streaming_counter > 0 and waited < max_wait:
                     await asyncio.sleep(0.1)
                     waited += 0.1
                 logger.debug(
@@ -189,7 +207,9 @@ class OutputUtilityComponent(AgentComponent):
             try:
                 # Create a copy or select relevant parts to avoid modifying original result dict directly
                 display_result = result.copy()
-                display_result["context_snapshot"] = ctx.to_dict()  # Potential performance hit
+                display_result["context_snapshot"] = (
+                    ctx.to_dict()
+                )  # Potential performance hit
             except Exception:
                 display_result = result.copy()
                 display_result["context_snapshot"] = "[Error serializing context]"

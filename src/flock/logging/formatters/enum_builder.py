@@ -10,7 +10,9 @@ theme_folder = pathlib.Path(__file__).parent.parent.parent / "themes"
 if not theme_folder.exists():
     raise FileNotFoundError(f"Theme folder not found: {theme_folder}")
 
-theme_files = [pathlib.Path(f.path).stem for f in os.scandir(theme_folder) if f.is_file()]
+theme_files = [
+    pathlib.Path(f.path).stem for f in os.scandir(theme_folder) if f.is_file()
+]
 
 theme_enum_entries = {}
 for theme in theme_files:

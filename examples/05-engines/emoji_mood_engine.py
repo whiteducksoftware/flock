@@ -46,7 +46,9 @@ class EmojiMoodEngine(EngineComponent):
         "curious": "🤔",
     }
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         """Detect mood from message and return emoji representation.
 
         Args:
@@ -106,12 +108,18 @@ async def main() -> None:
         .with_engines(EmojiMoodEngine())
     )
 
-    await flock.publish(MoodPrompt(speaker="Ava", message="Just landed my dream promotion!"))
-    await flock.publish(MoodPrompt(speaker="Luis", message="Planning a secret quest this weekend."))
+    await flock.publish(
+        MoodPrompt(speaker="Ava", message="Just landed my dream promotion!")
+    )
+    await flock.publish(
+        MoodPrompt(speaker="Luis", message="Planning a secret quest this weekend.")
+    )
     await flock.publish(
         MoodPrompt(speaker="Mina", message="Love is in the air—can't stop smiling!")
     )
-    await flock.publish(MoodPrompt(speaker="Noah", message="Yikes, the deadline is tomorrow."))
+    await flock.publish(
+        MoodPrompt(speaker="Noah", message="Yikes, the deadline is tomorrow.")
+    )
 
     await flock.run_until_idle()
 

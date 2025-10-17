@@ -76,7 +76,9 @@ class FlockMCPClient(BaseModel, ABC):
     """
 
     # --- Properties ---
-    config: FlockMCPConfiguration = Field(..., description="The config for this client instance.")
+    config: FlockMCPConfiguration = Field(
+        ..., description="The config for this client instance."
+    )
 
     tool_cache: TTLCache | None = Field(
         default=None,
@@ -174,14 +176,18 @@ class FlockMCPClient(BaseModel, ABC):
                         await client._ensure_connected()
                         try:
                             # delegate the real session
-                            return await getattr(client.client_session, name)(*args, **kwargs)
+                            return await getattr(client.client_session, name)(
+                                *args, **kwargs
+                            )
                         except McpError as e:
                             # only retry on a transport timeout
                             if e.error.code == httpx.codes.REQUEST_TIMEOUT:
                                 kind = "timeout"
                             else:
                                 # application-level MCP error -> give up immediately
-                                logger.exception(f"MCP error in session.{name}: {e.error}")
+                                logger.exception(
+                                    f"MCP error in session.{name}: {e.error}"
+                                )
                                 return None
                         except (BrokenPipeError, ClosedResourceError) as e:
                             kind = type(e).__name__
@@ -301,21 +307,27 @@ class FlockMCPClient(BaseModel, ABC):
 
         if not self.message_handler:
             if not self.config.callback_config.message_handler:
-                self.message_handler = default_flock_mcp_message_handler_callback_factory(
-                    associated_client=self,
-                    logger=logger,
+                self.message_handler = (
+                    default_flock_mcp_message_handler_callback_factory(
+                        associated_client=self,
+                        logger=logger,
+                    )
                 )
             else:
                 self.message_handler = self.config.callback_config.message_handler
 
         if not self.list_roots_callback:
             if not self.config.callback_config.list_roots_callback:
-                self.list_roots_callback = default_flock_mcp_list_roots_callback_factory(
-                    associated_client=self,
-                    logger=logger,
+                self.list_roots_callback = (
+                    default_flock_mcp_list_roots_callback_factory(
+                        associated_client=self,
+                        logger=logger,
+                    )
                 )
             else:
-                self.list_roots_callback = self.config.callback_config.list_roots_callback
+                self.list_roots_callback = (
+                    self.config.callback_config.list_roots_callback
+                )
 
         if not self.sampling_callback:
             if not self.config.callback_config.sampling_callback:
@@ -407,7 +419,9 @@ class FlockMCPClient(BaseModel, ABC):
         if cache_key in self.tool_result_cache:
             return self.tool_result_cache[cache_key]
 
-        async def _call_tool_internal(name: str, arguments: dict[str, Any]) -> CallToolResult:
+        async def _call_tool_internal(
+            name: str, arguments: dict[str, Any]
+        ) -> CallToolResult:
             logger.debug(f"Calling tool '{name}' with arguments {arguments}")
             return await self.session.call_tool(
                 name=name,
@@ -465,19 +479,27 @@ class FlockMCPClient(BaseModel, ABC):
 
     async def invalidate_resource_list_cache(self) -> None:
         """Invalidate the entries in the resource list cache."""
-        logger.debug(f"Invalidating resource_list_cache for server '{self.config.name}'")
+        logger.debug(
+            f"Invalidating resource_list_cache for server '{self.config.name}'"
+        )
         async with self.lock:
             if self.resource_list_cache:
                 self.resource_list_cache.clear()
-                logger.debug(f"Invalidated resource_list_cache for server '{self.config.name}'")
+                logger.debug(
+                    f"Invalidated resource_list_cache for server '{self.config.name}'"
+                )
 
     async def invalidate_resource_contents_cache(self) -> None:
         """Invalidate the entries in the resource contents cache."""
-        logger.debug(f"Invalidating resource_contents_cache for server '{self.config.name}'.")
+        logger.debug(
+            f"Invalidating resource_contents_cache for server '{self.config.name}'."
+        )
         async with self.lock:
             if self.resource_contents_cache:
                 self.resource_contents_cache.clear()
-                logger.debug(f"Invalidated resource_contents_cache for server '{self.config.name}'")
+                logger.debug(
+                    f"Invalidated resource_contents_cache for server '{self.config.name}'"
+                )
 
     async def invalidate_resource_contents_cache_entry(self, key: str) -> None:
         """Invalidate a single entry in the resource contents cache."""
@@ -533,7 +555,9 @@ class FlockMCPClient(BaseModel, ABC):
         server_params = self.config.connection_config.connection_parameters
 
         # Single Hook
-        transport_ctx = await self.create_transport(server_params, self.additional_params)
+        transport_ctx = await self.create_transport(
+            server_params, self.additional_params
+        )
         safe_transport = self._safe_transport_ctx(transport_ctx)
         result = await stack.enter_async_context(safe_transport)
 
@@ -547,15 +571,21 @@ class FlockMCPClient(BaseModel, ABC):
             # new type
             read, write, _get_session_id_callback = result
         else:
-            raise RuntimeError(f"create_transport returned unexpected tuple of {result}")
+            raise RuntimeError(
+                f"create_transport returned unexpected tuple of {result}"
+            )
 
         if read is None or write is None:
-            raise RuntimeError("create_transport did not create any read or write streams.")
+            raise RuntimeError(
+                "create_transport did not create any read or write streams."
+            )
 
         read_timeout = self.config.connection_config.read_timeout_seconds
 
         if self.additional_params and "read_timeout_seconds" in self.additional_params:
-            read_timeout = self.additional_params.get("read_timeout_seconds", read_timeout)
+            read_timeout = self.additional_params.get(
+                "read_timeout_seconds", read_timeout
+            )
 
         timeout_seconds = (
             read_timeout

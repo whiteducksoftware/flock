@@ -43,8 +43,8 @@ class ArtifactCollector:
         # Structure: {(agent_name, subscription_index): {type_name: [artifact1, artifact2, ...]}}
         # Example: {("diagnostician", 0): {"XRay": [artifact1], "LabResult": [artifact2]}}
         # For count-based AND gates: {"TypeA": [artifact1, artifact2, artifact3]} (3 As collected)
-        self._waiting_pools: dict[tuple[str, int], dict[str, list[Artifact]]] = defaultdict(
-            lambda: defaultdict(list)
+        self._waiting_pools: dict[tuple[str, int], dict[str, list[Artifact]]] = (
+            defaultdict(lambda: defaultdict(list))
         )
 
     def add_artifact(
@@ -72,7 +72,10 @@ class ArtifactCollector:
             - After returning complete=True, the pool is automatically cleared
         """
         # Single-type subscription with count=1: No waiting needed (immediate trigger)
-        if len(subscription.type_names) == 1 and subscription.type_counts[artifact.type] == 1:
+        if (
+            len(subscription.type_names) == 1
+            and subscription.type_counts[artifact.type] == 1
+        ):
             return (True, [artifact])
 
         # Multi-type or count-based subscription: Use waiting pool (AND gate logic)

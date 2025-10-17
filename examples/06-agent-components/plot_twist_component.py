@@ -28,7 +28,9 @@ class StoryBeat(BaseModel):
 class ForeshadowingComponent(AgentComponent):
     """Slip a hint into the agent's state right before the engine runs."""
 
-    sprinkle_count: int = Field(default=0, description="How many hints we've added so far")
+    sprinkle_count: int = Field(
+        default=0, description="How many hints we've added so far"
+    )
 
     GENRE_CLUES: dict[str, list[str]] = {
         "mystery": [

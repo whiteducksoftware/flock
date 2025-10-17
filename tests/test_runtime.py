@@ -319,20 +319,30 @@ class TestContext:
     """Tests for Context class."""
 
     def test_context_creation(self):
-        """Test Context creation with required fields."""
-        board = object()  # Mock board
-        orchestrator = object()  # Mock orchestrator
+        """Test Context creation with Phase 8 security fix (pre-filtered artifacts only)."""
         correlation_id = uuid4()
+        pre_filtered_artifacts = [
+            Artifact(
+                id=uuid4(),
+                type="Message",
+                payload={"text": "hello"},
+                produced_by="user",
+            ),
+            Artifact(
+                id=uuid4(),
+                type="Response",
+                payload={"text": "hi"},
+                produced_by="bot",
+            ),
+        ]
 
         context = Context(
-            board=board,
-            orchestrator=orchestrator,
+            artifacts=pre_filtered_artifacts,
             correlation_id=correlation_id,
             task_id="task_123",
         )
 
-        assert context.board is board
-        assert context.orchestrator is orchestrator
+        assert context.artifacts == pre_filtered_artifacts
         assert context.correlation_id == correlation_id
         assert context.task_id == "task_123"
         assert context.state == {}
@@ -342,8 +352,6 @@ class TestContext:
         state = {"key": "value", "count": 42}
 
         context = Context(
-            board=None,
-            orchestrator=None,
             task_id="task_456",
             state=state,
         )
@@ -353,8 +361,6 @@ class TestContext:
     def test_get_variable(self):
         """Test get_variable method."""
         context = Context(
-            board=None,
-            orchestrator=None,
             task_id="test",
             state={"var1": "value1", "var2": 123},
         )
@@ -367,8 +373,6 @@ class TestContext:
     def test_context_without_correlation_id(self):
         """Test Context creation without correlation_id."""
         context = Context(
-            board=None,
-            orchestrator=None,
             task_id="task_789",
         )
 
@@ -379,16 +383,12 @@ class TestContext:
         """Test Context.is_batch field defaults to False and can be set to True."""
         # Test default value is False
         context = Context(
-            board=None,
-            orchestrator=None,
             task_id="test_task",
         )
         assert context.is_batch is False
 
         # Test can be set to True
         context_batch = Context(
-            board=None,
-            orchestrator=None,
             task_id="batch_task",
             is_batch=True,
         )

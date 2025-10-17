@@ -150,7 +150,9 @@ class OrchestratorComponent(BaseModel, metaclass=TracedModelMeta):
         >>> # Simple component
         >>> class LoggingComponent(OrchestratorComponent):
         ...     async def on_agent_scheduled(self, orch, agent, artifacts, task):
-        ...         print(f"Agent {agent.name} scheduled with {len(artifacts)} artifacts")
+        ...         print(
+        ...             f"Agent {agent.name} scheduled with {len(artifacts)} artifacts"
+        ...         )
 
         >>> # Circuit breaker component
         >>> class CircuitBreakerComponent(OrchestratorComponent):
@@ -166,7 +168,9 @@ class OrchestratorComponent(BaseModel, metaclass=TracedModelMeta):
     """
 
     name: str | None = None
-    config: OrchestratorComponentConfig = Field(default_factory=OrchestratorComponentConfig)
+    config: OrchestratorComponentConfig = Field(
+        default_factory=OrchestratorComponentConfig
+    )
     priority: int = 0  # Lower priority = earlier execution
 
     # ──────────────────────────────────────────────────────────
@@ -355,7 +359,7 @@ class OrchestratorComponent(BaseModel, metaclass=TracedModelMeta):
             ...     await self.ws.broadcast({
             ...         "event": "agent_scheduled",
             ...         "agent": agent.name,
-            ...         "count": len(artifacts)
+            ...         "count": len(artifacts),
             ...     })
         """
 
@@ -484,7 +488,10 @@ class BuiltinCollectionComponent(OrchestratorComponent):
                     subscription_index=subscription_index,
                 )
 
-                if subscription.batch.timeout and orchestrator._batch_timeout_task is None:
+                if (
+                    subscription.batch.timeout
+                    and orchestrator._batch_timeout_task is None
+                ):
                     import asyncio
 
                     orchestrator._batch_timeout_task = asyncio.create_task(
@@ -500,7 +507,10 @@ class BuiltinCollectionComponent(OrchestratorComponent):
                         subscription_index=subscription_index,
                     )
 
-                    if subscription.batch.timeout and orchestrator._batch_timeout_task is None:
+                    if (
+                        subscription.batch.timeout
+                        and orchestrator._batch_timeout_task is None
+                    ):
                         import asyncio
 
                         orchestrator._batch_timeout_task = asyncio.create_task(

@@ -97,7 +97,9 @@ async def main() -> None:
         await store.ensure_schema()
 
         print(f"\n✅ History stored in: {db_path}")
-        print("Next: run `uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py`")
+        print(
+            "Next: run `uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py`"
+        )
     finally:
         await store.close()
 

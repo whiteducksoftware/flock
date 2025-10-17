@@ -25,9 +25,13 @@ class TypeRegistry:
 
     def register(self, model: type[BaseModel], name: str | None = None) -> str:
         if not issubclass(model, BaseModel):
-            raise RegistryError("Only Pydantic models can be registered as artifact types.")
+            raise RegistryError(
+                "Only Pydantic models can be registered as artifact types."
+            )
         type_name = (
-            name or getattr(model, "__flock_type__", None) or f"{model.__module__}.{model.__name__}"
+            name
+            or getattr(model, "__flock_type__", None)
+            or f"{model.__module__}.{model.__name__}"
         )
         existing_model = self._by_name.get(type_name)
         if existing_model is not None and existing_model is not model:
@@ -127,7 +131,9 @@ def flock_type(model: type[BaseModel] | None = None, *, name: str | None = None)
     return _wrap(model)
 
 
-def flock_tool(func: Callable[..., Any] | None = None, *, name: str | None = None) -> Any:
+def flock_tool(
+    func: Callable[..., Any] | None = None, *, name: str | None = None
+) -> Any:
     """Decorator to register a deterministic helper function for agents."""
 
     def _wrap(callable_: Callable[..., Any]) -> Callable[..., Any]:

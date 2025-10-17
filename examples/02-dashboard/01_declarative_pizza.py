@@ -9,7 +9,8 @@ from flock.registry import flock_type
 @flock_type
 class MyDreamPizza(BaseModel):
     pizza_idea: str = Field(
-        default="Pizza with pineapple", description="A short description of your dream pizza"
+        default="Pizza with pineapple",
+        description="A short description of your dream pizza",
     )
 
 

@@ -54,7 +54,9 @@ class RunRecord:
     error_message: str | None = None
 
     def to_graph_run(self) -> GraphRun:
-        status = self.status if self.status in {"active", "completed", "error"} else "active"
+        status = (
+            self.status if self.status in {"active", "completed", "error"} else "active"
+        )
         return GraphRun(
             run_id=self.run_id,
             agent_name=self.agent_name,
@@ -102,7 +104,10 @@ class DashboardEventCollector(AgentComponent):
 
     # Use PrivateAttr for non-Pydantic fields (AgentComponent extends BaseModel)
     _events: deque[
-        AgentActivatedEvent | MessagePublishedEvent | AgentCompletedEvent | AgentErrorEvent
+        AgentActivatedEvent
+        | MessagePublishedEvent
+        | AgentCompletedEvent
+        | AgentErrorEvent
     ] = PrivateAttr(default=None)
 
     # Track run start times for duration calculation
@@ -114,7 +119,9 @@ class DashboardEventCollector(AgentComponent):
     # Graph assembly helpers
     _graph_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
     _run_registry: dict[str, RunRecord] = PrivateAttr(default_factory=dict)
-    _artifact_consumers: dict[str, set[str]] = PrivateAttr(default_factory=lambda: defaultdict(set))
+    _artifact_consumers: dict[str, set[str]] = PrivateAttr(
+        default_factory=lambda: defaultdict(set)
+    )
     _agent_status: dict[str, str] = PrivateAttr(default_factory=dict)
     _agent_snapshots: dict[str, AgentSnapshot] = PrivateAttr(default_factory=dict)
 
@@ -185,13 +192,15 @@ class DashboardEventCollector(AgentComponent):
             await self._update_agent_snapshot_locked(agent)
 
         # Build subscription info from agent's subscriptions
-        subscription_info = SubscriptionInfo(from_agents=[], channels=[], mode="both")
+        subscription_info = SubscriptionInfo(from_agents=[], tags=[], mode="both")
 
         if agent.subscriptions:
             # Get first subscription's config (agents typically have one)
             sub = agent.subscriptions[0]
-            subscription_info.from_agents = list(sub.from_agents) if sub.from_agents else []
-            subscription_info.channels = list(sub.channels) if sub.channels else []
+            subscription_info.from_agents = (
+                list(sub.from_agents) if sub.from_agents else []
+            )
+            subscription_info.tags = list(sub.tags) if sub.tags else []
             subscription_info.mode = sub.mode
 
         # Create and store event
@@ -210,7 +219,9 @@ class DashboardEventCollector(AgentComponent):
         )
 
         self._events.append(event)
-        logger.info(f"Agent activated: {agent.name} (correlation_id={event.correlation_id})")
+        logger.info(
+            f"Agent activated: {agent.name} (correlation_id={event.correlation_id})"
+        )
 
         # Broadcast via WebSocket if manager is configured
         if self._websocket_manager:
@@ -220,7 +231,9 @@ class DashboardEventCollector(AgentComponent):
 
         return inputs
 
-    async def on_post_publish(self, agent: "Agent", ctx: Context, artifact: "Artifact") -> None:
+    async def on_post_publish(
+        self, agent: "Agent", ctx: Context, artifact: "Artifact"
+    ) -> None:
         """Emit message_published event when artifact is published.
 
         Args:
@@ -391,7 +404,9 @@ class DashboardEventCollector(AgentComponent):
             }
             runs = [record.to_graph_run() for record in self._run_registry.values()]
             agent_status = dict(self._agent_status)
-        return GraphState(consumptions=consumptions, runs=runs, agent_status=agent_status)
+        return GraphState(
+            consumptions=consumptions, runs=runs, agent_status=agent_status
+        )
 
     async def snapshot_agent_registry(self) -> dict[str, AgentSnapshot]:
         """Return a snapshot of all known agents (active and inactive)."""
@@ -456,21 +471,17 @@ class DashboardEventCollector(AgentComponent):
     async def _update_agent_snapshot_locked(self, agent: "Agent") -> None:
         now = datetime.now(UTC)
         description = agent.description or ""
-        subscriptions = sorted(
-            {
-                type_name
-                for subscription in getattr(agent, "subscriptions", [])
-                for type_name in getattr(subscription, "type_names", [])
-            }
-        )
-        output_types = sorted(
-            {
-                output.spec.type_name
-                for output in getattr(agent, "outputs", [])
-                if getattr(output, "spec", None) is not None
-                and getattr(output.spec, "type_name", "")
-            }
-        )
+        subscriptions = sorted({
+            type_name
+            for subscription in getattr(agent, "subscriptions", [])
+            for type_name in getattr(subscription, "type_names", [])
+        })
+        output_types = sorted({
+            output.spec.type_name
+            for output in getattr(agent, "outputs", [])
+            if getattr(output, "spec", None) is not None
+            and getattr(output.spec, "type_name", "")
+        })
         labels = sorted(agent.labels)
 
         signature_payload = {
@@ -519,7 +530,9 @@ class DashboardEventCollector(AgentComponent):
             first_seen=snapshot.first_seen,
             last_seen=snapshot.last_seen,
             signature=snapshot.signature,
-            logic_operations=[dict(op) for op in snapshot.logic_operations],  # Phase 1.2
+            logic_operations=[
+                dict(op) for op in snapshot.logic_operations
+            ],  # Phase 1.2
         )
 
     def _snapshot_to_record(self, snapshot: AgentSnapshot) -> AgentSnapshotRecord:
@@ -545,19 +558,25 @@ class DashboardEventCollector(AgentComponent):
         """
         # Get visibility kind from class name, stripping "Visibility" suffix
         class_name = type(visibility).__name__
-        kind = class_name[: -len("Visibility")] if class_name.endswith("Visibility") else class_name
+        kind = class_name.removesuffix("Visibility")
 
         spec = VisibilitySpec(kind=kind)
 
         # Extract type-specific fields
         if kind == "Private":
-            spec.agents = list(visibility.agents) if hasattr(visibility, "agents") else []
+            spec.agents = (
+                list(visibility.agents) if hasattr(visibility, "agents") else []
+            )
         elif kind == "Labelled":
             spec.required_labels = (
-                list(visibility.required_labels) if hasattr(visibility, "required_labels") else []
+                list(visibility.required_labels)
+                if hasattr(visibility, "required_labels")
+                else []
             )
         elif kind == "Tenant":
-            spec.tenant_id = visibility.tenant_id if hasattr(visibility, "tenant_id") else None
+            spec.tenant_id = (
+                visibility.tenant_id if hasattr(visibility, "tenant_id") else None
+            )
 
         return spec
 

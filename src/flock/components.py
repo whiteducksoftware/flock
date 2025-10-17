@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Self
 
 from pydantic import BaseModel, Field, create_model
 from pydantic._internal._model_construction import ModelMetaclass
@@ -12,8 +12,6 @@ from flock.logging.auto_trace import AutoTracedMeta
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-    from uuid import UUID
-
     from flock.agent import Agent, OutputGroup
     from flock.artifacts import Artifact
     from flock.runtime import Context, EvalInputs, EvalResult
@@ -71,7 +69,9 @@ class AgentComponent(BaseModel, metaclass=TracedModelMeta):
     ) -> list[Artifact]:
         return inputs
 
-    async def on_pre_evaluate(self, agent: Agent, ctx: Context, inputs: EvalInputs) -> EvalInputs:
+    async def on_pre_evaluate(
+        self, agent: Agent, ctx: Context, inputs: EvalInputs
+    ) -> EvalInputs:
         return inputs
 
     async def on_post_evaluate(
@@ -89,7 +89,9 @@ class AgentComponent(BaseModel, metaclass=TracedModelMeta):
     ) -> None:  # pragma: no cover - default
         return None
 
-    async def on_terminate(self, agent: Agent, ctx: Context) -> None:  # pragma: no cover - default
+    async def on_terminate(
+        self, agent: Agent, ctx: Context
+    ) -> None:  # pragma: no cover - default
         return None
 
 
@@ -153,67 +155,54 @@ class EngineComponent(AgentComponent):
         """
         raise NotImplementedError
 
-    async def fetch_conversation_context(
+    def get_conversation_context(
         self,
         ctx: Context,
-        correlation_id: UUID | None = None,
         max_artifacts: int | None = None,
-    ) -> list[dict[str, Any]]:
-        """Fetch all artifacts with the same correlation_id for conversation context."""
+    ) -> list[Artifact]:
+        """Get conversation context from Context (read-only helper).
+
+        Phase 8 Security Fix: This method now simply reads pre-filtered artifacts from
+        Context. The orchestrator evaluates context BEFORE creating Context, so engines
+        can no longer query arbitrary data.
+
+        REMOVED METHODS (Security Fix):
+        - fetch_conversation_context() - REMOVED (engines can't query anymore)
+        - get_latest_artifact_of_type() - REMOVED (engines can't query anymore)
+
+        Migration Guide:
+            Old (vulnerable): context = await self.fetch_conversation_context(ctx, agent, exclude_ids)
+            New (secure): context = ctx.artifacts  # Pre-filtered by orchestrator!
+
+        Args:
+            ctx: Execution context with pre-filtered artifacts
+            max_artifacts: Optional limit (applies to already-filtered list)
+
+        Returns:
+            List of Artifact objects (pre-filtered by orchestrator via context provider)
+            with full metadata (type, payload, produced_by, created_at, tags, etc.)
+        """
         if not self.enable_context or not ctx:
             return []
 
-        target_correlation_id = correlation_id or getattr(ctx, "correlation_id", None)
-        if not target_correlation_id:
-            return []
+        context_items = list(ctx.artifacts)  # Copy to avoid mutation
 
-        try:
-            all_artifacts = await ctx.board.list()
-
-            context_artifacts = [
-                a
-                for a in all_artifacts
-                if (
-                    a.correlation_id == target_correlation_id
-                    and a.type not in self.context_exclude_types
-                )
+        # Apply engine-level filtering (type exclusions)
+        if self.context_exclude_types:
+            context_items = [
+                item
+                for item in context_items
+                if item.type not in self.context_exclude_types
             ]
 
-            context_artifacts.sort(key=lambda a: a.created_at)
+        # Apply max artifacts limit
+        max_limit = (
+            max_artifacts if max_artifacts is not None else self.context_max_artifacts
+        )
+        if max_limit is not None and max_limit > 0:
+            context_items = context_items[-max_limit:]
 
-            max_limit = max_artifacts if max_artifacts is not None else self.context_max_artifacts
-            if max_limit is not None and max_limit > 0:
-                context_artifacts = context_artifacts[-max_limit:]
-
-            context = []
-            i = 0
-            for artifact in context_artifacts:
-                context.append(
-                    {
-                        "type": artifact.type,
-                        "payload": artifact.payload,
-                        "produced_by": artifact.produced_by,
-                        "event_number": i,
-                        # "created_at": artifact.created_at.isoformat(),
-                    }
-                )
-                i += 1
-
-            return context
-
-        except Exception:
-            return []
-
-    async def get_latest_artifact_of_type(
-        self,
-        ctx: Context,
-        artifact_type: str,
-        correlation_id: UUID | None = None,
-    ) -> dict[str, Any] | None:
-        """Get the most recent artifact of a specific type in the conversation."""
-        context = await self.fetch_conversation_context(ctx, correlation_id)
-        matching = [a for a in context if a["type"].endswith(artifact_type)]
-        return matching[-1] if matching else None
+        return context_items
 
     def should_use_context(self, inputs: EvalInputs) -> bool:
         """Determine if context should be included based on the current inputs."""

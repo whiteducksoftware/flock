@@ -23,7 +23,9 @@ class DuckDBSpanExporter(TelemetryExporter):
     The database is a single file with zero configuration required.
     """
 
-    def __init__(self, dir: str, db_name: str = "traces.duckdb", ttl_days: int | None = None):
+    def __init__(
+        self, dir: str, db_name: str = "traces.duckdb", ttl_days: int | None = None
+    ):
         """Initialize the DuckDB exporter.
 
         Args:
@@ -68,9 +70,13 @@ class DuckDBSpanExporter(TelemetryExporter):
             # Create indexes for common query patterns
             conn.execute("CREATE INDEX IF NOT EXISTS idx_trace_id ON spans(trace_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_service ON spans(service)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_start_time ON spans(start_time)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_start_time ON spans(start_time)"
+            )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_name ON spans(name)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON spans(created_at)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_created_at ON spans(created_at)"
+            )
 
         # Cleanup old traces if TTL is configured
         if self.ttl_days is not None:
@@ -121,28 +127,24 @@ class DuckDBSpanExporter(TelemetryExporter):
 
         # Serialize complex fields to JSON
         attributes_json = json.dumps(dict(span.attributes or {}))
-        events_json = json.dumps(
-            [
-                {
-                    "name": event.name,
-                    "timestamp": event.timestamp,
-                    "attributes": dict(event.attributes or {}),
-                }
-                for event in span.events
-            ]
-        )
-        links_json = json.dumps(
-            [
-                {
-                    "context": {
-                        "trace_id": format(link.context.trace_id, "032x"),
-                        "span_id": format(link.context.span_id, "016x"),
-                    },
-                    "attributes": dict(link.attributes or {}),
-                }
-                for link in span.links
-            ]
-        )
+        events_json = json.dumps([
+            {
+                "name": event.name,
+                "timestamp": event.timestamp,
+                "attributes": dict(event.attributes or {}),
+            }
+            for event in span.events
+        ])
+        links_json = json.dumps([
+            {
+                "context": {
+                    "trace_id": format(link.context.trace_id, "032x"),
+                    "span_id": format(link.context.span_id, "016x"),
+                },
+                "attributes": dict(link.attributes or {}),
+            }
+            for link in span.links
+        ])
         resource_json = json.dumps(dict(span.resource.attributes.items()))
 
         # Get parent span ID if exists

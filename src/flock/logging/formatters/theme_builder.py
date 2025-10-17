@@ -47,15 +47,13 @@ def generate_default_rich_block(theme: dict | None = None) -> dict[str, Any]:
     """
 
     def random_background():
-        return random.choice(
-            [
-                f"{normal_black}",
-                f"{normal_blue}",
-                f"{primary_background}",
-                f"{selection_background}",
-                f"{cursor_cursor}",
-            ]
-        )
+        return random.choice([
+            f"{normal_black}",
+            f"{normal_blue}",
+            f"{primary_background}",
+            f"{selection_background}",
+            f"{cursor_cursor}",
+        ])
 
     if theme is not None:
         bright = theme["colors"].get("bright", {})
@@ -148,12 +146,21 @@ def generate_default_rich_block(theme: dict | None = None) -> dict[str, Any]:
     # Non-color layout properties, randomly chosen.
     default_non_color_props = {
         "table_show_lines": random.choice([True, False]),
-        "table_box": random.choice(
-            ["ROUNDED", "SIMPLE", "SQUARE", "MINIMAL", "HEAVY", "DOUBLE_EDGE"]
-        ),
+        "table_box": random.choice([
+            "ROUNDED",
+            "SIMPLE",
+            "SQUARE",
+            "MINIMAL",
+            "HEAVY",
+            "DOUBLE_EDGE",
+        ]),
         "panel_padding": random.choice([[1, 2], [1, 1], [2, 2], [0, 2]]),
         "panel_title_align": random.choice(["left", "center", "right"]),
-        "table_row_styles": random.choice([["", "dim"], ["", "italic"], ["", "underline"]]),
+        "table_row_styles": random.choice([
+            ["", "dim"],
+            ["", "italic"],
+            ["", "underline"],
+        ]),
     }
     # Extra table layout properties (non-content).
     default_extra_table_props = {
@@ -275,9 +282,13 @@ def create_rich_renderable(
             sub_tables = []
             for i, item in enumerate(value):
                 sub_tables.append(f"[bold]Item {i + 1}[/bold]")
-                sub_tables.append(create_rich_renderable(item, level + 1, theme, styles))
+                sub_tables.append(
+                    create_rich_renderable(item, level + 1, theme, styles)
+                )
             return Group(*sub_tables)
-        rendered_items = [create_rich_renderable(item, level + 1, theme, styles) for item in value]
+        rendered_items = [
+            create_rich_renderable(item, level + 1, theme, styles) for item in value
+        ]
         if all(isinstance(item, str) for item in rendered_items):
             return "\n".join(rendered_items)
         return Group(*rendered_items)
@@ -422,7 +433,9 @@ def theme_builder():
     samples = []
     for i, rich_block in enumerate(sample_rich_blocks):
         # Build a sample theme: copy the chosen theme and override its [rich] block.
-        sample_theme = dict(chosen_theme)  # shallow copy (good enough if colors remain unchanged)
+        sample_theme = dict(
+            chosen_theme
+        )  # shallow copy (good enough if colors remain unchanged)
         sample_theme["rich"] = rich_block
         sample_table = generate_sample_table(sample_theme, dummy_data)
         samples.append((sample_theme, sample_table))
@@ -445,7 +458,9 @@ def theme_builder():
         return
 
     # Ask for file name to save the chosen theme.
-    filename = console.input("\nEnter a filename to save the chosen theme (e.g. mytheme.toml): ")
+    filename = console.input(
+        "\nEnter a filename to save the chosen theme (e.g. mytheme.toml): "
+    )
     save_path = themes_dir / filename
     save_theme(chosen_sample_theme, save_path)
     console.print(f"\n[green]Theme saved as {save_path}.[/green]")

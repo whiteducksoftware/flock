@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +12,7 @@ from flock.subscription import BatchSpec
 @flock_type
 class Trigger(BaseModel):
     today_date: str = Field(
-        default=datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"),
+        default=datetime.now(tz=UTC).strftime("%Y-%m-%d"),
         description="Today's date in YYYY-MM-DD format",
     )
 
