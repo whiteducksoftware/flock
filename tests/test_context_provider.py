@@ -333,11 +333,13 @@ class TestDefaultContextProviderSecurity:
         assert len(authorized_context) == 1, "Agent with required label should see classified data"
         assert authorized_context[0]["type"] == "ClassifiedDoc"
 
-    async def test_default_provider_filters_by_correlation_id(self):
-        """DefaultContextProvider must filter by correlation_id.
+    async def test_default_provider_shows_all_artifacts(self):
+        """DefaultContextProvider shows ALL artifacts (no correlation filtering).
 
-        Agents should only see artifacts from their workflow (correlation).
-        This is NOT a security boundary (visibility is), but a logical boundary.
+        EXPLICIT IS BETTER THAN IMPLICIT: DefaultContextProvider shows agents
+        everything on the blackboard they're allowed to see (visibility-filtered).
+
+        For correlation-based filtering, use CorrelatedContextProvider explicitly.
         """
         from flock.context_provider import DefaultContextProvider, ContextRequest
 
@@ -369,19 +371,17 @@ class TestDefaultContextProviderSecurity:
         provider = DefaultContextProvider()
         request = ContextRequest(
             agent=agent,
-            correlation_id=correlation_a,  # Request workflow A
+            correlation_id=correlation_a,  # Correlation_id is ignored by DefaultContextProvider
             store=store,
             agent_identity=agent.identity,
         )
 
-        # Agent should ONLY see artifacts from workflow A
+        # Agent should see ALL artifacts (both workflow A and B)
         context = await provider(request)
 
-        assert len(context) == 1
-        assert context[0]["payload"]["workflow"] == "A"
-
-        # Artifact from workflow B must NOT be visible
-        assert not any(item["payload"]["workflow"] == "B" for item in context)
+        assert len(context) == 2
+        workflows = {item["payload"]["workflow"] for item in context}
+        assert workflows == {"A", "B"}
 
     async def test_default_provider_returns_correct_format(self):
         """DefaultContextProvider must return list of artifact dicts.
@@ -853,3 +853,414 @@ class TestFilteredContextProvider:
         assert item["produced_by"] == "system"
         assert "created_at" in item
         assert "id" in item
+
+
+@pytest.mark.asyncio
+class TestCorrelatedContextProvider:
+    """Test CorrelatedContextProvider for explicit workflow isolation."""
+
+    async def test_correlated_provider_exists(self):
+        """CorrelatedContextProvider must be implemented."""
+        from flock.context_provider import CorrelatedContextProvider
+
+        provider = CorrelatedContextProvider()
+        assert provider is not None
+
+    async def test_correlated_provider_filters_by_correlation_id(self):
+        """CorrelatedContextProvider must filter by correlation_id.
+
+        Agents should only see artifacts from their specific workflow.
+        This is the explicit version of what DefaultContextProvider used to do.
+        """
+        from flock.context_provider import CorrelatedContextProvider, ContextRequest
+
+        correlation_a = uuid4()
+        correlation_b = uuid4()
+
+        # Artifacts from different workflows
+        artifact_a = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"workflow": "A"},
+            produced_by="system",
+            correlation_id=correlation_a,
+            visibility=PublicVisibility(),
+        )
+
+        artifact_b = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"workflow": "B"},
+            produced_by="system",
+            correlation_id=correlation_b,
+            visibility=PublicVisibility(),
+        )
+
+        store = MockStore([artifact_a, artifact_b])
+        agent = MockAgent("agent-1")
+
+        provider = CorrelatedContextProvider()
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation_a,
+            store=store,
+            agent_identity=agent.identity,
+        )
+
+        # Agent should ONLY see artifacts from workflow A
+        context = await provider(request)
+
+        assert len(context) == 1
+        assert context[0]["payload"]["workflow"] == "A"
+
+    async def test_correlated_provider_enforces_visibility(self):
+        """SECURITY: CorrelatedContextProvider MUST enforce visibility."""
+        from flock.context_provider import CorrelatedContextProvider, ContextRequest
+
+        correlation = uuid4()
+
+        # Public and private artifacts in same workflow
+        public_artifact = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Public task"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+        )
+
+        private_artifact = Artifact(
+            id=uuid4(),
+            type="Secret",
+            payload={"api_key": "sk-secret123"},
+            produced_by="admin",
+            correlation_id=correlation,
+            visibility=PrivateVisibility(agents={"admin"}),
+        )
+
+        store = MockStore([public_artifact, private_artifact])
+        untrusted_agent = MockAgent("untrusted")
+
+        provider = CorrelatedContextProvider()
+        request = ContextRequest(
+            agent=untrusted_agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=untrusted_agent.identity,
+        )
+
+        # Should only see public artifact
+        context = await provider(request)
+
+        assert len(context) == 1
+        assert context[0]["type"] == "Task"
+        assert not any(item["type"] == "Secret" for item in context)
+
+
+@pytest.mark.asyncio
+class TestRecentContextProvider:
+    """Test RecentContextProvider for token cost control."""
+
+    async def test_recent_provider_exists(self):
+        """RecentContextProvider must be implemented."""
+        from flock.context_provider import RecentContextProvider
+
+        provider = RecentContextProvider(limit=10)
+        assert provider is not None
+
+    async def test_recent_provider_limits_to_n_artifacts(self):
+        """RecentContextProvider must return only N most recent artifacts."""
+        from flock.context_provider import RecentContextProvider, ContextRequest
+        from datetime import datetime, timedelta
+
+        correlation = uuid4()
+        base_time = datetime.now()
+
+        # Create 5 artifacts with different timestamps
+        artifacts = [
+            Artifact(
+                id=uuid4(),
+                type="Task",
+                payload={"title": f"Task {i}"},
+                produced_by="system",
+                correlation_id=correlation,
+                visibility=PublicVisibility(),
+                created_at=base_time - timedelta(hours=i),
+            )
+            for i in range(5)
+        ]
+
+        store = MockStore(artifacts)
+        agent = MockAgent("worker")
+
+        # Create provider with limit=2
+        provider = RecentContextProvider(limit=2)
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=agent.identity,
+        )
+
+        context = await provider(request)
+
+        # Should only return 2 most recent artifacts
+        assert len(context) == 2
+        # Should be most recent first (Task 0, Task 1)
+        assert context[0]["payload"]["title"] == "Task 0"
+        assert context[1]["payload"]["title"] == "Task 1"
+
+    async def test_recent_provider_enforces_visibility(self):
+        """SECURITY: RecentContextProvider MUST enforce visibility."""
+        from flock.context_provider import RecentContextProvider, ContextRequest
+
+        correlation = uuid4()
+
+        # Create artifacts with different visibility
+        public_artifacts = [
+            Artifact(
+                id=uuid4(),
+                type="Task",
+                payload={"title": f"Public {i}"},
+                produced_by="system",
+                correlation_id=correlation,
+                visibility=PublicVisibility(),
+            )
+            for i in range(3)
+        ]
+
+        private_artifact = Artifact(
+            id=uuid4(),
+            type="Secret",
+            payload={"api_key": "sk-secret123"},
+            produced_by="admin",
+            correlation_id=correlation,
+            visibility=PrivateVisibility(agents={"admin"}),
+        )
+
+        store = MockStore(public_artifacts + [private_artifact])
+        untrusted_agent = MockAgent("untrusted")
+
+        provider = RecentContextProvider(limit=10)
+        request = ContextRequest(
+            agent=untrusted_agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=untrusted_agent.identity,
+        )
+
+        # Should only see public artifacts
+        context = await provider(request)
+
+        assert len(context) == 3
+        assert all(item["type"] == "Task" for item in context)
+        assert not any(item["type"] == "Secret" for item in context)
+
+
+@pytest.mark.asyncio
+class TestTimeWindowContextProvider:
+    """Test TimeWindowContextProvider for time-based filtering."""
+
+    async def test_time_window_provider_exists(self):
+        """TimeWindowContextProvider must be implemented."""
+        from flock.context_provider import TimeWindowContextProvider
+
+        provider = TimeWindowContextProvider(hours=1)
+        assert provider is not None
+
+    async def test_time_window_provider_filters_by_time(self):
+        """TimeWindowContextProvider must return only artifacts within time window."""
+        from flock.context_provider import TimeWindowContextProvider, ContextRequest
+        from datetime import datetime, timedelta
+
+        correlation = uuid4()
+        now = datetime.now()
+
+        # Create artifacts at different times
+        recent_artifact = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Recent task"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+            created_at=now - timedelta(minutes=30),  # 30 min ago
+        )
+
+        old_artifact = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Old task"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+            created_at=now - timedelta(hours=2),  # 2 hours ago
+        )
+
+        store = MockStore([recent_artifact, old_artifact])
+        agent = MockAgent("worker")
+
+        # Create provider with 1 hour window
+        provider = TimeWindowContextProvider(hours=1)
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=agent.identity,
+        )
+
+        context = await provider(request)
+
+        # Should only see artifact from last hour
+        assert len(context) == 1
+        assert context[0]["payload"]["title"] == "Recent task"
+
+    async def test_time_window_provider_enforces_visibility(self):
+        """SECURITY: TimeWindowContextProvider MUST enforce visibility."""
+        from flock.context_provider import TimeWindowContextProvider, ContextRequest
+        from datetime import datetime, timedelta
+
+        correlation = uuid4()
+        now = datetime.now()
+
+        # Recent public and private artifacts
+        public_artifact = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Public recent"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+            created_at=now - timedelta(minutes=30),
+        )
+
+        private_artifact = Artifact(
+            id=uuid4(),
+            type="Secret",
+            payload={"api_key": "sk-secret123"},
+            produced_by="admin",
+            correlation_id=correlation,
+            visibility=PrivateVisibility(agents={"admin"}),
+            created_at=now - timedelta(minutes=15),
+        )
+
+        store = MockStore([public_artifact, private_artifact])
+        untrusted_agent = MockAgent("untrusted")
+
+        provider = TimeWindowContextProvider(hours=1)
+        request = ContextRequest(
+            agent=untrusted_agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=untrusted_agent.identity,
+        )
+
+        # Should only see public artifact
+        context = await provider(request)
+
+        assert len(context) == 1
+        assert context[0]["type"] == "Task"
+        assert not any(item["type"] == "Secret" for item in context)
+
+
+@pytest.mark.asyncio
+class TestEmptyContextProvider:
+    """Test EmptyContextProvider for stateless agents."""
+
+    async def test_empty_provider_exists(self):
+        """EmptyContextProvider must be implemented."""
+        from flock.context_provider import EmptyContextProvider
+
+        provider = EmptyContextProvider()
+        assert provider is not None
+
+    async def test_empty_provider_returns_empty_list(self):
+        """EmptyContextProvider must always return empty list."""
+        from flock.context_provider import EmptyContextProvider, ContextRequest
+
+        correlation = uuid4()
+
+        # Create artifacts (should be ignored)
+        artifacts = [
+            Artifact(
+                id=uuid4(),
+                type="Task",
+                payload={"title": f"Task {i}"},
+                produced_by="system",
+                correlation_id=correlation,
+                visibility=PublicVisibility(),
+            )
+            for i in range(5)
+        ]
+
+        store = MockStore(artifacts)
+        agent = MockAgent("worker")
+
+        provider = EmptyContextProvider()
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=agent.identity,
+        )
+
+        # Should always return empty list
+        context = await provider(request)
+
+        assert context == []
+        assert len(context) == 0
+
+    async def test_empty_provider_ignores_visibility(self):
+        """EmptyContextProvider returns empty list regardless of visibility.
+
+        Since no artifacts are returned, visibility is irrelevant (N/A).
+        """
+        from flock.context_provider import EmptyContextProvider, ContextRequest
+
+        correlation = uuid4()
+
+        # Mix of public and private artifacts
+        public_artifact = Artifact(
+            id=uuid4(),
+            type="Task",
+            payload={"title": "Public"},
+            produced_by="system",
+            correlation_id=correlation,
+            visibility=PublicVisibility(),
+        )
+
+        private_artifact = Artifact(
+            id=uuid4(),
+            type="Secret",
+            payload={"api_key": "sk-secret123"},
+            produced_by="admin",
+            correlation_id=correlation,
+            visibility=PrivateVisibility(agents={"admin"}),
+        )
+
+        store = MockStore([public_artifact, private_artifact])
+
+        # Try with admin (has access to private)
+        admin_agent = MockAgent("admin")
+        provider = EmptyContextProvider()
+        admin_request = ContextRequest(
+            agent=admin_agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=admin_agent.identity,
+        )
+
+        admin_context = await provider(admin_request)
+        assert admin_context == []
+
+        # Try with untrusted (no access to private)
+        untrusted_agent = MockAgent("untrusted")
+        untrusted_request = ContextRequest(
+            agent=untrusted_agent,
+            correlation_id=correlation,
+            store=store,
+            agent_identity=untrusted_agent.identity,
+        )
+
+        untrusted_context = await provider(untrusted_request)
+        assert untrusted_context == []

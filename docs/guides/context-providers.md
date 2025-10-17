@@ -145,28 +145,119 @@ warn_agent.context_provider = FilteredContextProvider(FilterConfig(tags={"WARN",
 
 ## Built-In Provider Types
 
-### 1. DefaultContextProvider (Fallback)
+### 1. DefaultContextProvider
 
-**What it does:** Returns all visible artifacts (visibility filtering only).
+**What it does:** Shows ALL artifacts on blackboard (visibility filtering only).
+
+**EXPLICIT IS BETTER THAN IMPLICIT:** No magic correlation filtering! For workflow isolation, use `CorrelatedContextProvider` explicitly.
 
 ```python
 from flock.context_provider import DefaultContextProvider
 
-# Minimal filtering - just visibility enforcement
+# Show agents everything they're allowed to see
 provider = DefaultContextProvider()
 flock = Flock("openai/gpt-4.1", context_provider=provider)
 ```
 
 **Use when:**
-- You only need visibility enforcement
-- No additional filtering required
-- All agents should see all visible artifacts
+- You want full blackboard visibility
+- No additional filtering needed
+- Agents decide what's relevant from all visible artifacts
 
 **Performance:** Returns all artifacts (can be expensive with large boards)
 
 ---
 
-### 2. FilteredContextProvider (Declarative Filtering)
+### 2. CorrelatedContextProvider
+
+**What it does:** Workflow isolation - only show artifacts from the agent's specific workflow (correlation_id).
+
+```python
+from flock.context_provider import CorrelatedContextProvider
+
+# Agents only see their workflow artifacts
+provider = CorrelatedContextProvider()
+flock = Flock("openai/gpt-4.1", context_provider=provider)
+```
+
+**Use when:**
+- Multi-tenant SaaS with workflow-based isolation
+- Each workflow should be independent
+- Prevent cross-workflow data leakage
+
+**Performance:** Efficient - filters by correlation_id at query time
+
+---
+
+### 3. RecentContextProvider
+
+**What it does:** Token cost control - show only the N most recent artifacts (sorted by timestamp).
+
+```python
+from flock.context_provider import RecentContextProvider
+
+# Only show last 50 artifacts
+provider = RecentContextProvider(limit=50)
+flock = Flock("openai/gpt-4.1", context_provider=provider)
+```
+
+**Use when:**
+- High-volume systems with many artifacts
+- Recent data is more relevant than old data
+- Token cost control is critical
+
+**Performance:** ⭐ 90%+ token savings on large blackboards!
+
+---
+
+### 4. TimeWindowContextProvider
+
+**What it does:** Time-based filtering - show only artifacts from the last X hours.
+
+```python
+from flock.context_provider import TimeWindowContextProvider
+
+# Only show artifacts from last hour
+provider = TimeWindowContextProvider(hours=1)
+flock = Flock("openai/gpt-4.1", context_provider=provider)
+```
+
+**Use when:**
+- Real-time monitoring systems
+- Event-driven architectures
+- Old data becomes irrelevant quickly
+
+**Performance:** Automatic cleanup - no manual pruning needed!
+
+---
+
+### 5. EmptyContextProvider
+
+**What it does:** Stateless agents - returns NO historical context at all.
+
+```python
+from flock.context_provider import EmptyContextProvider
+
+# Agent is purely functional (input → output)
+provider = EmptyContextProvider()
+translator.context_provider = provider  # No context needed!
+```
+
+**Use when:**
+- Simple transformation agents (translation, formatting, etc.)
+- No historical context needed
+- Maximum token savings (zero context overhead)
+
+**Performance:** 💯 Zero context tokens!
+
+**Example use cases:**
+- English → Spanish translator
+- Markdown → HTML converter
+- Image → Thumbnail generator
+
+---
+
+### 6. FilteredContextProvider (Declarative Filtering)
 
 **What it does:** Declarative filtering with `FilterConfig` criteria.
 
