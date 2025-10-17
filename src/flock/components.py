@@ -153,132 +153,61 @@ class EngineComponent(AgentComponent):
         """
         raise NotImplementedError
 
-    async def fetch_conversation_context(
+    def get_conversation_context(
         self,
         ctx: Context,
-        agent: Agent | None = None,
-        correlation_id: UUID | None = None,
         max_artifacts: int | None = None,
-        exclude_ids: set[UUID] | None = None,
     ) -> list[dict[str, Any]]:
-        """Fetch conversation context using Context Provider security boundary.
+        """Get conversation context from Context (read-only helper).
 
-        SECURITY FIX (Phase 5): This method now uses ctx.provider instead of ctx.board.list()
-        to enforce visibility filtering. This prevents engines from bypassing security.
+        Phase 8 Security Fix: This method now simply reads pre-filtered artifacts from
+        Context. The orchestrator evaluates context BEFORE creating Context, so engines
+        can no longer query arbitrary data.
+
+        REMOVED METHODS (Security Fix):
+        - fetch_conversation_context() - REMOVED (engines can't query anymore)
+        - get_latest_artifact_of_type() - REMOVED (engines can't query anymore)
+
+        Migration Guide:
+            Old (vulnerable): context = await self.fetch_conversation_context(ctx, agent, exclude_ids)
+            New (secure): context = ctx.artifacts  # Pre-filtered by orchestrator!
 
         Args:
-            ctx: Execution context (must have .provider, .correlation_id, .store)
-            agent: Agent instance for identity/visibility checks (required for provider)
-            correlation_id: Optional override for correlation filtering
-            max_artifacts: Optional override for artifact limit
-            exclude_ids: Optional set of artifact IDs to exclude (e.g., input artifacts to avoid duplication)
+            ctx: Execution context with pre-filtered artifacts
+            max_artifacts: Optional limit (applies to already-filtered list)
 
         Returns:
-            List of artifact dicts filtered by visibility and correlation
-
-        Security Properties:
-            - ✅ Uses provider.fetch() with visibility enforcement
-            - ✅ No direct store access (ctx.board removed in Phase 1)
-            - ✅ Agent can only see artifacts they're allowed to see
-            - ✅ Fail-fast: If provider missing, returns empty context (no fallback)
+            List of artifact dicts (pre-filtered by orchestrator via context provider)
         """
         if not self.enable_context or not ctx:
             return []
 
-        target_correlation_id = correlation_id or getattr(ctx, "correlation_id", None)
-        if not target_correlation_id:
-            return []
+        context_items = list(ctx.artifacts)  # Copy to avoid mutation
 
-        # SECURITY: Fail fast if no provider (Phase 7 will inject ctx.provider)
-        provider = getattr(ctx, "provider", None)
-        if not provider:
-            return []  # NO FALLBACK to insecure pattern
+        # Apply engine-level filtering (type exclusions)
+        if self.context_exclude_types:
+            context_items = [
+                item for item in context_items if item["type"] not in self.context_exclude_types
+            ]
 
-        # SECURITY: Fail fast if no agent (needed for visibility checks)
-        if not agent:
-            return []
+        # Apply max artifacts limit
+        max_limit = max_artifacts if max_artifacts is not None else self.context_max_artifacts
+        if max_limit is not None and max_limit > 0:
+            context_items = context_items[-max_limit:]
 
-        # SECURITY: Fail fast if no store (needed for querying)
-        store = getattr(ctx, "store", None)
-        if not store:
-            return []
-
-        try:
-            # SECURITY FIX: Use provider instead of ctx.board.list()
-            # This enforces visibility filtering at the security boundary
-            from flock.context_provider import ContextRequest
-
-            # SECURITY: Use agent_identity from Context (set by orchestrator, trusted source)
-            # This prevents engines from faking identities to bypass visibility
-            agent_identity = getattr(ctx, "agent_identity", None)
-            if not agent_identity and agent:
-                # Fallback for backward compatibility (will be removed)
-                agent_identity = agent.identity
-
-            request = ContextRequest(
-                agent=agent,
-                correlation_id=target_correlation_id,
-                store=store,
-                agent_identity=agent_identity,
-                exclude_ids=exclude_ids,
+        # Add event_number field (engine convention)
+        context = []
+        for i, item in enumerate(context_items):
+            context.append(
+                {
+                    "type": item["type"],
+                    "payload": item["payload"],
+                    "produced_by": item["produced_by"],
+                    "event_number": i,
+                }
             )
 
-            # Provider returns pre-filtered context (visibility already enforced)
-            context_items = await provider(request)
-
-            # Apply engine-level filtering (type exclusions)
-            if self.context_exclude_types:
-                context_items = [
-                    item for item in context_items if item["type"] not in self.context_exclude_types
-                ]
-
-            # Sort by created_at if available
-            context_items.sort(key=lambda item: item.get("created_at", 0))
-
-            # Apply max artifacts limit
-            max_limit = max_artifacts if max_artifacts is not None else self.context_max_artifacts
-            if max_limit is not None and max_limit > 0:
-                context_items = context_items[-max_limit:]
-
-            # Add event_number field (engine convention)
-            context = []
-            for i, item in enumerate(context_items):
-                context.append(
-                    {
-                        "type": item["type"],
-                        "payload": item["payload"],
-                        "produced_by": item["produced_by"],
-                        "event_number": i,
-                    }
-                )
-
-            return context
-
-        except Exception:
-            # Fail gracefully but don't fall back to insecure pattern
-            return []
-
-    async def get_latest_artifact_of_type(
-        self,
-        ctx: Context,
-        artifact_type: str,
-        correlation_id: UUID | None = None,
-        agent: Agent | None = None,
-    ) -> dict[str, Any] | None:
-        """Get the most recent artifact of a specific type in the conversation.
-
-        Args:
-            ctx: Execution context
-            artifact_type: Type of artifact to find
-            correlation_id: Optional correlation ID override
-            agent: Agent instance for identity/visibility checks (required for security)
-
-        Returns:
-            Latest artifact dict of the specified type, or None if not found
-        """
-        context = await self.fetch_conversation_context(ctx, agent=agent, correlation_id=correlation_id)
-        matching = [a for a in context if a["type"].endswith(artifact_type)]
-        return matching[-1] if matching else None
+        return context
 
     def should_use_context(self, inputs: EvalInputs) -> bool:
         """Determine if context should be included based on the current inputs."""

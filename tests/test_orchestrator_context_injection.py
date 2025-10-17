@@ -1,23 +1,24 @@
-"""Tests for Orchestrator Context Injection + Publishing - Phase 6+7.
+"""Tests for Orchestrator Context Evaluation + Publishing - Phase 8.
 
-This test suite verifies the COMBINED Phase 6+7 implementation:
+This test suite verifies the Phase 8 FINAL security implementation:
+
+Phase 8 (Pre-filtered Context):
+- Orchestrator evaluates context BEFORE creating Context
+- Context contains ONLY pre-filtered artifacts (no provider/store)
+- Engines are pure functions: input + ctx.artifacts → output
+- Fixes Vulnerability #4 (STORE ACCESS) - engines can't query anything
 
 Phase 6 (Orchestrator Publishing):
 - Agents return artifacts without publishing
 - Orchestrator publishes artifacts after agent.execute()
 - Fixes Vulnerability #2 (WRITE Bypass) - agents can't bypass validation
 
-Phase 7 (Context Injection):
-- Orchestrator injects provider + store when creating Context
-- Provider resolution: per-agent > global > DefaultContextProvider
-- Fixes Vulnerability #1 (READ Bypass) - engines use secure provider
-
 Security Properties:
 - ✅ Agents have NO direct publishing capability
 - ✅ Orchestrator validates and publishes all artifacts
-- ✅ Context has provider + store (NO board/orchestrator)
-- ✅ Provider enforces visibility filtering
-- ✅ Per-agent provider overrides global provider
+- ✅ Context has ONLY pre-filtered artifacts (NO provider/store/board/orchestrator)
+- ✅ Orchestrator evaluates context using provider (not engines)
+- ✅ Per-agent provider overrides global provider (orchestrator-level)
 """
 
 import pytest
@@ -48,13 +49,13 @@ class Result(BaseModel):
 
 @pytest.mark.asyncio
 class TestOrchestratorContextInjection:
-    """Phase 7: Test orchestrator injects provider + store into Context."""
+    """Phase 8: Test orchestrator evaluates context and creates Context with pre-filtered artifacts."""
 
-    async def test_orchestrator_injects_provider_into_context(self):
-        """SECURITY: Orchestrator must inject provider when creating Context.
+    async def test_orchestrator_provides_prefiltered_artifacts_in_context(self):
+        """SECURITY Phase 8: Context must contain ONLY pre-filtered artifacts (no provider/store).
 
-        This ensures engines have access to the secure provider boundary
-        instead of direct store access.
+        This ensures engines cannot query arbitrary data - they receive only
+        the pre-filtered conversation context evaluated by the orchestrator.
         """
         flock = Flock("openai/gpt-4o-mini")
 
@@ -76,21 +77,27 @@ class TestOrchestratorContextInjection:
         # Invoke agent
         await flock.invoke(agent, Task(name="test", priority=1), publish_outputs=False)
 
-        # SECURITY: Context must have provider injected
+        # SECURITY Phase 8: Context must have artifacts field (pre-filtered)
         assert captured_ctx is not None
-        assert hasattr(captured_ctx, "provider")
-        assert captured_ctx.provider is not None, "Orchestrator must inject provider"
+        assert hasattr(captured_ctx, "artifacts")
+        assert isinstance(captured_ctx.artifacts, list), "Context must have pre-filtered artifacts list"
 
-        # SECURITY: Context must have store injected
-        assert hasattr(captured_ctx, "store")
-        assert captured_ctx.store is not None, "Orchestrator must inject store"
-        assert captured_ctx.store is flock.store
+        # SECURITY Phase 8: Context must NOT have provider or store
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.provider
 
-    async def test_orchestrator_removes_board_and_orchestrator_from_context(self):
-        """SECURITY: Context must NOT have board or orchestrator (Phase 1 fix).
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.store
 
-        Phase 1 removed these fields from Context to prevent agents from
-        bypassing security boundaries.
+    async def test_orchestrator_removes_all_capability_fields_from_context(self):
+        """SECURITY Phase 8: Context must NOT have ANY capability fields.
+
+        All phases combined removed these fields to prevent agents from
+        bypassing security boundaries:
+        - Phase 1: Removed board, orchestrator
+        - Phase 8: Removed provider, store
+
+        Context is now purely data - no capabilities!
         """
         flock = Flock("openai/gpt-4o-mini")
 
@@ -110,15 +117,29 @@ class TestOrchestratorContextInjection:
         # Invoke agent
         await flock.invoke(agent, Task(name="test", priority=1), publish_outputs=False)
 
-        # SECURITY: Context must NOT have board or orchestrator
+        # SECURITY Phase 8: Context must NOT have ANY capability fields
         assert captured_ctx is not None
-        assert not hasattr(captured_ctx, "board") or captured_ctx.board is None
-        assert not hasattr(captured_ctx, "orchestrator") or captured_ctx.orchestrator is None
+
+        # Phase 1 removals
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.board
+
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.orchestrator
+
+        # Phase 8 removals
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.provider
+
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.store
 
     async def test_orchestrator_uses_default_provider_when_no_custom_provider(self):
-        """Provider resolution: Use DefaultContextProvider when no custom provider configured."""
-        from flock.context_provider import BoundContextProvider
+        """Phase 8: Orchestrator uses DefaultContextProvider internally when no custom provider configured.
 
+        The orchestrator evaluates context using the provider BEFORE creating Context.
+        Engines receive only pre-filtered artifacts via ctx.artifacts.
+        """
         flock = Flock("openai/gpt-4o-mini")  # No context_provider specified
 
         # Create agent without custom provider
@@ -137,17 +158,21 @@ class TestOrchestratorContextInjection:
         # Invoke agent
         await flock.invoke(agent, Task(name="test", priority=1), publish_outputs=False)
 
-        # Provider should be BoundContextProvider wrapping DefaultContextProvider
+        # Phase 8: Context has pre-filtered artifacts (no provider field)
         assert captured_ctx is not None
-        assert captured_ctx.provider is not None
-        assert isinstance(captured_ctx.provider, BoundContextProvider)
-        # The inner provider should be DefaultContextProvider
-        assert isinstance(captured_ctx.provider._inner, DefaultContextProvider)
+        assert hasattr(captured_ctx, "artifacts")
+        assert isinstance(captured_ctx.artifacts, list)
+
+        # Context does NOT have provider (it was used by orchestrator)
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.provider
 
     async def test_orchestrator_uses_global_provider_when_configured(self):
-        """Provider resolution: Use global provider when configured at Flock level."""
-        from flock.context_provider import BoundContextProvider
+        """Phase 8: Orchestrator uses global provider internally when configured at Flock level.
 
+        The orchestrator uses the provider to evaluate context, then creates
+        Context with pre-filtered artifacts only.
+        """
         # Create global provider
         global_provider = FilteredContextProvider(FilterConfig(tags={"important"}))
 
@@ -169,19 +194,21 @@ class TestOrchestratorContextInjection:
         # Invoke agent
         await flock.invoke(agent, Task(name="test", priority=1), publish_outputs=False)
 
-        # Provider should be BoundContextProvider wrapping the global provider
+        # Phase 8: Context has pre-filtered artifacts only
         assert captured_ctx is not None
-        assert captured_ctx.provider is not None
-        assert isinstance(captured_ctx.provider, BoundContextProvider)
-        assert captured_ctx.provider._inner is global_provider
+        assert hasattr(captured_ctx, "artifacts")
+
+        # Context does NOT have provider (orchestrator used it internally)
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.provider
 
     async def test_orchestrator_uses_per_agent_provider_when_configured(self):
-        """Provider resolution: Per-agent provider overrides global provider.
+        """Phase 8: Orchestrator uses per-agent provider internally (overrides global provider).
 
         Priority: per-agent > global > DefaultContextProvider
+        The orchestrator uses this provider to evaluate context, then creates
+        Context with pre-filtered artifacts.
         """
-        from flock.context_provider import BoundContextProvider
-
         # Create global provider
         global_provider = FilteredContextProvider(FilterConfig(tags={"important"}))
 
@@ -207,14 +234,16 @@ class TestOrchestratorContextInjection:
         # Invoke agent
         await flock.invoke(agent, Task(name="test", priority=1), publish_outputs=False)
 
-        # Provider should be BoundContextProvider wrapping the per-agent provider (NOT global)
+        # Phase 8: Context has pre-filtered artifacts only (orchestrator used per-agent provider)
         assert captured_ctx is not None
-        assert captured_ctx.provider is not None
-        assert isinstance(captured_ctx.provider, BoundContextProvider)
-        assert captured_ctx.provider._inner is agent_provider, "Per-agent provider should override global"
+        assert hasattr(captured_ctx, "artifacts")
+
+        # Context does NOT have provider
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.provider
 
     async def test_context_has_all_required_fields(self):
-        """Context must have all required fields for engine operations."""
+        """Phase 8: Context must have all required fields (data only, no capabilities)."""
         flock = Flock("openai/gpt-4o-mini")
 
         agent = flock.agent("worker").consumes(Task).publishes(Result).agent
@@ -234,13 +263,20 @@ class TestOrchestratorContextInjection:
         await flock.publish(task)
         await flock.run_until_idle()
 
-        # Context must have all required fields
+        # Phase 8: Context must have data fields (no capability fields)
         assert captured_ctx is not None
-        assert hasattr(captured_ctx, "provider")
-        assert hasattr(captured_ctx, "store")
+        assert hasattr(captured_ctx, "artifacts")  # Pre-filtered data
         assert hasattr(captured_ctx, "correlation_id")
         assert hasattr(captured_ctx, "task_id")
         assert hasattr(captured_ctx, "state")
+        assert hasattr(captured_ctx, "agent_identity")  # Informational only
+
+        # Phase 8: Context must NOT have capability fields
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.provider
+
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.store
 
 
 @pytest.mark.asyncio
@@ -430,11 +466,11 @@ class TestPhase67Integration:
     """Integration tests for combined Phase 6+7 security fixes."""
 
     async def test_end_to_end_security_boundary(self):
-        """Full security flow: Provider injection + orchestrator publishing.
+        """Phase 8: Full security flow with pre-filtered context + orchestrator publishing.
 
-        This test verifies the complete Phase 6+7 security fixes work together:
-        1. Orchestrator injects provider + store into Context
-        2. Engine uses provider for secure context fetching
+        This test verifies the complete Phase 8 security fixes work together:
+        1. Orchestrator evaluates context using provider (BEFORE creating Context)
+        2. Context contains ONLY pre-filtered artifacts (no capabilities)
         3. Agent returns artifacts without publishing
         4. Orchestrator validates and publishes artifacts
         """
@@ -443,7 +479,7 @@ class TestPhase67Integration:
         # Create agent
         agent = flock.agent("worker").consumes(Task).publishes(Result).agent
 
-        # Track Context injection
+        # Track Context
         captured_ctx = None
 
         async def mock_execute(ctx, artifacts):
@@ -463,15 +499,24 @@ class TestPhase67Integration:
         await flock.publish(task)
         await flock.run_until_idle()
 
-        # SECURITY CHECKS:
-        # 1. Context has provider + store injected
+        # SECURITY CHECKS Phase 8:
+        # 1. Context has pre-filtered artifacts (no capabilities)
         assert captured_ctx is not None
-        assert captured_ctx.provider is not None
-        assert captured_ctx.store is not None
+        assert hasattr(captured_ctx, "artifacts")
+        assert isinstance(captured_ctx.artifacts, list)
 
-        # 2. Context does NOT have board/orchestrator
-        assert not hasattr(captured_ctx, "board") or captured_ctx.board is None
-        assert not hasattr(captured_ctx, "orchestrator") or captured_ctx.orchestrator is None
+        # 2. Context does NOT have ANY capability fields
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.provider
+
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.store
+
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.board
+
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.orchestrator
 
         # 3. Result was published by orchestrator
         all_artifacts = await flock.store.list()
@@ -479,8 +524,13 @@ class TestPhase67Integration:
         assert len(result_artifacts) > 0
         assert any(a.payload["task_name"] == "secure-test" for a in result_artifacts)
 
-    async def test_visibility_enforcement_with_provider_injection(self):
-        """Provider must enforce visibility even when injected by orchestrator."""
+    async def test_visibility_enforcement_with_context_evaluation(self):
+        """Phase 8: Orchestrator enforces visibility when evaluating context.
+
+        The orchestrator uses the provider to evaluate context BEFORE creating Context.
+        Engines receive only pre-filtered artifacts via ctx.artifacts.
+        Private artifacts should NOT appear in ctx.artifacts.
+        """
         flock = Flock("openai/gpt-4o-mini")
 
         # Create private artifact (only visible to admin)
@@ -493,33 +543,36 @@ class TestPhase67Integration:
         # Create agent (NOT admin)
         agent = flock.agent("hacker").consumes(Task).publishes(Result).agent
 
-        # Mock agent to try to access private artifact via provider
+        # Mock agent to check ctx.artifacts
         captured_ctx = None
 
         async def mock_execute(ctx, artifacts):
             nonlocal captured_ctx
             captured_ctx = ctx
-
-            # Try to fetch context (should NOT see private artifact)
-            from flock.context_provider import ContextRequest
-            if ctx.provider and ctx.store:
-                request = ContextRequest(
-                    agent=agent,
-                    correlation_id=ctx.correlation_id,
-                    store=ctx.store,
-                    agent_identity=agent.identity
-                )
-                context = await ctx.provider(request)
-                # Should NOT see private artifact
-                assert not any(item["payload"]["name"] == "secret" for item in context)
-
             return []
 
         agent.execute = mock_execute
 
-        # Invoke agent
+        # Invoke agent with correlation_id (to enable context fetching)
         public_task = Task(name="public", priority=1)
-        await flock.invoke(agent, public_task, publish_outputs=False)
+        # Publish with same correlation_id as private artifact to test filtering
+        await flock.publish(public_task, correlation_id=private_artifact.correlation_id)
+        await flock.run_until_idle()
 
-        # Provider must have enforced visibility
+        # Phase 8: ctx.artifacts should NOT contain private artifact
         assert captured_ctx is not None
+        assert hasattr(captured_ctx, "artifacts")
+
+        # Private artifact should NOT be in pre-filtered context
+        secret_in_context = any(
+            item.get("payload", {}).get("name") == "secret"
+            for item in captured_ctx.artifacts
+        )
+        assert not secret_in_context, "Private artifact should NOT be in pre-filtered context"
+
+        # Agent cannot query for more data (no provider/store)
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.provider
+
+        with pytest.raises(AttributeError):
+            _ = captured_ctx.store

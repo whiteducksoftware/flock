@@ -319,20 +319,20 @@ class TestContext:
     """Tests for Context class."""
 
     def test_context_creation(self):
-        """Test Context creation with new secure fields (provider/store instead of board/orchestrator)."""
-        provider = object()  # Mock provider
-        store = object()  # Mock store
+        """Test Context creation with Phase 8 security fix (pre-filtered artifacts only)."""
         correlation_id = uuid4()
+        pre_filtered_artifacts = [
+            {"type": "Message", "payload": {"text": "hello"}, "produced_by": "user"},
+            {"type": "Response", "payload": {"text": "hi"}, "produced_by": "bot"},
+        ]
 
         context = Context(
-            provider=provider,
-            store=store,
+            artifacts=pre_filtered_artifacts,
             correlation_id=correlation_id,
             task_id="task_123",
         )
 
-        assert context.provider is provider
-        assert context.store is store
+        assert context.artifacts == pre_filtered_artifacts
         assert context.correlation_id == correlation_id
         assert context.task_id == "task_123"
         assert context.state == {}
@@ -342,8 +342,6 @@ class TestContext:
         state = {"key": "value", "count": 42}
 
         context = Context(
-            provider=None,
-            store=None,
             task_id="task_456",
             state=state,
         )
@@ -353,8 +351,6 @@ class TestContext:
     def test_get_variable(self):
         """Test get_variable method."""
         context = Context(
-            provider=None,
-            store=None,
             task_id="test",
             state={"var1": "value1", "var2": 123},
         )
@@ -367,8 +363,6 @@ class TestContext:
     def test_context_without_correlation_id(self):
         """Test Context creation without correlation_id."""
         context = Context(
-            provider=None,
-            store=None,
             task_id="task_789",
         )
 
@@ -379,16 +373,12 @@ class TestContext:
         """Test Context.is_batch field defaults to False and can be set to True."""
         # Test default value is False
         context = Context(
-            provider=None,
-            store=None,
             task_id="test_task",
         )
         assert context.is_batch is False
 
         # Test can be set to True
         context_batch = Context(
-            provider=None,
-            store=None,
             task_id="batch_task",
             is_batch=True,
         )

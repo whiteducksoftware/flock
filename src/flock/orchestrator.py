@@ -610,23 +610,33 @@ class Flock(metaclass=AutoTracedMeta):
             self._mark_processed(artifact, agent)
             await self._persist_and_schedule(artifact)
 
-        # Phase 7: Inject provider + store (security boundary)
+        # Phase 8: Evaluate context BEFORE creating Context (security fix)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import BoundContextProvider, DefaultContextProvider
+        from flock.context_provider import BoundContextProvider, DefaultContextProvider, ContextRequest
         inner_provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
 
         # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
-        # Even if engines create fake Context objects with different agent_identity,
-        # the bound provider will use the trusted agent.identity
         provider = BoundContextProvider(inner_provider, agent.identity)
 
-        # Phase 6+7: Create Context (streaming coordination via Agent class variables)
-        # SECURITY: Set agent_identity from trusted source (orchestrator)
-        ctx = Context(
-            provider=provider,  # Bound provider ignores fake agent_identity values
+        # Evaluate context using provider (orchestrator controls this!)
+        # Engines will receive pre-filtered artifacts via ctx.artifacts
+        correlation_id = artifacts[0].correlation_id if artifacts and artifacts[0].correlation_id else uuid4()
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation_id,
             store=self.store,
             agent_identity=agent.identity,
-            task_id=str(uuid4())
+            exclude_ids={a.id for a in artifacts}  # Exclude input artifacts
+        )
+        context_artifacts = await provider(request)
+
+        # Phase 8: Create Context with pre-filtered data (no capabilities!)
+        # SECURITY: Context is now just data - engines can't query anything
+        ctx = Context(
+            artifacts=context_artifacts,  # Pre-filtered conversation context
+            agent_identity=agent.identity,
+            task_id=str(uuid4()),
+            correlation_id=correlation_id
         )
         self._record_agent_run(agent)
         return await agent.execute(ctx, artifacts)
@@ -991,23 +1001,32 @@ class Flock(metaclass=AutoTracedMeta):
             visibility=PublicVisibility(),
         )
 
-        # Phase 7: Inject provider + store (security boundary)
+        # Phase 8: Evaluate context BEFORE creating Context (security fix)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import BoundContextProvider, DefaultContextProvider
+        from flock.context_provider import BoundContextProvider, DefaultContextProvider, ContextRequest
         inner_provider = getattr(agent_obj, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
 
         # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
-        # Even if engines create fake Context objects with different agent_identity,
-        # the bound provider will use the trusted agent_obj.identity
         provider = BoundContextProvider(inner_provider, agent_obj.identity)
 
-        # Phase 6+7: Create Context (streaming coordination via Agent class variables)
-        # SECURITY: Set agent_identity from trusted source (orchestrator)
-        ctx = Context(
-            provider=provider,  # Bound provider ignores fake agent_identity values
+        # Evaluate context using provider (orchestrator controls this!)
+        correlation_id = artifact.correlation_id if artifact.correlation_id else uuid4()
+        request = ContextRequest(
+            agent=agent_obj,
+            correlation_id=correlation_id,
             store=self.store,
             agent_identity=agent_obj.identity,
-            task_id=str(uuid4())
+            exclude_ids={artifact.id}  # Exclude input artifact
+        )
+        context_artifacts = await provider(request)
+
+        # Phase 8: Create Context with pre-filtered data (no capabilities!)
+        # SECURITY: Context is now just data - engines can't query anything
+        ctx = Context(
+            artifacts=context_artifacts,  # Pre-filtered conversation context
+            agent_identity=agent_obj.identity,
+            task_id=str(uuid4()),
+            correlation_id=correlation_id
         )
         self._record_agent_run(agent_obj)
 
@@ -1377,21 +1396,29 @@ class Flock(metaclass=AutoTracedMeta):
     ) -> None:
         correlation_id = artifacts[0].correlation_id if artifacts else uuid4()
 
-        # Phase 7: Inject provider + store (security boundary)
+        # Phase 8: Evaluate context BEFORE creating Context (security fix)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import BoundContextProvider, DefaultContextProvider
+        from flock.context_provider import BoundContextProvider, DefaultContextProvider, ContextRequest
         inner_provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
 
         # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
-        # Even if engines create fake Context objects with different agent_identity,
-        # the bound provider will use the trusted agent.identity
         provider = BoundContextProvider(inner_provider, agent.identity)
 
-        # Phase 6+7: Create Context (streaming coordination via Agent class variables)
-        # SECURITY: Set agent_identity from trusted source (orchestrator)
-        ctx = Context(
-            provider=provider,  # Bound provider ignores fake agent_identity values
+        # Evaluate context using provider (orchestrator controls this!)
+        # Engines will receive pre-filtered artifacts via ctx.artifacts
+        request = ContextRequest(
+            agent=agent,
+            correlation_id=correlation_id,
             store=self.store,
+            agent_identity=agent.identity,
+            exclude_ids={a.id for a in artifacts}  # Exclude input artifacts
+        )
+        context_artifacts = await provider(request)
+
+        # Phase 8: Create Context with pre-filtered data (no capabilities!)
+        # SECURITY: Context is now just data - engines can't query anything
+        ctx = Context(
+            artifacts=context_artifacts,  # Pre-filtered conversation context
             agent_identity=agent.identity,
             task_id=str(uuid4()),
             correlation_id=correlation_id,

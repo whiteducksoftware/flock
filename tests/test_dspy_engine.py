@@ -644,41 +644,46 @@ class TestDSPyEngineArtifactMaterialization:
 
 
 class TestDSPyEngineContext:
-    """Test context handling functionality."""
+    """Test context handling functionality - Phase 8."""
 
     def test_conversation_context_method_exists(self):
-        """Test that conversation context method is available (inherited)."""
+        """Phase 8: Test that get_conversation_context method is available (inherited)."""
         from flock.engines.dspy_engine import DSPyEngine
 
         engine = DSPyEngine()
-        # The method should be inherited from EngineComponent
-        assert hasattr(engine, "fetch_conversation_context")
-        assert callable(engine.fetch_conversation_context)
+        # Phase 8: Method is get_conversation_context (NOT fetch_conversation_context)
+        assert hasattr(engine, "get_conversation_context")
+        assert callable(engine.get_conversation_context)
 
-    @pytest.mark.asyncio
-    async def test_fetch_conversation_context_without_orchestrator(self):
-        """Test conversation context fetching without orchestrator."""
-        engine = DSPyEngine()
-        mock_ctx = Mock()
-        mock_ctx.orchestrator = None
-
-        result = await engine.fetch_conversation_context(mock_ctx)
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_fetch_conversation_context_with_store_error(self):
-        """Test conversation context fetching with store error."""
+    def test_get_conversation_context_with_prefiltered_artifacts(self):
+        """Phase 8: Test reading pre-filtered context from ctx.artifacts."""
         engine = DSPyEngine()
 
-        mock_store = Mock()
-        mock_store.list = AsyncMock(side_effect=Exception("Store error"))
-        mock_orchestrator = Mock()
-        mock_orchestrator.store = mock_store
-
+        # Phase 8: Context has pre-filtered artifacts (no orchestrator)
         mock_ctx = Mock()
-        mock_ctx.orchestrator = mock_orchestrator
+        mock_ctx.artifacts = [
+            {"type": "Message", "payload": {"text": "hello"}, "produced_by": "user"},
+            {"type": "Response", "payload": {"text": "hi"}, "produced_by": "bot"},
+        ]
 
-        result = await engine.fetch_conversation_context(mock_ctx)
+        result = engine.get_conversation_context(mock_ctx)
+
+        # Should return artifacts with event_number added
+        assert len(result) == 2
+        assert result[0]["type"] == "Message"
+        assert result[1]["type"] == "Response"
+        assert result[0]["event_number"] == 0
+        assert result[1]["event_number"] == 1
+
+    def test_get_conversation_context_with_empty_artifacts(self):
+        """Phase 8: Test context reading with no artifacts."""
+        engine = DSPyEngine()
+
+        # Phase 8: Context has empty artifacts list
+        mock_ctx = Mock()
+        mock_ctx.artifacts = []
+
+        result = engine.get_conversation_context(mock_ctx)
         assert result == []
 
 
@@ -856,12 +861,9 @@ class TestDSPyEngineErrorHandling:
         agent.tools = []
         agent._get_mcp_tools = AsyncMock(return_value=[])
 
+        # Phase 8: Context has pre-filtered artifacts (no orchestrator)
         ctx = Mock()
-        ctx.orchestrator = Mock()
-        ctx.orchestrator.store = AsyncMock()
-        ctx.orchestrator.store.list.return_value = []
-        # Fix the Mock to return integer for comparison
-        ctx.orchestrator._active_streams = 0
+        ctx.artifacts = []  # Pre-filtered by orchestrator
 
         input_artifact = Artifact(type="TestInput", payload={"prompt": "test"}, produced_by="test")
         inputs = EvalInputs(artifacts=[input_artifact], state={})
@@ -911,11 +913,10 @@ class TestDSPyEngineIntegration:
             type="TestInput", payload={"prompt": "test prompt"}, produced_by="test"
         )
         inputs = EvalInputs(artifacts=[input_artifact], state={})
+
+        # Phase 8: Context has pre-filtered artifacts (no orchestrator)
         ctx = Mock()
-        ctx.orchestrator = orchestrator
-        ctx.orchestrator.store = Mock()
-        ctx.orchestrator.store.list = AsyncMock(return_value=[])
-        ctx.orchestrator._active_streams = 0
+        ctx.artifacts = []  # Pre-filtered by orchestrator
 
         # Act
         output_group = OutputGroup(outputs=[], group_description=None)
@@ -935,7 +936,6 @@ class TestDSPyEngineIntegration:
 
         engine = DSPyEngine(model="gpt-4", stream=False)
         spy_signature = mocker.spy(engine, "_prepare_signature_with_context")
-        mocker.patch.object(DSPyEngine, "fetch_conversation_context", AsyncMock(return_value=[]))
 
         mock_program = Mock()
         engine._choose_program = Mock(return_value=mock_program)
@@ -950,13 +950,10 @@ class TestDSPyEngineIntegration:
         agent.tools = []
         agent._get_mcp_tools = AsyncMock(return_value=[])
 
+        # Phase 8: Context has pre-filtered artifacts (no orchestrator)
         ctx = Mock()
-        ctx.orchestrator = Mock()
-        ctx.orchestrator.store = Mock()
-        ctx.orchestrator.store.list = AsyncMock(return_value=[])
-        ctx.orchestrator._active_streams = 0
-        # Phase 7: Set batch flag for auto-detection
-        ctx.is_batch = True
+        ctx.artifacts = []  # Pre-filtered by orchestrator
+        ctx.is_batch = True  # Batch mode flag
 
         artifacts = [
             Artifact(type="TestInput", payload={"prompt": "one"}, produced_by="test"),
@@ -1029,11 +1026,10 @@ class TestDSPyEngineIntegration:
 
         # Use direct evaluation
         inputs = EvalInputs(artifacts=[input_artifact], state={})
+
+        # Phase 8: Context has pre-filtered artifacts (no orchestrator)
         ctx = Mock()
-        ctx.orchestrator = orchestrator
-        ctx.orchestrator.store = Mock()
-        ctx.orchestrator.store.list = AsyncMock(return_value=[])
-        ctx.orchestrator._active_streams = 0
+        ctx.artifacts = []  # Pre-filtered by orchestrator
 
         # Act
         output_group = OutputGroup(outputs=[], group_description=None)

@@ -67,10 +67,9 @@ async def __call__(self, ctx: Context, inputs: list[dict]) -> list[dict]:
 
 ```mermaid
 graph TB
-    subgraph "🤖 Agent (Untrusted)"
-        Agent[Agent Business Logic]
-        NoBoard[❌ No ctx.board]
-        NoOrch[❌ No ctx.orchestrator]
+    subgraph "🏗️ Orchestrator (Trusted)"
+        Orch[Orchestrator]
+        EvalContext[Evaluate Context<br/>using Provider]
     end
 
     subgraph "🔐 Security Boundary"
@@ -85,7 +84,17 @@ graph TB
         Artifacts[(All Artifacts)]
     end
 
-    Agent -->|ctx.provider| Provider
+    subgraph "🤖 Engine (Untrusted)"
+        Engine[Engine Business Logic]
+        NoProvider[❌ No ctx.provider]
+        NoStore[❌ No ctx.store]
+        NoBoard[❌ No ctx.board]
+        NoOrch[❌ No ctx.orchestrator]
+        ReadOnly[✅ ctx.artifacts (read-only)]
+    end
+
+    Orch -->|1. Calls Provider| EvalContext
+    EvalContext -->|Uses| Provider
     Provider -->|Query| Store
     Store --> Artifacts
 
@@ -93,25 +102,42 @@ graph TB
     Provider --> Redaction
     Provider --> Filtering
 
-    Visibility -->|Filtered Context| Agent
-    Redaction -->|Safe Data| Agent
-    Filtering -->|Relevant Only| Agent
+    Visibility -->|Pre-filtered| Orch
+    Redaction -->|Safe Data| Orch
+    Filtering -->|Relevant Only| Orch
 
-    style Agent fill:#ef4444,stroke:#333,stroke-width:2px,color:#fff
+    Orch -->|2. Creates Context<br/>with artifacts| Engine
+    Engine -->|Reads| ReadOnly
+
+    style Orch fill:#10b981,stroke:#333,stroke-width:3px,color:#fff
     style Provider fill:#10b981,stroke:#333,stroke-width:3px,color:#fff
     style Store fill:#3b82f6,stroke:#333,stroke-width:2px,color:#fff
+    style Engine fill:#ef4444,stroke:#333,stroke-width:2px,color:#fff
     style Visibility fill:#8b5cf6,stroke:#333,stroke-width:2px,color:#fff
     style Redaction fill:#f59e0b,stroke:#333,stroke-width:2px,color:#fff
     style Filtering fill:#06b6d4,stroke:#333,stroke-width:2px,color:#fff
 ```
 
+**Phase 8 Architecture (Current):**
+
+The orchestrator evaluates context using the configured provider **BEFORE** creating Context. Engines receive only pre-filtered artifacts via `ctx.artifacts` and **cannot query for additional data**. This ensures engines are pure functions: `input + ctx.artifacts → output`.
+
+**Execution Flow:**
+1. **Orchestrator** uses Context Provider to fetch and filter artifacts
+2. **Context Provider** enforces visibility, applies filtering, redacts sensitive data
+3. **Orchestrator** creates Context with pre-filtered `artifacts` list (no capabilities!)
+4. **Engine** reads `ctx.artifacts` (pre-filtered data only)
+
 **Key Security Properties:**
-- ✅ **No Direct Board Access** - Agents can't bypass visibility
+- ✅ **No Direct Board Access** - Engines can't access `ctx.board`
 - ✅ **No Direct Publishing** - Orchestrator validates and publishes
-- ✅ **No Orchestrator Access** - Agents are sandboxed
+- ✅ **No Orchestrator Access** - Engines can't access `ctx.orchestrator`
+- ✅ **No Provider Access** - Engines can't access `ctx.provider` (orchestrator uses it)
+- ✅ **No Store Access** - Engines can't access `ctx.store` (orchestrator uses it)
 - ✅ **Visibility Enforced** - Context Provider MUST filter by visibility
 - ✅ **Custom Filtering** - Tag, type, source, correlation filtering
 - ✅ **Data Redaction** - Remove sensitive data automatically
+- ✅ **Pure Functions** - Engines are `(input, pre-filtered context) → output`
 
 ---
 
@@ -449,11 +475,16 @@ FilterConfig(
 
 **What it does:** Your own logic for filtering, redaction, audit, etc.
 
+**Important (Phase 8):** Context Providers are called by the **orchestrator**, not by engines. The orchestrator uses the provider to evaluate context, then creates Context with pre-filtered `artifacts`. Engines receive this pre-filtered data and cannot query for more.
+
 ```python
 from flock.context_provider import ContextProvider, ContextRequest
 
 class MyCustomProvider(ContextProvider):
     async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+        # Called by ORCHESTRATOR (not engines!)
+        # This runs BEFORE Context is created
+
         # 1. Query artifacts from store
         artifacts, _ = await request.store.query_artifacts(limit=100)
 
@@ -466,7 +497,7 @@ class MyCustomProvider(ContextProvider):
         # 3. Apply your custom logic
         filtered = self.my_custom_filtering(visible)
 
-        # 4. Return context
+        # 4. Return context (orchestrator puts this in ctx.artifacts)
         return [
             {
                 "type": a.type,
@@ -479,6 +510,9 @@ class MyCustomProvider(ContextProvider):
             }
             for a in filtered
         ]
+
+        # Result: Orchestrator creates Context(artifacts=<this list>)
+        # Engines read: ctx.artifacts (pre-filtered, immutable)
 ```
 
 **Use when:**

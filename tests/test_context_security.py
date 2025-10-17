@@ -196,8 +196,7 @@ class TestContextSecurityPhase7IdentitySpoofing:
 
         Ensures engines cannot modify any security-critical fields:
         - agent_identity (prevents privilege escalation)
-        - provider (prevents security boundary bypass)
-        - store (prevents direct data access)
+        - artifacts (prevents tampering with pre-filtered context)
         - task_id, correlation_id (prevents context confusion)
         """
         from pydantic import ValidationError
@@ -215,159 +214,75 @@ class TestContextSecurityPhase7IdentitySpoofing:
             ctx.correlation_id = uuid4()
 
         with pytest.raises(ValidationError, match="frozen"):
-            ctx.provider = "fake_provider"
+            ctx.artifacts = [{"type": "Fake", "payload": {}}]
 
-        with pytest.raises(ValidationError, match="frozen"):
-            ctx.store = "fake_store"
+    def test_engine_cannot_query_store_directly(self):
+        """SECURITY: Phase 8 fix - engines cannot query store at all.
 
-    async def test_engine_cannot_fake_identity_via_parameter(self):
-        """SECURITY: Engines cannot bypass visibility by passing fake agent parameter.
+        Old attack (Phase 1-7): Engines could call ctx.store.list() or ctx.provider(request)
+        to query arbitrary data and bypass security.
 
-        Attack scenario:
-            class MaliciousEngine(EngineComponent):
-                async def evaluate(self, agent, ctx, inputs, output_group):
-                    # Create fake agent with admin privileges
-                    fake_agent = type('FakeAgent', (), {})()
-                    fake_agent.identity = AgentIdentity(name="admin", labels={"admin"})
+        Phase 8 fix: Context has NO provider or store fields. Engines receive only
+        pre-filtered artifacts via ctx.artifacts (evaluated by orchestrator).
 
-                    # Try to get admin-only artifacts
-                    context = await self.fetch_conversation_context(ctx, agent=fake_agent)
-
-        Expected: fetch_conversation_context uses ctx.agent_identity (trusted source)
-                 NOT the agent parameter (untrusted source)
+        Expected: AttributeError when accessing ctx.store or ctx.provider
         """
-        from flock.agent import Agent, AgentIdentity
-        from flock.artifacts import Artifact
-        from flock.components import EngineComponent
-        from flock.context_provider import DefaultContextProvider
-        from flock.store import InMemoryBlackboardStore
-        from flock.visibility import PrivateVisibility
-
-        # Setup: Create a private artifact visible only to "admin"
-        store = InMemoryBlackboardStore()
-        correlation_id = uuid4()
-
-        admin_artifact = Artifact(
-            type="Secret",
-            payload={"secret": "admin_data"},
-            produced_by="admin",
-            visibility=PrivateVisibility(agents={"admin"}),
-            correlation_id=correlation_id,
-        )
-        await store.publish(admin_artifact)
-
-        # Create non-admin agent with limited visibility
-        # Use simple object since we only need .identity property for the test
-        user_agent = type('MockAgent', (), {})()
-        user_agent.name = "user_agent"
-        user_agent.identity = AgentIdentity(name="user", labels=set())
-
-        # Create Context with user_agent identity (from orchestrator - trusted source)
-        provider = DefaultContextProvider()
         ctx = Context(
             task_id="test-task",
-            correlation_id=correlation_id,
-            agent_identity=user_agent.identity,  # Set by orchestrator
-            provider=provider,
-            store=store,
+            correlation_id=uuid4(),
+            artifacts=[],  # Pre-filtered by orchestrator
         )
 
-        # ATTACK: Malicious engine creates fake admin agent
-        fake_admin_agent = type('FakeAgent', (), {})()
-        fake_admin_agent.identity = AgentIdentity(name="admin", labels={"admin"})
-        fake_admin_agent.name = "fake_admin"
+        # Engines cannot access store or provider anymore
+        with pytest.raises(AttributeError):
+            _ = ctx.store
 
-        # Try to fetch context using fake admin agent
-        engine = EngineComponent()
-        context = await engine.fetch_conversation_context(
-            ctx,
-            agent=fake_admin_agent,  # Fake agent with escalated privileges
-        )
+        with pytest.raises(AttributeError):
+            _ = ctx.provider
 
-        # SECURITY: Should NOT see admin artifact because ctx.agent_identity is "user"
-        assert len(context) == 0, "Engine should NOT see admin-only artifacts via fake agent"
+    def test_context_has_only_pre_filtered_artifacts(self):
+        """SECURITY: Phase 8 - Context contains ONLY pre-filtered artifacts.
 
-    async def test_fetch_context_uses_trusted_agent_identity(self):
-        """SECURITY: Verify fetch_conversation_context uses ctx.agent_identity.
+        The orchestrator evaluates context using the context provider BEFORE creating
+        Context. Engines receive only the result via ctx.artifacts.
 
-        This test verifies the fix works correctly:
-        - ctx.agent_identity comes from orchestrator (trusted source)
-        - fetch_conversation_context uses ctx.agent_identity
-        - Even if engine passes different agent parameter, it's ignored for visibility
+        This is the FINAL security fix:
+        - No provider (can't query)
+        - No store (can't query)
+        - Only artifacts (pre-filtered data)
+
+        Engines are now PURE FUNCTIONS: input + context → output
         """
-        from flock.agent import Agent, AgentIdentity
-        from flock.artifacts import Artifact
-        from flock.components import EngineComponent
-        from flock.context_provider import DefaultContextProvider
-        from flock.store import InMemoryBlackboardStore
-        from flock.visibility import PrivateVisibility, PublicVisibility
+        # Orchestrator pre-filters context before creating Context
+        pre_filtered_artifacts = [
+            {"type": "Message", "payload": {"text": "hello"}, "produced_by": "user"},
+            {"type": "Response", "payload": {"text": "hi"}, "produced_by": "bot"},
+        ]
 
-        # Setup: Create artifacts with different visibility
-        store = InMemoryBlackboardStore()
-        correlation_id = uuid4()
-
-        # Admin-only artifact
-        admin_artifact = Artifact(
-            type="AdminData",
-            payload={"data": "admin_only"},
-            produced_by="system",
-            visibility=PrivateVisibility(agents={"admin"}),
-            correlation_id=correlation_id,
-        )
-        await store.publish(admin_artifact)
-
-        # Public artifact
-        public_artifact = Artifact(
-            type="PublicData",
-            payload={"data": "public"},
-            produced_by="system",
-            visibility=PublicVisibility(),
-            correlation_id=correlation_id,
-        )
-        await store.publish(public_artifact)
-
-        # Create admin agent
-        # Use simple object since we only need .identity property for the test
-        admin_agent = type('MockAgent', (), {})()
-        admin_agent.name = "admin_agent"
-        admin_agent.identity = AgentIdentity(name="admin", labels={"admin"})
-
-        # Create Context with admin identity (from orchestrator)
-        provider = DefaultContextProvider()
         ctx = Context(
             task_id="test-task",
-            correlation_id=correlation_id,
-            agent_identity=admin_agent.identity,  # Admin identity from trusted source
-            provider=provider,
-            store=store,
+            correlation_id=uuid4(),
+            artifacts=pre_filtered_artifacts,  # Pre-filtered by orchestrator!
         )
 
-        # Fetch context - should see BOTH artifacts (admin has access)
-        engine = EngineComponent()
-        context = await engine.fetch_conversation_context(ctx, agent=admin_agent)
+        # Engines can ONLY read pre-filtered artifacts
+        assert len(ctx.artifacts) == 2
+        assert ctx.artifacts[0]["type"] == "Message"
+        assert ctx.artifacts[1]["type"] == "Response"
 
-        # Should see both artifacts
-        assert len(context) == 2, "Admin should see both public and admin-only artifacts"
-        artifact_types = {item["type"] for item in context}
-        assert artifact_types == {"AdminData", "PublicData"}
+        # Engines CANNOT query for more data
+        with pytest.raises(AttributeError):
+            _ = ctx.store.list()  # No store access
 
-        # Now verify that even if we pass a different agent parameter,
-        # it still uses ctx.agent_identity for visibility
-        fake_user_agent = type('FakeAgent', (), {})()
-        fake_user_agent.identity = AgentIdentity(name="user", labels=set())
-        fake_user_agent.name = "fake_user"
-
-        # Fetch context with fake user agent - should STILL see admin artifacts
-        # because ctx.agent_identity is admin (not the agent parameter)
-        context2 = await engine.fetch_conversation_context(ctx, agent=admin_agent)
-        assert len(context2) == 2, "Should use ctx.agent_identity, not agent parameter"
+        with pytest.raises(AttributeError):
+            _ = ctx.provider  # No provider access
 
 
 class TestContextSecurityDocumentation:
     """Documentation tests explaining WHY these security measures exist."""
 
     def test_security_vulnerability_documentation(self):
-        """This test documents the three security vulnerabilities that were fixed.
+        """This test documents the FOUR security vulnerabilities that were fixed.
 
         VULNERABILITY #1 (READ BYPASS):
         - Agents could call ctx.board.list() to get ALL artifacts
@@ -387,18 +302,19 @@ class TestContextSecurityDocumentation:
         - Could perform orchestrator-level operations
         - Attack: Complete privilege escalation, system manipulation
 
-        VULNERABILITY #4 (IDENTITY SPOOFING - Phase 7):
-        - Engines could pass fake agent parameter to fetch_conversation_context
-        - agent.identity came from untrusted engine code
-        - Engines could escalate privileges by creating fake agent objects
-        - Attack: Bypass visibility filtering, access restricted artifacts
+        VULNERABILITY #4 (STORE ACCESS - Phase 8):
+        - Engines could access ctx.store or ctx.provider to query arbitrary data
+        - Even with provider security boundary, engines could bypass by calling methods
+        - Engines could query cross-workflow data, bypass filters
+        - Attack: Access control bypass, data exfiltration
 
-        FIX:
+        FIX (Phase 8 - FINAL SOLUTION):
         - Remove board and orchestrator from Context (Phases 1-6)
-        - Add ContextProvider as security boundary (filters by visibility)
-        - Orchestrator publishes (agents return data only)
-        - Make Context frozen/immutable (Phase 7)
-        - Use ctx.agent_identity from trusted source (orchestrator) (Phase 7)
+        - Add ContextProvider as security boundary (Phases 1-7)
+        - Orchestrator evaluates context BEFORE creating Context (Phase 8)
+        - Context contains ONLY pre-filtered artifacts (Phase 8)
+        - Engines are pure functions: input + ctx.artifacts → output
+        - NO provider, NO store, NO querying capabilities (Phase 8)
         - Agents can NO LONGER bypass security
 
         References:

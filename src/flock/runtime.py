@@ -247,51 +247,40 @@ class EvalResult(BaseModel):
 class Context(BaseModel):
     """Runtime context for agent execution.
 
-    SECURITY FIX (2025-10-16): Removed board and orchestrator fields.
-    Agents no longer have direct infrastructure access.
+    SECURITY FIX (2025-10-17): Simplified to data-only design.
+    Context is now just pre-filtered data with ZERO capabilities.
 
     Vulnerabilities fixed:
     - Vulnerability #1 (READ): Agents could bypass visibility via ctx.board.list()
     - Vulnerability #2 (WRITE): Agents could bypass validation via ctx.board.publish()
     - Vulnerability #3 (GOD MODE): Agents had unlimited ctx.orchestrator access
+    - Vulnerability #4 (STORE ACCESS): Agents could access ctx.store or ctx.provider._store
 
-    Agents now receive filtered context via ContextProvider and return data
-    via EvalResult. Orchestrator handles all infrastructure operations.
+    Solution: Orchestrator evaluates context BEFORE creating Context.
+    Engines receive only pre-filtered artifact data via ctx.artifacts.
+    No provider, no store, no capabilities - just immutable data.
 
-    Phase 6+7: Added provider and store for secure context fetching.
-
-    SECURITY FIX (2025-10-17): Made Context frozen (immutable).
-    Prevents engines from mutating agent_identity or other security-critical fields.
-
-    SECURITY FIX (2025-10-17): Provider is bound to agent identity.
-    The orchestrator wraps providers with BoundContextProvider, binding them
-    to the correct agent identity. Even if engines create fake Context objects
-    with different agent_identity values, the BoundContextProvider will use
-    the trusted bound identity and ignore the fake one.
+    Design Philosophy: Engines are pure functions (input + context → output).
+    They don't query, they don't mutate - they only transform data.
     """
     model_config = ConfigDict(frozen=True)
 
     # ❌ REMOVED: board: Any (security vulnerability)
     # ❌ REMOVED: orchestrator: Any (security vulnerability)
+    # ❌ REMOVED: provider: Any (security vulnerability - engines could call provider methods)
+    # ❌ REMOVED: store: Any (security vulnerability - direct store access)
 
-    # ✅ Phase 7: Provider for secure context fetching (bound to agent identity by orchestrator)
-    provider: Any = Field(
-        default=None,
-        description="Context provider bound to agent identity - ignores fake identities from engines"
+    # ✅ FINAL SOLUTION: Pre-filtered artifacts (evaluated by orchestrator)
+    # Engines can only read this list - they cannot query for more data
+    artifacts: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Pre-filtered conversation context artifacts (evaluated by orchestrator using context provider)"
     )
 
-    # ✅ Phase 7: Store reference for provider queries
-    store: Any = Field(
-        default=None,
-        description="Blackboard store reference (used by provider, not directly by agents)"
-    )
-
-    # ✅ SECURITY NOTE: agent_identity is informational only
-    # The REAL security is in the bound provider (ctx.provider is BoundContextProvider)
-    # Engines can set fake agent_identity values, but provider ignores them
+    # ✅ Agent identity (informational only - used by orchestrator for logging/tracing)
     agent_identity: Any = Field(
         default=None,
-        description="Agent identity (informational) - real security is in bound provider"
+        description="Agent identity (informational) - engines cannot use this to query data"
     )
 
     correlation_id: UUID | None = None

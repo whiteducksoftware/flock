@@ -1,17 +1,18 @@
-"""Tests for Engine Context Fetching via Provider - Phase 5.
+"""Tests for Engine Context Reading - Phase 8.
 
-This test suite verifies that engines use the Context Provider security boundary
-instead of direct store access (ctx.board.list()).
+This test suite verifies that engines read pre-filtered context from ctx.artifacts
+instead of querying data themselves.
 
-Phase 5 fixes the vulnerable pattern where engines could:
-- Access ALL artifacts via ctx.board.list() (no filtering!)
-- Bypass visibility enforcement entirely
-- See artifacts they shouldn't have access to
+Phase 8 fixes ALL context security vulnerabilities:
+- Orchestrator evaluates context BEFORE creating Context
+- Context contains ONLY pre-filtered artifacts (no provider/store)
+- Engines are pure functions: input + ctx.artifacts → output
+- Engines CANNOT query for more data (no capabilities)
 
-The secure pattern:
-- Engine calls ctx.provider (injected by orchestrator)
-- Provider enforces visibility filtering
-- Engine only sees artifacts it's allowed to see
+The secure pattern (Phase 8):
+- Orchestrator uses provider to evaluate context
+- Orchestrator creates Context with pre-filtered artifacts
+- Engine reads ctx.artifacts (no querying!)
 """
 
 import pytest
@@ -28,12 +29,12 @@ from flock.store import FilterConfig
 
 
 class MockContext:
-    """Mock Context with provider injected (Phase 7 will add this)."""
+    """Mock Context with pre-filtered artifacts (Phase 8 pattern)."""
 
-    def __init__(self, provider: Any, correlation_id: Any, store: Any):
-        self.provider = provider
+    def __init__(self, artifacts: list[dict[str, Any]], correlation_id: Any):
+        self.artifacts = artifacts  # Pre-filtered by orchestrator
         self.correlation_id = correlation_id
-        self.store = store
+        # Phase 8: NO provider, NO store (engines can't query)
 
 
 class MockAgent:
@@ -49,42 +50,6 @@ class MockAgent:
         return AgentIdentity(name=self.name, labels=self.labels, tenant_id=self.tenant_id)
 
 
-class MockStore:
-    """Mock blackboard store for testing."""
-
-    def __init__(self, artifacts: list[Artifact]):
-        self.artifacts = artifacts
-
-    async def query_artifacts(
-        self, filters: FilterConfig | None = None, *, limit: int = 50, offset: int = 0
-    ) -> tuple[list[Artifact], int]:
-        """Mock query that supports full FilterConfig filtering."""
-        results = self.artifacts
-
-        if filters:
-            # Filter by correlation_id
-            if filters.correlation_id:
-                results = [a for a in results if str(a.correlation_id) == filters.correlation_id]
-
-            # Filter by type_names
-            if filters.type_names:
-                results = [a for a in results if a.type in filters.type_names]
-
-            # Filter by tags (artifact must have at least one of the filter tags)
-            if filters.tags:
-                results = [a for a in results if a.tags and filters.tags.intersection(a.tags)]
-
-            # Filter by produced_by
-            if filters.produced_by:
-                results = [a for a in results if a.produced_by in filters.produced_by]
-
-        # Apply limit
-        if limit > 0:
-            results = results[:limit]
-
-        return results, len(results)
-
-
 class TestEngineComponent(EngineComponent):
     """Concrete engine component for testing."""
 
@@ -95,275 +60,206 @@ class TestEngineComponent(EngineComponent):
 
 @pytest.mark.asyncio
 class TestEngineUsesProvider:
-    """Phase 5: Test engines use provider instead of ctx.board.list()."""
+    """Phase 8: Test engines read pre-filtered artifacts from ctx.artifacts."""
 
     async def test_engine_uses_provider_not_ctx_board(self):
-        """SECURITY: Engine must use ctx.provider, NOT ctx.board.list().
+        """SECURITY Phase 8: Engine reads ctx.artifacts (pre-filtered by orchestrator).
 
-        This is the PRIMARY FIX for Vulnerability #1 (READ BYPASS) at the engine level.
+        This is the FINAL FIX for ALL context security vulnerabilities.
 
         Old (INSECURE):
             all_artifacts = await ctx.board.list()  # Sees EVERYTHING!
+            context = await ctx.provider(request)   # Can query arbitrary data!
 
-        New (SECURE):
-            provider = ctx.provider
-            context = await provider(request)  # Visibility enforced!
+        New (SECURE - Phase 8):
+            context = ctx.artifacts  # Pre-filtered by orchestrator!
+            # Engine CANNOT query for more data (no provider/store)
         """
         correlation = uuid4()
 
-        # Create artifacts with different visibility
-        public_artifact = Artifact(
-            id=uuid4(),
-            type="Task",
-            payload={"title": "Public task"},
-            produced_by="system",
-            correlation_id=correlation,
-            visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
-        )
+        # Phase 8: Orchestrator pre-filters context BEFORE creating Context
+        # This simulates what the orchestrator does (applies visibility filtering)
+        pre_filtered_artifacts = [
+            {
+                "id": str(uuid4()),
+                "type": "Task",
+                "payload": {"title": "Public task"},
+                "produced_by": "system",
+            }
+            # Private artifact NOT included (filtered by orchestrator's provider evaluation)
+        ]
 
-        private_artifact = Artifact(
-            id=uuid4(),
-            type="Secret",
-            payload={"api_key": "sk-secret123"},
-            produced_by="admin",
-            correlation_id=correlation,
-            visibility=PrivateVisibility(agents={"admin"}),  # Only admin can see
-            created_at=datetime.now(timezone.utc),
-        )
+        # Create context with pre-filtered artifacts (Phase 8 pattern)
+        ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
-        store = MockStore([public_artifact, private_artifact])
-        agent = MockAgent("untrusted-agent")  # NOT in allowlist
-
-        # Create provider (injected by orchestrator in Phase 7)
-        provider = DefaultContextProvider()
-
-        # Create context with provider
-        ctx = MockContext(provider=provider, correlation_id=correlation, store=store)
-
-        # Create engine and fetch context (pass agent for visibility checks)
+        # Create engine and read context
         engine = TestEngineComponent()
-        context = await engine.fetch_conversation_context(ctx, agent=agent)
+        context = engine.get_conversation_context(ctx)
 
-        # SECURITY: Engine should only see public artifact (private filtered by provider)
+        # SECURITY Phase 8: Engine sees only pre-filtered artifacts
         assert len(context) == 1
         assert context[0]["type"] == "Task"
         assert context[0]["payload"]["title"] == "Public task"
 
-        # SECURITY: Private artifact must NOT be visible
-        assert not any(item["type"] == "Secret" for item in context)
+        # SECURITY Phase 8: Engine CANNOT query for more data
+        assert not hasattr(ctx, "provider"), "Context must NOT have provider"
+        assert not hasattr(ctx, "store"), "Context must NOT have store"
 
     async def test_engine_respects_visibility_enforcement(self):
-        """SECURITY: Engine must respect provider's visibility filtering.
+        """SECURITY Phase 8: Orchestrator enforces visibility when evaluating context.
 
-        Even if engine tries to access all artifacts, provider filters them.
-        This prevents agents from bypassing security.
+        Engines receive only pre-filtered artifacts. They CANNOT bypass filtering.
         """
         correlation = uuid4()
 
-        # Create private artifact
-        secret = Artifact(
-            id=uuid4(),
-            type="Secret",
-            payload={"password": "hunter2"},
-            produced_by="admin",
-            correlation_id=correlation,
-            visibility=PrivateVisibility(agents={"admin"}),
-            created_at=datetime.now(timezone.utc),
-        )
+        # Phase 8: Orchestrator filtered out the secret artifact (visibility enforcement)
+        # Engine receives empty list (no artifacts visible to untrusted agent)
+        pre_filtered_artifacts = []  # Orchestrator filtered everything out
 
-        store = MockStore([secret])
-        untrusted_agent = MockAgent("hacker")  # NOT in allowlist
-
-        provider = DefaultContextProvider()
-        ctx = MockContext(provider=provider, correlation_id=correlation, store=store)
+        ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
         engine = TestEngineComponent()
-        context = await engine.fetch_conversation_context(ctx, agent=untrusted_agent)
+        context = engine.get_conversation_context(ctx)
 
-        # Hacker should see NOTHING
-        assert len(context) == 0, "Untrusted agent must NOT see private artifacts"
+        # Untrusted agent sees NOTHING (orchestrator filtered it all out)
+        assert len(context) == 0, "Engine must see only what orchestrator pre-filtered"
 
     async def test_engine_filters_by_correlation_id(self):
-        """Engine must only see artifacts from its workflow (correlation_id)."""
+        """Phase 8: Orchestrator filters by correlation_id when evaluating context.
+
+        Engine receives only artifacts from its workflow (correlation_id).
+        """
         correlation_a = uuid4()
-        correlation_b = uuid4()
 
-        # Artifacts from different workflows
-        artifact_a = Artifact(
-            id=uuid4(),
-            type="Task",
-            payload={"workflow": "A"},
-            produced_by="system",
-            correlation_id=correlation_a,
-            visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
-        )
+        # Phase 8: Orchestrator pre-filtered to include only correlation_a artifacts
+        pre_filtered_artifacts = [
+            {
+                "id": str(uuid4()),
+                "type": "Task",
+                "payload": {"workflow": "A"},
+                "produced_by": "system",
+            }
+            # Artifacts from workflow B NOT included (filtered by orchestrator)
+        ]
 
-        artifact_b = Artifact(
-            id=uuid4(),
-            type="Task",
-            payload={"workflow": "B"},
-            produced_by="system",
-            correlation_id=correlation_b,
-            visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
-        )
-
-        store = MockStore([artifact_a, artifact_b])
-        agent = MockAgent("agent-1")
-
-        provider = DefaultContextProvider()
-        ctx = MockContext(provider=provider, correlation_id=correlation_a, store=store)
+        ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation_a)
 
         engine = TestEngineComponent()
-        context = await engine.fetch_conversation_context(ctx, agent=agent)
+        context = engine.get_conversation_context(ctx)
 
-        # Should only see artifacts from workflow A
+        # Should only see artifacts from workflow A (orchestrator filtered others)
         assert len(context) == 1
         assert context[0]["payload"]["workflow"] == "A"
 
-        # Artifact from workflow B must NOT be visible
-        assert not any(item["payload"]["workflow"] == "B" for item in context)
-
     async def test_engine_respects_context_exclude_types(self):
-        """Engine must exclude artifact types specified in context_exclude_types."""
+        """Phase 8: Engine excludes artifact types specified in context_exclude_types.
+
+        This is ADDITIONAL engine-level filtering on top of orchestrator filtering.
+        """
         correlation = uuid4()
 
-        task_artifact = Artifact(
-            id=uuid4(),
-            type="Task",
-            payload={"title": "Do something"},
-            produced_by="system",
-            correlation_id=correlation,
-            visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
-        )
+        # Phase 8: Orchestrator pre-filtered artifacts
+        pre_filtered_artifacts = [
+            {
+                "id": str(uuid4()),
+                "type": "Task",
+                "payload": {"title": "Do something"},
+                "produced_by": "system",
+            },
+            {
+                "id": str(uuid4()),
+                "type": "Log",
+                "payload": {"message": "Debug info"},
+                "produced_by": "system",
+            }
+        ]
 
-        log_artifact = Artifact(
-            id=uuid4(),
-            type="Log",
-            payload={"message": "Debug info"},
-            produced_by="system",
-            correlation_id=correlation,
-            visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
-        )
+        ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
-        store = MockStore([task_artifact, log_artifact])
-        agent = MockAgent("worker")
-
-        provider = DefaultContextProvider()
-        ctx = MockContext(provider=provider, correlation_id=correlation, store=store)
-
-        # Create engine that excludes "Log" type
+        # Create engine that excludes "Log" type (engine-level filtering)
         engine = TestEngineComponent(context_exclude_types={"Log"})
-        context = await engine.fetch_conversation_context(ctx, agent=agent)
+        context = engine.get_conversation_context(ctx)
 
-        # Should only see Task (Log excluded)
+        # Should only see Task (Log excluded by engine)
         assert len(context) == 1
         assert context[0]["type"] == "Task"
         assert not any(item["type"] == "Log" for item in context)
 
     async def test_engine_respects_context_max_artifacts(self):
-        """Engine must respect context_max_artifacts limit."""
+        """Phase 8: Engine respects context_max_artifacts limit (engine-level limit).
+
+        This limits the already-filtered artifact list from orchestrator.
+        """
         correlation = uuid4()
 
-        # Create 5 artifacts
-        artifacts = [
-            Artifact(
-                id=uuid4(),
-                type="Task",
-                payload={"title": f"Task {i}"},
-                produced_by="system",
-                correlation_id=correlation,
-                visibility=PublicVisibility(),
-                created_at=datetime(2025, 1, 1, hour=i, tzinfo=timezone.utc),  # Different times for ordering
-            )
+        # Phase 8: Orchestrator pre-filtered 5 artifacts
+        pre_filtered_artifacts = [
+            {
+                "id": str(uuid4()),
+                "type": "Task",
+                "payload": {"title": f"Task {i}"},
+                "produced_by": "system",
+            }
             for i in range(5)
         ]
 
-        store = MockStore(artifacts)
-        agent = MockAgent("worker")
-
-        provider = DefaultContextProvider()
-        ctx = MockContext(provider=provider, correlation_id=correlation, store=store)
+        ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
         # Create engine with max_artifacts=2 (should get last 2)
         engine = TestEngineComponent(context_max_artifacts=2)
-        context = await engine.fetch_conversation_context(ctx, agent=agent)
+        context = engine.get_conversation_context(ctx)
 
-        # Should only return last 2 artifacts (most recent)
+        # Should only return last 2 artifacts
         assert len(context) == 2
         assert context[0]["payload"]["title"] == "Task 3"  # Second-to-last
         assert context[1]["payload"]["title"] == "Task 4"  # Last
 
     async def test_engine_works_with_custom_provider(self):
-        """Engine must work with custom provider implementations."""
-        from flock.store import FilterConfig
-        from flock.context_provider import FilteredContextProvider
+        """Phase 8: Orchestrator can use custom provider to evaluate context.
 
+        Engine just reads the pre-filtered result (doesn't know which provider was used).
+        """
         correlation = uuid4()
 
-        # Create artifacts with different tags
-        important_artifact = Artifact(
-            id=uuid4(),
-            type="Task",
-            payload={"title": "Critical bug"},
-            produced_by="system",
-            correlation_id=correlation,
-            visibility=PublicVisibility(),
-            tags={"important", "bug"},
-            created_at=datetime.now(timezone.utc),
-        )
+        # Phase 8: Orchestrator used FilteredContextProvider with tag filter
+        # Result: only artifacts with "important" tag
+        pre_filtered_artifacts = [
+            {
+                "id": str(uuid4()),
+                "type": "Task",
+                "payload": {"title": "Critical bug"},
+                "produced_by": "system",
+            }
+            # Normal artifact NOT included (filtered by custom provider)
+        ]
 
-        normal_artifact = Artifact(
-            id=uuid4(),
-            type="Task",
-            payload={"title": "Normal task"},
-            produced_by="system",
-            correlation_id=correlation,
-            visibility=PublicVisibility(),
-            tags={"feature"},
-            created_at=datetime.now(timezone.utc),
-        )
-
-        store = MockStore([important_artifact, normal_artifact])
-        agent = MockAgent("worker")
-
-        # Use FilteredContextProvider with tag filter
-        provider = FilteredContextProvider(FilterConfig(tags={"important"}))
-        ctx = MockContext(provider=provider, correlation_id=correlation, store=store)
+        ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
         engine = TestEngineComponent()
-        context = await engine.fetch_conversation_context(ctx, agent=agent)
+        context = engine.get_conversation_context(ctx)
 
-        # Should only see artifact with "important" tag
+        # Should only see artifact that passed custom provider's filter
         assert len(context) == 1
         assert context[0]["payload"]["title"] == "Critical bug"
 
     async def test_engine_returns_correct_format(self):
-        """Engine must return context in the expected format."""
+        """Phase 8: Engine returns context with event_number added."""
         correlation = uuid4()
 
-        artifact = Artifact(
-            id=uuid4(),
-            type="Task",
-            payload={"title": "Do something"},
-            produced_by="planner",
-            correlation_id=correlation,
-            visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
-        )
+        # Phase 8: Orchestrator pre-filtered artifact
+        pre_filtered_artifacts = [
+            {
+                "id": str(uuid4()),
+                "type": "Task",
+                "payload": {"title": "Do something"},
+                "produced_by": "planner",
+            }
+        ]
 
-        store = MockStore([artifact])
-        agent = MockAgent("worker")
-
-        provider = DefaultContextProvider()
-        ctx = MockContext(provider=provider, correlation_id=correlation, store=store)
+        ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
         engine = TestEngineComponent()
-        context = await engine.fetch_conversation_context(ctx, agent=agent)
+        context = engine.get_conversation_context(ctx)
 
         # Verify format
         assert isinstance(context, list)
@@ -376,3 +272,4 @@ class TestEngineUsesProvider:
         assert item["payload"] == {"title": "Do something"}
         assert item["produced_by"] == "planner"
         assert "event_number" in item  # Engine adds this field
+        assert item["event_number"] == 0  # First artifact
