@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from flock.artifacts import Artifact
 
@@ -259,20 +259,39 @@ class Context(BaseModel):
     via EvalResult. Orchestrator handles all infrastructure operations.
 
     Phase 6+7: Added provider and store for secure context fetching.
+
+    SECURITY FIX (2025-10-17): Made Context frozen (immutable).
+    Prevents engines from mutating agent_identity or other security-critical fields.
+
+    SECURITY FIX (2025-10-17): Provider is bound to agent identity.
+    The orchestrator wraps providers with BoundContextProvider, binding them
+    to the correct agent identity. Even if engines create fake Context objects
+    with different agent_identity values, the BoundContextProvider will use
+    the trusted bound identity and ignore the fake one.
     """
+    model_config = ConfigDict(frozen=True)
+
     # ❌ REMOVED: board: Any (security vulnerability)
     # ❌ REMOVED: orchestrator: Any (security vulnerability)
 
-    # ✅ Phase 7: Provider for secure context fetching
+    # ✅ Phase 7: Provider for secure context fetching (bound to agent identity by orchestrator)
     provider: Any = Field(
         default=None,
-        description="Context provider for secure artifact fetching with visibility enforcement"
+        description="Context provider bound to agent identity - ignores fake identities from engines"
     )
 
     # ✅ Phase 7: Store reference for provider queries
     store: Any = Field(
         default=None,
         description="Blackboard store reference (used by provider, not directly by agents)"
+    )
+
+    # ✅ SECURITY NOTE: agent_identity is informational only
+    # The REAL security is in the bound provider (ctx.provider is BoundContextProvider)
+    # Engines can set fake agent_identity values, but provider ignores them
+    agent_identity: Any = Field(
+        default=None,
+        description="Agent identity (informational) - real security is in bound provider"
     )
 
     correlation_id: UUID | None = None

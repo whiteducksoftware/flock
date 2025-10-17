@@ -306,7 +306,7 @@ async def test_scenario_2_websocket_reconnection_after_restart(
         consumed_types=["Input"],
         produced_types=["Output"],
         consumed_artifacts=[str(uuid4())],
-        subscription_info={"subscriptions": [], "channels": []},
+        subscription_info={"subscriptions": [], "tags": []},
         labels=[],
         correlation_id=str(correlation_id),
     )
@@ -621,7 +621,7 @@ async def test_performance_baseline_event_latency(websocket_manager, mock_websoc
             consumed_types=["Input"],
             produced_types=["Output"],
             consumed_artifacts=[str(uuid4())],
-            subscription_info={"subscriptions": [], "channels": []},
+            subscription_info={"subscriptions": [], "tags": []},
             labels=[],
             correlation_id=str(uuid4()),
         )

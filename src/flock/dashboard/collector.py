@@ -185,13 +185,13 @@ class DashboardEventCollector(AgentComponent):
             await self._update_agent_snapshot_locked(agent)
 
         # Build subscription info from agent's subscriptions
-        subscription_info = SubscriptionInfo(from_agents=[], channels=[], mode="both")
+        subscription_info = SubscriptionInfo(from_agents=[], tags=[], mode="both")
 
         if agent.subscriptions:
             # Get first subscription's config (agents typically have one)
             sub = agent.subscriptions[0]
             subscription_info.from_agents = list(sub.from_agents) if sub.from_agents else []
-            subscription_info.channels = list(sub.channels) if sub.channels else []
+            subscription_info.tags = list(sub.tags) if sub.tags else []
             subscription_info.mode = sub.mode
 
         # Create and store event

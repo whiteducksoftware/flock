@@ -280,6 +280,86 @@ agent = (
 
 ## How Visibility Enforcement Works
 
+### Understanding Visibility's Dual Role
+
+**Visibility serves two purposes in Flock's security architecture:**
+
+1. **Controls Triggering** - Determines which agents can be triggered by an artifact
+2. **Controls Context Access** - Determines what historical artifacts agents can see
+
+This dual-purpose design ensures consistent security across the entire system.
+
+### The Three-Layer Model
+
+Flock uses three filtering layers that work together:
+
+| Layer | Purpose | When Applied | Configuration |
+|-------|---------|--------------|---------------|
+| **Visibility** | Security boundary (who can see what) | Triggering + Context Access | `.publish(..., visibility=...)` |
+| **Subscription Filters** | Routing logic (which types/tags) | Triggering Only | `.consumes(Task, tags={"urgent"})` |
+| **Context Providers** | Context shaping (what history to show) | Context Access Only | `Flock(context_provider=...)` |
+
+**Example showing all three layers:**
+
+```python
+# LAYER 1: Visibility (security - triggers + context)
+await flock.publish(
+    ClassifiedDoc(...),
+    visibility=PrivateVisibility(agents={"analyst"})
+)
+# Only "analyst" can be triggered AND see it in context
+
+# LAYER 2: Subscription (routing - triggers only)
+analyst.consumes(ClassifiedDoc, tags={"urgent"})
+# Triggers ONLY for urgent docs
+
+# LAYER 3: Context Provider (context filtering - context only)
+flock = Flock(context_provider=FilteredContextProvider(
+    FilterConfig(tags={"recent"})
+))
+# When triggered, analyst sees only recent artifacts in context
+```
+
+### When Each Layer Applies
+
+#### 1. Visibility Controls Triggering (Phase 1)
+
+When an artifact is published, visibility filtering happens **before** subscription matching:
+
+```python
+# Only agent_a triggers
+flock.publish(
+    SecretReport(...),
+    visibility=PrivateVisibility(agents={"agent_a"})
+)
+
+# agent_a.consumes(SecretReport)  ✅ Triggers (can see it)
+# agent_b.consumes(SecretReport)  ❌ Does NOT trigger (can't see it)
+```
+
+**Why it works this way:**
+- **Security**: Prevents information leakage (agent_b doesn't know artifact exists)
+- **Efficiency**: Don't waste compute running agents that can't access data
+- **Consistency**: If you can't see it, you shouldn't be triggered by it
+
+#### 2. Visibility Controls Context Access (Phase 2)
+
+When an agent runs and requests historical context, visibility filtering happens **again**:
+
+```python
+# Agent triggered by Task
+# Requests context during execution
+context = await engine.fetch_conversation_context(ctx)
+
+# Context Provider filters by visibility AGAIN
+# Agent only sees artifacts it's allowed to see
+```
+
+**Why it works this way:**
+- **Defense in depth**: Even if triggering bypassed (shouldn't happen), context is filtered
+- **Historical access**: Agent may request artifacts from before it existed
+- **Cross-correlation**: Agent may query artifacts outside its correlation
+
 ### Publish-Time Assignment
 
 When an agent publishes an artifact, visibility is set:
@@ -292,7 +372,7 @@ await flock.publish(
 )
 ```
 
-### Scheduling-Time Check
+### Scheduling-Time Check (Triggering)
 
 Before scheduling an agent, Flock checks visibility:
 
@@ -305,7 +385,20 @@ for agent in potential_consumers:
         skip_agent(agent)  # 🔒 Blocked
 ```
 
-**Result:** No agent ever sees data it shouldn't access.
+### Execution-Time Check (Context Access)
+
+When an agent requests context, visibility is checked again:
+
+```python
+# Agent execution (you don't write this)
+visible_artifacts = [
+    artifact for artifact in all_artifacts
+    if artifact.visibility.allows(agent.identity)
+]
+# Agent only sees artifacts it's allowed to see
+```
+
+**Result:** No agent ever sees data it shouldn't access—not during triggering, not in context.
 
 ---
 

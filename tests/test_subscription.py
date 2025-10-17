@@ -166,7 +166,7 @@ async def test_subscription_matches_multiple_predicates():
 async def test_subscription_matches_channel():
     """Test that subscription matches artifacts with intersecting tags."""
     # Arrange
-    subscription = Subscription(agent_name="test_agent", types=[Movie], channels={"sci-fi"})
+    subscription = Subscription(agent_name="test_agent", types=[Movie], tags={"sci-fi"})
     artifact = Artifact(
         type="Movie",
         payload={"title": "TEST", "runtime": 120},

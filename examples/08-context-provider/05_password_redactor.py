@@ -17,6 +17,17 @@
 ║  📦 Usage: Copy the PasswordRedactorProvider class into your code!   ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 
+⚠️  IMPORTANT - What This Provider Does:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This provider FILTERS CONTEXT (not triggering)!
+
+- Agent still TRIGGERS on ALL matching artifacts
+- Provider REDACTS sensitive data BEFORE agent sees it in context
+- Perfect for security: agents work normally, just see sanitized data
+
+This is the RIGHT use of context providers: security boundaries!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 Run: uv run examples/08-context-provider/05_password_redactor.py
 """
 
@@ -302,7 +313,7 @@ async def main():
         log_redactions=True  # Show what gets redacted
     )
 
-    flock = Flock("openai/gpt-4o-mini", context_provider=provider)
+    flock = Flock(context_provider=provider)
 
     # Create security analyzer agent
     analyzer = (
@@ -380,27 +391,43 @@ async def main():
     print()
     print("🎯 KEY TAKEAWAYS:")
     print("=" * 70)
-    print("1. PasswordRedactorProvider automatically redacts sensitive data")
-    print("2. Agents receive safe, redacted context")
-    print("3. Multiple pattern types supported (passwords, API keys, etc.)")
-    print("4. Visibility filtering still enforced (security boundary)")
-    print("5. Customizable redaction patterns and text")
+    print("1. Context Providers are PERFECT for security boundaries!")
+    print()
+    print("2. What happened in this example:")
+    print("   - Agent TRIGGERED on ALL SensitiveData artifacts (normal behavior)")
+    print("   - Provider REDACTED sensitive data BEFORE agent saw it in context")
+    print("   - Agent processed safe, sanitized context (no passwords/keys visible)")
+    print()
+    print("3. PasswordRedactorProvider automatically redacts sensitive data")
+    print("4. Multiple pattern types supported (passwords, API keys, etc.)")
+    print("5. Visibility filtering STILL enforced (defense in depth!)")
+    print("6. Customizable redaction patterns and text")
+    print()
+    print("⚠️  THIS IS THE RIGHT USE CASE:")
+    print("   Context providers for SECURITY FILTERING (not triggering control)")
     print()
     print("🎁 COPY THIS INTO YOUR PROJECT:")
     print("=" * 70)
-    print("The PasswordRedactorProvider class (lines 40-200) is production-ready!")
+    print("The PasswordRedactorProvider class (lines 40-285) is production-ready!")
     print()
     print("Quick Start:")
     print("   from your_module import PasswordRedactorProvider")
     print("   ")
     print("   provider = PasswordRedactorProvider()")
-    print("   flock = Flock('openai/gpt-4o-mini', context_provider=provider)")
+    print("   flock = Flock(context_provider=provider)")
+    print("   # All agents now see redacted context automatically!")
     print()
     print("💡 CUSTOMIZATION:")
     print("   - Add custom_patterns for domain-specific secrets")
     print("   - Adjust redaction_text for your security policy")
     print("   - Enable/disable email redaction as needed")
     print("   - Add logging integration for audit trails")
+    print()
+    print("💡 PERFECT FOR:")
+    print("   - Protecting LLM agents from seeing credentials")
+    print("   - Compliance (PCI-DSS, GDPR, etc.)")
+    print("   - Multi-tenant security boundaries")
+    print("   - Audit logging of sanitized data")
 
 
 if __name__ == "__main__":

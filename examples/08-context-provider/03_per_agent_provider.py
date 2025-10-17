@@ -4,6 +4,25 @@
 This example demonstrates how individual agents can override the global provider.
 You'll see provider priority: per-agent > global > default.
 
+⚠️  CRITICAL DISTINCTION - Read This First!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Context Provider Filtering ≠ Subscription Filtering - These are TWO different things!
+
+1. SUBSCRIPTION FILTERING (controls WHEN agent triggers):
+   agent.consumes(LogEntry, tags={"ERROR"})  # ← Triggers ONLY for ERROR logs
+
+2. CONTEXT PROVIDER FILTERING (controls WHAT agent sees in context):
+   FilteredContextProvider(tags={"ERROR"})  # ← Shows ONLY ERROR logs in context
+
+In this example:
+- All agents subscribe to ALL log entries: .consumes(LogEntry)
+- All agents TRIGGER 8 times (once for each published log entry)
+- Each agent SEES different logs in context (based on their provider)
+- Result: Same triggering, different context per agent
+
+If you want agents to trigger on DIFFERENT log levels, use subscription filters!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 Concepts:
 - Per-agent provider configuration
 - Provider priority hierarchy
@@ -46,9 +65,10 @@ async def main():
     print("=" * 60)
     print()
 
-    # Set up global provider: only show ERROR logs
+    # Set up global provider: only show ERROR logs in CONTEXT
     print("🔧 Configuration:")
-    print("   Global Provider: Only ERROR logs")
+    print("   Global Context Provider: Only show ERROR logs")
+    print("   ⚠️  This filters CONTEXT, not triggering!")
     print()
 
     global_provider = FilteredContextProvider(
@@ -57,7 +77,6 @@ async def main():
     )
 
     flock = Flock(
-        "openai/gpt-4o-mini",
         context_provider=global_provider  # Default for all agents
     )
 
@@ -65,34 +84,38 @@ async def main():
     print("👥 Creating agents...")
     print()
 
-    # Agent 1: Uses global provider (ERROR only)
+    # Agent 1: Uses global provider (ERROR only in CONTEXT)
     error_analyzer = (
         flock.agent("error_analyzer")
         .description("Analyzes errors (uses global provider)")
-        .consumes(LogEntry)
+        .consumes(LogEntry)  # ⚠️ Subscribes to ALL log entries (triggers 8 times)
         .publishes(LogAnalysis)
         .agent
     )
-    print("   ✅ error_analyzer: Uses global provider (ERROR only)")
+    print("   ✅ error_analyzer:")
+    print("      Subscription: ALL logs (.consumes(LogEntry))")
+    print("      Context: Only ERROR logs (global provider)")
 
-    # Agent 2: Override with custom provider (WARN + ERROR)
+    # Agent 2: Override with custom provider (WARN + ERROR in CONTEXT)
     warn_and_error_provider = FilteredContextProvider(
-        FilterConfig(tags={"WARN", "ERROR"}),  # More permissive!
+        FilterConfig(tags={"WARN", "ERROR"}),  # More permissive context!
         limit=100
     )
 
     warn_analyzer = (
         flock.agent("warn_analyzer")
         .description("Analyzes warnings and errors")
-        .consumes(LogEntry)
+        .consumes(LogEntry)  # ⚠️ Subscribes to ALL log entries (triggers 8 times)
         .publishes(LogAnalysis)
         .agent
     )
     # Override the global provider for this specific agent
     warn_analyzer.context_provider = warn_and_error_provider
-    print("   ✅ warn_analyzer: Custom provider (WARN + ERROR)")
+    print("   ✅ warn_analyzer:")
+    print("      Subscription: ALL logs (.consumes(LogEntry))")
+    print("      Context: WARN + ERROR logs (custom provider)")
 
-    # Agent 3: Override to see everything
+    # Agent 3: Override to see everything in CONTEXT
     all_logs_provider = FilteredContextProvider(
         FilterConfig(tags={"DEBUG", "INFO", "WARN", "ERROR"}),
         limit=100
@@ -101,12 +124,17 @@ async def main():
     full_analyzer = (
         flock.agent("full_analyzer")
         .description("Analyzes all logs")
-        .consumes(LogEntry)
+        .consumes(LogEntry)  # ⚠️ Subscribes to ALL log entries (triggers 8 times)
         .publishes(LogAnalysis)
         .agent
     )
     full_analyzer.context_provider = all_logs_provider
-    print("   ✅ full_analyzer: Custom provider (ALL levels)")
+    print("   ✅ full_analyzer:")
+    print("      Subscription: ALL logs (.consumes(LogEntry))")
+    print("      Context: ALL logs (custom provider)")
+    print()
+    print("⚠️  IMPORTANT: All 3 agents TRIGGER 8 times (once per log)")
+    print("   They just SEE different logs in their context!")
     print()
 
     # Publish logs with different levels
@@ -182,17 +210,31 @@ async def main():
     print()
     print("🎯 KEY TAKEAWAYS:")
     print("=" * 60)
-    print("1. Per-agent providers OVERRIDE global provider")
-    print("2. Provider priority: per-agent > global > default")
-    print("3. error_analyzer saw 2 logs (ERROR only)")
-    print("4. warn_analyzer saw 4 logs (WARN + ERROR)")
-    print("5. full_analyzer saw 8 logs (ALL levels)")
-    print("6. Each agent gets customized context!")
+    print("1. Context Provider ≠ Subscription Filter (DIFFERENT PURPOSES!)")
     print()
-    print("💡 USE CASES:")
-    print("   - Specialized agents need different data")
-    print("   - Security levels vary by agent role")
-    print("   - Performance optimization (limit data per agent)")
+    print("2. What happened in this example:")
+    print("   - ALL agents TRIGGERED 8 times (once per log, .consumes(LogEntry))")
+    print("   - Each agent SAW different logs in context (per-agent providers)")
+    print("     • error_analyzer saw 2 logs (ERROR only)")
+    print("     • warn_analyzer saw 4 logs (WARN + ERROR)")
+    print("     • full_analyzer saw 8 logs (ALL levels)")
+    print()
+    print("3. Per-agent providers OVERRIDE global provider")
+    print("4. Provider priority: per-agent > global > default")
+    print("5. Each agent gets customized CONTEXT (not customized triggering!)")
+    print()
+    print("⚠️  COMMON MISTAKE:")
+    print("   Don't use context providers to control TRIGGERING!")
+    print("   Use subscription filters: .consumes(LogEntry, tags={'ERROR'})")
+    print()
+    print("💡 USE CONTEXT PROVIDERS FOR:")
+    print("   - Different agents need different CONTEXT visibility")
+    print("   - Security levels vary by agent role (RBAC in context)")
+    print("   - Performance optimization (limit context size per agent)")
+    print()
+    print("💡 USE SUBSCRIPTION FILTERS FOR:")
+    print("   - Different agents trigger on DIFFERENT events")
+    print("   - Routing and conditional execution")
 
 
 if __name__ == "__main__":

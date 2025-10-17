@@ -706,7 +706,7 @@ If implementation cannot follow specification exactly:
 
 - [ ] **User feedback**:
     - [ ] Collect user reports (target: <5 issues in first day) `[ref: docs/internal/ui-optimization/README.md; line: 249]`
-    - [ ] Monitor support channels
+    - [ ] Monitor support tags
     - [ ] Track any position loss reports
 
 - [ ] **Rollback decision gate**:

@@ -117,6 +117,8 @@ class TestOrchestratorContextInjection:
 
     async def test_orchestrator_uses_default_provider_when_no_custom_provider(self):
         """Provider resolution: Use DefaultContextProvider when no custom provider configured."""
+        from flock.context_provider import BoundContextProvider
+
         flock = Flock("openai/gpt-4o-mini")  # No context_provider specified
 
         # Create agent without custom provider
@@ -135,13 +137,17 @@ class TestOrchestratorContextInjection:
         # Invoke agent
         await flock.invoke(agent, Task(name="test", priority=1), publish_outputs=False)
 
-        # Provider should be DefaultContextProvider
+        # Provider should be BoundContextProvider wrapping DefaultContextProvider
         assert captured_ctx is not None
         assert captured_ctx.provider is not None
-        assert isinstance(captured_ctx.provider, DefaultContextProvider)
+        assert isinstance(captured_ctx.provider, BoundContextProvider)
+        # The inner provider should be DefaultContextProvider
+        assert isinstance(captured_ctx.provider._inner, DefaultContextProvider)
 
     async def test_orchestrator_uses_global_provider_when_configured(self):
         """Provider resolution: Use global provider when configured at Flock level."""
+        from flock.context_provider import BoundContextProvider
+
         # Create global provider
         global_provider = FilteredContextProvider(FilterConfig(tags={"important"}))
 
@@ -163,16 +169,19 @@ class TestOrchestratorContextInjection:
         # Invoke agent
         await flock.invoke(agent, Task(name="test", priority=1), publish_outputs=False)
 
-        # Provider should be the global provider
+        # Provider should be BoundContextProvider wrapping the global provider
         assert captured_ctx is not None
         assert captured_ctx.provider is not None
-        assert captured_ctx.provider is global_provider
+        assert isinstance(captured_ctx.provider, BoundContextProvider)
+        assert captured_ctx.provider._inner is global_provider
 
     async def test_orchestrator_uses_per_agent_provider_when_configured(self):
         """Provider resolution: Per-agent provider overrides global provider.
 
         Priority: per-agent > global > DefaultContextProvider
         """
+        from flock.context_provider import BoundContextProvider
+
         # Create global provider
         global_provider = FilteredContextProvider(FilterConfig(tags={"important"}))
 
@@ -198,10 +207,11 @@ class TestOrchestratorContextInjection:
         # Invoke agent
         await flock.invoke(agent, Task(name="test", priority=1), publish_outputs=False)
 
-        # Provider should be the per-agent provider (NOT global)
+        # Provider should be BoundContextProvider wrapping the per-agent provider (NOT global)
         assert captured_ctx is not None
         assert captured_ctx.provider is not None
-        assert captured_ctx.provider is agent_provider, "Per-agent provider should override global"
+        assert isinstance(captured_ctx.provider, BoundContextProvider)
+        assert captured_ctx.provider._inner is agent_provider, "Per-agent provider should override global"
 
     async def test_context_has_all_required_fields(self):
         """Context must have all required fields for engine operations."""

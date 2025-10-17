@@ -246,9 +246,67 @@ class FilteredContextProvider:
         ]
 
 
+class BoundContextProvider:
+    """Security wrapper that binds a provider to a specific agent identity.
+
+    SECURITY FIX (2025-10-17): This wrapper prevents engines from forging
+    Context objects with fake agent_identity values. Even if an engine creates
+    a fake Context with a different agent_identity, this wrapper will use the
+    trusted identity that was bound at creation time by the orchestrator.
+
+    The orchestrator creates a BoundContextProvider for each agent execution,
+    binding it to the agent's true identity. Engines cannot bypass this because
+    they would need to create a fake BoundContextProvider, but they don't have
+    access to the real bound identity.
+
+    Example Attack (prevented):
+        >>> # Malicious engine tries to escalate privileges
+        >>> fake_ctx = Context(
+        ...     ...
+        ...     agent_identity=AgentIdentity(name="admin", labels={"admin"}),  # FAKE
+        ... )
+        >>> # Provider ignores fake identity, uses bound identity instead
+        >>> context = await bound_provider(request)  # Still filters as original agent
+    """
+
+    def __init__(self, inner_provider: ContextProvider, bound_agent_identity: AgentIdentity):
+        """Create provider bound to specific agent identity.
+
+        Args:
+            inner_provider: Wrapped provider (e.g., DefaultContextProvider)
+            bound_agent_identity: Trusted agent identity from orchestrator
+        """
+        self._inner = inner_provider
+        self._bound_identity = bound_agent_identity
+
+    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+        """Fetch context using BOUND agent identity (ignoring request.agent_identity).
+
+        SECURITY: This method ignores request.agent_identity because it could
+        come from untrusted engine code. Instead, it uses the bound identity
+        that was set by the orchestrator at Context creation time.
+
+        Args:
+            request: Context request (agent_identity field is IGNORED)
+
+        Returns:
+            List of artifact dicts filtered by BOUND identity (not request identity)
+        """
+        # SECURITY: Replace untrusted agent_identity with trusted bound identity
+        secure_request = ContextRequest(
+            agent=request.agent,
+            correlation_id=request.correlation_id,
+            store=request.store,
+            agent_identity=self._bound_identity,  # Use trusted identity, ignore request
+            exclude_ids=request.exclude_ids,
+        )
+        return await self._inner(secure_request)
+
+
 __all__ = [
     "ContextProvider",
     "ContextRequest",
     "DefaultContextProvider",
     "FilteredContextProvider",
+    "BoundContextProvider",
 ]

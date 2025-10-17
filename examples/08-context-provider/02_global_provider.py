@@ -4,6 +4,25 @@
 This example shows how to configure a custom Context Provider globally for all agents.
 You'll learn about FilteredContextProvider and how to apply consistent filtering rules.
 
+⚠️  CRITICAL DISTINCTION - Read This First!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Context Provider Filtering ≠ Subscription Filtering - These are TWO different things!
+
+1. SUBSCRIPTION FILTERING (controls WHEN agent triggers):
+   agent.consumes(Task, tags={"urgent"})  # ← Triggers ONLY for urgent tasks
+
+2. CONTEXT PROVIDER FILTERING (controls WHAT agent sees in context):
+   FilteredContextProvider(tags={"urgent"})  # ← Shows ONLY urgent tasks in context
+
+In this example:
+- Agent subscribes to ALL tasks: .consumes(Task)
+- Agent TRIGGERS 6 times (once for each published task)
+- Agent SEES only 3 urgent tasks in context (filtered by provider)
+- Result: Agent runs 6 times but sees filtered context each time
+
+If you want to trigger ONLY on urgent tasks, use subscription filters instead!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 Concepts:
 - FilterConfig for declarative filtering
 - FilteredContextProvider with tag-based filtering
@@ -58,19 +77,19 @@ async def main():
     print("=" * 60)
     print()
 
-    # Create a FilteredContextProvider that only shows "urgent" tasks
+    # Create a FilteredContextProvider that filters what agents SEE in context
     print("🔧 Configuring global provider...")
-    print("   Filter: Only show tasks tagged as 'urgent'")
+    print("   ⚠️  Context Provider Filter: Only SHOW tasks tagged as 'urgent'")
+    print("   ⚠️  This does NOT control triggering - agents still trigger on ALL tasks!")
     print()
 
     urgent_only_provider = FilteredContextProvider(
-        FilterConfig(tags={"urgent"}),  # Only artifacts with "urgent" tag
+        FilterConfig(tags={"urgent"}),  # Filter context: only show urgent artifacts
         limit=100  # Maximum artifacts to return
     )
 
     # Create orchestrator WITH global provider
     flock = Flock(
-        "openai/gpt-4o-mini",
         context_provider=urgent_only_provider  # 🎯 ALL agents will use this!
     )
 
@@ -78,14 +97,19 @@ async def main():
     from uuid import uuid4
     conversation_id = uuid4()
 
-    # Create agents - they'll all use the global provider
+    # Create agents - they'll all use the global provider for CONTEXT filtering
     summarizer = (
         flock.agent("summarizer")
         .description("Summarizes tasks it can see")
-        .consumes(Task)
+        .consumes(Task)  # ⚠️ Subscribes to ALL tasks (triggers 6 times)
         .publishes(TaskSummary)
-        .agent
     )
+
+    print("📋 Agent Configuration:")
+    print("   Subscription: ALL tasks (.consumes(Task))")
+    print("   Context Filter: Only urgent tasks (from global provider)")
+    print("   Result: Triggers 6 times, sees 3 urgent tasks each time")
+    print()
 
     # Publish various tasks with different tags
     print("📤 Publishing tasks...")
@@ -108,16 +132,19 @@ async def main():
             task,
             visibility=PublicVisibility(),
             correlation_id=conversation_id,
-            tags=tags  # 🎯 These tags are used for filtering!
+            tags=tags  # 🎯 These tags are used for CONTEXT filtering!
         )
 
         tag_indicator = "🔥 URGENT" if "urgent" in tags else "📝 Normal"
-        print(f"{tag_indicator} Published: {name} (priority={priority})")
+        trigger_msg = "(triggers agent)" if "urgent" in tags else "(triggers agent, but filtered from context)"
+        print(f"{tag_indicator} Published: {name} (priority={priority}) {trigger_msg}")
 
     print()
 
     # Wait for processing
-    print("⏳ Agent processing (with global provider filter)...")
+    print("⏳ Agent processing...")
+    print("   ⚠️  Agent will TRIGGER 6 times (once per task)")
+    print("   ⚠️  Agent will SEE only 3 urgent tasks in context each time")
     await flock.run_until_idle()
     print()
 
@@ -142,16 +169,29 @@ async def main():
     print()
     print("🎯 KEY TAKEAWAYS:")
     print("=" * 60)
-    print("1. Global provider applies to ALL agents")
-    print("2. Agent only saw 3 tasks (the urgent ones)")
-    print("3. FilterConfig provides declarative filtering")
-    print("4. Tags enable flexible categorization")
+    print("1. Context Provider ≠ Subscription Filter (DIFFERENT PURPOSES!)")
+    print()
+    print("2. What happened in this example:")
+    print("   - Agent TRIGGERED 6 times (once per task, because .consumes(Task))")
+    print("   - Agent SAW only 3 urgent tasks in context (filtered by provider)")
+    print("   - Agent produced 6 summaries (one per trigger, each seeing same 3 tasks)")
+    print()
+    print("3. Global provider filters CONTEXT for ALL agents")
+    print("4. FilterConfig provides declarative context filtering")
     print("5. Visibility is STILL enforced on top of filtering!")
     print()
-    print("💡 TIP: Global providers are perfect for:")
-    print("   - Consistent filtering policies")
-    print("   - Organization-wide rules")
-    print("   - Security boundaries")
+    print("⚠️  COMMON MISTAKE:")
+    print("   Don't use context providers to control TRIGGERING!")
+    print("   Use subscription filters instead: .consumes(Task, tags={'urgent'})")
+    print()
+    print("💡 USE CONTEXT PROVIDERS FOR:")
+    print("   - Filtering what agents SEE in their context")
+    print("   - Organization-wide security policies (e.g., redaction)")
+    print("   - Performance optimization (limiting context size)")
+    print()
+    print("💡 USE SUBSCRIPTION FILTERS FOR:")
+    print("   - Controlling WHEN agents trigger")
+    print("   - Agent-specific routing and filtering")
 
 
 if __name__ == "__main__":

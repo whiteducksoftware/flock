@@ -612,13 +612,20 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Phase 7: Inject provider + store (security boundary)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import DefaultContextProvider
-        provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+        from flock.context_provider import BoundContextProvider, DefaultContextProvider
+        inner_provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+
+        # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
+        # Even if engines create fake Context objects with different agent_identity,
+        # the bound provider will use the trusted agent.identity
+        provider = BoundContextProvider(inner_provider, agent.identity)
 
         # Phase 6+7: Create Context (streaming coordination via Agent class variables)
+        # SECURITY: Set agent_identity from trusted source (orchestrator)
         ctx = Context(
-            provider=provider,
+            provider=provider,  # Bound provider ignores fake agent_identity values
             store=self.store,
+            agent_identity=agent.identity,
             task_id=str(uuid4())
         )
         self._record_agent_run(agent)
@@ -986,13 +993,20 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Phase 7: Inject provider + store (security boundary)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import DefaultContextProvider
-        provider = getattr(agent_obj, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+        from flock.context_provider import BoundContextProvider, DefaultContextProvider
+        inner_provider = getattr(agent_obj, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+
+        # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
+        # Even if engines create fake Context objects with different agent_identity,
+        # the bound provider will use the trusted agent_obj.identity
+        provider = BoundContextProvider(inner_provider, agent_obj.identity)
 
         # Phase 6+7: Create Context (streaming coordination via Agent class variables)
+        # SECURITY: Set agent_identity from trusted source (orchestrator)
         ctx = Context(
-            provider=provider,
+            provider=provider,  # Bound provider ignores fake agent_identity values
             store=self.store,
+            agent_identity=agent_obj.identity,
             task_id=str(uuid4())
         )
         self._record_agent_run(agent_obj)
@@ -1365,13 +1379,20 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Phase 7: Inject provider + store (security boundary)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import DefaultContextProvider
-        provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+        from flock.context_provider import BoundContextProvider, DefaultContextProvider
+        inner_provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+
+        # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
+        # Even if engines create fake Context objects with different agent_identity,
+        # the bound provider will use the trusted agent.identity
+        provider = BoundContextProvider(inner_provider, agent.identity)
 
         # Phase 6+7: Create Context (streaming coordination via Agent class variables)
+        # SECURITY: Set agent_identity from trusted source (orchestrator)
         ctx = Context(
-            provider=provider,
+            provider=provider,  # Bound provider ignores fake agent_identity values
             store=self.store,
+            agent_identity=agent.identity,
             task_id=str(uuid4()),
             correlation_id=correlation_id,
             is_batch=is_batch

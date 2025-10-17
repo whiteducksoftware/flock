@@ -102,7 +102,7 @@ class Subscription:
         where: Sequence[Predicate] | None = None,
         text_predicates: Sequence[TextPredicate] | None = None,
         from_agents: Iterable[str] | None = None,
-        channels: Iterable[str] | None = None,
+        tags: Iterable[str] | None = None,
         join: JoinSpec | None = None,
         batch: BatchSpec | None = None,
         delivery: str = "exclusive",
@@ -127,7 +127,7 @@ class Subscription:
         self.where = list(where or [])
         self.text_predicates = list(text_predicates or [])
         self.from_agents = set(from_agents or [])
-        self.channels = set(channels or [])
+        self.tags = set(tags or [])
         self.join = join
         self.batch = batch
         self.delivery = delivery
@@ -145,7 +145,7 @@ class Subscription:
             return False
         if self.from_agents and artifact.produced_by not in self.from_agents:
             return False
-        if self.channels and not artifact.tags.intersection(self.channels):
+        if self.tags and not artifact.tags.intersection(self.tags):
             return False
 
         # Evaluate where predicates on typed payloads

@@ -14,7 +14,7 @@ class SubscriptionInfo(BaseModel):
     """Subscription configuration for an agent."""
 
     from_agents: list[str] = Field(default_factory=list)
-    channels: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     mode: str = "both"  # "both" | "events" | "direct"
 
 

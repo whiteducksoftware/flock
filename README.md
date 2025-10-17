@@ -508,6 +508,8 @@ artifact.visibility = AfterVisibility(ttl=timedelta(hours=24), then=PublicVisibi
 agent.publishes(PublicReport, visibility=PublicVisibility())
 ```
 
+**Visibility has a dual purpose:** It controls both which agents can be **triggered** by an artifact AND which artifacts agents can **see** in their context. This ensures consistent security across agent execution and data access—agents cannot bypass visibility controls through subscription filters or context providers.
+
 **Why this matters:** Financial services, healthcare, defense, SaaS platforms all need this for compliance. Other frameworks make you build it yourself.
 
 ### Context Providers (The Smart Filter)

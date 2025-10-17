@@ -848,7 +848,7 @@ class AgentBuilder:
         text: str | None = None,
         min_p: float = 0.0,
         from_agents: Iterable[str] | None = None,
-        channels: Iterable[str] | None = None,
+        tags: Iterable[str] | None = None,
         join: dict | JoinSpec | None = None,
         batch: dict | BatchSpec | None = None,
         delivery: str = "exclusive",
@@ -867,7 +867,7 @@ class AgentBuilder:
             text: Optional semantic text filter using embedding similarity
             min_p: Minimum probability threshold for text similarity (0.0-1.0)
             from_agents: Only consume artifacts from specific agents
-            channels: Only consume artifacts with matching tags
+            tags: Only consume artifacts with matching tags
             join: Join specification for coordinating multiple artifact types
             batch: Batch specification for processing multiple artifacts together
             delivery: Delivery mode - "exclusive" (one agent) or "broadcast" (all matching)
@@ -900,7 +900,7 @@ class AgentBuilder:
             >>> agent.consumes(Report, from_agents=["analyzer", "validator"])
 
             >>> # Channel-based routing
-            >>> agent.consumes(Alert, channels={"critical", "security"})
+            >>> agent.consumes(Alert, tags={"critical", "security"})
 
             >>> # Batch processing
             >>> agent.consumes(
@@ -925,7 +925,7 @@ class AgentBuilder:
             where=predicates,
             text_predicates=text_predicates,
             from_agents=from_agents,
-            channels=channels,
+            tags=tags,
             join=join_spec,
             batch=batch_spec,
             delivery=delivery,

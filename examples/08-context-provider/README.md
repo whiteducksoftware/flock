@@ -2,6 +2,49 @@
 
 Secure your multi-agent systems with Context Providers—the security boundary that controls what agents can see. From basic visibility to production-ready password filtering, these examples show you how to build secure, intelligent data access patterns.
 
+## ⚠️  CRITICAL: Read This First!
+
+**Context Providers control WHAT agents SEE, not WHEN they trigger!**
+
+This is the #1 confusion point. Understanding this distinction is critical:
+
+### Two Different Layers
+
+```python
+# ❌ WRONG: Trying to control triggering with context provider
+provider = FilteredContextProvider(FilterConfig(tags={"urgent"}))
+flock = Flock(context_provider=provider)
+agent.consumes(Task)  # Agent still triggers on ALL tasks!
+# Result: Agent runs for every task, but only sees urgent ones in context
+
+# ✅ RIGHT: Use subscription filters for triggering
+agent.consumes(Task, tags={"urgent"})  # Agent triggers ONLY on urgent tasks
+# Result: Agent only runs when urgent tasks are published
+```
+
+### The Two-Layer Model
+
+| Layer | Purpose | How to Configure |
+|-------|---------|------------------|
+| **Subscription Filtering** | Controls **WHEN** agent triggers | `.consumes(Task, tags={"urgent"})` |
+| **Context Provider Filtering** | Controls **WHAT** agent sees in context | `FilteredContextProvider(...)` |
+
+### When to Use Each
+
+**Use SUBSCRIPTION FILTERS when:**
+- You want agents to trigger only on specific events
+- You need routing and conditional execution
+- You want to save compute (don't run agent unnecessarily)
+
+**Use CONTEXT PROVIDERS when:**
+- You need security boundaries (redaction, visibility)
+- You want to filter what agents SEE (not when they run)
+- You need organization-wide filtering policies
+
+All examples in this directory demonstrate **CONTEXT filtering**, not subscription filtering!
+
+---
+
 ## 🎯 Why Context Providers?
 
 Context Providers solve critical security and performance challenges in multi-agent systems:

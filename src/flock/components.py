@@ -208,11 +208,18 @@ class EngineComponent(AgentComponent):
             # This enforces visibility filtering at the security boundary
             from flock.context_provider import ContextRequest
 
+            # SECURITY: Use agent_identity from Context (set by orchestrator, trusted source)
+            # This prevents engines from faking identities to bypass visibility
+            agent_identity = getattr(ctx, "agent_identity", None)
+            if not agent_identity and agent:
+                # Fallback for backward compatibility (will be removed)
+                agent_identity = agent.identity
+
             request = ContextRequest(
                 agent=agent,
                 correlation_id=target_correlation_id,
                 store=store,
-                agent_identity=agent.identity,
+                agent_identity=agent_identity,
                 exclude_ids=exclude_ids,
             )
 

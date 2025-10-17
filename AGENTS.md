@@ -316,6 +316,16 @@ Context Providers enforce a security boundary that:
 - ✅ **Improves performance** - Less context = faster agent execution
 - ✅ **Enforces security** - Agents cannot bypass provider filtering
 
+**Understanding the Three-Layer Model:**
+
+Flock uses three complementary filtering layers:
+
+1. **Visibility** (security boundary) - Controls BOTH which agents trigger AND which artifacts they see in context
+2. **Subscription Filters** (routing logic) - Controls WHEN agents trigger (e.g., `.consumes(Task, tags={"urgent"})`)
+3. **Context Providers** (context shaping) - Controls WHAT agents see in their historical context
+
+These layers work together to provide fine-grained control over agent execution and data access. Context Providers are the third layer—they filter what agents see in context but do NOT control triggering.
+
 #### Quick Start: Global Filtering
 
 **Filter all agents to see only urgent items:**
