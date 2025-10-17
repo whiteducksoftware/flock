@@ -18,7 +18,8 @@ class DebateTopic(BaseModel):
         description="The context in which the debate takes place",
     )
     stakes: str = Field(
-        default="Future of humanity depends on it", description="The stakes of the debate"
+        default="Future of humanity depends on it",
+        description="The stakes of the debate",
     )
 
 

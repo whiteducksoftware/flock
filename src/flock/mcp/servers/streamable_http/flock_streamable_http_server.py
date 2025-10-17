@@ -84,7 +84,9 @@ class FlockStreamableHttpClient(FlockMCPClient):
 
             if "headers" in additional_params:
                 if override_headers:
-                    param_copy.headers = additional_params.get("headers", params.headers)
+                    param_copy.headers = additional_params.get(
+                        "headers", params.headers
+                    )
                 else:
                     param_copy.headers.update(additional_params.get("headers", {}))
             if "auth" in additional_params and isinstance(
@@ -93,7 +95,9 @@ class FlockStreamableHttpClient(FlockMCPClient):
                 param_copy.auth = additional_params.get("auth", param_copy.auth)
 
             if "read_timeout_seconds" in additional_params:
-                param_copy.timeout = additional_params.get("read_timeout_seconds", params.timeout)
+                param_copy.timeout = additional_params.get(
+                    "read_timeout_seconds", params.timeout
+                )
 
             if "sse_read_timeout" in additional_params:
                 param_copy.sse_read_timeout = additional_params.get(

@@ -14,12 +14,11 @@ Run: uv run examples/08-context-provider/01_basic_visibility.py
 """
 
 import asyncio
-import sys
+
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.visibility import PublicVisibility, PrivateVisibility
-
+from flock.visibility import PrivateVisibility, PublicVisibility
 
 
 # Define our data models
@@ -34,8 +33,12 @@ class Report(BaseModel):
     """A report summarizing what an agent saw."""
 
     agent_name: str
-    messages_seen: int = Field(description="Number of messages the agent saw, including context")
-    message_contents: list[str] = Field(description="Contents of the messages the agent saw, including context")
+    messages_seen: int = Field(
+        description="Number of messages the agent saw, including context"
+    )
+    message_contents: list[str] = Field(
+        description="Contents of the messages the agent saw, including context"
+    )
 
 
 async def main():
@@ -91,7 +94,9 @@ async def main():
     await flock.run_until_idle()
     # Another classified message
     await flock.publish(
-        Message(content="Launch codes: alpha-bravo-charlie", classification="classified"),
+        Message(
+            content="Launch codes: alpha-bravo-charlie", classification="classified"
+        ),
         visibility=PrivateVisibility(agents={"classified_agent"}),
     )
     print("🔒 Published CLASSIFIED message: 'Launch codes: alpha-bravo-charlie'")
@@ -114,9 +119,13 @@ async def main():
         report = Report(**report_artifact.payload)
         print(f"👤 Agent: {report.agent_name}")
         print(f"   Messages seen: {report.messages_seen}")
-        print(f"   Contents:")
+        print("   Contents:")
         for content in report.message_contents:
-            classification = "PUBLIC" if "secret" not in content.lower() and "launch" not in content.lower() else "CLASSIFIED"
+            classification = (
+                "PUBLIC"
+                if "secret" not in content.lower() and "launch" not in content.lower()
+                else "CLASSIFIED"
+            )
             emoji = "✅" if classification == "PUBLIC" else "🔒"
             print(f"     {emoji} {content}")
         print()

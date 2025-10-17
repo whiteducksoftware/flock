@@ -34,7 +34,9 @@ class Character(BaseModel):
 
 @flock_type
 class Movie(BaseModel):
-    fun_title: str = Field(..., description="A catchy and fun title for the movie. IN ALL CAPS")
+    fun_title: str = Field(
+        ..., description="A catchy and fun title for the movie. IN ALL CAPS"
+    )
     runtime: int = Field(
         ...,
         ge=200,

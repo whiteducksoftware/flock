@@ -45,7 +45,9 @@ def patched_sync_send_to_stream(stream, message):
         try:
             asyncio.run(_send())
         except Exception as e:
-            logger.debug(f"DSPy status message send failed in sync context (non-critical): {e}")
+            logger.debug(
+                f"DSPy status message send failed in sync context (non-critical): {e}"
+            )
 
 
 def apply_patch():
@@ -55,12 +57,16 @@ def apply_patch():
 
         # Store original for reference (in case we need to restore)
         if not hasattr(dspy_messages, "_original_sync_send_to_stream"):
-            dspy_messages._original_sync_send_to_stream = dspy_messages.sync_send_to_stream
+            dspy_messages._original_sync_send_to_stream = (
+                dspy_messages.sync_send_to_stream
+            )
 
         # Replace with our non-blocking version
         dspy_messages.sync_send_to_stream = patched_sync_send_to_stream
 
-        logger.info("Applied DSPy streaming patch - status messages are now non-blocking")
+        logger.info(
+            "Applied DSPy streaming patch - status messages are now non-blocking"
+        )
         return True
 
     except Exception as e:
@@ -74,7 +80,9 @@ def restore_original():
         import dspy.streaming.messages as dspy_messages
 
         if hasattr(dspy_messages, "_original_sync_send_to_stream"):
-            dspy_messages.sync_send_to_stream = dspy_messages._original_sync_send_to_stream
+            dspy_messages.sync_send_to_stream = (
+                dspy_messages._original_sync_send_to_stream
+            )
             logger.info("Restored original DSPy streaming function")
             return True
 

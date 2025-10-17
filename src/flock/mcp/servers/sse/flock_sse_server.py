@@ -32,7 +32,9 @@ class FlockSSEConnectionConfig(FlockMCPConnectionConfiguration):
 
     # Only thing we need to override here is the concrete transport_type
     # and connection_parameters fields.
-    transport_type: Literal["sse"] = Field(default="sse", description="Use the sse transport type.")
+    transport_type: Literal["sse"] = Field(
+        default="sse", description="Use the sse transport type."
+    )
 
     connection_parameters: SseServerParameters = Field(
         ..., description="SSE Server Connection Parameters."
@@ -73,11 +75,15 @@ class FlockSSEClient(FlockMCPClient):
             override_headers = bool(additional_params.get("override_headers", False))
             if "headers" in additional_params:
                 if override_headers:
-                    param_copy.headers = additional_params.get("headers", params.headers)
+                    param_copy.headers = additional_params.get(
+                        "headers", params.headers
+                    )
                 else:
                     param_copy.headers.update(additional_params.get("headers", {}))
             if "read_timeout_seconds" in additional_params:
-                param_copy.timeout = additional_params.get("read_timeout_seconds", params.timeout)
+                param_copy.timeout = additional_params.get(
+                    "read_timeout_seconds", params.timeout
+                )
 
             if "sse_read_timeout" in additional_params:
                 param_copy.sse_read_timeout = additional_params.get(

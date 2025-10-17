@@ -31,7 +31,9 @@ class MetricsUtility(AgentComponent):
 
     name: str | None = "metrics"
 
-    async def on_pre_evaluate(self, agent, ctx: Context, inputs: EvalInputs) -> EvalInputs:
+    async def on_pre_evaluate(
+        self, agent, ctx: Context, inputs: EvalInputs
+    ) -> EvalInputs:
         ctx.state.setdefault("metrics", {})[f"{agent.name}:start"] = time.perf_counter()
         return inputs
 
@@ -42,7 +44,9 @@ class MetricsUtility(AgentComponent):
         start = metrics.get(f"{agent.name}:start")
         if start:
             metrics[f"{agent.name}:duration_ms"] = (time.perf_counter() - start) * 1000
-        result.metrics.update({k: v for k, v in metrics.items() if k.endswith("duration_ms")})
+        result.metrics.update({
+            k: v for k, v in metrics.items() if k.endswith("duration_ms")
+        })
         return result
 
 
@@ -78,11 +82,15 @@ class LoggingUtility(AgentComponent):
 
     async def on_pre_consume(self, agent, ctx: Context, inputs: list[Any]):
         summary = ", ".join(self._summarize_artifact(art) for art in inputs) or "<none>"
-        self._console.log(f"[{agent.name}] consume n={len(inputs)} artifacts -> {summary}")
+        self._console.log(
+            f"[{agent.name}] consume n={len(inputs)} artifacts -> {summary}"
+        )
         self._render_artifacts(agent.name, inputs, role="input")
         return await super().on_pre_consume(agent, ctx, inputs)
 
-    async def on_pre_evaluate(self, agent, ctx: Context, inputs: EvalInputs) -> EvalInputs:
+    async def on_pre_evaluate(
+        self, agent, ctx: Context, inputs: EvalInputs
+    ) -> EvalInputs:
         if self._stream_tokens:
             self._maybe_start_stream(agent, ctx)
         return await super().on_pre_evaluate(agent, ctx, inputs)
@@ -91,7 +99,9 @@ class LoggingUtility(AgentComponent):
         self, agent, ctx: Context, inputs: EvalInputs, result: EvalResult
     ) -> EvalResult:
         self._render_metrics(agent.name, result.metrics)
-        self._render_artifacts(agent.name, result.artifacts or inputs.artifacts, role="output")
+        self._render_artifacts(
+            agent.name, result.artifacts or inputs.artifacts, role="output"
+        )
         if result.logs:
             self._render_logs(agent.name, result.logs)
         awaited = await super().on_post_evaluate(agent, ctx, inputs, result)
@@ -102,7 +112,9 @@ class LoggingUtility(AgentComponent):
     async def on_post_publish(self, agent, ctx: Context, artifact):
         visibility = getattr(artifact.visibility, "kind", "Public")
         subtitle = f"visibility={visibility}"
-        panel = self._build_artifact_panel(artifact, role="published", subtitle=subtitle)
+        panel = self._build_artifact_panel(
+            artifact, role="published", subtitle=subtitle
+        )
         self._console.print(panel)
         await super().on_post_publish(agent, ctx, artifact)
 
@@ -121,7 +133,9 @@ class LoggingUtility(AgentComponent):
     # ------------------------------------------------------------------
     # Rendering helpers
 
-    def _render_artifacts(self, agent_name: str, artifacts: Sequence[Any], *, role: str) -> None:
+    def _render_artifacts(
+        self, agent_name: str, artifacts: Sequence[Any], *, role: str
+    ) -> None:
         for artifact in artifacts:
             panel = self._build_artifact_panel(artifact, role=role)
             self._console.print(panel)
@@ -189,7 +203,9 @@ class LoggingUtility(AgentComponent):
             else:
                 textual.append(line)
         for payload in json_sections:
-            panel = Panel(payload, title=f"{agent_name} ▸ dspy.output", border_style="green")
+            panel = Panel(
+                payload, title=f"{agent_name} ▸ dspy.output", border_style="green"
+            )
             self._console.print(panel)
         if textual:
             body = Text("\n".join(textual) + "\n")
@@ -244,7 +260,9 @@ class LoggingUtility(AgentComponent):
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
-    async def _consume_stream(self, agent_name: str, stream_key: str, queue: asyncio.Queue) -> None:
+    async def _consume_stream(
+        self, agent_name: str, stream_key: str, queue: asyncio.Queue
+    ) -> None:
         body = Text()
         live: Live | None = None
         try:
@@ -254,7 +272,9 @@ class LoggingUtility(AgentComponent):
                     break
                 kind = event.get("kind")
                 if live is None:
-                    live_panel = Panel(body, title=f"{agent_name} ▸ streaming", border_style="cyan")
+                    live_panel = Panel(
+                        body, title=f"{agent_name} ▸ streaming", border_style="cyan"
+                    )
                     live = Live(
                         live_panel,
                         console=self._console,
@@ -274,19 +294,27 @@ class LoggingUtility(AgentComponent):
                     message = event.get("message") or ""
                     body.append(f"\n⚠ {message}\n", style="bold red")
                 if live is not None:
-                    live.update(Panel(body, title=f"{agent_name} ▸ streaming", border_style="cyan"))
+                    live.update(
+                        Panel(
+                            body, title=f"{agent_name} ▸ streaming", border_style="cyan"
+                        )
+                    )
         finally:
             if live is not None:
                 live.__exit__(None, None, None)
         if body.plain:
             self._console.print(
-                Panel(body, title=f"{agent_name} ▸ stream transcript", border_style="cyan")
+                Panel(
+                    body, title=f"{agent_name} ▸ stream transcript", border_style="cyan"
+                )
             )
 
     def _stream_key(self, agent, ctx: Context) -> str:
         return f"{ctx.task_id}:{agent.name}"
 
-    def _attach_stream_queue(self, state: MutableMapping[str, Any], queue: asyncio.Queue) -> None:
+    def _attach_stream_queue(
+        self, state: MutableMapping[str, Any], queue: asyncio.Queue
+    ) -> None:
         state.setdefault("_logging", {})["stream_queue"] = queue
 
     def _detach_stream_queue(self, state: MutableMapping[str, Any]) -> None:

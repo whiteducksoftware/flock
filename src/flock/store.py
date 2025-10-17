@@ -227,7 +227,9 @@ class InMemoryBlackboardStore(BlackboardStore):
         self._lock = Lock()
         self._by_id: dict[UUID, Artifact] = {}
         self._by_type: dict[str, list[Artifact]] = defaultdict(list)
-        self._consumptions_by_artifact: dict[UUID, list[ConsumptionRecord]] = defaultdict(list)
+        self._consumptions_by_artifact: dict[UUID, list[ConsumptionRecord]] = (
+            defaultdict(list)
+        )
         self._agent_snapshots: dict[str, AgentSnapshotRecord] = {}
 
     async def publish(self, artifact: Artifact) -> None:
@@ -254,7 +256,9 @@ class InMemoryBlackboardStore(BlackboardStore):
             artifacts = self._by_type.get(canonical, [])
             return [artifact_type(**artifact.payload) for artifact in artifacts]  # type: ignore
 
-    async def extend(self, artifacts: Iterable[Artifact]) -> None:  # pragma: no cover - helper
+    async def extend(
+        self, artifacts: Iterable[Artifact]
+    ) -> None:  # pragma: no cover - helper
         for artifact in artifacts:
             await self.publish(artifact)
 
@@ -280,7 +284,9 @@ class InMemoryBlackboardStore(BlackboardStore):
         filters = filters or FilterConfig()
         canonical: set[str] | None = None
         if filters.type_names:
-            canonical = {type_registry.resolve_name(name) for name in filters.type_names}
+            canonical = {
+                type_registry.resolve_name(name) for name in filters.type_names
+            }
 
         visibility_filter = filters.visibility or set()
 
@@ -347,7 +353,9 @@ class InMemoryBlackboardStore(BlackboardStore):
             if not isinstance(artifact, Artifact):
                 raise TypeError("Expected Artifact instance")
             by_type[artifact.type] = by_type.get(artifact.type, 0) + 1
-            by_producer[artifact.produced_by] = by_producer.get(artifact.produced_by, 0) + 1
+            by_producer[artifact.produced_by] = (
+                by_producer.get(artifact.produced_by, 0) + 1
+            )
             kind = getattr(artifact.visibility, "kind", "Unknown")
             by_visibility[kind] = by_visibility.get(kind, 0) + 1
             for tag in artifact.tags:
@@ -476,7 +484,9 @@ class SQLiteBlackboardStore(BlackboardStore):
                 "version": artifact.version,
                 "visibility": visibility_json,
                 "tags": tags_json,
-                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
+                "correlation_id": str(artifact.correlation_id)
+                if artifact.correlation_id
+                else None,
                 "partition_key": artifact.partition_key,
                 "created_at": created_at,
             }
@@ -816,7 +826,8 @@ class SQLiteBlackboardStore(BlackboardStore):
         by_visibility_rows = await cursor.fetchall()
         await cursor.close()
         by_visibility = {
-            (row["visibility_kind"] or "Unknown"): row["count"] for row in by_visibility_rows
+            (row["visibility_kind"] or "Unknown"): row["count"]
+            for row in by_visibility_rows
         }
 
         tag_query = f"""
@@ -839,7 +850,9 @@ class SQLiteBlackboardStore(BlackboardStore):
         cursor = await conn.execute(range_query, params_tuple)
         range_row = await cursor.fetchone()
         await cursor.close()
-        earliest = range_row["earliest"] if range_row and range_row["earliest"] else None
+        earliest = (
+            range_row["earliest"] if range_row and range_row["earliest"] else None
+        )
         latest = range_row["latest"] if range_row and range_row["latest"] else None
 
         return {
@@ -902,7 +915,9 @@ class SQLiteBlackboardStore(BlackboardStore):
         consumption_rows = await cursor.fetchall()
         await cursor.close()
 
-        consumed_by_type = {row["canonical_type"]: row["count"] for row in consumption_rows}
+        consumed_by_type = {
+            row["canonical_type"]: row["count"] for row in consumption_rows
+        }
         consumed_total = sum(consumed_by_type.values())
 
         return {
@@ -1156,7 +1171,9 @@ class SQLiteBlackboardStore(BlackboardStore):
         params: list[Any] = []
 
         if filters.type_names:
-            canonical = {type_registry.resolve_name(name) for name in filters.type_names}
+            canonical = {
+                type_registry.resolve_name(name) for name in filters.type_names
+            }
             placeholders = ", ".join("?" for _ in canonical)
             conditions.append(f"{prefix}canonical_type IN ({placeholders})")
             params.extend(sorted(canonical))
@@ -1172,7 +1189,9 @@ class SQLiteBlackboardStore(BlackboardStore):
 
         if filters.visibility:
             placeholders = ", ".join("?" for _ in filters.visibility)
-            conditions.append(f"json_extract({prefix}visibility, '$.kind') IN ({placeholders})")
+            conditions.append(
+                f"json_extract({prefix}visibility, '$.kind') IN ({placeholders})"
+            )
             params.extend(sorted(filters.visibility))
 
         if filters.start is not None:

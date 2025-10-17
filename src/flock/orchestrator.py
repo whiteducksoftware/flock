@@ -113,29 +113,21 @@ class Flock(metaclass=AutoTracedMeta):
             >>> flock = Flock("openai/gpt-4.1")
 
             >>> # Custom storage backend
-            >>> flock = Flock(
-            ...     "openai/gpt-4o",
-            ...     store=CustomBlackboardStore()
-            ... )
+            >>> flock = Flock("openai/gpt-4o", store=CustomBlackboardStore())
 
             >>> # Circuit breaker configuration
-            >>> flock = Flock(
-            ...     "openai/gpt-4.1",
-            ...     max_agent_iterations=500
-            ... )
+            >>> flock = Flock("openai/gpt-4.1", max_agent_iterations=500)
 
             >>> # Global context provider (Phase 3 security fix)
             >>> from flock.context_provider import DefaultContextProvider
             >>> flock = Flock(
-            ...     "openai/gpt-4.1",
-            ...     context_provider=DefaultContextProvider()
+            ...     "openai/gpt-4.1", context_provider=DefaultContextProvider()
             ... )
         """
         self._patch_litellm_proxy_imports()
         self._logger = logging.getLogger(__name__)
         self.model = model
 
-        
         try:
             init_console(clear_screen=True, show_banner=True, model=self.model)
         except (UnicodeEncodeError, UnicodeDecodeError):
@@ -173,7 +165,9 @@ class Flock(metaclass=AutoTracedMeta):
         self._websocket_manager: Any = None
         # Unified tracing support
         self._workflow_span = None
-        self._auto_workflow_enabled = os.getenv("FLOCK_AUTO_WORKFLOW_TRACE", "false").lower() in {
+        self._auto_workflow_enabled = os.getenv(
+            "FLOCK_AUTO_WORKFLOW_TRACE", "false"
+        ).lower() in {
             "true",
             "1",
             "yes",
@@ -377,7 +371,11 @@ class Flock(metaclass=AutoTracedMeta):
                     path_str = str(abs_path)
 
                 # Extract a meaningful name (last component of path)
-                name = PathLib(path_str).name or path_str.rstrip("/").split("/")[-1] or "root"
+                name = (
+                    PathLib(path_str).name
+                    or path_str.rstrip("/").split("/")[-1]
+                    or "root"
+                )
                 mcp_roots.append(MCPRoot(uri=uri, name=name))
 
         # Build configuration
@@ -579,12 +577,17 @@ class Flock(metaclass=AutoTracedMeta):
         if pending_batches and (
             self._batch_timeout_task is None or self._batch_timeout_task.done()
         ):
-            self._batch_timeout_task = asyncio.create_task(self._batch_timeout_checker_loop())
+            self._batch_timeout_task = asyncio.create_task(
+                self._batch_timeout_checker_loop()
+            )
 
         if pending_correlations and (
-            self._correlation_cleanup_task is None or self._correlation_cleanup_task.done()
+            self._correlation_cleanup_task is None
+            or self._correlation_cleanup_task.done()
         ):
-            self._correlation_cleanup_task = asyncio.create_task(self._correlation_cleanup_loop())
+            self._correlation_cleanup_task = asyncio.create_task(
+                self._correlation_cleanup_loop()
+            )
 
         # If deferred work is still outstanding, consider the orchestrator quiescent for
         # now but leave watchdog tasks running to finish the job.
@@ -605,28 +608,43 @@ class Flock(metaclass=AutoTracedMeta):
     async def direct_invoke(
         self, agent: Agent, inputs: Sequence[BaseModel | Mapping[str, Any] | Artifact]
     ) -> list[Artifact]:
-        artifacts = [self._normalize_input(value, produced_by="__direct__") for value in inputs]
+        artifacts = [
+            self._normalize_input(value, produced_by="__direct__") for value in inputs
+        ]
         for artifact in artifacts:
             self._mark_processed(artifact, agent)
             await self._persist_and_schedule(artifact)
 
         # Phase 8: Evaluate context BEFORE creating Context (security fix)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import BoundContextProvider, DefaultContextProvider, ContextRequest
-        inner_provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+        from flock.context_provider import (
+            BoundContextProvider,
+            ContextRequest,
+            DefaultContextProvider,
+        )
+
+        inner_provider = (
+            getattr(agent, "context_provider", None)
+            or self._default_context_provider
+            or DefaultContextProvider()
+        )
 
         # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
         provider = BoundContextProvider(inner_provider, agent.identity)
 
         # Evaluate context using provider (orchestrator controls this!)
         # Engines will receive pre-filtered artifacts via ctx.artifacts
-        correlation_id = artifacts[0].correlation_id if artifacts and artifacts[0].correlation_id else uuid4()
+        correlation_id = (
+            artifacts[0].correlation_id
+            if artifacts and artifacts[0].correlation_id
+            else uuid4()
+        )
         request = ContextRequest(
             agent=agent,
             correlation_id=correlation_id,
             store=self.store,
             agent_identity=agent.identity,
-            exclude_ids={a.id for a in artifacts}  # Exclude input artifacts
+            exclude_ids={a.id for a in artifacts},  # Exclude input artifacts
         )
         context_artifacts = await provider(request)
 
@@ -636,12 +654,14 @@ class Flock(metaclass=AutoTracedMeta):
             artifacts=context_artifacts,  # Pre-filtered conversation context
             agent_identity=agent.identity,
             task_id=str(uuid4()),
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
         self._record_agent_run(agent)
         return await agent.execute(ctx, artifacts)
 
-    async def arun(self, agent_builder: AgentBuilder, *inputs: BaseModel) -> list[Artifact]:
+    async def arun(
+        self, agent_builder: AgentBuilder, *inputs: BaseModel
+    ) -> list[Artifact]:
         """Execute an agent with inputs and wait for all cascades to complete (async).
 
         Convenience method that combines direct agent invocation with run_until_idle().
@@ -662,9 +682,7 @@ class Flock(metaclass=AutoTracedMeta):
 
             >>> # Multiple inputs
             >>> results = await flock.arun(
-            ...     task_agent,
-            ...     Task(name="deploy"),
-            ...     Task(name="test")
+            ...     task_agent, Task(name="deploy"), Task(name="test")
             ... )
 
         Note:
@@ -789,6 +807,7 @@ class Flock(metaclass=AutoTracedMeta):
             return await websocket_manager.broadcast(event)
 
         from flock.agent import Agent
+
         Agent._websocket_broadcast_global = _broadcast_wrapper
 
         # Inject event collector into all existing agents
@@ -858,8 +877,7 @@ class Flock(metaclass=AutoTracedMeta):
 
             >>> # Publish with custom visibility
             >>> await orchestrator.publish(
-            ...     task,
-            ...     visibility=PrivateVisibility(agents={"admin"})
+            ...     task, visibility=PrivateVisibility(agents={"admin"})
             ... )
 
             >>> # Publish with tags for channel routing
@@ -973,16 +991,12 @@ class Flock(metaclass=AutoTracedMeta):
         Examples:
             >>> # Testing: Execute agent without triggering others
             >>> results = await orchestrator.invoke(
-            ...     agent,
-            ...     Task(name="test", priority=5),
-            ...     publish_outputs=False
+            ...     agent, Task(name="test", priority=5), publish_outputs=False
             ... )
 
             >>> # HTTP endpoint: Execute specific agent, allow cascade
             >>> results = await orchestrator.invoke(
-            ...     movie_agent,
-            ...     Idea(topic="AI", genre="comedy"),
-            ...     publish_outputs=True
+            ...     movie_agent, Idea(topic="AI", genre="comedy"), publish_outputs=True
             ... )
             >>> await orchestrator.run_until_idle()
         """
@@ -1003,8 +1017,17 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Phase 8: Evaluate context BEFORE creating Context (security fix)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import BoundContextProvider, DefaultContextProvider, ContextRequest
-        inner_provider = getattr(agent_obj, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+        from flock.context_provider import (
+            BoundContextProvider,
+            ContextRequest,
+            DefaultContextProvider,
+        )
+
+        inner_provider = (
+            getattr(agent_obj, "context_provider", None)
+            or self._default_context_provider
+            or DefaultContextProvider()
+        )
 
         # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
         provider = BoundContextProvider(inner_provider, agent_obj.identity)
@@ -1016,7 +1039,7 @@ class Flock(metaclass=AutoTracedMeta):
             correlation_id=correlation_id,
             store=self.store,
             agent_identity=agent_obj.identity,
-            exclude_ids={artifact.id}  # Exclude input artifact
+            exclude_ids={artifact.id},  # Exclude input artifact
         )
         context_artifacts = await provider(request)
 
@@ -1026,7 +1049,7 @@ class Flock(metaclass=AutoTracedMeta):
             artifacts=context_artifacts,  # Pre-filtered conversation context
             agent_identity=agent_obj.identity,
             task_id=str(uuid4()),
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
         self._record_agent_run(agent_obj)
 
@@ -1061,7 +1084,9 @@ class Flock(metaclass=AutoTracedMeta):
         if self._components_initialized:
             return
 
-        self._logger.info(f"Initializing {len(self._components)} orchestrator components")
+        self._logger.info(
+            f"Initializing {len(self._components)} orchestrator components"
+        )
 
         for component in self._components:
             comp_name = component.name or component.__class__.__name__
@@ -1135,7 +1160,9 @@ class Flock(metaclass=AutoTracedMeta):
             )
 
             try:
-                decision = await component.on_before_schedule(self, artifact, agent, subscription)
+                decision = await component.on_before_schedule(
+                    self, artifact, agent, subscription
+                )
 
                 if decision == ScheduleDecision.SKIP:
                     self._logger.info(
@@ -1179,7 +1206,9 @@ class Flock(metaclass=AutoTracedMeta):
             )
 
             try:
-                result = await component.on_collect_artifacts(self, artifact, agent, subscription)
+                result = await component.on_collect_artifacts(
+                    self, artifact, agent, subscription
+                )
 
                 if result is not None:
                     self._logger.debug(
@@ -1221,7 +1250,9 @@ class Flock(metaclass=AutoTracedMeta):
             )
 
             try:
-                result = await component.on_before_agent_schedule(self, agent, current_artifacts)
+                result = await component.on_before_agent_schedule(
+                    self, agent, current_artifacts
+                )
 
                 if result is None:
                     self._logger.info(
@@ -1292,7 +1323,9 @@ class Flock(metaclass=AutoTracedMeta):
         Components execute in priority order. Exceptions are logged but don't
         prevent shutdown of other components (best-effort cleanup).
         """
-        self._logger.info(f"Shutting down {len(self._components)} orchestrator components")
+        self._logger.info(
+            f"Shutting down {len(self._components)} orchestrator components"
+        )
 
         for component in self._components:
             comp_name = component.name or component.__class__.__name__
@@ -1345,14 +1378,18 @@ class Flock(metaclass=AutoTracedMeta):
                 # Phase 3: Component hook - before schedule (circuit breaker, deduplication, etc.)
                 from flock.orchestrator_component import ScheduleDecision
 
-                decision = await self._run_before_schedule(artifact, agent, subscription)
+                decision = await self._run_before_schedule(
+                    artifact, agent, subscription
+                )
                 if decision == ScheduleDecision.SKIP:
                     continue  # Skip this subscription
                 if decision == ScheduleDecision.DEFER:
                     continue  # Defer for later (batching/correlation)
 
                 # Phase 3: Component hook - collect artifacts (handles AND gates, correlation, batching)
-                collection = await self._run_collect_artifacts(artifact, agent, subscription)
+                collection = await self._run_collect_artifacts(
+                    artifact, agent, subscription
+                )
                 if not collection.complete:
                     continue  # Still collecting (AND gate, correlation, or batch incomplete)
 
@@ -1366,7 +1403,9 @@ class Flock(metaclass=AutoTracedMeta):
                 # Complete! Schedule agent with collected artifacts
                 # Schedule agent task
                 is_batch_execution = subscription.batch is not None
-                task = self._schedule_task(agent, artifacts, is_batch=is_batch_execution)
+                task = self._schedule_task(
+                    agent, artifacts, is_batch=is_batch_execution
+                )
 
                 # Phase 3: Component hook - agent scheduled (notification)
                 await self._run_agent_scheduled(agent, artifacts, task)
@@ -1375,7 +1414,9 @@ class Flock(metaclass=AutoTracedMeta):
         self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
     ) -> Task[Any]:
         """Schedule agent task and return the task handle."""
-        task = asyncio.create_task(self._run_agent_task(agent, artifacts, is_batch=is_batch))
+        task = asyncio.create_task(
+            self._run_agent_task(agent, artifacts, is_batch=is_batch)
+        )
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return task
@@ -1398,8 +1439,17 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Phase 8: Evaluate context BEFORE creating Context (security fix)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import BoundContextProvider, DefaultContextProvider, ContextRequest
-        inner_provider = getattr(agent, "context_provider", None) or self._default_context_provider or DefaultContextProvider()
+        from flock.context_provider import (
+            BoundContextProvider,
+            ContextRequest,
+            DefaultContextProvider,
+        )
+
+        inner_provider = (
+            getattr(agent, "context_provider", None)
+            or self._default_context_provider
+            or DefaultContextProvider()
+        )
 
         # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
         provider = BoundContextProvider(inner_provider, agent.identity)
@@ -1411,7 +1461,7 @@ class Flock(metaclass=AutoTracedMeta):
             correlation_id=correlation_id,
             store=self.store,
             agent_identity=agent.identity,
-            exclude_ids={a.id for a in artifacts}  # Exclude input artifacts
+            exclude_ids={a.id for a in artifacts},  # Exclude input artifacts
         )
         context_artifacts = await provider(request)
 
@@ -1422,7 +1472,7 @@ class Flock(metaclass=AutoTracedMeta):
             agent_identity=agent.identity,
             task_id=str(uuid4()),
             correlation_id=correlation_id,
-            is_batch=is_batch
+            is_batch=is_batch,
         )
         self._record_agent_run(agent)
 
@@ -1475,7 +1525,9 @@ class Flock(metaclass=AutoTracedMeta):
         from flock.dashboard.service import _get_correlation_groups
 
         # Get current correlation groups state from engine
-        groups = _get_correlation_groups(self._correlation_engine, agent_name, subscription_index)
+        groups = _get_correlation_groups(
+            self._correlation_engine, agent_name, subscription_index
+        )
 
         if not groups:
             return  # No groups to report (shouldn't happen, but defensive)

@@ -123,7 +123,9 @@ def sqlite_maintenance(
             try:
                 before_dt = datetime.fromisoformat(delete_before)
             except ValueError as exc:  # pragma: no cover - Typer handles but defensive
-                raise typer.BadParameter(f"Invalid ISO timestamp: {delete_before}") from exc
+                raise typer.BadParameter(
+                    f"Invalid ISO timestamp: {delete_before}"
+                ) from exc
             deleted = await store.delete_before(before_dt)
         if vacuum:
             await store.vacuum()

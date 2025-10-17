@@ -134,7 +134,9 @@ async def main():
     ]
 
     for order in orders:
-        print(f"   🛒 Order {order.order_id}: {order.customer_name} - ${order.total_amount:.2f}")
+        print(
+            f"   🛒 Order {order.order_id}: {order.customer_name} - ${order.total_amount:.2f}"
+        )
         await flock.publish(order)
 
     await flock.run_until_idle()

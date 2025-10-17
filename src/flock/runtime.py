@@ -28,7 +28,9 @@ class EvalInputs(BaseModel):
 
         Example:
             >>> class TaskProcessor(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         task = inputs.first_as(Task)
             ...         if not task:
             ...             return EvalResult.empty()
@@ -88,9 +90,13 @@ class EvalResult(BaseModel):
 
         Example:
             >>> class TaskProcessor(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         task = inputs.first_as(Task)
-            ...         processed = Task(name=f"Done: {task.name}", priority=task.priority)
+            ...         processed = Task(
+            ...             name=f"Done: {task.name}", priority=task.priority
+            ...         )
             ...         return EvalResult.from_object(processed, agent=agent)
         """
         from flock.artifacts import Artifact
@@ -136,14 +142,16 @@ class EvalResult(BaseModel):
 
         Example:
             >>> class MovieEngine(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         idea = inputs.first_as(Idea)
-            ...         movie = Movie(title=idea.topic.upper(), runtime=240, synopsis="...")
+            ...         movie = Movie(
+            ...             title=idea.topic.upper(), runtime=240, synopsis="..."
+            ...         )
             ...         tagline = Tagline(line="Don't miss it!")
             ...         return EvalResult.from_objects(
-            ...             movie, tagline,
-            ...             agent=agent,
-            ...             metrics={"confidence": 0.9}
+            ...             movie, tagline, agent=agent, metrics={"confidence": 0.9}
             ...         )
         """
         from flock.artifacts import Artifact
@@ -190,7 +198,9 @@ class EvalResult(BaseModel):
 
         Example:
             >>> class ConditionalProcessor(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         task = inputs.first_as(Task)
             ...         if task.priority < 3:
             ...             return EvalResult.empty()  # Skip low priority
@@ -229,12 +239,15 @@ class EvalResult(BaseModel):
 
         Example:
             >>> class ValidationAgent(EngineComponent):
-            ...     async def evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalResult:
+            ...     async def evaluate(
+            ...         self, agent, ctx, inputs: EvalInputs
+            ...     ) -> EvalResult:
             ...         task = inputs.first_as(Task)
             ...         is_valid = task.priority >= 1
-            ...         return EvalResult.with_state(
-            ...             {"validation_passed": is_valid, "validator": "priority_check"}
-            ...         )
+            ...         return EvalResult.with_state({
+            ...             "validation_passed": is_valid,
+            ...             "validator": "priority_check",
+            ...         })
         """
         return cls(
             artifacts=[],
@@ -263,6 +276,7 @@ class Context(BaseModel):
     Design Philosophy: Engines are pure functions (input + context → output).
     They don't query, they don't mutate - they only transform data.
     """
+
     model_config = ConfigDict(frozen=True)
 
     # ❌ REMOVED: board: Any (security vulnerability)
@@ -274,20 +288,21 @@ class Context(BaseModel):
     # Engines can only read this list - they cannot query for more data
     artifacts: list[Artifact] = Field(
         default_factory=list,
-        description="Pre-filtered conversation context artifacts (evaluated by orchestrator using context provider)"
+        description="Pre-filtered conversation context artifacts (evaluated by orchestrator using context provider)",
     )
 
     # ✅ Agent identity (informational only - used by orchestrator for logging/tracing)
     agent_identity: Any = Field(
         default=None,
-        description="Agent identity (informational) - engines cannot use this to query data"
+        description="Agent identity (informational) - engines cannot use this to query data",
     )
 
     correlation_id: UUID | None = None
     task_id: str
     state: dict[str, Any] = Field(default_factory=dict)
     is_batch: bool = Field(
-        default=False, description="True if this execution is processing a BatchSpec accumulation"
+        default=False,
+        description="True if this execution is processing a BatchSpec accumulation",
     )
 
     def get_variable(self, key: str, default: Any = None) -> Any:

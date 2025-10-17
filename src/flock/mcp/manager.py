@@ -39,7 +39,7 @@ class FlockMCPClientManager:
             "filesystem": FlockMCPConfiguration(
                 name="filesystem",
                 connection_config=connection_config,
-                feature_config=feature_config
+                feature_config=feature_config,
             )
         }
         manager = FlockMCPClientManager(configs)
@@ -69,7 +69,11 @@ class FlockMCPClientManager:
         self._lock = asyncio.Lock()
 
     async def get_client(
-        self, server_name: str, agent_id: str, run_id: str, mount_points: list[str] | None = None
+        self,
+        server_name: str,
+        agent_id: str,
+        run_id: str,
+        mount_points: list[str] | None = None,
     ) -> FlockMCPClient:
         """Get or create an MCP client for the given context.
 

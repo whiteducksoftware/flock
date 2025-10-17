@@ -104,7 +104,9 @@ class GraphStatistics(BaseModel):
     consumed_by_agent: dict[str, GraphAgentMetrics] = Field(
         default_factory=dict, alias="consumedByAgent"
     )
-    artifact_summary: dict[str, Any] = Field(default_factory=dict, alias="artifactSummary")
+    artifact_summary: dict[str, Any] = Field(
+        default_factory=dict, alias="artifactSummary"
+    )
 
 
 class GraphArtifact(BaseModel):
@@ -128,8 +130,12 @@ class GraphRun(BaseModel):
     agent_name: str = Field(alias="agentName")
     correlation_id: str | None = Field(default=None, alias="correlationId")
     status: Literal["active", "completed", "error"] = "active"
-    consumed_artifacts: list[str] = Field(default_factory=list, alias="consumedArtifacts")
-    produced_artifacts: list[str] = Field(default_factory=list, alias="producedArtifacts")
+    consumed_artifacts: list[str] = Field(
+        default_factory=list, alias="consumedArtifacts"
+    )
+    produced_artifacts: list[str] = Field(
+        default_factory=list, alias="producedArtifacts"
+    )
     duration_ms: float | None = Field(default=None, alias="durationMs")
     started_at: datetime | None = Field(default=None, alias="startedAt")
     completed_at: datetime | None = Field(default=None, alias="completedAt")

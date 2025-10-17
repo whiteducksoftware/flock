@@ -143,7 +143,9 @@ class DashboardHTTPService(BlackboardHTTPService):
                 return await self.graph_assembler.build_snapshot(request)
 
         dashboard_dir = Path(__file__).parent
-        frontend_root = dashboard_dir.parent / ("frontend_v2" if self.use_v2 else "frontend")
+        frontend_root = dashboard_dir.parent / (
+            "frontend_v2" if self.use_v2 else "frontend"
+        )
         static_dir = dashboard_dir / ("static_v2" if self.use_v2 else "static")
 
         possible_dirs = [
@@ -244,14 +246,18 @@ class DashboardHTTPService(BlackboardHTTPService):
                 # NEW Phase 1.2: Logic operations configuration
                 logic_operations = []
                 for idx, subscription in enumerate(agent.subscriptions):
-                    logic_config = _build_logic_config(agent, subscription, idx, orchestrator)
+                    logic_config = _build_logic_config(
+                        agent, subscription, idx, orchestrator
+                    )
                     if logic_config:  # Only include if has join/batch
                         logic_operations.append(logic_config)
 
                 agent_data = {
                     "name": agent.name,
                     "description": agent.description or "",
-                    "status": _compute_agent_status(agent, orchestrator),  # NEW: Dynamic status
+                    "status": _compute_agent_status(
+                        agent, orchestrator
+                    ),  # NEW: Dynamic status
                     "subscriptions": consumed_types,
                     "output_types": produced_types,
                 }
@@ -314,7 +320,9 @@ class DashboardHTTPService(BlackboardHTTPService):
                 try:
                     instance = model_class(**content)
                 except ValidationError as e:
-                    raise HTTPException(status_code=422, detail=f"Validation error: {e!s}")
+                    raise HTTPException(
+                        status_code=422, detail=f"Validation error: {e!s}"
+                    )
 
                 # Generate correlation ID
                 correlation_id = str(uuid4())
@@ -384,13 +392,17 @@ class DashboardHTTPService(BlackboardHTTPService):
                 # Get agent from orchestrator
                 agent = orchestrator.get_agent(agent_name)
             except KeyError:
-                raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
+                raise HTTPException(
+                    status_code=404, detail=f"Agent not found: {agent_name}"
+                )
 
             try:
                 # Parse input type and create instance
                 input_type = input_data.get("type")
                 if not input_type:
-                    raise HTTPException(status_code=400, detail="input.type is required")
+                    raise HTTPException(
+                        status_code=400, detail="input.type is required"
+                    )
 
                 # Resolve type from registry
                 model_class = type_registry.resolve(input_type)
@@ -402,7 +414,9 @@ class DashboardHTTPService(BlackboardHTTPService):
                 try:
                     instance = model_class(**payload)
                 except ValidationError as e:
-                    raise HTTPException(status_code=422, detail=f"Validation error: {e!s}")
+                    raise HTTPException(
+                        status_code=422, detail=f"Validation error: {e!s}"
+                    )
 
                 # Invoke agent
                 outputs = await orchestrator.invoke(agent, instance)
@@ -426,7 +440,9 @@ class DashboardHTTPService(BlackboardHTTPService):
             except HTTPException:
                 raise
             except KeyError:
-                raise HTTPException(status_code=422, detail=f"Unknown type: {input_type}")
+                raise HTTPException(
+                    status_code=422, detail=f"Unknown type: {input_type}"
+                )
             except Exception as e:
                 logger.exception(f"Error invoking agent: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
@@ -438,7 +454,9 @@ class DashboardHTTPService(BlackboardHTTPService):
             Returns:
                 501 Not Implemented
             """
-            raise HTTPException(status_code=501, detail="Pause functionality coming in Phase 12")
+            raise HTTPException(
+                status_code=501, detail="Pause functionality coming in Phase 12"
+            )
 
         @app.post("/api/control/resume")
         async def resume_orchestrator() -> dict[str, Any]:
@@ -447,7 +465,9 @@ class DashboardHTTPService(BlackboardHTTPService):
             Returns:
                 501 Not Implemented
             """
-            raise HTTPException(status_code=501, detail="Resume functionality coming in Phase 12")
+            raise HTTPException(
+                status_code=501, detail="Resume functionality coming in Phase 12"
+            )
 
         @app.get("/api/traces")
         async def get_traces() -> list[dict[str, Any]]:
@@ -516,10 +536,14 @@ class DashboardHTTPService(BlackboardHTTPService):
                                 "status_code": row[10],  # status_code
                                 "description": row[11],  # status_description
                             },
-                            "attributes": json.loads(row[12]) if row[12] else {},  # attributes
+                            "attributes": json.loads(row[12])
+                            if row[12]
+                            else {},  # attributes
                             "events": json.loads(row[13]) if row[13] else [],  # events
                             "links": json.loads(row[14]) if row[14] else [],  # links
-                            "resource": json.loads(row[15]) if row[15] else {},  # resource
+                            "resource": json.loads(row[15])
+                            if row[15]
+                            else {},  # resource
                         }
 
                         # Add parent_id if exists
@@ -619,10 +643,22 @@ class DashboardHTTPService(BlackboardHTTPService):
             # Security: Only allow SELECT queries
             query_upper = query.upper().strip()
             if not query_upper.startswith("SELECT"):
-                return {"error": "Only SELECT queries are allowed", "results": [], "columns": []}
+                return {
+                    "error": "Only SELECT queries are allowed",
+                    "results": [],
+                    "columns": [],
+                }
 
             # Check for dangerous keywords
-            dangerous = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "TRUNCATE"]
+            dangerous = [
+                "DROP",
+                "DELETE",
+                "INSERT",
+                "UPDATE",
+                "ALTER",
+                "CREATE",
+                "TRUNCATE",
+            ]
             if any(keyword in query_upper for keyword in dangerous):
                 return {
                     "error": "Query contains forbidden operations",
@@ -632,12 +668,20 @@ class DashboardHTTPService(BlackboardHTTPService):
 
             db_path = Path(".flock/traces.duckdb")
             if not db_path.exists():
-                return {"error": "Trace database not found", "results": [], "columns": []}
+                return {
+                    "error": "Trace database not found",
+                    "results": [],
+                    "columns": [],
+                }
 
             try:
                 with duckdb.connect(str(db_path), read_only=True) as conn:
                     result = conn.execute(query).fetchall()
-                    columns = [desc[0] for desc in conn.description] if conn.description else []
+                    columns = (
+                        [desc[0] for desc in conn.description]
+                        if conn.description
+                        else []
+                    )
 
                     # Convert to JSON-serializable format
                     results = []
@@ -652,7 +696,11 @@ class DashboardHTTPService(BlackboardHTTPService):
                                 row_dict[col] = val
                         results.append(row_dict)
 
-                    return {"results": results, "columns": columns, "row_count": len(results)}
+                    return {
+                        "results": results,
+                        "columns": columns,
+                        "row_count": len(results),
+                    }
             except Exception as e:
                 logger.exception(f"DuckDB query error: {e}")
                 return {"error": str(e), "results": [], "columns": []}
@@ -691,7 +739,9 @@ class DashboardHTTPService(BlackboardHTTPService):
             try:
                 with duckdb.connect(str(db_path), read_only=True) as conn:
                     # Get total spans
-                    total_spans = conn.execute("SELECT COUNT(*) FROM spans").fetchone()[0]
+                    total_spans = conn.execute("SELECT COUNT(*) FROM spans").fetchone()[
+                        0
+                    ]
 
                     # Get total unique traces
                     total_traces = conn.execute(
@@ -777,7 +827,9 @@ class DashboardHTTPService(BlackboardHTTPService):
                     "events": [event.model_dump() for event in history],
                 }
             except Exception as e:
-                logger.exception(f"Failed to get streaming history for {agent_name}: {e}")
+                logger.exception(
+                    f"Failed to get streaming history for {agent_name}: {e}"
+                )
                 raise HTTPException(
                     status_code=500, detail=f"Failed to get streaming history: {e!s}"
                 )
@@ -818,24 +870,25 @@ class DashboardHTTPService(BlackboardHTTPService):
 
                 # 1. Get messages PRODUCED by this node
                 produced_filter = FilterConfig(produced_by={node_id})
-                produced_artifacts, _produced_count = await orchestrator.store.query_artifacts(
+                (
+                    produced_artifacts,
+                    _produced_count,
+                ) = await orchestrator.store.query_artifacts(
                     produced_filter, limit=100, offset=0, embed_meta=False
                 )
 
                 for artifact in produced_artifacts:
-                    messages.append(
-                        {
-                            "id": str(artifact.id),
-                            "type": artifact.type,
-                            "direction": "published",
-                            "payload": artifact.payload,
-                            "timestamp": artifact.created_at.isoformat(),
-                            "correlation_id": str(artifact.correlation_id)
-                            if artifact.correlation_id
-                            else None,
-                            "produced_by": artifact.produced_by,
-                        }
-                    )
+                    messages.append({
+                        "id": str(artifact.id),
+                        "type": artifact.type,
+                        "direction": "published",
+                        "payload": artifact.payload,
+                        "timestamp": artifact.created_at.isoformat(),
+                        "correlation_id": str(artifact.correlation_id)
+                        if artifact.correlation_id
+                        else None,
+                        "produced_by": artifact.produced_by,
+                    })
 
                 # 2. Get messages CONSUMED by this node
                 # Query all artifacts with consumption metadata
@@ -848,29 +901,35 @@ class DashboardHTTPService(BlackboardHTTPService):
                     artifact = envelope.artifact
                     for consumption in envelope.consumptions:
                         if consumption.consumer == node_id:
-                            messages.append(
-                                {
-                                    "id": str(artifact.id),
-                                    "type": artifact.type,
-                                    "direction": "consumed",
-                                    "payload": artifact.payload,
-                                    "timestamp": artifact.created_at.isoformat(),
-                                    "correlation_id": str(artifact.correlation_id)
-                                    if artifact.correlation_id
-                                    else None,
-                                    "produced_by": artifact.produced_by,
-                                    "consumed_at": consumption.consumed_at.isoformat(),
-                                }
-                            )
+                            messages.append({
+                                "id": str(artifact.id),
+                                "type": artifact.type,
+                                "direction": "consumed",
+                                "payload": artifact.payload,
+                                "timestamp": artifact.created_at.isoformat(),
+                                "correlation_id": str(artifact.correlation_id)
+                                if artifact.correlation_id
+                                else None,
+                                "produced_by": artifact.produced_by,
+                                "consumed_at": consumption.consumed_at.isoformat(),
+                            })
 
                 # Sort by timestamp (most recent first)
-                messages.sort(key=lambda m: m.get("consumed_at", m["timestamp"]), reverse=True)
+                messages.sort(
+                    key=lambda m: m.get("consumed_at", m["timestamp"]), reverse=True
+                )
 
-                return {"node_id": node_id, "messages": messages, "total": len(messages)}
+                return {
+                    "node_id": node_id,
+                    "messages": messages,
+                    "total": len(messages),
+                }
 
             except Exception as e:
                 logger.exception(f"Failed to get message history for {node_id}: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to get message history: {e!s}")
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to get message history: {e!s}"
+                )
 
         @app.get("/api/agents/{agent_id}/runs")
         async def get_agent_runs(agent_id: str) -> dict[str, Any]:
@@ -919,7 +978,9 @@ class DashboardHTTPService(BlackboardHTTPService):
 
             except Exception as e:
                 logger.exception(f"Failed to get run history for {agent_id}: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to get run history: {e!s}")
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to get run history: {e!s}"
+                )
 
     def _register_theme_routes(self) -> None:
         """Register theme API endpoints for dashboard customization."""
@@ -947,7 +1008,9 @@ class DashboardHTTPService(BlackboardHTTPService):
                 return {"themes": theme_names}
             except Exception as e:
                 logger.exception(f"Failed to list themes: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to list themes: {e!s}")
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to list themes: {e!s}"
+                )
 
         @app.get("/api/themes/{theme_name}")
         async def get_theme(theme_name: str) -> dict[str, Any]:
@@ -966,12 +1029,16 @@ class DashboardHTTPService(BlackboardHTTPService):
             """
             try:
                 # Sanitize theme name to prevent path traversal
-                theme_name = theme_name.replace("/", "").replace("\\", "").replace("..", "")
+                theme_name = (
+                    theme_name.replace("/", "").replace("\\", "").replace("..", "")
+                )
 
                 theme_path = themes_dir / f"{theme_name}.toml"
 
                 if not theme_path.exists():
-                    raise HTTPException(status_code=404, detail=f"Theme '{theme_name}' not found")
+                    raise HTTPException(
+                        status_code=404, detail=f"Theme '{theme_name}' not found"
+                    )
 
                 # Load TOML theme
                 theme_data = toml.load(theme_path)
@@ -981,7 +1048,9 @@ class DashboardHTTPService(BlackboardHTTPService):
                 raise
             except Exception as e:
                 logger.exception(f"Failed to load theme '{theme_name}': {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to load theme: {e!s}")
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to load theme: {e!s}"
+                )
 
     async def start(self) -> None:
         """Start the dashboard service.
@@ -1088,22 +1157,22 @@ def _get_correlation_groups(
             if collected_types.get(type_name, 0) < required_count
         ]
 
-        result.append(
-            {
-                "correlation_key": str(corr_key),
-                "created_at": group.created_at_time.isoformat() if group.created_at_time else None,
-                "elapsed_seconds": round(elapsed, 1),
-                "expires_in_seconds": round(expires_in_seconds, 1)
-                if expires_in_seconds is not None
-                else None,
-                "expires_in_artifacts": expires_in_artifacts,
-                "collected_types": collected_types,
-                "required_types": dict(group.type_counts),
-                "waiting_for": waiting_for,
-                "is_complete": group.is_complete(),
-                "is_expired": group.is_expired(engine.global_sequence),
-            }
-        )
+        result.append({
+            "correlation_key": str(corr_key),
+            "created_at": group.created_at_time.isoformat()
+            if group.created_at_time
+            else None,
+            "elapsed_seconds": round(elapsed, 1),
+            "expires_in_seconds": round(expires_in_seconds, 1)
+            if expires_in_seconds is not None
+            else None,
+            "expires_in_artifacts": expires_in_artifacts,
+            "collected_types": collected_types,
+            "required_types": dict(group.type_counts),
+            "waiting_for": waiting_for,
+            "is_complete": group.is_complete(),
+            "is_expired": group.is_expired(engine.global_sequence),
+        })
 
     return result
 
@@ -1328,7 +1397,9 @@ def _build_logic_config(  # noqa: F821
             config["batch"]["timeout_seconds"] = int(batch_spec.timeout.total_seconds())
 
         # Get waiting state from BatchEngine
-        batch_state = _get_batch_state(orchestrator._batch_engine, agent.name, idx, batch_spec)
+        batch_state = _get_batch_state(
+            orchestrator._batch_engine, agent.name, idx, batch_spec
+        )
         if batch_state:
             if "waiting_state" not in config:
                 config["waiting_state"] = {"is_waiting": True}

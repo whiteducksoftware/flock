@@ -20,7 +20,9 @@ class TraceFilterConfig:
 
     def __init__(self):
         self.services: set[str] | None = None  # Whitelist: only trace these services
-        self.ignore_operations: set[str] = set()  # Blacklist: never trace these operations
+        self.ignore_operations: set[str] = (
+            set()
+        )  # Blacklist: never trace these operations
 
     def should_trace(self, service: str, operation: str) -> bool:
         """Check if an operation should be traced based on filters.
@@ -74,17 +76,22 @@ def _serialize_value(value, max_depth=10, current_depth=0):
 
         # Handle lists/tuples
         if isinstance(value, (list, tuple)):
-            return [_serialize_value(item, max_depth, current_depth + 1) for item in value]
+            return [
+                _serialize_value(item, max_depth, current_depth + 1) for item in value
+            ]
 
         # Handle dicts
         if isinstance(value, dict):
             return {
-                str(k): _serialize_value(v, max_depth, current_depth + 1) for k, v in value.items()
+                str(k): _serialize_value(v, max_depth, current_depth + 1)
+                for k, v in value.items()
             }
 
         # Handle sets
         if isinstance(value, set):
-            return [_serialize_value(item, max_depth, current_depth + 1) for item in value]
+            return [
+                _serialize_value(item, max_depth, current_depth + 1) for item in value
+            ]
 
         # For custom objects with __dict__, serialize their attributes
         if hasattr(value, "__dict__"):
@@ -277,7 +284,9 @@ def traced_and_logged(func):
                 # Capture output value as JSON
                 try:
                     serialized_result = _serialize_value(result)
-                    span.set_attribute("output.value", json.dumps(serialized_result, default=str))
+                    span.set_attribute(
+                        "output.value", json.dumps(serialized_result, default=str)
+                    )
                 except Exception as e:
                     span.set_attribute("output.value", str(result))
                     span.set_attribute("output.serialization_error", str(e))

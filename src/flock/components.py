@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Self
 
 from pydantic import BaseModel, Field, create_model
 from pydantic._internal._model_construction import ModelMetaclass
@@ -12,8 +12,6 @@ from flock.logging.auto_trace import AutoTracedMeta
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-    from uuid import UUID
-
     from flock.agent import Agent, OutputGroup
     from flock.artifacts import Artifact
     from flock.runtime import Context, EvalInputs, EvalResult
@@ -71,7 +69,9 @@ class AgentComponent(BaseModel, metaclass=TracedModelMeta):
     ) -> list[Artifact]:
         return inputs
 
-    async def on_pre_evaluate(self, agent: Agent, ctx: Context, inputs: EvalInputs) -> EvalInputs:
+    async def on_pre_evaluate(
+        self, agent: Agent, ctx: Context, inputs: EvalInputs
+    ) -> EvalInputs:
         return inputs
 
     async def on_post_evaluate(
@@ -89,7 +89,9 @@ class AgentComponent(BaseModel, metaclass=TracedModelMeta):
     ) -> None:  # pragma: no cover - default
         return None
 
-    async def on_terminate(self, agent: Agent, ctx: Context) -> None:  # pragma: no cover - default
+    async def on_terminate(
+        self, agent: Agent, ctx: Context
+    ) -> None:  # pragma: no cover - default
         return None
 
 
@@ -188,11 +190,15 @@ class EngineComponent(AgentComponent):
         # Apply engine-level filtering (type exclusions)
         if self.context_exclude_types:
             context_items = [
-                item for item in context_items if item.type not in self.context_exclude_types
+                item
+                for item in context_items
+                if item.type not in self.context_exclude_types
             ]
 
         # Apply max artifacts limit
-        max_limit = max_artifacts if max_artifacts is not None else self.context_max_artifacts
+        max_limit = (
+            max_artifacts if max_artifacts is not None else self.context_max_artifacts
+        )
         if max_limit is not None and max_limit > 0:
             context_items = context_items[-max_limit:]
 

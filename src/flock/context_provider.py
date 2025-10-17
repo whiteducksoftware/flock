@@ -27,7 +27,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from flock.artifacts import Artifact
-from flock.store import FilterConfig, BlackboardStore
+from flock.store import BlackboardStore, FilterConfig
 from flock.visibility import AgentIdentity
 
 
@@ -130,7 +130,6 @@ class BaseContextProvider(ABC):
         Returns:
             List of artifacts (will be visibility-filtered by base class)
         """
-        pass
 
     async def __call__(self, request: ContextRequest) -> list[Artifact]:
         """Fetch context with MANDATORY visibility enforcement (cannot be bypassed).
@@ -231,15 +230,13 @@ class FilteredContextProvider(BaseContextProvider):
     Example:
         >>> # Filter by tags + enforce visibility
         >>> provider = FilteredContextProvider(
-        ...     FilterConfig(tags={"important", "urgent"}),
-        ...     limit=10
+        ...     FilterConfig(tags={"important", "urgent"}), limit=10
         ... )
         >>> agent.with_context(provider)
 
         >>> # Filter by type + enforce visibility
         >>> provider = FilteredContextProvider(
-        ...     FilterConfig(type_names={"Task", "Report"}),
-        ...     limit=50
+        ...     FilterConfig(type_names={"Task", "Report"}), limit=50
         ... )
     """
 
@@ -291,10 +288,14 @@ class BoundContextProvider:
         ...     agent_identity=AgentIdentity(name="admin", labels={"admin"}),  # FAKE
         ... )
         >>> # Provider ignores fake identity, uses bound identity instead
-        >>> context = await bound_provider(request)  # Still filters as original agent
+        >>> context = await bound_provider(
+        ...     request
+        ... )  # Still filters as original agent
     """
 
-    def __init__(self, inner_provider: ContextProvider, bound_agent_identity: AgentIdentity):
+    def __init__(
+        self, inner_provider: ContextProvider, bound_agent_identity: AgentIdentity
+    ):
         """Create provider bound to specific agent identity.
 
         Args:
@@ -517,14 +518,14 @@ class EmptyContextProvider(BaseContextProvider):
 
 
 __all__ = [
+    "BaseContextProvider",
+    "BoundContextProvider",
     "ContextProvider",
     "ContextRequest",
-    "BaseContextProvider",
-    "DefaultContextProvider",
     "CorrelatedContextProvider",
-    "RecentContextProvider",
-    "TimeWindowContextProvider",
+    "DefaultContextProvider",
     "EmptyContextProvider",
     "FilteredContextProvider",
-    "BoundContextProvider",
+    "RecentContextProvider",
+    "TimeWindowContextProvider",
 ]

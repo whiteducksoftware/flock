@@ -85,11 +85,17 @@ class ConfidenceBoosterComponent(AgentComponent):
     min_confidence: float = Field(
         default=0.8, description="Minimum acceptable confidence score"
     )
-    max_retries: int = Field(default=2, description="Max retry attempts for low confidence")
+    max_retries: int = Field(
+        default=2, description="Max retry attempts for low confidence"
+    )
 
     # Per-agent state
-    evaluation_count: int = Field(default=0, description="Total evaluations by this agent")
-    low_confidence_count: int = Field(default=0, description="Number of low-confidence results")
+    evaluation_count: int = Field(
+        default=0, description="Total evaluations by this agent"
+    )
+    low_confidence_count: int = Field(
+        default=0, description="Number of low-confidence results"
+    )
     retry_count: int = Field(default=0, description="Number of retries triggered")
 
     async def on_pre_evaluate(self, agent, ctx, inputs: EvalInputs) -> EvalInputs:
@@ -150,7 +156,9 @@ than to make a low-confidence recommendation.
                 if self.retry_count < self.max_retries:
                     self.retry_count += 1
 
-                    print(f"⚠️  [{agent.name}] Low confidence detected: {confidence:.2f}")
+                    print(
+                        f"⚠️  [{agent.name}] Low confidence detected: {confidence:.2f}"
+                    )
                     print(f"   Retry attempt {self.retry_count}/{self.max_retries}")
 
                     # Enhance prompt for retry
@@ -174,8 +182,10 @@ Provide a more thorough analysis and reassess confidence.
                     # For this demo, we'll just log the retry intent.
 
                 else:
-                    print(f"❌ [{agent.name}] Max retries reached with confidence: {confidence:.2f}")
-                    print(f"   Proceeding with low-confidence result (flagged)")
+                    print(
+                        f"❌ [{agent.name}] Max retries reached with confidence: {confidence:.2f}"
+                    )
+                    print("   Proceeding with low-confidence result (flagged)")
 
                     # Flag this result as low-confidence
                     result.metrics["low_confidence"] = True
@@ -206,7 +216,9 @@ Provide a more thorough analysis and reassess confidence.
             print(f"📋 [{agent.name}] Published diagnosis for {patient_id}")
             print(f"   Confidence: {confidence:.2%}")
         else:
-            print(f"⚠️  [{agent.name}] Published LOW-CONFIDENCE diagnosis for {patient_id}")
+            print(
+                f"⚠️  [{agent.name}] Published LOW-CONFIDENCE diagnosis for {patient_id}"
+            )
             print(f"   Confidence: {confidence:.2%} - Manual review recommended")
 
         # Report stats periodically
@@ -216,7 +228,10 @@ Provide a more thorough analysis and reassess confidence.
             print(f"   Low confidence: {self.low_confidence_count}")
             print(f"   Retries triggered: {self.retry_count}")
             success_rate = (
-                ((self.evaluation_count - self.low_confidence_count) / self.evaluation_count)
+                (
+                    (self.evaluation_count - self.low_confidence_count)
+                    / self.evaluation_count
+                )
                 * 100
                 if self.evaluation_count > 0
                 else 0
@@ -256,7 +271,9 @@ Be conservative with confidence - only score high when evidence is strong."""
     (
         flock.agent("treatment_planner")
         .description("Creates treatment plans based on diagnoses")
-        .consumes(Diagnosis, where=lambda d: d.confidence >= 0.75)  # Only high-confidence
+        .consumes(
+            Diagnosis, where=lambda d: d.confidence >= 0.75
+        )  # Only high-confidence
         .publishes(TreatmentPlan)
         .with_utilities(
             ConfidenceBoosterComponent(min_confidence=0.80, max_retries=1)

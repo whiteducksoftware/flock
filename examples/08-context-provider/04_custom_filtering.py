@@ -33,6 +33,7 @@ Run: uv run examples/08-context-provider/04_custom_filtering.py
 """
 
 import asyncio
+
 from pydantic import BaseModel
 
 from flock import Flock
@@ -76,8 +77,7 @@ async def main():
     print()
 
     high_severity_provider = FilteredContextProvider(
-        FilterConfig(tags={"high"}),
-        limit=100
+        FilterConfig(tags={"high"}), limit=100
     )
 
     critical_monitor = (
@@ -96,9 +96,9 @@ async def main():
     system_alert_provider = FilteredContextProvider(
         FilterConfig(
             tags={"medium", "high"},  # Multiple tags (OR logic in context)
-            type_names={"Event"}  # Only Event type
+            type_names={"Event"},  # Only Event type
         ),
-        limit=100
+        limit=100,
     )
 
     alert_analyzer = (
@@ -116,8 +116,7 @@ async def main():
     # Agent 3: Events from trusted sources only (CONTEXT filtering by tags)
     # Note: For this demo, we'll use tags to simulate this since we control tags
     trusted_source_provider = FilteredContextProvider(
-        FilterConfig(tags={"trusted-source"}),
-        limit=100
+        FilterConfig(tags={"trusted-source"}), limit=100
     )
 
     security_auditor = (
@@ -139,13 +138,31 @@ async def main():
 
     events_data = [
         ("user_action", "low", "web-app", "User clicked button", {"low"}),
-        ("system_alert", "high", "database", "Connection pool exhausted", {"high", "trusted-source"}),
+        (
+            "system_alert",
+            "high",
+            "database",
+            "Connection pool exhausted",
+            {"high", "trusted-source"},
+        ),
         ("metric", "low", "api-gateway", "Response time: 50ms", {"low", "metric"}),
         ("system_alert", "medium", "cache", "Cache miss rate increased", {"medium"}),
         ("user_action", "low", "mobile-app", "User logged in", {"low"}),
-        ("system_alert", "high", "auth-service", "Multiple failed login attempts", {"high", "trusted-source"}),
+        (
+            "system_alert",
+            "high",
+            "auth-service",
+            "Multiple failed login attempts",
+            {"high", "trusted-source"},
+        ),
         ("metric", "medium", "worker", "Queue depth: 1000", {"medium", "metric"}),
-        ("system_alert", "high", "payment-service", "Payment processing failed", {"high"}),
+        (
+            "system_alert",
+            "high",
+            "payment-service",
+            "Payment processing failed",
+            {"high"},
+        ),
     ]
 
     for event_type, severity, source, description, tags in events_data:
@@ -153,13 +170,13 @@ async def main():
             event_type=event_type,
             severity=severity,
             source=source,
-            description=description
+            description=description,
         )
 
         await flock.publish(
             event,
             visibility=PublicVisibility(),
-            tags=tags  # 🎯 Multiple tags for complex filtering!
+            tags=tags,  # 🎯 Multiple tags for complex filtering!
         )
 
         # Visual indicator

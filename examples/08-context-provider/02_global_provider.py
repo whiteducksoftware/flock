@@ -33,14 +33,13 @@ Run: uv run examples/08-context-provider/02_global_provider.py
 """
 
 import asyncio
-import sys
+
 from pydantic import BaseModel
 
 from flock import Flock
 from flock.context_provider import FilteredContextProvider
 from flock.store import FilterConfig
 from flock.visibility import PublicVisibility
-
 
 
 # Define our data models
@@ -75,7 +74,7 @@ async def main():
 
     urgent_only_provider = FilteredContextProvider(
         FilterConfig(tags={"urgent"}),  # Filter context: only show urgent artifacts
-        limit=100  # Maximum artifacts to return
+        limit=100,  # Maximum artifacts to return
     )
 
     # Create orchestrator WITH global provider
@@ -85,6 +84,7 @@ async def main():
 
     # Create a shared correlation ID for this conversation
     from uuid import uuid4
+
     conversation_id = uuid4()
 
     # Create agents - they'll all use the global provider for CONTEXT filtering
@@ -122,11 +122,15 @@ async def main():
             task,
             visibility=PublicVisibility(),
             correlation_id=conversation_id,
-            tags=tags  # 🎯 These tags are used for CONTEXT filtering!
+            tags=tags,  # 🎯 These tags are used for CONTEXT filtering!
         )
 
         tag_indicator = "🔥 URGENT" if "urgent" in tags else "📝 Normal"
-        trigger_msg = "(triggers agent)" if "urgent" in tags else "(triggers agent, but filtered from context)"
+        trigger_msg = (
+            "(triggers agent)"
+            if "urgent" in tags
+            else "(triggers agent, but filtered from context)"
+        )
         print(f"{tag_indicator} Published: {name} (priority={priority}) {trigger_msg}")
 
     print()
@@ -151,7 +155,7 @@ async def main():
         print(f"👤 Agent: {summary.agent_name}")
         print(f"   Tasks seen: {summary.tasks_seen}")
         print(f"   Average priority: {summary.average_priority:.1f}")
-        print(f"   Task names:")
+        print("   Task names:")
         for task_name in summary.task_names:
             print(f"     🔥 {task_name}")
         print()

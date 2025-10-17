@@ -194,7 +194,9 @@ class BatchEngine:
 
         return False  # Not ready to flush yet
 
-    def flush_batch(self, agent_name: str, subscription_index: int) -> list[Artifact] | None:
+    def flush_batch(
+        self, agent_name: str, subscription_index: int
+    ) -> list[Artifact] | None:
         """
         Flush a batch and return its artifacts.
 

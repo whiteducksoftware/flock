@@ -33,6 +33,7 @@ Run: uv run examples/08-context-provider/03_per_agent_provider.py
 """
 
 import asyncio
+
 from pydantic import BaseModel
 
 from flock import Flock
@@ -71,10 +72,7 @@ async def main():
     print("   ⚠️  This filters CONTEXT, not triggering!")
     print()
 
-    global_provider = FilteredContextProvider(
-        FilterConfig(tags={"ERROR"}),
-        limit=100
-    )
+    global_provider = FilteredContextProvider(FilterConfig(tags={"ERROR"}), limit=100)
 
     flock = Flock(
         context_provider=global_provider  # Default for all agents
@@ -99,7 +97,7 @@ async def main():
     # Agent 2: Override with custom provider (WARN + ERROR in CONTEXT)
     warn_and_error_provider = FilteredContextProvider(
         FilterConfig(tags={"WARN", "ERROR"}),  # More permissive context!
-        limit=100
+        limit=100,
     )
 
     warn_analyzer = (
@@ -117,8 +115,7 @@ async def main():
 
     # Agent 3: Override to see everything in CONTEXT
     all_logs_provider = FilteredContextProvider(
-        FilterConfig(tags={"DEBUG", "INFO", "WARN", "ERROR"}),
-        limit=100
+        FilterConfig(tags={"DEBUG", "INFO", "WARN", "ERROR"}), limit=100
     )
 
     full_analyzer = (
@@ -159,16 +156,11 @@ async def main():
         await flock.publish(
             log_entry,
             visibility=PublicVisibility(),
-            tags={level}  # 🎯 Tag with log level!
+            tags={level},  # 🎯 Tag with log level!
         )
 
         # Color-code output
-        emoji_map = {
-            "DEBUG": "🔍",
-            "INFO": "ℹ️",
-            "WARN": "⚠️",
-            "ERROR": "❌"
-        }
+        emoji_map = {"DEBUG": "🔍", "INFO": "ℹ️", "WARN": "⚠️", "ERROR": "❌"}
         print(f"{emoji_map[level]} [{level}] {message}")
 
     print()

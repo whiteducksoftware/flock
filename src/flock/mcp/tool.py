@@ -32,11 +32,17 @@ class FlockMCPTool(BaseModel):
 
     name: str = Field(..., description="Name of the tool")
 
-    agent_id: str = Field(..., description="Associated agent_id. Used for internal tracking.")
+    agent_id: str = Field(
+        ..., description="Associated agent_id. Used for internal tracking."
+    )
 
-    run_id: str = Field(..., description="Associated run_id. Used for internal tracking.")
+    run_id: str = Field(
+        ..., description="Associated run_id. Used for internal tracking."
+    )
 
-    description: str | None = Field(..., description="A human-readable description of the tool")
+    description: str | None = Field(
+        ..., description="A human-readable description of the tool"
+    )
 
     input_schema: dict[str, Any] = Field(
         ...,
@@ -76,11 +82,15 @@ class FlockMCPTool(BaseModel):
         try:
             return convert_input_schema_to_tool_args(input_schema)
         except Exception as e:  # pragma: no cover - defensive
-            logger.exception("Failed to convert MCP tool schema to DSPy tool args: %s", e)
+            logger.exception(
+                "Failed to convert MCP tool schema to DSPy tool args: %s", e
+            )
             # Fallback to empty definitions to avoid breaking execution
             return {}, {}, {}
 
-    def _convert_mcp_tool_result(self, call_tool_result: CallToolResult) -> str | list[Any]:
+    def _convert_mcp_tool_result(
+        self, call_tool_result: CallToolResult
+    ) -> str | list[Any]:
         text_contents: list[TextContent] = []
         non_text_contents = []
 
@@ -107,7 +117,9 @@ class FlockMCPTool(BaseModel):
 
     def as_dspy_tool(self, server: Any) -> DSPyTool:
         """Wrap this tool as a DSPyTool for downstream."""
-        args, arg_type, args_desc = self._convert_input_schema_to_tool_args(self.input_schema)
+        args, arg_type, args_desc = self._convert_input_schema_to_tool_args(
+            self.input_schema
+        )
 
         async def func(*args, **kwargs):
             with tracer.start_as_current_span(f"tool.{self.name}.call") as span:

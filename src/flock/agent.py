@@ -47,12 +47,14 @@ class MCPServerConfig(TypedDict, total=False):
         >>> config: MCPServerConfig = {"roots": ["/workspace/data"]}
 
         >>> # Tool whitelist only
-        >>> config: MCPServerConfig = {"tool_whitelist": ["read_file", "write_file"]}
+        >>> config: MCPServerConfig = {
+        ...     "tool_whitelist": ["read_file", "write_file"]
+        ... }
 
         >>> # Both restrictions
         >>> config: MCPServerConfig = {
         ...     "roots": ["/workspace/data"],
-        ...     "tool_whitelist": ["read_file"]
+        ...     "tool_whitelist": ["read_file"],
         ... }
     """
 
@@ -66,9 +68,9 @@ class AgentOutput:
     default_visibility: Visibility
     count: int = 1  # Number of artifacts to generate (fan-out)
     filter_predicate: Callable[[BaseModel], bool] | None = None  # Where clause
-    validate_predicate: Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None = (
-        None  # Validation logic
-    )
+    validate_predicate: (
+        Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None
+    ) = None  # Validation logic
     group_description: str | None = None  # Group description override
 
     def __post_init__(self):
@@ -130,7 +132,9 @@ class Agent(metaclass=AutoTracedMeta):
     # Phase 6+7: Class-level streaming coordination (SHARED across ALL agent instances)
     # These class variables enable all agents to coordinate CLI streaming behavior
     _streaming_counter: int = 0  # Global count of agents currently streaming to CLI
-    _websocket_broadcast_global: Any = None  # WebSocket broadcast wrapper (dashboard mode)
+    _websocket_broadcast_global: Any = (
+        None  # WebSocket broadcast wrapper (dashboard mode)
+    )
 
     def __init__(self, name: str, *, orchestrator: Flock) -> None:
         self.name = name
@@ -154,8 +158,12 @@ class Agent(metaclass=AutoTracedMeta):
         self.context_provider: Any = None
         # MCP integration
         self.mcp_server_names: set[str] = set()
-        self.mcp_mount_points: list[str] = []  # Deprecated: Use mcp_server_mounts instead
-        self.mcp_server_mounts: dict[str, list[str]] = {}  # Server-specific mount points
+        self.mcp_mount_points: list[
+            str
+        ] = []  # Deprecated: Use mcp_server_mounts instead
+        self.mcp_server_mounts: dict[
+            str, list[str]
+        ] = {}  # Server-specific mount points
         self.tool_whitelist: list[str] | None = None
 
     @property
@@ -165,7 +173,9 @@ class Agent(metaclass=AutoTracedMeta):
 
     @property
     def identity(self) -> AgentIdentity:
-        return AgentIdentity(name=self.name, labels=self.labels, tenant_id=self.tenant_id)
+        return AgentIdentity(
+            name=self.name, labels=self.labels, tenant_id=self.tenant_id
+        )
 
     @staticmethod
     def _component_display_name(component: AgentComponent) -> str:
@@ -206,7 +216,9 @@ class Agent(metaclass=AutoTracedMeta):
                 self._resolve_utilities()
                 await self._run_initialize(ctx)
                 processed_inputs = await self._run_pre_consume(ctx, artifacts)
-                eval_inputs = EvalInputs(artifacts=processed_inputs, state=dict(ctx.state))
+                eval_inputs = EvalInputs(
+                    artifacts=processed_inputs, state=dict(ctx.state)
+                )
                 eval_inputs = await self._run_pre_evaluate(ctx, eval_inputs)
 
                 # Phase 3: Call engine ONCE PER OutputGroup
@@ -225,13 +237,19 @@ class Agent(metaclass=AutoTracedMeta):
                     # Loop over each output group
                     for group_idx, output_group in enumerate(self.output_groups):
                         # Prepare group-specific context
-                        group_ctx = self._prepare_group_context(ctx, group_idx, output_group)
+                        group_ctx = self._prepare_group_context(
+                            ctx, group_idx, output_group
+                        )
 
                         # Phase 7: Single evaluation path with auto-detection
                         # Engine's evaluate() auto-detects batch/fan-out from ctx and output_group
-                        result = await self._run_engines(group_ctx, eval_inputs, output_group)
+                        result = await self._run_engines(
+                            group_ctx, eval_inputs, output_group
+                        )
 
-                        result = await self._run_post_evaluate(group_ctx, eval_inputs, result)
+                        result = await self._run_post_evaluate(
+                            group_ctx, eval_inputs, result
+                        )
 
                         # Extract outputs for THIS group only
                         group_outputs = await self._make_outputs_for_group(
@@ -297,7 +315,10 @@ class Agent(metaclass=AutoTracedMeta):
                 for tool_key, tool_entry in tools_dict.items():
                     if isinstance(tool_entry, dict):
                         original_name = tool_entry.get("original_name", None)
-                        if original_name is not None and original_name in tool_whitelist:
+                        if (
+                            original_name is not None
+                            and original_name in tool_whitelist
+                        ):
                             filtered_tools[tool_key] = tool_entry
 
                 tools_dict = filtered_tools
@@ -322,7 +343,9 @@ class Agent(metaclass=AutoTracedMeta):
         except Exception as e:
             # Architecture Decision: AD007 - Graceful Degradation
             # Agent continues with native tools only
-            logger.error(f"Failed to load MCP tools for agent {self.name}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to load MCP tools for agent {self.name}: {e}", exc_info=True
+            )
             return []
 
     async def _run_initialize(self, ctx: Context) -> None:
@@ -343,7 +366,9 @@ class Agent(metaclass=AutoTracedMeta):
         for engine in self.engines:
             await engine.on_initialize(self, ctx)
 
-    async def _run_pre_consume(self, ctx: Context, inputs: list[Artifact]) -> list[Artifact]:
+    async def _run_pre_consume(
+        self, ctx: Context, inputs: list[Artifact]
+    ) -> list[Artifact]:
         current = inputs
         for component in self._sorted_utilities():
             comp_name = self._component_display_name(component)
@@ -419,7 +444,9 @@ class Agent(metaclass=AutoTracedMeta):
                 for artifact in artifacts:
                     artifact.correlation_id = ctx.correlation_id
 
-                result = await engine.on_post_evaluate(self, ctx, current_inputs, result)
+                result = await engine.on_post_evaluate(
+                    self, ctx, current_inputs, result
+                )
                 accumulated_logs.extend(result.logs)
                 accumulated_metrics.update(result.metrics)
                 merged_state = dict(current_inputs.state)
@@ -495,7 +522,9 @@ class Agent(metaclass=AutoTracedMeta):
                 if matching_artifact:
                     metadata["artifact_id"] = matching_artifact.id
 
-                artifact = output_decl.apply(payload, produced_by=self.name, metadata=metadata)
+                artifact = output_decl.apply(
+                    payload, produced_by=self.name, metadata=metadata
+                )
                 produced.append(artifact)
                 # Phase 6: REMOVED publishing - orchestrator now handles it
                 # await ctx.board.publish(artifact)
@@ -616,7 +645,9 @@ class Agent(metaclass=AutoTracedMeta):
                         model_instance = model_cls(**artifact.payload)
                         for check, error_msg in output_decl.validate_predicate:
                             if not check(model_instance):
-                                raise ValueError(f"{error_msg}: {output_decl.spec.type_name}")
+                                raise ValueError(
+                                    f"{error_msg}: {output_decl.spec.type_name}"
+                                )
 
             # 5. Apply visibility and publish artifacts (Phase 5)
             for artifact_from_engine in matching_artifacts:
@@ -638,7 +669,9 @@ class Agent(metaclass=AutoTracedMeta):
 
                 # Re-wrap the artifact with agent metadata
                 artifact = output_decl.apply(
-                    artifact_from_engine.payload, produced_by=self.name, metadata=metadata
+                    artifact_from_engine.payload,
+                    produced_by=self.name,
+                    metadata=metadata,
                 )
                 produced.append(artifact)
                 # Phase 6 SECURITY FIX: REMOVED publishing - orchestrator now handles it
@@ -647,7 +680,9 @@ class Agent(metaclass=AutoTracedMeta):
 
         return produced
 
-    async def _run_post_publish(self, ctx: Context, artifacts: Sequence[Artifact]) -> None:
+    async def _run_post_publish(
+        self, ctx: Context, artifacts: Sequence[Artifact]
+    ) -> None:
         components = self._sorted_utilities()
         for artifact in artifacts:
             for component in components:
@@ -732,7 +767,8 @@ class Agent(metaclass=AutoTracedMeta):
             return []
 
         default_engine = DSPyEngine(
-            model=self._orchestrator.model or os.getenv("DEFAULT_MODEL", "openai/gpt-4.1"),
+            model=self._orchestrator.model
+            or os.getenv("DEFAULT_MODEL", "openai/gpt-4.1"),
             instructions=self.description,
         )
         self.engines = [default_engine]
@@ -844,7 +880,9 @@ class AgentBuilder:
     def consumes(
         self,
         *types: type[BaseModel],
-        where: Callable[[BaseModel], bool] | Sequence[Callable[[BaseModel], bool]] | None = None,
+        where: Callable[[BaseModel], bool]
+        | Sequence[Callable[[BaseModel], bool]]
+        | None = None,
         text: str | None = None,
         min_p: float = 0.0,
         from_agents: Iterable[str] | None = None,
@@ -890,10 +928,7 @@ class AgentBuilder:
             >>> # Multiple predicates (all must pass)
             >>> agent.consumes(
             ...     Order,
-            ...     where=[
-            ...         lambda o: o.total > 100,
-            ...         lambda o: o.status == "pending"
-            ...     ]
+            ...     where=[lambda o: o.total > 100, lambda o: o.status == "pending"],
             ... )
 
             >>> # Consume from specific agents
@@ -903,10 +938,7 @@ class AgentBuilder:
             >>> agent.consumes(Alert, tags={"critical", "security"})
 
             >>> # Batch processing
-            >>> agent.consumes(
-            ...     Email,
-            ...     batch={"size": 10, "timeout": 5.0}
-            ... )
+            >>> agent.consumes(Email, batch={"size": 10, "timeout": 5.0})
         """
         predicates: Sequence[Callable[[BaseModel], bool]] | None
         if where is None:
@@ -941,7 +973,9 @@ class AgentBuilder:
         visibility: Visibility | Callable[[BaseModel], Visibility] | None = None,
         fan_out: int | None = None,
         where: Callable[[BaseModel], bool] | None = None,
-        validate: Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None = None,
+        validate: Callable[[BaseModel], bool]
+        | list[tuple[Callable, str]]
+        | None = None,
         description: str | None = None,
     ) -> PublishBuilder:
         """Declare which artifact types this agent produces.
@@ -959,11 +993,17 @@ class AgentBuilder:
 
         Examples:
             >>> agent.publishes(Report)  # Publish 1 Report
-            >>> agent.publishes(Task, Task, Task)  # Publish 3 Tasks (duplicate counting)
+            >>> agent.publishes(
+            ...     Task, Task, Task
+            ... )  # Publish 3 Tasks (duplicate counting)
             >>> agent.publishes(Task, fan_out=3)  # Same as above (sugar syntax)
             >>> agent.publishes(Task, where=lambda t: t.priority > 5)  # With filtering
-            >>> agent.publishes(Report, validate=lambda r: r.score > 0)  # With validation
-            >>> agent.publishes(Task, description="Special instructions")  # With description
+            >>> agent.publishes(
+            ...     Report, validate=lambda r: r.score > 0
+            ... )  # With validation
+            >>> agent.publishes(
+            ...     Task, description="Special instructions"
+            ... )  # With description
 
         See Also:
             - PublicVisibility: Default, visible to all agents
@@ -1014,7 +1054,9 @@ class AgentBuilder:
         # Create OutputGroup from outputs
         group = OutputGroup(
             outputs=outputs,
-            shared_visibility=resolved_visibility if not callable(resolved_visibility) else None,
+            shared_visibility=resolved_visibility
+            if not callable(resolved_visibility)
+            else None,
             group_description=description,
         )
 
@@ -1041,20 +1083,14 @@ class AgentBuilder:
 
         Examples:
             >>> # Rate limiting
-            >>> agent.with_utilities(
-            ...     RateLimiter(max_calls=10, window=60)
-            ... )
+            >>> agent.with_utilities(RateLimiter(max_calls=10, window=60))
 
             >>> # Budget control
-            >>> agent.with_utilities(
-            ...     TokenBudget(max_tokens=10000)
-            ... )
+            >>> agent.with_utilities(TokenBudget(max_tokens=10000))
 
             >>> # Multiple components (executed in order)
             >>> agent.with_utilities(
-            ...     RateLimiter(max_calls=5),
-            ...     MetricsCollector(),
-            ...     CacheLayer(ttl=3600)
+            ...     RateLimiter(max_calls=5), MetricsCollector(), CacheLayer(ttl=3600)
             ... )
 
         See Also:
@@ -1080,19 +1116,14 @@ class AgentBuilder:
 
         Examples:
             >>> # DSPy engine with specific model
-            >>> agent.with_engines(
-            ...     DSPyEngine(model="openai/gpt-4o")
-            ... )
+            >>> agent.with_engines(DSPyEngine(model="openai/gpt-4o"))
 
             >>> # Custom non-LLM engine
-            >>> agent.with_engines(
-            ...     RuleBasedEngine(rules=my_rules)
-            ... )
+            >>> agent.with_engines(RuleBasedEngine(rules=my_rules))
 
             >>> # Hybrid approach (multiple engines)
             >>> agent.with_engines(
-            ...     DSPyEngine(model="openai/gpt-4o-mini"),
-            ...     FallbackEngine()
+            ...     DSPyEngine(model="openai/gpt-4o-mini"), FallbackEngine()
             ... )
 
         Note:
@@ -1191,8 +1222,11 @@ class AgentBuilder:
 
                     >>> # New format: Server-specific config with roots and tool whitelist
                     >>> agent.with_mcps({
-                    ...     "filesystem": {"roots": ["/workspace/dir/data"], "tool_whitelist": ["read_file"]},
-                    ...     "github": {}  # No restrictions for github
+                    ...     "filesystem": {
+                    ...         "roots": ["/workspace/dir/data"],
+                    ...         "tool_whitelist": ["read_file"],
+                    ...     },
+                    ...     "github": {},  # No restrictions for github
                     ... })
 
                     >>> # Old format: Direct list (backward compatible)
@@ -1227,7 +1261,11 @@ class AgentBuilder:
                 elif isinstance(server_config, dict):
                     # New format: MCPServerConfig with optional roots and tool_whitelist
                     mounts = server_config.get("roots", None)
-                    if mounts is not None and isinstance(mounts, list) and len(mounts) > 0:
+                    if (
+                        mounts is not None
+                        and isinstance(mounts, list)
+                        and len(mounts) > 0
+                    ):
                         server_mounts[server_name] = list(mounts)
 
                     config_whitelist = server_config.get("tool_whitelist", None)
@@ -1388,7 +1426,9 @@ class AgentBuilder:
 
         # Get types agent publishes
         publishing_types = {
-            output.spec.type_name for group in self._agent.output_groups for output in group.outputs
+            output.spec.type_name
+            for group in self._agent.output_groups
+            for output in group.outputs
         }
 
         # Check for overlap

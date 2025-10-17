@@ -116,7 +116,9 @@ class Subscription:
 
         # Register all types and build counts (supports duplicates for count-based AND gates)
         type_name_list = [type_registry.register(t) for t in types]
-        self.type_names: set[str] = set(type_name_list)  # Unique type names (for matching)
+        self.type_names: set[str] = set(
+            type_name_list
+        )  # Unique type names (for matching)
 
         # Count-based AND gate: Track how many of each type are required
         # Example: .consumes(A, A, B) → {"TypeA": 2, "TypeB": 1}

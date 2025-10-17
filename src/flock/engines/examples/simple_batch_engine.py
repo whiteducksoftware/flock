@@ -21,7 +21,9 @@ class BatchSummary(BaseModel):
     """Output payload describing the batch that was processed."""
 
     batch_size: int = Field(description="Number of items included in this evaluation")
-    values: list[int] = Field(description="Original values processed", default_factory=list)
+    values: list[int] = Field(
+        description="Original values processed", default_factory=list
+    )
 
 
 class SimpleBatchEngine(EngineComponent):
@@ -32,7 +34,9 @@ class SimpleBatchEngine(EngineComponent):
     can verify that all artifacts were processed together.
     """
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         """Process single item or batch with auto-detection.
 
         Auto-detects batch mode via ctx.is_batch flag (set by orchestrator when
@@ -57,7 +61,9 @@ class SimpleBatchEngine(EngineComponent):
                 return EvalResult.empty()
 
             batch_size = len(items)
-            summary = BatchSummary(batch_size=batch_size, values=[item.value for item in items])
+            summary = BatchSummary(
+                batch_size=batch_size, values=[item.value for item in items]
+            )
 
             state = dict(inputs.state)
             state["batch_size"] = summary.batch_size

@@ -40,7 +40,9 @@ class BlackboardHTTPService:
                 "visibility": artifact.visibility.model_dump(mode="json"),
                 "visibility_kind": getattr(artifact.visibility, "kind", "Unknown"),
                 "created_at": artifact.created_at.isoformat(),
-                "correlation_id": str(artifact.correlation_id) if artifact.correlation_id else None,
+                "correlation_id": str(artifact.correlation_id)
+                if artifact.correlation_id
+                else None,
                 "partition_key": artifact.partition_key,
                 "tags": sorted(artifact.tags),
                 "version": artifact.version,
@@ -56,7 +58,9 @@ class BlackboardHTTPService:
                     }
                     for record in consumptions
                 ]
-                data["consumed_by"] = sorted({record.consumer for record in consumptions})
+                data["consumed_by"] = sorted({
+                    record.consumer for record in consumptions
+                })
             return data
 
         def _parse_datetime(value: str | None, label: str) -> datetime | None:
@@ -65,7 +69,9 @@ class BlackboardHTTPService:
             try:
                 return datetime.fromisoformat(value)
             except ValueError as exc:  # pragma: no cover - FastAPI converts
-                raise HTTPException(status_code=400, detail=f"Invalid {label}: {value}") from exc
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid {label}: {value}"
+                ) from exc
 
         def _make_filter_config(
             type_names: list[str] | None,
@@ -129,7 +135,9 @@ class BlackboardHTTPService:
             items: list[dict[str, Any]] = []
             for artifact in artifacts:
                 if isinstance(artifact, ArtifactEnvelope):
-                    items.append(_serialize_artifact(artifact.artifact, artifact.consumptions))
+                    items.append(
+                        _serialize_artifact(artifact.artifact, artifact.consumptions)
+                    )
                 else:
                     items.append(_serialize_artifact(artifact))
             return {
@@ -179,7 +187,9 @@ class BlackboardHTTPService:
                 type_name = item.get("type")
                 payload = item.get("payload") or {}
                 if not type_name:
-                    raise HTTPException(status_code=400, detail="Each input requires 'type'.")
+                    raise HTTPException(
+                        status_code=400, detail="Each input requires 'type'."
+                    )
                 model = type_registry.resolve(type_name)
                 instance = model(**payload)
                 inputs.append(instance)
@@ -253,7 +263,10 @@ class BlackboardHTTPService:
 
         @app.get("/metrics")
         async def metrics() -> PlainTextResponse:
-            lines = [f"blackboard_{key} {value}" for key, value in orchestrator.metrics.items()]
+            lines = [
+                f"blackboard_{key} {value}"
+                for key, value in orchestrator.metrics.items()
+            ]
             return PlainTextResponse("\n".join(lines))
 
     def run(

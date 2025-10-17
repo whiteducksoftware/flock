@@ -28,16 +28,13 @@ Example Usage:
     orchestrator.add_mcp(
         name="filesystem",
         connection_params=StdioServerParameters(
-            command="uvx",
-            args=["mcp-server-filesystem", "/tmp"]
-        )
+            command="uvx", args=["mcp-server-filesystem", "/tmp"]
+        ),
     )
 
     # Build agent with MCP access
     agent = (
-        orchestrator.agent("file_agent")
-        .with_mcps(["filesystem"])
-        .build()
+        orchestrator.agent("file_agent").with_mcps(["filesystem"]).build()
     )
     ```
 """
