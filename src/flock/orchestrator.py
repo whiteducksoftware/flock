@@ -1677,6 +1677,13 @@ class Flock(metaclass=AutoTracedMeta):
         # Wrap in try/catch to handle agent failures gracefully
         try:
             outputs = await agent.execute(ctx, artifacts)
+        except asyncio.CancelledError:
+            # Re-raise cancellations immediately (shutdown, user cancellation)
+            # Do NOT treat these as errors - they're intentional interruptions
+            self._logger.debug(
+                f"Agent '{agent.name}' task cancelled (task={ctx.task_id})"
+            )
+            raise  # Propagate cancellation so task.cancelled() == True
         except Exception as exc:
             # Agent already called component.on_error hooks before re-raising
             # Now orchestrator publishes error artifact and continues workflow
