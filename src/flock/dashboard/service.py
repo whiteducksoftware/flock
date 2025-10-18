@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
+from flock.api_models import ArtifactTypeSchema, ArtifactTypesResponse
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.events import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.graph_builder import GraphAssembler
@@ -60,6 +61,18 @@ class DashboardHTTPService(BlackboardHTTPService):
         """
         # Initialize base service
         super().__init__(orchestrator)
+
+        # Add dashboard-specific tags to OpenAPI
+        self.app.openapi_tags.extend([
+            {
+                "name": "Dashboard UI",
+                "description": "**Internal endpoints** used by the Flock dashboard UI. Not intended for direct use.",
+            },
+            {
+                "name": "Schema Discovery",
+                "description": "Endpoints for discovering available artifact types and their schemas.",
+            },
+        ])
 
         # Initialize WebSocket manager and event collector
         self.websocket_manager = websocket_manager or WebSocketManager()
@@ -137,7 +150,11 @@ class DashboardHTTPService(BlackboardHTTPService):
 
         if self.graph_assembler is not None:
 
-            @app.post("/api/dashboard/graph", response_model=GraphSnapshot)
+            @app.post(
+                "/api/dashboard/graph",
+                response_model=GraphSnapshot,
+                tags=["Dashboard UI"],
+            )
             async def get_dashboard_graph(request: GraphRequest) -> GraphSnapshot:
                 """Return server-side assembled dashboard graph snapshot."""
                 return await self.graph_assembler.build_snapshot(request)
@@ -174,8 +191,12 @@ class DashboardHTTPService(BlackboardHTTPService):
         app = self.app
         orchestrator = self.orchestrator
 
-        @app.get("/api/artifact-types")
-        async def get_artifact_types() -> dict[str, Any]:
+        @app.get(
+            "/api/artifact-types",
+            response_model=ArtifactTypesResponse,
+            tags=["Schema Discovery"],
+        )
+        async def get_artifact_types() -> ArtifactTypesResponse:
             """Get all registered artifact types with their schemas.
 
             Returns:
@@ -196,13 +217,15 @@ class DashboardHTTPService(BlackboardHTTPService):
                     model_class = type_registry.resolve(type_name)
                     # Get Pydantic schema
                     schema = model_class.model_json_schema()
-                    artifact_types.append({"name": type_name, "schema": schema})
+                    artifact_types.append(
+                        ArtifactTypeSchema(name=type_name, schema=schema)
+                    )
                 except Exception as e:
                     logger.warning(f"Could not get schema for {type_name}: {e}")
 
-            return {"artifact_types": artifact_types}
+            return ArtifactTypesResponse(artifact_types=artifact_types)
 
-        @app.get("/api/agents")
+        @app.get("/api/agents", tags=["Dashboard UI"])
         async def get_agents() -> dict[str, Any]:
             """Get all registered agents with logic operations state.
 
@@ -269,7 +292,7 @@ class DashboardHTTPService(BlackboardHTTPService):
 
             return {"agents": agents}
 
-        @app.get("/api/version")
+        @app.get("/api/version", tags=["Dashboard UI"])
         async def get_version() -> dict[str, str]:
             """Get version information for the backend and dashboard.
 
@@ -287,7 +310,7 @@ class DashboardHTTPService(BlackboardHTTPService):
 
             return {"backend_version": backend_version, "package_name": "flock-flow"}
 
-        @app.post("/api/control/publish")
+        @app.post("/api/control/publish", tags=["Dashboard UI"])
         async def publish_artifact(body: dict[str, Any]) -> dict[str, str]:
             """Publish artifact with correlation tracking.
 
@@ -363,7 +386,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                 logger.exception(f"Error publishing artifact: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-        @app.post("/api/control/invoke")
+        @app.post("/api/control/invoke", tags=["Dashboard UI"])
         async def invoke_agent(body: dict[str, Any]) -> dict[str, Any]:
             """Directly invoke a specific agent.
 
@@ -447,7 +470,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                 logger.exception(f"Error invoking agent: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-        @app.post("/api/control/pause")
+        @app.post("/api/control/pause", tags=["Dashboard UI"])
         async def pause_orchestrator() -> dict[str, Any]:
             """Pause orchestrator (placeholder).
 
@@ -458,7 +481,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                 status_code=501, detail="Pause functionality coming in Phase 12"
             )
 
-        @app.post("/api/control/resume")
+        @app.post("/api/control/resume", tags=["Dashboard UI"])
         async def resume_orchestrator() -> dict[str, Any]:
             """Resume orchestrator (placeholder).
 
@@ -469,7 +492,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                 status_code=501, detail="Resume functionality coming in Phase 12"
             )
 
-        @app.get("/api/traces")
+        @app.get("/api/traces", tags=["Dashboard UI"])
         async def get_traces() -> list[dict[str, Any]]:
             """Get OpenTelemetry traces from DuckDB.
 
@@ -559,7 +582,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                 logger.exception(f"Error reading traces from DuckDB: {e}")
                 return []
 
-        @app.get("/api/traces/services")
+        @app.get("/api/traces/services", tags=["Dashboard UI"])
         async def get_trace_services() -> dict[str, Any]:
             """Get list of unique services that have been traced.
 
@@ -605,7 +628,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                 logger.exception(f"Error reading trace services: {e}")
                 return {"services": [], "operations": []}
 
-        @app.post("/api/traces/clear")
+        @app.post("/api/traces/clear", tags=["Dashboard UI"])
         async def clear_traces() -> dict[str, Any]:
             """Clear all traces from DuckDB database.
 
@@ -624,7 +647,7 @@ class DashboardHTTPService(BlackboardHTTPService):
 
             return result
 
-        @app.post("/api/traces/query")
+        @app.post("/api/traces/query", tags=["Dashboard UI"])
         async def execute_trace_query(request: dict[str, Any]) -> dict[str, Any]:
             """
             Execute a DuckDB SQL query on the traces database.
@@ -705,7 +728,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                 logger.exception(f"DuckDB query error: {e}")
                 return {"error": str(e), "results": [], "columns": []}
 
-        @app.get("/api/traces/stats")
+        @app.get("/api/traces/stats", tags=["Dashboard UI"])
         async def get_trace_stats() -> dict[str, Any]:
             """Get statistics about the trace database.
 
@@ -795,7 +818,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                     "database_size_mb": 0,
                 }
 
-        @app.get("/api/streaming-history/{agent_name}")
+        @app.get("/api/streaming-history/{agent_name}", tags=["Dashboard UI"])
         async def get_streaming_history(agent_name: str) -> dict[str, Any]:
             """Get historical streaming output for a specific agent.
 
@@ -834,7 +857,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                     status_code=500, detail=f"Failed to get streaming history: {e!s}"
                 )
 
-        @app.get("/api/artifacts/history/{node_id}")
+        @app.get("/api/artifacts/history/{node_id}", tags=["Dashboard UI"])
         async def get_message_history(node_id: str) -> dict[str, Any]:
             """Get complete message history for a node (both produced and consumed).
 
@@ -931,7 +954,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                     status_code=500, detail=f"Failed to get message history: {e!s}"
                 )
 
-        @app.get("/api/agents/{agent_id}/runs")
+        @app.get("/api/agents/{agent_id}/runs", tags=["Dashboard UI"])
         async def get_agent_runs(agent_id: str) -> dict[str, Any]:
             """Get run history for an agent.
 
@@ -991,7 +1014,7 @@ class DashboardHTTPService(BlackboardHTTPService):
         app = self.app
         themes_dir = Path(__file__).parent.parent / "themes"
 
-        @app.get("/api/themes")
+        @app.get("/api/themes", tags=["Dashboard UI"])
         async def list_themes() -> dict[str, Any]:
             """Get list of available theme names.
 
@@ -1012,7 +1035,7 @@ class DashboardHTTPService(BlackboardHTTPService):
                     status_code=500, detail=f"Failed to list themes: {e!s}"
                 )
 
-        @app.get("/api/themes/{theme_name}")
+        @app.get("/api/themes/{theme_name}", tags=["Dashboard UI"])
         async def get_theme(theme_name: str) -> dict[str, Any]:
             """Get theme data by name.
 
