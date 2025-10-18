@@ -45,6 +45,34 @@ INFO: Uvicorn running on http://127.0.0.1:8344
 [Dashboard] Browser launched successfully
 ```
 
+### Non-Blocking Mode (New!)
+
+Need to publish messages **after** starting the dashboard? Use non-blocking mode:
+
+```python
+# Start dashboard in background
+await flock.serve(dashboard=True, blocking=False)
+
+# Now you can publish messages and run logic!
+await flock.publish(my_message)
+await flock.run_until_idle()
+
+# Dashboard stays alive for inspection
+```
+
+**Perfect for:**
+- 🎯 Demo scripts that populate data after server starts
+- 🧪 Testing scenarios where you control execution flow
+- 📊 Scripts that need to perform setup after dashboard is running
+
+**Example:** See [`examples/02-dashboard/02_non_blocking_serve.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/02-dashboard/02_non_blocking_serve.py) for a complete demo that publishes multiple pizza orders after starting the dashboard.
+
+**How it works:**
+- `blocking=True` (default): Server runs forever, blocks execution
+- `blocking=False`: Returns immediately, server runs in background
+- Automatic cleanup when task completes or is cancelled
+- Works with both dashboard and non-dashboard modes
+
 <p align="center">
   <img alt="Flock Blackboard View" src="../img/flock_ui_blackboard_view.png" width="1000">
   <i>Blackboard View: Track data lineage and transformations across the system</i>

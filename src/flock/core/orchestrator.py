@@ -153,6 +153,10 @@ class Flock(metaclass=AutoTracedMeta):
         # Set batch timeout callback
         self._lifecycle_manager.set_batch_timeout_callback(self._check_batch_timeouts)
 
+        # Background server task for non-blocking serve() (set by ServerManager.serve)
+        self._server_task: Task[None] | None = None
+        self._dashboard_launcher: Any = None
+
         # Initialize components list and built-in components
         self._components: list[OrchestratorComponent] = []
         runner_components = OrchestratorInitializer.initialize_components_and_runner(
@@ -217,6 +221,100 @@ class Flock(metaclass=AutoTracedMeta):
     @property
     def agents(self) -> list[Agent]:
         return list(self._agents.values())
+
+    async def get_correlation_status(self, correlation_id: str) -> dict[str, Any]:
+        """Get the status of a workflow by correlation ID.
+
+        Args:
+            correlation_id: The correlation ID to check
+
+        Returns:
+            Dictionary containing workflow status information:
+            - state: "active" if work is pending, "completed" otherwise
+            - has_pending_work: True if orchestrator has pending work for this correlation
+            - artifact_count: Total number of artifacts with this correlation_id
+            - error_count: Number of WorkflowError artifacts
+            - started_at: Timestamp of first artifact (if any)
+            - last_activity_at: Timestamp of most recent artifact (if any)
+        """
+        from uuid import UUID
+
+        try:
+            correlation_uuid = UUID(correlation_id)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid correlation_id format: {correlation_id}"
+            ) from exc
+
+        # Check if orchestrator has pending work for this correlation
+        # 1. Check active tasks for this correlation_id
+        has_active_tasks = (
+            correlation_uuid in self._scheduler._correlation_tasks
+            and bool(self._scheduler._correlation_tasks[correlation_uuid])
+        )
+
+        # 2. Check correlation groups (for agents with JoinSpec that haven't yielded yet)
+        has_pending_groups = False
+        for groups in self._correlation_engine.correlation_groups.values():
+            for group_key, group in groups.items():
+                # Check if this group belongs to our correlation
+                for type_name, artifacts in group.waiting_artifacts.items():
+                    if any(
+                        artifact.correlation_id == correlation_uuid
+                        for artifact in artifacts
+                    ):
+                        has_pending_groups = True
+                        break
+                if has_pending_groups:
+                    break
+            if has_pending_groups:
+                break
+
+        # Workflow has pending work if EITHER tasks are active OR groups are waiting
+        has_pending_work = has_active_tasks or has_pending_groups
+
+        # Query artifacts for this correlation
+        from flock.store import FilterConfig
+
+        filters = FilterConfig(correlation_id=correlation_id)
+        artifacts, total = await self.store.query_artifacts(
+            filters, limit=1000, offset=0
+        )
+
+        # Count errors
+        error_count = sum(
+            1
+            for artifact in artifacts
+            if artifact.type == "flock.system_artifacts.WorkflowError"
+        )
+
+        # Get timestamps
+        started_at = None
+        last_activity_at = None
+        if artifacts:
+            timestamps = [artifact.created_at for artifact in artifacts]
+            started_at = min(timestamps).isoformat()
+            last_activity_at = max(timestamps).isoformat()
+
+        # Determine state
+        if has_pending_work:
+            state = "active"
+        elif total == 0:
+            state = "not_found"
+        elif error_count > 0 and total == error_count:
+            state = "failed"  # Only error artifacts exist
+        else:
+            state = "completed"
+
+        return {
+            "correlation_id": correlation_id,
+            "state": state,
+            "has_pending_work": has_pending_work,
+            "artifact_count": total,
+            "error_count": error_count,
+            "started_at": started_at,
+            "last_activity_at": last_activity_at,
+        }
 
     # Phase 5A: WebSocket manager property (auto-updates event emitter)
 
@@ -548,6 +646,15 @@ class Flock(metaclass=AutoTracedMeta):
         if include_components and self._component_runner.is_initialized:
             await self._component_runner.run_shutdown(self)
 
+        # Cancel background server task if running (non-blocking serve)
+        if self._server_task and not self._server_task.done():
+            self._server_task.cancel()
+            try:
+                await self._server_task
+            except asyncio.CancelledError:
+                pass
+            # Note: _cleanup_server_callback will handle launcher.stop()
+
         # Phase 5A: Delegate lifecycle cleanup to LifecycleManager
         await self._lifecycle_manager.shutdown()
 
@@ -565,8 +672,9 @@ class Flock(metaclass=AutoTracedMeta):
         dashboard_v2: bool = False,
         host: str = "127.0.0.1",
         port: int = 8344,
-    ) -> None:
-        """Start HTTP service for the orchestrator (blocking).
+        blocking: bool = True,
+    ) -> Task[None] | None:
+        """Start HTTP service for the orchestrator.
 
         Phase 3: Delegates to ServerManager module.
 
@@ -575,13 +683,28 @@ class Flock(metaclass=AutoTracedMeta):
             dashboard_v2: Launch the new dashboard v2 frontend (implies dashboard=True)
             host: Host to bind to (default: "127.0.0.1")
             port: Port to bind to (default: 8344)
+            blocking: If True, blocks until server stops. If False, starts server
+                in background and returns task handle (default: True)
+
+        Returns:
+            None if blocking=True, or Task handle if blocking=False
 
         Examples:
             await orchestrator.serve()
             await orchestrator.serve(dashboard=True)
+
+            # Non-blocking mode
+            task = await orchestrator.serve(dashboard=True, blocking=False)
+            await orchestrator.publish(my_message)
+            await orchestrator.run_until_idle()
         """
-        await ServerManager.serve(
-            self, dashboard=dashboard, dashboard_v2=dashboard_v2, host=host, port=port
+        return await ServerManager.serve(
+            self,
+            dashboard=dashboard,
+            dashboard_v2=dashboard_v2,
+            host=host,
+            port=port,
+            blocking=blocking,
         )
 
     # Scheduling -----------------------------------------------------------
@@ -794,7 +917,47 @@ class Flock(metaclass=AutoTracedMeta):
         self._record_agent_run(agent)
 
         # Phase 6: Execute agent (returns artifacts, doesn't publish)
-        outputs = await agent.execute(ctx, artifacts)
+        # Wrap in try/catch to handle agent failures gracefully
+        try:
+            outputs = await agent.execute(ctx, artifacts)
+        except asyncio.CancelledError:
+            # Re-raise cancellations immediately (shutdown, user cancellation)
+            # Do NOT treat these as errors - they're intentional interruptions
+            self._logger.debug(
+                f"Agent '{agent.name}' task cancelled (task={ctx.task_id})"
+            )
+            raise  # Propagate cancellation so task.cancelled() == True
+        except Exception as exc:
+            # Agent already called component.on_error hooks before re-raising
+            # Now orchestrator publishes error artifact and continues workflow
+            from flock.system_artifacts import WorkflowError
+
+            error_artifact_data = WorkflowError(
+                failed_agent=agent.name,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+                timestamp=datetime.now(UTC),
+                task_id=ctx.task_id,
+            )
+
+            # Build and publish error artifact with correlation_id
+            from flock.artifacts import ArtifactSpec
+
+            error_spec = ArtifactSpec.from_model(WorkflowError)
+            error_artifact = error_spec.build(
+                produced_by=f"orchestrator#{agent.name}",
+                data=error_artifact_data.model_dump(),
+                correlation_id=correlation_id,
+            )
+
+            await self._persist_and_schedule(error_artifact)
+
+            # Log error but don't re-raise - workflow continues
+            self._logger.error(
+                f"Agent '{agent.name}' failed (task={ctx.task_id}): {exc}",
+                exc_info=True,
+            )
+            return  # Exit early - no outputs to publish
 
         # Phase 6: Orchestrator publishes outputs (security fix)
         # This fixes Vulnerability #2 (WRITE Bypass) - agents can't bypass validation

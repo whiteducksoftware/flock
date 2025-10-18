@@ -6,6 +6,8 @@ Extracted from orchestrator.py to reduce complexity.
 
 from __future__ import annotations
 
+import asyncio
+from asyncio import Task
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -28,8 +30,9 @@ class ServerManager:
         dashboard_v2: bool = False,
         host: str = "127.0.0.1",
         port: int = 8344,
-    ) -> None:
-        """Start HTTP service for the orchestrator (blocking).
+        blocking: bool = True,
+    ) -> Task[None] | None:
+        """Start HTTP service for the orchestrator.
 
         Args:
             orchestrator: The Flock orchestrator instance to serve
@@ -37,6 +40,11 @@ class ServerManager:
             dashboard_v2: Launch the new dashboard v2 frontend (implies dashboard=True)
             host: Host to bind to (default: "127.0.0.1")
             port: Port to bind to (default: 8344)
+            blocking: If True, blocks until server stops. If False, starts server
+                in background and returns task handle (default: True)
+
+        Returns:
+            None if blocking=True, or Task handle if blocking=False
 
         Examples:
             # Basic HTTP API (no dashboard) - runs until interrupted
@@ -44,7 +52,90 @@ class ServerManager:
 
             # With dashboard (WebSocket + browser launch) - runs until interrupted
             await ServerManager.serve(orchestrator, dashboard=True)
+
+            # Non-blocking mode - start server in background
+            task = await ServerManager.serve(orchestrator, dashboard=True, blocking=False)
+            # Now you can publish messages and run other logic
+            await orchestrator.publish(my_message)
+            await orchestrator.run_until_idle()
         """
+        # If non-blocking, start server in background task
+        if not blocking:
+            server_task = asyncio.create_task(
+                ServerManager._serve_impl(
+                    orchestrator,
+                    dashboard=dashboard,
+                    dashboard_v2=dashboard_v2,
+                    host=host,
+                    port=port,
+                )
+            )
+            # Add cleanup callback
+            server_task.add_done_callback(
+                lambda task: ServerManager._cleanup_server_callback(orchestrator, task)
+            )
+            # Store task reference for later cancellation
+            orchestrator._server_task = server_task
+            # Give server a moment to start
+            await asyncio.sleep(0.1)
+            return server_task
+
+        # Blocking mode - run server directly with cleanup
+        try:
+            await ServerManager._serve_impl(
+                orchestrator,
+                dashboard=dashboard,
+                dashboard_v2=dashboard_v2,
+                host=host,
+                port=port,
+            )
+        finally:
+            # In blocking mode, manually cleanup dashboard launcher
+            if (
+                hasattr(orchestrator, "_dashboard_launcher")
+                and orchestrator._dashboard_launcher is not None
+            ):
+                orchestrator._dashboard_launcher.stop()
+                orchestrator._dashboard_launcher = None
+        return None
+
+    @staticmethod
+    def _cleanup_server_callback(orchestrator: Flock, task: Task[None]) -> None:
+        """Cleanup callback when background server task completes."""
+        # Stop dashboard launcher if it was started
+        if (
+            hasattr(orchestrator, "_dashboard_launcher")
+            and orchestrator._dashboard_launcher is not None
+        ):
+            try:
+                orchestrator._dashboard_launcher.stop()
+            except Exception as e:
+                orchestrator._logger.warning(f"Failed to stop dashboard launcher: {e}")
+            finally:
+                orchestrator._dashboard_launcher = None
+
+        # Clear server task reference
+        if hasattr(orchestrator, "_server_task"):
+            orchestrator._server_task = None
+
+        # Log any exceptions from the task
+        try:
+            exc = task.exception()
+            if exc and not isinstance(exc, asyncio.CancelledError):
+                orchestrator._logger.error(f"Server task failed: {exc}", exc_info=exc)
+        except asyncio.CancelledError:
+            pass  # Normal cancellation
+
+    @staticmethod
+    async def _serve_impl(
+        orchestrator: Flock,
+        *,
+        dashboard: bool = False,
+        dashboard_v2: bool = False,
+        host: str = "127.0.0.1",
+        port: int = 8344,
+    ) -> None:
+        """Internal implementation of serve() - actual server logic."""
         if dashboard_v2:
             dashboard = True
 
@@ -137,8 +228,7 @@ class ServerManager:
         orchestrator._dashboard_launcher = launcher
 
         # Run service (blocking call)
-        try:
-            await service.run_async(host=host, port=port)
-        finally:
-            # Cleanup on exit
-            launcher.stop()
+        # Note: Cleanup is NOT done here - it's handled by:
+        # - ServerManager.serve() finally block (blocking mode)
+        # - ServerManager._cleanup_server_callback() (non-blocking mode)
+        await service.run_async(host=host, port=port)
