@@ -6,9 +6,9 @@ import pytest
 from pydantic import ConfigDict
 
 from flock.agent.component_lifecycle import ComponentLifecycle
-from flock.artifacts import Artifact
 from flock.components.agent import AgentComponent, EngineComponent
-from flock.runtime import Context, EvalInputs, EvalResult
+from flock.core.artifacts import Artifact
+from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 
 class MockComponent(AgentComponent):

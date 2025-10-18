@@ -11,22 +11,22 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any
 
-from flock.artifact_collector import ArtifactCollector
-from flock.batch_accumulator import BatchEngine
-from flock.correlation_engine import CorrelationEngine
-from flock.helper.cli_helper import init_console
+from flock.core.store import InMemoryBlackboardStore
+from flock.orchestrator.artifact_collector import ArtifactCollector
+from flock.orchestrator.batch_accumulator import BatchEngine
 from flock.orchestrator.component_runner import ComponentRunner
 from flock.orchestrator.context_builder import ContextBuilder
+from flock.orchestrator.correlation_engine import CorrelationEngine
 from flock.orchestrator.event_emitter import EventEmitter
 from flock.orchestrator.lifecycle_manager import LifecycleManager
 from flock.orchestrator.mcp_manager import MCPManager
 from flock.orchestrator.tracing import TracingManager
-from flock.store import InMemoryBlackboardStore
+from flock.utils.cli_helper import init_console
 
 
 if TYPE_CHECKING:
     from flock.components.orchestrator import OrchestratorComponent
-    from flock.store import BlackboardStore
+    from flock.core.store import BlackboardStore
 
 
 class OrchestratorInitializer:

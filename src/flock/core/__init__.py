@@ -11,7 +11,7 @@ from flock.core.agent import (
     RunHandle,
 )
 from flock.core.orchestrator import BoardHandle, Flock, start_orchestrator
-from flock.visibility import AgentIdentity
+from flock.core.visibility import AgentIdentity
 
 
 __all__ = [

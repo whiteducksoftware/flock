@@ -6,10 +6,10 @@ import pytest
 from pydantic import BaseModel
 
 from flock.agent.output_processor import OutputProcessor
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.visibility import PrivateVisibility, PublicVisibility
 from flock.registry import flock_type
-from flock.runtime import Context, EvalResult
-from flock.visibility import PrivateVisibility, PublicVisibility
+from flock.utils.runtime import Context, EvalResult
 
 
 # Test models

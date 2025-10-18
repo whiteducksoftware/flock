@@ -11,7 +11,14 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.store import InMemoryBlackboardStore
+from flock.core.visibility import (
+    LabelledVisibility,
+    PrivateVisibility,
+    PublicVisibility,
+    TenantVisibility,
+)
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.events import (
     AgentActivatedEvent,
@@ -19,14 +26,7 @@ from flock.dashboard.events import (
     AgentErrorEvent,
     MessagePublishedEvent,
 )
-from flock.runtime import Context
-from flock.store import InMemoryBlackboardStore
-from flock.visibility import (
-    LabelledVisibility,
-    PrivateVisibility,
-    PublicVisibility,
-    TenantVisibility,
-)
+from flock.utils.runtime import Context
 
 
 class TestInput(BaseModel):
@@ -566,7 +566,7 @@ async def test_collector_as_agent_component(orchestrator):
     """Test that collector can be added as agent component and hooks are called."""
     from flock.components.agent import EngineComponent
     from flock.registry import flock_type
-    from flock.runtime import EvalInputs, EvalResult
+    from flock.utils.runtime import EvalInputs, EvalResult
 
     # Register test types
     @flock_type(name="CollectorTestInput")

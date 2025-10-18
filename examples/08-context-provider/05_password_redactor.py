@@ -38,8 +38,8 @@ from typing import Any
 from pydantic import BaseModel
 
 from flock import Flock
-from flock.context_provider import ContextProvider, ContextRequest
-from flock.visibility import PublicVisibility
+from flock.core.context_provider import ContextProvider, ContextRequest
+from flock.core.visibility import PublicVisibility
 
 
 # ═══════════════════════════════════════════════════════════════════════

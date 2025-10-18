@@ -8,15 +8,15 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.visibility import PublicVisibility, Visibility
 from flock.registry import type_registry
-from flock.visibility import PublicVisibility, Visibility
 
 
 if TYPE_CHECKING:
     from flock.core import Flock
+    from flock.core.store import BlackboardStore
     from flock.orchestrator import AgentScheduler
-    from flock.store import BlackboardStore
 
 
 class ArtifactManager:

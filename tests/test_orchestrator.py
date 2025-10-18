@@ -3,11 +3,11 @@ import asyncio
 import pytest
 from pydantic import PrivateAttr
 
-from flock.artifacts import Artifact
 from flock.components.agent import EngineComponent
+from flock.core.artifacts import Artifact
 from flock.examples import Idea, Movie, Tagline, create_demo_orchestrator
 from flock.registry import type_registry
-from flock.runtime import EvalInputs, EvalResult
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 @pytest.mark.asyncio
@@ -62,8 +62,8 @@ async def test_visibility_only_for_blocks_eavesdropper():
 from pydantic import BaseModel, Field
 
 from flock.core import Flock
+from flock.core.visibility import PrivateVisibility, PublicVisibility
 from flock.registry import flock_type
-from flock.visibility import PrivateVisibility, PublicVisibility
 
 
 @flock_type(name="OrchestratorMovie")
@@ -228,7 +228,7 @@ async def test_orchestrator_enforces_private_visibility(orchestrator):
     )
 
     # Act - publish artifact with private visibility for "allowed" only
-    from flock.artifacts import Artifact
+    from flock.core.artifacts import Artifact
 
     artifact = Artifact(
         type="OrchestratorMovie",
@@ -586,7 +586,7 @@ async def test_context_is_batch_flag_propagation():
 
     from pydantic import BaseModel, Field
 
-    from flock.subscription import BatchSpec
+    from flock.core.subscription import BatchSpec
 
     # Track Context.is_batch values
     context_flags = []

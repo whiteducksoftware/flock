@@ -9,14 +9,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from flock.artifacts import Artifact
 from flock.components.agent import EngineComponent
+from flock.core.artifacts import Artifact
 from flock.engines.dspy.artifact_materializer import DSPyArtifactMaterializer
 from flock.engines.dspy.signature_builder import DSPySignatureBuilder
 from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
-from flock.runtime import EvalInputs, EvalResult
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 logger = get_logger(__name__)

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.store import ConsumptionRecord, FilterConfig, SQLiteBlackboardStore
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type
-from flock.store import ConsumptionRecord, FilterConfig, SQLiteBlackboardStore
-from flock.visibility import PublicVisibility
 
 
 @flock_type(name="GraphType")
@@ -44,17 +44,15 @@ async def test_fetch_graph_artifacts_returns_envelopes(tmp_path):
     )
     await store.publish(artifact)
 
-    await store.record_consumptions(
-        [
-            ConsumptionRecord(
-                artifact_id=artifact.id,
-                consumer="consumer",
-                run_id="run-graph",
-                correlation_id=str(correlation_id),
-                consumed_at=datetime.now(timezone.utc),
-            )
-        ]
-    )
+    await store.record_consumptions([
+        ConsumptionRecord(
+            artifact_id=artifact.id,
+            consumer="consumer",
+            run_id="run-graph",
+            correlation_id=str(correlation_id),
+            consumed_at=datetime.now(UTC),
+        )
+    ])
 
     envelopes, total = await store.fetch_graph_artifacts(
         FilterConfig(),

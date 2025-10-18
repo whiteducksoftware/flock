@@ -16,15 +16,15 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.artifacts import Artifact
 from flock.core import Flock, OutputGroup
+from flock.core.artifacts import Artifact
 from flock.engines.dspy_engine import (
     DSPyEngine,
     _default_stream_value,
     _ensure_live_crop_above,
 )
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # Test artifact types

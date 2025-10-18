@@ -3,7 +3,7 @@
 from datetime import timedelta
 from typing import Any
 
-from flock.visibility import (
+from flock.core.visibility import (
     AfterVisibility,
     LabelledVisibility,
     PrivateVisibility,
@@ -48,19 +48,19 @@ class VisibilityDeserializer:
         if kind == "Public":
             return PublicVisibility()
 
-        elif kind == "Private":
+        if kind == "Private":
             agents = set(props.get("agents", []))
             return PrivateVisibility(agents=agents)
 
-        elif kind == "Labelled":
+        if kind == "Labelled":
             required_labels = set(props.get("required_labels", []))
             return LabelledVisibility(required_labels=required_labels)
 
-        elif kind == "Tenant":
+        if kind == "Tenant":
             tenant_id = props.get("tenant_id")
             return TenantVisibility(tenant_id=tenant_id)
 
-        elif kind == "After":
+        if kind == "After":
             ttl_value = props.get("ttl")
             # Handle timedelta or raw seconds
             if isinstance(ttl_value, (int, float)):
@@ -76,5 +76,4 @@ class VisibilityDeserializer:
 
             return AfterVisibility(ttl=ttl, then=then)
 
-        else:
-            raise ValueError(f"Unknown visibility kind: {kind}")
+        raise ValueError(f"Unknown visibility kind: {kind}")

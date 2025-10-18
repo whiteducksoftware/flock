@@ -10,7 +10,7 @@ from rich.json import JSON
 from rich.panel import Panel
 from rich.table import Table
 
-from flock.utilities import LoggingUtility, MetricsUtility
+from flock.utils.utilities import LoggingUtility, MetricsUtility
 
 
 class TestMetricsUtility:
@@ -63,12 +63,16 @@ class TestMetricsUtility:
     ):
         """Test that on_pre_evaluate records start time."""
         # Act
-        result = await metrics_utility.on_pre_evaluate(mock_agent, mock_context, mock_inputs)
+        result = await metrics_utility.on_pre_evaluate(
+            mock_agent, mock_context, mock_inputs
+        )
 
         # Assert
         assert result == mock_inputs
         assert f"{mock_agent.name}:start" in mock_context.state["metrics"]
-        assert isinstance(mock_context.state["metrics"][f"{mock_agent.name}:start"], float)
+        assert isinstance(
+            mock_context.state["metrics"][f"{mock_agent.name}:start"], float
+        )
 
     @pytest.mark.asyncio
     async def test_on_post_evaluate_calculates_duration(
@@ -121,7 +125,9 @@ class TestMetricsUtility:
         await asyncio.sleep(0.01)
 
         # Act - Post-evaluate
-        await metrics_utility.on_post_evaluate(mock_agent, mock_context, mock_inputs, mock_result)
+        await metrics_utility.on_post_evaluate(
+            mock_agent, mock_context, mock_inputs, mock_result
+        )
 
         # Assert
         assert f"{mock_agent.name}:duration_ms" in mock_result.metrics
@@ -178,7 +184,7 @@ class TestLoggingUtility:
     def test_logging_utility_initialization_default_console(self):
         """Test LoggingUtility initialization with default console."""
         with (
-            patch("flock.utilities.Console") as MockConsole,
+            patch("flock.utils.utilities.Console") as MockConsole,
             patch("sys.stdout") as mock_stdout,
         ):
             mock_console_instance = Mock()
@@ -199,7 +205,9 @@ class TestLoggingUtility:
 
     def test_logging_utility_initialization_custom_settings(self, mock_console):
         """Test LoggingUtility initialization with custom settings."""
-        utility = LoggingUtility(console=mock_console, highlight_json=False, stream_tokens=False)
+        utility = LoggingUtility(
+            console=mock_console, highlight_json=False, stream_tokens=False
+        )
 
         assert utility._console == mock_console
         assert utility._highlight_json is False
@@ -232,14 +240,18 @@ class TestLoggingUtility:
 
         with patch.object(logging_utility, "_render_artifacts") as mock_render:
             # Act
-            result = await logging_utility.on_pre_consume(mock_agent, mock_context, artifacts)
+            result = await logging_utility.on_pre_consume(
+                mock_agent, mock_context, artifacts
+            )
 
             # Assert
             assert result == artifacts
             mock_console.log.assert_called_once()
             log_message = mock_console.log.call_args[0][0]
             assert f"[{mock_agent.name}] consume n=1 artifacts" in log_message
-            mock_render.assert_called_once_with(mock_agent.name, artifacts, role="input")
+            mock_render.assert_called_once_with(
+                mock_agent.name, artifacts, role="input"
+            )
 
     @pytest.mark.asyncio
     async def test_on_pre_consume_empty_artifacts(
@@ -250,7 +262,9 @@ class TestLoggingUtility:
         artifacts = []
 
         # Act
-        result = await logging_utility.on_pre_consume(mock_agent, mock_context, artifacts)
+        result = await logging_utility.on_pre_consume(
+            mock_agent, mock_context, artifacts
+        )
 
         # Assert
         assert result == artifacts
@@ -264,7 +278,9 @@ class TestLoggingUtility:
         """Test on_pre_evaluate starts streaming when enabled."""
         with patch.object(logging_utility, "_maybe_start_stream") as mock_start:
             # Act
-            result = await logging_utility.on_pre_evaluate(mock_agent, mock_context, mock_inputs)
+            result = await logging_utility.on_pre_evaluate(
+                mock_agent, mock_context, mock_inputs
+            )
 
             # Assert
             assert result == mock_inputs
@@ -279,7 +295,9 @@ class TestLoggingUtility:
 
         with patch.object(utility, "_maybe_start_stream") as mock_start:
             # Act
-            result = await utility.on_pre_evaluate(mock_agent, mock_context, mock_inputs)
+            result = await utility.on_pre_evaluate(
+                mock_agent, mock_context, mock_inputs
+            )
 
             # Assert
             assert result == mock_inputs
@@ -287,7 +305,13 @@ class TestLoggingUtility:
 
     @pytest.mark.asyncio
     async def test_on_post_evaluate_renders_all(
-        self, logging_utility, mock_console, mock_agent, mock_context, mock_inputs, mock_result
+        self,
+        logging_utility,
+        mock_console,
+        mock_agent,
+        mock_context,
+        mock_inputs,
+        mock_result,
     ):
         """Test on_post_evaluate renders metrics, artifacts, and logs."""
         with (
@@ -311,7 +335,9 @@ class TestLoggingUtility:
             mock_finalize.assert_called_once_with(mock_agent, mock_context)
 
     @pytest.mark.asyncio
-    async def test_on_post_publish(self, logging_utility, mock_console, mock_agent, mock_context):
+    async def test_on_post_publish(
+        self, logging_utility, mock_console, mock_agent, mock_context
+    ):
         """Test on_post_publish logs published artifact."""
         # Arrange
         artifact = Mock()
@@ -420,7 +446,9 @@ class TestLoggingUtility:
 
         with patch.object(logging_utility, "_render_payload") as mock_render:
             # Act
-            panel = logging_utility._build_artifact_panel(artifact, role="test", subtitle="custom")
+            panel = logging_utility._build_artifact_panel(
+                artifact, role="test", subtitle="custom"
+            )
 
             # Assert
             assert panel.subtitle == "custom"
@@ -609,7 +637,9 @@ class TestLoggingUtility:
             assert task == mock_task
             mock_attach.assert_called_once()
 
-    def test_maybe_start_stream_existing(self, logging_utility, mock_agent, mock_context):
+    def test_maybe_start_stream_existing(
+        self, logging_utility, mock_agent, mock_context
+    ):
         """Test _maybe_start_stream with existing stream."""
         # Arrange
         stream_key = logging_utility._stream_key(mock_agent, mock_context)
@@ -624,7 +654,10 @@ class TestLoggingUtility:
             # Assert
             mock_attach.assert_not_called()
             # Should keep existing stream
-            assert logging_utility._stream_context[stream_key] == (existing_queue, existing_task)
+            assert logging_utility._stream_context[stream_key] == (
+                existing_queue,
+                existing_task,
+            )
 
     @pytest.mark.asyncio
     async def test_finalize_stream(self, logging_utility, mock_agent, mock_context):
@@ -651,7 +684,9 @@ class TestLoggingUtility:
             mock_wait.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_finalize_stream_timeout(self, logging_utility, mock_agent, mock_context):
+    async def test_finalize_stream_timeout(
+        self, logging_utility, mock_agent, mock_context
+    ):
         """Test _finalize_stream with timeout."""
         # Arrange
         stream_key = logging_utility._stream_key(mock_agent, mock_context)
@@ -709,7 +744,7 @@ class TestLoggingUtility:
         await queue.put({"kind": "chunk", "chunk": "World"})
         await queue.put({"kind": "end"})
 
-        with patch("flock.utilities.Live") as MockLive:
+        with patch("flock.utils.utilities.Live") as MockLive:
             mock_live_instance = Mock()
             mock_live_instance.__enter__ = Mock(return_value=mock_live_instance)
             mock_live_instance.__exit__ = Mock(return_value=None)
@@ -736,7 +771,7 @@ class TestLoggingUtility:
         await queue.put({"kind": "status", "message": "Processing", "stage": "init"})
         await queue.put({"kind": "end"})
 
-        with patch("flock.utilities.Live") as MockLive:
+        with patch("flock.utils.utilities.Live") as MockLive:
             mock_live_instance = Mock()
             mock_live_instance.__enter__ = Mock(return_value=mock_live_instance)
             mock_live_instance.__exit__ = Mock(return_value=None)
@@ -762,7 +797,7 @@ class TestLoggingUtility:
         await queue.put({"kind": "error", "message": "Something went wrong"})
         await queue.put({"kind": "end"})
 
-        with patch("flock.utilities.Live") as MockLive:
+        with patch("flock.utils.utilities.Live") as MockLive:
             mock_live_instance = Mock()
             mock_live_instance.__enter__ = Mock(return_value=mock_live_instance)
             mock_live_instance.__exit__ = Mock(return_value=None)

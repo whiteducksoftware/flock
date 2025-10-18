@@ -29,8 +29,8 @@ class TestCollectionResult:
 
     def test_collection_result_has_required_fields(self):
         """Test CollectionResult has artifacts and complete fields."""
-        from flock.artifacts import Artifact
         from flock.components.orchestrator import CollectionResult
+        from flock.core.artifacts import Artifact
 
         artifact = Artifact(
             type="TestType",
@@ -45,8 +45,8 @@ class TestCollectionResult:
 
     def test_collection_result_immediate_factory(self):
         """Test CollectionResult.immediate() returns complete=True."""
-        from flock.artifacts import Artifact
         from flock.components.orchestrator import CollectionResult
+        from flock.core.artifacts import Artifact
 
         artifact = Artifact(
             type="TestType",
@@ -130,11 +130,11 @@ class TestOrchestratorComponent:
         """Test default hook implementations are no-ops (return expected defaults)."""
         from unittest.mock import Mock
 
-        from flock.artifacts import Artifact
         from flock.components.orchestrator import (
             OrchestratorComponent,
             ScheduleDecision,
         )
+        from flock.core.artifacts import Artifact
 
         component = OrchestratorComponent()
 
@@ -1307,8 +1307,8 @@ class TestDeduplicationComponent:
         """Test deduplication handles multiple artifacts in before_agent_schedule."""
         from unittest.mock import Mock
 
-        from flock.artifacts import Artifact
         from flock.components.orchestrator import DeduplicationComponent
+        from flock.core.artifacts import Artifact
 
         component = DeduplicationComponent()
 

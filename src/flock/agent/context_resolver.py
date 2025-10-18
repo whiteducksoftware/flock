@@ -17,10 +17,10 @@ from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
     from flock.core import Agent
-    from flock.runtime import Context
-    from flock.subscription import Subscription
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import Subscription
+    from flock.utils.runtime import Context
 
 logger = get_logger(__name__)
 
@@ -126,7 +126,7 @@ class ContextResolver:
 
         # For now, return a minimal context structure
         # (actual Context building is orchestrator-level in current architecture)
-        from flock.runtime import Context
+        from flock.utils.runtime import Context
 
         return Context(
             correlation_id=None,  # Will be filled by orchestrator

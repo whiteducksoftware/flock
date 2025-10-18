@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
 from flock.utils.time_utils import format_time_span
 
 

@@ -10,7 +10,7 @@ import re
 from datetime import timedelta
 from typing import Any
 
-from flock.visibility import (
+from flock.core.visibility import (
     AfterVisibility,
     LabelledVisibility,
     PrivateVisibility,

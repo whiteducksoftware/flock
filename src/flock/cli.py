@@ -12,8 +12,8 @@ from typer.models import OptionInfo
 
 # Lazy import: only import examples when CLI commands are invoked
 # This prevents polluting type_registry on every package import
-from flock.service import BlackboardHTTPService
-from flock.store import SQLiteBlackboardStore
+from flock.api.service import BlackboardHTTPService
+from flock.core.store import SQLiteBlackboardStore
 
 
 app = typer.Typer(help="Blackboard Agents CLI")

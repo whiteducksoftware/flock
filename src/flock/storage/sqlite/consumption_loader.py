@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from flock.store import ConsumptionRecord
+from flock.core.store import ConsumptionRecord
 
 
 if TYPE_CHECKING:

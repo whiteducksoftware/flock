@@ -13,13 +13,16 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
 from flock.components.orchestrator import (
     CollectionResult,
     OrchestratorComponent,
     ScheduleDecision,
 )
 from flock.core.agent import Agent, AgentBuilder
+from flock.core.artifacts import Artifact
+from flock.core.store import BlackboardStore, ConsumptionRecord
+from flock.core.subscription import Subscription
+from flock.core.visibility import PublicVisibility, Visibility
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.mcp import (
     FlockMCPClientManager,
@@ -35,9 +38,6 @@ from flock.orchestrator import (
     TracingManager,
 )
 from flock.registry import type_registry
-from flock.store import BlackboardStore, ConsumptionRecord
-from flock.subscription import Subscription
-from flock.visibility import PublicVisibility, Visibility
 
 
 if TYPE_CHECKING:
@@ -274,7 +274,7 @@ class Flock(metaclass=AutoTracedMeta):
         has_pending_work = has_active_tasks or has_pending_groups
 
         # Query artifacts for this correlation
-        from flock.store import FilterConfig
+        from flock.core.store import FilterConfig
 
         filters = FilterConfig(correlation_id=correlation_id)
         artifacts, total = await self.store.query_artifacts(
@@ -930,7 +930,7 @@ class Flock(metaclass=AutoTracedMeta):
         except Exception as exc:
             # Agent already called component.on_error hooks before re-raising
             # Now orchestrator publishes error artifact and continues workflow
-            from flock.system_artifacts import WorkflowError
+            from flock.models.system_artifacts import WorkflowError
 
             error_artifact_data = WorkflowError(
                 failed_agent=agent.name,
@@ -941,7 +941,7 @@ class Flock(metaclass=AutoTracedMeta):
             )
 
             # Build and publish error artifact with correlation_id
-            from flock.artifacts import ArtifactSpec
+            from flock.core.artifacts import ArtifactSpec
 
             error_spec = ArtifactSpec.from_model(WorkflowError)
             error_artifact = error_spec.build(

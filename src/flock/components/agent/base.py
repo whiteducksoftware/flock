@@ -13,8 +13,8 @@ from flock.logging.auto_trace import AutoTracedMeta
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from flock.agent import Agent, OutputGroup
-    from flock.artifacts import Artifact
-    from flock.runtime import Context, EvalInputs, EvalResult
+    from flock.core.artifacts import Artifact
+    from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 T = TypeVar("T", bound="AgentComponentConfig")
 

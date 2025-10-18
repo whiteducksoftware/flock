@@ -13,10 +13,10 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.artifacts import ArtifactSpec
 from flock.core import AgentOutput, OutputGroup
+from flock.core.artifacts import ArtifactSpec
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type
-from flock.visibility import PublicVisibility
 
 
 # Test artifact types

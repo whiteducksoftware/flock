@@ -13,7 +13,7 @@ from flock.registry import type_registry
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
+    from flock.core.artifacts import Artifact
 
 
 Predicate = Callable[[BaseModel], bool]

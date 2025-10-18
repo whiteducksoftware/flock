@@ -11,9 +11,9 @@ from uuid import uuid4
 
 import pytest
 
-from flock.artifacts import Artifact
-from flock.store import FilterConfig
-from flock.visibility import (
+from flock.core.artifacts import Artifact
+from flock.core.store import FilterConfig
+from flock.core.visibility import (
     AgentIdentity,
     LabelledVisibility,
     PrivateVisibility,
@@ -23,7 +23,7 @@ from flock.visibility import (
 
 
 # We'll import these after implementing them
-# from flock.context_provider import ContextProvider, ContextRequest, DefaultContextProvider
+# from flock.core.context_provider import ContextProvider, ContextRequest, DefaultContextProvider
 
 
 class MockStore:
@@ -94,7 +94,7 @@ class TestContextProviderProtocol:
         The protocol defines the security boundary interface.
         All providers must implement: async def __call__(request: ContextRequest) -> list[dict]
         """
-        from flock.context_provider import ContextProvider
+        from flock.core.context_provider import ContextProvider
 
         # Protocol should exist and be callable
         assert ContextProvider is not None
@@ -108,7 +108,7 @@ class TestContextProviderProtocol:
         - store: BlackboardStore (for querying)
         - agent_identity: AgentIdentity (for visibility checks)
         """
-        from flock.context_provider import ContextRequest
+        from flock.core.context_provider import ContextRequest
 
         # Should be able to create ContextRequest
         agent = MockAgent("test-agent")
@@ -134,7 +134,7 @@ class TestDefaultContextProviderSecurity:
 
     async def test_default_provider_exists(self):
         """DefaultContextProvider must be implemented."""
-        from flock.context_provider import DefaultContextProvider
+        from flock.core.context_provider import DefaultContextProvider
 
         provider = DefaultContextProvider()
         assert provider is not None
@@ -147,7 +147,7 @@ class TestDefaultContextProviderSecurity:
         Agents can ONLY see artifacts they're allowed to see.
         Visibility enforcement is MANDATORY and cannot be bypassed.
         """
-        from flock.context_provider import ContextRequest, DefaultContextProvider
+        from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -202,7 +202,7 @@ class TestDefaultContextProviderSecurity:
         Fix: Provider filters BEFORE agent sees data.
         Agent NOT in allowlist gets empty list.
         """
-        from flock.context_provider import ContextRequest, DefaultContextProvider
+        from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -251,7 +251,7 @@ class TestDefaultContextProviderSecurity:
         Vulnerability: Agent from tenant_b could access tenant_a's data via ctx.board.list()
         Fix: Provider enforces tenant isolation automatically.
         """
-        from flock.context_provider import ContextRequest, DefaultContextProvider
+        from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -304,7 +304,7 @@ class TestDefaultContextProviderSecurity:
         Vulnerability: Agent without clearance could access classified via ctx.board.list()
         Fix: Provider enforces label requirements automatically.
         """
-        from flock.context_provider import ContextRequest, DefaultContextProvider
+        from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -360,7 +360,7 @@ class TestDefaultContextProviderSecurity:
 
         For correlation-based filtering, use CorrelatedContextProvider explicitly.
         """
-        from flock.context_provider import ContextRequest, DefaultContextProvider
+        from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
         correlation_a = uuid4()
         correlation_b = uuid4()
@@ -408,7 +408,7 @@ class TestDefaultContextProviderSecurity:
         Format: [{"type": ..., "payload": ..., "produced_by": ..., ...}]
         Agents receive pre-serialized context (not raw Artifact objects).
         """
-        from flock.context_provider import ContextRequest, DefaultContextProvider
+        from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -497,8 +497,8 @@ class TestPluggableProviders:
         This enables global provider configuration:
             flock = Flock(context_provider=MyProvider())
         """
-        from flock.context_provider import DefaultContextProvider
         from flock.core import Flock
+        from flock.core.context_provider import DefaultContextProvider
 
         # Should accept context_provider parameter
         provider = DefaultContextProvider()
@@ -542,8 +542,8 @@ class TestPluggableProviders:
 
         The provider should be stored as agent.context_provider for later use.
         """
-        from flock.context_provider import DefaultContextProvider
         from flock.core import Flock
+        from flock.core.context_provider import DefaultContextProvider
 
         flock = Flock(model="openai/gpt-4o-mini")
         provider = DefaultContextProvider()
@@ -560,8 +560,8 @@ class TestPluggableProviders:
         Example:
             agent.with_context(provider).consumes(Task).publishes(Report)
         """
-        from flock.context_provider import DefaultContextProvider
         from flock.core import Flock
+        from flock.core.context_provider import DefaultContextProvider
 
         flock = Flock(model="openai/gpt-4o-mini")
         provider = DefaultContextProvider()
@@ -580,8 +580,8 @@ class TestPluggableProviders:
         2. Global provider
         3. DefaultContextProvider fallback (lowest priority)
         """
-        from flock.context_provider import DefaultContextProvider
         from flock.core import Flock
+        from flock.core.context_provider import DefaultContextProvider
 
         # Custom providers for testing
         class GlobalProvider(DefaultContextProvider):
@@ -632,7 +632,7 @@ class TestFilteredContextProvider:
 
     async def test_filtered_provider_exists(self):
         """FilteredContextProvider must be implemented."""
-        from flock.context_provider import FilteredContextProvider
+        from flock.core.context_provider import FilteredContextProvider
 
         # Should be able to import FilteredContextProvider
         assert FilteredContextProvider is not None
@@ -643,8 +643,8 @@ class TestFilteredContextProvider:
         Example: FilteredContextProvider(FilterConfig(tags={"important"}))
         Only returns artifacts with "important" tag.
         """
-        from flock.context_provider import ContextRequest, FilteredContextProvider
-        from flock.store import FilterConfig
+        from flock.core.context_provider import ContextRequest, FilteredContextProvider
+        from flock.core.store import FilterConfig
 
         correlation = uuid4()
 
@@ -693,8 +693,8 @@ class TestFilteredContextProvider:
         Example: FilteredContextProvider(FilterConfig(type_names={"Task"}))
         Only returns Task artifacts.
         """
-        from flock.context_provider import ContextRequest, FilteredContextProvider
-        from flock.store import FilterConfig
+        from flock.core.context_provider import ContextRequest, FilteredContextProvider
+        from flock.core.store import FilterConfig
 
         correlation = uuid4()
 
@@ -741,8 +741,8 @@ class TestFilteredContextProvider:
         Even with declarative filtering, visibility is ALWAYS enforced.
         This is the CRITICAL SECURITY REQUIREMENT from Phase 2.
         """
-        from flock.context_provider import ContextRequest, FilteredContextProvider
-        from flock.store import FilterConfig
+        from flock.core.context_provider import ContextRequest, FilteredContextProvider
+        from flock.core.store import FilterConfig
 
         correlation = uuid4()
 
@@ -796,8 +796,8 @@ class TestFilteredContextProvider:
         Example: FilteredContextProvider(FilterConfig(tags={"test"}), limit=2)
         Returns at most 2 artifacts.
         """
-        from flock.context_provider import ContextRequest, FilteredContextProvider
-        from flock.store import FilterConfig
+        from flock.core.context_provider import ContextRequest, FilteredContextProvider
+        from flock.core.store import FilterConfig
 
         correlation = uuid4()
 
@@ -837,8 +837,8 @@ class TestFilteredContextProvider:
 
         Format: [{"type": ..., "payload": ..., "produced_by": ..., ...}]
         """
-        from flock.context_provider import ContextRequest, FilteredContextProvider
-        from flock.store import FilterConfig
+        from flock.core.context_provider import ContextRequest, FilteredContextProvider
+        from flock.core.store import FilterConfig
 
         correlation = uuid4()
 
@@ -885,7 +885,7 @@ class TestCorrelatedContextProvider:
 
     async def test_correlated_provider_exists(self):
         """CorrelatedContextProvider must be implemented."""
-        from flock.context_provider import CorrelatedContextProvider
+        from flock.core.context_provider import CorrelatedContextProvider
 
         provider = CorrelatedContextProvider()
         assert provider is not None
@@ -896,7 +896,10 @@ class TestCorrelatedContextProvider:
         Agents should only see artifacts from their specific workflow.
         This is the explicit version of what DefaultContextProvider used to do.
         """
-        from flock.context_provider import ContextRequest, CorrelatedContextProvider
+        from flock.core.context_provider import (
+            ContextRequest,
+            CorrelatedContextProvider,
+        )
 
         correlation_a = uuid4()
         correlation_b = uuid4()
@@ -939,7 +942,10 @@ class TestCorrelatedContextProvider:
 
     async def test_correlated_provider_enforces_visibility(self):
         """SECURITY: CorrelatedContextProvider MUST enforce visibility."""
-        from flock.context_provider import ContextRequest, CorrelatedContextProvider
+        from flock.core.context_provider import (
+            ContextRequest,
+            CorrelatedContextProvider,
+        )
 
         correlation = uuid4()
 
@@ -987,7 +993,7 @@ class TestRecentContextProvider:
 
     async def test_recent_provider_exists(self):
         """RecentContextProvider must be implemented."""
-        from flock.context_provider import RecentContextProvider
+        from flock.core.context_provider import RecentContextProvider
 
         provider = RecentContextProvider(limit=10)
         assert provider is not None
@@ -996,7 +1002,7 @@ class TestRecentContextProvider:
         """RecentContextProvider must return only N most recent artifacts."""
         from datetime import datetime, timedelta
 
-        from flock.context_provider import ContextRequest, RecentContextProvider
+        from flock.core.context_provider import ContextRequest, RecentContextProvider
 
         correlation = uuid4()
         base_time = datetime.now()
@@ -1037,7 +1043,7 @@ class TestRecentContextProvider:
 
     async def test_recent_provider_enforces_visibility(self):
         """SECURITY: RecentContextProvider MUST enforce visibility."""
-        from flock.context_provider import ContextRequest, RecentContextProvider
+        from flock.core.context_provider import ContextRequest, RecentContextProvider
 
         correlation = uuid4()
 
@@ -1088,7 +1094,7 @@ class TestTimeWindowContextProvider:
 
     async def test_time_window_provider_exists(self):
         """TimeWindowContextProvider must be implemented."""
-        from flock.context_provider import TimeWindowContextProvider
+        from flock.core.context_provider import TimeWindowContextProvider
 
         provider = TimeWindowContextProvider(hours=1)
         assert provider is not None
@@ -1097,7 +1103,10 @@ class TestTimeWindowContextProvider:
         """TimeWindowContextProvider must return only artifacts within time window."""
         from datetime import datetime, timedelta
 
-        from flock.context_provider import ContextRequest, TimeWindowContextProvider
+        from flock.core.context_provider import (
+            ContextRequest,
+            TimeWindowContextProvider,
+        )
 
         correlation = uuid4()
         now = datetime.now()
@@ -1145,7 +1154,10 @@ class TestTimeWindowContextProvider:
         """SECURITY: TimeWindowContextProvider MUST enforce visibility."""
         from datetime import datetime, timedelta
 
-        from flock.context_provider import ContextRequest, TimeWindowContextProvider
+        from flock.core.context_provider import (
+            ContextRequest,
+            TimeWindowContextProvider,
+        )
 
         correlation = uuid4()
         now = datetime.now()
@@ -1196,14 +1208,14 @@ class TestEmptyContextProvider:
 
     async def test_empty_provider_exists(self):
         """EmptyContextProvider must be implemented."""
-        from flock.context_provider import EmptyContextProvider
+        from flock.core.context_provider import EmptyContextProvider
 
         provider = EmptyContextProvider()
         assert provider is not None
 
     async def test_empty_provider_returns_empty_list(self):
         """EmptyContextProvider must always return empty list."""
-        from flock.context_provider import ContextRequest, EmptyContextProvider
+        from flock.core.context_provider import ContextRequest, EmptyContextProvider
 
         correlation = uuid4()
 
@@ -1242,7 +1254,7 @@ class TestEmptyContextProvider:
 
         Since no artifacts are returned, visibility is irrelevant (N/A).
         """
-        from flock.context_provider import ContextRequest, EmptyContextProvider
+        from flock.core.context_provider import ContextRequest, EmptyContextProvider
 
         correlation = uuid4()
 

@@ -8,10 +8,10 @@ import pytest
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.artifacts import Artifact
 from flock.components.agent import AgentComponent, EngineComponent
-from flock.runtime import Context, EvalResult
-from flock.visibility import PrivateVisibility, PublicVisibility
+from flock.core.artifacts import Artifact
+from flock.core.visibility import PrivateVisibility, PublicVisibility
+from flock.utils.runtime import Context, EvalResult
 
 
 # NoOp utility to bypass console output issues

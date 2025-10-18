@@ -18,13 +18,13 @@ from flock.agent.mcp_integration import MCPIntegration
 
 # Phase 4: Import extracted modules
 from flock.agent.output_processor import OutputProcessor
-from flock.artifacts import Artifact, ArtifactSpec
+from flock.core.artifacts import Artifact, ArtifactSpec
+from flock.core.subscription import BatchSpec, JoinSpec, Subscription, TextPredicate
+from flock.core.visibility import AgentIdentity, Visibility, ensure_visibility
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
 from flock.registry import function_registry, type_registry
-from flock.runtime import Context, EvalInputs, EvalResult
-from flock.subscription import BatchSpec, JoinSpec, Subscription, TextPredicate
-from flock.visibility import AgentIdentity, Visibility, ensure_visibility
+from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 
 logger = get_logger(__name__)
@@ -355,7 +355,7 @@ class Agent(metaclass=AutoTracedMeta):
                 result = await engine.evaluate(self, ctx, current_inputs, output_group)
 
                 # AUTO-WRAP: If engine returns BaseModel instead of EvalResult, wrap it
-                from flock.runtime import EvalResult as ER
+                from flock.utils.runtime import EvalResult as ER
 
                 if isinstance(result, BaseModel) and not isinstance(result, ER):
                     result = ER.from_object(result, agent=self)

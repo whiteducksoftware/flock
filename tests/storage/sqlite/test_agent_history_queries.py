@@ -6,8 +6,8 @@ from uuid import uuid4
 import aiosqlite
 import pytest
 
+from flock.core.store import FilterConfig
 from flock.storage.sqlite.agent_history_queries import AgentHistoryQueries
-from flock.store import FilterConfig
 
 
 @pytest.fixture

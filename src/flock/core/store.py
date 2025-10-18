@@ -22,7 +22,7 @@ from uuid import UUID
 import aiosqlite
 from opentelemetry import trace
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
 from flock.registry import type_registry
 from flock.storage.artifact_aggregator import ArtifactAggregator
 from flock.utils.type_resolution import TypeResolutionHelper

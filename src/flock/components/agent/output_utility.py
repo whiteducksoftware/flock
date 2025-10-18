@@ -11,7 +11,7 @@ from flock.logging.formatters.themed_formatter import (
 )
 from flock.logging.formatters.themes import OutputTheme
 from flock.logging.logging import get_logger
-from flock.runtime import Context, EvalInputs, EvalResult
+from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only

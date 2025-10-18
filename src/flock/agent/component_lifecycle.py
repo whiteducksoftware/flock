@@ -13,10 +13,10 @@ from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
     from flock.components import AgentComponent, EngineComponent
     from flock.core import Agent
-    from flock.runtime import Context, EvalInputs, EvalResult
+    from flock.core.artifacts import Artifact
+    from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 logger = get_logger(__name__)
 

@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi.middleware.cors import CORSMiddleware
 
+from flock.api.service import BlackboardHTTPService
 from flock.core import Flock
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.graph_builder import GraphAssembler
@@ -23,7 +24,6 @@ from flock.dashboard.routes import (
 )
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger
-from flock.service import BlackboardHTTPService
 
 
 logger = get_logger("dashboard.service")

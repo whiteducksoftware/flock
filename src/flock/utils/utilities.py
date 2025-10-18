@@ -23,7 +23,7 @@ from flock.components.agent import AgentComponent
 
 
 if TYPE_CHECKING:
-    from flock.runtime import Context, EvalInputs, EvalResult
+    from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 
 class MetricsUtility(AgentComponent):

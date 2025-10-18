@@ -17,10 +17,10 @@ from uuid import UUID, uuid4
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
     from flock.core import Agent
-    from flock.runtime import Context
-    from flock.store import BlackboardStore
+    from flock.core.artifacts import Artifact
+    from flock.core.store import BlackboardStore
+    from flock.utils.runtime import Context
 
 
 class ContextBuilder:
@@ -105,7 +105,7 @@ class ContextBuilder:
         """
         # Phase 8: Evaluate context BEFORE creating Context (security fix)
         # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import (
+        from flock.core.context_provider import (
             BoundContextProvider,
             ContextRequest,
             DefaultContextProvider,
@@ -142,7 +142,7 @@ class ContextBuilder:
 
         # Step 4: Create Context with pre-filtered data (no capabilities!)
         # SECURITY: Context is now just data - engines can't query anything
-        from flock.runtime import Context
+        from flock.utils.runtime import Context
 
         ctx = Context(
             artifacts=context_artifacts,  # Pre-filtered conversation context

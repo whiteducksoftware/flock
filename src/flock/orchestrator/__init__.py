@@ -13,9 +13,12 @@ Phase 3 Additions (Orchestrator Simplification):
 - OrchestratorInitializer: Component setup and state initialization
 """
 
+from flock.orchestrator.artifact_collector import ArtifactCollector
 from flock.orchestrator.artifact_manager import ArtifactManager
+from flock.orchestrator.batch_accumulator import BatchAccumulator
 from flock.orchestrator.component_runner import ComponentRunner
 from flock.orchestrator.context_builder import ContextBuilder
+from flock.orchestrator.correlation_engine import CorrelationEngine
 from flock.orchestrator.event_emitter import EventEmitter
 from flock.orchestrator.initialization import OrchestratorInitializer
 from flock.orchestrator.lifecycle_manager import LifecycleManager
@@ -27,9 +30,12 @@ from flock.orchestrator.tracing import TracingManager
 
 __all__ = [
     "AgentScheduler",
+    "ArtifactCollector",
     "ArtifactManager",
+    "BatchAccumulator",
     "ComponentRunner",
     "ContextBuilder",
+    "CorrelationEngine",
     "EventEmitter",
     "LifecycleManager",
     "MCPManager",

@@ -2,9 +2,9 @@
 
 import pytest
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.store import ArtifactEnvelope, ConsumptionRecord
 from flock.storage.in_memory.history_aggregator import HistoryAggregator
-from flock.store import ArtifactEnvelope, ConsumptionRecord
 
 
 @pytest.fixture

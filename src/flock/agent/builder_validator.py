@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from flock.subscription import BatchSpec, JoinSpec
+from flock.core.subscription import BatchSpec, JoinSpec
 
 
 if TYPE_CHECKING:

@@ -15,11 +15,11 @@ if str(ROOT) not in sys.path:
 
 # Import framework classes
 from flock.agent import AgentIdentity
-from flock.artifacts import Artifact
 from flock.core import Flock
+from flock.core.artifacts import Artifact
+from flock.core.store import InMemoryBlackboardStore
+from flock.core.visibility import PublicVisibility
 from flock.dashboard.collector import DashboardEventCollector
-from flock.store import InMemoryBlackboardStore
-from flock.visibility import PublicVisibility
 
 
 @pytest.fixture
@@ -77,7 +77,7 @@ def mock_llm(mocker):
 def fixed_time(mocker):
     """Fix current time for deterministic tests."""
     fixed = datetime(2025, 9, 30, 12, 0, 0, tzinfo=UTC)
-    mock_dt = mocker.patch("flock.visibility.datetime")
+    mock_dt = mocker.patch("flock.core.visibility.datetime")
     mock_dt.now.return_value = fixed
     return fixed
 
@@ -86,7 +86,7 @@ def fixed_time(mocker):
 def fixed_uuid(mocker):
     """Fix UUID generation for deterministic tests."""
     fixed = UUID("12345678-1234-5678-1234-567812345678")
-    mocker.patch("flock.artifacts.uuid4", return_value=fixed)
+    mocker.patch("flock.core.artifacts.uuid4", return_value=fixed)
     return fixed
 
 

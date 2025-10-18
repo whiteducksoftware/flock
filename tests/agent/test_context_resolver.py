@@ -5,9 +5,9 @@ from unittest.mock import Mock
 import pytest
 
 from flock.agent.context_resolver import ContextResolver
-from flock.artifacts import Artifact
-from flock.runtime import Context
-from flock.subscription import Subscription
+from flock.core.artifacts import Artifact
+from flock.core.subscription import Subscription
+from flock.utils.runtime import Context
 
 
 @pytest.fixture

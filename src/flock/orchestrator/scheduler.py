@@ -11,10 +11,10 @@ from flock.components.orchestrator import ScheduleDecision
 
 if TYPE_CHECKING:
     from flock.agent import Agent
-    from flock.artifacts import Artifact
     from flock.core import Flock
+    from flock.core.artifacts import Artifact
+    from flock.core.visibility import AgentIdentity
     from flock.orchestrator import ComponentRunner
-    from flock.visibility import AgentIdentity
 
 
 class AgentScheduler:

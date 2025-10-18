@@ -9,10 +9,10 @@ import duckdb
 from fastapi import FastAPI, HTTPException
 
 from flock.core import Flock
+from flock.core.store import FilterConfig
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger
-from flock.store import FilterConfig
 
 
 logger = get_logger("dashboard.routes.traces")

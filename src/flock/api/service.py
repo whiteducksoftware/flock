@@ -10,7 +10,7 @@ from uuid import UUID
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
-from flock.api_models import (
+from flock.api.models import (
     Agent,
     AgentListResponse,
     AgentRunRequest,
@@ -24,8 +24,8 @@ from flock.api_models import (
     HealthResponse,
     ProducedArtifact,
 )
+from flock.core.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 from flock.registry import type_registry
-from flock.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 
 
 if TYPE_CHECKING:

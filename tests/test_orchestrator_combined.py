@@ -28,9 +28,9 @@ from pydantic import BaseModel
 
 from flock.components.agent import EngineComponent
 from flock.core import Flock
+from flock.core.subscription import BatchSpec, JoinSpec
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
-from flock.subscription import BatchSpec, JoinSpec
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 class BatchAwareEngine(EngineComponent):
@@ -531,7 +531,7 @@ async def test_batched_correlation_with_visibility():
 
     Mental model: Visibility → Correlation → Batching (in sequence)
     """
-    from flock.visibility import PrivateVisibility, PublicVisibility
+    from flock.core.visibility import PrivateVisibility, PublicVisibility
 
     orchestrator = Flock()
     executed = []

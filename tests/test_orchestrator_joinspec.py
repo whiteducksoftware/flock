@@ -20,9 +20,9 @@ from pydantic import BaseModel
 
 from flock.components.agent import EngineComponent
 from flock.core import Flock
+from flock.core.subscription import JoinSpec
 from flock.registry import flock_type
-from flock.runtime import EvalResult
-from flock.subscription import JoinSpec
+from flock.utils.runtime import EvalResult
 
 
 # Test artifact types with correlation support
@@ -551,7 +551,7 @@ async def test_joinspec_with_visibility_controls():
 
     Real-world: Multi-tenant system where each tenant's data is isolated.
     """
-    from flock.visibility import PrivateVisibility, PublicVisibility
+    from flock.core.visibility import PrivateVisibility, PublicVisibility
 
     orchestrator = Flock()
     executed = []
@@ -853,7 +853,7 @@ async def test_joinspec_time_expiry_vs_batch_timeout_behavior():
     """
     import asyncio
 
-    from flock.subscription import BatchSpec
+    from flock.core.subscription import BatchSpec
 
     orchestrator = Flock()
     correlation_executed = []

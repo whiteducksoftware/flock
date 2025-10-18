@@ -28,8 +28,8 @@ import pytest
 from pydantic import BaseModel
 
 from flock.core import Flock
+from flock.core.subscription import BatchSpec, JoinSpec
 from flock.registry import flock_type
-from flock.subscription import BatchSpec, JoinSpec
 
 
 # ============================================================================

@@ -23,11 +23,11 @@ from pydantic import BaseModel
 
 from flock import Flock
 from flock.components.agent import EngineComponent
+from flock.core.subscription import BatchSpec
 from flock.engines.examples import SimpleBatchEngine
 from flock.engines.examples.simple_batch_engine import BatchItem as SimpleBatchInput
 from flock.engines.examples.simple_batch_engine import BatchSummary
-from flock.runtime import EvalInputs, EvalResult
-from flock.subscription import BatchSpec
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # ============================================================================
@@ -453,7 +453,7 @@ async def test_batchspec_with_visibility_filters_before_batching():
 
     Mental model: Visibility filtering happens BEFORE batching.
     """
-    from flock.visibility import PrivateVisibility, PublicVisibility
+    from flock.core.visibility import PrivateVisibility, PublicVisibility
 
     orchestrator = Flock()
     executed = []

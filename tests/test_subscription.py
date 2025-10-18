@@ -3,10 +3,10 @@
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.subscription import Subscription
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type
-from flock.subscription import Subscription
-from flock.visibility import PublicVisibility
 
 
 # Test artifact types - use explicit names to avoid module path issues
@@ -63,7 +63,9 @@ async def test_subscription_rejects_wrong_type():
 async def test_subscription_matches_from_agents():
     """Test that subscription matches artifacts from specific agents."""
     # Arrange
-    subscription = Subscription(agent_name="test_agent", types=[Movie], from_agents={"movie_agent"})
+    subscription = Subscription(
+        agent_name="test_agent", types=[Movie], from_agents={"movie_agent"}
+    )
     artifact = Artifact(
         type="Movie",
         payload={"title": "TEST", "runtime": 120},
@@ -82,7 +84,9 @@ async def test_subscription_matches_from_agents():
 async def test_subscription_rejects_wrong_producer():
     """Test that subscription rejects artifacts from non-matching agents."""
     # Arrange
-    subscription = Subscription(agent_name="test_agent", types=[Movie], from_agents={"movie_agent"})
+    subscription = Subscription(
+        agent_name="test_agent", types=[Movie], from_agents={"movie_agent"}
+    )
     artifact = Artifact(
         type="Movie",
         payload={"title": "TEST", "runtime": 120},
@@ -216,7 +220,9 @@ async def test_subscription_predicate_exception_returns_false():
     def bad_predicate(movie):
         raise AttributeError("Intentional error")
 
-    subscription = Subscription(agent_name="test_agent", types=[Movie], where=[bad_predicate])
+    subscription = Subscription(
+        agent_name="test_agent", types=[Movie], where=[bad_predicate]
+    )
 
     artifact = Artifact(
         type="Movie",

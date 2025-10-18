@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
 
 
 class EvalInputs(BaseModel):
@@ -99,7 +99,7 @@ class EvalResult(BaseModel):
             ...         )
             ...         return EvalResult.from_object(processed, agent=agent)
         """
-        from flock.artifacts import Artifact
+        from flock.core.artifacts import Artifact
         from flock.registry import type_registry
 
         type_name = type_registry.name_for(type(obj))
@@ -154,7 +154,7 @@ class EvalResult(BaseModel):
             ...             movie, tagline, agent=agent, metrics={"confidence": 0.9}
             ...         )
         """
-        from flock.artifacts import Artifact
+        from flock.core.artifacts import Artifact
         from flock.registry import type_registry
 
         artifacts = []

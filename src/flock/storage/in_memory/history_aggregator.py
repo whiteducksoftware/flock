@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
-    from flock.store import ArtifactEnvelope
+    from flock.core.store import ArtifactEnvelope
 
 
 class HistoryAggregator:
@@ -72,7 +72,7 @@ class HistoryAggregator:
         Returns:
             Dict mapping artifact types to counts
         """
-        from flock.store import ArtifactEnvelope
+        from flock.core.store import ArtifactEnvelope
 
         produced_by_type: defaultdict[str, int] = defaultdict(int)
 
@@ -99,7 +99,7 @@ class HistoryAggregator:
         Returns:
             Dict mapping artifact types to consumption counts
         """
-        from flock.store import ArtifactEnvelope
+        from flock.core.store import ArtifactEnvelope
 
         consumed_by_type: defaultdict[str, int] = defaultdict(int)
 

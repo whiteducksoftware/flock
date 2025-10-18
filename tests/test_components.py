@@ -7,11 +7,11 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.artifacts import Artifact
 from flock.components.agent import AgentComponent, AgentComponentConfig, EngineComponent
 from flock.core import Flock, OutputGroup
+from flock.core.artifacts import Artifact
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # Test artifact types
@@ -284,7 +284,7 @@ async def test_agent_component_config_with_fields():
 @pytest.mark.asyncio
 async def test_engine_component_get_conversation_context():
     """Test EngineComponent.get_conversation_context() method - Phase 8 pattern."""
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
     # Phase 8: Context contains pre-filtered artifacts (evaluated by orchestrator)
     correlation_id = uuid4()
@@ -329,7 +329,7 @@ async def test_engine_component_get_conversation_context():
 @pytest.mark.asyncio
 async def test_engine_component_get_context_with_max_artifacts():
     """Test get_conversation_context with max_artifacts limit - Phase 8 pattern."""
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
     # Phase 8: Context contains pre-filtered artifacts (10 artifacts from orchestrator)
     pre_filtered_artifacts = [
@@ -372,7 +372,7 @@ async def test_engine_component_get_context_with_max_artifacts():
 @pytest.mark.asyncio
 async def test_engine_component_get_context_with_exclude_types():
     """Test get_conversation_context with excluded types - Phase 8 pattern."""
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
     # Phase 8: Context contains pre-filtered artifacts
     pre_filtered_artifacts = [
@@ -417,7 +417,7 @@ async def test_engine_component_get_context_with_exclude_types():
 @pytest.mark.asyncio
 async def test_engine_component_get_context_disabled():
     """Test get_conversation_context when context is disabled."""
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
     ctx = Context(
         artifacts=[

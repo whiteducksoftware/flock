@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from flock.components.agent import EngineComponent
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 @flock_type(name="BatchItem")

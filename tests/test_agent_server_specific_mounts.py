@@ -100,7 +100,7 @@ def test_empty_mounts_in_dict(orchestrator):
 @pytest.mark.asyncio
 async def test_get_mcp_tools_passes_server_mounts(orchestrator):
     """Test that _get_mcp_tools passes server-specific mounts to manager."""
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
     agent = orchestrator.agent("test_agent").with_mcps({
         "filesystem": {"roots": ["/workspace/src"]},

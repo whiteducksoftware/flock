@@ -26,8 +26,8 @@ from pydantic import BaseModel, Field
 
 from flock import Flock
 from flock.core import OutputGroup
+from flock.core.visibility import PrivateVisibility, PublicVisibility, Visibility
 from flock.registry import flock_type
-from flock.visibility import PrivateVisibility, PublicVisibility, Visibility
 
 
 # Test artifact types
@@ -853,11 +853,10 @@ import asyncio
 
 from pydantic import PrivateAttr
 
-from flock.artifacts import Artifact
-
 # No-op utility component for tests (bypasses console emoji rendering)
 from flock.components.agent import AgentComponent, EngineComponent
-from flock.runtime import Context, EvalInputs, EvalResult
+from flock.core.artifacts import Artifact
+from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 
 class NoOpUtility(AgentComponent):

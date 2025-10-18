@@ -8,8 +8,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
+from flock.core.visibility import Visibility, ensure_visibility
 from flock.registry import type_registry
-from flock.visibility import Visibility, ensure_visibility
 
 
 class Artifact(BaseModel):

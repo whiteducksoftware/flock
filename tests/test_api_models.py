@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from flock import Flock
-from flock.api_models import (
+from flock.api.models import (
     Agent,
     AgentListResponse,
     AgentSubscription,
@@ -19,8 +19,8 @@ from flock.api_models import (
     HealthResponse,
     PaginationInfo,
 )
+from flock.api.service import BlackboardHTTPService
 from flock.examples import Idea, Movie
-from flock.service import BlackboardHTTPService
 
 
 class TestAgentModels:
@@ -156,7 +156,7 @@ class TestArtifactTypesResponse:
 
     def test_artifact_type_schema_with_alias(self):
         """Test that 'schema' field alias works properly."""
-        from flock.api_models import ArtifactTypeSchema
+        from flock.api.models import ArtifactTypeSchema
 
         # Should work with 'schema' key
         type_schema = ArtifactTypeSchema(
@@ -195,7 +195,10 @@ class TestEndToEndAPIResponses:
 
         response = client.post(
             "/api/v1/artifacts",
-            json={"type": "flock.examples.Idea", "payload": {"genre": "action", "topic": "Test"}},
+            json={
+                "type": "flock.examples.Idea",
+                "payload": {"genre": "action", "topic": "Test"},
+            },
         )
         assert response.status_code == 200
 
@@ -238,19 +241,32 @@ class TestEndToEndAPIResponses:
         openapi_schema = service.app.openapi()
 
         # Check /api/v1/agents
-        agents_schema = openapi_schema["paths"]["/api/v1/agents"]["get"]["responses"]["200"]
+        agents_schema = openapi_schema["paths"]["/api/v1/agents"]["get"]["responses"][
+            "200"
+        ]
         assert "$ref" in agents_schema["content"]["application/json"]["schema"]
-        assert "AgentListResponse" in agents_schema["content"]["application/json"]["schema"]["$ref"]
+        assert (
+            "AgentListResponse"
+            in agents_schema["content"]["application/json"]["schema"]["$ref"]
+        )
 
         # Check /api/v1/artifacts POST
-        artifacts_post_schema = openapi_schema["paths"]["/api/v1/artifacts"]["post"]["responses"]["200"]
+        artifacts_post_schema = openapi_schema["paths"]["/api/v1/artifacts"]["post"][
+            "responses"
+        ]["200"]
         assert "$ref" in artifacts_post_schema["content"]["application/json"]["schema"]
-        assert "ArtifactPublishResponse" in artifacts_post_schema["content"]["application/json"]["schema"]["$ref"]
+        assert (
+            "ArtifactPublishResponse"
+            in artifacts_post_schema["content"]["application/json"]["schema"]["$ref"]
+        )
 
         # Check /health
         health_schema = openapi_schema["paths"]["/health"]["get"]["responses"]["200"]
         assert "$ref" in health_schema["content"]["application/json"]["schema"]
-        assert "HealthResponse" in health_schema["content"]["application/json"]["schema"]["$ref"]
+        assert (
+            "HealthResponse"
+            in health_schema["content"]["application/json"]["schema"]["$ref"]
+        )
 
     def test_openapi_schema_components_defined(self):
         """Test that all response model components are properly defined."""
@@ -272,14 +288,17 @@ class TestEndToEndAPIResponses:
         ]
 
         for schema_name in required_schemas:
-            assert schema_name in schemas, f"Schema {schema_name} not found in components"
+            assert schema_name in schemas, (
+                f"Schema {schema_name} not found in components"
+            )
 
             # Ensure no generic additionalProperties: true
             schema_def = schemas[schema_name]
             if "additionalProperties" in schema_def:
                 # It's ok if it's False or a schema, but not True
-                assert schema_def["additionalProperties"] != True, \
+                assert schema_def["additionalProperties"] != True, (
                     f"Schema {schema_name} has additionalProperties: true"
+                )
 
 
 class TestEdgeCasesAndValidation:

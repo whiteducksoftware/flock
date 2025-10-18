@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from pydantic import PrivateAttr
 
 from flock.components.agent import AgentComponent
+from flock.core.store import AgentSnapshotRecord, BlackboardStore
 from flock.dashboard.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
@@ -27,15 +28,14 @@ from flock.dashboard.events import (
 )
 from flock.dashboard.models.graph import GraphRun, GraphState
 from flock.logging.logging import get_logger
-from flock.runtime import Context
-from flock.store import AgentSnapshotRecord, BlackboardStore
+from flock.utils.runtime import Context
 
 
 logger = get_logger("dashboard.collector")
 
 if TYPE_CHECKING:  # pragma: no cover - type hints only
-    from flock.artifacts import Artifact
     from flock.core import Agent
+    from flock.core.artifacts import Artifact
     from flock.dashboard.websocket import WebSocketManager
 
 

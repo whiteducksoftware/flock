@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from flock.agent.mcp_integration import MCPIntegration
-from flock.runtime import Context
+from flock.utils.runtime import Context
 
 
 @pytest.fixture

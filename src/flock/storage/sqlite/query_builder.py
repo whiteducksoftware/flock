@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
-    from flock.store import FilterConfig
+    from flock.core.store import FilterConfig
 
 
 class SQLiteQueryBuilder:

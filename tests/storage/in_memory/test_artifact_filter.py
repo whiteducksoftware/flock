@@ -6,11 +6,11 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.store import FilterConfig
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type
 from flock.storage.in_memory.artifact_filter import ArtifactFilter
-from flock.store import FilterConfig
-from flock.visibility import PublicVisibility
 
 
 @flock_type(name="TestFilterTypeA")

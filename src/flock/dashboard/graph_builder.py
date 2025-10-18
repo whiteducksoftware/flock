@@ -24,12 +24,12 @@ from flock.dashboard.models.graph import (
 )
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.core import Flock
-from flock.store import (
+from flock.core.store import (
     Artifact,
     BlackboardStore,
     FilterConfig,
 )
-from flock.store import (
+from flock.core.store import (
     ArtifactEnvelope as StoreArtifactEnvelope,
 )
 

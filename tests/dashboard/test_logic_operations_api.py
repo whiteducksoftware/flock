@@ -29,13 +29,13 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
-from flock.batch_accumulator import BatchAccumulator, BatchEngine
 from flock.core import Flock
-from flock.correlation_engine import CorrelationEngine, CorrelationGroup
+from flock.core.artifacts import Artifact
+from flock.core.subscription import BatchSpec, JoinSpec
+from flock.core.visibility import PublicVisibility
+from flock.orchestrator.batch_accumulator import BatchAccumulator, BatchEngine
+from flock.orchestrator.correlation_engine import CorrelationEngine, CorrelationGroup
 from flock.registry import flock_type
-from flock.subscription import BatchSpec, JoinSpec
-from flock.visibility import PublicVisibility
 
 
 # ============================================================================

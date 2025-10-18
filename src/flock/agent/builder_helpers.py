@@ -15,12 +15,12 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from flock.visibility import Visibility, only_for
+from flock.core.visibility import Visibility, only_for
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
     from flock.core import Agent
+    from flock.core.artifacts import Artifact
 
 
 class PublishBuilder:

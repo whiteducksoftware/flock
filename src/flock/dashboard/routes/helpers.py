@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from flock.agent import Agent
     from flock.agent.specification import Subscription
-    from flock.batch_accumulator import BatchEngine, BatchSpec
     from flock.core import Flock
-    from flock.correlation_engine import CorrelationEngine
+    from flock.orchestrator.batch_accumulator import BatchEngine, BatchSpec
+    from flock.orchestrator.correlation_engine import CorrelationEngine
 
 
 def _get_correlation_groups(

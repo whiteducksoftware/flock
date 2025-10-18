@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
-from flock.runtime import EvalInputs
+from flock.utils.runtime import EvalInputs
 
 
 if TYPE_CHECKING:

@@ -58,9 +58,9 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport
 from pydantic import BaseModel, Field, ValidationError
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type
-from flock.visibility import PublicVisibility
 
 
 # Test data models for API testing
@@ -160,7 +160,7 @@ def dashboard_service(orchestrator):
 @pytest.mark.asyncio
 async def test_service_extends_blackboard_http_service(dashboard_service):
     """Test that DashboardHTTPService extends BlackboardHTTPService."""
-    from flock.service import BlackboardHTTPService
+    from flock.api.service import BlackboardHTTPService
 
     # Verify inheritance
     assert isinstance(dashboard_service, BlackboardHTTPService)
@@ -575,7 +575,7 @@ async def test_get_agents_with_joinspec_returns_logic_operations():
     from datetime import timedelta
 
     from flock.core import Flock
-    from flock.subscription import JoinSpec
+    from flock.core.subscription import JoinSpec
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -659,7 +659,7 @@ async def test_get_agents_with_batchspec_returns_logic_operations():
     from datetime import timedelta
 
     from flock.core import Flock
-    from flock.subscription import BatchSpec
+    from flock.core.subscription import BatchSpec
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -722,11 +722,11 @@ async def test_get_agents_with_waiting_correlation_groups():
     """Test GET /api/agents includes waiting_state when correlation groups exist."""
     from datetime import datetime, timedelta
 
-    from flock.artifacts import Artifact
     from flock.core import Flock
-    from flock.correlation_engine import CorrelationGroup
-    from flock.subscription import JoinSpec
-    from flock.visibility import PublicVisibility
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import JoinSpec
+    from flock.core.visibility import PublicVisibility
+    from flock.orchestrator.correlation_engine import CorrelationGroup
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -820,11 +820,11 @@ async def test_get_agents_with_batch_accumulating():
     """Test GET /api/agents includes waiting_state when batch is accumulating."""
     from datetime import datetime
 
-    from flock.artifacts import Artifact
-    from flock.batch_accumulator import BatchAccumulator
     from flock.core import Flock
-    from flock.subscription import BatchSpec
-    from flock.visibility import PublicVisibility
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import BatchSpec
+    from flock.core.visibility import PublicVisibility
+    from flock.orchestrator.batch_accumulator import BatchAccumulator
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -904,7 +904,7 @@ async def test_get_agents_with_both_joinspec_and_batchspec():
     from datetime import timedelta
 
     from flock.core import Flock
-    from flock.subscription import BatchSpec, JoinSpec
+    from flock.core.subscription import BatchSpec, JoinSpec
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -1012,7 +1012,7 @@ async def test_get_agents_multiple_subscriptions_with_logic_ops():
     from datetime import timedelta
 
     from flock.core import Flock
-    from flock.subscription import BatchSpec, JoinSpec
+    from flock.core.subscription import BatchSpec, JoinSpec
 
     # Create fresh orchestrator
     orchestrator = Flock()

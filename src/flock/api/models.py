@@ -6,9 +6,7 @@ This improves API documentation and enables SDK generation.
 All models maintain 100% backwards compatibility with existing wire format.
 """
 
-from datetime import datetime
 from typing import Any, Literal
-from uuid import UUID
 
 from pydantic import BaseModel, Field
 

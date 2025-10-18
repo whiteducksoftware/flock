@@ -6,14 +6,14 @@ and reduces complexity through dictionary dispatch pattern.
 
 from __future__ import annotations
 
-from flock.utils.visibility_utils import deserialize_visibility
-from flock.visibility import (
+from flock.core.visibility import (
     AfterVisibility,
     LabelledVisibility,
     PrivateVisibility,
     PublicVisibility,
     TenantVisibility,
 )
+from flock.utils.visibility_utils import deserialize_visibility
 
 
 class TestDeserializeVisibility:

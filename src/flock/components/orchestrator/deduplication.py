@@ -8,9 +8,9 @@ from flock.components.orchestrator.base import OrchestratorComponent, ScheduleDe
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
     from flock.core import Agent, Flock
-    from flock.subscription import Subscription
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import Subscription
 
 
 class DeduplicationComponent(OrchestratorComponent):

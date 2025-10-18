@@ -4,8 +4,8 @@ import pytest
 from pydantic import BaseModel
 
 from flock.core import Flock
+from flock.core.store import SQLiteBlackboardStore
 from flock.registry import flock_type, type_registry
-from flock.store import SQLiteBlackboardStore
 
 
 @flock_type

@@ -20,16 +20,16 @@ from uuid import uuid4
 
 import pytest
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.store import InMemoryBlackboardStore
+from flock.core.visibility import PublicVisibility
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.events import (
     AgentActivatedEvent,
     MessagePublishedEvent,
     StreamingOutputEvent,
 )
-from flock.runtime import Context
-from flock.store import InMemoryBlackboardStore
-from flock.visibility import PublicVisibility
+from flock.utils.runtime import Context
 
 
 # ============================================================================
@@ -64,13 +64,11 @@ def mock_websocket_client():
         async def send(self, message: str):
             if not self.is_connected:
                 raise ConnectionError("WebSocket disconnected")
-            self.received_messages.append(
-                {
-                    "timestamp": time.perf_counter(),
-                    "message": message,
-                    "data": json.loads(message),
-                }
-            )
+            self.received_messages.append({
+                "timestamp": time.perf_counter(),
+                "message": message,
+                "data": json.loads(message),
+            })
 
         async def send_text(self, message: str):
             """FastAPI WebSocket uses send_text for JSON."""
@@ -88,7 +86,9 @@ def mock_websocket_client():
 
         def get_latencies(self, start_time: float) -> list[float]:
             """Calculate latencies from start_time to message receipt."""
-            return [(msg["timestamp"] - start_time) * 1000 for msg in self.received_messages]
+            return [
+                (msg["timestamp"] - start_time) * 1000 for msg in self.received_messages
+            ]
 
         def clear(self):
             """Clear received messages."""
@@ -268,7 +268,9 @@ async def test_scenario_1_e2e_agent_execution_visualization(
     # Performance validation: All events transmitted within 200ms
     total_duration = (time.perf_counter() - start_time) * 1000
     print(f"[PERF] Complete pipeline visualization: {total_duration:.2f}ms")
-    assert total_duration < 1000, f"Pipeline took {total_duration:.2f}ms (should complete quickly)"
+    assert total_duration < 1000, (
+        f"Pipeline took {total_duration:.2f}ms (should complete quickly)"
+    )
 
 
 # ============================================================================
@@ -372,7 +374,9 @@ async def test_scenario_2_websocket_reconnection_after_restart(
     assert len(events) == 1
     assert events[0]["artifact_type"] == "Output"
 
-    print(f"[RESILIENCE] Successfully reconnected after {len(retry_intervals)} attempts")
+    print(
+        f"[RESILIENCE] Successfully reconnected after {len(retry_intervals)} attempts"
+    )
 
 
 # ============================================================================
@@ -450,7 +454,9 @@ async def test_scenario_3_correlation_id_filtering(
 
     # Filter correlation IDs matching prefix (first 8 chars of first UUID)
     search_prefix = str(correlation_ids[0])[:8]
-    matching_ids = [cid for cid in correlation_ids_received if cid.startswith(search_prefix)]
+    matching_ids = [
+        cid for cid in correlation_ids_received if cid.startswith(search_prefix)
+    ]
 
     autocomplete_duration = (time.perf_counter() - autocomplete_start) * 1000
 
@@ -467,7 +473,9 @@ async def test_scenario_3_correlation_id_filtering(
     selected_correlation_id = str(correlation_ids[0])
 
     # Filter events by selected correlation ID
-    filtered_events = [e for e in events if e["correlation_id"] == selected_correlation_id]
+    filtered_events = [
+        e for e in events if e["correlation_id"] == selected_correlation_id
+    ]
 
     # Verify: Graph filters to show only matching events
     assert len(filtered_events) == 1
@@ -587,7 +595,9 @@ async def test_scenario_4_backend_data_volume_for_lru_eviction(
 
     # Verify: Data volume is sufficient to test LRU
     total_size_mb = total_size_estimate / (1024 * 1024)
-    assert total_size_mb > 0.1, f"Generated only {total_size_mb:.2f}MB (need >0.1MB for testing)"
+    assert total_size_mb > 0.1, (
+        f"Generated only {total_size_mb:.2f}MB (need >0.1MB for testing)"
+    )
 
     # Verify: Events maintain correlation ID
     for event in events:
@@ -604,7 +614,9 @@ async def test_scenario_4_backend_data_volume_for_lru_eviction(
 
 
 @pytest.mark.asyncio
-async def test_performance_baseline_event_latency(websocket_manager, mock_websocket_client):
+async def test_performance_baseline_event_latency(
+    websocket_manager, mock_websocket_client
+):
     """Establish performance baseline for event latency."""
     await websocket_manager.add_client(mock_websocket_client)
 
@@ -642,7 +654,9 @@ async def test_performance_baseline_event_latency(websocket_manager, mock_websoc
 
 
 @pytest.mark.asyncio
-async def test_performance_baseline_throughput(websocket_manager, mock_websocket_client):
+async def test_performance_baseline_throughput(
+    websocket_manager, mock_websocket_client
+):
     """Establish performance baseline for event throughput."""
     await websocket_manager.add_client(mock_websocket_client)
 

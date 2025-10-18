@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
 from flock.logging.logging import get_logger
 
 

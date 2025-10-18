@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from flock import Flock, flock_type
 from flock.components import AgentComponent, EngineComponent
-from flock.runtime import EvalInputs, EvalResult
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 @flock_type(name="StoryIdea")

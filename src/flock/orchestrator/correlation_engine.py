@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
-    from flock.subscription import JoinSpec, Subscription
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import JoinSpec, Subscription
 
 
 class CorrelationGroup:

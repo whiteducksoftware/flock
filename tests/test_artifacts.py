@@ -5,9 +5,9 @@ from uuid import UUID
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
-from flock.artifacts import Artifact, ArtifactSpec
+from flock.core.artifacts import Artifact, ArtifactSpec
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type
-from flock.visibility import PublicVisibility
 
 
 # Test artifact types
@@ -58,7 +58,10 @@ async def test_artifact_validation_fails_with_invalid_data():
         )
 
     # Verify the error is about the missing field
-    assert "count" in str(exc_info.value).lower() or "field required" in str(exc_info.value).lower()
+    assert (
+        "count" in str(exc_info.value).lower()
+        or "field required" in str(exc_info.value).lower()
+    )
 
 
 @pytest.mark.asyncio

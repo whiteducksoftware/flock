@@ -13,7 +13,7 @@ from flock.agent.component_lifecycle import ComponentLifecycle
 from flock.agent.context_resolver import ContextResolver
 from flock.agent.mcp_integration import MCPIntegration
 from flock.agent.output_processor import OutputProcessor
-from flock.visibility import AgentIdentity
+from flock.core.visibility import AgentIdentity
 
 
 __all__ = [

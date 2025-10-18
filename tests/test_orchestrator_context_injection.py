@@ -24,10 +24,10 @@ Security Properties:
 import pytest
 from pydantic import BaseModel
 
-from flock.context_provider import FilteredContextProvider
 from flock.core import Flock
-from flock.store import FilterConfig
-from flock.visibility import PrivateVisibility
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+from flock.core.visibility import PrivateVisibility
 
 
 class Task(BaseModel):
@@ -300,7 +300,7 @@ class TestOrchestratorPublishing:
         async def mock_execute(ctx, artifacts):
             # Agent returns Result artifact (doesn't publish)
             result = Result(status="done", task_name="test")
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
 
             eval_result = EvalResult.from_object(result, agent=agent)
 
@@ -333,7 +333,7 @@ class TestOrchestratorPublishing:
 
         # Mock agent.execute to return multiple artifacts
         async def mock_execute(ctx, artifacts):
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
 
             result1 = Result(status="done", task_name="task1")
             result2 = Result(status="done", task_name="task2")
@@ -362,7 +362,7 @@ class TestOrchestratorPublishing:
 
         # Mock agent.execute to return artifacts
         async def mock_execute(ctx, artifacts):
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
 
             result = Result(status="done", task_name="test")
             return EvalResult.from_object(result, agent=agent).artifacts
@@ -396,7 +396,7 @@ class TestOrchestratorPublishing:
 
         # Mock agent.execute
         async def mock_execute(ctx, artifacts):
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
 
             task = Task(**artifacts[0].payload)
             result = Result(status="processed", task_name=task.name)
@@ -437,7 +437,7 @@ class TestOrchestratorPublishing:
                 # If board exists, try to publish (should fail or not be called)
                 try:
                     result = Result(status="hacked", task_name="bypass")
-                    from flock.artifacts import Artifact
+                    from flock.core.artifacts import Artifact
                     from flock.registry import type_registry
 
                     type_name = type_registry.name_for(Result)
@@ -454,7 +454,7 @@ class TestOrchestratorPublishing:
                     pass  # Expected to fail
 
             # Return result normally
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
 
             result = Result(status="done", task_name="test")
             return EvalResult.from_object(result, agent=agent).artifacts
@@ -497,7 +497,7 @@ class TestPhase67Integration:
             captured_ctx = ctx
 
             # Agent returns result
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
 
             task = Task(**artifacts[0].payload)
             result = Result(status="complete", task_name=task.name)

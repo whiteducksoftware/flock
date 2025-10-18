@@ -11,9 +11,9 @@ from flock.components.orchestrator.base import (
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
     from flock.core import Agent, Flock
-    from flock.subscription import Subscription
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import Subscription
 
 
 class BuiltinCollectionComponent(OrchestratorComponent):

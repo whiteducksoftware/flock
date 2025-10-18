@@ -34,12 +34,12 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.artifacts import Artifact, ArtifactSpec
 from flock.core import AgentOutput, OutputGroup
+from flock.core.artifacts import Artifact, ArtifactSpec
+from flock.core.visibility import PublicVisibility
 from flock.engines.dspy_engine import DSPyEngine
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
-from flock.visibility import PublicVisibility
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # ============================================================================

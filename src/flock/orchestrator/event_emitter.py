@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
-    from flock.batch_accumulator import BatchEngine
-    from flock.correlation_engine import CorrelationEngine
-    from flock.subscription import Subscription
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import Subscription
+    from flock.orchestrator.batch_accumulator import BatchEngine
+    from flock.orchestrator.correlation_engine import CorrelationEngine
 
 
 class EventEmitter:

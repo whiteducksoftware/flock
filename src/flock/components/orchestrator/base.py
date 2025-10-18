@@ -14,9 +14,9 @@ from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
     from flock.core import Agent, Flock
-    from flock.subscription import Subscription
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import Subscription
 
 # Initialize logger for components
 logger = get_logger("flock.components.orchestrator")

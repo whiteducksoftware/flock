@@ -5,9 +5,9 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import BaseModel
 
+from flock.core.store import FilterConfig
 from flock.registry import flock_type
 from flock.storage.sqlite.query_builder import SQLiteQueryBuilder
-from flock.store import FilterConfig
 
 
 @flock_type(name="TestTypeA")

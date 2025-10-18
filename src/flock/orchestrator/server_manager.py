@@ -158,7 +158,7 @@ class ServerManager:
             host: Host to bind to
             port: Port to bind to
         """
-        from flock.service import BlackboardHTTPService
+        from flock.api.service import BlackboardHTTPService
 
         service = BlackboardHTTPService(orchestrator)
         await service.run_async(host=host, port=port)

@@ -15,7 +15,7 @@ from flock.logging.logging import get_logger
 if TYPE_CHECKING:
     from flock.agent import MCPServerConfig
     from flock.core import Flock
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
 
 logger = get_logger(__name__)

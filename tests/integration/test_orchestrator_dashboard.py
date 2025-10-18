@@ -22,7 +22,7 @@ def sample_agent(orchestrator):
 class TestOrchestratorDashboardIntegration:
     """Test orchestrator.serve(dashboard=True) integration."""
 
-    @patch("flock.service.BlackboardHTTPService")
+    @patch("flock.api.service.BlackboardHTTPService")
     async def test_serve_without_dashboard(self, mock_service_class, orchestrator):
         """Test serve() works without dashboard parameter (backward compatibility)."""
         # Mock the standard service to avoid port binding
@@ -45,7 +45,7 @@ class TestOrchestratorDashboardIntegration:
             pass  # Expected
 
     @patch("flock.dashboard.launcher.DashboardLauncher")
-    @patch("flock.service.BlackboardHTTPService")
+    @patch("flock.api.service.BlackboardHTTPService")
     async def test_serve_with_dashboard_false(
         self, mock_service_class, mock_launcher_class, orchestrator
     ):
@@ -275,7 +275,7 @@ class TestOrchestratorDashboardIntegration:
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
 
-    @patch("flock.service.BlackboardHTTPService")
+    @patch("flock.api.service.BlackboardHTTPService")
     async def test_backward_compatibility_no_dashboard_parameter(
         self, mock_service_class, orchestrator
     ):
@@ -402,7 +402,7 @@ class TestNonBlockingServe:
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
-    @patch("flock.service.BlackboardHTTPService")
+    @patch("flock.api.service.BlackboardHTTPService")
     async def test_blocking_serve_returns_none(self, mock_service_class, orchestrator):
         """Test serve(blocking=True) returns None (backwards compatibility)."""
         mock_service = Mock()
@@ -567,7 +567,7 @@ class TestNonBlockingServe:
         mock_launcher.stop.assert_called_once()
         assert orchestrator._server_task is None
 
-    @patch("flock.service.BlackboardHTTPService")
+    @patch("flock.api.service.BlackboardHTTPService")
     async def test_non_blocking_without_dashboard(
         self, mock_service_class, orchestrator
     ):

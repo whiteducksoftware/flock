@@ -7,10 +7,10 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.store import InMemoryBlackboardStore, SQLiteBlackboardStore
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type, type_registry
-from flock.store import InMemoryBlackboardStore, SQLiteBlackboardStore
-from flock.visibility import PublicVisibility
 
 
 @pytest.fixture(params=["memory", "sqlite"], ids=["memory", "sqlite"])

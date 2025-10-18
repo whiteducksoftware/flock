@@ -26,9 +26,9 @@ from datetime import datetime, timedelta
 from typing import Any, Protocol
 from uuid import UUID
 
-from flock.artifacts import Artifact
-from flock.store import BlackboardStore, FilterConfig
-from flock.visibility import AgentIdentity
+from flock.core.artifacts import Artifact
+from flock.core.store import BlackboardStore, FilterConfig
+from flock.core.visibility import AgentIdentity
 
 
 @dataclass

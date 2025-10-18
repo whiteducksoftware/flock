@@ -5,13 +5,13 @@ from uuid import UUID
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.artifacts import Artifact
 from flock.components.agent import EngineComponent
 from flock.core import Flock
+from flock.core.artifacts import Artifact
+from flock.core.visibility import PublicVisibility
 from flock.engines.dspy_engine import DSPyEngine
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
-from flock.visibility import PublicVisibility
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # Test artifact types

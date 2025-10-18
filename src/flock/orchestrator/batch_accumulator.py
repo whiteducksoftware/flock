@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
-    from flock.subscription import BatchSpec, Subscription
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import BatchSpec, Subscription
 
 
 class BatchAccumulator:

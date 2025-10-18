@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import aiosqlite
 
-    from flock.store import FilterConfig
+    from flock.core.store import FilterConfig
 
 
 class AgentHistoryQueries:
@@ -137,7 +137,7 @@ class AgentHistoryQueries:
         Returns:
             New FilterConfig with agent_id as producer
         """
-        from flock.store import FilterConfig
+        from flock.core.store import FilterConfig
 
         return FilterConfig(
             type_names=set(base_filters.type_names)

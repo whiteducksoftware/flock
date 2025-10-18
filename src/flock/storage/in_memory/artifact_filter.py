@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from flock.artifacts import Artifact
-    from flock.store import FilterConfig
+    from flock.core.artifacts import Artifact
+    from flock.core.store import FilterConfig
 
 
 class ArtifactFilter:

@@ -7,9 +7,11 @@ This is a CRITICAL SECURITY FIX for three vulnerabilities:
 - Vulnerability #3 (GOD MODE): Agents had unlimited ctx.orchestrator access
 """
 
-import pytest
 from uuid import uuid4
-from flock.runtime import Context
+
+import pytest
+
+from flock.utils.runtime import Context
 
 
 class TestContextSecurityPhase1:
@@ -179,6 +181,7 @@ class TestContextSecurityPhase7IdentitySpoofing:
         Expected: ValidationError when trying to mutate any Context field
         """
         from pydantic import ValidationError
+
         from flock.agent import AgentIdentity
 
         ctx = Context(

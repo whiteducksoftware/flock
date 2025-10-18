@@ -22,9 +22,9 @@ from uuid import uuid4
 
 import pytest
 
-from flock.artifacts import Artifact
 from flock.components.agent import EngineComponent
-from flock.visibility import AgentIdentity
+from flock.core.artifacts import Artifact
+from flock.core.visibility import AgentIdentity
 
 
 class MockContext:

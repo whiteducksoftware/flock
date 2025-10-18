@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
-    from flock.batch_accumulator import BatchEngine
-    from flock.correlation_engine import CorrelationEngine
+    from flock.orchestrator.batch_accumulator import BatchEngine
+    from flock.orchestrator.correlation_engine import CorrelationEngine
 
 
 class LifecycleManager:

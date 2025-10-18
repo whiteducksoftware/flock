@@ -12,8 +12,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from flock.core.store import ConsumptionRecord
 from flock.storage.sqlite.consumption_loader import SQLiteConsumptionLoader
-from flock.store import ConsumptionRecord
 
 
 @pytest.fixture

@@ -10,9 +10,13 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.visibility import (
+    LabelledVisibility,
+    PrivateVisibility,
+    PublicVisibility,
+)
 from flock.storage.artifact_aggregator import ArtifactAggregator
-from flock.visibility import LabelledVisibility, PrivateVisibility, PublicVisibility
 
 
 @pytest.fixture
