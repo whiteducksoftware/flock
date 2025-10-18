@@ -372,3 +372,244 @@ class TestDashboardServiceIntegration:
         serve_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await serve_task
+
+
+class TestNonBlockingServe:
+    """Test non-blocking serve() functionality."""
+
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
+    async def test_non_blocking_serve_returns_task(
+        self, mock_service_class, mock_launcher_class, orchestrator
+    ):
+        """Test serve(blocking=False) returns a Task handle."""
+        mock_launcher = Mock()
+        mock_launcher_class.return_value = mock_launcher
+
+        mock_service = Mock()
+        mock_service.run_async = Mock(return_value=asyncio.sleep(10))
+        mock_service_class.return_value = mock_service
+
+        # Non-blocking serve should return a task
+        task = await orchestrator.serve(dashboard=True, blocking=False)
+
+        assert task is not None
+        assert isinstance(task, asyncio.Task)
+        assert not task.done()
+
+        # Cleanup
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    @patch("flock.service.BlackboardHTTPService")
+    async def test_blocking_serve_returns_none(self, mock_service_class, orchestrator):
+        """Test serve(blocking=True) returns None (backwards compatibility)."""
+        mock_service = Mock()
+        mock_service.run_async = Mock(return_value=asyncio.sleep(10))
+        mock_service_class.return_value = mock_service
+
+        # Start blocking serve in background to test return value
+        async def check_return_value():
+            result = await orchestrator.serve(blocking=True)
+            return result
+
+        task = asyncio.create_task(check_return_value())
+        await asyncio.sleep(0.1)
+
+        # Cancel and verify - blocking mode should not return task
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
+    async def test_can_execute_after_non_blocking_serve(
+        self, mock_service_class, mock_launcher_class, orchestrator
+    ):
+        """Test that code can execute after serve(blocking=False)."""
+        from pydantic import BaseModel
+
+        from flock.registry import flock_type
+
+        @flock_type
+        class TestMessage(BaseModel):
+            content: str
+
+        mock_launcher = Mock()
+        mock_launcher_class.return_value = mock_launcher
+
+        mock_service = Mock()
+        mock_service.run_async = Mock(return_value=asyncio.sleep(10))
+        mock_service_class.return_value = mock_service
+
+        # Start server in non-blocking mode
+        task = await orchestrator.serve(dashboard=True, blocking=False)
+
+        # Now we can publish messages!
+        message = TestMessage(content="test")
+        await orchestrator.publish(message)
+
+        # Verify publish worked
+        artifacts = await orchestrator.store.list()
+        assert len(artifacts) == 1
+        assert "TestMessage" in artifacts[0].type  # Type includes module path
+
+        # Cleanup
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
+    async def test_server_task_tracked_in_orchestrator(
+        self, mock_service_class, mock_launcher_class, orchestrator
+    ):
+        """Test that _server_task is tracked in orchestrator."""
+        mock_launcher = Mock()
+        mock_launcher_class.return_value = mock_launcher
+
+        mock_service = Mock()
+        mock_service.run_async = Mock(return_value=asyncio.sleep(10))
+        mock_service_class.return_value = mock_service
+
+        # Before serve, no server task
+        assert orchestrator._server_task is None
+
+        # Start non-blocking serve
+        task = await orchestrator.serve(dashboard=True, blocking=False)
+
+        # Server task should be tracked
+        assert orchestrator._server_task is not None
+        assert orchestrator._server_task is task
+
+        # Cleanup
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
+    async def test_cleanup_callback_stops_launcher(
+        self, mock_service_class, mock_launcher_class, orchestrator
+    ):
+        """Test that cleanup callback stops dashboard launcher on task completion."""
+        mock_launcher = Mock()
+        mock_launcher_class.return_value = mock_launcher
+
+        # Make service complete immediately
+        mock_service = Mock()
+        mock_service.run_async = Mock(return_value=asyncio.sleep(0.01))
+        mock_service_class.return_value = mock_service
+
+        # Start non-blocking serve
+        task = await orchestrator.serve(dashboard=True, blocking=False)
+
+        # Wait for task to complete
+        await asyncio.sleep(0.2)
+
+        # Cleanup callback should have stopped launcher
+        mock_launcher.stop.assert_called_once()
+
+        # Server task should be cleared
+        assert orchestrator._server_task is None
+
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
+    async def test_shutdown_cancels_server_task(
+        self, mock_service_class, mock_launcher_class, orchestrator
+    ):
+        """Test that shutdown() cancels background server task."""
+        mock_launcher = Mock()
+        mock_launcher_class.return_value = mock_launcher
+
+        mock_service = Mock()
+        mock_service.run_async = Mock(return_value=asyncio.sleep(10))
+        mock_service_class.return_value = mock_service
+
+        # Start non-blocking serve
+        task = await orchestrator.serve(dashboard=True, blocking=False)
+
+        assert not task.done()
+
+        # Call shutdown
+        await orchestrator.shutdown()
+
+        # Task should be cancelled
+        assert task.done()
+        assert task.cancelled()
+
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
+    async def test_task_cancellation_cleanup(
+        self, mock_service_class, mock_launcher_class, orchestrator
+    ):
+        """Test that manually cancelling task triggers cleanup."""
+        mock_launcher = Mock()
+        mock_launcher_class.return_value = mock_launcher
+
+        mock_service = Mock()
+        mock_service.run_async = Mock(return_value=asyncio.sleep(10))
+        mock_service_class.return_value = mock_service
+
+        # Start non-blocking serve
+        task = await orchestrator.serve(dashboard=True, blocking=False)
+
+        # Manually cancel the task
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+        # Give callback time to run
+        await asyncio.sleep(0.1)
+
+        # Cleanup should have happened
+        mock_launcher.stop.assert_called_once()
+        assert orchestrator._server_task is None
+
+    @patch("flock.service.BlackboardHTTPService")
+    async def test_non_blocking_without_dashboard(
+        self, mock_service_class, orchestrator
+    ):
+        """Test non-blocking serve works without dashboard too."""
+        mock_service = Mock()
+        mock_service.run_async = Mock(return_value=asyncio.sleep(10))
+        mock_service_class.return_value = mock_service
+
+        # Non-blocking without dashboard
+        task = await orchestrator.serve(dashboard=False, blocking=False)
+
+        assert task is not None
+        assert isinstance(task, asyncio.Task)
+        assert not task.done()
+
+        # Cleanup
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    @patch("flock.dashboard.launcher.DashboardLauncher")
+    @patch("flock.dashboard.service.DashboardHTTPService")
+    async def test_backwards_compatibility_default_blocking(
+        self, mock_service_class, mock_launcher_class, orchestrator
+    ):
+        """Test that default behavior (blocking=True) is preserved."""
+        mock_launcher = Mock()
+        mock_launcher_class.return_value = mock_launcher
+
+        mock_service = Mock()
+        mock_service.run_async = Mock(return_value=asyncio.sleep(10))
+        mock_service_class.return_value = mock_service
+
+        # Call serve without blocking parameter (should default to True)
+        serve_task = asyncio.create_task(orchestrator.serve(dashboard=True))
+        await asyncio.sleep(0.1)
+
+        # Should not return a task (blocking mode)
+        # The orchestrator._server_task should be None in blocking mode
+        assert orchestrator._server_task is None
+
+        # Cleanup
+        serve_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await serve_task

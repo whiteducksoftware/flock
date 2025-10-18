@@ -163,6 +163,9 @@ class Flock(metaclass=AutoTracedMeta):
         self._batch_timeout_interval: float = 0.1  # Check every 100ms
         # Phase 1.2: WebSocket manager for real-time dashboard events (set by serve())
         self._websocket_manager: Any = None
+        # Dashboard server task and launcher (for non-blocking serve)
+        self._server_task: Task[None] | None = None
+        self._dashboard_launcher: Any = None
         # Unified tracing support
         self._workflow_span = None
         self._auto_workflow_enabled = os.getenv(
@@ -742,6 +745,15 @@ class Flock(metaclass=AutoTracedMeta):
             except asyncio.CancelledError:
                 pass
 
+        # Cancel background server task if running
+        if self._server_task and not self._server_task.done():
+            self._server_task.cancel()
+            try:
+                await self._server_task
+            except asyncio.CancelledError:
+                pass
+            # Note: _cleanup_server_callback will handle launcher.stop()
+
         if self._mcp_manager is not None:
             await self._mcp_manager.cleanup_all()
             self._mcp_manager = None
@@ -757,14 +769,20 @@ class Flock(metaclass=AutoTracedMeta):
         dashboard_v2: bool = False,
         host: str = "127.0.0.1",
         port: int = 8344,
-    ) -> None:
-        """Start HTTP service for the orchestrator (blocking).
+        blocking: bool = True,
+    ) -> Task[None] | None:
+        """Start HTTP service for the orchestrator.
 
         Args:
             dashboard: Enable real-time dashboard with WebSocket support (default: False)
             dashboard_v2: Launch the new dashboard v2 frontend (implies dashboard=True)
             host: Host to bind to (default: "127.0.0.1")
             port: Port to bind to (default: 8344)
+            blocking: If True, blocks until server stops. If False, starts server
+                in background and returns task handle (default: True)
+
+        Returns:
+            None if blocking=True, or Task handle if blocking=False
 
         Examples:
             # Basic HTTP API (no dashboard) - runs until interrupted
@@ -772,7 +790,75 @@ class Flock(metaclass=AutoTracedMeta):
 
             # With dashboard (WebSocket + browser launch) - runs until interrupted
             await orchestrator.serve(dashboard=True)
+
+            # Non-blocking mode - start server in background
+            await orchestrator.serve(dashboard=True, blocking=False)
+            # Now you can publish messages and run other logic
+            await orchestrator.publish(my_message)
+            await orchestrator.run_until_idle()
         """
+        # If non-blocking, start server in background task
+        if not blocking:
+            self._server_task = asyncio.create_task(
+                self._serve_impl(
+                    dashboard=dashboard,
+                    dashboard_v2=dashboard_v2,
+                    host=host,
+                    port=port,
+                )
+            )
+            # Add cleanup callback
+            self._server_task.add_done_callback(self._cleanup_server_callback)
+            # Give server a moment to start
+            await asyncio.sleep(0.1)
+            return self._server_task
+
+        # Blocking mode - run server directly with cleanup
+        try:
+            await self._serve_impl(
+                dashboard=dashboard,
+                dashboard_v2=dashboard_v2,
+                host=host,
+                port=port,
+            )
+        finally:
+            # In blocking mode, manually cleanup dashboard launcher
+            if self._dashboard_launcher is not None:
+                self._dashboard_launcher.stop()
+                self._dashboard_launcher = None
+        return None
+
+    def _cleanup_server_callback(self, task: Task[None]) -> None:
+        """Cleanup callback when background server task completes."""
+        # Stop dashboard launcher if it was started
+        if self._dashboard_launcher is not None:
+            try:
+                self._dashboard_launcher.stop()
+            except Exception as e:
+                self._logger.warning(f"Failed to stop dashboard launcher: {e}")
+            finally:
+                self._dashboard_launcher = None
+
+        # Clear server task reference
+        self._server_task = None
+
+        # Log any exceptions from the task
+        try:
+            exc = task.exception()
+            if exc and not isinstance(exc, asyncio.CancelledError):
+                self._logger.error(f"Server task failed: {exc}", exc_info=exc)
+        except asyncio.CancelledError:
+            pass  # Normal cancellation
+
+    async def _serve_impl(
+        self,
+        *,
+        dashboard: bool = False,
+        dashboard_v2: bool = False,
+        host: str = "127.0.0.1",
+        port: int = 8344,
+    ) -> None:
+        """Internal implementation of serve() - actual server logic."""
         if dashboard_v2:
             dashboard = True
 
@@ -837,11 +923,8 @@ class Flock(metaclass=AutoTracedMeta):
         self._dashboard_launcher = launcher
 
         # Run service (blocking call)
-        try:
-            await service.run_async(host=host, port=port)
-        finally:
-            # Cleanup on exit
-            launcher.stop()
+        # Note: Cleanup is handled by serve() (blocking mode) or callback (non-blocking mode)
+        await service.run_async(host=host, port=port)
 
     # Scheduling -----------------------------------------------------------
 
