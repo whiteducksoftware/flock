@@ -137,7 +137,9 @@ class Flock(metaclass=AutoTracedMeta):
         self.store: BlackboardStore = store or InMemoryBlackboardStore()
         self._agents: dict[str, Agent] = {}
         self._tasks: set[Task[Any]] = set()
-        self._correlation_tasks: dict[UUID, set[Task[Any]]] = {}  # Track tasks by correlation_id
+        self._correlation_tasks: dict[
+            UUID, set[Task[Any]]
+        ] = {}  # Track tasks by correlation_id
         self._processed: set[tuple[str, str]] = set()
         self._lock = asyncio.Lock()
         self.metrics: dict[str, float] = {"artifacts_published": 0, "agent_runs": 0}
