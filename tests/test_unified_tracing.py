@@ -23,7 +23,7 @@ class TestOutput(BaseModel):
 @pytest.mark.asyncio
 async def test_traced_run_creates_parent_span(orchestrator):
     """Test that traced_run() creates a parent span for all operations."""
-    with patch("flock.core.orchestrator.trace.get_tracer") as mock_get_tracer:
+    with patch("flock.orchestrator.tracing.trace.get_tracer") as mock_get_tracer:
         mock_tracer = Mock()
         mock_span = Mock()
         mock_span.__enter__ = Mock(return_value=mock_span)
@@ -50,7 +50,7 @@ async def test_traced_run_creates_parent_span(orchestrator):
 @pytest.mark.asyncio
 async def test_traced_run_yields_span_for_custom_attributes(orchestrator):
     """Test that traced_run() yields the span for custom attributes."""
-    with patch("flock.core.orchestrator.trace.get_tracer") as mock_get_tracer:
+    with patch("flock.orchestrator.tracing.trace.get_tracer") as mock_get_tracer:
         mock_tracer = Mock()
         mock_span = Mock()
         mock_span.__enter__ = Mock(return_value=mock_span)
@@ -69,7 +69,7 @@ async def test_traced_run_yields_span_for_custom_attributes(orchestrator):
 @pytest.mark.asyncio
 async def test_traced_run_handles_exceptions(orchestrator):
     """Test that traced_run() properly handles and records exceptions."""
-    with patch("flock.core.orchestrator.trace.get_tracer") as mock_get_tracer:
+    with patch("flock.orchestrator.tracing.trace.get_tracer") as mock_get_tracer:
         mock_tracer = Mock()
         mock_span = Mock()
         mock_span.__enter__ = Mock(return_value=mock_span)
@@ -97,7 +97,7 @@ async def test_traced_run_handles_exceptions(orchestrator):
 @pytest.mark.asyncio
 async def test_traced_run_restores_previous_workflow_span(orchestrator):
     """Test that nested traced_run calls properly restore previous workflow span."""
-    with patch("flock.core.orchestrator.trace.get_tracer") as mock_get_tracer:
+    with patch("flock.orchestrator.tracing.trace.get_tracer") as mock_get_tracer:
         mock_tracer = Mock()
         mock_span1 = Mock()
         mock_span2 = Mock()
@@ -128,7 +128,7 @@ async def test_traced_run_restores_previous_workflow_span(orchestrator):
 @pytest.mark.asyncio
 async def test_traced_run_default_workflow_name(orchestrator):
     """Test that traced_run() uses default name if not provided."""
-    with patch("flock.core.orchestrator.trace.get_tracer") as mock_get_tracer:
+    with patch("flock.orchestrator.tracing.trace.get_tracer") as mock_get_tracer:
         mock_tracer = Mock()
         mock_span = Mock()
         mock_span.__enter__ = Mock(return_value=mock_span)
@@ -146,7 +146,7 @@ async def test_traced_run_default_workflow_name(orchestrator):
 @pytest.mark.asyncio
 async def test_traced_run_sets_success_status(orchestrator):
     """Test that traced_run() sets OK status on successful completion."""
-    with patch("flock.core.orchestrator.trace.get_tracer") as mock_get_tracer:
+    with patch("flock.orchestrator.tracing.trace.get_tracer") as mock_get_tracer:
         mock_tracer = Mock()
         mock_span = Mock()
         mock_span.__enter__ = Mock(return_value=mock_span)

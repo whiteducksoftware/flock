@@ -9,24 +9,17 @@ from asyncio import Task
 from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from opentelemetry import trace
-from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
 
-from flock.artifact_collector import ArtifactCollector
 from flock.artifacts import Artifact
-from flock.batch_accumulator import BatchEngine
 from flock.components.orchestrator import (
     CollectionResult,
     OrchestratorComponent,
     ScheduleDecision,
 )
 from flock.core.agent import Agent, AgentBuilder
-from flock.correlation_engine import CorrelationEngine
-from flock.helper.cli_helper import init_console
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.mcp import (
     FlockMCPClientManager,
@@ -37,13 +30,12 @@ from flock.orchestrator import (
     AgentScheduler,
     ArtifactManager,
     ComponentRunner,
-    ContextBuilder,
-    EventEmitter,
-    LifecycleManager,
-    MCPManager,
+    OrchestratorInitializer,
+    ServerManager,
+    TracingManager,
 )
 from flock.registry import type_registry
-from flock.store import BlackboardStore, ConsumptionRecord, InMemoryBlackboardStore
+from flock.store import BlackboardStore, ConsumptionRecord
 from flock.subscription import Subscription
 from flock.visibility import PublicVisibility, Visibility
 
@@ -104,113 +96,80 @@ class Flock(metaclass=AutoTracedMeta):
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
+        Phase 3: Simplified using OrchestratorInitializer module.
+
         Args:
-            model: Default LLM model for agents (e.g., "openai/gpt-4.1").
-                Can be overridden per-agent. If None, uses DEFAULT_MODEL env var.
-            store: Custom blackboard storage backend. Defaults to InMemoryBlackboardStore.
-            max_agent_iterations: Circuit breaker limit to prevent runaway agent loops.
-                Defaults to 1000 iterations per agent before reset.
-            context_provider: Global context provider for all agents (Phase 3 security fix).
-                If None, agents use DefaultContextProvider. Can be overridden per-agent.
+            model: Default LLM model for agents
+            store: Custom blackboard storage backend
+            max_agent_iterations: Circuit breaker limit
+            context_provider: Global context provider for all agents
 
         Examples:
-            >>> # Basic initialization with default model
             >>> flock = Flock("openai/gpt-4.1")
-
-            >>> # Custom storage backend
-            >>> flock = Flock("openai/gpt-4o", store=CustomBlackboardStore())
-
-            >>> # Circuit breaker configuration
-            >>> flock = Flock("openai/gpt-4.1", max_agent_iterations=500)
-
-            >>> # Global context provider (Phase 3 security fix)
-            >>> from flock.context_provider import DefaultContextProvider
-            >>> flock = Flock(
-            ...     "openai/gpt-4.1", context_provider=DefaultContextProvider()
-            ... )
+            >>> flock = Flock("openai/gpt-4o", store=CustomStore())
         """
+        # Patch litellm imports and setup logger
         self._patch_litellm_proxy_imports()
         self._logger = logging.getLogger(__name__)
         self.model = model
 
-        try:
-            init_console(clear_screen=True, show_banner=True, model=self.model)
-        except (UnicodeEncodeError, UnicodeDecodeError):
-            # Skip banner on Windows consoles with encoding issues (e.g., tests, CI)
-            pass
+        # Phase 3: Initialize all components using OrchestratorInitializer
+        components = OrchestratorInitializer.initialize_components(
+            store=store,
+            context_provider=context_provider,
+            max_agent_iterations=max_agent_iterations,
+            logger=self._logger,
+            model=model,
+        )
 
-        self.store: BlackboardStore = store or InMemoryBlackboardStore()
-        self._agents: dict[str, Agent] = {}
-        self._lock = asyncio.Lock()
-        self.metrics: dict[str, float] = {"artifacts_published": 0, "agent_runs": 0}
-        # Phase 3: Global context provider (security fix)
+        # Assign basic state
+        self.store = components["store"]
+        self._agents = components["agents"]
+        self._lock = components["lock"]
+        self.metrics = components["metrics"]
+        self._agent_iteration_count = components["agent_iteration_count"]
         self._default_context_provider = context_provider
-        # MCP integration - Phase 3 extracted to MCPManager
-        self._mcp_manager_instance = MCPManager()
-        # T068: Circuit breaker for runaway agents
-        self.max_agent_iterations: int = max_agent_iterations
-        self._agent_iteration_count: dict[str, int] = {}
-        self.is_dashboard: bool = False
-        # AND gate logic: Artifact collection for multi-type subscriptions
-        self._artifact_collector = ArtifactCollector()
-        # JoinSpec logic: Correlation engine for correlated AND gates
-        self._correlation_engine = CorrelationEngine()
-        # BatchSpec logic: Batch accumulator for size/timeout batching
-        self._batch_engine = BatchEngine()
-        # Phase 1.2: WebSocket manager for real-time dashboard events (set by serve())
-        self.__websocket_manager: Any = None  # Private storage, use property
+        self.max_agent_iterations = max_agent_iterations
+        self.is_dashboard = False
 
-        # Phase 5A: Initialize extracted modules for orchestration
-        self._context_builder = ContextBuilder(
-            store=self.store,
-            default_context_provider=context_provider,
-        )
-        self._event_emitter = EventEmitter(websocket_manager=None)
-        self._lifecycle_manager = LifecycleManager(
-            correlation_engine=self._correlation_engine,
-            batch_engine=self._batch_engine,
-            cleanup_interval=0.1,
-        )
-        # Set batch timeout callback so lifecycle manager can trigger batch flushing
+        # Assign engines
+        self._artifact_collector = components["artifact_collector"]
+        self._correlation_engine = components["correlation_engine"]
+        self._batch_engine = components["batch_engine"]
+
+        # Assign Phase 5A modules
+        self._context_builder = components["context_builder"]
+        self._event_emitter = components["event_emitter"]
+        self._lifecycle_manager = components["lifecycle_manager"]
+
+        # Assign Phase 3 modules
+        self._mcp_manager_instance = components["mcp_manager_instance"]
+        self._tracing_manager = components["tracing_manager"]
+        self._auto_workflow_enabled = components["auto_workflow_enabled"]
+
+        # WebSocket manager (set by serve())
+        self.__websocket_manager = components["websocket_manager"]
+
+        # Set batch timeout callback
         self._lifecycle_manager.set_batch_timeout_callback(self._check_batch_timeouts)
 
-        # Unified tracing support
-        self._workflow_span = None
-        self._auto_workflow_enabled = os.getenv(
-            "FLOCK_AUTO_WORKFLOW_TRACE", "false"
-        ).lower() in {
-            "true",
-            "1",
-            "yes",
-            "on",
-        }
-
-        # Phase 2: OrchestratorComponent system - Phase 3 extracted to ComponentRunner
+        # Initialize components list and built-in components
         self._components: list[OrchestratorComponent] = []
-
-        # Auto-add built-in components
-        from flock.components.orchestrator import (
-            BuiltinCollectionComponent,
-            CircuitBreakerComponent,
-            DeduplicationComponent,
+        runner_components = OrchestratorInitializer.initialize_components_and_runner(
+            self._components, max_agent_iterations, self._logger
         )
+        self._component_runner = runner_components["component_runner"]
 
-        self.add_component(CircuitBreakerComponent(max_iterations=max_agent_iterations))
-        self.add_component(DeduplicationComponent())
-        self.add_component(BuiltinCollectionComponent())
-
-        # Phase 3: Initialize ComponentRunner with sorted components
-        self._component_runner = ComponentRunner(self._components, self._logger)
-
-        # Phase 3 (Complete): Initialize AgentScheduler and ArtifactManager
+        # Initialize scheduler and artifact manager
         self._scheduler = AgentScheduler(self, self._component_runner)
         self._artifact_manager = ArtifactManager(self, self.store, self._scheduler)
 
-        # Log orchestrator initialization
-        self._logger.debug("Orchestrator initialized: components=[]")
-
+        # Resolve model default
         if not model:
             self.model = os.getenv("DEFAULT_MODEL")
+
+        # Log initialization
+        self._logger.debug("Orchestrator initialized: components=[]")
 
     # Agent management -----------------------------------------------------
 
@@ -389,14 +348,18 @@ class Flock(metaclass=AutoTracedMeta):
         """Get the MCP manager instance."""
         return self._mcp_manager_instance._client_manager
 
-    # Unified Tracing ------------------------------------------------------
+    # Unified Tracing - Phase 3: Delegated to TracingManager --------------
+
+    @property
+    def _workflow_span(self) -> Any:
+        """Get current workflow span (for backwards compatibility with tests)."""
+        return self._tracing_manager.current_workflow_span
 
     @asynccontextmanager
     async def traced_run(self, name: str = "workflow") -> AsyncGenerator[Any, None]:
         """Context manager for wrapping an entire execution in a single unified trace.
 
-        This creates a parent span that encompasses all operations (publish, run_until_idle, etc.)
-        within the context, ensuring they all belong to the same trace_id for better observability.
+        Phase 3: Delegates to TracingManager module.
 
         Args:
             name: Name for the workflow trace (default: "workflow")
@@ -405,102 +368,32 @@ class Flock(metaclass=AutoTracedMeta):
             The workflow span for optional manual attribute setting
 
         Examples:
-            # Explicit workflow tracing (recommended)
             async with flock.traced_run("pizza_workflow"):
                 await flock.publish(pizza_idea)
                 await flock.run_until_idle()
-                # All operations now share the same trace_id!
-
-            # Custom attributes
-            async with flock.traced_run("data_pipeline") as span:
-                span.set_attribute("pipeline.version", "2.0")
-                await flock.publish(data)
-                await flock.run_until_idle()
         """
-        tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span(name) as span:
-            # Set workflow-level attributes
-            span.set_attribute("flock.workflow", True)
-            span.set_attribute("workflow.name", name)
-            span.set_attribute("workflow.flock_id", str(id(self)))
-
-            # Store span for nested operations to use
-            prev_workflow_span = self._workflow_span
-            self._workflow_span = span
-
-            try:
-                yield span
-                span.set_status(Status(StatusCode.OK))
-            except Exception as e:
-                span.set_status(Status(StatusCode.ERROR, str(e)))
-                span.record_exception(e)
-                raise
-            finally:
-                # Restore previous workflow span
-                self._workflow_span = prev_workflow_span
+        async with self._tracing_manager.traced_run(
+            name=name, flock_id=str(id(self))
+        ) as span:
+            yield span
 
     @staticmethod
     def clear_traces(db_path: str = ".flock/traces.duckdb") -> dict[str, Any]:
         """Clear all traces from the DuckDB database.
 
-        Useful for resetting debug sessions or cleaning up test data.
+        Phase 3: Delegates to TracingManager module.
 
         Args:
-            db_path: Path to the DuckDB database file (default: ".flock/traces.duckdb")
+            db_path: Path to the DuckDB database file
 
         Returns:
-            Dictionary with operation results:
-                - deleted_count: Number of spans deleted
-                - success: Whether operation succeeded
-                - error: Error message if failed
+            Dictionary with operation results (deleted_count, success, error)
 
         Examples:
-            # Clear all traces
             result = Flock.clear_traces()
             print(f"Deleted {result['deleted_count']} spans")
-
-            # Custom database path
-            result = Flock.clear_traces(".flock/custom_traces.duckdb")
-
-            # Check if operation succeeded
-            if result['success']:
-                print("Traces cleared successfully!")
-            else:
-                print(f"Error: {result['error']}")
         """
-        try:
-            from pathlib import Path
-
-            import duckdb
-
-            db_file = Path(db_path)
-            if not db_file.exists():
-                return {
-                    "success": False,
-                    "deleted_count": 0,
-                    "error": f"Database file not found: {db_path}",
-                }
-
-            # Connect and clear
-            conn = duckdb.connect(str(db_file))
-            try:
-                # Get count before deletion
-                count_result = conn.execute("SELECT COUNT(*) FROM spans").fetchone()
-                deleted_count = count_result[0] if count_result else 0
-
-                # Delete all spans
-                conn.execute("DELETE FROM spans")
-
-                # Vacuum to reclaim space
-                conn.execute("VACUUM")
-
-                return {"success": True, "deleted_count": deleted_count, "error": None}
-
-            finally:
-                conn.close()
-
-        except Exception as e:
-            return {"success": False, "deleted_count": 0, "error": str(e)}
+        return TracingManager.clear_traces(db_path)
 
     # Runtime --------------------------------------------------------------
 
@@ -675,90 +568,21 @@ class Flock(metaclass=AutoTracedMeta):
     ) -> None:
         """Start HTTP service for the orchestrator (blocking).
 
+        Phase 3: Delegates to ServerManager module.
+
         Args:
-            dashboard: Enable real-time dashboard with WebSocket support (default: False)
+            dashboard: Enable real-time dashboard with WebSocket support
             dashboard_v2: Launch the new dashboard v2 frontend (implies dashboard=True)
             host: Host to bind to (default: "127.0.0.1")
             port: Port to bind to (default: 8344)
 
         Examples:
-            # Basic HTTP API (no dashboard) - runs until interrupted
             await orchestrator.serve()
-
-            # With dashboard (WebSocket + browser launch) - runs until interrupted
             await orchestrator.serve(dashboard=True)
         """
-        if dashboard_v2:
-            dashboard = True
-
-        if not dashboard:
-            # Standard service without dashboard
-            from flock.service import BlackboardHTTPService
-
-            service = BlackboardHTTPService(self)
-            await service.run_async(host=host, port=port)
-            return
-
-        # Dashboard mode: integrate event collection and WebSocket
-        from flock.dashboard.collector import DashboardEventCollector
-        from flock.dashboard.launcher import DashboardLauncher
-        from flock.dashboard.service import DashboardHTTPService
-        from flock.dashboard.websocket import WebSocketManager
-
-        # Create dashboard components
-        websocket_manager = WebSocketManager()
-        event_collector = DashboardEventCollector(store=self.store)
-        event_collector.set_websocket_manager(websocket_manager)
-        await event_collector.load_persistent_snapshots()
-
-        # Store collector reference for agents added later
-        self._dashboard_collector = event_collector
-        # Store websocket manager for real-time event emission (Phase 1.2)
-        self._websocket_manager = websocket_manager
-        # Phase 5A: Set websocket manager on EventEmitter for dashboard updates
-        self._event_emitter.set_websocket_manager(websocket_manager)
-
-        # Phase 6+7: Set class-level WebSocket broadcast wrapper (dashboard mode)
-        async def _broadcast_wrapper(event):
-            """Isolated broadcast wrapper - no reference chain to orchestrator."""
-            return await websocket_manager.broadcast(event)
-
-        from flock.core import Agent
-
-        Agent._websocket_broadcast_global = _broadcast_wrapper
-
-        # Inject event collector into all existing agents
-        for agent in self._agents.values():
-            # Add dashboard collector with priority ordering handled by agent
-            agent._add_utilities([event_collector])
-
-        # Start dashboard launcher (npm process + browser)
-        launcher_kwargs: dict[str, Any] = {"port": port}
-        if dashboard_v2:
-            dashboard_pkg_dir = Path(__file__).parent / "dashboard"
-            launcher_kwargs["frontend_dir"] = dashboard_pkg_dir.parent / "frontend_v2"
-            launcher_kwargs["static_dir"] = dashboard_pkg_dir / "static_v2"
-
-        launcher = DashboardLauncher(**launcher_kwargs)
-        launcher.start()
-
-        # Create dashboard HTTP service
-        service = DashboardHTTPService(
-            orchestrator=self,
-            websocket_manager=websocket_manager,
-            event_collector=event_collector,
-            use_v2=dashboard_v2,
+        await ServerManager.serve(
+            self, dashboard=dashboard, dashboard_v2=dashboard_v2, host=host, port=port
         )
-
-        # Store launcher for cleanup
-        self._dashboard_launcher = launcher
-
-        # Run service (blocking call)
-        try:
-            await service.run_async(host=host, port=port)
-        finally:
-            # Cleanup on exit
-            launcher.stop()
 
     # Scheduling -----------------------------------------------------------
 
