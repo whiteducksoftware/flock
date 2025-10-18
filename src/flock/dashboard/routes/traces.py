@@ -436,15 +436,15 @@ def register_trace_routes(
 
             messages.extend([
                 {
-                    "id": str(artifact.id),
-                    "type": artifact.type,
+                    "id": str(envelope.artifact.id),
+                    "type": envelope.artifact.type,
                     "direction": "consumed",
-                    "payload": artifact.payload,
-                    "timestamp": artifact.created_at.isoformat(),
-                    "correlation_id": str(artifact.correlation_id)
-                    if artifact.correlation_id
+                    "payload": envelope.artifact.payload,
+                    "timestamp": envelope.artifact.created_at.isoformat(),
+                    "correlation_id": str(envelope.artifact.correlation_id)
+                    if envelope.artifact.correlation_id
                     else None,
-                    "produced_by": artifact.produced_by,
+                    "produced_by": envelope.artifact.produced_by,
                     "consumed_at": consumption.consumed_at.isoformat(),
                 }
                 for envelope in all_envelopes
