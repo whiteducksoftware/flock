@@ -15,7 +15,7 @@ from flock.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 
 
 if TYPE_CHECKING:
-    from flock.orchestrator import Flock
+    from flock.core import Flock
 
 
 class BlackboardHTTPService:

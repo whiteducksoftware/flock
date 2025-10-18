@@ -27,7 +27,7 @@ import pytest
 from pydantic import BaseModel
 
 from flock.components.agent import EngineComponent
-from flock.orchestrator import Flock
+from flock.core import Flock
 from flock.registry import flock_type
 from flock.runtime import EvalInputs, EvalResult
 from flock.subscription import BatchSpec, JoinSpec

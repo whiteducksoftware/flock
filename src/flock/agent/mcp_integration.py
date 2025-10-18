@@ -14,7 +14,7 @@ from flock.logging.logging import get_logger
 
 if TYPE_CHECKING:
     from flock.agent import MCPServerConfig
-    from flock.orchestrator import Flock
+    from flock.core import Flock
     from flock.runtime import Context
 
 
@@ -26,7 +26,6 @@ class MCPIntegration:
 
     This module encapsulates all MCP-related logic including:
     - Server configuration parsing (dict, list, mixed formats)
-    - Backward compatibility with old mount format
     - Tool loading and whitelisting
     - Graceful degradation on failures
     """
@@ -45,7 +44,6 @@ class MCPIntegration:
         # Agent MCP state
         self.mcp_server_names: set[str] = set()
         self.mcp_server_mounts: dict[str, list[str]] = {}
-        self.mcp_mount_points: list[str] = []  # Deprecated: Use mcp_server_mounts
         self.tool_whitelist: list[str] | None = None
 
     async def get_mcp_tools(self, ctx: Context) -> list[Callable]:
@@ -129,11 +127,7 @@ class MCPIntegration:
 
     def configure_servers(
         self,
-        servers: (
-            Iterable[str]
-            | dict[str, MCPServerConfig | list[str]]  # Support both new and old format
-            | list[str | dict[str, MCPServerConfig | list[str]]]
-        ),
+        servers: (Iterable[str] | dict[str, MCPServerConfig]),
         registered_servers: set[str],
     ) -> None:
         """Configure MCP servers for this agent with optional server-specific mount points.
@@ -144,8 +138,7 @@ class MCPIntegration:
         Args:
             servers: One of:
                 - List of server names (strings) - no specific mounts
-                - Dict mapping server names to MCPServerConfig or list[str] (backward compatible)
-                - Mixed list of strings and dicts for flexibility
+                - Dict mapping server names to MCPServerConfig
             registered_servers: Set of server names registered with orchestrator (for validation)
 
         Raises:
@@ -156,7 +149,7 @@ class MCPIntegration:
             >>> # Simple: no mount restrictions
             >>> integration.configure_servers(["filesystem", "github"], registered)
 
-            >>> # New format: Server-specific config with roots and tool whitelist
+            >>> # Server-specific config with roots and tool whitelist
             >>> integration.configure_servers(
             ...     {
             ...         "filesystem": {
@@ -167,23 +160,6 @@ class MCPIntegration:
             ...     },
             ...     registered,
             ... )
-
-            >>> # Old format: Direct list (backward compatible)
-            >>> integration.configure_servers(
-            ...     {
-            ...         "filesystem": ["/workspace/dir/data"],  # Old format still works
-            ...     },
-            ...     registered,
-            ... )
-
-            >>> # Mixed: backward compatible
-            >>> integration.configure_servers(
-            ...     [
-            ...         "github",  # No mounts
-            ...         {"filesystem": {"roots": ["mount1", "mount2"]}},
-            ...     ],
-            ...     registered,
-            ... )
         """
         # Parse input into server_names and mounts
         server_set: set[str] = set()
@@ -191,19 +167,12 @@ class MCPIntegration:
         whitelist = None
 
         if isinstance(servers, dict):
-            # Dict format: supports both old and new formats
-            # Old: {"server": ["/path1", "/path2"]}
-            # New: {"server": {"roots": ["/path1"], "tool_whitelist": ["tool1"]}}
+            # Dict format: {"server": {"roots": ["/path1"], "tool_whitelist": ["tool1"]}}
             for server_name, server_config in servers.items():
                 server_set.add(server_name)
 
-                # Check if it's the old format (direct list) or new format (MCPServerConfig dict)
-                if isinstance(server_config, list):
-                    # Old format: direct list of paths (backward compatibility)
-                    if len(server_config) > 0:
-                        server_mounts[server_name] = list(server_config)
-                elif isinstance(server_config, dict):
-                    # New format: MCPServerConfig with optional roots and tool_whitelist
+                if isinstance(server_config, dict):
+                    # MCPServerConfig dict with optional roots and tool_whitelist
                     mounts = server_config.get("roots", None)
                     if (
                         mounts is not None
@@ -219,25 +188,8 @@ class MCPIntegration:
                         and len(config_whitelist) > 0
                     ):
                         whitelist = config_whitelist
-        elif isinstance(servers, list):
-            # List format: can be mixed
-            for item in servers:
-                if isinstance(item, str):
-                    # Simple server name
-                    server_set.add(item)
-                elif isinstance(item, dict):
-                    # Dict with mounts
-                    for server_name, mounts in item.items():
-                        server_set.add(server_name)
-                        if mounts:
-                            server_mounts[server_name] = list(mounts)
-                else:
-                    raise TypeError(
-                        f"Invalid server specification: {item}. "
-                        f"Expected string or dict, got {type(item).__name__}"
-                    )
         else:
-            # Assume it's an iterable of strings (backward compatibility)
+            # Assume it's an iterable of strings
             server_set = set(servers)
 
         # Validate all servers exist in orchestrator
@@ -255,59 +207,6 @@ class MCPIntegration:
         self.mcp_server_names = server_set
         self.mcp_server_mounts = server_mounts
         self.tool_whitelist = whitelist
-
-    def mount(self, paths: str | list[str], *, validate: bool = False) -> None:
-        """Mount agent in specific directories for MCP root access.
-
-        .. deprecated:: 0.2.0
-            Use configure_servers({"server_name": ["/path"]}) instead for server-specific mounts.
-            This method applies mounts globally to all MCP servers.
-
-        This sets the filesystem roots that MCP servers will operate under for this agent.
-        Paths are cumulative across multiple calls.
-
-        Args:
-            paths: Single path or list of paths to mount
-            validate: If True, validate that paths exist (default: False)
-
-        Raises:
-            ValueError: If validate=True and path doesn't exist
-
-        Example:
-            >>> # Old way (deprecated)
-            >>> integration.mount("/workspace/src")
-            >>>
-            >>> # New way (recommended)
-            >>> integration.configure_servers(
-            ...     {"filesystem": ["/workspace/src"]}, registered
-            ... )
-        """
-        import warnings
-
-        warnings.warn(
-            "Agent.mount() is deprecated. Use .with_mcps({'server': ['/path']}) "
-            "for server-specific mounts instead.",
-            DeprecationWarning,
-            stacklevel=3,  # Skip this method and the AgentBuilder wrapper
-        )
-
-        if isinstance(paths, str):
-            paths = [paths]
-        if validate:
-            from pathlib import Path
-
-            for path in paths:
-                if not Path(path).exists():
-                    raise ValueError(f"Mount path does not exist: {path}")
-
-        # Add to deprecated mount points (cumulative) - for backward compatibility
-        self.mcp_mount_points.extend(paths)
-
-        # Also add to all configured servers for backward compatibility
-        for server_name in self.mcp_server_names:
-            if server_name not in self.mcp_server_mounts:
-                self.mcp_server_mounts[server_name] = []
-            self.mcp_server_mounts[server_name].extend(paths)
 
 
 __all__ = ["MCPIntegration"]

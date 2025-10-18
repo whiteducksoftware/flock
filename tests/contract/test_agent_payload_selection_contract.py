@@ -9,9 +9,8 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock.agent import AgentOutput
 from flock.artifacts import Artifact, ArtifactSpec
-from flock.orchestrator import Flock
+from flock.core import AgentOutput, Flock
 from flock.registry import flock_type, type_registry
 from flock.runtime import EvalResult
 from flock.visibility import PublicVisibility

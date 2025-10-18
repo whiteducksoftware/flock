@@ -15,7 +15,7 @@ from flock.runtime import Context, EvalInputs, EvalResult
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-    from flock.agent import Agent
+    from flock.core import Agent
 
 
 logger = get_logger("components.agent.output_utility")
@@ -187,7 +187,7 @@ class OutputUtilityComponent(AgentComponent):
             if ctx:
                 import asyncio
 
-                from flock.agent import Agent
+                from flock.core import Agent
 
                 # Wait until no streams are active
                 max_wait = 30  # seconds

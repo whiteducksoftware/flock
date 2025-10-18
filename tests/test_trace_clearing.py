@@ -6,7 +6,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from flock.orchestrator import Flock
+from flock.core import Flock
 
 
 def test_clear_traces_nonexistent_database():

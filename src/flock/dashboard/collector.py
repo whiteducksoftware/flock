@@ -34,8 +34,8 @@ from flock.store import AgentSnapshotRecord, BlackboardStore
 logger = get_logger("dashboard.collector")
 
 if TYPE_CHECKING:  # pragma: no cover - type hints only
-    from flock.agent import Agent
     from flock.artifacts import Artifact
+    from flock.core import Agent
     from flock.dashboard.websocket import WebSocketManager
 
 

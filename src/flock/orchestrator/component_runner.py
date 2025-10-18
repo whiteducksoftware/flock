@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
-    from flock.agent import Agent
     from flock.artifacts import Artifact
     from flock.components.orchestrator import OrchestratorComponent
+    from flock.core import Agent
     from flock.subscription import Subscription
 
 

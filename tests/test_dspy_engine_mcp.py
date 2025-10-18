@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from flock.core import Flock
 from flock.mcp import StdioServerParameters
-from flock.orchestrator import Flock
 
 
 @pytest.mark.asyncio
@@ -24,7 +24,12 @@ async def test_engine_merges_native_and_mcp_tools():
         """A native tool"""
         return "native"
 
-    agent = orch.agent("test_agent").with_tools([native_tool]).with_mcps(["test_server"]).agent
+    agent = (
+        orch.agent("test_agent")
+        .with_tools([native_tool])
+        .with_mcps(["test_server"])
+        .agent
+    )
 
     # Mock MCP tools response
     mock_mcp_tool = Mock()

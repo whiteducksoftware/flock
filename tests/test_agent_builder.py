@@ -25,7 +25,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.agent import OutputGroup
+from flock.core import OutputGroup
 from flock.registry import flock_type
 from flock.visibility import PrivateVisibility, PublicVisibility, Visibility
 
@@ -636,57 +636,6 @@ def test_publishes_large_fan_out_is_valid():
     assert output.count == 1000
 
 
-# ============================================================================
-# Test Scenario 11: Backwards compatibility
-# ============================================================================
-
-
-def test_publishes_backwards_compatibility():
-    """Existing .publishes(A) still works without output_groups."""
-    # Arrange
-    flock = Flock()
-
-    # Act - Old usage pattern
-    agent = flock.agent("test").publishes(TestTypeA)
-
-    # Assert - Should work with new output_groups architecture
-    assert hasattr(agent.agent, "output_groups")
-    assert len(agent.agent.output_groups) == 1
-
-    # Single output in group
-    group = agent.agent.output_groups[0]
-    assert len(group.outputs) == 1
-    assert group.outputs[0].spec.type_name == "TestTypeA"
-    assert group.outputs[0].count == 1
-
-
-def test_publishes_backwards_compatibility_multiple_types():
-    """Existing .publishes(A, B, C) creates one group."""
-    # Arrange
-    flock = Flock()
-
-    # Act - Old pattern with multiple types
-    agent = flock.agent("test").publishes(TestTypeA, TestTypeB, TestTypeC)
-
-    # Assert
-    assert len(agent.agent.output_groups) == 1
-    assert len(agent.agent.output_groups[0].outputs) == 3
-
-
-def test_publishes_backwards_compatibility_with_visibility():
-    """Existing .publishes(A, visibility=X) still works."""
-    # Arrange
-    flock = Flock()
-    vis = PrivateVisibility(agents={"test"})
-
-    # Act - Old pattern with visibility
-    agent = flock.agent("test").publishes(TestTypeA, visibility=vis)
-
-    # Assert
-    output = agent.agent.output_groups[0].outputs[0]
-    assert output.default_visibility == vis
-
-
 def test_publishes_chaining_with_other_methods():
     """.publishes() can be chained with .consumes() and other methods."""
     # Arrange
@@ -719,7 +668,7 @@ def test_publishes_returns_publish_builder():
     result = flock.agent("test").publishes(TestTypeA)
 
     # Assert - Should return PublishBuilder (or similar chainable object)
-    from flock.agent import AgentBuilder, PublishBuilder
+    from flock.core import AgentBuilder, PublishBuilder
 
     # Result should support agent builder methods
     assert isinstance(result, (PublishBuilder, AgentBuilder))

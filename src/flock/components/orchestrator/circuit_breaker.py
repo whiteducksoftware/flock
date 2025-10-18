@@ -8,9 +8,8 @@ from flock.components.orchestrator.base import OrchestratorComponent, ScheduleDe
 
 
 if TYPE_CHECKING:
-    from flock.agent import Agent
     from flock.artifacts import Artifact
-    from flock.orchestrator import Flock
+    from flock.core import Agent, Flock
     from flock.subscription import Subscription
 
 

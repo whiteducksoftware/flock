@@ -544,15 +544,21 @@ async def test_agent_validates_high_concurrency(orchestrator):
 
 @pytest.mark.asyncio
 async def test_agent_validation_methods_exist(orchestrator):
-    """Test that validation methods exist and can be called."""
+    """Test that validation methods exist in BuilderValidator and can be called."""
+    from flock.agent.builder_validator import BuilderValidator
+
     # Arrange
-    agent = orchestrator.agent("validator").consumes(AgentInput)
+    agent_builder = orchestrator.agent("validator").consumes(AgentInput)
+    agent = agent_builder.agent
 
-    # Act & Assert - Validation methods should exist
-    assert hasattr(agent, "_validate_self_trigger_risk")
-    assert hasattr(agent, "_validate_best_of")
-    assert hasattr(agent, "_validate_concurrency")
+    # Act & Assert - Validation methods should exist in BuilderValidator
+    assert hasattr(BuilderValidator, "validate_self_trigger_risk")
+    assert hasattr(BuilderValidator, "validate_best_of")
+    assert hasattr(BuilderValidator, "validate_concurrency")
+    assert hasattr(BuilderValidator, "normalize_join")
+    assert hasattr(BuilderValidator, "normalize_batch")
 
-    # Methods should be callable without errors
-    agent._validate_best_of(50)  # Normal value - no warning
-    agent._validate_concurrency(10)  # Normal value - no warning
+    # Phase 5B: Methods are now static on BuilderValidator
+    BuilderValidator.validate_best_of(agent.name, 50)  # Normal value - no warning
+    BuilderValidator.validate_concurrency(agent.name, 10)  # Normal value - no warning
+    BuilderValidator.validate_self_trigger_risk(agent)  # No overlap - no warning

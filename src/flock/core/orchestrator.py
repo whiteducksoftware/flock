@@ -11,14 +11,11 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
 
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
 
-from flock._orchestrator import ComponentRunner, MCPManager
-from flock.agent import Agent, AgentBuilder
 from flock.artifact_collector import ArtifactCollector
 from flock.artifacts import Artifact
 from flock.batch_accumulator import BatchEngine
@@ -27,6 +24,7 @@ from flock.components.orchestrator import (
     OrchestratorComponent,
     ScheduleDecision,
 )
+from flock.core.agent import Agent, AgentBuilder
 from flock.correlation_engine import CorrelationEngine
 from flock.helper.cli_helper import init_console
 from flock.logging.auto_trace import AutoTracedMeta
@@ -35,11 +33,19 @@ from flock.mcp import (
     FlockMCPConfiguration,
     ServerParameters,
 )
+from flock.orchestrator import (
+    AgentScheduler,
+    ArtifactManager,
+    ComponentRunner,
+    ContextBuilder,
+    EventEmitter,
+    LifecycleManager,
+    MCPManager,
+)
 from flock.registry import type_registry
-from flock.runtime import Context
 from flock.store import BlackboardStore, ConsumptionRecord, InMemoryBlackboardStore
 from flock.subscription import Subscription
-from flock.visibility import AgentIdentity, PublicVisibility, Visibility
+from flock.visibility import PublicVisibility, Visibility
 
 
 if TYPE_CHECKING:
@@ -135,8 +141,6 @@ class Flock(metaclass=AutoTracedMeta):
 
         self.store: BlackboardStore = store or InMemoryBlackboardStore()
         self._agents: dict[str, Agent] = {}
-        self._tasks: set[Task[Any]] = set()
-        self._processed: set[tuple[str, str]] = set()
         self._lock = asyncio.Lock()
         self.metrics: dict[str, float] = {"artifacts_published": 0, "agent_runs": 0}
         # Phase 3: Global context provider (security fix)
@@ -151,16 +155,25 @@ class Flock(metaclass=AutoTracedMeta):
         self._artifact_collector = ArtifactCollector()
         # JoinSpec logic: Correlation engine for correlated AND gates
         self._correlation_engine = CorrelationEngine()
-        # Background task for checking correlation expiry (time-based JoinSpec)
-        self._correlation_cleanup_task: Task[Any] | None = None
-        self._correlation_cleanup_interval: float = 0.1  # Check every 100ms
         # BatchSpec logic: Batch accumulator for size/timeout batching
         self._batch_engine = BatchEngine()
-        # Background task for checking batch timeouts
-        self._batch_timeout_task: Task[Any] | None = None
-        self._batch_timeout_interval: float = 0.1  # Check every 100ms
         # Phase 1.2: WebSocket manager for real-time dashboard events (set by serve())
-        self._websocket_manager: Any = None
+        self.__websocket_manager: Any = None  # Private storage, use property
+
+        # Phase 5A: Initialize extracted modules for orchestration
+        self._context_builder = ContextBuilder(
+            store=self.store,
+            default_context_provider=context_provider,
+        )
+        self._event_emitter = EventEmitter(websocket_manager=None)
+        self._lifecycle_manager = LifecycleManager(
+            correlation_engine=self._correlation_engine,
+            batch_engine=self._batch_engine,
+            cleanup_interval=0.1,
+        )
+        # Set batch timeout callback so lifecycle manager can trigger batch flushing
+        self._lifecycle_manager.set_batch_timeout_callback(self._check_batch_timeouts)
+
         # Unified tracing support
         self._workflow_span = None
         self._auto_workflow_enabled = os.getenv(
@@ -188,6 +201,10 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Phase 3: Initialize ComponentRunner with sorted components
         self._component_runner = ComponentRunner(self._components, self._logger)
+
+        # Phase 3 (Complete): Initialize AgentScheduler and ArtifactManager
+        self._scheduler = AgentScheduler(self, self._component_runner)
+        self._artifact_manager = ArtifactManager(self, self.store, self._scheduler)
 
         # Log orchestrator initialization
         self._logger.debug("Orchestrator initialized: components=[]")
@@ -241,6 +258,19 @@ class Flock(metaclass=AutoTracedMeta):
     @property
     def agents(self) -> list[Agent]:
         return list(self._agents.values())
+
+    # Phase 5A: WebSocket manager property (auto-updates event emitter)
+
+    @property
+    def _websocket_manager(self) -> Any:
+        """Get the WebSocket manager for dashboard events."""
+        return self.__websocket_manager
+
+    @_websocket_manager.setter
+    def _websocket_manager(self, value: Any) -> None:
+        """Set the WebSocket manager and propagate to EventEmitter."""
+        self.__websocket_manager = value
+        self._event_emitter.set_websocket_manager(value)
 
     # Component management -------------------------------------------------
 
@@ -356,7 +386,7 @@ class Flock(metaclass=AutoTracedMeta):
 
     @property
     def _mcp_manager(self) -> FlockMCPClientManager | None:
-        """Get the MCP manager instance (Phase 3: backward compatibility)."""
+        """Get the MCP manager instance."""
         return self._mcp_manager_instance._client_manager
 
     # Unified Tracing ------------------------------------------------------
@@ -501,35 +531,23 @@ class Flock(metaclass=AutoTracedMeta):
             - publish_many(): Batch publishing for parallel execution
             - invoke(): Direct agent invocation without cascade
         """
-        while self._tasks:
+        while self._scheduler.pending_tasks:
             await asyncio.sleep(0.01)
-            pending = {task for task in self._tasks if not task.done()}
-            self._tasks = pending
+            pending = {
+                task for task in self._scheduler.pending_tasks if not task.done()
+            }
+            self._scheduler._tasks = pending
 
-        # Determine whether any deferred work (timeouts/cleanup) is still pending.
-        pending_batches = any(
-            accumulator.artifacts for accumulator in self._batch_engine.batches.values()
-        )
-        pending_correlations = any(
-            groups and any(group.waiting_artifacts for group in groups.values())
-            for groups in self._correlation_engine.correlation_groups.values()
-        )
+        # Phase 5A: Check for pending work using LifecycleManager properties
+        pending_batches = self._lifecycle_manager.has_pending_batches
+        pending_correlations = self._lifecycle_manager.has_pending_correlations
 
         # Ensure watchdog loops remain active while pending work exists.
-        if pending_batches and (
-            self._batch_timeout_task is None or self._batch_timeout_task.done()
-        ):
-            self._batch_timeout_task = asyncio.create_task(
-                self._batch_timeout_checker_loop()
-            )
+        if pending_batches:
+            await self._lifecycle_manager.start_batch_timeout_checker()
 
-        if pending_correlations and (
-            self._correlation_cleanup_task is None
-            or self._correlation_cleanup_task.done()
-        ):
-            self._correlation_cleanup_task = asyncio.create_task(
-                self._correlation_cleanup_loop()
-            )
+        if pending_correlations:
+            await self._lifecycle_manager.start_correlation_cleanup()
 
         # If deferred work is still outstanding, consider the orchestrator quiescent for
         # now but leave watchdog tasks running to finish the job.
@@ -557,46 +575,15 @@ class Flock(metaclass=AutoTracedMeta):
             self._mark_processed(artifact, agent)
             await self._persist_and_schedule(artifact)
 
-        # Phase 8: Evaluate context BEFORE creating Context (security fix)
-        # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import (
-            BoundContextProvider,
-            ContextRequest,
-            DefaultContextProvider,
-        )
-
-        inner_provider = (
-            getattr(agent, "context_provider", None)
-            or self._default_context_provider
-            or DefaultContextProvider()
-        )
-
-        # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
-        provider = BoundContextProvider(inner_provider, agent.identity)
-
-        # Evaluate context using provider (orchestrator controls this!)
-        # Engines will receive pre-filtered artifacts via ctx.artifacts
-        correlation_id = (
-            artifacts[0].correlation_id
-            if artifacts and artifacts[0].correlation_id
-            else uuid4()
-        )
-        request = ContextRequest(
+        # Phase 5A: Use ContextBuilder to create execution context (consolidates duplicated pattern)
+        # This implements the security boundary pattern (Phase 8 security fix)
+        ctx = await self._context_builder.build_execution_context(
             agent=agent,
-            correlation_id=correlation_id,
-            store=self.store,
-            agent_identity=agent.identity,
-            exclude_ids={a.id for a in artifacts},  # Exclude input artifacts
-        )
-        context_artifacts = await provider(request)
-
-        # Phase 8: Create Context with pre-filtered data (no capabilities!)
-        # SECURITY: Context is now just data - engines can't query anything
-        ctx = Context(
-            artifacts=context_artifacts,  # Pre-filtered conversation context
-            agent_identity=agent.identity,
-            task_id=str(uuid4()),
-            correlation_id=correlation_id,
+            artifacts=artifacts,
+            correlation_id=artifacts[0].correlation_id
+            if artifacts and artifacts[0].correlation_id
+            else None,
+            is_batch=False,
         )
         self._record_agent_run(agent)
         return await agent.execute(ctx, artifacts)
@@ -668,21 +655,8 @@ class Flock(metaclass=AutoTracedMeta):
         if include_components and self._component_runner.is_initialized:
             await self._component_runner.run_shutdown(self)
 
-        # Cancel correlation cleanup task if running
-        if self._correlation_cleanup_task and not self._correlation_cleanup_task.done():
-            self._correlation_cleanup_task.cancel()
-            try:
-                await self._correlation_cleanup_task
-            except asyncio.CancelledError:
-                pass
-
-        # Cancel batch timeout checker if running
-        if self._batch_timeout_task and not self._batch_timeout_task.done():
-            self._batch_timeout_task.cancel()
-            try:
-                await self._batch_timeout_task
-            except asyncio.CancelledError:
-                pass
+        # Phase 5A: Delegate lifecycle cleanup to LifecycleManager
+        await self._lifecycle_manager.shutdown()
 
         # Phase 3: Delegate MCP cleanup to MCPManager
         await self._mcp_manager_instance.cleanup()
@@ -741,13 +715,15 @@ class Flock(metaclass=AutoTracedMeta):
         self._dashboard_collector = event_collector
         # Store websocket manager for real-time event emission (Phase 1.2)
         self._websocket_manager = websocket_manager
+        # Phase 5A: Set websocket manager on EventEmitter for dashboard updates
+        self._event_emitter.set_websocket_manager(websocket_manager)
 
         # Phase 6+7: Set class-level WebSocket broadcast wrapper (dashboard mode)
         async def _broadcast_wrapper(event):
             """Isolated broadcast wrapper - no reference chain to orchestrator."""
             return await websocket_manager.broadcast(event)
 
-        from flock.agent import Agent
+        from flock.core import Agent
 
         Agent._websocket_broadcast_global = _broadcast_wrapper
 
@@ -798,106 +774,25 @@ class Flock(metaclass=AutoTracedMeta):
     ) -> Artifact:
         """Publish an artifact to the blackboard (event-driven).
 
-        All agents with matching subscriptions will be triggered according to
-        their filters (type, predicates, visibility, etc).
-
-        Args:
-            obj: Object to publish (BaseModel instance, dict, or Artifact)
-            visibility: Access control (defaults to PublicVisibility)
-            correlation_id: Optional correlation ID for request tracing
-            partition_key: Optional partition key for sharding
-            tags: Optional tags for channel-based routing
-
-        Returns:
-            The published Artifact
-
-        Examples:
-            >>> # Publish a model instance (recommended)
-            >>> task = Task(name="Deploy", priority=5)
-            >>> await orchestrator.publish(task)
-
-            >>> # Publish with custom visibility
-            >>> await orchestrator.publish(
-            ...     task, visibility=PrivateVisibility(agents={"admin"})
-            ... )
-
-            >>> # Publish with tags for channel routing
-            >>> await orchestrator.publish(task, tags={"urgent", "backend"})
+        Delegates to ArtifactManager for normalization and persistence.
         """
-        # Handle different input types
-        if isinstance(obj, Artifact):
-            # Already an artifact - publish as-is
-            artifact = obj
-        elif isinstance(obj, BaseModel):
-            # BaseModel instance - get type from registry
-            type_name = type_registry.name_for(type(obj))
-            artifact = Artifact(
-                type=type_name,
-                payload=obj.model_dump(),
-                produced_by="external",
-                visibility=visibility or PublicVisibility(),
-                correlation_id=correlation_id or uuid4(),
-                partition_key=partition_key,
-                tags=tags or set(),
-            )
-        elif isinstance(obj, dict):
-            # Dict must have 'type' key
-            if "type" not in obj:
-                raise ValueError(
-                    "Dict input must contain 'type' key. "
-                    "Example: {'type': 'Task', 'name': 'foo', 'priority': 5}"
-                )
-            # Support both {'type': 'X', 'payload': {...}} and {'type': 'X', ...}
-            type_name = obj["type"]
-            if "payload" in obj:
-                payload = obj["payload"]
-            else:
-                payload = {k: v for k, v in obj.items() if k != "type"}
-
-            artifact = Artifact(
-                type=type_name,
-                payload=payload,
-                produced_by="external",
-                visibility=visibility or PublicVisibility(),
-                correlation_id=correlation_id,
-                partition_key=partition_key,
-                tags=tags or set(),
-            )
-        else:
-            raise TypeError(
-                f"Cannot publish object of type {type(obj).__name__}. "
-                "Expected BaseModel, dict, or Artifact."
-            )
-
-        # Persist and schedule matching agents
-        await self._persist_and_schedule(artifact)
-        return artifact
+        return await self._artifact_manager.publish(
+            obj,
+            visibility=visibility,
+            correlation_id=correlation_id,
+            partition_key=partition_key,
+            tags=tags,
+            is_dashboard=is_dashboard,
+        )
 
     async def publish_many(
         self, objects: Iterable[BaseModel | dict | Artifact], **kwargs: Any
     ) -> list[Artifact]:
         """Publish multiple artifacts at once (event-driven).
 
-        Args:
-            objects: Iterable of objects to publish
-            **kwargs: Passed to each publish() call (visibility, tags, etc)
-
-        Returns:
-            List of published Artifacts
-
-        Example:
-            >>> tasks = [
-            ...     Task(name="Deploy", priority=5),
-            ...     Task(name="Test", priority=3),
-            ...     Task(name="Document", priority=1),
-            ... ]
-            >>> await orchestrator.publish_many(tasks, tags={"sprint-3"})
+        Delegates to ArtifactManager for batch publishing.
         """
-        artifacts = []
-        for obj in objects:
-            artifact = await self.publish(obj, **kwargs)
-            artifacts.append(artifact)
-        return artifacts
+        return await self._artifact_manager.publish_many(objects, **kwargs)
 
     # -----------------------------------------------------------------------------
     # NEW DIRECT INVOCATION API - Explicit Control
@@ -942,7 +837,6 @@ class Flock(metaclass=AutoTracedMeta):
             >>> await orchestrator.run_until_idle()
         """
         from asyncio import wait_for
-        from uuid import uuid4
 
         # Get Agent instance
         agent_obj = agent.agent if isinstance(agent, AgentBuilder) else agent
@@ -956,41 +850,13 @@ class Flock(metaclass=AutoTracedMeta):
             visibility=PublicVisibility(),
         )
 
-        # Phase 8: Evaluate context BEFORE creating Context (security fix)
-        # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import (
-            BoundContextProvider,
-            ContextRequest,
-            DefaultContextProvider,
-        )
-
-        inner_provider = (
-            getattr(agent_obj, "context_provider", None)
-            or self._default_context_provider
-            or DefaultContextProvider()
-        )
-
-        # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
-        provider = BoundContextProvider(inner_provider, agent_obj.identity)
-
-        # Evaluate context using provider (orchestrator controls this!)
-        correlation_id = artifact.correlation_id if artifact.correlation_id else uuid4()
-        request = ContextRequest(
+        # Phase 5A: Use ContextBuilder to create execution context (consolidates duplicated pattern)
+        # This implements the security boundary pattern (Phase 8 security fix)
+        ctx = await self._context_builder.build_execution_context(
             agent=agent_obj,
-            correlation_id=correlation_id,
-            store=self.store,
-            agent_identity=agent_obj.identity,
-            exclude_ids={artifact.id},  # Exclude input artifact
-        )
-        context_artifacts = await provider(request)
-
-        # Phase 8: Create Context with pre-filtered data (no capabilities!)
-        # SECURITY: Context is now just data - engines can't query anything
-        ctx = Context(
-            artifacts=context_artifacts,  # Pre-filtered conversation context
-            agent_identity=agent_obj.identity,
-            task_id=str(uuid4()),
-            correlation_id=correlation_id,
+            artifacts=[artifact],
+            correlation_id=artifact.correlation_id if artifact.correlation_id else None,
+            is_batch=False,
         )
         self._record_agent_run(agent_obj)
 
@@ -1010,24 +876,23 @@ class Flock(metaclass=AutoTracedMeta):
         return outputs
 
     async def _persist_and_schedule(self, artifact: Artifact) -> None:
-        await self.store.publish(artifact)
-        self.metrics["artifacts_published"] += 1
-        await self._schedule_artifact(artifact)
+        """Delegate to ArtifactManager."""
+        await self._artifact_manager.persist_and_schedule(artifact)
 
-    # Component Hook Delegation (Phase 3: backward compatibility for tests) ───
+    # Component Hook Delegation ───
 
     async def _run_initialize(self) -> None:
-        """Delegate to ComponentRunner (backward compatibility)."""
+        """Delegate to ComponentRunner module."""
         await self._component_runner.run_initialize(self)
 
     async def _run_artifact_published(self, artifact: Artifact) -> Artifact | None:
-        """Delegate to ComponentRunner (backward compatibility)."""
+        """Delegate to ComponentRunner module."""
         return await self._component_runner.run_artifact_published(self, artifact)
 
     async def _run_before_schedule(
         self, artifact: Artifact, agent: Agent, subscription: Subscription
     ) -> ScheduleDecision:
-        """Delegate to ComponentRunner (backward compatibility)."""
+        """Delegate to ComponentRunner module."""
         return await self._component_runner.run_before_schedule(
             self, artifact, agent, subscription
         )
@@ -1035,7 +900,7 @@ class Flock(metaclass=AutoTracedMeta):
     async def _run_collect_artifacts(
         self, artifact: Artifact, agent: Agent, subscription: Subscription
     ) -> CollectionResult:
-        """Delegate to ComponentRunner (backward compatibility)."""
+        """Delegate to ComponentRunner module."""
         return await self._component_runner.run_collect_artifacts(
             self, artifact, agent, subscription
         )
@@ -1043,7 +908,7 @@ class Flock(metaclass=AutoTracedMeta):
     async def _run_before_agent_schedule(
         self, agent: Agent, artifacts: list[Artifact]
     ) -> list[Artifact] | None:
-        """Delegate to ComponentRunner (backward compatibility)."""
+        """Delegate to ComponentRunner module."""
         return await self._component_runner.run_before_agent_schedule(
             self, agent, artifacts
         )
@@ -1051,157 +916,54 @@ class Flock(metaclass=AutoTracedMeta):
     async def _run_agent_scheduled(
         self, agent: Agent, artifacts: list[Artifact], task: Task[Any]
     ) -> None:
-        """Delegate to ComponentRunner (backward compatibility)."""
+        """Delegate to ComponentRunner module."""
         await self._component_runner.run_agent_scheduled(self, agent, artifacts, task)
 
     async def _run_idle(self) -> None:
-        """Delegate to ComponentRunner (backward compatibility)."""
+        """Delegate to ComponentRunner module."""
         await self._component_runner.run_idle(self)
 
     async def _run_shutdown(self) -> None:
-        """Delegate to ComponentRunner (backward compatibility)."""
+        """Delegate to ComponentRunner module."""
         await self._component_runner.run_shutdown(self)
 
     @property
     def _components_initialized(self) -> bool:
-        """Delegate to ComponentRunner (backward compatibility)."""
+        """Delegate to ComponentRunner module."""
         return self._component_runner.is_initialized
 
     # Scheduling ───────────────────────────────────────────────────
 
     async def _schedule_artifact(self, artifact: Artifact) -> None:
-        """Schedule agents for an artifact using component hooks.
-
-        Refactored to use OrchestratorComponent hook system for extensibility.
-        Components can modify artifact, control scheduling, and handle collection.
-        """
-        # Phase 3: Initialize components on first artifact (delegated to ComponentRunner)
-        if not self._component_runner.is_initialized:
-            await self._component_runner.run_initialize(self)
-
-        # Phase 3: Component hook - artifact published (can transform or block)
-        artifact = await self._component_runner.run_artifact_published(self, artifact)
-        if artifact is None:
-            return  # Artifact blocked by component
-
-        for agent in self.agents:
-            identity = agent.identity
-            for subscription in agent.subscriptions:
-                if not subscription.accepts_events():
-                    continue
-
-                # T066: Check prevent_self_trigger
-                if agent.prevent_self_trigger and artifact.produced_by == agent.name:
-                    continue  # Skip - agent produced this artifact (prevents feedback loops)
-
-                # Visibility check
-                if not self._check_visibility(artifact, identity):
-                    continue
-
-                # Subscription match check
-                if not subscription.matches(artifact):
-                    continue
-
-                # Phase 3: Component hook - before schedule (circuit breaker, deduplication, etc.)
-                from flock.components.orchestrator import ScheduleDecision
-
-                decision = await self._component_runner.run_before_schedule(
-                    self, artifact, agent, subscription
-                )
-                if decision == ScheduleDecision.SKIP:
-                    continue  # Skip this subscription
-                if decision == ScheduleDecision.DEFER:
-                    continue  # Defer for later (batching/correlation)
-
-                # Phase 3: Component hook - collect artifacts (handles AND gates, correlation, batching)
-                collection = await self._component_runner.run_collect_artifacts(
-                    self, artifact, agent, subscription
-                )
-                if not collection.complete:
-                    continue  # Still collecting (AND gate, correlation, or batch incomplete)
-
-                artifacts = collection.artifacts
-
-                # Phase 3: Component hook - before agent schedule (final validation/transformation)
-                artifacts = await self._component_runner.run_before_agent_schedule(
-                    self, agent, artifacts
-                )
-                if artifacts is None:
-                    continue  # Scheduling blocked by component
-
-                # Complete! Schedule agent with collected artifacts
-                # Schedule agent task
-                is_batch_execution = subscription.batch is not None
-                task = self._schedule_task(
-                    agent, artifacts, is_batch=is_batch_execution
-                )
-
-                # Phase 3: Component hook - agent scheduled (notification)
-                await self._component_runner.run_agent_scheduled(
-                    self, agent, artifacts, task
-                )
+        """Delegate to AgentScheduler."""
+        await self._scheduler.schedule_artifact(artifact)
 
     def _schedule_task(
         self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
     ) -> Task[Any]:
-        """Schedule agent task and return the task handle."""
-        task = asyncio.create_task(
-            self._run_agent_task(agent, artifacts, is_batch=is_batch)
-        )
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-        return task
+        """Delegate to AgentScheduler."""
+        return self._scheduler.schedule_task(agent, artifacts, is_batch=is_batch)
 
     def _record_agent_run(self, agent: Agent) -> None:
-        self.metrics["agent_runs"] += 1
+        self._scheduler.record_agent_run(agent)
 
     def _mark_processed(self, artifact: Artifact, agent: Agent) -> None:
-        key = (str(artifact.id), agent.name)
-        self._processed.add(key)
+        self._scheduler.mark_processed(artifact, agent)
 
     def _seen_before(self, artifact: Artifact, agent: Agent) -> bool:
-        key = (str(artifact.id), agent.name)
-        return key in self._processed
+        return self._scheduler.seen_before(artifact, agent)
 
     async def _run_agent_task(
         self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
     ) -> None:
-        correlation_id = artifacts[0].correlation_id if artifacts else uuid4()
+        correlation_id = artifacts[0].correlation_id if artifacts else None
 
-        # Phase 8: Evaluate context BEFORE creating Context (security fix)
-        # Provider resolution: per-agent > global > DefaultContextProvider
-        from flock.context_provider import (
-            BoundContextProvider,
-            ContextRequest,
-            DefaultContextProvider,
-        )
-
-        inner_provider = (
-            getattr(agent, "context_provider", None)
-            or self._default_context_provider
-            or DefaultContextProvider()
-        )
-
-        # SECURITY FIX: Wrap provider with BoundContextProvider to prevent identity spoofing
-        provider = BoundContextProvider(inner_provider, agent.identity)
-
-        # Evaluate context using provider (orchestrator controls this!)
-        # Engines will receive pre-filtered artifacts via ctx.artifacts
-        request = ContextRequest(
+        # Phase 5A: Use ContextBuilder to create execution context (consolidates duplicated pattern)
+        # This implements the security boundary pattern (Phase 8 security fix)
+        # COMPLEXITY REDUCTION: This reduces _run_agent_task from C(11) to likely B or A
+        ctx = await self._context_builder.build_execution_context(
             agent=agent,
-            correlation_id=correlation_id,
-            store=self.store,
-            agent_identity=agent.identity,
-            exclude_ids={a.id for a in artifacts},  # Exclude input artifacts
-        )
-        context_artifacts = await provider(request)
-
-        # Phase 8: Create Context with pre-filtered data (no capabilities!)
-        # SECURITY: Context is now just data - engines can't query anything
-        ctx = Context(
-            artifacts=context_artifacts,  # Pre-filtered conversation context
-            agent_identity=agent.identity,
-            task_id=str(uuid4()),
+            artifacts=artifacts,
             correlation_id=correlation_id,
             is_batch=is_batch,
         )
@@ -1235,61 +997,26 @@ class Flock(metaclass=AutoTracedMeta):
                 self._logger.exception("Failed to record artifact consumption: %s", exc)
 
     # Phase 1.2: Logic Operations Event Emission ----------------------------
+    # Phase 5A: Delegated to EventEmitter module
 
     async def _emit_correlation_updated_event(
         self, *, agent_name: str, subscription_index: int, artifact: Artifact
     ) -> None:
         """Emit CorrelationGroupUpdatedEvent for real-time dashboard updates.
 
-        Called when an artifact is added to a correlation group that is not yet complete.
+        Phase 5A: Delegates to EventEmitter module.
 
         Args:
             agent_name: Name of the agent with the JoinSpec subscription
             subscription_index: Index of the subscription in the agent's subscriptions list
             artifact: The artifact that triggered this update
         """
-        # Only emit if dashboard is enabled
-        if self._websocket_manager is None:
-            return
-
-        # Import _get_correlation_groups helper from dashboard service
-        from flock.dashboard.service import _get_correlation_groups
-
-        # Get current correlation groups state from engine
-        groups = _get_correlation_groups(
-            self._correlation_engine, agent_name, subscription_index
+        await self._event_emitter.emit_correlation_updated(
+            correlation_engine=self._correlation_engine,
+            agent_name=agent_name,
+            subscription_index=subscription_index,
+            artifact=artifact,
         )
-
-        if not groups:
-            return  # No groups to report (shouldn't happen, but defensive)
-
-        # Find the group that was just updated (match by last updated time or artifact ID)
-        # For now, we'll emit an event for the FIRST group that's still waiting
-        # In practice, the artifact we just added should be in one of these groups
-        for group_state in groups:
-            if not group_state["is_complete"]:
-                # Import CorrelationGroupUpdatedEvent
-                from flock.dashboard.events import CorrelationGroupUpdatedEvent
-
-                # Build and emit event
-                event = CorrelationGroupUpdatedEvent(
-                    agent_name=agent_name,
-                    subscription_index=subscription_index,
-                    correlation_key=group_state["correlation_key"],
-                    collected_types=group_state["collected_types"],
-                    required_types=group_state["required_types"],
-                    waiting_for=group_state["waiting_for"],
-                    elapsed_seconds=group_state["elapsed_seconds"],
-                    expires_in_seconds=group_state["expires_in_seconds"],
-                    expires_in_artifacts=group_state["expires_in_artifacts"],
-                    artifact_id=str(artifact.id),
-                    artifact_type=artifact.type,
-                    is_complete=group_state["is_complete"],
-                )
-
-                # Broadcast via WebSocket
-                await self._websocket_manager.broadcast(event)
-                break  # Only emit one event per artifact addition
 
     async def _emit_batch_item_added_event(
         self,
@@ -1301,7 +1028,7 @@ class Flock(metaclass=AutoTracedMeta):
     ) -> None:
         """Emit BatchItemAddedEvent for real-time dashboard updates.
 
-        Called when an artifact is added to a batch that hasn't reached flush threshold.
+        Phase 5A: Delegates to EventEmitter module.
 
         Args:
             agent_name: Name of the agent with the BatchSpec subscription
@@ -1309,132 +1036,48 @@ class Flock(metaclass=AutoTracedMeta):
             subscription: The subscription with BatchSpec configuration
             artifact: The artifact that triggered this update
         """
-        # Only emit if dashboard is enabled
-        if self._websocket_manager is None:
-            return
-
-        # Import _get_batch_state helper from dashboard service
-        from flock.dashboard.service import _get_batch_state
-
-        # Get current batch state from engine
-        batch_state = _get_batch_state(
-            self._batch_engine, agent_name, subscription_index, subscription.batch
-        )
-
-        if not batch_state:
-            return  # No batch to report (shouldn't happen, but defensive)
-
-        # Import BatchItemAddedEvent
-        from flock.dashboard.events import BatchItemAddedEvent
-
-        # Build and emit event
-        event = BatchItemAddedEvent(
+        await self._event_emitter.emit_batch_item_added(
+            batch_engine=self._batch_engine,
             agent_name=agent_name,
             subscription_index=subscription_index,
-            items_collected=batch_state["items_collected"],
-            items_target=batch_state.get("items_target"),
-            items_remaining=batch_state.get("items_remaining"),
-            elapsed_seconds=batch_state["elapsed_seconds"],
-            timeout_seconds=batch_state.get("timeout_seconds"),
-            timeout_remaining_seconds=batch_state.get("timeout_remaining_seconds"),
-            will_flush=batch_state["will_flush"],
-            artifact_id=str(artifact.id),
-            artifact_type=artifact.type,
+            subscription=subscription,
+            artifact=artifact,
         )
 
-        # Broadcast via WebSocket
-        await self._websocket_manager.broadcast(event)
-
     # Batch Helpers --------------------------------------------------------
-
-    async def _correlation_cleanup_loop(self) -> None:
-        """Background task that periodically cleans up expired correlation groups.
-
-        Runs continuously until all correlation groups are cleared or orchestrator shuts down.
-        Checks every 100ms for time-based expired correlations and discards them.
-        """
-        try:
-            while True:
-                await asyncio.sleep(self._correlation_cleanup_interval)
-                self._cleanup_expired_correlations()
-
-                # Stop if no correlation groups remain
-                if not self._correlation_engine.correlation_groups:
-                    self._correlation_cleanup_task = None
-                    break
-        except asyncio.CancelledError:
-            # Clean shutdown
-            self._correlation_cleanup_task = None
-            raise
-
-    def _cleanup_expired_correlations(self) -> None:
-        """Clean up all expired correlation groups across all subscriptions.
-
-        Called periodically by background task to enforce time-based correlation windows.
-        Discards incomplete correlations that have exceeded their time window.
-        """
-        # Get all active subscription keys
-        for agent_name, subscription_index in list(
-            self._correlation_engine.correlation_groups.keys()
-        ):
-            self._correlation_engine.cleanup_expired(agent_name, subscription_index)
-
-    async def _batch_timeout_checker_loop(self) -> None:
-        """Background task that periodically checks for batch timeouts.
-
-        Runs continuously until all batches are cleared or orchestrator shuts down.
-        Checks every 100ms for expired batches and flushes them.
-        """
-        try:
-            while True:
-                await asyncio.sleep(self._batch_timeout_interval)
-                await self._check_batch_timeouts()
-
-                # Stop if no batches remain
-                if not self._batch_engine.batches:
-                    self._batch_timeout_task = None
-                    break
-        except asyncio.CancelledError:
-            # Clean shutdown
-            self._batch_timeout_task = None
-            raise
+    # Phase 5A: Delegated to LifecycleManager module
 
     async def _check_batch_timeouts(self) -> None:
         """Check all batches for timeout expiry and flush expired batches.
 
-        This method is called periodically by the background timeout checker
-        or manually (in tests) to enforce timeout-based batching.
+        Phase 5A: Delegates to LifecycleManager module.
         """
-        expired_batches = self._batch_engine.check_timeouts()
 
-        for agent_name, subscription_index in expired_batches:
-            # Flush the expired batch
-            artifacts = self._batch_engine.flush_batch(agent_name, subscription_index)
-
-            if artifacts is None:
-                continue
-
-            # Get the agent
+        async def schedule_callback(
+            agent_name: str, _subscription_index: int, artifacts: list[Artifact]
+        ) -> None:
+            """Callback to schedule agent task for expired batch."""
             agent = self._agents.get(agent_name)
-            if agent is None:
-                continue
+            if agent is not None:
+                self._schedule_task(agent, artifacts, is_batch=True)
 
-            # Schedule agent with batched artifacts (timeout flush)
-            self._schedule_task(agent, artifacts, is_batch=True)
+        await self._lifecycle_manager.check_batch_timeouts(schedule_callback)
 
     async def _flush_all_batches(self) -> None:
-        """Flush all partial batches (for shutdown - ensures zero data loss)."""
-        all_batches = self._batch_engine.flush_all()
+        """Flush all partial batches (for shutdown - ensures zero data loss).
 
-        for agent_name, _subscription_index, artifacts in all_batches:
-            # Get the agent
+        Phase 5A: Delegates to LifecycleManager module.
+        """
+
+        async def schedule_callback(
+            agent_name: str, _subscription_index: int, artifacts: list[Artifact]
+        ) -> None:
+            """Callback to schedule agent task for flushed batch."""
             agent = self._agents.get(agent_name)
-            if agent is None:
-                continue
+            if agent is not None:
+                self._schedule_task(agent, artifacts, is_batch=True)
 
-            # Schedule agent with partial batch (shutdown flush)
-            self._schedule_task(agent, artifacts, is_batch=True)
-
+        await self._lifecycle_manager.flush_all_batches(schedule_callback)
         # Wait for all scheduled tasks to complete
         await self.run_until_idle()
 
@@ -1457,12 +1100,6 @@ class Flock(metaclass=AutoTracedMeta):
         else:  # pragma: no cover - defensive
             raise TypeError("Unsupported input for direct invoke.")
         return Artifact(type=type_name, payload=payload, produced_by=produced_by)
-
-    def _check_visibility(self, artifact: Artifact, identity: AgentIdentity) -> bool:
-        try:
-            return artifact.visibility.allows(identity)
-        except AttributeError:  # pragma: no cover - fallback for dict vis
-            return True
 
 
 @asynccontextmanager

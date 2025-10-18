@@ -9,12 +9,12 @@ import pytest
 from pydantic import BaseModel
 
 from flock.components.agent import EngineComponent
+from flock.core import Flock
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.events import (
     AgentCompletedEvent,
     MessagePublishedEvent,
 )
-from flock.orchestrator import Flock
 from flock.runtime import EvalInputs, EvalResult
 from flock.store import InMemoryBlackboardStore
 

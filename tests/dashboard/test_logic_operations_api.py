@@ -22,7 +22,7 @@ Related:
   - Dashboard service: src/flock/dashboard/service.py
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
 from uuid import uuid4
 
@@ -31,8 +31,8 @@ from pydantic import BaseModel
 
 from flock.artifacts import Artifact
 from flock.batch_accumulator import BatchAccumulator, BatchEngine
+from flock.core import Flock
 from flock.correlation_engine import CorrelationEngine, CorrelationGroup
-from flock.orchestrator import Flock
 from flock.registry import flock_type
 from flock.subscription import BatchSpec, JoinSpec
 from flock.visibility import PublicVisibility
@@ -132,7 +132,7 @@ def test_get_correlation_groups_single_group_partial():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
 
     # Add one artifact (XRayImage)
     xray_artifact = Artifact(
@@ -198,7 +198,7 @@ def test_get_correlation_groups_multiple_patients():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group1.created_at_time = datetime.now(timezone.utc)
+    group1.created_at_time = datetime.now(UTC)
     xray1 = Artifact(
         id=uuid4(),
         type="XRayImage",
@@ -220,7 +220,7 @@ def test_get_correlation_groups_multiple_patients():
         window_spec=timedelta(minutes=5),
         created_at_sequence=2,
     )
-    group3.created_at_time = datetime.now(timezone.utc)
+    group3.created_at_time = datetime.now(UTC)
     lab3 = Artifact(
         id=uuid4(),
         type="LabResults",
@@ -276,7 +276,7 @@ def test_get_correlation_groups_time_calculations():
         window_spec=timedelta(minutes=5),  # 300 seconds
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc) - timedelta(seconds=30)
+    group.created_at_time = datetime.now(UTC) - timedelta(seconds=30)
 
     # Add artifact
     xray = Artifact(
@@ -331,7 +331,7 @@ def test_get_correlation_groups_count_window():
         window_spec=10,  # Count window: 10 artifacts
         created_at_sequence=2,  # Created at sequence 2
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
 
     # Add artifact
     xray = Artifact(
@@ -356,7 +356,9 @@ def test_get_correlation_groups_count_window():
     # created_at_sequence=2, global_sequence=5
     # artifacts_passed = 5 - 2 = 3
     # expires_in_artifacts = 10 - 3 = 7
-    assert group_state["expires_in_seconds"] is None, "Count window should not have time expiry"
+    assert group_state["expires_in_seconds"] is None, (
+        "Count window should not have time expiry"
+    )
     assert group_state["expires_in_artifacts"] == 7, (
         f"Expected 7 artifacts remaining, got {group_state['expires_in_artifacts']}"
     )
@@ -408,7 +410,7 @@ def test_get_batch_state_size_based():
     # Create batch accumulator with 10 artifacts
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     for i in range(10):
         artifact = Artifact(
@@ -453,7 +455,7 @@ def test_get_batch_state_timeout_based():
     # Create batch accumulator 18 seconds ago
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc) - timedelta(seconds=18),
+        created_at=datetime.now(UTC) - timedelta(seconds=18),
     )
     # Add at least one artifact (empty batches return None)
     artifact = Artifact(
@@ -503,7 +505,7 @@ def test_get_batch_state_dual_condition():
     # Create batch with 10 artifacts, 12 seconds ago
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc) - timedelta(seconds=12),
+        created_at=datetime.now(UTC) - timedelta(seconds=12),
     )
     for i in range(10):
         artifact = Artifact(
@@ -560,7 +562,7 @@ def test_get_batch_state_group_count():
     # Create batch with 6 artifacts (3 pairs)
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
     # Add 6 artifacts (3 correlated pairs)
@@ -616,7 +618,7 @@ def test_get_batch_state_empty_batch_returns_none():
     # Create empty batch accumulator
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     # No artifacts added
 
@@ -670,7 +672,9 @@ def test_compute_agent_status_waiting_correlation():
 
     # Create agent with JoinSpec
     agent = orchestrator.agent("radiologist").consumes(
-        XRayImage, LabResults, join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5))
+        XRayImage,
+        LabResults,
+        join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
     )
 
     # Manually create correlation group in orchestrator's engine
@@ -682,7 +686,7 @@ def test_compute_agent_status_waiting_correlation():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
 
     # Add one artifact to make it incomplete
     xray = Artifact(
@@ -716,13 +720,15 @@ def test_compute_agent_status_waiting_batch():
     orchestrator = Flock()
 
     # Create agent with BatchSpec
-    agent = orchestrator.agent("email_processor").consumes(Email, batch=BatchSpec(size=25))
+    agent = orchestrator.agent("email_processor").consumes(
+        Email, batch=BatchSpec(size=25)
+    )
 
     # Manually create batch accumulator in orchestrator's engine
     batch_key = (agent.agent.name, 0)
     accumulator = BatchAccumulator(
         batch_spec=BatchSpec(size=25),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     # Add some artifacts
     for i in range(10):
@@ -800,7 +806,7 @@ def test_compute_agent_status_multiple_subscriptions_mixed():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
     xray = Artifact(
         id=uuid4(),
         type="XRayImage",
@@ -831,13 +837,15 @@ def test_compute_agent_status_batch_empty_should_be_ready():
     orchestrator = Flock()
 
     # Create agent with BatchSpec
-    agent = orchestrator.agent("email_processor").consumes(Email, batch=BatchSpec(size=25))
+    agent = orchestrator.agent("email_processor").consumes(
+        Email, batch=BatchSpec(size=25)
+    )
 
     # Create EMPTY batch accumulator
     batch_key = (agent.agent.name, 0)
     accumulator = BatchAccumulator(
         batch_spec=BatchSpec(size=25),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     # No artifacts added
 
@@ -898,7 +906,7 @@ async def test_integration_correlation_and_batch_together():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group1.created_at_time = datetime.now(timezone.utc)
+    group1.created_at_time = datetime.now(UTC)
     xray1 = Artifact(
         id=uuid4(),
         type="XRayImage",
@@ -916,7 +924,7 @@ async def test_integration_correlation_and_batch_together():
         window_spec=timedelta(minutes=5),
         created_at_sequence=2,
     )
-    group2.created_at_time = datetime.now(timezone.utc)
+    group2.created_at_time = datetime.now(UTC)
     lab2 = Artifact(
         id=uuid4(),
         type="LabResults",
@@ -926,14 +934,18 @@ async def test_integration_correlation_and_batch_together():
     )
     group2.waiting_artifacts["LabResults"].append(lab2)
 
-    orchestrator._correlation_engine.correlation_groups[pool_key]["patient_123"] = group1
-    orchestrator._correlation_engine.correlation_groups[pool_key]["patient_456"] = group2
+    orchestrator._correlation_engine.correlation_groups[pool_key]["patient_123"] = (
+        group1
+    )
+    orchestrator._correlation_engine.correlation_groups[pool_key]["patient_456"] = (
+        group2
+    )
 
     # Setup batch state: 2 correlated pairs already batched
     batch_key = (agent_name, subscription_index)
     accumulator = BatchAccumulator(
         batch_spec=BatchSpec(size=5),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     # Simulate 2 correlated pairs (4 artifacts total)
     for i in range(2):
@@ -977,7 +989,9 @@ async def test_integration_correlation_and_batch_together():
     assert batch_state["items_remaining"] == 3
 
     # Assert: Agent status
-    assert agent_status == "waiting", "Agent should be waiting (both correlation and batch active)"
+    assert agent_status == "waiting", (
+        "Agent should be waiting (both correlation and batch active)"
+    )
 
 
 # ============================================================================
@@ -1075,7 +1089,7 @@ def test_readme_example_correlation_state_extraction():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
     xray = Artifact(
         id=uuid4(),
         type="XRayImage",
@@ -1102,7 +1116,9 @@ def test_readme_example_correlation_state_extraction():
 
     # Frontend can now display:
     # "Waiting for LabResults for patient_123 (45s elapsed, 255s remaining)"
-    print(f"Waiting for {patient_state['waiting_for']} for {patient_state['correlation_key']}")
+    print(
+        f"Waiting for {patient_state['waiting_for']} for {patient_state['correlation_key']}"
+    )
     print(
         f"Elapsed: {patient_state['elapsed_seconds']}s, Expires in: {patient_state['expires_in_seconds']}s"
     )

@@ -7,10 +7,9 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.agent import OutputGroup
 from flock.artifacts import Artifact
 from flock.components.agent import AgentComponent, AgentComponentConfig, EngineComponent
-from flock.orchestrator import Flock
+from flock.core import Flock, OutputGroup
 from flock.registry import flock_type
 from flock.runtime import EvalInputs, EvalResult
 

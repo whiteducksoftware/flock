@@ -23,7 +23,7 @@ from flock.dashboard.models.graph import (
     GraphTimeRangePreset,
 )
 from flock.logging.auto_trace import AutoTracedMeta
-from flock.orchestrator import Flock
+from flock.core import Flock
 from flock.store import (
     Artifact,
     BlackboardStore,

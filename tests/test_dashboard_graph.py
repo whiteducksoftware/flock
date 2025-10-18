@@ -6,8 +6,8 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
-from flock.agent import Agent
 from flock.artifacts import Artifact
+from flock.core import Agent
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.graph_builder import GraphAssembler
 from flock.dashboard.models.graph import GraphRequest
@@ -42,16 +42,14 @@ async def _setup_artifacts(orchestrator) -> None:
     await orchestrator.store.publish(idea)
     await orchestrator.store.publish(review)
 
-    await orchestrator.store.record_consumptions(
-        [
-            ConsumptionRecord(
-                artifact_id=idea.id,
-                consumer="consumer_agent",
-                run_id="run-1",
-                correlation_id=str(correlation_id),
-            )
-        ]
-    )
+    await orchestrator.store.record_consumptions([
+        ConsumptionRecord(
+            artifact_id=idea.id,
+            consumer="consumer_agent",
+            run_id="run-1",
+            correlation_id=str(correlation_id),
+        )
+    ])
 
 
 @pytest.mark.asyncio
@@ -71,7 +69,9 @@ async def test_graph_assembler_agent_and_blackboard(orchestrator):
     assert agent_snapshot.edges[0].source == "producer_agent"
     assert agent_snapshot.edges[0].target == "consumer_agent"
 
-    blackboard_snapshot = await assembler.build_snapshot(GraphRequest(view_mode="blackboard"))
+    blackboard_snapshot = await assembler.build_snapshot(
+        GraphRequest(view_mode="blackboard")
+    )
     assert blackboard_snapshot.view_mode == "blackboard"
     assert blackboard_snapshot.total_artifacts == 2
     assert len(blackboard_snapshot.nodes) == 2
@@ -142,16 +142,14 @@ async def test_graph_assembler_inactive_agent_node(orchestrator):
     )
 
     await orchestrator.store.publish(produced)
-    await orchestrator.store.record_consumptions(
-        [
-            ConsumptionRecord(
-                artifact_id=produced.id,
-                consumer="consumer_b",
-                run_id="inactive-run",
-                correlation_id=str(ctx.correlation_id),
-            )
-        ]
-    )
+    await orchestrator.store.record_consumptions([
+        ConsumptionRecord(
+            artifact_id=produced.id,
+            consumer="consumer_b",
+            run_id="inactive-run",
+            correlation_id=str(ctx.correlation_id),
+        )
+    ])
 
     snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
     node = next(n for n in snapshot.nodes if n.id == "historical_agent")

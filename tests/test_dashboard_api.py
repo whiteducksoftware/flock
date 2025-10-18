@@ -43,7 +43,7 @@ NOTES:
 - All tests check for 404 responses when endpoints are not yet implemented
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 from uuid import UUID, uuid4
 
@@ -52,7 +52,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
 from flock.artifacts import Artifact
-from flock.orchestrator import Flock
+from flock.core import Flock
 from flock.registry import flock_type
 from flock.visibility import PublicVisibility
 
@@ -89,7 +89,7 @@ def mock_dashboard_service(orchestrator):
         produced_by="external",
         visibility=PublicVisibility(),
         correlation_id=uuid4(),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     orchestrator.publish = AsyncMock(return_value=mock_artifact)
 
@@ -137,7 +137,7 @@ async def test_publish_accepts_artifact_type_and_content(orchestrator):
         produced_by="external",
         visibility=PublicVisibility(),
         correlation_id=uuid4(),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     orchestrator.publish = AsyncMock(return_value=mock_artifact)
 
@@ -180,7 +180,7 @@ async def test_publish_calls_orchestrator_publish_with_correct_parameters(orches
         produced_by="external",
         visibility=PublicVisibility(),
         correlation_id=correlation_id,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     orchestrator.publish = AsyncMock(return_value=mock_artifact)
 
@@ -206,7 +206,7 @@ async def test_publish_returns_correlation_id_and_timestamp(orchestrator):
     """Test publish endpoint returns correlation_id and published_at timestamp."""
     # Arrange
     correlation_id = uuid4()
-    published_at = datetime.now(timezone.utc)
+    published_at = datetime.now(UTC)
     mock_artifact = Artifact(
         id=uuid4(),
         type="ControlTestArtifact",
@@ -250,12 +250,10 @@ async def test_publish_validates_pydantic_schema(orchestrator):
 
     # Act & Assert
     with pytest.raises(ValueError, match="Validation error"):
-        await orchestrator.publish(
-            {
-                "type": "InvalidControlArtifact",
-                "validated_field": -1,  # Missing required_field, invalid value
-            }
-        )
+        await orchestrator.publish({
+            "type": "InvalidControlArtifact",
+            "validated_field": -1,  # Missing required_field, invalid value
+        })
 
 
 @pytest.mark.asyncio
@@ -268,7 +266,9 @@ async def test_publish_handles_missing_required_fields(orchestrator):
     client = TestClient(service.app)
 
     # Act - Missing artifact_type
-    response = client.post("/api/control/publish", json={"content": {"message": "test"}})
+    response = client.post(
+        "/api/control/publish", json={"content": {"message": "test"}}
+    )
 
     # Assert - Should return 400 or 404 (if endpoint not implemented)
     assert response.status_code in [
@@ -278,7 +278,9 @@ async def test_publish_handles_missing_required_fields(orchestrator):
     ], "Missing required fields should return 400/422 (or 404 if not implemented)"
 
     # Act - Missing content
-    response = client.post("/api/control/publish", json={"artifact_type": "ControlTestArtifact"})
+    response = client.post(
+        "/api/control/publish", json={"artifact_type": "ControlTestArtifact"}
+    )
 
     # Assert
     assert response.status_code in [
@@ -308,7 +310,7 @@ async def test_invoke_accepts_agent_name_parameter(orchestrator):
             payload={"message": "output", "priority": 1},
             produced_by="test_agent",
             visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     ]
     orchestrator.invoke = AsyncMock(return_value=mock_outputs)
@@ -350,7 +352,7 @@ async def test_invoke_calls_orchestrator_invoke_with_correct_agent(orchestrator)
             payload={"message": "result", "priority": 5},
             produced_by="calculator_agent",
             visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     ]
     orchestrator.invoke = AsyncMock(return_value=mock_outputs)
@@ -392,7 +394,7 @@ async def test_invoke_returns_invocation_id(orchestrator):
             payload={"message": "done", "priority": 1},
             produced_by="test_agent",
             visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     ]
     orchestrator.invoke = AsyncMock(return_value=mock_outputs)
@@ -504,7 +506,7 @@ async def test_publish_with_custom_correlation_id(orchestrator):
         produced_by="external",
         visibility=PublicVisibility(),
         correlation_id=custom_correlation_id,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     orchestrator.publish = AsyncMock(return_value=mock_artifact)
 
@@ -533,7 +535,7 @@ async def test_invoke_with_multiple_outputs(orchestrator):
             payload={"message": "output1", "priority": 1},
             produced_by="multi_output_agent",
             visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
         Artifact(
             id=uuid4(),
@@ -541,7 +543,7 @@ async def test_invoke_with_multiple_outputs(orchestrator):
             payload={"message": "output2", "priority": 2},
             produced_by="multi_output_agent",
             visibility=PublicVisibility(),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
     ]
     orchestrator.invoke = AsyncMock(return_value=mock_outputs)
@@ -588,9 +590,11 @@ async def test_publish_handles_orchestrator_publish_failure(orchestrator):
 
     # Act & Assert
     with pytest.raises(Exception, match="Store connection failed"):
-        await orchestrator.publish(
-            {"type": "ControlTestArtifact", "message": "test", "priority": 1}
-        )
+        await orchestrator.publish({
+            "type": "ControlTestArtifact",
+            "message": "test",
+            "priority": 1,
+        })
 
 
 @pytest.mark.asyncio

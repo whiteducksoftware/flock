@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from flock.artifacts import Artifact
 from flock.components.agent import EngineComponent
-from flock.orchestrator import Flock
+from flock.core import Flock
 from flock.registry import flock_tool, flock_type, type_registry
 from flock.runtime import EvalInputs, EvalResult
 from flock.store import BlackboardStore
@@ -23,7 +23,7 @@ from flock.utilities import LoggingUtility, MetricsUtility
 
 
 if TYPE_CHECKING:
-    from flock.agent import AgentBuilder
+    from flock.core import AgentBuilder
 
 
 @flock_type

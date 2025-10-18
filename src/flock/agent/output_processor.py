@@ -172,10 +172,9 @@ class OutputProcessor:
     async def make_outputs(
         self, ctx: Context, result: EvalResult, output_groups: list[OutputGroup]
     ) -> list[Artifact]:
-        """Legacy output creation method (Phase 2 compatibility).
+        """Output creation method for all output groups.
 
-        This method is used for older code that still uses the Phase 2 pattern
-        of calling the engine once for all output groups.
+        This method processes all output groups from a single engine evaluation.
 
         Args:
             ctx: Execution context
@@ -282,19 +281,18 @@ class OutputProcessor:
         Returns:
             Payload dict or None if not found
         """
-        if not result.artifacts:
-            return None
-
         # Normalize the expected type name to canonical form
         expected_canonical = type_registry.resolve_name(output_decl.spec.type_name)
 
-        for artifact in result.artifacts:
-            # Normalize artifact type name to canonical form for comparison
-            artifact_canonical = TypeResolutionHelper.safe_resolve(
-                type_registry, artifact.type
-            )
-            if artifact_canonical == expected_canonical:
-                return artifact.payload
+        # Try to find payload in artifacts first
+        if result.artifacts:
+            for artifact in result.artifacts:
+                # Normalize artifact type name to canonical form for comparison
+                artifact_canonical = TypeResolutionHelper.safe_resolve(
+                    type_registry, artifact.type
+                )
+                if artifact_canonical == expected_canonical:
+                    return artifact.payload
 
         # Fallback to state entries keyed by type name
         maybe_data = result.state.get(output_decl.spec.type_name)

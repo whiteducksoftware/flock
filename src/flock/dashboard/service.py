@@ -19,13 +19,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
+from flock.core import Flock
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.events import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.graph_builder import GraphAssembler
 from flock.dashboard.models.graph import GraphRequest, GraphSnapshot
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger
-from flock.orchestrator import Flock
 from flock.registry import type_registry
 from flock.service import BlackboardHTTPService
 

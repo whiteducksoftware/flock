@@ -7,14 +7,19 @@ It ensures that agents can ONLY see artifacts they're allowed to see
 (visibility enforcement cannot be bypassed).
 """
 
+from uuid import uuid4
+
 import pytest
-from uuid import uuid4, UUID
-from datetime import datetime
-from typing import Any
 
 from flock.artifacts import Artifact
-from flock.visibility import PublicVisibility, PrivateVisibility, TenantVisibility, LabelledVisibility, AgentIdentity
 from flock.store import FilterConfig
+from flock.visibility import (
+    AgentIdentity,
+    LabelledVisibility,
+    PrivateVisibility,
+    PublicVisibility,
+    TenantVisibility,
+)
 
 
 # We'll import these after implementing them
@@ -36,7 +41,11 @@ class MockStore:
         if filters:
             # Filter by correlation_id
             if filters.correlation_id:
-                results = [a for a in results if str(a.correlation_id) == filters.correlation_id]
+                results = [
+                    a
+                    for a in results
+                    if str(a.correlation_id) == filters.correlation_id
+                ]
 
             # Filter by type_names
             if filters.type_names:
@@ -44,7 +53,9 @@ class MockStore:
 
             # Filter by tags (artifact must have at least one of the filter tags)
             if filters.tags:
-                results = [a for a in results if a.tags and filters.tags.intersection(a.tags)]
+                results = [
+                    a for a in results if a.tags and filters.tags.intersection(a.tags)
+                ]
 
             # Filter by produced_by
             if filters.produced_by:
@@ -60,14 +71,18 @@ class MockStore:
 class MockAgent:
     """Mock agent for testing."""
 
-    def __init__(self, name: str, labels: set[str] | None = None, tenant_id: str | None = None):
+    def __init__(
+        self, name: str, labels: set[str] | None = None, tenant_id: str | None = None
+    ):
         self.name = name
         self.labels = labels or set()
         self.tenant_id = tenant_id
 
     @property
     def identity(self) -> AgentIdentity:
-        return AgentIdentity(name=self.name, labels=self.labels, tenant_id=self.tenant_id)
+        return AgentIdentity(
+            name=self.name, labels=self.labels, tenant_id=self.tenant_id
+        )
 
 
 class TestContextProviderProtocol:
@@ -132,7 +147,7 @@ class TestDefaultContextProviderSecurity:
         Agents can ONLY see artifacts they're allowed to see.
         Visibility enforcement is MANDATORY and cannot be bypassed.
         """
-        from flock.context_provider import DefaultContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -187,7 +202,7 @@ class TestDefaultContextProviderSecurity:
         Fix: Provider filters BEFORE agent sees data.
         Agent NOT in allowlist gets empty list.
         """
-        from flock.context_provider import DefaultContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -236,7 +251,7 @@ class TestDefaultContextProviderSecurity:
         Vulnerability: Agent from tenant_b could access tenant_a's data via ctx.board.list()
         Fix: Provider enforces tenant isolation automatically.
         """
-        from flock.context_provider import DefaultContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -289,7 +304,7 @@ class TestDefaultContextProviderSecurity:
         Vulnerability: Agent without clearance could access classified via ctx.board.list()
         Fix: Provider enforces label requirements automatically.
         """
-        from flock.context_provider import DefaultContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -318,7 +333,9 @@ class TestDefaultContextProviderSecurity:
 
         # Unauthorized agent should see NOTHING
         context = await provider(request)
-        assert len(context) == 0, "Agent without required label must NOT see classified data"
+        assert len(context) == 0, (
+            "Agent without required label must NOT see classified data"
+        )
 
         # Now test with authorized agent
         authorized_agent = MockAgent("senior-agent", labels={"clearance:secret"})
@@ -330,7 +347,9 @@ class TestDefaultContextProviderSecurity:
         )
 
         authorized_context = await provider(authorized_request)
-        assert len(authorized_context) == 1, "Agent with required label should see classified data"
+        assert len(authorized_context) == 1, (
+            "Agent with required label should see classified data"
+        )
         assert authorized_context[0].type == "ClassifiedDoc"
 
     async def test_default_provider_shows_all_artifacts(self):
@@ -341,7 +360,7 @@ class TestDefaultContextProviderSecurity:
 
         For correlation-based filtering, use CorrelatedContextProvider explicitly.
         """
-        from flock.context_provider import DefaultContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, DefaultContextProvider
 
         correlation_a = uuid4()
         correlation_b = uuid4()
@@ -389,7 +408,7 @@ class TestDefaultContextProviderSecurity:
         Format: [{"type": ..., "payload": ..., "produced_by": ..., ...}]
         Agents receive pre-serialized context (not raw Artifact objects).
         """
-        from flock.context_provider import DefaultContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, DefaultContextProvider
 
         correlation = uuid4()
 
@@ -478,8 +497,8 @@ class TestPluggableProviders:
         This enables global provider configuration:
             flock = Flock(context_provider=MyProvider())
         """
-        from flock.orchestrator import Flock
         from flock.context_provider import DefaultContextProvider
+        from flock.core import Flock
 
         # Should accept context_provider parameter
         provider = DefaultContextProvider()
@@ -494,7 +513,7 @@ class TestPluggableProviders:
 
         If no provider specified, Flock should use DefaultContextProvider as fallback.
         """
-        from flock.orchestrator import Flock
+        from flock.core import Flock
 
         # Create Flock without provider
         flock = Flock(model="openai/gpt-4o-mini")
@@ -509,7 +528,7 @@ class TestPluggableProviders:
         This enables per-agent provider configuration:
             agent.with_context(MyProvider())
         """
-        from flock.orchestrator import Flock
+        from flock.core import Flock
 
         flock = Flock(model="openai/gpt-4o-mini")
         agent_builder = flock.agent("test-agent")
@@ -523,8 +542,8 @@ class TestPluggableProviders:
 
         The provider should be stored as agent.context_provider for later use.
         """
-        from flock.orchestrator import Flock
         from flock.context_provider import DefaultContextProvider
+        from flock.core import Flock
 
         flock = Flock(model="openai/gpt-4o-mini")
         provider = DefaultContextProvider()
@@ -541,8 +560,8 @@ class TestPluggableProviders:
         Example:
             agent.with_context(provider).consumes(Task).publishes(Report)
         """
-        from flock.orchestrator import Flock
         from flock.context_provider import DefaultContextProvider
+        from flock.core import Flock
 
         flock = Flock(model="openai/gpt-4o-mini")
         provider = DefaultContextProvider()
@@ -561,8 +580,8 @@ class TestPluggableProviders:
         2. Global provider
         3. DefaultContextProvider fallback (lowest priority)
         """
-        from flock.orchestrator import Flock
         from flock.context_provider import DefaultContextProvider
+        from flock.core import Flock
 
         # Custom providers for testing
         class GlobalProvider(DefaultContextProvider):
@@ -578,21 +597,26 @@ class TestPluggableProviders:
         flock = Flock(model="openai/gpt-4o-mini", context_provider=global_provider)
 
         # Create agent WITH per-agent provider
-        agent_with_override = flock.agent("agent-with-override").with_context(per_agent_provider)
+        agent_with_override = flock.agent("agent-with-override").with_context(
+            per_agent_provider
+        )
 
         # Create agent WITHOUT per-agent provider
         agent_with_global = flock.agent("agent-with-global")
 
         # Verify storage
         assert agent_with_override._agent.context_provider == per_agent_provider
-        assert not hasattr(agent_with_global._agent, "context_provider") or agent_with_global._agent.context_provider is None
+        assert (
+            not hasattr(agent_with_global._agent, "context_provider")
+            or agent_with_global._agent.context_provider is None
+        )
 
     async def test_agent_without_context_provider_attribute_by_default(self):
         """Agent should NOT have context_provider attribute initially (None).
 
         This ensures clean initialization - provider is only set when explicitly configured.
         """
-        from flock.orchestrator import Flock
+        from flock.core import Flock
 
         flock = Flock(model="openai/gpt-4o-mini")
         agent = flock.agent("test-agent")
@@ -619,7 +643,7 @@ class TestFilteredContextProvider:
         Example: FilteredContextProvider(FilterConfig(tags={"important"}))
         Only returns artifacts with "important" tag.
         """
-        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, FilteredContextProvider
         from flock.store import FilterConfig
 
         correlation = uuid4()
@@ -669,7 +693,7 @@ class TestFilteredContextProvider:
         Example: FilteredContextProvider(FilterConfig(type_names={"Task"}))
         Only returns Task artifacts.
         """
-        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, FilteredContextProvider
         from flock.store import FilterConfig
 
         correlation = uuid4()
@@ -717,7 +741,7 @@ class TestFilteredContextProvider:
         Even with declarative filtering, visibility is ALWAYS enforced.
         This is the CRITICAL SECURITY REQUIREMENT from Phase 2.
         """
-        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, FilteredContextProvider
         from flock.store import FilterConfig
 
         correlation = uuid4()
@@ -772,7 +796,7 @@ class TestFilteredContextProvider:
         Example: FilteredContextProvider(FilterConfig(tags={"test"}), limit=2)
         Returns at most 2 artifacts.
         """
-        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, FilteredContextProvider
         from flock.store import FilterConfig
 
         correlation = uuid4()
@@ -813,7 +837,7 @@ class TestFilteredContextProvider:
 
         Format: [{"type": ..., "payload": ..., "produced_by": ..., ...}]
         """
-        from flock.context_provider import FilteredContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, FilteredContextProvider
         from flock.store import FilterConfig
 
         correlation = uuid4()
@@ -872,7 +896,7 @@ class TestCorrelatedContextProvider:
         Agents should only see artifacts from their specific workflow.
         This is the explicit version of what DefaultContextProvider used to do.
         """
-        from flock.context_provider import CorrelatedContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, CorrelatedContextProvider
 
         correlation_a = uuid4()
         correlation_b = uuid4()
@@ -915,7 +939,7 @@ class TestCorrelatedContextProvider:
 
     async def test_correlated_provider_enforces_visibility(self):
         """SECURITY: CorrelatedContextProvider MUST enforce visibility."""
-        from flock.context_provider import CorrelatedContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, CorrelatedContextProvider
 
         correlation = uuid4()
 
@@ -970,8 +994,9 @@ class TestRecentContextProvider:
 
     async def test_recent_provider_limits_to_n_artifacts(self):
         """RecentContextProvider must return only N most recent artifacts."""
-        from flock.context_provider import RecentContextProvider, ContextRequest
         from datetime import datetime, timedelta
+
+        from flock.context_provider import ContextRequest, RecentContextProvider
 
         correlation = uuid4()
         base_time = datetime.now()
@@ -1012,7 +1037,7 @@ class TestRecentContextProvider:
 
     async def test_recent_provider_enforces_visibility(self):
         """SECURITY: RecentContextProvider MUST enforce visibility."""
-        from flock.context_provider import RecentContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, RecentContextProvider
 
         correlation = uuid4()
 
@@ -1070,8 +1095,9 @@ class TestTimeWindowContextProvider:
 
     async def test_time_window_provider_filters_by_time(self):
         """TimeWindowContextProvider must return only artifacts within time window."""
-        from flock.context_provider import TimeWindowContextProvider, ContextRequest
         from datetime import datetime, timedelta
+
+        from flock.context_provider import ContextRequest, TimeWindowContextProvider
 
         correlation = uuid4()
         now = datetime.now()
@@ -1117,8 +1143,9 @@ class TestTimeWindowContextProvider:
 
     async def test_time_window_provider_enforces_visibility(self):
         """SECURITY: TimeWindowContextProvider MUST enforce visibility."""
-        from flock.context_provider import TimeWindowContextProvider, ContextRequest
         from datetime import datetime, timedelta
+
+        from flock.context_provider import ContextRequest, TimeWindowContextProvider
 
         correlation = uuid4()
         now = datetime.now()
@@ -1176,7 +1203,7 @@ class TestEmptyContextProvider:
 
     async def test_empty_provider_returns_empty_list(self):
         """EmptyContextProvider must always return empty list."""
-        from flock.context_provider import EmptyContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, EmptyContextProvider
 
         correlation = uuid4()
 
@@ -1215,7 +1242,7 @@ class TestEmptyContextProvider:
 
         Since no artifacts are returned, visibility is irrelevant (N/A).
         """
-        from flock.context_provider import EmptyContextProvider, ContextRequest
+        from flock.context_provider import ContextRequest, EmptyContextProvider
 
         correlation = uuid4()
 

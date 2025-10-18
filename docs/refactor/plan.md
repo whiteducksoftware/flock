@@ -7,6 +7,8 @@
 
 ---
 
+---
+
 ## 🚨 CRITICAL: NO BACKWARDS COMPATIBILITY! 🚨
 
 **This framework is NOT YET RELEASED - we're building it RIGHT!**
@@ -38,10 +40,10 @@ This implementation plan breaks the Flock refactoring into **7 self-contained ph
 ## Phase Timeline
 
 ```
-Phase 0: Preparation                  [Prep]    ⏱️  2-4 hours   ✅ COMPLETE
-Phase 1: Foundation & Utilities       [Week 1]  ⏱️  8-12 hours  ✅ COMPLETE
-Phase 2: Component Organization       [Week 2]  ⏱️  10-15 hours ✅ COMPLETE
-Phase 3: Orchestrator Modularization  [Week 3]  ⏱️  12-16 hours ✅ COMPLETE (~6 hours actual!)
+Phase 0: Preparation
+Phase 1: Foundation & Utilities       [Week 1]  ⏱️  8-12 hours
+Phase 2: Component Organization       [Week 2]  ⏱️  10-15 hours
+Phase 3: Orchestrator Modularization  [Week 3]  ⏱️  12-16 hours
 Phase 4: Agent Modularization         [Week 4]  ⏱️  10-14 hours
 Phase 5: Engine Refactoring           [Week 5]  ⏱️  8-12 hours
 Phase 6: Storage & Context            [Week 6]  ⏱️  6-10 hours
@@ -50,71 +52,12 @@ Phase 7: Dashboard & Polish           [Week 7]  ⏱️  6-10 hours
 
 ---
 
-## Phase 0: Preparation (Before Starting) ✅
+## Phase 0: Preparation
 
-**Status:** COMPLETE (2025-10-17) - Executed retroactively after Phase 1
 **Objective:** Establish baseline and safety nets
 
-### 🎯 Proof of Work
-
-**Important Notes:**
-- ⚠️ Metrics captured **AFTER Phase 1 completion** (not before)
-- ⚠️ Frontend folder **excluded** from all analysis (`src/flock/frontend/*`)
-- This provides baseline for measuring Phase 2+ improvements
-
-**Test Results:**
-- ✅ **1,178 tests passing** (49 skipped, 31 warnings)
-- ✅ **Test coverage:** 76.51%
-- ✅ **Test runtime:** 42.78s
-- ✅ Baseline captured in `baseline_tests.txt` (144KB full output)
-
-**Code Quality Metrics:**
-- ✅ **Lint issues:** 35 errors (8 auto-fixable)
-  - 7 PERF401 (manual-list-comprehension)
-  - 4 DTZ005 (datetime without tzinfo)
-  - 3 I001 (unsorted-imports)
-  - 3 PLR0911 (too-many-return-statements)
-- ✅ Baseline captured in `baseline_lint.txt`
-
-**Complexity Analysis (Cyclomatic Complexity):**
-- ⚠️ **8 C-rated methods** identified (high complexity):
-  - `agent.py::AgentBuilder.with_mcps`
-  - `agent.py::Agent._make_outputs_for_group`
-  - `agent.py::Agent._get_mcp_tools`
-  - `orchestrator.py::Flock.run_until_idle`
-  - `orchestrator.py::Flock._schedule_artifact`
-  - `orchestrator.py::Flock.publish`
-  - `orchestrator.py::Flock.add_mcp`
-  - `orchestrator.py::Flock._run_agent_task`
-- ✅ Multiple B-rated methods documented
-- ✅ Baseline captured in `baseline_complexity.txt`
-
-**Maintainability Index:**
-- 🔴 **Critical:** `store.py` - C (4.81) - Very poor maintainability
-- 🟡 **Borderline:** `agent.py` - B (16.98)
-- 🟡 **Borderline:** `orchestrator.py` - B (17.00)
-- 🟡 **Lower A:** `context_provider.py` - A (31.35)
-- ✅ Most files A-rated (>30)
-- ✅ New utilities: A (100.00)
-- ✅ Baseline captured in `baseline_maintainability.txt`
-
-**File Size Analysis:**
-- 🔴 **5 files >1,000 LOC** requiring modularization:
-  - `agent.py` - 1,578 lines
-  - `orchestrator.py` - 1,746 lines
-  - `dspy_engine.py` - 1,797 lines
-  - `store.py` - 1,233 lines
-  - `dashboard/service.py` - 1,411 lines
-
-**Development Dependencies:**
-- ✅ Added `radon` as dev dependency for complexity analysis
-- ✅ Tool: `uv add --dev radon`
-
-**Branch Strategy:**
-- ✅ Created `feat/refactor` branch
-- ✅ Branch pushed to remote
-
----
+This is is a uv based project. add needed libraries for complexity measurement and so on with "uv add --dev"
+the frontend in "src/flock/frontend" is to be excluded
 
 ### Tasks
 
@@ -180,63 +123,20 @@ Phase 7: Dashboard & Polish           [Week 7]  ⏱️  6-10 hours
 
 ### Success Criteria
 
-- ✅ Baseline test results documented (1,178 tests, 76.51% coverage)
-- ⚠️ Performance benchmarks (deferred - not critical for refactor)
-- ✅ Branch strategy established (feat/refactor created and pushed)
-- ✅ Code quality baseline captured (lint, complexity, maintainability)
-- ✅ Problem areas identified (store.py C-rated, 5 files >1000 LOC)
-- ✅ REFACTOR_PROGRESS.md tracking document created
+- ✅ Baseline test results documented
+- ✅ Performance benchmarks captured
+- ✅ Branch strategy established
+- ✅ Team aligned on approach
 
-**Actual Duration:** ~3 hours (retroactive after Phase 1)
+**Duration:** 2-4 hours
 
 ---
 
-## Phase 1: Foundation & Utilities ✅
+## Phase 1: Foundation & Utilities
 
-**Status:** COMPLETE (2025-10-17)
 **Objective:** Create foundation for refactoring - extract utilities, eliminate duplication
+
 **Why First?** This phase has minimal risk and creates reusable utilities needed by later phases.
-
-### 🎯 Proof of Work
-
-**Test Results:**
-- ✅ **1,178 tests passing** (49 skipped, 31 warnings)
-- ✅ **Zero regressions** - All existing tests continue to pass
-- ✅ **34 new utility tests** - 100% passing
-- ✅ **Test runtime:** 34.21s
-
-**Deliverables:**
-- ✅ 4 utility modules created with comprehensive tests
-- ✅ Code duplication reduced (8+ type resolution patterns → 1)
-- ✅ Lock acquisition patterns consolidated (15+ patterns → 1 decorator)
-- ✅ Refactored 2 core files (agent.py, store.py)
-
-**Files Created:**
-- `src/flock/utils/__init__.py` - Package initialization
-- `src/flock/utils/type_resolution.py` - TypeResolutionHelper (eliminates 8+ duplicate patterns)
-- `src/flock/utils/async_utils.py` - AsyncLockRequired decorator (eliminates 15+ duplicate patterns)
-- `src/flock/utils/validation.py` - ArtifactValidator utility
-- `src/flock/utils/visibility.py` - VisibilityDeserializer utility
-- `tests/utils/test_type_resolution.py` - 4 tests
-- `tests/utils/test_async_utils.py` - 6 tests
-- `tests/utils/test_validation.py` - 10 tests
-- `tests/utils/test_visibility.py` - 14 tests
-
-**Files Modified:**
-- `src/flock/agent.py` (lines 19, 589-593, 808-812, 829-833)
-  - Added TypeResolutionHelper import
-  - Replaced 3 duplicate try/except patterns with safe_resolve()
-- `src/flock/store.py` (lines 28, 474-476)
-  - Added TypeResolutionHelper import
-  - Replaced 1 duplicate try/except pattern with safe_resolve()
-
-**Metrics:**
-- Code duplication reduced by ~30 patterns across codebase
-- Zero performance regression
-- Test coverage maintained
-- All success criteria met
-
----
 
 ### 1.1 Create Core Module Structure
 
@@ -695,9 +595,7 @@ __all__ = [
 ]
 ```
 
-### 2.4 Update Import Paths & Delete Old Files
-
-**Update main `__init__.py` with clean imports:**
+### 2.4 Update Import Paths
 
 ```python
 # src/flock/__init__.py
@@ -713,7 +611,7 @@ from flock.builder import AgentBuilder
 # Component imports
 from flock.components import AgentComponent, OrchestratorComponent
 
-# Component library shortcuts
+# Component library
 from flock.components.orchestrator import (
     CircuitBreakerComponent,
     DeduplicationComponent
@@ -733,15 +631,11 @@ __all__ = [
 ]
 ```
 
-**DELETE old files completely:**
+**Remove old import locations:**
 
-```bash
-# Remove the old file - NO BACKWARDS COMPATIBILITY!
-git rm src/flock/orchestrator_component.py
-
-# Update all imports throughout codebase
-# Find all: from flock.orchestrator_component import
-# Replace: from flock.components.orchestrator import
+```python
+# Delete: src/flock/orchestrator_component.py
+# Users must update to: from flock.components.orchestrator import ...
 ```
 
 ### 2.5 Update Tests
@@ -804,8 +698,6 @@ Located in `flock.components.orchestrator`:
 
 - ✅ Component library structure created
 - ✅ All built-in components moved to library
-- ✅ Old files completely deleted (no legacy code!)
-- ✅ All imports updated throughout codebase
 - ✅ All existing tests pass
 - ✅ New component tests added
 - ✅ Documentation updated
@@ -816,77 +708,16 @@ Located in `flock.components.orchestrator`:
 - New: `src/flock/components/agent/*.py` (3-5 files)
 - New: `src/flock/components/orchestrator/*.py` (3-5 files)
 - Modified: `src/flock/__init__.py`
-- **Deleted:** `src/flock/orchestrator_component.py` ✂️
+- Deprecated: `src/flock/orchestrator_component.py`
 - New: `tests/components/**/*.py` (6-10 test files)
 
 ---
 
-## Phase 3: Orchestrator Modularization ✅
+## Phase 3: Orchestrator Modularization
 
-**Status:** COMPLETE (2025-10-17)
 **Objective:** Break orchestrator.py into focused modules
+
 **Why Third?** Orchestrator is central but well-tested. Modularization here has high impact.
-
-### 🎯 Proof of Work
-
-**Test Results:**
-- ✅ **1,178 tests passing** (49 skipped, 31 warnings)
-- ✅ **Zero regressions** - All existing tests continue to pass
-- ✅ **Test runtime:** 31.18s
-
-**Deliverables:**
-- ✅ 3 modules created (ComponentRunner, MCPManager, __init__)
-- ✅ ComponentRunner: 8 lifecycle hook methods extracted (~400 lines)
-- ✅ MCPManager: MCP configuration & management (~200 lines)
-- ✅ Orchestrator simplified with delegation patterns
-- ✅ Skipped ArtifactManager (publish methods stay as public API)
-
-**Files Created:**
-- `src/flock/_orchestrator/__init__.py` - Module exports
-- `src/flock/_orchestrator/component_runner.py` - Component lifecycle hooks (8 methods)
-- `src/flock/_orchestrator/mcp_manager.py` - MCP configuration management
-
-**Files Modified:**
-- `src/flock/orchestrator.py` (1,746 → 1,473 lines = **273 lines removed!**)
-  - Added imports for ComponentRunner & MCPManager
-  - Instantiated managers in `__init__`
-  - Replaced all component hook logic with delegation
-  - Replaced MCP methods with delegation
-  - Added backward compatibility methods for tests
-
-**Metrics:**
-- **File Size:** 1,746 → 1,473 lines (**16% reduction**)
-- **Maintainability Index:** B (17.00) → **A (25.36)** ✅ **TARGET EXCEEDED!**
-- **Complexity Improvements:**
-  - `Flock.add_mcp()`: C → **A (1)** ✅ (fully delegated to MCPManager)
-  - All `_run_*()` component hooks: Now thin delegation wrappers
-- **Files >1000 LOC:** 5 → **4** ✅
-- **Lines Extracted:** ~600 lines moved to modular components
-
-**Key Decisions:**
-- ✅ Used `_orchestrator` (private) to avoid import conflicts with `orchestrator.py`
-- ✅ Skipped Scheduler extraction (tightly coupled to orchestrator state)
-- ✅ Skipped ArtifactManager extraction (publish methods are public API)
-- ✅ Added delegation methods for backward compatibility with tests
-
-**Actual Duration:** ~6 hours (**50% faster than estimated 12-16 hours!**)
-
----
-
-### Original Plan vs Actual Results
-
-**Originally Planned:**
-1. ComponentRunner (~265 lines) - ✅ Created (~400 lines)
-2. MCPManager (~130 lines) - ✅ Created (~200 lines)
-3. Scheduler (~600 lines) - ⏭️ **Skipped** (too tightly coupled)
-4. ArtifactManager (~150 lines) - ⏭️ **Skipped** (public API)
-
-**Actual Approach:**
-- Focused on highest-value extractions (ComponentRunner, MCPManager)
-- Achieved maintainability target with fewer extractions
-- Pragmatic decision to skip tightly-coupled scheduler code
-
----
 
 ### 3.1 Extract Component Runner
 
@@ -2436,7 +2267,8 @@ task = asyncio.create_task(background_operation())
 - `docs/architecture.md` - High-level architecture overview
 - `docs/contributing.md` - Contribution guidelines
 - `docs/patterns/` - Common patterns and anti-patterns
-- `README.md` - Update with new structure and imports
+- `docs/migration.md` - Migration guide for API changes
+- `README.md` - Update with new import paths
 
 ### Success Criteria
 
@@ -2444,6 +2276,7 @@ task = asyncio.create_task(background_operation())
 - ✅ All dead code removed
 - ✅ Pattern documentation complete
 - ✅ All documentation updated
+- ✅ Migration guide complete
 - ✅ All existing tests pass
 - ✅ Final code quality checks pass (ruff, mypy)
 
@@ -2605,6 +2438,7 @@ radon mi src/ -n B
 
 - [ ] All modules documented
 - [ ] Architecture docs accurate
+- [ ] Migration guide complete
 - [ ] Examples updated
 - [ ] README.md reflects new structure
 

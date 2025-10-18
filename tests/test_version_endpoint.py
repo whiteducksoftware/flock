@@ -5,8 +5,8 @@ from importlib.metadata import version as get_version
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from flock.core import Flock
 from flock.dashboard.service import DashboardHTTPService
-from flock.orchestrator import Flock
 
 
 @pytest.mark.asyncio
@@ -18,7 +18,9 @@ async def test_version_endpoint():
     app = service.get_app()
 
     # Create test client
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
         # Request version endpoint
         response = await client.get("/api/version")
 
@@ -49,7 +51,9 @@ async def test_version_endpoint_format():
     service = DashboardHTTPService(orchestrator)
     app = service.get_app()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
         response = await client.get("/api/version")
         data = response.json()
 

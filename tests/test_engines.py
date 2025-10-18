@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 
 from flock.artifacts import Artifact
 from flock.components.agent import EngineComponent
+from flock.core import Flock
 from flock.engines.dspy_engine import DSPyEngine
-from flock.orchestrator import Flock
 from flock.registry import flock_type
 from flock.runtime import EvalInputs, EvalResult
 from flock.visibility import PublicVisibility

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
-from flock.orchestrator import Flock
+from flock.core import Flock
 from flock.registry import flock_type, type_registry
 from flock.store import SQLiteBlackboardStore
 

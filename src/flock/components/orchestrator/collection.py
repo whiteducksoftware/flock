@@ -11,9 +11,8 @@ from flock.components.orchestrator.base import (
 
 
 if TYPE_CHECKING:
-    from flock.agent import Agent
     from flock.artifacts import Artifact
-    from flock.orchestrator import Flock
+    from flock.core import Agent, Flock
     from flock.subscription import Subscription
 
 
@@ -38,8 +37,8 @@ class BuiltinCollectionComponent(OrchestratorComponent):
     ) -> CollectionResult | None:
         """Handle AND gates, correlation (JoinSpec), and batching (BatchSpec).
 
-        This maintains backward compatibility with existing collection engines
-        while allowing user components to override collection logic.
+        Provides collection logic via the component system, allowing user
+        components to override if needed.
         """
         from datetime import timedelta
 
@@ -61,16 +60,9 @@ class BuiltinCollectionComponent(OrchestratorComponent):
                 subscription_index=subscription_index,
             )
 
-            # Start correlation cleanup task if time-based window
-            if (
-                isinstance(subscription.join.within, timedelta)
-                and orchestrator._correlation_cleanup_task is None
-            ):
-                import asyncio
-
-                orchestrator._correlation_cleanup_task = asyncio.create_task(
-                    orchestrator._correlation_cleanup_loop()
-                )
+            # Phase 5A: Start correlation cleanup task if time-based window (delegate to LifecycleManager)
+            if isinstance(subscription.join.within, timedelta):
+                await orchestrator._lifecycle_manager.start_correlation_cleanup()
 
             if completed_group is None:
                 # Still waiting for correlation to complete
@@ -104,15 +96,9 @@ class BuiltinCollectionComponent(OrchestratorComponent):
                     subscription_index=subscription_index,
                 )
 
-                if (
-                    subscription.batch.timeout
-                    and orchestrator._batch_timeout_task is None
-                ):
-                    import asyncio
-
-                    orchestrator._batch_timeout_task = asyncio.create_task(
-                        orchestrator._batch_timeout_checker_loop()
-                    )
+                # Phase 5A: Start batch timeout checker if batch has timeout (delegate to LifecycleManager)
+                if subscription.batch.timeout:
+                    await orchestrator._lifecycle_manager.start_batch_timeout_checker()
             else:
                 # Single type: Add each artifact individually
                 should_flush = False
@@ -123,15 +109,9 @@ class BuiltinCollectionComponent(OrchestratorComponent):
                         subscription_index=subscription_index,
                     )
 
-                    if (
-                        subscription.batch.timeout
-                        and orchestrator._batch_timeout_task is None
-                    ):
-                        import asyncio
-
-                        orchestrator._batch_timeout_task = asyncio.create_task(
-                            orchestrator._batch_timeout_checker_loop()
-                        )
+                    # Phase 5A: Start batch timeout checker if batch has timeout (delegate to LifecycleManager)
+                    if subscription.batch.timeout:
+                        await orchestrator._lifecycle_manager.start_batch_timeout_checker()
 
                     if should_flush:
                         break

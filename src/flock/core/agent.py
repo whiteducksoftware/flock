@@ -10,18 +10,21 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 from pydantic import BaseModel
 
-from flock._agent.component_lifecycle import ComponentLifecycle
-from flock._agent.mcp_integration import MCPIntegration
+# Phase 5B: Import builder modules
+from flock.agent.builder_helpers import Pipeline, PublishBuilder, RunHandle
+from flock.agent.builder_validator import BuilderValidator
+from flock.agent.component_lifecycle import ComponentLifecycle
+from flock.agent.mcp_integration import MCPIntegration
 
 # Phase 4: Import extracted modules
-from flock._agent.output_processor import OutputProcessor
+from flock.agent.output_processor import OutputProcessor
 from flock.artifacts import Artifact, ArtifactSpec
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
 from flock.registry import function_registry, type_registry
 from flock.runtime import Context, EvalInputs, EvalResult
 from flock.subscription import BatchSpec, JoinSpec, Subscription, TextPredicate
-from flock.visibility import AgentIdentity, Visibility, ensure_visibility, only_for
+from flock.visibility import AgentIdentity, Visibility, ensure_visibility
 
 
 logger = get_logger(__name__)
@@ -30,7 +33,7 @@ if TYPE_CHECKING:  # pragma: no cover - type hints only
     from collections.abc import Callable, Iterable, Sequence
 
     from flock.components.agent import AgentComponent, EngineComponent
-    from flock.orchestrator import Flock
+    from flock.core import Flock
 
 
 class MCPServerConfig(TypedDict, total=False):
@@ -169,10 +172,10 @@ class Agent(metaclass=AutoTracedMeta):
 
     @property
     def outputs(self) -> list[AgentOutput]:
-        """Backwards compatibility: return flat list of all outputs from all groups."""
+        """Return flat list of all outputs from all groups."""
         return [output for group in self.output_groups for output in group.outputs]
 
-    # Phase 4: MCP properties - delegate to MCPIntegration for backward compatibility
+    # Phase 4: MCP properties - delegate to MCPIntegration
     @property
     def mcp_server_names(self) -> set[str]:
         """MCP server names assigned to this agent."""
@@ -190,15 +193,6 @@ class Agent(metaclass=AutoTracedMeta):
     @mcp_server_mounts.setter
     def mcp_server_mounts(self, value: dict[str, list[str]]) -> None:
         self._mcp_integration.mcp_server_mounts = value
-
-    @property
-    def mcp_mount_points(self) -> list[str]:
-        """Deprecated: Use mcp_server_mounts instead."""
-        return self._mcp_integration.mcp_mount_points
-
-    @mcp_mount_points.setter
-    def mcp_mount_points(self, value: list[str]) -> None:
-        self._mcp_integration.mcp_mount_points = value
 
     @property
     def tool_whitelist(self) -> list[str] | None:
@@ -309,11 +303,11 @@ class Agent(metaclass=AutoTracedMeta):
                 await self._run_terminate(ctx)
 
     async def _get_mcp_tools(self, ctx: Context) -> list[Callable]:
-        """Delegate to MCPIntegration (backward compatibility)."""
+        """Delegate to MCPIntegration module."""
         return await self._mcp_integration.get_mcp_tools(ctx)
 
     async def _run_initialize(self, ctx: Context) -> None:
-        """Delegate to ComponentLifecycle (backward compatibility)."""
+        """Delegate to ComponentLifecycle module."""
         await self._component_lifecycle.run_initialize(
             self, ctx, self._sorted_utilities(), self.engines
         )
@@ -321,13 +315,13 @@ class Agent(metaclass=AutoTracedMeta):
     async def _run_pre_consume(
         self, ctx: Context, inputs: list[Artifact]
     ) -> list[Artifact]:
-        """Delegate to ComponentLifecycle (backward compatibility)."""
+        """Delegate to ComponentLifecycle module."""
         return await self._component_lifecycle.run_pre_consume(
             self, ctx, inputs, self._sorted_utilities()
         )
 
     async def _run_pre_evaluate(self, ctx: Context, inputs: EvalInputs) -> EvalInputs:
-        """Delegate to ComponentLifecycle (backward compatibility)."""
+        """Delegate to ComponentLifecycle module."""
         return await self._component_lifecycle.run_pre_evaluate(
             self, ctx, inputs, self._sorted_utilities()
         )
@@ -405,13 +399,13 @@ class Agent(metaclass=AutoTracedMeta):
     async def _run_post_evaluate(
         self, ctx: Context, inputs: EvalInputs, result: EvalResult
     ) -> EvalResult:
-        """Delegate to ComponentLifecycle (backward compatibility)."""
+        """Delegate to ComponentLifecycle module."""
         return await self._component_lifecycle.run_post_evaluate(
             self, ctx, inputs, result, self._sorted_utilities()
         )
 
     async def _make_outputs(self, ctx: Context, result: EvalResult) -> list[Artifact]:
-        """Delegate to OutputProcessor (backward compatibility)."""
+        """Delegate to OutputProcessor module."""
         return await self._output_processor.make_outputs(
             ctx, result, self.output_groups
         )
@@ -419,7 +413,7 @@ class Agent(metaclass=AutoTracedMeta):
     def _prepare_group_context(
         self, ctx: Context, group_idx: int, output_group: OutputGroup
     ) -> Context:
-        """Delegate to OutputProcessor (backward compatibility)."""
+        """Delegate to OutputProcessor module."""
         return self._output_processor.prepare_group_context(
             ctx, group_idx, output_group
         )
@@ -427,7 +421,7 @@ class Agent(metaclass=AutoTracedMeta):
     async def _make_outputs_for_group(
         self, ctx: Context, result: EvalResult, output_group: OutputGroup
     ) -> list[Artifact]:
-        """Delegate to OutputProcessor (backward compatibility)."""
+        """Delegate to OutputProcessor module."""
         return await self._output_processor.make_outputs_for_group(
             ctx, result, output_group
         )
@@ -435,7 +429,7 @@ class Agent(metaclass=AutoTracedMeta):
     async def _run_post_publish(
         self, ctx: Context, artifacts: Sequence[Artifact]
     ) -> None:
-        """Delegate to ComponentLifecycle (backward compatibility)."""
+        """Delegate to ComponentLifecycle module."""
         await self._component_lifecycle.run_post_publish(
             self, ctx, artifacts, self._sorted_utilities()
         )
@@ -454,13 +448,13 @@ class Agent(metaclass=AutoTracedMeta):
             await maybe_coro
 
     async def _run_error(self, ctx: Context, error: Exception) -> None:
-        """Delegate to ComponentLifecycle (backward compatibility)."""
+        """Delegate to ComponentLifecycle module."""
         await self._component_lifecycle.run_error(
             self, ctx, error, self._sorted_utilities(), self.engines
         )
 
     async def _run_terminate(self, ctx: Context) -> None:
-        """Delegate to ComponentLifecycle (backward compatibility)."""
+        """Delegate to ComponentLifecycle module."""
         await self._component_lifecycle.run_terminate(
             self, ctx, self._sorted_utilities(), self.engines
         )
@@ -498,13 +492,13 @@ class Agent(metaclass=AutoTracedMeta):
     def _find_matching_artifact(
         self, output_decl: AgentOutput, result: EvalResult
     ) -> Artifact | None:
-        """Delegate to OutputProcessor (backward compatibility)."""
+        """Delegate to OutputProcessor module."""
         return self._output_processor.find_matching_artifact(output_decl, result)
 
     def _select_payload(
         self, output_decl: AgentOutput, result: EvalResult
     ) -> dict[str, Any] | None:
-        """Delegate to OutputProcessor (backward compatibility)."""
+        """Delegate to OutputProcessor module."""
         return self._output_processor.select_payload(output_decl, result)
 
 
@@ -610,8 +604,9 @@ class AgentBuilder:
         else:
             predicates = list(where)
 
-        join_spec = self._normalize_join(join)
-        batch_spec = self._normalize_batch(batch)
+        # Phase 5B: Use BuilderValidator for normalization
+        join_spec = BuilderValidator.normalize_join(join)
+        batch_spec = BuilderValidator.normalize_batch(batch)
         text_predicates = [TextPredicate(text=text, min_p=min_p)] if text else []
         subscription = Subscription(
             agent_name=self._agent.name,
@@ -725,8 +720,8 @@ class AgentBuilder:
         # Append to agent's output_groups
         self._agent.output_groups.append(group)
 
-        # Validate configuration
-        self._validate_self_trigger_risk()
+        # Phase 5B: Use BuilderValidator for validation
+        BuilderValidator.validate_self_trigger_risk(self._agent)
 
         return PublishBuilder(self, outputs)
 
@@ -801,14 +796,14 @@ class AgentBuilder:
     def best_of(self, n: int, score: Callable[[EvalResult], float]) -> AgentBuilder:
         self._agent.best_of_n = max(1, n)
         self._agent.best_of_score = score
-        # T074: Validate best_of value
-        self._validate_best_of(n)
+        # Phase 5B: Use BuilderValidator for validation
+        BuilderValidator.validate_best_of(self._agent.name, n)
         return self
 
     def max_concurrency(self, n: int) -> AgentBuilder:
         self._agent.set_max_concurrency(n)
-        # T074: Validate concurrency value
-        self._validate_concurrency(n)
+        # Phase 5B: Use BuilderValidator for validation
+        BuilderValidator.validate_concurrency(self._agent.name, n)
         return self
 
     def calls(self, func: Callable[..., Any]) -> AgentBuilder:
@@ -855,11 +850,7 @@ class AgentBuilder:
 
     def with_mcps(
         self,
-        servers: (
-            Iterable[str]
-            | dict[str, MCPServerConfig | list[str]]  # Support both new and old format
-            | list[str | dict[str, MCPServerConfig | list[str]]]
-        ),
+        servers: (Iterable[str] | dict[str, MCPServerConfig]),
     ) -> AgentBuilder:
         """Assign MCP servers to this agent with optional server-specific mount points.
 
@@ -869,8 +860,7 @@ class AgentBuilder:
         Args:
             servers: One of:
                 - List of server names (strings) - no specific mounts
-                - Dict mapping server names to MCPServerConfig or list[str] (backward compatible)
-                - Mixed list of strings and dicts for flexibility
+                - Dict mapping server names to MCPServerConfig
 
         Returns:
             self for method chaining
@@ -882,7 +872,7 @@ class AgentBuilder:
             >>> # Simple: no mount restrictions
             >>> agent.with_mcps(["filesystem", "github"])
 
-            >>> # New format: Server-specific config with roots and tool whitelist
+            >>> # Server-specific config with roots and tool whitelist
             >>> agent.with_mcps({
             ...     "filesystem": {
             ...         "roots": ["/workspace/dir/data"],
@@ -890,49 +880,10 @@ class AgentBuilder:
             ...     },
             ...     "github": {},  # No restrictions for github
             ... })
-
-            >>> # Old format: Direct list (backward compatible)
-            >>> agent.with_mcps({
-            ...     "filesystem": ["/workspace/dir/data"],  # Old format still works
-            ... })
-
-            >>> # Mixed: backward compatible
-            >>> agent.with_mcps([
-            ...     "github",  # No mounts
-            ...     {"filesystem": {"roots": ["mount1", "mount2"]}},
-            ... ])
         """
         # Delegate to MCPIntegration module
         registered_servers = set(self._orchestrator._mcp_configs.keys())
         self._agent._mcp_integration.configure_servers(servers, registered_servers)
-        return self
-
-    def mount(self, paths: str | list[str], *, validate: bool = False) -> AgentBuilder:
-        """Mount agent in specific directories for MCP root access.
-
-        .. deprecated:: 0.2.0
-            Use `.with_mcps({"server_name": ["/path"]})` instead for server-specific mounts.
-            This method applies mounts globally to all MCP servers.
-
-        This sets the filesystem roots that MCP servers will operate under for this agent.
-        Paths are cumulative across multiple calls.
-
-        Args:
-            paths: Single path or list of paths to mount
-            validate: If True, validate that paths exist (default: False)
-
-        Returns:
-            AgentBuilder for method chaining
-
-        Example:
-            >>> # Old way (deprecated)
-            >>> agent.with_mcps(["filesystem"]).mount("/workspace/src")
-            >>>
-            >>> # New way (recommended)
-            >>> agent.with_mcps({"filesystem": ["/workspace/src"]})
-        """
-        # Delegate to MCPIntegration module
-        self._agent._mcp_integration.mount(paths, validate=validate)
         return self
 
     def labels(self, *labels: str) -> AgentBuilder:
@@ -978,94 +929,7 @@ class AgentBuilder:
     def then(self, other: AgentBuilder) -> Pipeline:
         return Pipeline([self, other])
 
-    # Validation -----------------------------------------------------------
-
-    def _validate_self_trigger_risk(self) -> None:
-        """T074: Warn if agent consumes and publishes same type (feedback loop risk)."""
-        from flock.logging.logging import get_logger
-
-        logger = get_logger(__name__)
-
-        # Get types agent consumes
-        consuming_types = set()
-        for sub in self._agent.subscriptions:
-            consuming_types.update(sub.type_names)
-
-        # Get types agent publishes
-        publishing_types = {
-            output.spec.type_name
-            for group in self._agent.output_groups
-            for output in group.outputs
-        }
-
-        # Check for overlap
-        overlap = consuming_types.intersection(publishing_types)
-        if overlap and self._agent.prevent_self_trigger:
-            logger.warning(
-                f"Agent '{self._agent.name}' consumes and publishes {overlap}. "
-                f"Feedback loop risk detected. Agent has prevent_self_trigger=True (safe), "
-                f"but consider adding filtering: .consumes(Type, where=lambda x: ...) "
-                f"or use .prevent_self_trigger(False) for intentional feedback."
-            )
-
-    def _validate_best_of(self, n: int) -> None:
-        """T074: Warn if best_of value is excessively high."""
-        from flock.logging.logging import get_logger
-
-        logger = get_logger(__name__)
-
-        if n > 100:
-            logger.warning(
-                f"Agent '{self._agent.name}' has best_of({n}) which is very high. "
-                f"Typical values are 3-10. High values increase cost and latency. "
-                f"Consider reducing unless you have specific requirements."
-            )
-
-    def _validate_concurrency(self, n: int) -> None:
-        """T074: Warn if max_concurrency is excessively high."""
-        from flock.logging.logging import get_logger
-
-        logger = get_logger(__name__)
-
-        if n > 1000:
-            logger.warning(
-                f"Agent '{self._agent.name}' has max_concurrency({n}) which is very high. "
-                f"Typical values are 1-50. Excessive concurrency may cause resource issues. "
-                f"Consider reducing unless you have specific infrastructure."
-            )
-
-    # Utility --------------------------------------------------------------
-
-    def _normalize_join(self, value: dict | JoinSpec | None) -> JoinSpec | None:
-        if value is None or isinstance(value, JoinSpec):
-            return value
-        # Phase 2: New JoinSpec API with 'by' and 'within' (time OR count)
-        from datetime import timedelta
-
-        within_value = value.get("within")
-        if isinstance(within_value, (int, float)):
-            # Count window or seconds as float - keep as is
-            within = (
-                int(within_value)
-                if isinstance(within_value, int)
-                else timedelta(seconds=within_value)
-            )
-        else:
-            # Default to 1 minute time window
-            within = timedelta(minutes=1)
-        return JoinSpec(
-            by=value["by"],  # Required
-            within=within,
-        )
-
-    def _normalize_batch(self, value: dict | BatchSpec | None) -> BatchSpec | None:
-        if value is None or isinstance(value, BatchSpec):
-            return value
-        return BatchSpec(
-            size=int(value.get("size", 1)),
-            within=float(value.get("within", 0.0)),
-            by=value.get("by"),
-        )
+    # Phase 5B: Validation and normalization moved to BuilderValidator module
 
     # Properties -----------------------------------------------------------
 
@@ -1078,63 +942,7 @@ class AgentBuilder:
         return self._agent
 
 
-class PublishBuilder:
-    """Helper returned by `.publishes(...)` to support `.only_for` sugar."""
-
-    def __init__(self, parent: AgentBuilder, outputs: Sequence[AgentOutput]) -> None:
-        self._parent = parent
-        self._outputs = list(outputs)
-
-    def only_for(self, *agent_names: str) -> AgentBuilder:
-        visibility = only_for(*agent_names)
-        for output in self._outputs:
-            output.default_visibility = visibility
-        return self._parent
-
-    def visibility(self, value: Visibility) -> AgentBuilder:
-        for output in self._outputs:
-            output.default_visibility = value
-        return self._parent
-
-    def __getattr__(self, item):
-        return getattr(self._parent, item)
-
-
-class RunHandle:
-    """Represents a chained run starting from a given agent."""
-
-    def __init__(self, agent: Agent, inputs: list[BaseModel]) -> None:
-        self.agent = agent
-        self.inputs = inputs
-        self._chain: list[Agent] = [agent]
-
-    def then(self, builder: AgentBuilder) -> RunHandle:
-        self._chain.append(builder.agent)
-        return self
-
-    async def execute(self) -> list[Artifact]:
-        orchestrator = self.agent._orchestrator
-        artifacts = await orchestrator.direct_invoke(self.agent, self.inputs)
-        for agent in self._chain[1:]:
-            artifacts = await orchestrator.direct_invoke(agent, artifacts)
-        return artifacts
-
-
-class Pipeline:
-    def __init__(self, builders: Sequence[AgentBuilder]) -> None:
-        self.builders = list(builders)
-
-    def then(self, builder: AgentBuilder) -> Pipeline:
-        self.builders.append(builder)
-        return self
-
-    async def execute(self) -> list[Artifact]:
-        orchestrator = self.builders[0].agent._orchestrator
-        artifacts: list[Artifact] = []
-        for builder in self.builders:
-            inputs = artifacts if artifacts else []
-            artifacts = await orchestrator.direct_invoke(builder.agent, inputs)
-        return artifacts
+# Phase 5B: Helper classes moved to builder_helpers module
 
 
 __all__ = [

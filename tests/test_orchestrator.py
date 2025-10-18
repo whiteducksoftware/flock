@@ -61,7 +61,7 @@ async def test_visibility_only_for_blocks_eavesdropper():
 
 from pydantic import BaseModel, Field
 
-from flock.orchestrator import Flock
+from flock.core import Flock
 from flock.registry import flock_type
 from flock.visibility import PrivateVisibility, PublicVisibility
 
@@ -367,7 +367,7 @@ async def test_board_handle_get_artifact():
     artifact_id = artifact.id
 
     # Act - Use BoardHandle
-    from flock.orchestrator import BoardHandle
+    from flock.core import BoardHandle
 
     handle = BoardHandle(orchestrator)
     result = await handle.get(artifact_id)
@@ -389,7 +389,7 @@ async def test_board_handle_list_all_artifacts():
     await orchestrator.publish({"type": "OrchestratorIdea", "topic": "idea2"})
 
     # Act
-    from flock.orchestrator import BoardHandle
+    from flock.core import BoardHandle
 
     handle = BoardHandle(orchestrator)
     result = await handle.list()
@@ -407,7 +407,7 @@ async def test_board_handle_get_nonexistent_returns_none():
     from uuid import uuid4
 
     # Act
-    from flock.orchestrator import BoardHandle
+    from flock.core import BoardHandle
 
     handle = BoardHandle(orchestrator)
     result = await handle.get(uuid4())

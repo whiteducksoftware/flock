@@ -17,8 +17,8 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from flock.agent import Agent
     from flock.artifacts import Artifact
+    from flock.core import Agent
     from flock.subscription import Subscription
 
 

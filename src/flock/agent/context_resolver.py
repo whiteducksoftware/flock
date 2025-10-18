@@ -17,8 +17,8 @@ from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
-    from flock.agent import Agent
     from flock.artifacts import Artifact
+    from flock.core import Agent
     from flock.runtime import Context
     from flock.subscription import Subscription
 
@@ -129,10 +129,12 @@ class ContextResolver:
         from flock.runtime import Context
 
         return Context(
-            correlation_id="",  # Will be filled by orchestrator
-            partition_key=None,
+            correlation_id=None,  # Will be filled by orchestrator
+            task_id="",  # Will be filled by orchestrator
             state={},
             is_batch=False,
+            artifacts=[],
+            agent_identity=None,
         )
 
 

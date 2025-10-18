@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -16,8 +16,8 @@ if str(ROOT) not in sys.path:
 # Import framework classes
 from flock.agent import AgentIdentity
 from flock.artifacts import Artifact
+from flock.core import Flock
 from flock.dashboard.collector import DashboardEventCollector
-from flock.orchestrator import Flock
 from flock.store import InMemoryBlackboardStore
 from flock.visibility import PublicVisibility
 
@@ -49,7 +49,9 @@ def sample_artifact():
 @pytest.fixture
 def sample_agent_identity():
     """Sample agent identity for testing."""
-    return AgentIdentity(name="test_agent", labels={"test_label"}, tenant_id="test_tenant")
+    return AgentIdentity(
+        name="test_agent", labels={"test_label"}, tenant_id="test_tenant"
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -74,7 +76,7 @@ def mock_llm(mocker):
 @pytest.fixture
 def fixed_time(mocker):
     """Fix current time for deterministic tests."""
-    fixed = datetime(2025, 9, 30, 12, 0, 0, tzinfo=timezone.utc)
+    fixed = datetime(2025, 9, 30, 12, 0, 0, tzinfo=UTC)
     mock_dt = mocker.patch("flock.visibility.datetime")
     mock_dt.now.return_value = fixed
     return fixed

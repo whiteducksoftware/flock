@@ -30,7 +30,7 @@ TESTING APPROACH:
 """
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
@@ -90,7 +90,7 @@ def mock_artifact():
         produced_by="test_agent",
         visibility=PublicVisibility(),
         correlation_id=uuid4(),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -574,7 +574,7 @@ async def test_get_agents_with_joinspec_returns_logic_operations():
     """Test GET /api/agents includes logic_operations for agents with JoinSpec."""
     from datetime import timedelta
 
-    from flock.orchestrator import Flock
+    from flock.core import Flock
     from flock.subscription import JoinSpec
 
     # Create fresh orchestrator
@@ -658,7 +658,7 @@ async def test_get_agents_with_batchspec_returns_logic_operations():
     """Test GET /api/agents includes logic_operations for agents with BatchSpec."""
     from datetime import timedelta
 
-    from flock.orchestrator import Flock
+    from flock.core import Flock
     from flock.subscription import BatchSpec
 
     # Create fresh orchestrator
@@ -723,8 +723,8 @@ async def test_get_agents_with_waiting_correlation_groups():
     from datetime import datetime, timedelta
 
     from flock.artifacts import Artifact
+    from flock.core import Flock
     from flock.correlation_engine import CorrelationGroup
-    from flock.orchestrator import Flock
     from flock.subscription import JoinSpec
     from flock.visibility import PublicVisibility
 
@@ -762,7 +762,7 @@ async def test_get_agents_with_waiting_correlation_groups():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
 
     # Add one artifact (XRay) to make it incomplete
     xray = Artifact(
@@ -822,7 +822,7 @@ async def test_get_agents_with_batch_accumulating():
 
     from flock.artifacts import Artifact
     from flock.batch_accumulator import BatchAccumulator
-    from flock.orchestrator import Flock
+    from flock.core import Flock
     from flock.subscription import BatchSpec
     from flock.visibility import PublicVisibility
 
@@ -846,7 +846,7 @@ async def test_get_agents_with_batch_accumulating():
     batch_key = (agent.agent.name, 0)
     accumulator = BatchAccumulator(
         batch_spec=BatchSpec(size=25),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
     # Add some artifacts (10 out of 25)
@@ -903,7 +903,7 @@ async def test_get_agents_with_both_joinspec_and_batchspec():
     """Test GET /api/agents with agent using both JoinSpec and BatchSpec."""
     from datetime import timedelta
 
-    from flock.orchestrator import Flock
+    from flock.core import Flock
     from flock.subscription import BatchSpec, JoinSpec
 
     # Create fresh orchestrator
@@ -968,7 +968,7 @@ async def test_get_agents_with_both_joinspec_and_batchspec():
 @pytest.mark.asyncio
 async def test_get_agents_without_logic_operations():
     """Test GET /api/agents for agents without JoinSpec or BatchSpec."""
-    from flock.orchestrator import Flock
+    from flock.core import Flock
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -1011,7 +1011,7 @@ async def test_get_agents_multiple_subscriptions_with_logic_ops():
     """Test GET /api/agents with agent having multiple subscriptions with different logic ops."""
     from datetime import timedelta
 
-    from flock.orchestrator import Flock
+    from flock.core import Flock
     from flock.subscription import BatchSpec, JoinSpec
 
     # Create fresh orchestrator
@@ -1145,7 +1145,10 @@ async def test_publish_artifact_success(async_client, mock_artifact, mocker):
     # Get the app and inject mocks
     response = await async_client.post(
         "/api/control/publish",
-        json={"artifact_type": "TestArtifact", "content": {"message": "test", "priority": 3}},
+        json={
+            "artifact_type": "TestArtifact",
+            "content": {"message": "test", "priority": 3},
+        },
     )
 
     # Assert
@@ -1203,7 +1206,14 @@ async def test_publish_artifact_validation_error(async_client, mocker):
     mock_model_class = Mock()
     mock_model_class.side_effect = ValidationError.from_exception_data(
         "TestArtifact",
-        [{"type": "missing", "loc": ("required_field",), "msg": "Field required", "input": {}}],
+        [
+            {
+                "type": "missing",
+                "loc": ("required_field",),
+                "msg": "Field required",
+                "input": {},
+            }
+        ],
     )
     mock_type_registry.resolve.return_value = mock_model_class
 
@@ -1244,7 +1254,10 @@ async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/api/control/publish",
-            json={"artifact_type": "TestArtifact", "content": {"message": "test", "priority": 3}},
+            json={
+                "artifact_type": "TestArtifact",
+                "content": {"message": "test", "priority": 3},
+            },
         )
 
         assert response.status_code == 500
@@ -1290,7 +1303,8 @@ async def test_invoke_agent_success(async_client, mock_artifact, mocker):
 async def test_invoke_agent_missing_agent_name(async_client):
     """Test POST /api/control/invoke with missing agent_name returns 400."""
     response = await async_client.post(
-        "/api/control/invoke", json={"input": {"type": "TestArtifact", "message": "test"}}
+        "/api/control/invoke",
+        json={"input": {"type": "TestArtifact", "message": "test"}},
     )
 
     assert response.status_code == 400
@@ -1300,7 +1314,9 @@ async def test_invoke_agent_missing_agent_name(async_client):
 @pytest.mark.asyncio
 async def test_invoke_agent_missing_input(async_client):
     """Test POST /api/control/invoke with missing input returns 400."""
-    response = await async_client.post("/api/control/invoke", json={"agent_name": "test_agent"})
+    response = await async_client.post(
+        "/api/control/invoke", json={"agent_name": "test_agent"}
+    )
 
     assert response.status_code == 400
     assert "input is required" in response.json()["detail"]
@@ -1361,7 +1377,10 @@ async def test_invoke_agent_unknown_input_type(async_client, mocker):
 
     response = await async_client.post(
         "/api/control/invoke",
-        json={"agent_name": "test_agent", "input": {"type": "UnknownType", "message": "test"}},
+        json={
+            "agent_name": "test_agent",
+            "input": {"type": "UnknownType", "message": "test"},
+        },
     )
 
     assert response.status_code == 422
@@ -1443,7 +1462,10 @@ async def test_invoke_agent_no_outputs(orchestrator, mocker):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/api/control/invoke",
-            json={"agent_name": "test_agent", "input": {"type": "TestArtifact", "message": "test"}},
+            json={
+                "agent_name": "test_agent",
+                "input": {"type": "TestArtifact", "message": "test"},
+            },
         )
 
         assert response.status_code == 200
@@ -1486,7 +1508,10 @@ async def test_invoke_agent_orchestrator_error(orchestrator, mocker):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/api/control/invoke",
-            json={"agent_name": "test_agent", "input": {"type": "TestArtifact", "message": "test"}},
+            json={
+                "agent_name": "test_agent",
+                "input": {"type": "TestArtifact", "message": "test"},
+            },
         )
 
         assert response.status_code == 500
@@ -1526,7 +1551,7 @@ async def test_get_streaming_history_success(async_client, mocker):
     mock_events = [
         StreamingOutputEvent(
             correlation_id=str(uuid4()),
-            timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             agent_name="test_agent",
             run_id=str(uuid4()),
             output_type="llm_token",
@@ -1536,7 +1561,7 @@ async def test_get_streaming_history_success(async_client, mocker):
         ),
         StreamingOutputEvent(
             correlation_id=str(uuid4()),
-            timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             agent_name="test_agent",
             run_id=str(uuid4()),
             output_type="llm_token",
@@ -1606,7 +1631,9 @@ async def test_get_streaming_history_error(async_client, mocker):
     """Test GET /api/streaming-history/{agent_name} handles errors returns 500."""
     # Mock websocket manager to raise exception
     mock_websocket_manager = Mock()
-    mock_websocket_manager.get_streaming_history.side_effect = Exception("Database error")
+    mock_websocket_manager.get_streaming_history.side_effect = Exception(
+        "Database error"
+    )
 
     # Get service and inject mock
     from flock.dashboard.service import DashboardHTTPService
@@ -1747,7 +1774,11 @@ async def test_all_api_endpoints_respond(async_client):
         ("POST", "/api/control/pause"),
         ("POST", "/api/control/resume"),
         ("POST", "/api/control/publish", {"artifact_type": "Test", "content": {}}),
-        ("POST", "/api/control/invoke", {"agent_name": "test", "input": {"type": "Test"}}),
+        (
+            "POST",
+            "/api/control/invoke",
+            {"agent_name": "test", "input": {"type": "Test"}},
+        ),
     ]
 
     for method, path, *body in endpoints:
@@ -1781,7 +1812,7 @@ async def test_correlation_id_generation_and_timestamp_formatting(
     mock_type_registry.resolve.return_value = mock_model_class
 
     # Mock orchestrator.publish with fixed timestamp
-    fixed_time = datetime(2025, 1, 15, 10, 30, 45, tzinfo=timezone.utc)
+    fixed_time = datetime(2025, 1, 15, 10, 30, 45, tzinfo=UTC)
     mock_artifact.created_at = fixed_time
     mock_artifact.correlation_id = uuid4()
 
@@ -1794,7 +1825,10 @@ async def test_correlation_id_generation_and_timestamp_formatting(
 
     response = await async_client.post(
         "/api/control/publish",
-        json={"artifact_type": "TestArtifact", "content": {"message": "test", "priority": 3}},
+        json={
+            "artifact_type": "TestArtifact",
+            "content": {"message": "test", "priority": 3},
+        },
     )
 
     assert response.status_code == 200
@@ -1839,8 +1873,14 @@ async def test_json_serialization_and_content_type_headers(async_client):
 
     # Test POST endpoints
     post_endpoints = [
-        ("/api/control/publish", {"artifact_type": "Test", "content": {"test": "data"}}),
-        ("/api/control/invoke", {"agent_name": "test", "input": {"type": "Test", "test": "data"}}),
+        (
+            "/api/control/publish",
+            {"artifact_type": "Test", "content": {"test": "data"}},
+        ),
+        (
+            "/api/control/invoke",
+            {"agent_name": "test", "input": {"type": "Test", "test": "data"}},
+        ),
         ("/api/control/pause", {}),
         ("/api/control/resume", {}),
     ]
