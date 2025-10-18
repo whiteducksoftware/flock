@@ -218,6 +218,33 @@ class AgentHistorySummary(BaseModel):
 
 
 # ============================================================================
+# Correlation Status Models
+# ============================================================================
+
+
+class CorrelationStatusResponse(BaseModel):
+    """Response for GET /api/v1/correlations/{correlation_id}/status."""
+
+    correlation_id: str = Field(description="The correlation ID")
+    state: Literal["active", "completed", "failed", "not_found"] = Field(
+        description="Workflow state: active (work pending), completed (success), failed (only errors), not_found (no artifacts)"
+    )
+    has_pending_work: bool = Field(
+        description="Whether the orchestrator has pending work for this correlation"
+    )
+    artifact_count: int = Field(
+        description="Total number of artifacts with this correlation_id"
+    )
+    error_count: int = Field(description="Number of WorkflowError artifacts")
+    started_at: str | None = Field(
+        None, description="Timestamp of first artifact (ISO 8601)"
+    )
+    last_activity_at: str | None = Field(
+        None, description="Timestamp of most recent artifact (ISO 8601)"
+    )
+
+
+# ============================================================================
 # Health & Metrics Models
 # ============================================================================
 
@@ -251,6 +278,8 @@ __all__ = [
     "ArtifactTypeSchema",
     # History
     "AgentHistorySummary",
+    # Correlation status
+    "CorrelationStatusResponse",
     # Health
     "HealthResponse",
 ]

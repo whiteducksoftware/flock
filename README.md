@@ -254,63 +254,6 @@ asyncio.run(main())
 
 ---
 
-## Context Provider Primer (Security + Cost)
-
-Context Providers are the security and efficiency layer between agents and the blackboard. They decide what each agent sees in its historical context and always enforce visibility rules.
-
-Why use them
-- Enforce access control (visibility is applied before engines see data)
-- Cut context size (often 90%+) by filtering to what matters
-- Specialize per agent or set a global default
-
-Copy/paste examples
-```python
-from flock import Flock
-from flock.context_provider import FilteredContextProvider
-from flock.store import FilterConfig
-
-# Global: show only urgent items (limit context size)
-flock = Flock(
-    "openai/gpt-4.1",
-    context_provider=FilteredContextProvider(FilterConfig(tags={"urgent"}), limit=50)
-)
-
-# Per-agent: override global for a specific role
-senior = flock.agent("senior").consumes(LogEntry).publishes(Analysis)
-senior.context_provider = FilteredContextProvider(
-    FilterConfig(tags={"ERROR", "WARN"}),
-    limit=200
-)
-```
-
-Learn more: docs/guides/context-providers.md
-
----
-
-## Persistent Blackboard History
-
-The in-memory store is still great for local tinkering, but production teams now have a durable option. Plugging in `SQLiteBlackboardStore` turns the blackboard into a persistent event log with first-class ergonomics:
-
-- **Long-lived artifacts** — every field (payload, tags, partition keys, visibility) is stored for replay, audits, and postmortems
-- **Historical APIs** — `/api/v1/artifacts`, `/summary`, and `/agents/{agent_id}/history-summary` expose pagination, filtering, and consumption counts
-- **Dashboard module** — the new **Historical Blackboard** experience preloads persisted history, enriches the graph with consumer metadata, and highlights retention windows
-- **Operational tooling** — CLI helpers (`init-sqlite-store`, `sqlite-maintenance --delete-before ... --vacuum`) make schema setup and retention policies scriptable
-
-Quick start:
-
-```python
-from flock import Flock
-from flock.store import SQLiteBlackboardStore
-
-store = SQLiteBlackboardStore(".flock/blackboard.db")
-await store.ensure_schema()
-flock = Flock("openai/gpt-4.1", store=store)
-```
-
-Run `examples/02-the-blackboard/01_persistent_pizza.py` to generate history, then launch `examples/03-the-dashboard/04_persistent_pizza_dashboard.py` and explore previous runs, consumption trails, and retention banners inside the dashboard.
-
----
-
 ## Core Concepts
 
 ### Typed Artifacts (The Vocabulary)
@@ -640,6 +583,28 @@ agent.context_provider = FilteredContextProvider(
 
 **📖 [Learn more: Context Providers Guide](https://whiteducksoftware.github.io/flock/guides/context-providers/) | [Steal production code →](examples/08-context-provider/)**
 
+### Persistent Blackboard History
+
+The in-memory store is great for local development, but production teams need durability. The `SQLiteBlackboardStore` turns the blackboard into a persistent event log with first-class ergonomics:
+
+**What you get:**
+- **Long-lived artifacts** — Every field (payload, tags, partition keys, visibility) stored for replay, audits, and postmortems
+- **Historical APIs** — `/api/v1/artifacts`, `/summary`, and `/agents/{agent_id}/history-summary` expose pagination, filtering, and consumption counts
+- **Dashboard integration** — The **Historical Blackboard** view preloads persisted history, enriches the graph with consumer metadata, and highlights retention windows
+- **Operational tooling** — CLI helpers (`init-sqlite-store`, `sqlite-maintenance --delete-before ... --vacuum`) make schema setup and retention policies scriptable
+
+**Quick start:**
+```python
+from flock import Flock
+from flock.store import SQLiteBlackboardStore
+
+store = SQLiteBlackboardStore(".flock/blackboard.db")
+await store.ensure_schema()
+flock = Flock("openai/gpt-4.1", store=store)
+```
+
+**Try it:** Run `examples/02-the-blackboard/01_persistent_pizza.py` to generate history, then launch `examples/03-the-dashboard/04_persistent_pizza_dashboard.py` to explore previous runs, consumption trails, and retention banners.
+
 ### Batching Pattern: Parallel Execution Control
 
 **A key differentiator:** The separation of `publish()` and `run_until_idle()` enables parallel execution.
@@ -766,6 +731,35 @@ agent.best_of(150, ...)  # ⚠️ Warns: "best_of(150) is very high - high LLM c
 ---
 
 ## Production-Ready Observability
+
+### Sophisticated REST API
+
+**Production-ready HTTP endpoints with comprehensive OpenAPI documentation:**
+
+Flock includes a fully-featured REST API for programmatic access to the blackboard, agents, and workflow orchestration. Perfect for integration with external systems, building custom UIs, or monitoring production deployments.
+
+**Key endpoints:**
+- `POST /api/v1/artifacts` - Publish artifacts to the blackboard
+- `GET /api/v1/artifacts` - Query artifacts with filtering, pagination, and consumption metadata
+- `POST /api/v1/agents/{name}/run` - Direct agent invocation
+- `GET /api/v1/correlations/{correlation_id}/status` - Workflow completion tracking
+- `GET /api/v1/agents` - List all registered agents with subscriptions
+- `GET /health` and `GET /metrics` - Production monitoring
+
+**Start the API server:**
+```python
+await flock.serve(dashboard=True)  # API + Dashboard on port 8344
+# API docs: http://localhost:8344/docs
+```
+
+**Features:**
+- ✅ **OpenAPI 3.0** - Interactive documentation at `/docs`
+- ✅ **Pydantic validation** - Type-safe request/response models
+- ✅ **Correlation tracking** - Monitor workflow completion with polling
+- ✅ **Consumption metadata** - Full artifact lineage and agent execution trails
+- ✅ **Production monitoring** - Health checks and Prometheus-compatible metrics
+
+**📖 [Explore the API →](http://localhost:8344/docs)** (start the server first!)
 
 ### Real-Time Dashboard
 

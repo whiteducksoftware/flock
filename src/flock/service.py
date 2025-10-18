@@ -20,6 +20,7 @@ from flock.api_models import (
     ArtifactPublishRequest,
     ArtifactPublishResponse,
     ArtifactSummaryResponse,
+    CorrelationStatusResponse,
     HealthResponse,
     ProducedArtifact,
 )
@@ -34,7 +35,21 @@ if TYPE_CHECKING:
 class BlackboardHTTPService:
     def __init__(self, orchestrator: Flock) -> None:
         self.orchestrator = orchestrator
-        self.app = FastAPI(title="Blackboard Agents Service", version="1.0.0")
+        self.app = FastAPI(
+            title="Flock REST API Documentation",
+            version="1.0.0",
+            description="RESTful API for interacting with Flock agents and artifacts",
+            openapi_tags=[
+                {
+                    "name": "Public API",
+                    "description": "**Production-ready endpoints** for publishing artifacts, running agents, and querying data. Use these in your applications.",
+                },
+                {
+                    "name": "Health & Metrics",
+                    "description": "Monitoring endpoints for health checks and metrics collection.",
+                },
+            ],
+        )
         self._register_routes()
 
     def _register_routes(self) -> None:
@@ -105,19 +120,15 @@ class BlackboardHTTPService:
                 end=_parse_datetime(end, "to"),
             )
 
-        @app.post("/api/v1/artifacts", response_model=ArtifactPublishResponse)
-        async def publish_artifact(body: dict[str, Any]) -> ArtifactPublishResponse:
-            type_name = body.get("type")
-            payload = body.get("payload") or {}
-            if not type_name:
-                raise HTTPException(status_code=400, detail="type is required")
+        @app.post("/api/v1/artifacts", response_model=ArtifactPublishResponse, tags=["Public API"])
+        async def publish_artifact(body: ArtifactPublishRequest) -> ArtifactPublishResponse:
             try:
-                await orchestrator.publish({"type": type_name, **payload})
+                await orchestrator.publish({"type": body.type, **body.payload})
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             return ArtifactPublishResponse(status="accepted")
 
-        @app.get("/api/v1/artifacts", response_model=ArtifactListResponse)
+        @app.get("/api/v1/artifacts", response_model=ArtifactListResponse, tags=["Public API"])
         async def list_artifacts(
             type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
@@ -158,7 +169,7 @@ class BlackboardHTTPService:
                 pagination={"limit": limit, "offset": offset, "total": total},
             )
 
-        @app.get("/api/v1/artifacts/summary", response_model=ArtifactSummaryResponse)
+        @app.get("/api/v1/artifacts/summary", response_model=ArtifactSummaryResponse, tags=["Public API"])
         async def summarize_artifacts(
             type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
@@ -180,31 +191,24 @@ class BlackboardHTTPService:
             summary = await orchestrator.store.summarize_artifacts(filters)
             return ArtifactSummaryResponse(summary=summary)
 
-        @app.get("/api/v1/artifacts/{artifact_id}")
+        @app.get("/api/v1/artifacts/{artifact_id}", tags=["Public API"])
         async def get_artifact(artifact_id: UUID) -> dict[str, Any]:
             artifact = await orchestrator.store.get(artifact_id)
             if artifact is None:
                 raise HTTPException(status_code=404, detail="artifact not found")
             return _serialize_artifact(artifact)
 
-        @app.post("/api/v1/agents/{name}/run", response_model=AgentRunResponse)
-        async def run_agent(name: str, body: dict[str, Any]) -> AgentRunResponse:
+        @app.post("/api/v1/agents/{name}/run", response_model=AgentRunResponse, tags=["Public API"])
+        async def run_agent(name: str, body: AgentRunRequest) -> AgentRunResponse:
             try:
                 agent = orchestrator.get_agent(name)
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail="agent not found") from exc
 
-            inputs_data: list[dict[str, Any]] = body.get("inputs") or []
             inputs = []
-            for item in inputs_data:
-                type_name = item.get("type")
-                payload = item.get("payload") or {}
-                if not type_name:
-                    raise HTTPException(
-                        status_code=400, detail="Each input requires 'type'."
-                    )
-                model = type_registry.resolve(type_name)
-                instance = model(**payload)
+            for item in body.inputs:
+                model = type_registry.resolve(item.type)
+                instance = model(**item.payload)
                 inputs.append(instance)
 
             try:
@@ -226,13 +230,13 @@ class BlackboardHTTPService:
                 ]
             )
 
-        @app.get("/api/v1/agents", response_model=AgentListResponse)
+        @app.get("/api/v1/agents", response_model=AgentListResponse, tags=["Public API"])
         async def list_agents() -> AgentListResponse:
             return AgentListResponse(
                 agents=[
                     Agent(
                         name=agent.name,
-                        description=agent.description,
+                        description=agent.description or "",
                         subscriptions=[
                             AgentSubscription(
                                 types=list(subscription.type_names),
@@ -247,7 +251,7 @@ class BlackboardHTTPService:
                 ]
             )
 
-        @app.get("/api/v1/agents/{agent_id}/history-summary")
+        @app.get("/api/v1/agents/{agent_id}/history-summary", tags=["Public API"])
         async def agent_history(
             agent_id: str,
             type_names: list[str] | None = Query(None, alias="type"),
@@ -270,11 +274,32 @@ class BlackboardHTTPService:
             summary = await orchestrator.store.agent_history_summary(agent_id, filters)
             return {"agent_id": agent_id, "summary": summary}
 
-        @app.get("/health", response_model=HealthResponse)
+        @app.get(
+            "/api/v1/correlations/{correlation_id}/status",
+            response_model=CorrelationStatusResponse,
+            tags=["Public API"],
+        )
+        async def get_correlation_status(
+            correlation_id: str,
+        ) -> CorrelationStatusResponse:
+            """Get the status of a workflow by correlation ID.
+
+            Returns workflow state (active/completed/failed/not_found), pending work status,
+            artifact counts, error counts, and timestamps.
+
+            This endpoint is useful for polling to check if a workflow has completed.
+            """
+            try:
+                status = await orchestrator.get_correlation_status(correlation_id)
+                return CorrelationStatusResponse(**status)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        @app.get("/health", response_model=HealthResponse, tags=["Health & Metrics"])
         async def health() -> HealthResponse:  # pragma: no cover - trivial
             return HealthResponse(status="ok")
 
-        @app.get("/metrics")
+        @app.get("/metrics", tags=["Health & Metrics"])
         async def metrics() -> PlainTextResponse:
             lines = [
                 f"blackboard_{key} {value}"
