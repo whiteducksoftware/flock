@@ -21,7 +21,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from flock.orchestrator import Flock
+from flock import Flock
 from flock.registry import flock_type
 from flock.store import SQLiteBlackboardStore
 

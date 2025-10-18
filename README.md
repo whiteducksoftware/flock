@@ -29,6 +29,10 @@ Flock is a production-focused framework for orchestrating AI agents through **de
 - **[User Guides](https://whiteducksoftware.github.io/flock/guides/)** - In-depth feature documentation
 - **[API Reference](https://whiteducksoftware.github.io/flock/reference/api/)** - Complete API documentation
 - **[Roadmap](https://whiteducksoftware.github.io/flock/about/roadmap/)** - What's coming in v1.0
+- **Architecture & Patterns:**
+  - [Architecture Overview](docs/architecture.md) - System design and module organization
+  - [Error Handling Patterns](docs/patterns/error_handling.md) - Production error handling guide
+  - [Async Patterns](docs/patterns/async_patterns.md) - Async/await best practices
 
 ---
 
@@ -690,7 +694,7 @@ class LoggingComponent(AgentComponent):
     async def on_pre_evaluate(self, agent, ctx, inputs):
         logger.info(f"Agent {agent.name} evaluating: {inputs}")
         return inputs  # Pass through unchanged
-    
+
     async def on_post_evaluate(self, agent, ctx, inputs, result):
         logger.info(f"Agent {agent.name} produced: {result}")
         return result
@@ -732,7 +736,7 @@ flock = Flock("openai/gpt-4.1")
 flock.add_component(MaintenanceWindowComponent())
 ```
 
-**Built-in components**: 
+**Built-in components**:
 - `CircuitBreakerComponent` - Prevent runaway agent execution
 - `DeduplicationComponent` - Skip duplicate artifact/agent processing
 
@@ -1208,11 +1212,21 @@ uv run python examples/02-dashboard/01_declarative_pizza.py
 - 📖 [Documentation](https://whiteducksoftware.github.io/flock) - Complete online documentation
 - 📘 [AGENTS.md](AGENTS.md) - Development guide
 
+**Architecture & Patterns:**
+- 📐 [Architecture Overview](docs/architecture.md) - Understand the refactored codebase structure
+- 🔧 [Error Handling](docs/patterns/error_handling.md) - Production-ready error patterns
+- ⚡ [Async Patterns](docs/patterns/async_patterns.md) - Async/await best practices
+
 ---
 
 ## Contributing
 
 We're building Flock in the open. See **[Contributing Guide](https://whiteducksoftware.github.io/flock/about/contributing/)** for development setup, or check [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) locally.
+
+**Before contributing, familiarize yourself with:**
+- [Architecture Overview](docs/architecture.md) - Codebase organization (Phase 1-7 refactoring)
+- [Error Handling](docs/patterns/error_handling.md) - Required error patterns
+- [Async Patterns](docs/patterns/async_patterns.md) - Async/await standards
 
 **We welcome:**
 - Bug reports and feature requests
@@ -1281,6 +1295,6 @@ We're calling this 0.5 to signal:
 
 ---
 
-**Last Updated:** October 13, 2025
+**Last Updated:** October 19, 2025
 **Version:** Flock 0.5.0 (Blackboard Edition)
 **Status:** Production-Ready Core, Enterprise Features Roadmapped

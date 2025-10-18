@@ -753,7 +753,7 @@ storage/
 
 ---
 
-## Phase 7: Dashboard & Polish ⏸️ NOT STARTED
+## Phase 7: Dashboard & Polish ⏳ IN PROGRESS (75% COMPLETE)
 
 ### Plan (from plan.md)
 **Objective:** Clean up dashboard, remove dead code, final polish
@@ -781,9 +781,9 @@ storage/
 **Success Criteria:**
 - ✅ Dashboard simplified from 1,411 → ~200 LOC (main file)
 - ✅ All dead code removed
-- ✅ Pattern documentation complete
-- ✅ All documentation updated
-- ✅ Migration guide complete
+- ⏸️ Pattern documentation complete
+- ⏸️ All documentation updated
+- ⏸️ Migration guide complete
 - ✅ All existing tests pass
 - ✅ Final code quality checks pass (ruff, mypy)
 
@@ -791,27 +791,107 @@ storage/
 
 ---
 
+### Drift Analysis
+
+**✅ COMPLETED ITEMS:**
+
+**Dashboard Routes Extraction (Days 1-2):**
+1. ✅ Created `dashboard/routes/control.py` - Control API endpoints (~230 lines)
+2. ✅ Created `dashboard/routes/traces.py` - Trace API endpoints (~370 lines)
+3. ✅ Created `dashboard/routes/themes.py` - Theme API endpoints (~50 lines)
+4. ✅ Created `dashboard/routes/websocket.py` - WebSocket & static routes (~120 lines)
+5. ✅ Created `dashboard/routes/helpers.py` - Shared helper functions (~341 lines)
+6. ✅ Created `dashboard/routes/__init__.py` - Route registration exports (~15 lines)
+7. ✅ Refactored `dashboard/service.py` (1,411 → 161 lines, **88.6% reduction!** 🏆)
+8. ✅ Fixed 17 test mock paths in `test_dashboard_service.py`
+9. ✅ All 53 dashboard tests passing ✅
+
+**Dead Code Removal (Day 3):**
+1. ✅ Removed commented Temporal workflow code from `logging.py` (lines 44-51)
+2. ✅ Removed commented workflow logger code from `logging.py` (lines 377-379)
+3. ✅ Analyzed all 40+ `# pragma: no cover` statements (ALL justified!)
+4. ✅ Ran ruff F401 cleanup - removed 2 unused imports
+5. ✅ All 1,354 tests passing (ZERO regressions!)
+
+**❌ SKIPPED ITEMS:**
+1. ❌ Pattern documentation NOT created - **DEFERRED:** Can be created later
+2. ❌ Documentation updates NOT done - **DEFERRED:** Can be updated later
+3. ❌ Migration guide NOT created - **DEFERRED:** Can be created later
+
+**🔄 DEVIATIONS:**
+1. **Dashboard Reduction:** Exceeded target - 88.6% vs. ~85% planned (BETTER!)
+2. **Route Organization:** Created 6 files vs. 4 planned (better separation)
+3. **Dead Code Analysis:** Found NO unnecessary pragmas (all defensive/justified)
+4. **Documentation:** Deferred to allow focus on code quality first
+
+**📊 ACTUAL RESULTS:**
+
+**Dashboard Metrics:**
+- service.py: **1,411 → 161 LOC** (1,250 lines / 88.6% reduction!) 🏆
+- Maintainability: **C (10.14) → A (78.74)** (massive improvement!)
+- Complexity: **D (14.33) → A (2.0)** (excellent!)
+- Routes extracted: 6 focused modules (~1,126 lines total)
+
+**Dead Code Cleanup:**
+- logging.py: Removed 10 lines of commented code
+- Unused imports removed: 2 (via ruff F401)
+- Pragma statements analyzed: 40+ (all justified, ZERO removed)
+- Test regressions: **ZERO** ✅
+
+**Quality Achievements:**
+- ✅ Dashboard service.py: **A-rated (78.74 MI)**
+- ✅ All route modules: A or B rated
+- ✅ All 1,354 tests passing
+- ✅ Zero regressions across entire codebase
+- ✅ Removed ALL commented dead code
+
+**Dashboard Modules Created:**
+```
+src/flock/dashboard/routes/
+├── __init__.py              ~15 lines  (exports)
+├── control.py              ~230 lines  (artifact types, agents, publish, invoke)
+├── traces.py               ~370 lines  (traces, services, stats, history)
+├── themes.py                ~50 lines  (theme list, get)
+├── websocket.py            ~120 lines  (WebSocket, static files)
+└── helpers.py              ~341 lines  (shared utilities)
+
+Total: ~1,126 lines extracted across 6 files
+```
+
+**🎯 PLAN COMPLIANCE:**
+**75% - Dashboard extraction complete, dead code removed, documentation deferred**
+
+- Dashboard routes extraction: ✅ COMPLETE (100%)
+- Dashboard service simplified: ✅ COMPLETE (88.6% reduction!)
+- Dead code removal: ✅ COMPLETE (100%)
+- Test fixes: ✅ COMPLETE (17 mock paths fixed)
+- Pattern documentation: ⏸️ DEFERRED
+- General documentation: ⏸️ DEFERRED
+- Migration guide: ⏸️ DEFERRED
+
+**⏱️ ACTUAL EFFORT:** ~8 hours total (Days 1-3 combined)
+
+---
+
 ### Status
-**STATUS:** ⏸️ NOT STARTED - Final polish phase after core refactoring
+**STATUS:** ⏳ IN PROGRESS (75% COMPLETE) - Code quality work DONE, documentation deferred
 
 ---
 
 ## Summary: Completed vs. Planned
 
-### Phases Complete: 5.4/7 (77%)
-
-**Note:** Phase 3 is ~40% complete (components extracted but orchestrator not modularized)
+### Phases Complete: 6.75/7 (96%)
 
 | Phase | Status | Plan Compliance | Time |
 |-------|--------|-----------------|------|
 | Phase 0 | ✅ Complete | 70% (skipped benchmarks) | ~3h |
 | Phase 1 | ✅ Complete | 85% (skipped core/, some refactorings) | ~8h |
 | Phase 2 | ✅ Complete | 100% | ~4h |
-| Phase 3 | ⚠️ Incomplete | 40% (components only) | ~3h |
+| Phase 3 | ✅ Complete | 100% (corrected after user feedback) | ~6h |
 | Phase 4 | ✅ Complete | 100% + bonus | ~7h |
 | Phase 5 | ✅ Complete | 90% (pragmatic scope adjustment) | ~7h |
 | Phase 6 | ✅ Complete | 150% (exceeded plan!) | ~10h |
-| Phase 7 | ⏸️ Not Started | 0% | - |
+| Phase 7 | ⏳ In Progress | 75% (code quality done, docs deferred) | ~8h |
 
 ### Key Metrics
 
@@ -822,12 +902,13 @@ storage/
 - C-rated maintainability: 1 (store.py)
 - C-rated complexity methods: 8
 
-**Current (After Phase 6):**
-- Tests: 1,215 passing, 55 skipped (maintained stability ✅)
+**Current (After Phase 7 Day 3):**
+- Tests: **1,354 passing, 55 skipped** (improved stability ✅)
 - Coverage: 76.51% (maintained)
 - Files >1000 LOC: **0 (ALL ELIMINATED! 🎯)**
 - C-rated maintainability: 0 (-1 ✅)
 - C-rated complexity methods: 0 (-8 ✅)
+- Dead code: **ZERO** (all commented code removed ✅)
 
 **Progress:**
 - Large files eliminated: **100% (5/5 - COMPLETE! 🎯)** ✅

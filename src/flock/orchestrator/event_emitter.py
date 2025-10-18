@@ -69,7 +69,7 @@ class EventEmitter:
             return
 
         # Import _get_correlation_groups helper from dashboard service
-        from flock.dashboard.service import _get_correlation_groups
+        from flock.dashboard.routes.helpers import _get_correlation_groups
 
         # Get current correlation groups state from engine
         groups = _get_correlation_groups(
@@ -132,7 +132,7 @@ class EventEmitter:
             return
 
         # Import _get_batch_state helper from dashboard service
-        from flock.dashboard.service import _get_batch_state
+        from flock.dashboard.routes.helpers import _get_batch_state
 
         # Get current batch state from engine
         batch_state = _get_batch_state(

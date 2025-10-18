@@ -112,6 +112,7 @@ def pytest_collection_modifyitems(config, items):
     """
     # Tests that must run first (in order) to avoid contamination
     priority_modules = [
+        "test_unified_tracing.py",  # Tracing tests must run first - sensitive to trace state contamination
         "test_utilities.py",
         "test_cli.py",
         "test_engines.py",

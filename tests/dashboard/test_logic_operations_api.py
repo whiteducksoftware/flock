@@ -80,7 +80,7 @@ def test_get_correlation_groups_empty():
 
     Test ensures function handles the empty/initial state correctly.
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     agent_name = "radiologist"
@@ -114,7 +114,7 @@ def test_get_correlation_groups_single_group_partial():
         "is_expired": False
     }
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     # Setup: Create engine with partial correlation group
     engine = CorrelationEngine()
@@ -183,7 +183,7 @@ def test_get_correlation_groups_multiple_patients():
     - patient_456: Both XRayImage and LabResults collected (complete)
     - patient_789: Only LabResults collected, waiting for XRayImage
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     agent_name = "radiologist"
@@ -261,7 +261,7 @@ def test_get_correlation_groups_time_calculations():
 
     Tests time-based window calculations are accurate.
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     agent_name = "radiologist"
@@ -314,7 +314,7 @@ def test_get_correlation_groups_count_window():
 
     Tests count-based window state extraction.
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     engine.global_sequence = 5  # 5 artifacts published globally
@@ -377,7 +377,7 @@ def test_get_batch_state_no_accumulator():
 
     Tests function handles non-existent batch gracefully.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -399,7 +399,7 @@ def test_get_batch_state_size_based():
 
     Tests size-based batch state extraction.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -444,7 +444,7 @@ def test_get_batch_state_timeout_based():
 
     Tests timeout-based batch state extraction.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -494,7 +494,7 @@ def test_get_batch_state_dual_condition():
 
     Tests hybrid batch state extraction.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -551,7 +551,7 @@ def test_get_batch_state_group_count():
     - But _group_count = 3 (counting pairs, not individual artifacts)
     - items_collected should be 3, not 6
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "radiologist"
@@ -607,7 +607,7 @@ def test_get_batch_state_empty_batch_returns_none():
 
     Tests function doesn't return state for empty batches.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -644,7 +644,7 @@ def test_compute_agent_status_ready():
 
     Tests default/idle state.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -666,7 +666,7 @@ def test_compute_agent_status_waiting_correlation():
 
     Tests waiting state for JoinSpec correlation.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -715,7 +715,7 @@ def test_compute_agent_status_waiting_batch():
 
     Tests waiting state for BatchSpec accumulation.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -758,7 +758,7 @@ def test_compute_agent_status_no_joinspec_or_batchspec():
 
     Tests agents without logic operations are always ready.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -780,7 +780,7 @@ def test_compute_agent_status_multiple_subscriptions_mixed():
 
     Tests agents with mixed subscription states.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -832,7 +832,7 @@ def test_compute_agent_status_batch_empty_should_be_ready():
 
     Tests edge case: batch accumulator exists but has no artifacts.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -876,7 +876,7 @@ async def test_integration_correlation_and_batch_together():
 
     This tests the complex case of combined logic operations.
     """
-    from flock.dashboard.service import (
+    from flock.dashboard.routes.helpers import (
         _compute_agent_status,
         _get_batch_state,
         _get_correlation_groups,
@@ -1005,7 +1005,7 @@ def test_get_correlation_groups_handles_missing_pool_key():
     WHEN: _get_correlation_groups() is called
     THEN: Should return empty list (not crash)
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     agent_name = "nonexistent_agent"
@@ -1024,7 +1024,7 @@ def test_get_batch_state_handles_missing_batch_key():
     WHEN: _get_batch_state() is called
     THEN: Should return None (not crash)
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "nonexistent_agent"
@@ -1046,7 +1046,7 @@ def test_compute_agent_status_handles_agent_with_no_subscriptions():
 
     Edge case: Newly created agent before subscriptions are added.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -1073,7 +1073,7 @@ def test_readme_example_correlation_state_extraction():
 
     This is a documentation test that demonstrates typical usage.
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     # Setup: Healthcare diagnostic agent waiting for patient data
     engine = CorrelationEngine()
