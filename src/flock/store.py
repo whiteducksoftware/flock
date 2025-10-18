@@ -187,7 +187,12 @@ class InMemoryBlackboardStore(BlackboardStore):
             defaultdict(list)
         )
         self._agent_snapshots: dict[str, AgentSnapshotRecord] = {}
+
+        # Initialize helper subsystems
+        from flock.storage.in_memory.history_aggregator import HistoryAggregator
+
         self._aggregator = ArtifactAggregator()
+        self._history_aggregator = HistoryAggregator()
 
     async def publish(self, artifact: Artifact) -> None:
         async with self._lock:
@@ -235,39 +240,19 @@ class InMemoryBlackboardStore(BlackboardStore):
         offset: int = 0,
         embed_meta: bool = False,
     ) -> tuple[list[Artifact | ArtifactEnvelope], int]:
+        """Query artifacts using artifact filter helper."""
         async with self._lock:
             artifacts = list(self._by_id.values())
 
+        # Use artifact filter helper for filtering logic
         filters = filters or FilterConfig()
-        canonical: set[str] | None = None
-        if filters.type_names:
-            canonical = {
-                type_registry.resolve_name(name) for name in filters.type_names
-            }
+        from flock.storage.in_memory.artifact_filter import ArtifactFilter
 
-        visibility_filter = filters.visibility or set()
-
-        def _matches(artifact: Artifact) -> bool:
-            if canonical and artifact.type not in canonical:
-                return False
-            if filters.produced_by and artifact.produced_by not in filters.produced_by:
-                return False
-            if filters.correlation_id and (
-                artifact.correlation_id is None
-                or str(artifact.correlation_id) != filters.correlation_id
-            ):
-                return False
-            if filters.tags and not filters.tags.issubset(artifact.tags):
-                return False
-            if visibility_filter and artifact.visibility.kind not in visibility_filter:
-                return False
-            if filters.start and artifact.created_at < filters.start:
-                return False
-            return not (filters.end and artifact.created_at > filters.end)
-
-        filtered = [artifact for artifact in artifacts if _matches(artifact)]
+        artifact_filter = ArtifactFilter(filters)
+        filtered = [a for a in artifacts if artifact_filter.matches(a)]
         filtered.sort(key=lambda a: (a.created_at, a.id))
 
+        # Apply pagination
         total = len(filtered)
         offset = max(offset, 0)
         if limit <= 0:
@@ -314,6 +299,7 @@ class InMemoryBlackboardStore(BlackboardStore):
         agent_id: str,
         filters: FilterConfig | None = None,
     ) -> dict[str, Any]:
+        """Summarize agent history using history aggregator."""
         filters = filters or FilterConfig()
         envelopes, _ = await self.query_artifacts(
             filters=filters,
@@ -322,27 +308,8 @@ class InMemoryBlackboardStore(BlackboardStore):
             embed_meta=True,
         )
 
-        produced_total = 0
-        produced_by_type: dict[str, int] = defaultdict(int)
-        consumed_total = 0
-        consumed_by_type: dict[str, int] = defaultdict(int)
-
-        for envelope in envelopes:
-            if not isinstance(envelope, ArtifactEnvelope):
-                raise TypeError("Expected ArtifactEnvelope instance")
-            artifact = envelope.artifact
-            if artifact.produced_by == agent_id:
-                produced_total += 1
-                produced_by_type[artifact.type] += 1
-            for consumption in envelope.consumptions:
-                if consumption.consumer == agent_id:
-                    consumed_total += 1
-                    consumed_by_type[artifact.type] += 1
-
-        return {
-            "produced": {"total": produced_total, "by_type": dict(produced_by_type)},
-            "consumed": {"total": consumed_total, "by_type": dict(consumed_by_type)},
-        }
+        # Delegate to history aggregator for aggregation logic
+        return self._history_aggregator.aggregate(envelopes, agent_id)
 
     async def upsert_agent_snapshot(self, snapshot: AgentSnapshotRecord) -> None:
         async with self._lock:
@@ -377,8 +344,10 @@ class SQLiteBlackboardStore(BlackboardStore):
         self._schema_ready = False
 
         # Initialize helper subsystems
+        from flock.storage.sqlite.agent_history_queries import AgentHistoryQueries
         from flock.storage.sqlite.consumption_loader import SQLiteConsumptionLoader
         from flock.storage.sqlite.query_builder import SQLiteQueryBuilder
+        from flock.storage.sqlite.query_params_builder import QueryParamsBuilder
         from flock.storage.sqlite.schema_manager import SQLiteSchemaManager
         from flock.storage.sqlite.summary_queries import SQLiteSummaryQueries
 
@@ -386,6 +355,8 @@ class SQLiteBlackboardStore(BlackboardStore):
         self._query_builder = SQLiteQueryBuilder()
         self._consumption_loader = SQLiteConsumptionLoader()
         self._summary_queries = SQLiteSummaryQueries()
+        self._query_params_builder = QueryParamsBuilder()
+        self._agent_history_queries = AgentHistoryQueries()
 
     async def publish(self, artifact: Artifact) -> None:  # type: ignore[override]
         with tracer.start_as_current_span("sqlite_store.publish"):
@@ -618,16 +589,18 @@ class SQLiteBlackboardStore(BlackboardStore):
         offset: int = 0,
         embed_meta: bool = False,
     ) -> tuple[list[Artifact | ArtifactEnvelope], int]:
+        """Query artifacts using query params builder."""
         filters = filters or FilterConfig()
         conn = await self._get_connection()
 
         where_clause, params = self._build_filters(filters)
-        count_query = f"SELECT COUNT(*) AS total FROM artifacts{where_clause}"  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
-        cursor = await conn.execute(count_query, tuple(params))  # nosec B608
+        count_query = f"SELECT COUNT(*) AS total FROM artifacts{where_clause}"  # nosec B608
+        cursor = await conn.execute(count_query, tuple(params))
         total_row = await cursor.fetchone()
         await cursor.close()
         total = total_row["total"] if total_row else 0
 
+        # Build base query
         query = f"""
             SELECT
                 artifact_id,
@@ -644,17 +617,13 @@ class SQLiteBlackboardStore(BlackboardStore):
             FROM artifacts
             {where_clause}
             ORDER BY created_at ASC, rowid ASC
-        """  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
-        query_params: tuple[Any, ...]
-        if limit <= 0:
-            if offset > 0:
-                query += " LIMIT -1 OFFSET ?"
-                query_params = (*params, max(offset, 0))
-            else:
-                query_params = tuple(params)
-        else:
-            query += " LIMIT ? OFFSET ?"
-            query_params = (*params, limit, max(offset, 0))
+        """  # nosec B608
+
+        # Use query params builder for pagination
+        pagination_clause, query_params = (
+            self._query_params_builder.build_pagination_params(params, limit, offset)
+        )
+        query += pagination_clause
 
         cursor = await conn.execute(query, query_params)
         rows = await cursor.fetchall()
@@ -725,59 +694,27 @@ class SQLiteBlackboardStore(BlackboardStore):
         agent_id: str,
         filters: FilterConfig | None = None,
     ) -> dict[str, Any]:
+        """Summarize agent history using agent history queries."""
         filters = filters or FilterConfig()
         conn = await self._get_connection()
 
-        produced_total = 0
-        produced_by_type: dict[str, int] = {}
-
-        if filters.produced_by and agent_id not in filters.produced_by:
-            produced_total = 0
-        else:
-            produced_filter = FilterConfig(
-                type_names=set(filters.type_names) if filters.type_names else None,
-                produced_by={agent_id},
-                correlation_id=filters.correlation_id,
-                tags=set(filters.tags) if filters.tags else None,
-                visibility=set(filters.visibility) if filters.visibility else None,
-                start=filters.start,
-                end=filters.end,
-            )
-            where_clause, params = self._build_filters(produced_filter)
-            produced_query = f"""
-                SELECT canonical_type, COUNT(*) AS count
-                FROM artifacts
-                {where_clause}
-                GROUP BY canonical_type
-            """  # nosec B608 - produced_filter yields parameter placeholders only
-            cursor = await conn.execute(produced_query, tuple(params))
-            rows = await cursor.fetchall()
-            await cursor.close()
-            produced_by_type = {row["canonical_type"]: row["count"] for row in rows}
-            produced_total = sum(produced_by_type.values())
-
-        where_clause, params = self._build_filters(filters, table_alias="a")
-        params_with_consumer = (*params, agent_id)
-        consumption_query = f"""
-            SELECT a.canonical_type AS canonical_type, COUNT(*) AS count
-            FROM artifact_consumptions c
-            JOIN artifacts a ON a.artifact_id = c.artifact_id
-            {where_clause}
-            {"AND" if where_clause else "WHERE"} c.consumer = ?
-            GROUP BY a.canonical_type
-        """  # nosec B608 - where_clause joins parameter placeholders only
-        cursor = await conn.execute(consumption_query, params_with_consumer)
-        consumption_rows = await cursor.fetchall()
-        await cursor.close()
-
-        consumed_by_type = {
-            row["canonical_type"]: row["count"] for row in consumption_rows
-        }
-        consumed_total = sum(consumed_by_type.values())
+        # Use agent history queries helper for both produced and consumed
+        produced_by_type = await self._agent_history_queries.query_produced(
+            conn, agent_id, filters, self._build_filters
+        )
+        consumed_by_type = await self._agent_history_queries.query_consumed(
+            conn, agent_id, filters, self._build_filters
+        )
 
         return {
-            "produced": {"total": produced_total, "by_type": produced_by_type},
-            "consumed": {"total": consumed_total, "by_type": consumed_by_type},
+            "produced": {
+                "total": sum(produced_by_type.values()),
+                "by_type": produced_by_type,
+            },
+            "consumed": {
+                "total": sum(consumed_by_type.values()),
+                "by_type": consumed_by_type,
+            },
         }
 
     async def upsert_agent_snapshot(self, snapshot: AgentSnapshotRecord) -> None:
