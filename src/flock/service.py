@@ -120,15 +120,25 @@ class BlackboardHTTPService:
                 end=_parse_datetime(end, "to"),
             )
 
-        @app.post("/api/v1/artifacts", response_model=ArtifactPublishResponse, tags=["Public API"])
-        async def publish_artifact(body: ArtifactPublishRequest) -> ArtifactPublishResponse:
+        @app.post(
+            "/api/v1/artifacts",
+            response_model=ArtifactPublishResponse,
+            tags=["Public API"],
+        )
+        async def publish_artifact(
+            body: ArtifactPublishRequest,
+        ) -> ArtifactPublishResponse:
             try:
                 await orchestrator.publish({"type": body.type, **body.payload})
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             return ArtifactPublishResponse(status="accepted")
 
-        @app.get("/api/v1/artifacts", response_model=ArtifactListResponse, tags=["Public API"])
+        @app.get(
+            "/api/v1/artifacts",
+            response_model=ArtifactListResponse,
+            tags=["Public API"],
+        )
         async def list_artifacts(
             type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
@@ -169,7 +179,11 @@ class BlackboardHTTPService:
                 pagination={"limit": limit, "offset": offset, "total": total},
             )
 
-        @app.get("/api/v1/artifacts/summary", response_model=ArtifactSummaryResponse, tags=["Public API"])
+        @app.get(
+            "/api/v1/artifacts/summary",
+            response_model=ArtifactSummaryResponse,
+            tags=["Public API"],
+        )
         async def summarize_artifacts(
             type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
@@ -198,7 +212,11 @@ class BlackboardHTTPService:
                 raise HTTPException(status_code=404, detail="artifact not found")
             return _serialize_artifact(artifact)
 
-        @app.post("/api/v1/agents/{name}/run", response_model=AgentRunResponse, tags=["Public API"])
+        @app.post(
+            "/api/v1/agents/{name}/run",
+            response_model=AgentRunResponse,
+            tags=["Public API"],
+        )
         async def run_agent(name: str, body: AgentRunRequest) -> AgentRunResponse:
             try:
                 agent = orchestrator.get_agent(name)
@@ -230,7 +248,9 @@ class BlackboardHTTPService:
                 ]
             )
 
-        @app.get("/api/v1/agents", response_model=AgentListResponse, tags=["Public API"])
+        @app.get(
+            "/api/v1/agents", response_model=AgentListResponse, tags=["Public API"]
+        )
         async def list_agents() -> AgentListResponse:
             return AgentListResponse(
                 agents=[

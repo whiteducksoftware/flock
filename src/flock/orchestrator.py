@@ -265,7 +265,9 @@ class Flock(metaclass=AutoTracedMeta):
         try:
             correlation_uuid = UUID(correlation_id)
         except ValueError as exc:
-            raise ValueError(f"Invalid correlation_id format: {correlation_id}") from exc
+            raise ValueError(
+                f"Invalid correlation_id format: {correlation_id}"
+            ) from exc
 
         # Check if orchestrator has pending work for this correlation
         has_pending_work = False
@@ -288,7 +290,9 @@ class Flock(metaclass=AutoTracedMeta):
         from flock.store import FilterConfig
 
         filters = FilterConfig(correlation_id=correlation_id)
-        artifacts, total = await self.store.query_artifacts(filters, limit=1000, offset=0)
+        artifacts, total = await self.store.query_artifacts(
+            filters, limit=1000, offset=0
+        )
 
         # Count errors
         error_count = sum(

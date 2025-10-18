@@ -34,9 +34,7 @@ class Agent(BaseModel):
     subscriptions: list[AgentSubscription] = Field(
         description="List of subscriptions this agent listens to"
     )
-    outputs: list[str] = Field(
-        description="Artifact types this agent can produce"
-    )
+    outputs: list[str] = Field(description="Artifact types this agent can produce")
 
 
 class AgentListResponse(BaseModel):
@@ -66,7 +64,9 @@ class ArtifactBase(BaseModel):
     produced_by: str = Field(description="Name of agent/source that produced this")
     visibility: dict[str, Any] = Field(description="Visibility configuration")
     visibility_kind: str = Field(description="Visibility kind (Public/Private/etc)")
-    created_at: str = Field(description="Timestamp when artifact was created (ISO 8601)")
+    created_at: str = Field(
+        description="Timestamp when artifact was created (ISO 8601)"
+    )
     correlation_id: str | None = Field(
         None, description="Optional correlation ID for workflow tracking"
     )

@@ -150,7 +150,11 @@ class DashboardHTTPService(BlackboardHTTPService):
 
         if self.graph_assembler is not None:
 
-            @app.post("/api/dashboard/graph", response_model=GraphSnapshot, tags=["Dashboard UI"])
+            @app.post(
+                "/api/dashboard/graph",
+                response_model=GraphSnapshot,
+                tags=["Dashboard UI"],
+            )
             async def get_dashboard_graph(request: GraphRequest) -> GraphSnapshot:
                 """Return server-side assembled dashboard graph snapshot."""
                 return await self.graph_assembler.build_snapshot(request)
@@ -187,7 +191,11 @@ class DashboardHTTPService(BlackboardHTTPService):
         app = self.app
         orchestrator = self.orchestrator
 
-        @app.get("/api/artifact-types", response_model=ArtifactTypesResponse, tags=["Schema Discovery"])
+        @app.get(
+            "/api/artifact-types",
+            response_model=ArtifactTypesResponse,
+            tags=["Schema Discovery"],
+        )
         async def get_artifact_types() -> ArtifactTypesResponse:
             """Get all registered artifact types with their schemas.
 
