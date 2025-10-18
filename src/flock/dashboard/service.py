@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
+from flock.api_models import ArtifactTypeSchema, ArtifactTypesResponse
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.events import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.graph_builder import GraphAssembler
@@ -174,8 +175,8 @@ class DashboardHTTPService(BlackboardHTTPService):
         app = self.app
         orchestrator = self.orchestrator
 
-        @app.get("/api/artifact-types")
-        async def get_artifact_types() -> dict[str, Any]:
+        @app.get("/api/artifact-types", response_model=ArtifactTypesResponse)
+        async def get_artifact_types() -> ArtifactTypesResponse:
             """Get all registered artifact types with their schemas.
 
             Returns:
@@ -196,11 +197,13 @@ class DashboardHTTPService(BlackboardHTTPService):
                     model_class = type_registry.resolve(type_name)
                     # Get Pydantic schema
                     schema = model_class.model_json_schema()
-                    artifact_types.append({"name": type_name, "schema": schema})
+                    artifact_types.append(
+                        ArtifactTypeSchema(name=type_name, schema=schema)
+                    )
                 except Exception as e:
                     logger.warning(f"Could not get schema for {type_name}: {e}")
 
-            return {"artifact_types": artifact_types}
+            return ArtifactTypesResponse(artifact_types=artifact_types)
 
         @app.get("/api/agents")
         async def get_agents() -> dict[str, Any]:

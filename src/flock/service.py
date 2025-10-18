@@ -10,6 +10,19 @@ from uuid import UUID
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
+from flock.api_models import (
+    Agent,
+    AgentListResponse,
+    AgentRunRequest,
+    AgentRunResponse,
+    AgentSubscription,
+    ArtifactListResponse,
+    ArtifactPublishRequest,
+    ArtifactPublishResponse,
+    ArtifactSummaryResponse,
+    HealthResponse,
+    ProducedArtifact,
+)
 from flock.registry import type_registry
 from flock.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 
@@ -92,8 +105,8 @@ class BlackboardHTTPService:
                 end=_parse_datetime(end, "to"),
             )
 
-        @app.post("/api/v1/artifacts")
-        async def publish_artifact(body: dict[str, Any]) -> dict[str, str]:
+        @app.post("/api/v1/artifacts", response_model=ArtifactPublishResponse)
+        async def publish_artifact(body: dict[str, Any]) -> ArtifactPublishResponse:
             type_name = body.get("type")
             payload = body.get("payload") or {}
             if not type_name:
@@ -102,9 +115,9 @@ class BlackboardHTTPService:
                 await orchestrator.publish({"type": type_name, **payload})
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
-            return {"status": "accepted"}
+            return ArtifactPublishResponse(status="accepted")
 
-        @app.get("/api/v1/artifacts")
+        @app.get("/api/v1/artifacts", response_model=ArtifactListResponse)
         async def list_artifacts(
             type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
@@ -116,7 +129,7 @@ class BlackboardHTTPService:
             limit: int = Query(50, ge=1, le=500),
             offset: int = Query(0, ge=0),
             embed_meta: bool = Query(False, alias="embed_meta"),
-        ) -> dict[str, Any]:
+        ) -> ArtifactListResponse:
             filters = _make_filter_config(
                 type_names,
                 produced_by,
@@ -140,12 +153,12 @@ class BlackboardHTTPService:
                     )
                 else:
                     items.append(_serialize_artifact(artifact))
-            return {
-                "items": items,
-                "pagination": {"limit": limit, "offset": offset, "total": total},
-            }
+            return ArtifactListResponse(
+                items=items,
+                pagination={"limit": limit, "offset": offset, "total": total},
+            )
 
-        @app.get("/api/v1/artifacts/summary")
+        @app.get("/api/v1/artifacts/summary", response_model=ArtifactSummaryResponse)
         async def summarize_artifacts(
             type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
@@ -154,7 +167,7 @@ class BlackboardHTTPService:
             start: str | None = Query(None, alias="from"),
             end: str | None = Query(None, alias="to"),
             visibility: list[str] | None = Query(None),
-        ) -> dict[str, Any]:
+        ) -> ArtifactSummaryResponse:
             filters = _make_filter_config(
                 type_names,
                 produced_by,
@@ -165,7 +178,7 @@ class BlackboardHTTPService:
                 end,
             )
             summary = await orchestrator.store.summarize_artifacts(filters)
-            return {"summary": summary}
+            return ArtifactSummaryResponse(summary=summary)
 
         @app.get("/api/v1/artifacts/{artifact_id}")
         async def get_artifact(artifact_id: UUID) -> dict[str, Any]:
@@ -174,8 +187,8 @@ class BlackboardHTTPService:
                 raise HTTPException(status_code=404, detail="artifact not found")
             return _serialize_artifact(artifact)
 
-        @app.post("/api/v1/agents/{name}/run")
-        async def run_agent(name: str, body: dict[str, Any]) -> dict[str, Any]:
+        @app.post("/api/v1/agents/{name}/run", response_model=AgentRunResponse)
+        async def run_agent(name: str, body: dict[str, Any]) -> AgentRunResponse:
             try:
                 agent = orchestrator.get_agent(name)
             except KeyError as exc:
@@ -201,38 +214,38 @@ class BlackboardHTTPService:
                     status_code=500, detail=f"Agent execution failed: {exc}"
                 ) from exc
 
-            return {
-                "artifacts": [
-                    {
-                        "id": str(artifact.id),
-                        "type": artifact.type,
-                        "payload": artifact.payload,
-                        "produced_by": artifact.produced_by,
-                    }
+            return AgentRunResponse(
+                artifacts=[
+                    ProducedArtifact(
+                        id=str(artifact.id),
+                        type=artifact.type,
+                        payload=artifact.payload,
+                        produced_by=artifact.produced_by,
+                    )
                     for artifact in outputs
                 ]
-            }
+            )
 
-        @app.get("/api/v1/agents")
-        async def list_agents() -> dict[str, Any]:
-            return {
-                "agents": [
-                    {
-                        "name": agent.name,
-                        "description": agent.description,
-                        "subscriptions": [
-                            {
-                                "types": list(subscription.type_names),
-                                "mode": subscription.mode,
-                                "delivery": subscription.delivery,
-                            }
+        @app.get("/api/v1/agents", response_model=AgentListResponse)
+        async def list_agents() -> AgentListResponse:
+            return AgentListResponse(
+                agents=[
+                    Agent(
+                        name=agent.name,
+                        description=agent.description,
+                        subscriptions=[
+                            AgentSubscription(
+                                types=list(subscription.type_names),
+                                mode=subscription.mode,
+                                delivery=subscription.delivery,
+                            )
                             for subscription in agent.subscriptions
                         ],
-                        "outputs": [output.spec.type_name for output in agent.outputs],
-                    }
+                        outputs=[output.spec.type_name for output in agent.outputs],
+                    )
                     for agent in orchestrator.agents
                 ]
-            }
+            )
 
         @app.get("/api/v1/agents/{agent_id}/history-summary")
         async def agent_history(
@@ -257,9 +270,9 @@ class BlackboardHTTPService:
             summary = await orchestrator.store.agent_history_summary(agent_id, filters)
             return {"agent_id": agent_id, "summary": summary}
 
-        @app.get("/health")
-        async def health() -> dict[str, str]:  # pragma: no cover - trivial
-            return {"status": "ok"}
+        @app.get("/health", response_model=HealthResponse)
+        async def health() -> HealthResponse:  # pragma: no cover - trivial
+            return HealthResponse(status="ok")
 
         @app.get("/metrics")
         async def metrics() -> PlainTextResponse:
