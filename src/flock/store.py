@@ -10,12 +10,11 @@ contract expected by the REST layer and dashboard.
 
 import asyncio
 import json
-import re
 from asyncio import Lock
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar
 from uuid import UUID
@@ -25,57 +24,13 @@ from opentelemetry import trace
 
 from flock.artifacts import Artifact
 from flock.registry import type_registry
+from flock.storage.artifact_aggregator import ArtifactAggregator
 from flock.utils.type_resolution import TypeResolutionHelper
-from flock.visibility import (
-    AfterVisibility,
-    LabelledVisibility,
-    PrivateVisibility,
-    PublicVisibility,
-    TenantVisibility,
-    Visibility,
-)
+from flock.utils.visibility_utils import deserialize_visibility
 
 
 T = TypeVar("T")
 tracer = trace.get_tracer(__name__)
-
-ISO_DURATION_RE = re.compile(
-    r"^P(?:T?(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)$"
-)
-
-
-def _parse_iso_duration(value: str | None) -> timedelta:
-    if not value:
-        return timedelta(0)
-    match = ISO_DURATION_RE.match(value)
-    if not match:
-        return timedelta(0)
-    hours = int(match.group("hours") or 0)
-    minutes = int(match.group("minutes") or 0)
-    seconds = int(match.group("seconds") or 0)
-    return timedelta(hours=hours, minutes=minutes, seconds=seconds)
-
-
-def _deserialize_visibility(data: Any) -> Visibility:
-    if isinstance(data, Visibility):
-        return data
-    if not data:
-        return PublicVisibility()
-    kind = data.get("kind") if isinstance(data, dict) else None
-    if kind == "Public":
-        return PublicVisibility()
-    if kind == "Private":
-        return PrivateVisibility(agents=set(data.get("agents", [])))
-    if kind == "Labelled":
-        return LabelledVisibility(required_labels=set(data.get("required_labels", [])))
-    if kind == "Tenant":
-        return TenantVisibility(tenant_id=data.get("tenant_id"))
-    if kind == "After":
-        ttl = _parse_iso_duration(data.get("ttl"))
-        then_data = data.get("then") if isinstance(data, dict) else None
-        then_visibility = _deserialize_visibility(then_data) if then_data else None
-        return AfterVisibility(ttl=ttl, then=then_visibility)
-    return PublicVisibility()
 
 
 @dataclass(slots=True)
@@ -232,6 +187,7 @@ class InMemoryBlackboardStore(BlackboardStore):
             defaultdict(list)
         )
         self._agent_snapshots: dict[str, AgentSnapshotRecord] = {}
+        self._aggregator = ArtifactAggregator()
 
     async def publish(self, artifact: Artifact) -> None:
         async with self._lock:
@@ -335,6 +291,7 @@ class InMemoryBlackboardStore(BlackboardStore):
         self,
         filters: FilterConfig | None = None,
     ) -> dict[str, Any]:
+        """Summarize artifacts using artifact aggregator."""
         filters = filters or FilterConfig()
         artifacts, total = await self.query_artifacts(
             filters=filters,
@@ -343,55 +300,14 @@ class InMemoryBlackboardStore(BlackboardStore):
             embed_meta=False,
         )
 
-        by_type: dict[str, int] = {}
-        by_producer: dict[str, int] = {}
-        by_visibility: dict[str, int] = {}
-        tag_counts: dict[str, int] = {}
-        earliest: datetime | None = None
-        latest: datetime | None = None
-
+        # Validate artifacts are correct type
         for artifact in artifacts:
             if not isinstance(artifact, Artifact):
                 raise TypeError("Expected Artifact instance")
-            by_type[artifact.type] = by_type.get(artifact.type, 0) + 1
-            by_producer[artifact.produced_by] = (
-                by_producer.get(artifact.produced_by, 0) + 1
-            )
-            kind = getattr(artifact.visibility, "kind", "Unknown")
-            by_visibility[kind] = by_visibility.get(kind, 0) + 1
-            for tag in artifact.tags:
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-            if earliest is None or artifact.created_at < earliest:
-                earliest = artifact.created_at
-            if latest is None or artifact.created_at > latest:
-                latest = artifact.created_at
 
-        if earliest and latest:
-            span = latest - earliest
-            if span.days >= 2:
-                span_label = f"{span.days} days"
-            elif span.total_seconds() >= 3600:
-                hours = span.total_seconds() / 3600
-                span_label = f"{hours:.1f} hours"
-            elif span.total_seconds() > 0:
-                minutes = max(1, int(span.total_seconds() / 60))
-                span_label = f"{minutes} minutes"
-            else:
-                span_label = "moments"
-        else:
-            span_label = "empty"
-
-        return {
-            "total": total,
-            "by_type": by_type,
-            "by_producer": by_producer,
-            "by_visibility": by_visibility,
-            "tag_counts": tag_counts,
-            "earliest_created_at": earliest.isoformat() if earliest else None,
-            "latest_created_at": latest.isoformat() if latest else None,
-            "is_full_window": filters.start is None and filters.end is None,
-            "window_span_label": span_label,
-        }
+        # Delegate to aggregator for all aggregation logic
+        is_full_window = filters.start is None and filters.end is None
+        return self._aggregator.build_summary(artifacts, total, is_full_window)
 
     async def agent_history_summary(
         self,
@@ -461,11 +377,15 @@ class SQLiteBlackboardStore(BlackboardStore):
         self._schema_ready = False
 
         # Initialize helper subsystems
+        from flock.storage.sqlite.consumption_loader import SQLiteConsumptionLoader
         from flock.storage.sqlite.query_builder import SQLiteQueryBuilder
         from flock.storage.sqlite.schema_manager import SQLiteSchemaManager
+        from flock.storage.sqlite.summary_queries import SQLiteSummaryQueries
 
         self._schema_manager = SQLiteSchemaManager()
         self._query_builder = SQLiteQueryBuilder()
+        self._consumption_loader = SQLiteConsumptionLoader()
+        self._summary_queries = SQLiteSummaryQueries()
 
     async def publish(self, artifact: Artifact) -> None:  # type: ignore[override]
         with tracer.start_as_current_span("sqlite_store.publish"):
@@ -744,35 +664,11 @@ class SQLiteBlackboardStore(BlackboardStore):
         if not embed_meta or not artifacts:
             return artifacts, total
 
+        # Load consumptions using consumption loader
         artifact_ids = [str(artifact.id) for artifact in artifacts]
-        placeholders = ", ".join("?" for _ in artifact_ids)
-        consumption_query = f"""
-            SELECT
-                artifact_id,
-                consumer,
-                run_id,
-                correlation_id,
-                consumed_at
-            FROM artifact_consumptions
-            WHERE artifact_id IN ({placeholders})
-            ORDER BY consumed_at ASC
-        """  # nosec B608 - placeholders string contains only '?' characters
-        cursor = await conn.execute(consumption_query, artifact_ids)
-        consumption_rows = await cursor.fetchall()
-        await cursor.close()
-
-        consumptions_map: dict[UUID, list[ConsumptionRecord]] = defaultdict(list)
-        for row in consumption_rows:
-            artifact_uuid = UUID(row["artifact_id"])
-            consumptions_map[artifact_uuid].append(
-                ConsumptionRecord(
-                    artifact_id=artifact_uuid,
-                    consumer=row["consumer"],
-                    run_id=row["run_id"],
-                    correlation_id=row["correlation_id"],
-                    consumed_at=datetime.fromisoformat(row["consumed_at"]),
-                )
-            )
+        consumptions_map = await self._consumption_loader.load_for_artifacts(
+            conn, artifact_ids
+        )
 
         envelopes: list[ArtifactEnvelope] = [
             ArtifactEnvelope(
@@ -787,78 +683,32 @@ class SQLiteBlackboardStore(BlackboardStore):
         self,
         filters: FilterConfig | None = None,
     ) -> dict[str, Any]:
+        """Summarize artifacts using summary query builder."""
         filters = filters or FilterConfig()
         conn = await self._get_connection()
 
         where_clause, params = self._build_filters(filters)
         params_tuple = tuple(params)
 
-        count_query = f"SELECT COUNT(*) AS total FROM artifacts{where_clause}"  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
-        cursor = await conn.execute(count_query, params_tuple)  # nosec B608
-        total_row = await cursor.fetchone()
-        await cursor.close()
-        total = total_row["total"] if total_row else 0
-
-        by_type_query = f"""
-            SELECT canonical_type, COUNT(*) AS count
-            FROM artifacts
-            {where_clause}
-            GROUP BY canonical_type
-        """  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
-        cursor = await conn.execute(by_type_query, params_tuple)
-        by_type_rows = await cursor.fetchall()
-        await cursor.close()
-        by_type = {row["canonical_type"]: row["count"] for row in by_type_rows}
-
-        by_producer_query = f"""
-            SELECT produced_by, COUNT(*) AS count
-            FROM artifacts
-            {where_clause}
-            GROUP BY produced_by
-        """  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
-        cursor = await conn.execute(by_producer_query, params_tuple)
-        by_producer_rows = await cursor.fetchall()
-        await cursor.close()
-        by_producer = {row["produced_by"]: row["count"] for row in by_producer_rows}
-
-        by_visibility_query = f"""
-            SELECT json_extract(visibility, '$.kind') AS visibility_kind, COUNT(*) AS count
-            FROM artifacts
-            {where_clause}
-            GROUP BY json_extract(visibility, '$.kind')
-        """  # nosec B608 - where_clause contains only parameter placeholders from _build_filters
-        cursor = await conn.execute(by_visibility_query, params_tuple)
-        by_visibility_rows = await cursor.fetchall()
-        await cursor.close()
-        by_visibility = {
-            (row["visibility_kind"] or "Unknown"): row["count"]
-            for row in by_visibility_rows
-        }
-
-        tag_query = f"""
-            SELECT json_each.value AS tag, COUNT(*) AS count
-            FROM artifacts
-            JOIN json_each(artifacts.tags)
-            {where_clause}
-            GROUP BY json_each.value
-        """  # nosec B608 - where_clause contains only parameter placeholders produced by _build_filters
-        cursor = await conn.execute(tag_query, params_tuple)
-        tag_rows = await cursor.fetchall()
-        await cursor.close()
-        tag_counts = {row["tag"]: row["count"] for row in tag_rows}
-
-        range_query = f"""
-            SELECT MIN(created_at) AS earliest, MAX(created_at) AS latest
-            FROM artifacts
-            {where_clause}
-        """  # nosec B608 - safe composition using parameterized where_clause
-        cursor = await conn.execute(range_query, params_tuple)
-        range_row = await cursor.fetchone()
-        await cursor.close()
-        earliest = (
-            range_row["earliest"] if range_row and range_row["earliest"] else None
+        # Execute all summary queries using summary query builder
+        total = await self._summary_queries.count_total(
+            conn, where_clause, params_tuple
         )
-        latest = range_row["latest"] if range_row and range_row["latest"] else None
+        by_type = await self._summary_queries.group_by_type(
+            conn, where_clause, params_tuple
+        )
+        by_producer = await self._summary_queries.group_by_producer(
+            conn, where_clause, params_tuple
+        )
+        by_visibility = await self._summary_queries.group_by_visibility(
+            conn, where_clause, params_tuple
+        )
+        tag_counts = await self._summary_queries.count_tags(
+            conn, where_clause, params_tuple
+        )
+        earliest, latest = await self._summary_queries.get_date_range(
+            conn, where_clause, params_tuple
+        )
 
         return {
             "total": total,
@@ -1071,6 +921,7 @@ class SQLiteBlackboardStore(BlackboardStore):
         return self._query_builder.build_filters(filters, table_alias=table_alias)
 
     def _row_to_artifact(self, row: Any) -> Artifact:
+        """Convert database row to Artifact using visibility utils."""
         payload = json.loads(row["payload"])
         visibility_data = json.loads(row["visibility"])
         tags = json.loads(row["tags"])
@@ -1081,7 +932,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             type=row["type"],
             payload=payload,
             produced_by=row["produced_by"],
-            visibility=_deserialize_visibility(visibility_data),
+            visibility=deserialize_visibility(visibility_data),
             tags=set(tags),
             correlation_id=correlation,
             partition_key=row["partition_key"],
