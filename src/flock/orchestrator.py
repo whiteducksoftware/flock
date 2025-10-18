@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
@@ -137,6 +137,7 @@ class Flock(metaclass=AutoTracedMeta):
         self.store: BlackboardStore = store or InMemoryBlackboardStore()
         self._agents: dict[str, Agent] = {}
         self._tasks: set[Task[Any]] = set()
+        self._correlation_tasks: dict[UUID, set[Task[Any]]] = {}  # Track tasks by correlation_id
         self._processed: set[tuple[str, str]] = set()
         self._lock = asyncio.Lock()
         self.metrics: dict[str, float] = {"artifacts_published": 0, "agent_runs": 0}
@@ -270,7 +271,13 @@ class Flock(metaclass=AutoTracedMeta):
             ) from exc
 
         # Check if orchestrator has pending work for this correlation
-        has_pending_work = False
+        # 1. Check active tasks for this correlation_id
+        has_active_tasks = correlation_uuid in self._correlation_tasks and bool(
+            self._correlation_tasks[correlation_uuid]
+        )
+
+        # 2. Check correlation groups (for agents with JoinSpec that haven't yielded yet)
+        has_pending_groups = False
         for groups in self._correlation_engine.correlation_groups.values():
             for group_key, group in groups.items():
                 # Check if this group belongs to our correlation
@@ -279,12 +286,15 @@ class Flock(metaclass=AutoTracedMeta):
                         artifact.correlation_id == correlation_uuid
                         for artifact in artifacts
                     ):
-                        has_pending_work = True
+                        has_pending_groups = True
                         break
-                if has_pending_work:
+                if has_pending_groups:
                     break
-            if has_pending_work:
+            if has_pending_groups:
                 break
+
+        # Workflow has pending work if EITHER tasks are active OR groups are waiting
+        has_pending_work = has_active_tasks or has_pending_groups
 
         # Query artifacts for this correlation
         from flock.store import FilterConfig
@@ -1586,6 +1596,24 @@ class Flock(metaclass=AutoTracedMeta):
         )
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+        # Track task by correlation_id for workflow status tracking
+        correlation_id = artifacts[0].correlation_id if artifacts else None
+        if correlation_id:
+            if correlation_id not in self._correlation_tasks:
+                self._correlation_tasks[correlation_id] = set()
+            self._correlation_tasks[correlation_id].add(task)
+
+            # Clean up correlation tracking when task completes
+            def cleanup_correlation(t: Task[Any]) -> None:
+                if correlation_id in self._correlation_tasks:
+                    self._correlation_tasks[correlation_id].discard(t)
+                    # Remove empty sets to prevent memory leaks
+                    if not self._correlation_tasks[correlation_id]:
+                        del self._correlation_tasks[correlation_id]
+
+            task.add_done_callback(cleanup_correlation)
+
         return task
 
     def _record_agent_run(self, agent: Agent) -> None:
