@@ -452,8 +452,6 @@ __all__ = [
 class SQLiteBlackboardStore(BlackboardStore):
     """SQLite-backed implementation of :class:`BlackboardStore`."""
 
-    SCHEMA_VERSION = 3
-
     def __init__(self, db_path: str, *, timeout: float = 5.0) -> None:
         self._db_path = Path(db_path)
         self._timeout = timeout
@@ -461,6 +459,13 @@ class SQLiteBlackboardStore(BlackboardStore):
         self._connection_lock = asyncio.Lock()
         self._write_lock = asyncio.Lock()
         self._schema_ready = False
+
+        # Initialize helper subsystems
+        from flock.storage.sqlite.query_builder import SQLiteQueryBuilder
+        from flock.storage.sqlite.schema_manager import SQLiteSchemaManager
+
+        self._schema_manager = SQLiteSchemaManager()
+        self._query_builder = SQLiteQueryBuilder()
 
     async def publish(self, artifact: Artifact) -> None:  # type: ignore[override]
         with tracer.start_as_current_span("sqlite_store.publish"):
@@ -1051,113 +1056,9 @@ class SQLiteBlackboardStore(BlackboardStore):
         return conn
 
     async def _apply_schema(self, conn: aiosqlite.Connection) -> None:
+        """Apply database schema using schema manager."""
         async with self._connection_lock:
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS schema_meta (
-                    id INTEGER PRIMARY KEY CHECK (id = 1),
-                    version INTEGER NOT NULL,
-                    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-            await conn.execute(
-                """
-                INSERT OR IGNORE INTO schema_meta (id, version)
-                VALUES (1, ?)
-                """,
-                (self.SCHEMA_VERSION,),
-            )
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS artifacts (
-                    artifact_id TEXT PRIMARY KEY,
-                    type TEXT NOT NULL,
-                    canonical_type TEXT NOT NULL,
-                    produced_by TEXT NOT NULL,
-                    payload TEXT NOT NULL,
-                    version INTEGER NOT NULL,
-                    visibility TEXT NOT NULL,
-                    tags TEXT NOT NULL,
-                    correlation_id TEXT,
-                    partition_key TEXT,
-                    created_at TEXT NOT NULL
-                )
-                """
-            )
-            await conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_artifacts_canonical_type_created
-                ON artifacts(canonical_type, created_at)
-                """
-            )
-            await conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_artifacts_produced_by_created
-                ON artifacts(produced_by, created_at)
-                """
-            )
-            await conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_artifacts_correlation
-                ON artifacts(correlation_id)
-                """
-            )
-            await conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_artifacts_partition
-                ON artifacts(partition_key)
-                """
-            )
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS artifact_consumptions (
-                    artifact_id TEXT NOT NULL,
-                    consumer TEXT NOT NULL,
-                    run_id TEXT,
-                    correlation_id TEXT,
-                    consumed_at TEXT NOT NULL,
-                    PRIMARY KEY (artifact_id, consumer, consumed_at)
-                )
-                """
-            )
-            await conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_consumptions_artifact
-                ON artifact_consumptions(artifact_id)
-                """
-            )
-            await conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_consumptions_consumer
-                ON artifact_consumptions(consumer)
-                """
-            )
-            await conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_consumptions_correlation
-                ON artifact_consumptions(correlation_id)
-                """
-            )
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS agent_snapshots (
-                    agent_name TEXT PRIMARY KEY,
-                    description TEXT NOT NULL,
-                    subscriptions TEXT NOT NULL,
-                    output_types TEXT NOT NULL,
-                    labels TEXT NOT NULL,
-                    first_seen TEXT NOT NULL,
-                    last_seen TEXT NOT NULL,
-                    signature TEXT NOT NULL
-                )
-                """
-            )
-            await conn.execute(
-                "UPDATE schema_meta SET version=? WHERE id=1",
-                (self.SCHEMA_VERSION,),
-            )
-            await conn.commit()
+            await self._schema_manager.apply_schema(conn)
             self._schema_ready = True
 
     def _build_filters(
@@ -1166,52 +1067,8 @@ class SQLiteBlackboardStore(BlackboardStore):
         *,
         table_alias: str | None = None,
     ) -> tuple[str, list[Any]]:
-        prefix = f"{table_alias}." if table_alias else ""
-        conditions: list[str] = []
-        params: list[Any] = []
-
-        if filters.type_names:
-            canonical = {
-                type_registry.resolve_name(name) for name in filters.type_names
-            }
-            placeholders = ", ".join("?" for _ in canonical)
-            conditions.append(f"{prefix}canonical_type IN ({placeholders})")
-            params.extend(sorted(canonical))
-
-        if filters.produced_by:
-            placeholders = ", ".join("?" for _ in filters.produced_by)
-            conditions.append(f"{prefix}produced_by IN ({placeholders})")
-            params.extend(sorted(filters.produced_by))
-
-        if filters.correlation_id:
-            conditions.append(f"{prefix}correlation_id = ?")
-            params.append(filters.correlation_id)
-
-        if filters.visibility:
-            placeholders = ", ".join("?" for _ in filters.visibility)
-            conditions.append(
-                f"json_extract({prefix}visibility, '$.kind') IN ({placeholders})"
-            )
-            params.extend(sorted(filters.visibility))
-
-        if filters.start is not None:
-            conditions.append(f"{prefix}created_at >= ?")
-            params.append(filters.start.isoformat())
-
-        if filters.end is not None:
-            conditions.append(f"{prefix}created_at <= ?")
-            params.append(filters.end.isoformat())
-
-        if filters.tags:
-            column = f"{prefix}tags" if table_alias else "artifacts.tags"
-            for tag in sorted(filters.tags):
-                conditions.append(
-                    f"EXISTS (SELECT 1 FROM json_each({column}) WHERE json_each.value = ?)"  # nosec B608 - column is internal constant
-                )
-                params.append(tag)
-
-        where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
-        return where_clause, params
+        """Build WHERE clause using query builder."""
+        return self._query_builder.build_filters(filters, table_alias=table_alias)
 
     def _row_to_artifact(self, row: Any) -> Artifact:
         payload = json.loads(row["payload"])
