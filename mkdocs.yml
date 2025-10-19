@@ -201,6 +201,7 @@ nav:
     - Your First Agent: tutorials/your-first-agent.md
     - Multi-Agent Workflow: tutorials/multi-agent-workflow.md
     - Conditional Routing: tutorials/conditional-routing.md
+    - Semantic Routing: tutorials/semantic-routing.md
     - Advanced Patterns: tutorials/advanced-patterns.md
     - Custom Engines: tutorials/custom-engines.md
     - Custom Agent Components: tutorials/custom-agent-components.md
@@ -213,6 +214,7 @@ nav:
     - Visibility Controls: guides/visibility.md
     - Dashboard: guides/dashboard.md
     - Patterns: guides/patterns.md
+    - Semantic Subscriptions: guides/semantic-subscriptions.md
     - Use Cases: guides/use-cases.md
     - Testing Strategies: guides/testing.md
     - Distributed Tracing:

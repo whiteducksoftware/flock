@@ -20,8 +20,9 @@ class AgentSubscription(BaseModel):
     """Subscription configuration for an agent."""
 
     types: list[str] = Field(description="Artifact types this subscription consumes")
-    mode: str = Field(description="Subscription mode (e.g., 'all', 'any')")
-    delivery: str = Field(description="Delivery mode (e.g., 'immediate', 'batch')")
+    mode: str = Field(
+        description="Subscription mode (e.g., 'both', 'direct', 'events')"
+    )
 
 
 class Agent(BaseModel):

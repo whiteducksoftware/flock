@@ -38,9 +38,10 @@ A blackboard architecture framework where specialized AI agents collaborate thro
 
 **Key Concepts:**
 - **Artifacts:** Typed data (Pydantic models) published to blackboard
-- **Subscriptions:** Declarative rules for when agents react
+- **Subscriptions:** Declarative rules for when agents react (type matching, predicates, semantic matching)
 - **Visibility:** Built-in access control (Public/Private/Tenant/Label-based/Time-based)
 - **Fan-Out Publishing:** Produce multiple artifacts from single agent execution with filtering/validation
+- **Semantic Matching:** AI-powered artifact routing based on meaning, not just keywords
 - **Components:** Three levels of extensibility:
   - **Orchestrator Components:** Global lifecycle hooks (monitoring, metrics, coordination)
   - **Agent Components:** Per-agent behavior (quality gates, retry logic, validation)
@@ -122,6 +123,8 @@ For deep dives into specific topics, see:
 - **[Predicates](docs/guides/predicates.md)** - Conditional consumption with `where=` filters
 - **[Join Operations](docs/guides/join-operations.md)** - Correlate related artifacts with JoinSpec
 - **[Batch Processing](docs/guides/batch-processing.md)** - Efficient bulk operations with BatchSpec
+- **[Semantic Subscriptions](docs/guides/semantic-subscriptions.md)** - AI-powered artifact matching by meaning ⭐ **NEW in 0.5.2**
+- **[Semantic Routing Tutorial](docs/tutorials/semantic-routing.md)** - Step-by-step guide to intelligent ticket routing ⭐ **NEW in 0.5.2**
 
 **Publishing Patterns:**
 - **[Fan-Out Publishing](docs/guides/fan-out.md)** - Generate multiple outputs with filtering/validation ⭐ **NEW in 0.5**
@@ -1694,6 +1697,30 @@ agent = (
     .description("What it does")
     .consumes(InputType)
     .publishes(OutputType)
+)
+```
+
+**Semantic subscriptions (AI-powered routing):**
+```python
+# Simple semantic matching (default threshold 0.4)
+security_agent = (
+    orchestrator.agent("security")
+    .consumes(SupportTicket, semantic_match="security vulnerability")
+    .publishes(SecurityAlert)
+)
+
+# With custom threshold
+strict_agent = (
+    orchestrator.agent("strict")
+    .consumes(Task, semantic_match="urgent priority", semantic_threshold=0.7)
+    .publishes(Response)
+)
+
+# Multiple predicates (AND logic)
+billing_agent = (
+    orchestrator.agent("billing")
+    .consumes(Ticket, semantic_match=["billing payment", "refund request"])
+    .publishes(BillingResponse)
 )
 ```
 

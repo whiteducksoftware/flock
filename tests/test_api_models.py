@@ -85,11 +85,9 @@ class TestAgentModels:
         subscription = AgentSubscription(
             types=["TypeA", "TypeB"],
             mode="both",
-            delivery="exclusive",
         )
         assert subscription.types == ["TypeA", "TypeB"]
         assert subscription.mode == "both"
-        assert subscription.delivery == "exclusive"
 
 
 class TestArtifactModels:

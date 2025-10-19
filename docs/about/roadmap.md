@@ -39,7 +39,6 @@ This roadmap outlines Flock's path from v0.5.0 (production-ready core) to v1.0 (
 ### Developer Experience
 - MCP integration (Model Context Protocol)
 - Best-of-N execution
-- Exclusive delivery (exactly-once)
 - Batch processing and join operations
 - Conditional consumption (`where=lambda`)
 - Rich console output and FastAPI service

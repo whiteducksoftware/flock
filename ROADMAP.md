@@ -30,7 +30,6 @@ We're confident to deliver all enterprise features in a single release: **Flock 
 ### Developer Experience
 - [x] MCP integration (Model Context Protocol)
 - [x] Best-of-N execution
-- [x] Exclusive delivery (exactly-once)
 - [x] Batch processing and join operations
 - [x] Conditional consumption (`where=lambda`)
 - [x] Rich console output and FastAPI service

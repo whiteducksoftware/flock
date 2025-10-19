@@ -148,8 +148,7 @@ GET /api/v1/agents
       "subscriptions": [
         {
           "types": ["CodeSubmission"],
-          "mode": "all",
-          "delivery": "immediate"
+          "mode": "all"
         }
       ],
       "outputs": ["BugAnalysis"]
