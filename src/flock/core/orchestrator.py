@@ -281,11 +281,12 @@ class Flock(metaclass=AutoTracedMeta):
             filters, limit=1000, offset=0
         )
 
-        # Count errors
+        # Count errors - use registry to get correct type name after Phase 8 refactor
+        from flock.models.system_artifacts import WorkflowError
+
+        workflow_error_type = type_registry.name_for(WorkflowError)
         error_count = sum(
-            1
-            for artifact in artifacts
-            if artifact.type == "flock.system_artifacts.WorkflowError"
+            1 for artifact in artifacts if artifact.type == workflow_error_type
         )
 
         # Get timestamps
