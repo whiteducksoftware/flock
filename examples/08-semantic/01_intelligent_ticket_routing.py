@@ -25,7 +25,7 @@ from flock.registry import flock_type
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
-USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
+USE_DASHBOARD = True  # Set to True for dashboard mode, False for CLI mode
 # ============================================================================
 
 
@@ -38,7 +38,6 @@ class SupportTicket(BaseModel):
 
     message: str = Field(description="The customer's issue or question")
     customer_id: str = Field(description="Customer identifier")
-    category: str | None = Field(default=None, description="Auto-assigned category")
 
 
 @flock_type
@@ -99,7 +98,7 @@ billing_team = (
 # Matches: "can't login", "error message", "not working", "broken feature"
 tech_support = (
     flock.agent("tech_support")
-    .consumes(SupportTicket, semantic_match="technical issue error bug problem")
+    .consumes(SupportTicket, semantic_match="technical issue error bug problem device")
     .publishes(TechnicalResponse)
 )
 

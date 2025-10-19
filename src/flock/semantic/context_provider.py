@@ -46,7 +46,7 @@ class SemanticContextProvider:
     def __init__(
         self,
         query_text: str,
-        threshold: float = 0.4,
+        threshold: float = 0.35,
         limit: int = 10,
         extract_field: str | None = None,
         artifact_type: type[BaseModel] | None = None,
@@ -56,7 +56,7 @@ class SemanticContextProvider:
 
         Args:
             query_text: The semantic query text
-            threshold: Minimum similarity score (default: 0.4)
+            threshold: Minimum similarity score (default: 0.35)
             limit: Maximum results to return (default: 10)
             extract_field: Optional field to extract from payload
             artifact_type: Optional type filter

@@ -81,7 +81,7 @@ class ContextAwareEngine(EngineComponent):
             query_text=incident.description,
             artifact_type=Incident,
             where=lambda a: a.payload.get("resolved") is True,
-            threshold=0.4,
+            threshold=0.35,
             limit=5,
         )
 

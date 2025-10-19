@@ -226,11 +226,7 @@ class Agent(metaclass=AutoTracedMeta):
             comp_name = self._component_display_name(component)
             priority = getattr(component, "priority", 0)
             logger.info(
-                "Agent %s: utility added: component=%s, priority=%s, total_utilities=%s",
-                self.name,
-                comp_name,
-                priority,
-                len(self.utilities),
+                f"Agent {self.name}: utility added: component={comp_name}, priority={priority}, total_utilities={len(self.utilities)}"
             )
         self.utilities.sort(key=lambda comp: getattr(comp, "priority", 0))
 
@@ -570,7 +566,7 @@ class AgentBuilder:
             semantic_threshold: Minimum similarity threshold for semantic matching (0.0-1.0).
                 Applied to all queries when semantic_match is a string or list of strings.
                 Ignored if semantic_match is a dict/list of dicts with explicit "threshold".
-                Default: 0.0 (uses default 0.4 when not specified)
+                Default: 0.0 (uses default 0.35 when not specified)
             from_agents: Only consume artifacts from specific agents
             tags: Only consume artifacts with matching tags
             join: Join specification for coordinating multiple artifact types
