@@ -189,8 +189,7 @@ similar_incidents = await provider.get_context(store)
 - Added 4 runnable examples in `examples/08-semantic/`:
   - `00_verify_semantic_features.py` - Quick verification (no LLM)
   - `01_intelligent_ticket_routing.py` - Smart routing demo
-  - `02_context_aware_responses.py` - Context-aware with history
-  - `03_multi_criteria_filtering.py` - Advanced filtering patterns
+  - `02_multi_criteria_filtering.py` - Advanced filtering patterns
 - Updated README with semantic subscriptions feature
 - Added API documentation for all new features
 

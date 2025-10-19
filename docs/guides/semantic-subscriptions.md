@@ -695,8 +695,7 @@ Additional examples in `examples/08-semantic/`:
 
 - `00_verify_semantic_features.py` - Installation verification
 - `01_intelligent_ticket_routing.py` - Multi-agent semantic routing
-- `02_context_aware_responses.py` - Using SemanticContextProvider
-- `03_multi_criteria_filtering.py` - Multiple semantic predicates
+- `02_multi_criteria_filtering.py` - Multiple semantic predicates
 
 ## License
 

@@ -731,6 +731,7 @@ class Flock(metaclass=AutoTracedMeta):
         partition_key: str | None = None,
         tags: set[str] | None = None,
         is_dashboard: bool = False,
+        schedule_immediately: bool = True,
     ) -> Artifact:
         """Publish an artifact to the blackboard (event-driven).
 
@@ -743,16 +744,22 @@ class Flock(metaclass=AutoTracedMeta):
             partition_key=partition_key,
             tags=tags,
             is_dashboard=is_dashboard,
+            schedule_immediately=schedule_immediately,
         )
 
     async def publish_many(
-        self, objects: Iterable[BaseModel | dict | Artifact], **kwargs: Any
+        self,
+        objects: Iterable[BaseModel | dict | Artifact],
+        schedule_immediately: bool = True,
+        **kwargs: Any,
     ) -> list[Artifact]:
         """Publish multiple artifacts at once (event-driven).
 
         Delegates to ArtifactManager for batch publishing.
         """
-        return await self._artifact_manager.publish_many(objects, **kwargs)
+        return await self._artifact_manager.publish_many(
+            objects, schedule_immediately=schedule_immediately, **kwargs
+        )
 
     # -----------------------------------------------------------------------------
     # NEW DIRECT INVOCATION API - Explicit Control
