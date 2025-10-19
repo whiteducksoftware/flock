@@ -180,7 +180,6 @@ async def test_list_agents_with_subscriptions(service, mock_orchestrator):
     mock_subscription = Mock()
     mock_subscription.type_names = ["ServiceTestInput", "ServiceTestOutput"]
     mock_subscription.mode = "all"
-    mock_subscription.delivery = "immediate"
     mock_agent.subscriptions = [mock_subscription]
 
     mock_agent.outputs = [Mock()]
