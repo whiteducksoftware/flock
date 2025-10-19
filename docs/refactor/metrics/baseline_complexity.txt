@@ -1,0 +1,162 @@
+src\flock\agent.py
+    M 1187:4 AgentBuilder.with_mcps - C
+    M 556:4 Agent._make_outputs_for_group - C
+    M 274:4 Agent._get_mcp_tools - C
+    M 963:4 AgentBuilder.publishes - B
+    M 410:4 Agent._run_engines - B
+    M 1311:4 AgentBuilder.mount - B
+    M 213:4 Agent.execute - B
+    M 501:4 Agent._make_outputs - B
+    M 716:4 Agent._run_error - B
+    M 1409:4 AgentBuilder._validate_self_trigger_risk - B
+src\flock\artifact_collector.py
+    M 50:4 ArtifactCollector.add_artifact - B
+src\flock\batch_accumulator.py
+    M 138:4 BatchEngine.add_artifact_group - B
+src\flock\components.py
+    M 158:4 EngineComponent.get_conversation_context - B
+src\flock\context_provider.py
+    M 134:4 BaseContextProvider.__call__ - B
+src\flock\correlation_engine.py
+    M 130:4 CorrelationEngine.add_artifact - B
+src\flock\orchestrator.py
+    M 535:4 Flock.run_until_idle - C
+    M 1345:4 Flock._schedule_artifact - C
+    M 848:4 Flock.publish - C
+    M 288:4 Flock.add_mcp - C
+    M 1435:4 Flock._run_agent_task - C
+    M 718:4 Flock.shutdown - B
+    M 608:4 Flock.direct_invoke - B
+    M 965:4 Flock.invoke - B
+    M 1144:4 Flock._run_before_schedule - B
+src\flock\orchestrator_component.py
+    C 404:0 BuiltinCollectionComponent - D
+    M 416:4 BuiltinCollectionComponent.on_collect_artifacts - C
+src\flock\registry.py
+    M 26:4 TypeRegistry.register - B
+    M 54:4 TypeRegistry.resolve_name - B
+src\flock\store.py
+    M 334:4 InMemoryBlackboardStore.summarize_artifacts - C
+    M 1163:4 SQLiteBlackboardStore._build_filters - C
+    M 688:4 SQLiteBlackboardStore.query_artifacts - C
+    M 781:4 SQLiteBlackboardStore.summarize_artifacts - C
+    F 59:0 _deserialize_visibility - C
+    M 274:4 InMemoryBlackboardStore.query_artifacts - B
+    M 868:4 SQLiteBlackboardStore.agent_history_summary - B
+    M 396:4 InMemoryBlackboardStore.agent_history_summary - B
+    F 47:0 _parse_iso_duration - B
+src\flock\subscription.py
+    M 145:4 Subscription.matches - B
+    M 97:4 Subscription.__init__ - B
+src\flock\utilities.py
+    M 263:4 LoggingUtility._consume_stream - C
+    M 162:4 LoggingUtility._render_payload - B
+    M 188:4 LoggingUtility._render_logs - B
+src\flock\dashboard\collector.py
+    M 155:4 DashboardEventCollector.on_pre_consume - C
+    M 286:4 DashboardEventCollector.on_terminate - B
+    M 471:4 DashboardEventCollector._update_agent_snapshot_locked - B
+    M 550:4 DashboardEventCollector._convert_visibility - B
+    M 445:4 DashboardEventCollector._ensure_run_record - B
+src\flock\dashboard\graph_builder.py
+    M 174:4 GraphAssembler._build_agent_nodes - D
+    M 768:4 GraphAssembler._build_logic_config_for_subscription - C
+    M 584:4 GraphAssembler._derive_blackboard_edges - C
+    M 674:4 GraphAssembler._build_synthetic_runs - C
+    M 441:4 GraphAssembler._build_pending_join_edges - B
+    C 37:0 GraphAssembler - B
+    M 516:4 GraphAssembler._build_pending_batch_edges - B
+    M 106:4 GraphAssembler._convert_envelopes_to_artifacts - B
+    M 140:4 GraphAssembler._calculate_agent_metrics - B
+    M 339:4 GraphAssembler._derive_agent_edges - B
+    M 394:4 GraphAssembler._derive_pending_edges - B
+src\flock\dashboard\service.py
+    F 1316:0 _build_logic_config - C
+    F 1180:0 _get_batch_state - C
+    F 1083:0 _get_correlation_groups - C
+    F 1282:0 _compute_agent_status - B
+    M 98:4 DashboardHTTPService._register_dashboard_routes - B
+src\flock\dashboard\websocket.py
+    M 98:4 WebSocketManager.broadcast - B
+    M 157:4 WebSocketManager._heartbeat_loop - B
+    M 216:4 WebSocketManager.shutdown - B
+src\flock\engines\dspy_engine.py
+    M 1311:4 DSPyEngine._execute_streaming - F
+    M 1074:4 DSPyEngine._execute_streaming_websocket_only - F
+    M 199:4 DSPyEngine._evaluate_internal - D
+    M 595:4 DSPyEngine._prepare_signature_for_output_group - D
+    M 894:4 DSPyEngine._normalize_output_payload - C
+    C 116:0 DSPyEngine - C
+    M 759:4 DSPyEngine._prepare_execution_payload_for_output_group - C
+    M 542:4 DSPyEngine._prepare_signature_with_context - B
+    M 942:4 DSPyEngine._materialize_artifacts - B
+    M 1015:4 DSPyEngine._select_output_payload - B
+    M 516:4 DSPyEngine._needs_multioutput_signature - B
+    M 1707:4 DSPyEngine._prepare_stream_formatter - B
+src\flock\engines\examples\simple_batch_engine.py
+    C 29:0 SimpleBatchEngine - B
+src\flock\helper\cli_helper.py
+    F 42:0 init_console - B
+src\flock\logging\auto_trace.py
+    F 21:0 _parse_trace_filters - C
+    C 101:0 AutoTracedMeta - B
+    M 118:4 AutoTracedMeta.__new__ - B
+src\flock\logging\logging.py
+    F 573:0 truncate_for_logging - C
+src\flock\logging\telemetry.py
+    M 107:4 TelemetryConfig.setup_tracing - C
+    C 28:0 TelemetryConfig - B
+src\flock\logging\trace_and_logged.py
+    F 54:0 _serialize_value - C
+    F 133:0 _extract_span_attributes - C
+src\flock\logging\formatters\themed_formatter.py
+    F 238:0 create_rich_renderable - C
+    F 209:0 get_default_styles - B
+src\flock\logging\formatters\theme_builder.py
+    F 227:0 create_rich_renderable - C
+    F 364:0 theme_builder - B
+    F 205:0 get_default_styles - B
+src\flock\logging\telemetry_exporter\duckdb_exporter.py
+    M 114:4 DuckDBSpanExporter._span_to_record - C
+src\flock\logging\telemetry_exporter\file_exporter.py
+    M 27:4 FileSpanExporter._span_to_json - B
+src\flock\mcp\client.py
+    M 231:4 FlockMCPClient.__init__ - C
+    M 545:4 FlockMCPClient._create_session - C
+    M 637:4 FlockMCPClient._perform_initial_handshake - B
+src\flock\mcp\config.py
+    M 199:4 FlockMCPConnectionConfiguration.from_dict - C
+    M 371:4 FlockMCPConfiguration.from_dict - B
+src\flock\mcp\manager.py
+    M 71:4 FlockMCPClientManager.get_client - C
+src\flock\mcp\tool.py
+    M 91:4 FlockMCPTool._convert_mcp_tool_result - B
+src\flock\mcp\servers\sse\flock_sse_server.py
+    C 55:0 FlockSSEClient - B
+    M 60:4 FlockSSEClient.create_transport - B
+src\flock\mcp\servers\stdio\flock_stdio_server.py
+    C 55:0 FlockStdioClient - B
+    M 60:4 FlockStdioClient.create_transport - B
+src\flock\mcp\servers\streamable_http\flock_streamable_http_server.py
+    C 62:0 FlockStreamableHttpClient - C
+    M 67:4 FlockStreamableHttpClient.create_transport - B
+src\flock\mcp\types\handlers.py
+    F 152:0 handle_logging_message - B
+src\flock\mcp\types\types.py
+    C 151:0 StreamableHttpServerParameters - B
+    M 205:4 StreamableHttpServerParameters.to_dict - B
+    C 245:0 SseServerParameters - B
+    M 292:4 SseServerParameters.to_dict - B
+src\flock\utility\output_utility_component.py
+    M 142:4 OutputUtilityComponent.on_post_evaluate - C
+    M 80:4 OutputUtilityComponent._format_value - B
+    C 61:0 OutputUtilityComponent - B
+    M 97:4 OutputUtilityComponent._format_dict - B
+src\flock\utils\validation.py
+    C 8:0 ArtifactValidator - B
+src\flock\utils\visibility.py
+    C 16:0 VisibilityDeserializer - C
+    M 24:4 VisibilityDeserializer.deserialize - C
+
+751 blocks (classes, functions, methods) analyzed.
+Average complexity: A (3.5126498002663116)

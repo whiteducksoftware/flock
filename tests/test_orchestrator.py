@@ -3,11 +3,11 @@ import asyncio
 import pytest
 from pydantic import PrivateAttr
 
-from flock.artifacts import Artifact
-from flock.components import EngineComponent
+from flock.components.agent import EngineComponent
+from flock.core.artifacts import Artifact
 from flock.examples import Idea, Movie, Tagline, create_demo_orchestrator
 from flock.registry import type_registry
-from flock.runtime import EvalInputs, EvalResult
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 @pytest.mark.asyncio
@@ -35,7 +35,9 @@ class SpyEngine(EngineComponent):
         super().__init__()
         self._recordings = recordings
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         if self._recordings is not None:
             self._recordings.append(agent.name)
         return EvalResult(artifacts=list(inputs.artifacts))
@@ -59,9 +61,9 @@ async def test_visibility_only_for_blocks_eavesdropper():
 
 from pydantic import BaseModel, Field
 
-from flock.orchestrator import Flock
+from flock.core import Flock
+from flock.core.visibility import PrivateVisibility, PublicVisibility
 from flock.registry import flock_type
-from flock.visibility import PrivateVisibility, PublicVisibility
 
 
 @flock_type(name="OrchestratorMovie")
@@ -86,10 +88,18 @@ async def test_orchestrator_schedules_matching_agent(orchestrator):
             executed.append(agent.name)
             return EvalResult(artifacts=[])
 
-    (orchestrator.agent("test_agent").consumes(OrchestratorMovie).with_engines(TrackingEngine()))
+    (
+        orchestrator.agent("test_agent")
+        .consumes(OrchestratorMovie)
+        .with_engines(TrackingEngine())
+    )
 
     # Act
-    await orchestrator.publish({"type": "OrchestratorMovie", "title": "TEST", "runtime": 120})
+    await orchestrator.publish({
+        "type": "OrchestratorMovie",
+        "title": "TEST",
+        "runtime": 120,
+    })
     await orchestrator.run_until_idle()
 
     # Assert
@@ -107,7 +117,11 @@ async def test_orchestrator_skips_non_matching_agent(orchestrator):
             executed.append(agent.name)
             return EvalResult(artifacts=[])
 
-    (orchestrator.agent("movie_agent").consumes(OrchestratorMovie).with_engines(TrackingEngine()))
+    (
+        orchestrator.agent("movie_agent")
+        .consumes(OrchestratorMovie)
+        .with_engines(TrackingEngine())
+    )
 
     # Act - publish Idea, not Movie
     await orchestrator.publish({"type": "OrchestratorIdea", "topic": "test"})
@@ -128,12 +142,24 @@ async def test_orchestrator_schedules_multiple_agents(orchestrator):
             executed.append(agent.name)
             return EvalResult(artifacts=[])
 
-    (orchestrator.agent("agent1").consumes(OrchestratorMovie).with_engines(TrackingEngine()))
+    (
+        orchestrator.agent("agent1")
+        .consumes(OrchestratorMovie)
+        .with_engines(TrackingEngine())
+    )
 
-    (orchestrator.agent("agent2").consumes(OrchestratorMovie).with_engines(TrackingEngine()))
+    (
+        orchestrator.agent("agent2")
+        .consumes(OrchestratorMovie)
+        .with_engines(TrackingEngine())
+    )
 
     # Act
-    await orchestrator.publish({"type": "OrchestratorMovie", "title": "TEST", "runtime": 120})
+    await orchestrator.publish({
+        "type": "OrchestratorMovie",
+        "title": "TEST",
+        "runtime": 120,
+    })
     await orchestrator.run_until_idle()
 
     # Assert - both agents should execute
@@ -152,10 +178,18 @@ async def test_orchestrator_prevents_duplicate_processing(orchestrator):
             execution_count.append(1)
             return EvalResult(artifacts=[])
 
-    (orchestrator.agent("test_agent").consumes(OrchestratorMovie).with_engines(CountingEngine()))
+    (
+        orchestrator.agent("test_agent")
+        .consumes(OrchestratorMovie)
+        .with_engines(CountingEngine())
+    )
 
     # Act - publish same artifact twice by getting it from store
-    await orchestrator.publish({"type": "OrchestratorMovie", "title": "TEST", "runtime": 120})
+    await orchestrator.publish({
+        "type": "OrchestratorMovie",
+        "title": "TEST",
+        "runtime": 120,
+    })
     await orchestrator.run_until_idle()
 
     # Get the artifact and try to schedule it again
@@ -181,12 +215,20 @@ async def test_orchestrator_enforces_private_visibility(orchestrator):
             executed.append(agent.name)
             return EvalResult(artifacts=[])
 
-    (orchestrator.agent("allowed").consumes(OrchestratorMovie).with_engines(TrackingEngine()))
+    (
+        orchestrator.agent("allowed")
+        .consumes(OrchestratorMovie)
+        .with_engines(TrackingEngine())
+    )
 
-    (orchestrator.agent("denied").consumes(OrchestratorMovie).with_engines(TrackingEngine()))
+    (
+        orchestrator.agent("denied")
+        .consumes(OrchestratorMovie)
+        .with_engines(TrackingEngine())
+    )
 
     # Act - publish artifact with private visibility for "allowed" only
-    from flock.artifacts import Artifact
+    from flock.core.artifacts import Artifact
 
     artifact = Artifact(
         type="OrchestratorMovie",
@@ -207,7 +249,11 @@ async def test_orchestrator_enforces_private_visibility(orchestrator):
 async def test_publish_creates_artifact(orchestrator):
     """Test that publish creates artifact on blackboard."""
     # Arrange & Act
-    await orchestrator.publish({"type": "OrchestratorMovie", "title": "NEW MOVIE", "runtime": 90})
+    await orchestrator.publish({
+        "type": "OrchestratorMovie",
+        "title": "NEW MOVIE",
+        "runtime": 90,
+    })
 
     # Assert
     artifacts = await orchestrator.store.list()
@@ -228,10 +274,18 @@ async def test_run_until_idle_waits_for_tasks(orchestrator):
             completed.append(agent.name)
             return EvalResult(artifacts=[])
 
-    (orchestrator.agent("slow_agent").consumes(OrchestratorMovie).with_engines(SlowEngine()))
+    (
+        orchestrator.agent("slow_agent")
+        .consumes(OrchestratorMovie)
+        .with_engines(SlowEngine())
+    )
 
     # Act
-    await orchestrator.publish({"type": "OrchestratorMovie", "title": "TEST", "runtime": 120})
+    await orchestrator.publish({
+        "type": "OrchestratorMovie",
+        "title": "TEST",
+        "runtime": 120,
+    })
     await orchestrator.run_until_idle()
 
     # Assert - agent should have completed
@@ -249,13 +303,29 @@ async def test_concurrent_artifact_publishing(orchestrator):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
-    (orchestrator.agent("test_agent").consumes(OrchestratorMovie).with_engines(TrackingEngine()))
+    (
+        orchestrator.agent("test_agent")
+        .consumes(OrchestratorMovie)
+        .with_engines(TrackingEngine())
+    )
 
     # Act - publish multiple artifacts concurrently
     await asyncio.gather(
-        orchestrator.publish({"type": "OrchestratorMovie", "title": "MOVIE1", "runtime": 90}),
-        orchestrator.publish({"type": "OrchestratorMovie", "title": "MOVIE2", "runtime": 100}),
-        orchestrator.publish({"type": "OrchestratorMovie", "title": "MOVIE3", "runtime": 110}),
+        orchestrator.publish({
+            "type": "OrchestratorMovie",
+            "title": "MOVIE1",
+            "runtime": 90,
+        }),
+        orchestrator.publish({
+            "type": "OrchestratorMovie",
+            "title": "MOVIE2",
+            "runtime": 100,
+        }),
+        orchestrator.publish({
+            "type": "OrchestratorMovie",
+            "title": "MOVIE3",
+            "runtime": 110,
+        }),
     )
     await orchestrator.run_until_idle()
 
@@ -273,7 +343,11 @@ async def test_orchestrator_handles_store_unavailable(orchestrator, mocker):
 
     # Act & Assert - should catch and log error, not crash
     try:
-        await orchestrator.publish({"type": "OrchestratorMovie", "title": "TEST", "runtime": 120})
+        await orchestrator.publish({
+            "type": "OrchestratorMovie",
+            "title": "TEST",
+            "runtime": 120,
+        })
         # If we get here, the error was handled gracefully
         assert True
     except Exception as e:
@@ -293,7 +367,7 @@ async def test_board_handle_get_artifact():
     artifact_id = artifact.id
 
     # Act - Use BoardHandle
-    from flock.orchestrator import BoardHandle
+    from flock.core import BoardHandle
 
     handle = BoardHandle(orchestrator)
     result = await handle.get(artifact_id)
@@ -315,7 +389,7 @@ async def test_board_handle_list_all_artifacts():
     await orchestrator.publish({"type": "OrchestratorIdea", "topic": "idea2"})
 
     # Act
-    from flock.orchestrator import BoardHandle
+    from flock.core import BoardHandle
 
     handle = BoardHandle(orchestrator)
     result = await handle.list()
@@ -333,7 +407,7 @@ async def test_board_handle_get_nonexistent_returns_none():
     from uuid import uuid4
 
     # Act
-    from flock.orchestrator import BoardHandle
+    from flock.core import BoardHandle
 
     handle = BoardHandle(orchestrator)
     result = await handle.get(uuid4())
@@ -355,7 +429,11 @@ async def test_orchestrator_direct_invoke_with_dict_input():
             executed.append(True)
             return EvalResult(artifacts=[])
 
-    agent = orchestrator.agent("test").consumes(OrchestratorIdea).with_engines(TrackingEngine())
+    agent = (
+        orchestrator.agent("test")
+        .consumes(OrchestratorIdea)
+        .with_engines(TrackingEngine())
+    )
 
     # Act - Pass dict instead of BaseModel
     dict_input = {"type": "OrchestratorIdea", "payload": {"topic": "test from dict"}}
@@ -463,7 +541,9 @@ async def test_agent_consuming_and_publishing_same_type_does_not_loop(orchestrat
     executed_count = [0]
 
     class SelfPublishingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             executed_count[0] += 1
             # Publish same type (would loop if not prevented)
             return EvalResult(
@@ -492,7 +572,7 @@ async def test_agent_consuming_and_publishing_same_type_does_not_loop(orchestrat
     # Add timeout to ensure test doesn't hang
     try:
         await asyncio.wait_for(orchestrator.run_until_idle(), timeout=2.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         pytest.fail("Agent created infinite loop - prevent_self_trigger not working!")
 
     # Assert - Should execute exactly once (only external input, not own output)
@@ -506,17 +586,21 @@ async def test_context_is_batch_flag_propagation():
 
     from pydantic import BaseModel, Field
 
-    from flock.subscription import BatchSpec
+    from flock.core.subscription import BatchSpec
 
     # Track Context.is_batch values
     context_flags = []
 
     class ContextSpyEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             context_flags.append(ctx.is_batch)
             return EvalResult(artifacts=list(inputs.artifacts))
 
-        async def evaluate_batch(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate_batch(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             context_flags.append(ctx.is_batch)
             return EvalResult(artifacts=list(inputs.artifacts))
 
@@ -527,7 +611,9 @@ async def test_context_is_batch_flag_propagation():
     orchestrator, _agents = create_demo_orchestrator()
 
     # Agent 1: Single artifact consumption (no BatchSpec)
-    orchestrator.agent("single_consumer").consumes(Idea).with_engines(ContextSpyEngine())
+    orchestrator.agent("single_consumer").consumes(Idea).with_engines(
+        ContextSpyEngine()
+    )
 
     # Agent 2: Batch consumption (with BatchSpec)
     orchestrator.agent("batch_consumer").consumes(

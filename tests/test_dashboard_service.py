@@ -30,7 +30,7 @@ TESTING APPROACH:
 """
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
@@ -58,9 +58,9 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport
 from pydantic import BaseModel, Field, ValidationError
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type
-from flock.visibility import PublicVisibility
 
 
 # Test data models for API testing
@@ -90,7 +90,7 @@ def mock_artifact():
         produced_by="test_agent",
         visibility=PublicVisibility(),
         correlation_id=uuid4(),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -160,7 +160,7 @@ def dashboard_service(orchestrator):
 @pytest.mark.asyncio
 async def test_service_extends_blackboard_http_service(dashboard_service):
     """Test that DashboardHTTPService extends BlackboardHTTPService."""
-    from flock.service import BlackboardHTTPService
+    from flock.api.service import BlackboardHTTPService
 
     # Verify inheritance
     assert isinstance(dashboard_service, BlackboardHTTPService)
@@ -390,7 +390,7 @@ async def test_dashboard_service_cleanup_on_shutdown(dashboard_service):
 async def test_get_artifact_types_success(async_client, mocker):
     """Test GET /api/artifact-types returns registered artifact types with schemas."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_type_registry._by_name = ["TestArtifact", "InvalidTestArtifact"]
 
     # Mock model class and schema
@@ -420,7 +420,7 @@ async def test_get_artifact_types_success(async_client, mocker):
 async def test_get_artifact_types_handles_schema_errors(async_client, mocker):
     """Test GET /api/artifact-types handles schema generation errors gracefully."""
     # Mock type_registry with a type that causes schema errors
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_type_registry._by_name = ["TestArtifact", "BrokenType"]
 
     # Mock working type
@@ -450,7 +450,7 @@ async def test_get_artifact_types_handles_schema_errors(async_client, mocker):
 async def test_get_artifact_types_empty_registry(async_client, mocker):
     """Test GET /api/artifact-types with empty type registry."""
     # Mock empty type registry
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_type_registry._by_name = []
 
     # Act
@@ -574,8 +574,8 @@ async def test_get_agents_with_joinspec_returns_logic_operations():
     """Test GET /api/agents includes logic_operations for agents with JoinSpec."""
     from datetime import timedelta
 
-    from flock.orchestrator import Flock
-    from flock.subscription import JoinSpec
+    from flock.core import Flock
+    from flock.core.subscription import JoinSpec
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -658,8 +658,8 @@ async def test_get_agents_with_batchspec_returns_logic_operations():
     """Test GET /api/agents includes logic_operations for agents with BatchSpec."""
     from datetime import timedelta
 
-    from flock.orchestrator import Flock
-    from flock.subscription import BatchSpec
+    from flock.core import Flock
+    from flock.core.subscription import BatchSpec
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -722,11 +722,11 @@ async def test_get_agents_with_waiting_correlation_groups():
     """Test GET /api/agents includes waiting_state when correlation groups exist."""
     from datetime import datetime, timedelta
 
-    from flock.artifacts import Artifact
-    from flock.correlation_engine import CorrelationGroup
-    from flock.orchestrator import Flock
-    from flock.subscription import JoinSpec
-    from flock.visibility import PublicVisibility
+    from flock.core import Flock
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import JoinSpec
+    from flock.core.visibility import PublicVisibility
+    from flock.orchestrator.correlation_engine import CorrelationGroup
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -762,7 +762,7 @@ async def test_get_agents_with_waiting_correlation_groups():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
 
     # Add one artifact (XRay) to make it incomplete
     xray = Artifact(
@@ -820,11 +820,11 @@ async def test_get_agents_with_batch_accumulating():
     """Test GET /api/agents includes waiting_state when batch is accumulating."""
     from datetime import datetime
 
-    from flock.artifacts import Artifact
-    from flock.batch_accumulator import BatchAccumulator
-    from flock.orchestrator import Flock
-    from flock.subscription import BatchSpec
-    from flock.visibility import PublicVisibility
+    from flock.core import Flock
+    from flock.core.artifacts import Artifact
+    from flock.core.subscription import BatchSpec
+    from flock.core.visibility import PublicVisibility
+    from flock.orchestrator.batch_accumulator import BatchAccumulator
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -846,7 +846,7 @@ async def test_get_agents_with_batch_accumulating():
     batch_key = (agent.agent.name, 0)
     accumulator = BatchAccumulator(
         batch_spec=BatchSpec(size=25),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
     # Add some artifacts (10 out of 25)
@@ -903,8 +903,8 @@ async def test_get_agents_with_both_joinspec_and_batchspec():
     """Test GET /api/agents with agent using both JoinSpec and BatchSpec."""
     from datetime import timedelta
 
-    from flock.orchestrator import Flock
-    from flock.subscription import BatchSpec, JoinSpec
+    from flock.core import Flock
+    from flock.core.subscription import BatchSpec, JoinSpec
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -968,7 +968,7 @@ async def test_get_agents_with_both_joinspec_and_batchspec():
 @pytest.mark.asyncio
 async def test_get_agents_without_logic_operations():
     """Test GET /api/agents for agents without JoinSpec or BatchSpec."""
-    from flock.orchestrator import Flock
+    from flock.core import Flock
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -1011,8 +1011,8 @@ async def test_get_agents_multiple_subscriptions_with_logic_ops():
     """Test GET /api/agents with agent having multiple subscriptions with different logic ops."""
     from datetime import timedelta
 
-    from flock.orchestrator import Flock
-    from flock.subscription import BatchSpec, JoinSpec
+    from flock.core import Flock
+    from flock.core.subscription import BatchSpec, JoinSpec
 
     # Create fresh orchestrator
     orchestrator = Flock()
@@ -1086,8 +1086,8 @@ async def test_get_agents_multiple_subscriptions_with_logic_ops():
 @pytest.mark.asyncio
 async def test_get_version_success(async_client, mocker):
     """Test GET /api/version returns version information."""
-    # Mock version function
-    mock_version = mocker.patch("flock.dashboard.service.version")
+    # Mock version function (imported inside the endpoint function)
+    mock_version = mocker.patch("importlib.metadata.version")
     mock_version.return_value = "0.2.0"
 
     # Act
@@ -1108,7 +1108,7 @@ async def test_get_version_package_not_found(async_client, mocker):
     # Mock version to raise PackageNotFoundError
     from importlib.metadata import PackageNotFoundError
 
-    mock_version = mocker.patch("flock.dashboard.service.version")
+    mock_version = mocker.patch("importlib.metadata.version")
     mock_version.side_effect = PackageNotFoundError()
 
     # Act
@@ -1129,23 +1129,20 @@ async def test_get_version_package_not_found(async_client, mocker):
 @pytest.mark.asyncio
 async def test_publish_artifact_success(async_client, mock_artifact, mocker):
     """Test POST /api/control/publish successfully publishes artifact."""
-    # Mock type_registry and orchestrator
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    # Mock type_registry
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 
-    # Mock orchestrator.publish
-    mock_orchestrator = mocker.patch("flock.dashboard.service.Flock")
-    mock_orchestrator.publish = AsyncMock(return_value=mock_artifact)
-
-    # Mock websocket manager
-    mock_websocket_manager = Mock()
-    mock_websocket_manager.broadcast = AsyncMock()
+    # orchestrator.publish is already mocked by dashboard_service_with_mocks fixture
 
     # Get the app and inject mocks
     response = await async_client.post(
         "/api/control/publish",
-        json={"artifact_type": "TestArtifact", "content": {"message": "test", "priority": 3}},
+        json={
+            "artifact_type": "TestArtifact",
+            "content": {"message": "test", "priority": 3},
+        },
     )
 
     # Assert
@@ -1183,7 +1180,7 @@ async def test_publish_artifact_missing_content(async_client):
 async def test_publish_artifact_unknown_type(async_client, mocker):
     """Test POST /api/control/publish with unknown artifact type returns 422."""
     # Mock type_registry to raise KeyError
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_type_registry.resolve.side_effect = KeyError("UnknownType")
 
     response = await async_client.post(
@@ -1199,11 +1196,18 @@ async def test_publish_artifact_unknown_type(async_client, mocker):
 async def test_publish_artifact_validation_error(async_client, mocker):
     """Test POST /api/control/publish with invalid content returns 422."""
     # Mock type_registry and model validation error
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_model_class = Mock()
     mock_model_class.side_effect = ValidationError.from_exception_data(
         "TestArtifact",
-        [{"type": "missing", "loc": ("required_field",), "msg": "Field required", "input": {}}],
+        [
+            {
+                "type": "missing",
+                "loc": ("required_field",),
+                "msg": "Field required",
+                "input": {},
+            }
+        ],
     )
     mock_type_registry.resolve.return_value = mock_model_class
 
@@ -1223,7 +1227,7 @@ async def test_publish_artifact_validation_error(async_client, mocker):
 async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
     """Test POST /api/control/publish handles orchestrator errors returns 500."""
     # Mock type_registry to return a mock instance
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -1244,7 +1248,10 @@ async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/api/control/publish",
-            json={"artifact_type": "TestArtifact", "content": {"message": "test", "priority": 3}},
+            json={
+                "artifact_type": "TestArtifact",
+                "content": {"message": "test", "priority": 3},
+            },
         )
 
         assert response.status_code == 500
@@ -1258,15 +1265,11 @@ async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
 async def test_invoke_agent_success(async_client, mock_artifact, mocker):
     """Test POST /api/control/invoke successfully invokes agent."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 
-    # Mock orchestrator methods
-    mock_orchestrator = mocker.patch("flock.dashboard.service.Flock")
-    mock_agent = create_mock_agent()
-    mock_orchestrator.get_agent.return_value = mock_agent
-    mock_orchestrator.invoke = AsyncMock(return_value=[mock_artifact])
+    # orchestrator methods already mocked by dashboard_service_with_mocks fixture
 
     response = await async_client.post(
         "/api/control/invoke",
@@ -1290,7 +1293,8 @@ async def test_invoke_agent_success(async_client, mock_artifact, mocker):
 async def test_invoke_agent_missing_agent_name(async_client):
     """Test POST /api/control/invoke with missing agent_name returns 400."""
     response = await async_client.post(
-        "/api/control/invoke", json={"input": {"type": "TestArtifact", "message": "test"}}
+        "/api/control/invoke",
+        json={"input": {"type": "TestArtifact", "message": "test"}},
     )
 
     assert response.status_code == 400
@@ -1300,7 +1304,9 @@ async def test_invoke_agent_missing_agent_name(async_client):
 @pytest.mark.asyncio
 async def test_invoke_agent_missing_input(async_client):
     """Test POST /api/control/invoke with missing input returns 400."""
-    response = await async_client.post("/api/control/invoke", json={"agent_name": "test_agent"})
+    response = await async_client.post(
+        "/api/control/invoke", json={"agent_name": "test_agent"}
+    )
 
     assert response.status_code == 400
     assert "input is required" in response.json()["detail"]
@@ -1350,18 +1356,16 @@ async def test_invoke_agent_not_found(orchestrator, mocker):
 @pytest.mark.asyncio
 async def test_invoke_agent_unknown_input_type(async_client, mocker):
     """Test POST /api/control/invoke with unknown input type returns 422."""
-    # Mock orchestrator.get_agent
-    mock_orchestrator = mocker.patch("flock.dashboard.service.Flock")
-    mock_agent = create_mock_agent()
-    mock_orchestrator.get_agent.return_value = mock_agent
-
     # Mock type_registry to raise KeyError
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_type_registry.resolve.side_effect = KeyError("UnknownType")
 
     response = await async_client.post(
         "/api/control/invoke",
-        json={"agent_name": "test_agent", "input": {"type": "UnknownType", "message": "test"}},
+        json={
+            "agent_name": "test_agent",
+            "input": {"type": "UnknownType", "message": "test"},
+        },
     )
 
     assert response.status_code == 422
@@ -1376,7 +1380,7 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
     mocker.patch.object(orchestrator, "get_agent", return_value=mock_agent)
 
     # Mock type_registry and model validation error
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_model_class = Mock()
     mock_model_class.side_effect = ValidationError.from_exception_data(
         "TestArtifact",
@@ -1420,7 +1424,7 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
 async def test_invoke_agent_no_outputs(orchestrator, mocker):
     """Test POST /api/control/invoke when agent returns no outputs."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -1443,7 +1447,10 @@ async def test_invoke_agent_no_outputs(orchestrator, mocker):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/api/control/invoke",
-            json={"agent_name": "test_agent", "input": {"type": "TestArtifact", "message": "test"}},
+            json={
+                "agent_name": "test_agent",
+                "input": {"type": "TestArtifact", "message": "test"},
+            },
         )
 
         assert response.status_code == 200
@@ -1460,7 +1467,7 @@ async def test_invoke_agent_no_outputs(orchestrator, mocker):
 async def test_invoke_agent_orchestrator_error(orchestrator, mocker):
     """Test POST /api/control/invoke handles orchestrator errors returns 500."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -1486,7 +1493,10 @@ async def test_invoke_agent_orchestrator_error(orchestrator, mocker):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/api/control/invoke",
-            json={"agent_name": "test_agent", "input": {"type": "TestArtifact", "message": "test"}},
+            json={
+                "agent_name": "test_agent",
+                "input": {"type": "TestArtifact", "message": "test"},
+            },
         )
 
         assert response.status_code == 500
@@ -1518,7 +1528,9 @@ async def test_resume_orchestrator_not_implemented(async_client):
 
 
 @pytest.mark.asyncio
-async def test_get_streaming_history_success(async_client, mocker):
+async def test_get_streaming_history_success(
+    dashboard_service_with_mocks, async_client
+):
     """Test GET /api/streaming-history/{agent_name} returns streaming history."""
     # Mock streaming history events
     from flock.dashboard.events import StreamingOutputEvent
@@ -1526,7 +1538,7 @@ async def test_get_streaming_history_success(async_client, mocker):
     mock_events = [
         StreamingOutputEvent(
             correlation_id=str(uuid4()),
-            timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             agent_name="test_agent",
             run_id=str(uuid4()),
             output_type="llm_token",
@@ -1536,7 +1548,7 @@ async def test_get_streaming_history_success(async_client, mocker):
         ),
         StreamingOutputEvent(
             correlation_id=str(uuid4()),
-            timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             agent_name="test_agent",
             run_id=str(uuid4()),
             output_type="llm_token",
@@ -1546,20 +1558,12 @@ async def test_get_streaming_history_success(async_client, mocker):
         ),
     ]
 
-    # Mock websocket manager
-    mock_websocket_manager = Mock()
-    mock_websocket_manager.get_streaming_history.return_value = mock_events
+    # Mock get_streaming_history on the existing websocket_manager
+    dashboard_service_with_mocks.websocket_manager.get_streaming_history = Mock(
+        return_value=mock_events
+    )
 
-    # Get service and inject mock
-    from flock.dashboard.service import DashboardHTTPService
-
-    service = DashboardHTTPService(Mock())
-    service.websocket_manager = mock_websocket_manager
-
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=service.get_app()), base_url="http://test"
-    ) as client:
-        response = await client.get("/api/streaming-history/test_agent")
+    response = await async_client.get("/api/streaming-history/test_agent")
 
     assert response.status_code == 200
     data = response.json()
@@ -1576,22 +1580,14 @@ async def test_get_streaming_history_success(async_client, mocker):
 
 
 @pytest.mark.asyncio
-async def test_get_streaming_history_empty(async_client, mocker):
+async def test_get_streaming_history_empty(dashboard_service_with_mocks, async_client):
     """Test GET /api/streaming-history/{agent_name} with no history."""
-    # Mock empty streaming history
-    mock_websocket_manager = Mock()
-    mock_websocket_manager.get_streaming_history.return_value = []
+    # Mock empty streaming history on the existing websocket_manager
+    dashboard_service_with_mocks.websocket_manager.get_streaming_history = Mock(
+        return_value=[]
+    )
 
-    # Get service and inject mock
-    from flock.dashboard.service import DashboardHTTPService
-
-    service = DashboardHTTPService(Mock())
-    service.websocket_manager = mock_websocket_manager
-
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=service.get_app()), base_url="http://test"
-    ) as client:
-        response = await client.get("/api/streaming-history/unknown_agent")
+    response = await async_client.get("/api/streaming-history/unknown_agent")
 
     assert response.status_code == 200
     data = response.json()
@@ -1602,22 +1598,14 @@ async def test_get_streaming_history_empty(async_client, mocker):
 
 
 @pytest.mark.asyncio
-async def test_get_streaming_history_error(async_client, mocker):
+async def test_get_streaming_history_error(dashboard_service_with_mocks, async_client):
     """Test GET /api/streaming-history/{agent_name} handles errors returns 500."""
     # Mock websocket manager to raise exception
-    mock_websocket_manager = Mock()
-    mock_websocket_manager.get_streaming_history.side_effect = Exception("Database error")
+    dashboard_service_with_mocks.websocket_manager.get_streaming_history = Mock(
+        side_effect=Exception("Database error")
+    )
 
-    # Get service and inject mock
-    from flock.dashboard.service import DashboardHTTPService
-
-    service = DashboardHTTPService(Mock())
-    service.websocket_manager = mock_websocket_manager
-
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=service.get_app()), base_url="http://test"
-    ) as client:
-        response = await client.get("/api/streaming-history/test_agent")
+    response = await async_client.get("/api/streaming-history/test_agent")
 
     assert response.status_code == 500
     assert "Failed to get streaming history" in response.json()["detail"]
@@ -1747,7 +1735,11 @@ async def test_all_api_endpoints_respond(async_client):
         ("POST", "/api/control/pause"),
         ("POST", "/api/control/resume"),
         ("POST", "/api/control/publish", {"artifact_type": "Test", "content": {}}),
-        ("POST", "/api/control/invoke", {"agent_name": "test", "input": {"type": "Test"}}),
+        (
+            "POST",
+            "/api/control/invoke",
+            {"agent_name": "test", "input": {"type": "Test"}},
+        ),
     ]
 
     for method, path, *body in endpoints:
@@ -1775,26 +1767,22 @@ async def test_correlation_id_generation_and_timestamp_formatting(
     async_client, mock_artifact, mocker
 ):
     """Test that correlation IDs and timestamps are properly formatted."""
-    # Mock type_registry and orchestrator
-    mock_type_registry = mocker.patch("flock.dashboard.service.type_registry")
+    # Mock type_registry
+    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 
-    # Mock orchestrator.publish with fixed timestamp
-    fixed_time = datetime(2025, 1, 15, 10, 30, 45, tzinfo=timezone.utc)
+    # Mock orchestrator.publish with fixed timestamp (already done by fixture, just update the artifact)
+    fixed_time = datetime(2025, 1, 15, 10, 30, 45, tzinfo=UTC)
     mock_artifact.created_at = fixed_time
     mock_artifact.correlation_id = uuid4()
 
-    mock_orchestrator = mocker.patch("flock.dashboard.service.Flock")
-    mock_orchestrator.publish = AsyncMock(return_value=mock_artifact)
-
-    # Mock websocket manager
-    mock_websocket_manager = Mock()
-    mock_websocket_manager.broadcast = AsyncMock()
-
     response = await async_client.post(
         "/api/control/publish",
-        json={"artifact_type": "TestArtifact", "content": {"message": "test", "priority": 3}},
+        json={
+            "artifact_type": "TestArtifact",
+            "content": {"message": "test", "priority": 3},
+        },
     )
 
     assert response.status_code == 200
@@ -1810,7 +1798,7 @@ async def test_correlation_id_generation_and_timestamp_formatting(
 
     # Verify timestamp is ISO format
     timestamp_str = data["published_at"]
-    parsed_time = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+    parsed_time = datetime.fromisoformat(timestamp_str)
     assert parsed_time == fixed_time
 
 
@@ -1839,8 +1827,14 @@ async def test_json_serialization_and_content_type_headers(async_client):
 
     # Test POST endpoints
     post_endpoints = [
-        ("/api/control/publish", {"artifact_type": "Test", "content": {"test": "data"}}),
-        ("/api/control/invoke", {"agent_name": "test", "input": {"type": "Test", "test": "data"}}),
+        (
+            "/api/control/publish",
+            {"artifact_type": "Test", "content": {"test": "data"}},
+        ),
+        (
+            "/api/control/invoke",
+            {"agent_name": "test", "input": {"type": "Test", "test": "data"}},
+        ),
         ("/api/control/pause", {}),
         ("/api/control/resume", {}),
     ]

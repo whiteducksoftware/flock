@@ -2,8 +2,8 @@ import asyncio
 
 from pydantic import BaseModel, Field
 
+from flock import Flock
 from flock.mcp import StdioServerParameters
-from flock.orchestrator import Flock
 from flock.registry import flock_tool, flock_type
 
 

@@ -13,7 +13,9 @@ from uuid import uuid4
 
 import pytest
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.store import InMemoryBlackboardStore
+from flock.core.visibility import PublicVisibility
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.events import (
     AgentActivatedEvent,
@@ -21,9 +23,7 @@ from flock.dashboard.events import (
     MessagePublishedEvent,
     StreamingOutputEvent,
 )
-from flock.runtime import Context
-from flock.store import InMemoryBlackboardStore
-from flock.visibility import PublicVisibility
+from flock.utils.runtime import Context
 
 
 @pytest.fixture
@@ -283,7 +283,9 @@ async def test_correlation_id_propagation_through_websocket(
 
 
 @pytest.mark.asyncio
-async def test_multiple_clients_receive_same_events(websocket_manager, collector, orchestrator):
+async def test_multiple_clients_receive_same_events(
+    websocket_manager, collector, orchestrator
+):
     """Test that multiple clients receive the same events."""
     # Create multiple mock clients
     client1 = Mock()
@@ -461,7 +463,9 @@ async def test_json_serialization_deserialization_roundtrip(
 
 
 @pytest.mark.asyncio
-async def test_websocket_latency_target(websocket_manager, mock_websocket_client, collector):
+async def test_websocket_latency_target(
+    websocket_manager, mock_websocket_client, collector
+):
     """Test that WebSocket latency is under 50ms target (performance baseline)."""
     import time
 
@@ -490,7 +494,9 @@ async def test_websocket_latency_target(websocket_manager, mock_websocket_client
 
     # Verify latency is under 50ms (generous threshold for unit test)
     # In real deployment with network I/O, this will be validated differently
-    assert latency_ms < 50, f"WebSocket broadcast took {latency_ms:.2f}ms (target: <50ms)"
+    assert latency_ms < 50, (
+        f"WebSocket broadcast took {latency_ms:.2f}ms (target: <50ms)"
+    )
 
     # Note: This test measures in-memory broadcast only
     # Actual network latency will be tested in integration/E2E tests

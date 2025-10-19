@@ -37,9 +37,9 @@ import asyncio
 from pydantic import BaseModel
 
 from flock import Flock
-from flock.context_provider import FilteredContextProvider
-from flock.store import FilterConfig
-from flock.visibility import PublicVisibility
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+from flock.core.visibility import PublicVisibility
 
 
 # Define our data models

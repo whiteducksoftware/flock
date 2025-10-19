@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from flock import Flock, flock_type
 from flock.components import OrchestratorComponent
-from flock.runtime import Context
+from flock.utils.runtime import Context
 
 
 @flock_type(name="Dish")

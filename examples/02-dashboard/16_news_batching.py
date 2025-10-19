@@ -3,10 +3,10 @@ from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, Field
 
+from flock import Flock
+from flock.core.subscription import BatchSpec
 from flock.mcp.types.types import StdioServerParameters
-from flock.orchestrator import Flock
 from flock.registry import flock_type
-from flock.subscription import BatchSpec
 
 
 @flock_type

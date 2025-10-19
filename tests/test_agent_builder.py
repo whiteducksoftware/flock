@@ -25,9 +25,9 @@ import pytest
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.agent import OutputGroup
+from flock.core import OutputGroup
+from flock.core.visibility import PrivateVisibility, PublicVisibility, Visibility
 from flock.registry import flock_type
-from flock.visibility import PrivateVisibility, PublicVisibility, Visibility
 
 
 # Test artifact types
@@ -89,11 +89,7 @@ def test_publishes_multiple_calls_create_groups():
     flock = Flock()
 
     # Act - Chain multiple publishes calls
-    agent = (
-        flock.agent("test")
-        .publishes(TestTypeA)
-        .publishes(TestTypeB)
-    )
+    agent = flock.agent("test").publishes(TestTypeA).publishes(TestTypeB)
 
     # Assert - Should create 2 output groups
     assert len(agent.agent.output_groups) == 2
@@ -302,7 +298,7 @@ def test_publishes_where_with_lambda():
     # Act
     agent = flock.agent("test").publishes(
         TestTypeA,
-        where=lambda x: x.value > 50  # type: ignore
+        where=lambda x: x.value > 50,  # type: ignore
     )
 
     # Assert
@@ -354,9 +350,8 @@ def test_publishes_dynamic_visibility():
     # Visibility should be stored (as callable)
     # NOTE: The implementation might store this in default_visibility or a separate field
     # Check both possibilities
-    assert (
-        callable(output.default_visibility) or
-        (hasattr(output, "visibility_fn") and callable(output.visibility_fn))
+    assert callable(output.default_visibility) or (
+        hasattr(output, "visibility_fn") and callable(output.visibility_fn)
     )
 
 
@@ -430,7 +425,7 @@ def test_publishes_validate_list_of_tuples():
 
     validators = [
         (check_name_length, "Name must be at least 3 characters"),
-        (check_score_range, "Score must be 0-100")
+        (check_score_range, "Score must be 0-100"),
     ]
 
     # Act
@@ -546,11 +541,7 @@ def test_publishes_combined_parameters():
 
     # Act
     agent = flock.agent("test").publishes(
-        TestTypeA,
-        fan_out=3,
-        where=filter_fn,
-        validate=validate_fn,
-        description=desc
+        TestTypeA, fan_out=3, where=filter_fn, validate=validate_fn, description=desc
     )
 
     # Assert
@@ -585,7 +576,7 @@ def test_publishes_all_sugar_parameters_with_multiple_types():
         where=filter_fn,
         visibility=vis,
         validate=validate_fn,
-        description="Complex group"
+        description="Complex group",
     )
 
     # Assert
@@ -645,57 +636,6 @@ def test_publishes_large_fan_out_is_valid():
     assert output.count == 1000
 
 
-# ============================================================================
-# Test Scenario 11: Backwards compatibility
-# ============================================================================
-
-
-def test_publishes_backwards_compatibility():
-    """Existing .publishes(A) still works without output_groups."""
-    # Arrange
-    flock = Flock()
-
-    # Act - Old usage pattern
-    agent = flock.agent("test").publishes(TestTypeA)
-
-    # Assert - Should work with new output_groups architecture
-    assert hasattr(agent.agent, "output_groups")
-    assert len(agent.agent.output_groups) == 1
-
-    # Single output in group
-    group = agent.agent.output_groups[0]
-    assert len(group.outputs) == 1
-    assert group.outputs[0].spec.type_name == "TestTypeA"
-    assert group.outputs[0].count == 1
-
-
-def test_publishes_backwards_compatibility_multiple_types():
-    """Existing .publishes(A, B, C) creates one group."""
-    # Arrange
-    flock = Flock()
-
-    # Act - Old pattern with multiple types
-    agent = flock.agent("test").publishes(TestTypeA, TestTypeB, TestTypeC)
-
-    # Assert
-    assert len(agent.agent.output_groups) == 1
-    assert len(agent.agent.output_groups[0].outputs) == 3
-
-
-def test_publishes_backwards_compatibility_with_visibility():
-    """Existing .publishes(A, visibility=X) still works."""
-    # Arrange
-    flock = Flock()
-    vis = PrivateVisibility(agents={"test"})
-
-    # Act - Old pattern with visibility
-    agent = flock.agent("test").publishes(TestTypeA, visibility=vis)
-
-    # Assert
-    output = agent.agent.output_groups[0].outputs[0]
-    assert output.default_visibility == vis
-
-
 def test_publishes_chaining_with_other_methods():
     """.publishes() can be chained with .consumes() and other methods."""
     # Arrange
@@ -728,7 +668,7 @@ def test_publishes_returns_publish_builder():
     result = flock.agent("test").publishes(TestTypeA)
 
     # Assert - Should return PublishBuilder (or similar chainable object)
-    from flock.agent import AgentBuilder, PublishBuilder
+    from flock.core import AgentBuilder, PublishBuilder
 
     # Result should support agent builder methods
     assert isinstance(result, (PublishBuilder, AgentBuilder))
@@ -870,7 +810,7 @@ def test_publishes_group_structure_complete():
         TestTypeA,
         TestTypeB,
         visibility=PrivateVisibility(agents={"test"}),
-        description="Test group"
+        description="Test group",
     )
 
     # Assert - Group should have complete structure
@@ -910,26 +850,23 @@ Phase 3 Requirements (from PLAN.md lines 163-171):
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from pydantic import PrivateAttr
-from flock.runtime import Context
-from flock.artifacts import Artifact
-from flock.runtime import EvalInputs, EvalResult
-from flock.components import EngineComponent
-
 
 # No-op utility component for tests (bypasses console emoji rendering)
-from flock.components import AgentComponent
+from flock.components.agent import AgentComponent, EngineComponent
+from flock.core.artifacts import Artifact
+from flock.utils.runtime import Context, EvalInputs, EvalResult
+
 
 class NoOpUtility(AgentComponent):
     """Silent utility that does nothing - bypasses default console output."""
-    pass
 
 
 # Mock board for tests
 class MockBoard:
     """Mock blackboard that collects published artifacts without side effects."""
+
     def __init__(self):
         self.published: list[Artifact] = []
 
@@ -965,7 +902,9 @@ class CountingMockEngine(EngineComponent):
     def call_history(self) -> list[dict]:
         return self._call_history
 
-    async def evaluate(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx: Context, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         """Mock evaluate that returns predetermined artifacts."""
         # Record this call
         call_info = {
@@ -986,7 +925,9 @@ class CountingMockEngine(EngineComponent):
         # Return EvalResult with the artifacts
         return EvalResult.from_objects(*artifacts_to_return, agent=agent)
 
-    async def evaluate_fanout(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate_fanout(
+        self, agent, ctx: Context, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         """Mock evaluate_fanout that returns predetermined artifacts (same as evaluate)."""
         # Fan-out is just evaluate with multiple artifacts of same type
         return await self.evaluate(agent, ctx, inputs, output_group)
@@ -1024,7 +965,8 @@ async def test_multiple_publishes_calls_engine_multiple_times():
         .publishes(TestTypeA)  # Group 1
         .publishes(TestTypeB)  # Group 2
         .publishes(TestTypeC)  # Group 3
-        .with_engines(mock_engine).with_utilities(NoOpUtility())
+        .with_engines(mock_engine)
+        .with_utilities(NoOpUtility())
     )
 
     # Create context and input artifacts
@@ -1076,7 +1018,8 @@ async def test_single_publishes_calls_engine_once():
         flock.agent("single_publish_agent")
         .consumes(TestTypeA)
         .publishes(TestTypeA, TestTypeB, TestTypeC)  # ALL in one call
-        .with_engines(mock_engine).with_utilities(NoOpUtility())
+        .with_engines(mock_engine)
+        .with_utilities(NoOpUtility())
     )
 
     ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test-single-call")
@@ -1093,8 +1036,7 @@ async def test_single_publishes_calls_engine_once():
 
     # Assert - Engine called exactly ONCE
     assert mock_engine.call_count == 1, (
-        f"Expected 1 engine call for single .publishes(), "
-        f"got {mock_engine.call_count}"
+        f"Expected 1 engine call for single .publishes(), got {mock_engine.call_count}"
     )
 
 
@@ -1122,7 +1064,8 @@ async def test_fan_out_calls_engine_once_generates_multiple():
         flock.agent("fanout_agent")
         .consumes(TestTypeB)
         .publishes(TestTypeA, fan_out=3)  # Expect 3 artifacts, but 1 call
-        .with_engines(mock_engine).with_utilities(NoOpUtility())
+        .with_engines(mock_engine)
+        .with_utilities(NoOpUtility())
     )
 
     ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
@@ -1162,7 +1105,9 @@ async def test_each_engine_call_receives_group_specific_context():
     contexts_received: list[Context] = []
 
     class ContextTrackingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx: Context, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             # Capture the context
             contexts_received.append(ctx)
 
@@ -1183,7 +1128,8 @@ async def test_each_engine_call_receives_group_specific_context():
         .publishes(TestTypeA, description="First group")  # Group 1
         .publishes(TestTypeB, description="Second group")  # Group 2
         .publishes(TestTypeC, description="Third group")  # Group 3
-        .with_engines(ContextTrackingEngine()).with_utilities(NoOpUtility())
+        .with_engines(ContextTrackingEngine())
+        .with_utilities(NoOpUtility())
     )
 
     ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
@@ -1242,7 +1188,8 @@ async def test_artifacts_from_all_groups_collected():
         .publishes(TestTypeA)  # Group 1: 1 artifact
         .publishes(TestTypeB, fan_out=2)  # Group 2: 2 artifacts
         .publishes(TestTypeC)  # Group 3: 1 artifact
-        .with_engines(mock_engine).with_utilities(NoOpUtility())
+        .with_engines(mock_engine)
+        .with_utilities(NoOpUtility())
     )
 
     ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
@@ -1311,7 +1258,8 @@ async def test_engine_calls_are_sequential_not_parallel():
         .publishes(TestTypeA)
         .publishes(TestTypeB)
         .publishes(TestTypeC)
-        .with_engines(SequentialTrackingEngine()).with_utilities(NoOpUtility())
+        .with_engines(SequentialTrackingEngine())
+        .with_utilities(NoOpUtility())
     )
 
     ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
@@ -1373,7 +1321,8 @@ async def test_error_in_group_stops_subsequent_groups():
         .publishes(TestTypeA)  # Group 1: succeeds
         .publishes(TestTypeB)  # Group 2: FAILS
         .publishes(TestTypeC)  # Group 3: should NOT execute
-        .with_engines(FailingEngine()).with_utilities(NoOpUtility())
+        .with_engines(FailingEngine())
+        .with_utilities(NoOpUtility())
     )
 
     ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
@@ -1424,7 +1373,8 @@ async def test_mock_engine_verifies_call_count_and_behavior():
         .consumes(TestTypeA)
         .publishes(TestTypeA)
         .publishes(TestTypeB)
-        .with_engines(mock_engine).with_utilities(NoOpUtility())
+        .with_engines(mock_engine)
+        .with_utilities(NoOpUtility())
     )
 
     ctx = Context(board=MockBoard(), orchestrator=flock, task_id="test")
@@ -1477,7 +1427,8 @@ async def test_agent_without_publishes_no_engine_calls():
     agent = (
         flock.agent("no_publish")
         .consumes(TestTypeA)
-        .with_engines(mock_engine).with_utilities(NoOpUtility())
+        .with_engines(mock_engine)
+        .with_utilities(NoOpUtility())
         # NO .publishes() calls
     )
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from flock.cli import main
-from flock.orchestrator import Flock, start_orchestrator
+from flock.core import Flock, start_orchestrator
 from flock.registry import flock_tool, flock_type
 
 

@@ -11,16 +11,16 @@ class TestVersionHandling:
         """Test that version is loaded from package metadata."""
         # We can't easily reload the module to test the try block,
         # so we test that the version was successfully loaded
-        import flock.helper.cli_helper
+        import flock.utils.cli_helper
 
         # The version should be loaded from the package
-        assert hasattr(flock.helper.cli_helper, "__version__")
+        assert hasattr(flock.utils.cli_helper, "__version__")
         # It should be a string
-        assert isinstance(flock.helper.cli_helper.__version__, str)
+        assert isinstance(flock.utils.cli_helper.__version__, str)
         # It should match semantic versioning pattern
         import re
 
-        assert re.match(r"^\d+\.\d+\.\d+", flock.helper.cli_helper.__version__)
+        assert re.match(r"^\d+\.\d+\.\d+", flock.utils.cli_helper.__version__)
 
     def test_version_fallback_on_package_not_found(self):
         """Test fallback version when package is not installed."""
@@ -28,8 +28,8 @@ class TestVersionHandling:
         import sys
 
         # Remove the module from cache to force reload
-        if "flock.helper.cli_helper" in sys.modules:
-            del sys.modules["flock.helper.cli_helper"]
+        if "flock.utils.cli_helper" in sys.modules:
+            del sys.modules["flock.utils.cli_helper"]
 
         with patch("importlib.metadata.version") as mock_version:
             from importlib.metadata import PackageNotFoundError
@@ -37,10 +37,10 @@ class TestVersionHandling:
             mock_version.side_effect = PackageNotFoundError("flock-flow")
 
             # Now import the module - this will trigger the exception
-            import flock.helper.cli_helper
+            import flock.utils.cli_helper
 
             # Should have fallen back to default version
-            assert flock.helper.cli_helper.__version__ == "0.5.0b"
+            assert flock.utils.cli_helper.__version__ == "0.5.0b"
 
 
 class TestDisplayHummingbird:
@@ -48,7 +48,7 @@ class TestDisplayHummingbird:
 
     def test_display_hummingbird_prints_output(self, capsys):
         """Test that display_hummingbird prints the expected content."""
-        from flock.helper.cli_helper import display_hummingbird
+        from flock.utils.cli_helper import display_hummingbird
 
         display_hummingbird()
         captured = capsys.readouterr()
@@ -67,7 +67,7 @@ class TestInitConsole:
     @patch("rich.console.Console")
     def test_init_console_default_params(self, mock_console_class):
         """Test init_console with default parameters."""
-        from flock.helper.cli_helper import init_console
+        from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -84,7 +84,7 @@ class TestInitConsole:
     @patch("rich.console.Console")
     def test_init_console_no_clear_screen(self, mock_console_class):
         """Test init_console with clear_screen=False."""
-        from flock.helper.cli_helper import init_console
+        from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -99,7 +99,7 @@ class TestInitConsole:
     @patch("rich.console.Console")
     def test_init_console_no_banner(self, mock_console_class):
         """Test init_console with show_banner=False."""
-        from flock.helper.cli_helper import init_console
+        from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -114,7 +114,7 @@ class TestInitConsole:
     @patch("rich.console.Console")
     def test_init_console_with_model(self, mock_console_class):
         """Test init_console with a model parameter."""
-        from flock.helper.cli_helper import init_console
+        from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -131,7 +131,7 @@ class TestInitConsole:
     @patch("rich.console.Console")
     def test_init_console_all_false_with_model(self, mock_console_class):
         """Test init_console with all flags False but with model."""
-        from flock.helper.cli_helper import init_console
+        from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -146,10 +146,10 @@ class TestInitConsole:
         assert "claude-3" in print_call
 
     @patch("rich.console.Console")
-    @patch("flock.helper.cli_helper.__version__", "test-version")
+    @patch("flock.utils.cli_helper.__version__", "test-version")
     def test_init_console_version_in_banner(self, mock_console_class):
         """Test that version is included in the banner."""
-        from flock.helper.cli_helper import init_console
+        from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -163,7 +163,7 @@ class TestInitConsole:
     @patch("rich.console.Console")
     def test_init_console_banner_content(self, mock_console_class):
         """Test that banner contains expected elements."""
-        from flock.helper.cli_helper import init_console
+        from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -189,7 +189,7 @@ class TestDisplayBannerNoVersion:
     @patch("rich.console.Console")
     def test_display_banner_no_version_basic(self, mock_console_class):
         """Test that display_banner_no_version prints expected content."""
-        from flock.helper.cli_helper import display_banner_no_version
+        from flock.utils.cli_helper import display_banner_no_version
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -204,7 +204,7 @@ class TestDisplayBannerNoVersion:
     @patch("rich.console.Console")
     def test_display_banner_no_version_content(self, mock_console_class):
         """Test content of display_banner_no_version."""
-        from flock.helper.cli_helper import display_banner_no_version
+        from flock.utils.cli_helper import display_banner_no_version
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -229,7 +229,7 @@ class TestDisplayBannerNoVersion:
     @patch("rich.console.Console")
     def test_display_banner_no_version_no_clear(self, mock_console_class):
         """Test that display_banner_no_version doesn't clear screen."""
-        from flock.helper.cli_helper import display_banner_no_version
+        from flock.utils.cli_helper import display_banner_no_version
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -242,7 +242,7 @@ class TestDisplayBannerNoVersion:
     @patch("rich.console.Console")
     def test_display_banner_no_version_text_styling(self, mock_console_class):
         """Test that banner text has proper styling."""
-        from flock.helper.cli_helper import display_banner_no_version
+        from flock.utils.cli_helper import display_banner_no_version
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -267,7 +267,7 @@ class TestEdgeCases:
     @patch("rich.console.Console")
     def test_init_console_empty_model_string(self, mock_console_class):
         """Test init_console with empty model string."""
-        from flock.helper.cli_helper import init_console
+        from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
@@ -282,7 +282,7 @@ class TestEdgeCases:
     @patch("rich.console.Console")
     def test_multiple_console_creations(self, mock_console_class):
         """Test that each function creates its own console instance."""
-        from flock.helper.cli_helper import display_banner_no_version, init_console
+        from flock.utils.cli_helper import display_banner_no_version, init_console
 
         mock_console1 = MagicMock()
         mock_console2 = MagicMock()
@@ -306,16 +306,16 @@ class TestImportBehavior:
         """Test that the module can be imported without errors."""
         import importlib
 
-        import flock.helper.cli_helper
+        import flock.utils.cli_helper
 
         # Force reload to ensure fresh import
-        importlib.reload(flock.helper.cli_helper)
+        importlib.reload(flock.utils.cli_helper)
 
         # Check that all expected functions are available
-        assert hasattr(flock.helper.cli_helper, "display_hummingbird")
-        assert hasattr(flock.helper.cli_helper, "init_console")
-        assert hasattr(flock.helper.cli_helper, "display_banner_no_version")
-        assert hasattr(flock.helper.cli_helper, "__version__")
+        assert hasattr(flock.utils.cli_helper, "display_hummingbird")
+        assert hasattr(flock.utils.cli_helper, "init_console")
+        assert hasattr(flock.utils.cli_helper, "display_banner_no_version")
+        assert hasattr(flock.utils.cli_helper, "__version__")
 
     def test_rich_imports_lazy(self):
         """Test that Rich modules are imported lazily within functions."""
@@ -330,9 +330,9 @@ class TestImportBehavior:
         # Import our module
         import importlib
 
-        import flock.helper.cli_helper
+        import flock.utils.cli_helper
 
-        importlib.reload(flock.helper.cli_helper)
+        importlib.reload(flock.utils.cli_helper)
 
         # Rich shouldn't be imported yet
         assert "rich.console" not in sys.modules
@@ -340,7 +340,7 @@ class TestImportBehavior:
 
         # Now call a function that uses Rich
         with patch("rich.console.Console"):
-            flock.helper.cli_helper.init_console(show_banner=False)
+            flock.utils.cli_helper.init_console(show_banner=False)
 
         # Now Rich should be imported
         assert "rich.console" in sys.modules

@@ -19,7 +19,7 @@ Modern trading systems need to:
 ### The Flock Solution
 
 ```python
-from flock.orchestrator import Flock
+from flock import Flock
 from flock.subscription import JoinSpec
 from pydantic import BaseModel, Field
 from datetime import timedelta
@@ -120,7 +120,7 @@ Medical diagnostic systems require:
 ### The Flock Solution
 
 ```python
-from flock.orchestrator import Flock
+from flock import Flock
 from flock.visibility import PrivateVisibility, TenantVisibility, LabelledVisibility
 from flock.registry import flock_type
 from pydantic import BaseModel
@@ -257,7 +257,7 @@ Modern recommendation systems need to:
 ### The Flock Solution
 
 ```python
-from flock.orchestrator import Flock
+from flock import Flock
 from flock.subscription import BatchSpec
 from pydantic import BaseModel
 from datetime import timedelta
@@ -358,7 +358,7 @@ Multi-tenant platforms need:
 ### The Flock Solution
 
 ```python
-from flock.orchestrator import Flock
+from flock import Flock
 from flock.visibility import TenantVisibility
 from flock.subscription import JoinSpec
 from flock.registry import flock_type

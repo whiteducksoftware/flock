@@ -8,10 +8,10 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
+from flock.api.service import BlackboardHTTPService
+from flock.core.artifacts import Artifact
+from flock.core.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 from flock.registry import flock_type
-from flock.service import BlackboardHTTPService
-from flock.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 
 
 @flock_type(name="ServiceTestInput")
@@ -85,7 +85,9 @@ async def test_run_agent_endpoint(service, mock_orchestrator):
 
     # Mock direct_invoke to return artifacts
     output_artifact = Artifact(
-        type="ServiceTestOutput", payload={"result": "processed"}, produced_by="test_agent"
+        type="ServiceTestOutput",
+        payload={"result": "processed"},
+        produced_by="test_agent",
     )
     mock_orchestrator.direct_invoke = AsyncMock(return_value=[output_artifact])
 
@@ -93,7 +95,9 @@ async def test_run_agent_endpoint(service, mock_orchestrator):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/api/v1/agents/test_agent/run",
-            json={"inputs": [{"type": "ServiceTestInput", "payload": {"value": "test"}}]},
+            json={
+                "inputs": [{"type": "ServiceTestInput", "payload": {"value": "test"}}]
+            },
         )
 
     assert response.status_code == 200
@@ -111,7 +115,9 @@ async def test_run_agent_not_found(service, mock_orchestrator):
 
     transport = ASGITransport(app=service.app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post("/api/v1/agents/nonexistent/run", json={"inputs": []})
+        response = await client.post(
+            "/api/v1/agents/nonexistent/run", json={"inputs": []}
+        )
 
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
@@ -130,7 +136,9 @@ async def test_run_agent_with_error(service, mock_orchestrator):
 
     transport = ASGITransport(app=service.app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post("/api/v1/agents/error_agent/run", json={"inputs": []})
+        response = await client.post(
+            "/api/v1/agents/error_agent/run", json={"inputs": []}
+        )
 
     assert response.status_code == 500
 
@@ -200,7 +208,9 @@ async def test_list_agents_with_subscriptions(service, mock_orchestrator):
 async def test_artifacts_endpoint_with_filters(service, mock_orchestrator):
     """Test getting specific artifact by ID."""
     test_id = uuid4()
-    artifact = Artifact(type="TypeA", payload={"a": 1}, produced_by="agent1", id=test_id)
+    artifact = Artifact(
+        type="TypeA", payload={"a": 1}, produced_by="agent1", id=test_id
+    )
     mock_orchestrator.store.get = AsyncMock(return_value=artifact)
 
     transport = ASGITransport(app=service.app)
@@ -312,7 +322,9 @@ async def test_artifact_summary_endpoint(service, mock_orchestrator):
 
     transport = ASGITransport(app=service.app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/api/v1/artifacts/summary", params={"type": "TypeA"})
+        response = await client.get(
+            "/api/v1/artifacts/summary", params={"type": "TypeA"}
+        )
 
     assert response.status_code == 200
     summary = response.json()["summary"]
@@ -385,7 +397,10 @@ async def test_service_run_async_method():
 
     service = BlackboardHTTPService(mock_orchestrator)
 
-    with patch("uvicorn.Config") as mock_config_cls, patch("uvicorn.Server") as mock_server_cls:
+    with (
+        patch("uvicorn.Config") as mock_config_cls,
+        patch("uvicorn.Server") as mock_server_cls,
+    ):
         mock_config = Mock()
         mock_config_cls.return_value = mock_config
         mock_server = Mock()

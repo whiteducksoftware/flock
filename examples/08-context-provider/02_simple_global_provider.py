@@ -3,8 +3,8 @@ import asyncio
 from pydantic import BaseModel
 
 from flock import Flock
-from flock.context_provider import FilteredContextProvider
-from flock.store import FilterConfig
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
 
 
 # Define our data models

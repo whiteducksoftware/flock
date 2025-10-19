@@ -13,10 +13,10 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.agent import AgentOutput, OutputGroup
-from flock.artifacts import ArtifactSpec
+from flock.core import AgentOutput, OutputGroup
+from flock.core.artifacts import ArtifactSpec
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type
-from flock.visibility import PublicVisibility
 
 
 # Test artifact types
@@ -44,10 +44,7 @@ def test_output_group_creation_with_single_output():
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility())
 
     # Act
-    group = OutputGroup(
-        outputs=[output],
-        shared_visibility=PublicVisibility()
-    )
+    group = OutputGroup(outputs=[output], shared_visibility=PublicVisibility())
 
     # Assert
     assert len(group.outputs) == 1
@@ -65,8 +62,7 @@ def test_output_group_creation_with_multiple_outputs():
 
     # Act
     group = OutputGroup(
-        outputs=[output1, output2],
-        shared_visibility=PublicVisibility()
+        outputs=[output1, output2], shared_visibility=PublicVisibility()
     )
 
     # Assert
@@ -85,10 +81,7 @@ def test_output_group_is_single_call_returns_true():
     # Arrange
     spec = ArtifactSpec.from_model(TestReport)
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility())
-    group = OutputGroup(
-        outputs=[output],
-        shared_visibility=PublicVisibility()
-    )
+    group = OutputGroup(outputs=[output], shared_visibility=PublicVisibility())
 
     # Act & Assert
     assert group.is_single_call() is True
@@ -132,7 +125,7 @@ def test_agent_output_with_all_new_fields():
         count=5,
         filter_predicate=filter_fn,
         validate_predicate=validate_fn,
-        group_description="Custom description for this output group"
+        group_description="Custom description for this output group",
     )
 
     # Assert
@@ -146,11 +139,7 @@ def test_agent_output_is_many_returns_false_when_count_is_one():
     """Test that is_many() returns False when count == 1."""
     # Arrange
     spec = ArtifactSpec.from_model(TestReport)
-    output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        count=1
-    )
+    output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=1)
 
     # Act & Assert
     assert output.is_many() is False
@@ -160,11 +149,7 @@ def test_agent_output_is_many_returns_true_when_count_greater_than_one():
     """Test that is_many() returns True when count > 1."""
     # Arrange
     spec = ArtifactSpec.from_model(TestReport)
-    output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        count=3
-    )
+    output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=3)
 
     # Act & Assert
     assert output.is_many() is True
@@ -174,11 +159,7 @@ def test_agent_output_is_many_returns_true_for_large_counts():
     """Test that is_many() works correctly for large fan-out counts."""
     # Arrange
     spec = ArtifactSpec.from_model(TestReport)
-    output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        count=100
-    )
+    output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=100)
 
     # Act & Assert
     assert output.is_many() is True
@@ -195,11 +176,7 @@ def test_agent_output_allows_count_of_one():
     spec = ArtifactSpec.from_model(TestReport)
 
     # Act - Should not raise
-    output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        count=1
-    )
+    output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=1)
 
     # Assert
     assert output.count == 1
@@ -211,11 +188,7 @@ def test_agent_output_allows_count_greater_than_one():
     spec = ArtifactSpec.from_model(TestReport)
 
     # Act - Should not raise
-    output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        count=10
-    )
+    output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=10)
 
     # Assert
     assert output.count == 10
@@ -228,14 +201,13 @@ def test_agent_output_rejects_count_of_zero():
 
     # Act & Assert
     with pytest.raises(ValueError) as exc_info:
-        AgentOutput(
-            spec=spec,
-            default_visibility=PublicVisibility(),
-            count=0
-        )
+        AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=0)
 
     # Verify error message mentions the constraint
-    assert "count" in str(exc_info.value).lower() or "fan_out" in str(exc_info.value).lower()
+    assert (
+        "count" in str(exc_info.value).lower()
+        or "fan_out" in str(exc_info.value).lower()
+    )
     assert "1" in str(exc_info.value) or "greater" in str(exc_info.value).lower()
 
 
@@ -246,14 +218,13 @@ def test_agent_output_rejects_negative_count():
 
     # Act & Assert
     with pytest.raises(ValueError) as exc_info:
-        AgentOutput(
-            spec=spec,
-            default_visibility=PublicVisibility(),
-            count=-5
-        )
+        AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=-5)
 
     # Verify error message
-    assert "count" in str(exc_info.value).lower() or "fan_out" in str(exc_info.value).lower()
+    assert (
+        "count" in str(exc_info.value).lower()
+        or "fan_out" in str(exc_info.value).lower()
+    )
 
 
 # ============================================================================
@@ -271,9 +242,7 @@ def test_agent_output_accepts_valid_filter_predicate():
 
     # Act - Should not raise
     output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        filter_predicate=valid_filter
+        spec=spec, default_visibility=PublicVisibility(), filter_predicate=valid_filter
     )
 
     # Assert
@@ -291,9 +260,7 @@ def test_agent_output_filter_predicate_can_be_none():
 
     # Act - Should not raise
     output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        filter_predicate=None
+        spec=spec, default_visibility=PublicVisibility(), filter_predicate=None
     )
 
     # Assert
@@ -306,14 +273,14 @@ def test_agent_output_filter_predicate_works_with_real_filtering():
     spec = ArtifactSpec.from_model(TestReport)
 
     def high_score_filter(obj: BaseModel) -> bool:
-        if hasattr(obj, 'score'):
+        if hasattr(obj, "score"):
             return obj.score >= 75  # type: ignore
         return False
 
     output = AgentOutput(
         spec=spec,
         default_visibility=PublicVisibility(),
-        filter_predicate=high_score_filter
+        filter_predicate=high_score_filter,
     )
 
     # Act
@@ -340,9 +307,7 @@ def test_agent_output_accepts_simple_validate_callable():
 
     # Act - Should not raise
     output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        validate_predicate=validate_fn
+        spec=spec, default_visibility=PublicVisibility(), validate_predicate=validate_fn
     )
 
     # Assert
@@ -356,21 +321,19 @@ def test_agent_output_accepts_validate_as_list_of_tuples():
     spec = ArtifactSpec.from_model(TestReport)
 
     def check_title(obj: BaseModel) -> bool:
-        return hasattr(obj, 'title') and obj.title != ""  # type: ignore
+        return hasattr(obj, "title") and obj.title != ""  # type: ignore
 
     def check_score(obj: BaseModel) -> bool:
-        return hasattr(obj, 'score') and 0 <= obj.score <= 100  # type: ignore
+        return hasattr(obj, "score") and 0 <= obj.score <= 100  # type: ignore
 
     validators = [
         (check_title, "Title must not be empty"),
-        (check_score, "Score must be between 0 and 100")
+        (check_score, "Score must be between 0 and 100"),
     ]
 
     # Act - Should not raise
     output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        validate_predicate=validators
+        spec=spec, default_visibility=PublicVisibility(), validate_predicate=validators
     )
 
     # Assert
@@ -388,9 +351,7 @@ def test_agent_output_validate_predicate_can_be_none():
 
     # Act - Should not raise
     output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        validate_predicate=None
+        spec=spec, default_visibility=PublicVisibility(), validate_predicate=None
     )
 
     # Assert
@@ -405,15 +366,10 @@ def test_agent_output_validate_tuple_format_is_correct():
     def validator(obj: BaseModel) -> bool:
         return True
 
-    validators = [
-        (validator, "Error message 1"),
-        (validator, "Error message 2")
-    ]
+    validators = [(validator, "Error message 1"), (validator, "Error message 2")]
 
     output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        validate_predicate=validators
+        spec=spec, default_visibility=PublicVisibility(), validate_predicate=validators
     )
 
     # Act & Assert
@@ -431,24 +387,22 @@ def test_agent_output_validate_list_works_with_real_validation():
     spec = ArtifactSpec.from_model(TestReport)
 
     def check_title_length(obj: BaseModel) -> bool:
-        if hasattr(obj, 'title'):
+        if hasattr(obj, "title"):
             return len(obj.title) >= 3  # type: ignore
         return False
 
     def check_score_range(obj: BaseModel) -> bool:
-        if hasattr(obj, 'score'):
+        if hasattr(obj, "score"):
             return 0 <= obj.score <= 100  # type: ignore
         return False
 
     validators = [
         (check_title_length, "Title must be at least 3 characters"),
-        (check_score_range, "Score must be 0-100")
+        (check_score_range, "Score must be 0-100"),
     ]
 
     output = AgentOutput(
-        spec=spec,
-        default_visibility=PublicVisibility(),
-        validate_predicate=validators
+        spec=spec, default_visibility=PublicVisibility(), validate_predicate=validators
     )
 
     # Act
@@ -481,17 +435,17 @@ def test_agent_output_with_all_fields_integration():
     spec = ArtifactSpec.from_model(TestReport)
 
     def filter_high_scores(obj: BaseModel) -> bool:
-        return hasattr(obj, 'score') and obj.score >= 80  # type: ignore
+        return hasattr(obj, "score") and obj.score >= 80  # type: ignore
 
     def validate_title(obj: BaseModel) -> bool:
-        return hasattr(obj, 'title') and len(obj.title) >= 5  # type: ignore
+        return hasattr(obj, "title") and len(obj.title) >= 5  # type: ignore
 
     def validate_score(obj: BaseModel) -> bool:
-        return hasattr(obj, 'score') and obj.score <= 100  # type: ignore
+        return hasattr(obj, "score") and obj.score <= 100  # type: ignore
 
     validators = [
         (validate_title, "Title too short"),
-        (validate_score, "Score too high")
+        (validate_score, "Score too high"),
     ]
 
     # Act
@@ -501,7 +455,7 @@ def test_agent_output_with_all_fields_integration():
         count=10,
         filter_predicate=filter_high_scores,
         validate_predicate=validators,
-        group_description="High-quality reports with detailed validation"
+        group_description="High-quality reports with detailed validation",
     )
 
     # Assert
@@ -532,17 +486,17 @@ def test_output_group_with_multiple_enhanced_outputs():
     task_spec = ArtifactSpec.from_model(TestTask)
 
     def filter_reports(obj: BaseModel) -> bool:
-        return hasattr(obj, 'score') and obj.score >= 70  # type: ignore
+        return hasattr(obj, "score") and obj.score >= 70  # type: ignore
 
     def filter_tasks(obj: BaseModel) -> bool:
-        return hasattr(obj, 'priority') and obj.priority >= 5  # type: ignore
+        return hasattr(obj, "priority") and obj.priority >= 5  # type: ignore
 
     report_output = AgentOutput(
         spec=report_spec,
         default_visibility=PublicVisibility(),
         count=5,
         filter_predicate=filter_reports,
-        group_description="High-score reports"
+        group_description="High-score reports",
     )
 
     task_output = AgentOutput(
@@ -550,13 +504,12 @@ def test_output_group_with_multiple_enhanced_outputs():
         default_visibility=PublicVisibility(),
         count=3,
         filter_predicate=filter_tasks,
-        group_description="High-priority tasks"
+        group_description="High-priority tasks",
     )
 
     # Act
     group = OutputGroup(
-        outputs=[report_output, task_output],
-        shared_visibility=PublicVisibility()
+        outputs=[report_output, task_output], shared_visibility=PublicVisibility()
     )
 
     # Assert
@@ -588,10 +541,7 @@ def test_output_group_preserves_output_ordering():
     ]
 
     # Act
-    group = OutputGroup(
-        outputs=outputs,
-        shared_visibility=PublicVisibility()
-    )
+    group = OutputGroup(outputs=outputs, shared_visibility=PublicVisibility())
 
     # Assert - Order should be preserved
     assert group.outputs[0].spec.type_name == "TestReport"

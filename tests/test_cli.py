@@ -12,8 +12,8 @@ from rich.console import Console
 from rich.table import Table
 from typer.testing import CliRunner
 
-from flock.artifacts import Artifact
 from flock.cli import app, demo, list_agents, main, serve
+from flock.core.artifacts import Artifact
 
 
 def strip_ansi(text: str) -> str:
@@ -112,7 +112,9 @@ class TestDemoCommand:
         assert result.exit_code == 0
 
         # Verify default values were used
-        mock_idea.assert_called_once_with(topic="AI agents collaborating", genre="comedy")
+        mock_idea.assert_called_once_with(
+            topic="AI agents collaborating", genre="comedy"
+        )
 
     def test_demo_with_artifacts(self, mocker, mock_console):
         """Test demo displays artifacts correctly."""
@@ -392,7 +394,9 @@ class TestAsyncBehavior:
         mock_orchestrator.arun = AsyncMock()
         mock_orchestrator.run_until_idle = AsyncMock()
 
-        artifacts = [Artifact(type="Test", payload={"data": "test"}, produced_by="test")]
+        artifacts = [
+            Artifact(type="Test", payload={"data": "test"}, produced_by="test")
+        ]
 
         mock_store = Mock()
         mock_store.list = AsyncMock(return_value=artifacts)
@@ -433,7 +437,9 @@ class TestErrorHandling:
         mocker.patch("flock.examples.Idea")
 
         mock_orchestrator = Mock()
-        mock_orchestrator.arun = AsyncMock(side_effect=RuntimeError("Orchestration failed"))
+        mock_orchestrator.arun = AsyncMock(
+            side_effect=RuntimeError("Orchestration failed")
+        )
 
         mock_create.return_value = (mock_orchestrator, {"movie": Mock()})
 

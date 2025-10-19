@@ -1,9 +1,9 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from flock.api.service import BlackboardHTTPService
 from flock.examples import Idea, create_demo_orchestrator
 from flock.registry import type_registry
-from flock.service import BlackboardHTTPService
 
 
 @pytest.mark.asyncio

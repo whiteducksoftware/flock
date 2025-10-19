@@ -1,21 +1,17 @@
 """Tests for component system."""
 
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.agent import OutputGroup
-from flock.artifacts import Artifact
-from flock.components import AgentComponent, AgentComponentConfig, EngineComponent
-from flock.context_provider import DefaultContextProvider
-from flock.orchestrator import Flock
+from flock.components.agent import AgentComponent, AgentComponentConfig, EngineComponent
+from flock.core import Flock, OutputGroup
+from flock.core.artifacts import Artifact
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
-from flock.store import FilterConfig
-from flock.visibility import AgentIdentity, PublicVisibility
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # Test artifact types
@@ -43,7 +39,9 @@ class OrderTracker(AgentComponent):
 class SimpleTestEngine(EngineComponent):
     """Simple engine for testing."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         return EvalResult(artifacts=[], state={})
 
 
@@ -141,7 +139,9 @@ async def test_component_adds_state_in_pre_evaluate():
             return await super().on_pre_evaluate(agent, ctx, inputs)
 
     class StateCapturingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             state_captured.update(inputs.state)
             return EvalResult(artifacts=[], state=inputs.state)
 
@@ -181,7 +181,9 @@ async def test_metrics_component_adds_metrics():
             return await super().on_post_evaluate(agent, ctx, inputs, result)
 
     class MetricsCapturingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             return EvalResult(artifacts=[], state={})
 
     agent = (
@@ -217,7 +219,9 @@ async def test_component_on_error_hook_called():
             return await super().on_error(agent, ctx, exception)
 
     class FailingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             raise ValueError("Test exception")
 
     agent = (
@@ -261,7 +265,11 @@ async def test_agent_component_config_with_fields():
 
     # Create an instance with custom values
     config2 = CustomConfig(
-        enabled=False, model="gpt-4", temperature=0.9, max_tokens=2000, custom_flag=False
+        enabled=False,
+        model="gpt-4",
+        temperature=0.9,
+        max_tokens=2000,
+        custom_flag=False,
     )
     assert config2.enabled is False
     assert config2.model == "gpt-4"
@@ -276,7 +284,7 @@ async def test_agent_component_config_with_fields():
 @pytest.mark.asyncio
 async def test_engine_component_get_conversation_context():
     """Test EngineComponent.get_conversation_context() method - Phase 8 pattern."""
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
     # Phase 8: Context contains pre-filtered artifacts (evaluated by orchestrator)
     correlation_id = uuid4()
@@ -287,14 +295,14 @@ async def test_engine_component_get_conversation_context():
             type="user_message",
             payload={"message": "Hello"},
             produced_by="agent1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
         Artifact(
             id=uuid4(),
             type="assistant_response",
             payload={"message": "Hi there!"},
             produced_by="agent2",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
     ]
 
@@ -321,7 +329,7 @@ async def test_engine_component_get_conversation_context():
 @pytest.mark.asyncio
 async def test_engine_component_get_context_with_max_artifacts():
     """Test get_conversation_context with max_artifacts limit - Phase 8 pattern."""
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
     # Phase 8: Context contains pre-filtered artifacts (10 artifacts from orchestrator)
     pre_filtered_artifacts = [
@@ -330,7 +338,7 @@ async def test_engine_component_get_context_with_max_artifacts():
             type=f"message_{i}",
             payload={"content": f"Content {i}"},
             produced_by=f"agent_{i}",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         for i in range(10)
     ]
@@ -364,7 +372,7 @@ async def test_engine_component_get_context_with_max_artifacts():
 @pytest.mark.asyncio
 async def test_engine_component_get_context_with_exclude_types():
     """Test get_conversation_context with excluded types - Phase 8 pattern."""
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
     # Phase 8: Context contains pre-filtered artifacts
     pre_filtered_artifacts = [
@@ -373,21 +381,21 @@ async def test_engine_component_get_context_with_exclude_types():
             type="user_message",
             payload={"message": "Hello"},
             produced_by="agent1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
         Artifact(
             id=uuid4(),
             type="system_log",
             payload={"info": "System info"},
             produced_by="system",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
         Artifact(
             id=uuid4(),
             type="assistant_response",
             payload={"message": "Hi there!"},
             produced_by="agent2",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         ),
     ]
 
@@ -409,7 +417,7 @@ async def test_engine_component_get_context_with_exclude_types():
 @pytest.mark.asyncio
 async def test_engine_component_get_context_disabled():
     """Test get_conversation_context when context is disabled."""
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
     ctx = Context(
         artifacts=[
@@ -418,7 +426,7 @@ async def test_engine_component_get_context_disabled():
                 type="test",
                 payload={},
                 produced_by="test",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
         ],
         correlation_id=uuid4(),
@@ -484,7 +492,9 @@ async def test_engine_component_evaluate_not_implemented():
     output_group = OutputGroup(outputs=[], group_description=None)
 
     with pytest.raises(NotImplementedError):
-        await engine.evaluate(None, None, EvalInputs(artifacts=[], state={}), output_group)
+        await engine.evaluate(
+            None, None, EvalInputs(artifacts=[], state={}), output_group
+        )
 
 
 @pytest.mark.asyncio

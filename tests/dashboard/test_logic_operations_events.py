@@ -27,9 +27,9 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import BaseModel
 
-from flock.orchestrator import Flock
+from flock.core import Flock
+from flock.core.subscription import BatchSpec, JoinSpec
 from flock.registry import flock_type
-from flock.subscription import BatchSpec, JoinSpec
 
 
 # ============================================================================
@@ -137,7 +137,9 @@ async def test_no_correlation_event_when_dashboard_disabled():
 
     # Create agent with JoinSpec
     agent = orchestrator.agent("radiologist").consumes(
-        XRayImage, LabResults, join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5))
+        XRayImage,
+        LabResults,
+        join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
     )
 
     # Dashboard DISABLED: _websocket_manager should be None (default)
@@ -331,7 +333,9 @@ async def test_no_batch_event_when_dashboard_disabled():
     """
     orchestrator = Flock()
 
-    agent = orchestrator.agent("email_processor").consumes(Email, batch=BatchSpec(size=25))
+    agent = orchestrator.agent("email_processor").consumes(
+        Email, batch=BatchSpec(size=25)
+    )
 
     # Dashboard DISABLED
     assert orchestrator._websocket_manager is None
@@ -391,7 +395,9 @@ async def test_batch_event_content_size_based():
     """
     orchestrator = Flock()
 
-    agent = orchestrator.agent("email_processor").consumes(Email, batch=BatchSpec(size=25))
+    agent = orchestrator.agent("email_processor").consumes(
+        Email, batch=BatchSpec(size=25)
+    )
 
     mock_websocket_manager = AsyncMock()
     orchestrator._websocket_manager = mock_websocket_manager
@@ -542,7 +548,9 @@ async def test_events_emitted_for_joinspec_and_batchspec_together():
     assert "CorrelationGroupUpdatedEvent" in event_types, (
         "Should emit correlation event for incomplete group"
     )
-    assert "BatchItemAddedEvent" in event_types, "Should emit batch event for incomplete batch"
+    assert "BatchItemAddedEvent" in event_types, (
+        "Should emit batch event for incomplete batch"
+    )
 
 
 # ============================================================================
@@ -598,7 +606,9 @@ async def test_multiple_artifacts_emit_multiple_events():
     """
     orchestrator = Flock()
 
-    agent = orchestrator.agent("email_processor").consumes(Email, batch=BatchSpec(size=10))
+    agent = orchestrator.agent("email_processor").consumes(
+        Email, batch=BatchSpec(size=10)
+    )
 
     mock_websocket_manager = AsyncMock()
     orchestrator._websocket_manager = mock_websocket_manager
@@ -611,4 +621,6 @@ async def test_multiple_artifacts_emit_multiple_events():
     await orchestrator.run_until_idle()
 
     # Should have 5 broadcast calls (one per email)
-    assert mock_websocket_manager.broadcast.call_count == 5, "Should emit one event per artifact"
+    assert mock_websocket_manager.broadcast.call_count == 5, (
+        "Should emit one event per artifact"
+    )

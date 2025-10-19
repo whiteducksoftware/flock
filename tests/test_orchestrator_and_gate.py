@@ -11,9 +11,9 @@ Status: RED - Tests written first, implementation pending
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.components import EngineComponent
+from flock.components.agent import EngineComponent
 from flock.registry import flock_type
-from flock.runtime import EvalResult
+from flock.utils.runtime import EvalResult
 
 
 # Test Types for AND/OR Gate Testing
@@ -22,7 +22,9 @@ class TypeA(BaseModel):
     """Test type A for multi-type subscription testing."""
 
     value: str = Field(description="Value for type A")
-    correlation_id: str = Field(default="default", description="Correlation ID for join testing")
+    correlation_id: str = Field(
+        default="default", description="Correlation ID for join testing"
+    )
 
 
 @flock_type(name="TypeB")
@@ -30,7 +32,9 @@ class TypeB(BaseModel):
     """Test type B for multi-type subscription testing."""
 
     value: str = Field(description="Value for type B")
-    correlation_id: str = Field(default="default", description="Correlation ID for join testing")
+    correlation_id: str = Field(
+        default="default", description="Correlation ID for join testing"
+    )
 
 
 @flock_type(name="TypeC")
@@ -66,28 +70,38 @@ async def test_simple_and_gate_waits_for_both_types(orchestrator):
         """Tracks agent execution with artifact details."""
 
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "agent": agent.name,
-                    "artifacts": inputs.artifacts,
-                    "artifact_count": len(inputs.artifacts),
-                    "types": [a.type for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "agent": agent.name,
+                "artifacts": inputs.artifacts,
+                "artifact_count": len(inputs.artifacts),
+                "types": [a.type for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     # Create agent with AND gate subscription
-    orchestrator.agent("and_gate_agent").consumes(TypeA, TypeB).with_engines(TrackingEngine())
+    orchestrator.agent("and_gate_agent").consumes(TypeA, TypeB).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish only TypeA
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Agent should NOT be triggered yet (waiting for TypeB)
-    assert len(executed) == 0, "Agent should NOT trigger with only TypeA (AND gate requires both)"
+    assert len(executed) == 0, (
+        "Agent should NOT trigger with only TypeA (AND gate requires both)"
+    )
 
     # Act - Publish TypeB
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Agent should NOW be triggered with BOTH artifacts
@@ -96,7 +110,9 @@ async def test_simple_and_gate_waits_for_both_types(orchestrator):
 
     # Verify both types are present
     types_received = set(executed[0]["types"])
-    assert types_received == {"TypeA", "TypeB"}, f"Expected both types, got {types_received}"
+    assert types_received == {"TypeA", "TypeB"}, (
+        f"Expected both types, got {types_received}"
+    )
 
 
 @pytest.mark.asyncio
@@ -118,16 +134,26 @@ async def test_and_gate_order_independence(orchestrator):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("order_test").consumes(TypeA, TypeB).with_engines(TrackingEngine())
+    orchestrator.agent("order_test").consumes(TypeA, TypeB).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish TypeB FIRST (reverse order)
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     assert len(executed) == 0, "Should not trigger with only TypeB"
 
     # Act - Publish TypeA SECOND
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger with both artifacts
@@ -151,16 +177,27 @@ async def test_three_way_and_gate(orchestrator):
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {"count": len(inputs.artifacts), "types": [a.type for a in inputs.artifacts]}
-            )
+            executed.append({
+                "count": len(inputs.artifacts),
+                "types": [a.type for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("three_way").consumes(TypeA, TypeB, TypeC).with_engines(TrackingEngine())
+    orchestrator.agent("three_way").consumes(TypeA, TypeB, TypeC).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish only TypeA and TypeB
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     assert len(executed) == 0, "Should not trigger with only 2 out of 3 types"
@@ -203,8 +240,16 @@ async def test_multiple_agents_same_types_independent_waiting(orchestrator):
     orchestrator.agent("agent2").consumes(TypeA, TypeB).with_engines(TrackingEngine2())
 
     # Act - Publish both types
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Both agents should trigger independently
@@ -231,12 +276,26 @@ async def test_partial_match_does_not_trigger(orchestrator):
             executed.append(True)
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("partial_test").consumes(TypeA, TypeB).with_engines(TrackingEngine())
+    orchestrator.agent("partial_test").consumes(TypeA, TypeB).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish TypeA multiple times (but no TypeB)
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeA", "value": "a3", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a2",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a3",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should NEVER trigger (still waiting for TypeB)
@@ -270,7 +329,11 @@ async def test_and_gate_with_single_type_triggers_immediately(orchestrator):
     orchestrator.agent("single_type").consumes(TypeA).with_engines(TrackingEngine())
 
     # Act
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger immediately with single artifact
@@ -295,26 +358,42 @@ async def test_and_gate_does_not_accumulate_across_completions(orchestrator):
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "count": len(inputs.artifacts),
-                    "values": [a.payload["value"] for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "count": len(inputs.artifacts),
+                "values": [a.payload["value"] for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("repeat_test").consumes(TypeA, TypeB).with_engines(TrackingEngine())
+    orchestrator.agent("repeat_test").consumes(TypeA, TypeB).with_engines(
+        TrackingEngine()
+    )
 
     # Act - First completion
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Should trigger first time"
 
     # Act - Second completion (new pair)
-    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "b2", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a2",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b2",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger second time independently
@@ -324,7 +403,9 @@ async def test_and_gate_does_not_accumulate_across_completions(orchestrator):
 
     # Verify different values (not accumulated)
     assert executed[0]["values"] == ["a1", "b1"], "First trigger should have first pair"
-    assert executed[1]["values"] == ["a2", "b2"], "Second trigger should have second pair"
+    assert executed[1]["values"] == ["a2", "b2"], (
+        "Second trigger should have second pair"
+    )
 
 
 # ============================================================================
@@ -351,14 +432,12 @@ async def test_or_gate_via_chaining(orchestrator):
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "trigger_count": len(executed) + 1,
-                    "artifact_count": len(inputs.artifacts),
-                    "types": [a.type for a in inputs.artifacts],
-                    "values": [a.payload["value"] for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "trigger_count": len(executed) + 1,
+                "artifact_count": len(inputs.artifacts),
+                "types": [a.type for a in inputs.artifacts],
+                "values": [a.payload["value"] for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     # Create agent with OR gate subscription (chaining)
@@ -367,7 +446,11 @@ async def test_or_gate_via_chaining(orchestrator):
     )
 
     # Act - Publish TypeA
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Agent should trigger with ONLY TypeA
@@ -377,7 +460,11 @@ async def test_or_gate_via_chaining(orchestrator):
     assert executed[0]["values"] == ["a1"]
 
     # Act - Publish TypeB
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Agent should trigger AGAIN with ONLY TypeB
@@ -405,18 +492,16 @@ async def test_mixed_and_or_subscriptions(orchestrator):
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifact_count": len(inputs.artifacts),
-                    "types": sorted([a.type for a in inputs.artifacts]),
-                }
-            )
+            executed.append({
+                "artifact_count": len(inputs.artifacts),
+                "types": sorted([a.type for a in inputs.artifacts]),
+            })
             return EvalResult(artifacts=[])
 
     # Create agent with MIXED subscriptions
-    orchestrator.agent("mixed_agent").consumes(TypeA, TypeB).consumes(TypeC).with_engines(
-        TrackingEngine()
-    )
+    orchestrator.agent("mixed_agent").consumes(TypeA, TypeB).consumes(
+        TypeC
+    ).with_engines(TrackingEngine())
 
     # Act - Publish TypeC (OR gate should trigger)
     await orchestrator.publish({"type": "TypeC", "value": "c1"})
@@ -428,13 +513,21 @@ async def test_mixed_and_or_subscriptions(orchestrator):
     assert executed[0]["types"] == ["TypeC"]
 
     # Act - Publish TypeA (AND gate should wait)
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Should NOT trigger yet (AND gate waiting for TypeB)"
 
     # Act - Publish TypeB (AND gate should complete)
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger with both TypeA and TypeB
@@ -462,11 +555,21 @@ async def test_or_gate_does_not_accumulate(orchestrator):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("or_test").consumes(TypeA).consumes(TypeB).with_engines(TrackingEngine())
+    orchestrator.agent("or_test").consumes(TypeA).consumes(TypeB).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish TypeA twice
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a2",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger twice, each with single artifact
@@ -494,15 +597,23 @@ async def test_three_way_or_gate(orchestrator):
             executed.append({"types": [a.type for a in inputs.artifacts]})
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("three_or").consumes(TypeA).consumes(TypeB).consumes(TypeC).with_engines(
-        TrackingEngine()
-    )
+    orchestrator.agent("three_or").consumes(TypeA).consumes(TypeB).consumes(
+        TypeC
+    ).with_engines(TrackingEngine())
 
     # Act - Publish each type individually
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     await orchestrator.publish({"type": "TypeC", "value": "c1"})
@@ -538,28 +649,40 @@ async def test_count_based_and_gate_waits_for_three_as(orchestrator):
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifact_count": len(inputs.artifacts),
-                    "types": [a.type for a in inputs.artifacts],
-                    "values": sorted([a.payload["value"] for a in inputs.artifacts]),
-                }
-            )
+            executed.append({
+                "artifact_count": len(inputs.artifacts),
+                "types": [a.type for a in inputs.artifacts],
+                "values": sorted([a.payload["value"] for a in inputs.artifacts]),
+            })
             return EvalResult(artifacts=[])
 
     # Create agent with count-based AND gate (3 TypeA)
-    orchestrator.agent("count_gate").consumes(TypeA, TypeA, TypeA).with_engines(TrackingEngine())
+    orchestrator.agent("count_gate").consumes(TypeA, TypeA, TypeA).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish 2 TypeA artifacts
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a2",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should NOT trigger yet (need 3)
     assert len(executed) == 0, "Agent should NOT trigger with only 2 TypeA (need 3)"
 
     # Act - Publish 3rd TypeA
-    await orchestrator.publish({"type": "TypeA", "value": "a3", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a3",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should NOW trigger with all 3 artifacts
@@ -586,14 +709,24 @@ async def test_count_based_and_gate_order_independence(orchestrator):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("count_order").consumes(TypeA, TypeA).with_engines(TrackingEngine())
+    orchestrator.agent("count_order").consumes(TypeA, TypeA).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish 2 TypeA
-    await orchestrator.publish({"type": "TypeA", "value": "first", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "first",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
     assert len(executed) == 0, "Should not trigger with 1 TypeA"
 
-    await orchestrator.publish({"type": "TypeA", "value": "second", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "second",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert
@@ -617,28 +750,40 @@ async def test_mixed_count_and_type_gate(orchestrator):
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifact_count": len(inputs.artifacts),
-                    "type_counts": {
-                        "TypeA": sum(1 for a in inputs.artifacts if a.type == "TypeA"),
-                        "TypeB": sum(1 for a in inputs.artifacts if a.type == "TypeB"),
-                    },
-                }
-            )
+            executed.append({
+                "artifact_count": len(inputs.artifacts),
+                "type_counts": {
+                    "TypeA": sum(1 for a in inputs.artifacts if a.type == "TypeA"),
+                    "TypeB": sum(1 for a in inputs.artifacts if a.type == "TypeB"),
+                },
+            })
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("mixed_count").consumes(TypeA, TypeA, TypeB).with_engines(TrackingEngine())
+    orchestrator.agent("mixed_count").consumes(TypeA, TypeA, TypeB).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish 1 TypeA + 1 TypeB (incomplete)
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     assert len(executed) == 0, "Should NOT trigger (need 2 TypeA, only have 1)"
 
     # Act - Publish 2nd TypeA (complete)
-    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a2",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger with 2 TypeA + 1 TypeB
@@ -664,27 +809,43 @@ async def test_count_based_latest_artifacts_win(orchestrator):
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "artifact_count": len(inputs.artifacts),
-                    "values": sorted([a.payload["value"] for a in inputs.artifacts]),
-                }
-            )
+            executed.append({
+                "artifact_count": len(inputs.artifacts),
+                "values": sorted([a.payload["value"] for a in inputs.artifacts]),
+            })
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("latest_wins").consumes(TypeA, TypeA).with_engines(TrackingEngine())
+    orchestrator.agent("latest_wins").consumes(TypeA, TypeA).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish 4 TypeA artifacts
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a2",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Should trigger first time with a1, a2"
     assert executed[0]["values"] == ["a1", "a2"]
 
     # Publish 2 more
-    await orchestrator.publish({"type": "TypeA", "value": "a3", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeA", "value": "a4", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a3",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a4",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger second time with a3, a4
@@ -712,28 +873,38 @@ async def test_agent_receives_list_of_artifacts_for_and_gate(orchestrator):
     class InspectionEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
             # Capture the inputs object for inspection
-            received_inputs.append(
-                {
-                    "type": type(inputs.artifacts).__name__,
-                    "length": len(inputs.artifacts),
-                    "artifact_types": [type(a).__name__ for a in inputs.artifacts],
-                    "artifact_values": [a.payload for a in inputs.artifacts],
-                }
-            )
+            received_inputs.append({
+                "type": type(inputs.artifacts).__name__,
+                "length": len(inputs.artifacts),
+                "artifact_types": [type(a).__name__ for a in inputs.artifacts],
+                "artifact_values": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("signature_test").consumes(TypeA, TypeB).with_engines(InspectionEngine())
+    orchestrator.agent("signature_test").consumes(TypeA, TypeB).with_engines(
+        InspectionEngine()
+    )
 
     # Act
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Verify signature
     assert len(received_inputs) == 1, "Agent should be called once"
     assert received_inputs[0]["type"] == "list", "Artifacts should be a list"
     assert received_inputs[0]["length"] == 2, "Should receive 2 artifacts"
-    assert "Artifact" in str(received_inputs[0]["artifact_types"]), "Should be Artifact objects"
+    assert "Artifact" in str(received_inputs[0]["artifact_types"]), (
+        "Should be Artifact objects"
+    )
 
 
 @pytest.mark.asyncio
@@ -752,14 +923,27 @@ async def test_agent_can_access_artifact_payloads_in_and_gate(orchestrator):
         async def evaluate(self, agent, ctx, inputs, output_group):
             # Extract payloads from artifacts
             for artifact in inputs.artifacts:
-                payloads_received.append({"type": artifact.type, "payload": artifact.payload})
+                payloads_received.append({
+                    "type": artifact.type,
+                    "payload": artifact.payload,
+                })
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("payload_test").consumes(TypeA, TypeB).with_engines(PayloadExtractorEngine())
+    orchestrator.agent("payload_test").consumes(TypeA, TypeB).with_engines(
+        PayloadExtractorEngine()
+    )
 
     # Act
-    await orchestrator.publish({"type": "TypeA", "value": "test_a", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "test_b", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "test_a",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "test_b",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert
@@ -792,15 +976,29 @@ async def test_count_based_gate_provides_all_instances_to_agent(orchestrator):
     )
 
     # Act
-    await orchestrator.publish({"type": "TypeA", "value": "first", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeA", "value": "second", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeA", "value": "third", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "first",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "second",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "third",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert
     assert len(received_artifacts) == 3, "Should receive all 3 TypeA artifacts"
     values = [a.payload["value"] for a in received_artifacts]
-    assert sorted(values) == ["first", "second", "third"], "Should have all 3 distinct values"
+    assert sorted(values) == ["first", "second", "third"], (
+        "Should have all 3 distinct values"
+    )
 
 
 # ============================================================================
@@ -827,16 +1025,26 @@ async def test_and_gate_with_visibility_filter(orchestrator):
             return EvalResult(artifacts=[])
 
     # Create agent that only sees public artifacts
-    orchestrator.agent("visibility_test").consumes(TypeA, TypeB).with_engines(TrackingEngine())
+    orchestrator.agent("visibility_test").consumes(TypeA, TypeB).with_engines(
+        TrackingEngine()
+    )
 
     # Act - Publish public TypeA
-    await orchestrator.publish({"type": "TypeA", "value": "public_a", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "public_a",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     assert len(executed) == 0, "Should not trigger (waiting for TypeB)"
 
     # Publish public TypeB
-    await orchestrator.publish({"type": "TypeB", "value": "public_b", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "public_b",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger with both public artifacts
@@ -875,25 +1083,41 @@ async def test_and_gate_with_where_predicate(orchestrator):
         # TypeB: always allow
         return True
 
-    orchestrator.agent("where_test").consumes(TypeA, TypeB, where=predicate).with_engines(
-        TrackingEngine()
-    )
+    orchestrator.agent("where_test").consumes(
+        TypeA, TypeB, where=predicate
+    ).with_engines(TrackingEngine())
 
     # Act - Publish TypeA (doesn't match predicate) + TypeB
     # TypeB will be accepted and wait in the pool since TypeB always passes predicate
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
-    assert len(executed) == 0, "Should NOT trigger (TypeA doesn't match where predicate)"
+    assert len(executed) == 0, (
+        "Should NOT trigger (TypeA doesn't match where predicate)"
+    )
 
     # Act - Publish TypeA (matches predicate)
     # Now TypeA="x1" enters the pool and completes the AND gate with TypeB="b1" that's been waiting
-    await orchestrator.publish({"type": "TypeA", "value": "x1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "x1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger with TypeA="x1" + TypeB="b1" (from waiting pool)
-    assert len(executed) == 1, "Should trigger when AND gate complete and where predicate satisfied"
+    assert len(executed) == 1, (
+        "Should trigger when AND gate complete and where predicate satisfied"
+    )
     assert "x1" in executed[0], "Should have predicate-matching TypeA"
     assert "b1" in executed[0], "Should have TypeB that was waiting in pool"
 
@@ -915,7 +1139,13 @@ async def test_and_gate_with_prevent_self_trigger(orchestrator):
             executed.append(len(inputs.artifacts))
             # Publish TypeA (should be ignored by self)
             return EvalResult(
-                artifacts=[{"type": "TypeA", "value": "self_published", "correlation_id": "test"}]
+                artifacts=[
+                    {
+                        "type": "TypeA",
+                        "value": "self_published",
+                        "correlation_id": "test",
+                    }
+                ]
             )
 
     # Create agent that publishes TypeA (which it also consumes)
@@ -924,8 +1154,16 @@ async def test_and_gate_with_prevent_self_trigger(orchestrator):
     ).prevent_self_trigger()
 
     # Act - Trigger agent with external artifacts
-    await orchestrator.publish({"type": "TypeA", "value": "external_a", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "external_b", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "external_a",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "external_b",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     # Assert - Should trigger once (not again from self-published TypeA)
@@ -948,12 +1186,10 @@ async def test_and_gate_with_multiple_subscriptions_same_agent(orchestrator):
 
     class MultiSubscriptionEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "count": len(inputs.artifacts),
-                    "types": sorted([a.type for a in inputs.artifacts]),
-                }
-            )
+            executed.append({
+                "count": len(inputs.artifacts),
+                "types": sorted([a.type for a in inputs.artifacts]),
+            })
             return EvalResult(artifacts=[])
 
     # Create agent with TWO AND gate subscriptions
@@ -962,15 +1198,27 @@ async def test_and_gate_with_multiple_subscriptions_same_agent(orchestrator):
     agent.consumes(TypeA, TypeC)  # Second AND gate
 
     # Act - Satisfy first subscription (TypeA + TypeB)
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
 
     assert len(executed) == 1, "Should trigger for first subscription"
     assert executed[0]["types"] == ["TypeA", "TypeB"]
 
     # Act - Satisfy second subscription (TypeA + TypeC)
-    await orchestrator.publish({"type": "TypeA", "value": "a2", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a2",
+        "correlation_id": "test",
+    })
     await orchestrator.publish({"type": "TypeC", "value": "c1"})
     await orchestrator.run_until_idle()
 
@@ -1007,15 +1255,25 @@ async def test_and_gate_performance_latency_target(orchestrator):
 
     # Act - Measure end-to-end time
     start = time.time()
-    await orchestrator.publish({"type": "TypeA", "value": "a1", "correlation_id": "test"})
-    await orchestrator.publish({"type": "TypeB", "value": "b1", "correlation_id": "test"})
+    await orchestrator.publish({
+        "type": "TypeA",
+        "value": "a1",
+        "correlation_id": "test",
+    })
+    await orchestrator.publish({
+        "type": "TypeB",
+        "value": "b1",
+        "correlation_id": "test",
+    })
     await orchestrator.run_until_idle()
     end = time.time()
 
     # Assert - Total time should be reasonable (<200ms including overhead)
     total_time_ms = (end - start) * 1000
     assert len(executed) == 1, "Agent should have executed"
-    assert total_time_ms < 200, f"AND gate latency too high: {total_time_ms:.2f}ms (target: <200ms)"
+    assert total_time_ms < 200, (
+        f"AND gate latency too high: {total_time_ms:.2f}ms (target: <200ms)"
+    )
 
     # Note: The <10ms target is for the AND gate logic itself, not the full
     # orchestrator execution. This test validates the overall latency is acceptable.
@@ -1040,13 +1298,23 @@ async def test_and_gate_performance_many_artifacts(orchestrator):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
-    orchestrator.agent("perf_many").consumes(TypeA, TypeB).with_engines(CountingEngine())
+    orchestrator.agent("perf_many").consumes(TypeA, TypeB).with_engines(
+        CountingEngine()
+    )
 
     # Act - Publish 10 pairs rapidly
     start = time.time()
     for i in range(10):
-        await orchestrator.publish({"type": "TypeA", "value": f"a{i}", "correlation_id": "test"})
-        await orchestrator.publish({"type": "TypeB", "value": f"b{i}", "correlation_id": "test"})
+        await orchestrator.publish({
+            "type": "TypeA",
+            "value": f"a{i}",
+            "correlation_id": "test",
+        })
+        await orchestrator.publish({
+            "type": "TypeB",
+            "value": f"b{i}",
+            "correlation_id": "test",
+        })
         await orchestrator.run_until_idle()
     end = time.time()
 
@@ -1056,4 +1324,6 @@ async def test_and_gate_performance_many_artifacts(orchestrator):
 
     # Performance check - 10 pairs in reasonable time
     total_time_ms = (end - start) * 1000
-    assert total_time_ms < 2000, f"Processing 10 pairs took {total_time_ms:.2f}ms (should be <2s)"
+    assert total_time_ms < 2000, (
+        f"Processing 10 pairs took {total_time_ms:.2f}ms (should be <2s)"
+    )

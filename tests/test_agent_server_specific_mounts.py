@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from flock.core import Flock
 from flock.mcp import StdioServerParameters
-from flock.orchestrator import Flock
 
 
 @pytest.fixture
@@ -30,12 +30,10 @@ def orchestrator():
 
 def test_with_mcps_dict_format(orchestrator):
     """Test .with_mcps() with dict format for server-specific mounts."""
-    agent = orchestrator.agent("test_agent").with_mcps(
-        {
-            "filesystem": ["/workspace/src", "/data"],
-            "github": ["/workspace/.git"],
-        }
-    )
+    agent = orchestrator.agent("test_agent").with_mcps({
+        "filesystem": {"roots": ["/workspace/src", "/data"]},
+        "github": {"roots": ["/workspace/.git"]},
+    })
 
     # Check server names are registered
     assert agent.agent.mcp_server_names == {"filesystem", "github"}
@@ -58,77 +56,39 @@ def test_with_mcps_list_format(orchestrator):
     assert agent.agent.mcp_server_mounts == {}
 
 
-def test_with_mcps_mixed_format(orchestrator):
-    """Test .with_mcps() with mixed format (list of strings and dicts)."""
-    agent = orchestrator.agent("test_agent").with_mcps(
-        [
-            "github",  # No mounts
-            {"filesystem": ["/workspace/src"]},  # With mounts
-        ]
-    )
-
-    # Check server names are registered
-    assert agent.agent.mcp_server_names == {"filesystem", "github"}
-
-    # Check server-specific mounts
-    assert agent.agent.mcp_server_mounts == {
-        "filesystem": ["/workspace/src"],
-    }
-
-
 def test_with_mcps_invalid_server(orchestrator):
     """Test .with_mcps() raises error for unregistered server."""
     with pytest.raises(ValueError, match="MCP servers not registered.*invalid_server"):
         orchestrator.agent("test_agent").with_mcps(["invalid_server"])
 
 
-def test_with_mcps_invalid_format(orchestrator):
-    """Test .with_mcps() raises error for invalid format."""
-    with pytest.raises(TypeError, match="Invalid server specification"):
-        orchestrator.agent("test_agent").with_mcps([123])  # Invalid type
+def test_with_mcps_tool_whitelist(orchestrator):
+    """Test .with_mcps() with tool whitelist."""
+    agent = orchestrator.agent("test_agent").with_mcps({
+        "filesystem": {
+            "roots": ["/workspace/src"],
+            "tool_whitelist": ["read_file", "write_file"],
+        },
+    })
 
+    # Check server names are registered
+    assert agent.agent.mcp_server_names == {"filesystem"}
 
-def test_mount_deprecation_warning(orchestrator):
-    """Test .mount() raises deprecation warning."""
-    agent = orchestrator.agent("test_agent").with_mcps(["filesystem"])
-
-    with pytest.warns(DeprecationWarning, match="Agent.mount\\(\\) is deprecated"):
-        agent.mount("/workspace/src")
-
-
-def test_mount_backward_compatibility(orchestrator):
-    """Test .mount() still works for backward compatibility."""
-    with pytest.warns(DeprecationWarning, match="Agent.mount"):
-        agent = orchestrator.agent("test_agent").with_mcps(["filesystem"]).mount("/workspace/src")
-
-    # Check old-style mount points are stored
-    assert agent.agent.mcp_mount_points == ["/workspace/src"]
-
-    # Check they're also added to server-specific mounts for compatibility
+    # Check server-specific mounts
     assert agent.agent.mcp_server_mounts == {
         "filesystem": ["/workspace/src"],
     }
 
-
-def test_mount_validation(orchestrator):
-    """Test .mount() with path validation."""
-    agent = orchestrator.agent("test_agent").with_mcps(["filesystem"])
-
-    # Should raise error for non-existent path
-    # Use a path that definitely doesn't exist on any system
-    with pytest.warns(DeprecationWarning, match="Agent.mount"):
-        with pytest.raises(ValueError, match="Mount path does not exist"):
-            agent.mount("/absolutely/nonexistent/path/xyz123", validate=True)
+    # Check tool whitelist
+    assert agent.agent.tool_whitelist == ["read_file", "write_file"]
 
 
 def test_empty_mounts_in_dict(orchestrator):
-    """Test .with_mcps() with empty list for a server (no restrictions)."""
-    agent = orchestrator.agent("test_agent").with_mcps(
-        {
-            "filesystem": ["/workspace/src"],
-            "github": [],  # Empty = no restrictions
-        }
-    )
+    """Test .with_mcps() with empty config for a server (no restrictions)."""
+    agent = orchestrator.agent("test_agent").with_mcps({
+        "filesystem": {"roots": ["/workspace/src"]},
+        "github": {},  # Empty = no restrictions
+    })
 
     assert agent.agent.mcp_server_names == {"filesystem", "github"}
     assert agent.agent.mcp_server_mounts == {
@@ -140,18 +100,17 @@ def test_empty_mounts_in_dict(orchestrator):
 @pytest.mark.asyncio
 async def test_get_mcp_tools_passes_server_mounts(orchestrator):
     """Test that _get_mcp_tools passes server-specific mounts to manager."""
-    from flock.orchestrator import BoardHandle
-    from flock.runtime import Context
+    from flock.utils.runtime import Context
 
-    agent = orchestrator.agent("test_agent").with_mcps(
-        {
-            "filesystem": ["/workspace/src"],
-            "github": ["/workspace/.git"],
-        }
-    )
+    agent = orchestrator.agent("test_agent").with_mcps({
+        "filesystem": {"roots": ["/workspace/src"]},
+        "github": {"roots": ["/workspace/.git"]},
+    })
 
     ctx = Context(
-        board=BoardHandle(orchestrator), orchestrator=orchestrator, task_id="test-run-123"
+        artifacts=[],
+        task_id="test-run-123",
+        correlation_id=None,
     )
 
     # Mock the manager
@@ -196,7 +155,10 @@ async def test_manager_passes_server_specific_mounts_to_client(orchestrator):
     get_client_calls = []
 
     async def mock_get_client(server_name, agent_id, run_id, mount_points=None):
-        get_client_calls.append({"server_name": server_name, "mount_points": mount_points})
+        get_client_calls.append({
+            "server_name": server_name,
+            "mount_points": mount_points,
+        })
         # Don't actually connect
         mock_client = AsyncMock()
         mock_client.get_tools = AsyncMock(return_value=[])
@@ -213,25 +175,10 @@ async def test_manager_passes_server_specific_mounts_to_client(orchestrator):
     )
 
     # Verify each server got its specific mounts
-    filesystem_call = next(c for c in get_client_calls if c["server_name"] == "filesystem")
+    filesystem_call = next(
+        c for c in get_client_calls if c["server_name"] == "filesystem"
+    )
     github_call = next(c for c in get_client_calls if c["server_name"] == "github")
 
     assert filesystem_call["mount_points"] == ["/workspace/src"]
     assert github_call["mount_points"] == ["/workspace/.git"]
-
-
-def test_multiple_mount_calls_accumulate(orchestrator):
-    """Test that multiple .mount() calls accumulate paths."""
-    with pytest.warns(DeprecationWarning, match="Agent.mount"):
-        agent = (
-            orchestrator.agent("test_agent")
-            .with_mcps(["filesystem"])
-            .mount("/workspace/src")
-            .mount(["/data", "/logs"])
-        )
-
-    # Check all paths are accumulated
-    assert agent.agent.mcp_mount_points == ["/workspace/src", "/data", "/logs"]
-    assert agent.agent.mcp_server_mounts == {
-        "filesystem": ["/workspace/src", "/data", "/logs"],
-    }

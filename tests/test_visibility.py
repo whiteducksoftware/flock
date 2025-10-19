@@ -1,11 +1,11 @@
 """Tests for visibility enforcement."""
 
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 import pytest
 
 from flock.agent import AgentIdentity
-from flock.visibility import (
+from flock.core.visibility import (
     AfterVisibility,
     LabelledVisibility,
     PrivateVisibility,
@@ -60,7 +60,9 @@ async def test_labelled_visibility_allows_agent_with_required_labels():
     """Test that LabelledVisibility allows agents with required labels."""
     # Arrange
     visibility = LabelledVisibility(required_labels={"clearance:secret"})
-    identity = AgentIdentity(name="agent", labels={"clearance:secret", "department:finance"})
+    identity = AgentIdentity(
+        name="agent", labels={"clearance:secret", "department:finance"}
+    )
 
     # Act
     result = visibility.allows(identity)
@@ -115,18 +117,18 @@ async def test_tenant_visibility_denies_different_tenant():
 async def test_after_visibility_denies_before_ttl():
     """Test that AfterVisibility denies access before TTL expires."""
     # Arrange
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     # Create visibility with TTL
     visibility = AfterVisibility(ttl=timedelta(hours=24))
 
     # Set the private _created_at to 1 hour ago
-    visibility._created_at = datetime(2025, 9, 30, 11, 0, 0, tzinfo=timezone.utc)
+    visibility._created_at = datetime(2025, 9, 30, 11, 0, 0, tzinfo=UTC)
 
     identity = AgentIdentity(name="agent")
 
     # Current time is 1 hour after creation
-    current_time = datetime(2025, 9, 30, 12, 0, 0, tzinfo=timezone.utc)
+    current_time = datetime(2025, 9, 30, 12, 0, 0, tzinfo=UTC)
 
     # Act
     result = visibility.allows(identity, now=current_time)
@@ -139,18 +141,18 @@ async def test_after_visibility_denies_before_ttl():
 async def test_after_visibility_allows_after_ttl():
     """Test that AfterVisibility allows access after TTL expires."""
     # Arrange
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     # Create visibility with TTL
     visibility = AfterVisibility(ttl=timedelta(hours=24))
 
     # Set the private _created_at to 25 hours ago
-    visibility._created_at = datetime(2025, 9, 29, 11, 0, 0, tzinfo=timezone.utc)
+    visibility._created_at = datetime(2025, 9, 29, 11, 0, 0, tzinfo=UTC)
 
     identity = AgentIdentity(name="agent")
 
     # Current time is 25 hours after creation
-    current_time = datetime(2025, 9, 30, 12, 0, 0, tzinfo=timezone.utc)
+    current_time = datetime(2025, 9, 30, 12, 0, 0, tzinfo=UTC)
 
     # Act
     result = visibility.allows(identity, now=current_time)

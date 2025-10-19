@@ -11,7 +11,14 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
+from flock.core.artifacts import Artifact
+from flock.core.store import InMemoryBlackboardStore
+from flock.core.visibility import (
+    LabelledVisibility,
+    PrivateVisibility,
+    PublicVisibility,
+    TenantVisibility,
+)
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.events import (
     AgentActivatedEvent,
@@ -19,14 +26,7 @@ from flock.dashboard.events import (
     AgentErrorEvent,
     MessagePublishedEvent,
 )
-from flock.runtime import Context
-from flock.store import InMemoryBlackboardStore
-from flock.visibility import (
-    LabelledVisibility,
-    PrivateVisibility,
-    PublicVisibility,
-    TenantVisibility,
-)
+from flock.utils.runtime import Context
 
 
 class TestInput(BaseModel):
@@ -136,7 +136,9 @@ async def test_on_pre_consume_emits_agent_activated(
 
 
 @pytest.mark.asyncio
-async def test_on_post_publish_emits_message_published(collector, test_agent, test_context):
+async def test_on_post_publish_emits_message_published(
+    collector, test_agent, test_context
+):
     """Test that on_post_publish emits message_published event with correct data."""
     # Create output artifact
     output_artifact = Artifact(
@@ -284,7 +286,9 @@ async def test_on_error_emits_agent_error(collector, test_agent, test_context):
 
 
 @pytest.mark.asyncio
-async def test_correlation_id_propagation(collector, test_agent, test_artifacts, orchestrator):
+async def test_correlation_id_propagation(
+    collector, test_agent, test_artifacts, orchestrator
+):
     """Test that correlation_id is correctly propagated from context to all events."""
     # Create context with specific correlation_id
     correlation_id = uuid4()
@@ -512,7 +516,9 @@ async def test_visibility_serialization(collector, test_agent, test_context):
         if "agents" in expected_dict:
             assert set(event.visibility.agents) == set(expected_dict["agents"])
         if "required_labels" in expected_dict:
-            assert set(event.visibility.required_labels) == set(expected_dict["required_labels"])
+            assert set(event.visibility.required_labels) == set(
+                expected_dict["required_labels"]
+            )
         if "tenant_id" in expected_dict:
             assert event.visibility.tenant_id == expected_dict["tenant_id"]
 
@@ -558,9 +564,9 @@ async def test_event_timestamps_are_iso_format(collector, test_agent, test_conte
 @pytest.mark.asyncio
 async def test_collector_as_agent_component(orchestrator):
     """Test that collector can be added as agent component and hooks are called."""
-    from flock.components import EngineComponent
+    from flock.components.agent import EngineComponent
     from flock.registry import flock_type
-    from flock.runtime import EvalInputs, EvalResult
+    from flock.utils.runtime import EvalInputs, EvalResult
 
     # Register test types
     @flock_type(name="CollectorTestInput")
@@ -573,7 +579,9 @@ async def test_collector_as_agent_component(orchestrator):
 
     # Create simple echo engine
     class EchoEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             # Transform input to output
             output = CollectorTestOutput(result=inputs.artifacts[0].payload["content"])
             return EvalResult.from_object(output, agent=agent)

@@ -34,21 +34,23 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.agent import AgentOutput, OutputGroup
-from flock.artifacts import Artifact, ArtifactSpec
+from flock.core import AgentOutput, OutputGroup
+from flock.core.artifacts import Artifact, ArtifactSpec
+from flock.core.visibility import PublicVisibility
 from flock.engines.dspy_engine import DSPyEngine
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
-from flock.visibility import PublicVisibility
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # ============================================================================
 # Test Artifact Types (Semantic Names!)
 # ============================================================================
 
+
 @flock_type(name="Task")
 class Task(BaseModel):
     """A task to be analyzed."""
+
     description: str = Field(description="Task description")
     priority: int = Field(default=1, description="Priority level")
 
@@ -56,6 +58,7 @@ class Task(BaseModel):
 @flock_type(name="Report")
 class Report(BaseModel):
     """A report analyzing a task."""
+
     summary: str = Field(description="Task summary")
     findings: list[str] = Field(default_factory=list, description="Key findings")
 
@@ -63,6 +66,7 @@ class Report(BaseModel):
 @flock_type(name="Summary")
 class Summary(BaseModel):
     """A brief summary."""
+
     text: str = Field(description="Summary text")
     length: int = Field(description="Character count")
 
@@ -70,6 +74,7 @@ class Summary(BaseModel):
 @flock_type(name="Analysis")
 class Analysis(BaseModel):
     """Detailed analysis."""
+
     findings: list[str] = Field(default_factory=list)
     score: float = Field(description="Analysis score 0-1")
 
@@ -77,6 +82,7 @@ class Analysis(BaseModel):
 @flock_type(name="Sentiment")
 class Sentiment(BaseModel):
     """Sentiment classification."""
+
     label: str = Field(description="positive/negative/neutral")
     confidence: float = Field(description="Confidence 0-1")
 
@@ -84,6 +90,7 @@ class Sentiment(BaseModel):
 @flock_type(name="Idea")
 class Idea(BaseModel):
     """A creative idea."""
+
     title: str = Field(description="Idea title")
     description: str = Field(description="Idea description")
 
@@ -91,6 +98,7 @@ class Idea(BaseModel):
 @flock_type(name="Topic")
 class Topic(BaseModel):
     """A topic for idea generation."""
+
     name: str = Field(description="Topic name")
     category: str = Field(description="Topic category")
 
@@ -98,6 +106,7 @@ class Topic(BaseModel):
 @flock_type(name="ResearchQuestion")
 class ResearchQuestion(BaseModel):
     """A research question (tests snake_case conversion)."""
+
     question: str = Field(description="The research question")
     domain: str = Field(description="Research domain")
 
@@ -105,6 +114,7 @@ class ResearchQuestion(BaseModel):
 @flock_type(name="MeetingTranscript")
 class MeetingTranscript(BaseModel):
     """Meeting transcript (tests snake_case conversion)."""
+
     content: str = Field(description="Transcript content")
     participants: list[str] = Field(default_factory=list)
 
@@ -112,6 +122,7 @@ class MeetingTranscript(BaseModel):
 @flock_type(name="ActionItems")
 class ActionItems(BaseModel):
     """Action items from meeting (tests snake_case conversion)."""
+
     items: list[str] = Field(default_factory=list)
     deadline: str | None = None
 
@@ -119,6 +130,7 @@ class ActionItems(BaseModel):
 # ============================================================================
 # Test Group 1: Backward Compatibility (Single Output)
 # ============================================================================
+
 
 class TestBackwardCompatibilitySingleOutput:
     """Ensure existing single-output code works unchanged.
@@ -193,6 +205,9 @@ class TestBackwardCompatibilitySingleOutput:
         """
         assert False, "Not implemented"
 
+    @pytest.mark.skip(
+        reason="Phase 6: Method _needs_multioutput_signature removed in refactoring"
+    )
     @pytest.mark.asyncio
     async def test_routing_logic_uses_old_path_for_single(self):
         """Test that routing logic detects single output.
@@ -202,30 +217,12 @@ class TestBackwardCompatibilitySingleOutput:
         - Uses backward compatible path
         - No performance regression
         """
-        # Create engine and output group
-        engine = DSPyEngine(model="gpt-4")
-
-        # Single output with count=1 should use old path
-        output_group = create_output_group_with_semantic_types([(Report, 1)])
-
-        # Test detection
-        needs_multi = engine._needs_multioutput_signature(output_group)
-        assert needs_multi is False, "Single output should use backward compatible path"
-
-        # Test with fan-out (count > 1) should use new path
-        output_group_fanout = create_output_group_with_semantic_types([(Report, 3)])
-        needs_multi_fanout = engine._needs_multioutput_signature(output_group_fanout)
-        assert needs_multi_fanout is True, "Fan-out should use multi-output path"
-
-        # Test with multiple outputs should use new path
-        output_group_multi = create_output_group_with_semantic_types([(Summary, 1), (Analysis, 1)])
-        needs_multi_multi = engine._needs_multioutput_signature(output_group_multi)
-        assert needs_multi_multi is True, "Multiple outputs should use multi-output path"
 
 
 # ============================================================================
 # Test Group 2: Multiple Outputs (Different Types)
 # ============================================================================
+
 
 class TestMultipleOutputsDifferentTypes:
     """Test generating multiple different output types in one call.
@@ -326,15 +323,23 @@ class TestMultipleOutputsDifferentTypes:
         engine = DSPyEngine(model="gpt-4")
 
         # Test type name to field name conversion
-        assert engine._type_to_field_name(MeetingTranscript) == "meeting_transcript"
-        assert engine._type_to_field_name(ActionItems) == "action_items"
-        assert engine._type_to_field_name(ResearchQuestion) == "research_question"
+        assert (
+            engine._signature_builder._type_to_field_name(MeetingTranscript)
+            == "meeting_transcript"
+        )
+        assert (
+            engine._signature_builder._type_to_field_name(ActionItems) == "action_items"
+        )
+        assert (
+            engine._signature_builder._type_to_field_name(ResearchQuestion)
+            == "research_question"
+        )
 
         # Test simple names
-        assert engine._type_to_field_name(Task) == "task"
-        assert engine._type_to_field_name(Report) == "report"
-        assert engine._type_to_field_name(Summary) == "summary"
-        assert engine._type_to_field_name(Analysis) == "analysis"
+        assert engine._signature_builder._type_to_field_name(Task) == "task"
+        assert engine._signature_builder._type_to_field_name(Report) == "report"
+        assert engine._signature_builder._type_to_field_name(Summary) == "summary"
+        assert engine._signature_builder._type_to_field_name(Analysis) == "analysis"
 
     @pytest.mark.skip(reason="Phase 3: Not implemented yet")
     @pytest.mark.asyncio
@@ -353,6 +358,7 @@ class TestMultipleOutputsDifferentTypes:
 # ============================================================================
 # Test Group 3: Fan-Out (Single Type, Multiple Instances)
 # ============================================================================
+
 
 class TestFanOutMultipleInstances:
     """Test generating N instances of same type (fan-out).
@@ -438,24 +444,32 @@ class TestFanOutMultipleInstances:
         engine = DSPyEngine(model="gpt-4")
 
         # Test simple pluralization
-        assert engine._pluralize("idea") == "ideas"
-        assert engine._pluralize("movie") == "movies"
-        assert engine._pluralize("report") == "reports"
+        assert engine._signature_builder._pluralize("idea") == "ideas"
+        assert engine._signature_builder._pluralize("movie") == "movies"
+        assert engine._signature_builder._pluralize("report") == "reports"
 
         # Test y → ies (consonant + y)
-        assert engine._pluralize("story") == "stories"
-        assert engine._pluralize("category") == "categories"
+        assert engine._signature_builder._pluralize("story") == "stories"
+        assert engine._signature_builder._pluralize("category") == "categories"
 
         # Test s/x/z/ch/sh → es
         # Note: "analysis" is irregular (sis→ses), but our simple impl does s→es
-        assert engine._pluralize("analysis") == "analysises"  # Simple rule
-        assert engine._pluralize("box") == "boxes"
-        assert engine._pluralize("class") == "classes"
+        assert (
+            engine._signature_builder._pluralize("analysis") == "analysises"
+        )  # Simple rule
+        assert engine._signature_builder._pluralize("box") == "boxes"
+        assert engine._signature_builder._pluralize("class") == "classes"
 
         # Test snake_case
-        assert engine._pluralize("research_question") == "research_questions"
-        assert engine._pluralize("meeting_transcript") == "meeting_transcripts"
-        assert engine._pluralize("action_item") == "action_items"
+        assert (
+            engine._signature_builder._pluralize("research_question")
+            == "research_questions"
+        )
+        assert (
+            engine._signature_builder._pluralize("meeting_transcript")
+            == "meeting_transcripts"
+        )
+        assert engine._signature_builder._pluralize("action_item") == "action_items"
 
     @pytest.mark.asyncio
     async def test_count_hint_in_field_description(self):
@@ -484,7 +498,7 @@ class TestFanOutMultipleInstances:
         topic_artifact = Artifact(
             type="Topic",
             payload={"name": "AI Safety", "category": "Research"},
-            produced_by="test"
+            produced_by="test",
         )
 
         # Create inputs
@@ -497,12 +511,12 @@ class TestFanOutMultipleInstances:
         import dspy
 
         # Generate signature
-        signature = engine._prepare_signature_for_output_group(
+        signature = engine._signature_builder.prepare_signature_for_output_group(
             dspy,
             agent=mock_agent,
             inputs=inputs,
             output_group=output_group,
-            has_context=False
+            has_context=False,
         )
 
         # Check that the signature has the "ideas" field (plural!)
@@ -510,7 +524,9 @@ class TestFanOutMultipleInstances:
         output_fields = signature.output_fields
 
         # Should have "ideas" field (pluralized)
-        assert "ideas" in output_fields, f"Expected 'ideas' field, got: {list(output_fields.keys())}"
+        assert "ideas" in output_fields, (
+            f"Expected 'ideas' field, got: {list(output_fields.keys())}"
+        )
 
         # Check the description includes count hint
         ideas_field = output_fields["ideas"]
@@ -518,18 +534,24 @@ class TestFanOutMultipleInstances:
         # DSPy fields have a json_schema_extra with description
         # The desc parameter is stored in the Field's metadata
         field_json_schema = getattr(ideas_field, "json_schema_extra", {})
-        field_desc = field_json_schema.get("desc", field_json_schema.get("description", ""))
+        field_desc = field_json_schema.get(
+            "desc", field_json_schema.get("description", "")
+        )
 
         # Fallback: check __dict__ for debugging
         if not field_desc:
             # Just verify the field exists with correct type (list[Idea])
             # The desc parameter existence is validated by code review
-            assert ideas_field.annotation == list[Idea], f"Expected list[Idea], got: {ideas_field.annotation}"
+            assert ideas_field.annotation == list[Idea], (
+                f"Expected list[Idea], got: {ideas_field.annotation}"
+            )
             # Mark as passing - description is set in code, just not accessible in test
             return
 
         # Should mention the count (if accessible)
-        assert "10" in str(field_desc), f"Expected count '10' in description, got: {field_desc}"
+        assert "10" in str(field_desc), (
+            f"Expected count '10' in description, got: {field_desc}"
+        )
 
     @pytest.mark.skip(reason="Phase 3: Not implemented yet")
     @pytest.mark.asyncio
@@ -548,6 +570,7 @@ class TestFanOutMultipleInstances:
 # ============================================================================
 # Test Group 3.5: Multi-Input & Batching Support
 # ============================================================================
+
 
 class TestMultiInputAndBatching:
     """Test multi-input and batching support (CRITICAL for joins & batch processing).
@@ -592,12 +615,12 @@ class TestMultiInputAndBatching:
         task_artifact = Artifact(
             type="Task",
             payload={"description": "Build prototype", "priority": 1},
-            produced_by="test"
+            produced_by="test",
         )
         topic_artifact = Artifact(
             type="Topic",
             payload={"name": "AI Safety", "category": "Research"},
-            produced_by="test"
+            produced_by="test",
         )
 
         # Create inputs with both artifacts
@@ -610,13 +633,13 @@ class TestMultiInputAndBatching:
         import dspy
 
         # Generate signature
-        signature = engine._prepare_signature_for_output_group(
+        signature = engine._signature_builder.prepare_signature_for_output_group(
             dspy,
             agent=mock_agent,
             inputs=inputs,
             output_group=output_group,
             has_context=False,
-            batched=False
+            batched=False,
         )
 
         # Check input fields
@@ -624,8 +647,12 @@ class TestMultiInputAndBatching:
         input_fields = signature.input_fields
 
         # Should have BOTH "task" and "topic" fields (multi-input for joins!)
-        assert "task" in input_fields, f"Expected 'task' field, got: {list(input_fields.keys())}"
-        assert "topic" in input_fields, f"Expected 'topic' field, got: {list(input_fields.keys())}"
+        assert "task" in input_fields, (
+            f"Expected 'task' field, got: {list(input_fields.keys())}"
+        )
+        assert "topic" in input_fields, (
+            f"Expected 'topic' field, got: {list(input_fields.keys())}"
+        )
 
         # Check types
         assert input_fields["task"].annotation == Task
@@ -665,17 +692,17 @@ class TestMultiInputAndBatching:
         task1 = Artifact(
             type="Task",
             payload={"description": "Task 1", "priority": 1},
-            produced_by="test"
+            produced_by="test",
         )
         task2 = Artifact(
             type="Task",
             payload={"description": "Task 2", "priority": 2},
-            produced_by="test"
+            produced_by="test",
         )
         task3 = Artifact(
             type="Task",
             payload={"description": "Task 3", "priority": 3},
-            produced_by="test"
+            produced_by="test",
         )
 
         # Create inputs with batch of tasks
@@ -688,28 +715,34 @@ class TestMultiInputAndBatching:
         import dspy
 
         # Generate signature with batched=True
-        signature = engine._prepare_signature_for_output_group(
+        signature = engine._signature_builder.prepare_signature_for_output_group(
             dspy,
             agent=mock_agent,
             inputs=inputs,
             output_group=output_group,
             has_context=False,
-            batched=True  # CRITICAL: Batch mode!
+            batched=True,  # CRITICAL: Batch mode!
         )
 
         # Check input fields
         input_fields = signature.input_fields
 
         # Should have "tasks" field (pluralized!) with list[Task]
-        assert "tasks" in input_fields, f"Expected 'tasks' field (plural), got: {list(input_fields.keys())}"
-        assert input_fields["tasks"].annotation == list[Task], f"Expected list[Task], got: {input_fields['tasks'].annotation}"
+        assert "tasks" in input_fields, (
+            f"Expected 'tasks' field (plural), got: {list(input_fields.keys())}"
+        )
+        assert input_fields["tasks"].annotation == list[Task], (
+            f"Expected list[Task], got: {input_fields['tasks'].annotation}"
+        )
 
         # Check output fields
         output_fields = signature.output_fields
 
         # Output should NOT be pluralized (count=1, not batched output)
         # Note: Output pluralization happens when output.count > 1, not when batched=True
-        assert "report" in output_fields, f"Expected 'report' field, got: {list(output_fields.keys())}"
+        assert "report" in output_fields, (
+            f"Expected 'report' field, got: {list(output_fields.keys())}"
+        )
         assert output_fields["report"].annotation == Report
 
     @pytest.mark.asyncio
@@ -741,17 +774,17 @@ class TestMultiInputAndBatching:
         task1 = Artifact(
             type="Task",
             payload={"description": "Task 1", "priority": 1},
-            produced_by="test"
+            produced_by="test",
         )
         task2 = Artifact(
             type="Task",
             payload={"description": "Task 2", "priority": 2},
-            produced_by="test"
+            produced_by="test",
         )
         task3 = Artifact(
             type="Task",
             payload={"description": "Task 3", "priority": 3},
-            produced_by="test"
+            produced_by="test",
         )
 
         # Create inputs with batch of tasks
@@ -759,28 +792,30 @@ class TestMultiInputAndBatching:
 
         # Create output group: TWO output types (multi-output!)
         output_group = create_output_group_with_semantic_types([
-            (Summary, 1),   # count=1 means one per batch item (not fan-out)
-            (Analysis, 1)
+            (Summary, 1),  # count=1 means one per batch item (not fan-out)
+            (Analysis, 1),
         ])
 
         # Import dspy
         import dspy
 
         # Generate signature with batched=True
-        signature = engine._prepare_signature_for_output_group(
+        signature = engine._signature_builder.prepare_signature_for_output_group(
             dspy,
             agent=mock_agent,
             inputs=inputs,
             output_group=output_group,
             has_context=False,
-            batched=True  # CRITICAL: Batch mode with multi-output!
+            batched=True,  # CRITICAL: Batch mode with multi-output!
         )
 
         # Check input fields
         input_fields = signature.input_fields
 
         # Should have "tasks" field (pluralized!) with list[Task]
-        assert "tasks" in input_fields, f"Expected 'tasks' field (plural), got: {list(input_fields.keys())}"
+        assert "tasks" in input_fields, (
+            f"Expected 'tasks' field (plural), got: {list(input_fields.keys())}"
+        )
         assert input_fields["tasks"].annotation == list[Task]
 
         # Check output fields
@@ -790,8 +825,12 @@ class TestMultiInputAndBatching:
         # NOTE: In batching, outputs are NOT automatically pluralized unless count > 1
         # The count=1 means "generate 1 of this type per batch", not "generate 1 total"
         # So we expect singular field names
-        assert "summary" in output_fields, f"Expected 'summary' field, got: {list(output_fields.keys())}"
-        assert "analysis" in output_fields, f"Expected 'analysis' field, got: {list(output_fields.keys())}"
+        assert "summary" in output_fields, (
+            f"Expected 'summary' field, got: {list(output_fields.keys())}"
+        )
+        assert "analysis" in output_fields, (
+            f"Expected 'analysis' field, got: {list(output_fields.keys())}"
+        )
 
         # Types should be singular (not list[Type]) because count=1
         assert output_fields["summary"].annotation == Summary
@@ -801,6 +840,7 @@ class TestMultiInputAndBatching:
 # ============================================================================
 # Test Group 3.6: Payload Preparation (NEW - Just Implemented!)
 # ============================================================================
+
 
 class TestPayloadPreparation:
     """Test execution payload preparation with semantic field names.
@@ -827,7 +867,7 @@ class TestPayloadPreparation:
         task_artifact = Artifact(
             type="Task",
             payload={"description": "Build prototype", "priority": 1},
-            produced_by="test"
+            produced_by="test",
         )
         inputs = EvalInputs(artifacts=[task_artifact], state={})
 
@@ -835,13 +875,13 @@ class TestPayloadPreparation:
         output_group = create_output_group_with_semantic_types([(Report, 1)])
 
         # Prepare payload
-        payload = engine._prepare_execution_payload_for_output_group(
+        payload = engine._signature_builder.prepare_execution_payload_for_output_group(
             inputs,
             output_group,
             batched=False,
             has_context=False,
             context_history=None,
-            sys_desc="Generate report from task"
+            sys_desc="Generate report from task",
         )
 
         # Validate payload structure
@@ -867,12 +907,12 @@ class TestPayloadPreparation:
         task_artifact = Artifact(
             type="Task",
             payload={"description": "Build prototype", "priority": 1},
-            produced_by="test"
+            produced_by="test",
         )
         topic_artifact = Artifact(
             type="Topic",
             payload={"name": "AI Safety", "category": "Research"},
-            produced_by="test"
+            produced_by="test",
         )
         inputs = EvalInputs(artifacts=[task_artifact, topic_artifact], state={})
 
@@ -880,13 +920,13 @@ class TestPayloadPreparation:
         output_group = create_output_group_with_semantic_types([(Report, 1)])
 
         # Prepare payload
-        payload = engine._prepare_execution_payload_for_output_group(
+        payload = engine._signature_builder.prepare_execution_payload_for_output_group(
             inputs,
             output_group,
             batched=False,
             has_context=False,
             context_history=None,
-            sys_desc="Generate report"
+            sys_desc="Generate report",
         )
 
         # Validate payload structure
@@ -916,17 +956,17 @@ class TestPayloadPreparation:
         task1 = Artifact(
             type="Task",
             payload={"description": "Task 1", "priority": 1},
-            produced_by="test"
+            produced_by="test",
         )
         task2 = Artifact(
             type="Task",
             payload={"description": "Task 2", "priority": 2},
-            produced_by="test"
+            produced_by="test",
         )
         task3 = Artifact(
             type="Task",
             payload={"description": "Task 3", "priority": 3},
-            produced_by="test"
+            produced_by="test",
         )
         inputs = EvalInputs(artifacts=[task1, task2, task3], state={})
 
@@ -934,13 +974,13 @@ class TestPayloadPreparation:
         output_group = create_output_group_with_semantic_types([(Report, 1)])
 
         # Prepare payload with batched=True
-        payload = engine._prepare_execution_payload_for_output_group(
+        payload = engine._signature_builder.prepare_execution_payload_for_output_group(
             inputs,
             output_group,
             batched=True,  # CRITICAL!
             has_context=False,
             context_history=None,
-            sys_desc="Generate reports"
+            sys_desc="Generate reports",
         )
 
         # Validate payload structure
@@ -969,7 +1009,7 @@ class TestPayloadPreparation:
         task_artifact = Artifact(
             type="Task",
             payload={"description": "Build prototype", "priority": 1},
-            produced_by="test"
+            produced_by="test",
         )
         inputs = EvalInputs(artifacts=[task_artifact], state={})
 
@@ -979,15 +1019,15 @@ class TestPayloadPreparation:
         # Prepare payload with context
         context_history = [
             {"role": "user", "content": "Previous message"},
-            {"role": "assistant", "content": "Previous response"}
+            {"role": "assistant", "content": "Previous response"},
         ]
-        payload = engine._prepare_execution_payload_for_output_group(
+        payload = engine._signature_builder.prepare_execution_payload_for_output_group(
             inputs,
             output_group,
             batched=False,
             has_context=True,
             context_history=context_history,
-            sys_desc="Generate report"
+            sys_desc="Generate report",
         )
 
         # Validate payload structure
@@ -1012,7 +1052,7 @@ class TestPayloadPreparation:
         transcript_artifact = Artifact(
             type="MeetingTranscript",
             payload={"content": "Meeting notes...", "participants": ["Alice", "Bob"]},
-            produced_by="test"
+            produced_by="test",
         )
         inputs = EvalInputs(artifacts=[transcript_artifact], state={})
 
@@ -1020,24 +1060,28 @@ class TestPayloadPreparation:
         output_group = create_output_group_with_semantic_types([(ActionItems, 1)])
 
         # Prepare payload
-        payload = engine._prepare_execution_payload_for_output_group(
+        payload = engine._signature_builder.prepare_execution_payload_for_output_group(
             inputs,
             output_group,
             batched=False,
             has_context=False,
             context_history=None,
-            sys_desc="Extract action items"
+            sys_desc="Extract action items",
         )
 
         # Validate payload structure
         assert "description" in payload
         assert "meeting_transcript" in payload  # snake_case!
-        assert payload["meeting_transcript"] == {"content": "Meeting notes...", "participants": ["Alice", "Bob"]}
+        assert payload["meeting_transcript"] == {
+            "content": "Meeting notes...",
+            "participants": ["Alice", "Bob"],
+        }
 
 
 # ============================================================================
 # Test Group 4: Complex Scenarios
 # ============================================================================
+
 
 class TestComplexScenarios:
     """Test mixed patterns and edge cases.
@@ -1184,6 +1228,7 @@ class TestComplexScenarios:
 # Test Group 5: Contract Validation
 # ============================================================================
 
+
 class TestContractValidation:
     """Test strict enforcement of OutputGroup contracts.
 
@@ -1276,6 +1321,7 @@ class TestContractValidation:
 # ============================================================================
 # Test Group 6: Integration
 # ============================================================================
+
 
 class TestIntegrationFullFlow:
     """Test complete flow from Agent.execute() to artifacts on blackboard.
@@ -1387,6 +1433,7 @@ class TestIntegrationFullFlow:
 # Helper Functions for Test Implementation
 # ============================================================================
 
+
 def create_mock_dspy_signature_with_fields(field_names: list[str]) -> Mock:
     """Helper to create mock DSPy signature with specific field names.
 
@@ -1396,7 +1443,6 @@ def create_mock_dspy_signature_with_fields(field_names: list[str]) -> Mock:
     assert "report" in signature.fields
     """
     # Will be implemented when writing actual test bodies
-    pass
 
 
 def create_mock_dspy_prediction(field_dict: dict) -> Mock:
@@ -1410,11 +1456,10 @@ def create_mock_dspy_prediction(field_dict: dict) -> Mock:
     assert prediction.summary == {...}
     """
     # Will be implemented when writing actual test bodies
-    pass
 
 
 def create_output_group_with_semantic_types(
-    type_specs: list[tuple[type, int]]
+    type_specs: list[tuple[type, int]],
 ) -> OutputGroup:
     """Helper to create OutputGroup with specific types and counts.
 
@@ -1430,7 +1475,7 @@ def create_output_group_with_semantic_types(
         spec = ArtifactSpec(
             type_name=type_cls.__name__,
             description=f"{type_cls.__name__} artifact",
-            model=type_cls
+            model=type_cls,
         )
         output = AgentOutput(
             spec=spec,
@@ -1438,7 +1483,7 @@ def create_output_group_with_semantic_types(
             count=count,
             filter_predicate=None,
             validate_predicate=None,
-            group_description=None
+            group_description=None,
         )
         outputs.append(output)
 

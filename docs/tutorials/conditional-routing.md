@@ -33,7 +33,7 @@ Think of it as **"function calling on steroids"**—instead of defining function
 
 ```python
 from pydantic import BaseModel, Field
-from flock.orchestrator import Flock
+from flock import Flock
 from flock.registry import flock_type
 
 @flock_type

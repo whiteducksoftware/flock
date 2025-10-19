@@ -47,7 +47,7 @@ async def main():
 
 ```python
 import asyncio
-from flock.orchestrator import Flock
+from flock import Flock
 from pydantic import BaseModel
 from flock.registry import flock_type
 

@@ -22,27 +22,24 @@ Security Properties:
 """
 
 import pytest
-from uuid import uuid4
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, Mock, patch
-
-from flock.orchestrator import Flock
-from flock.agent import AgentBuilder
-from flock.artifacts import Artifact
-from flock.visibility import PublicVisibility, PrivateVisibility
-from flock.context_provider import DefaultContextProvider, FilteredContextProvider
-from flock.store import FilterConfig, InMemoryBlackboardStore
 from pydantic import BaseModel
+
+from flock.core import Flock
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+from flock.core.visibility import PrivateVisibility
 
 
 class Task(BaseModel):
     """Test model for artifacts."""
+
     name: str
     priority: int = 1
 
 
 class Result(BaseModel):
     """Test model for agent outputs."""
+
     status: str
     task_name: str
 
@@ -66,6 +63,7 @@ class TestOrchestratorContextInjection:
         captured_ctx = None
 
         original_execute = agent.execute
+
         async def mock_execute(ctx, artifacts):
             nonlocal captured_ctx
             captured_ctx = ctx
@@ -80,7 +78,9 @@ class TestOrchestratorContextInjection:
         # SECURITY Phase 8: Context must have artifacts field (pre-filtered)
         assert captured_ctx is not None
         assert hasattr(captured_ctx, "artifacts")
-        assert isinstance(captured_ctx.artifacts, list), "Context must have pre-filtered artifacts list"
+        assert isinstance(captured_ctx.artifacts, list), (
+            "Context must have pre-filtered artifacts list"
+        )
 
         # SECURITY Phase 8: Context must NOT have provider or store
         with pytest.raises(AttributeError):
@@ -300,7 +300,8 @@ class TestOrchestratorPublishing:
         async def mock_execute(ctx, artifacts):
             # Agent returns Result artifact (doesn't publish)
             result = Result(status="done", task_name="test")
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
+
             eval_result = EvalResult.from_object(result, agent=agent)
 
             # Convert to artifacts
@@ -320,7 +321,9 @@ class TestOrchestratorPublishing:
         # Verify artifact was published to store
         all_artifacts = await flock.store.list()
         result_artifacts = [a for a in all_artifacts if "Result" in a.type]
-        assert len(result_artifacts) > 0, "Orchestrator must publish agent outputs to store"
+        assert len(result_artifacts) > 0, (
+            "Orchestrator must publish agent outputs to store"
+        )
 
     async def test_orchestrator_publishes_multiple_artifacts(self):
         """Orchestrator must publish all artifacts returned by agent."""
@@ -330,7 +333,8 @@ class TestOrchestratorPublishing:
 
         # Mock agent.execute to return multiple artifacts
         async def mock_execute(ctx, artifacts):
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
+
             result1 = Result(status="done", task_name="task1")
             result2 = Result(status="done", task_name="task2")
             return EvalResult.from_objects(result1, result2, agent=agent).artifacts
@@ -358,7 +362,8 @@ class TestOrchestratorPublishing:
 
         # Mock agent.execute to return artifacts
         async def mock_execute(ctx, artifacts):
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
+
             result = Result(status="done", task_name="test")
             return EvalResult.from_object(result, agent=agent).artifacts
 
@@ -378,7 +383,9 @@ class TestOrchestratorPublishing:
         # But they should NOT be published to store
         all_artifacts = await flock.store.list()
         result_artifacts = [a for a in all_artifacts if "Result" in a.type]
-        assert len(result_artifacts) == initial_count, "Artifacts should NOT be published when flag=False"
+        assert len(result_artifacts) == initial_count, (
+            "Artifacts should NOT be published when flag=False"
+        )
 
     async def test_orchestrator_publishes_during_event_driven_workflow(self):
         """Orchestrator must publish artifacts during event-driven publish() + run_until_idle()."""
@@ -389,7 +396,8 @@ class TestOrchestratorPublishing:
 
         # Mock agent.execute
         async def mock_execute(ctx, artifacts):
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
+
             task = Task(**artifacts[0].payload)
             result = Result(status="processed", task_name=task.name)
             return EvalResult.from_object(result, agent=agent).artifacts
@@ -429,13 +437,14 @@ class TestOrchestratorPublishing:
                 # If board exists, try to publish (should fail or not be called)
                 try:
                     result = Result(status="hacked", task_name="bypass")
+                    from flock.core.artifacts import Artifact
                     from flock.registry import type_registry
-                    from flock.artifacts import Artifact
+
                     type_name = type_registry.name_for(Result)
                     artifact = Artifact(
                         type=type_name,
                         payload=result.model_dump(),
-                        produced_by="hacker"
+                        produced_by="hacker",
                     )
                     # This should fail or not exist
                     if hasattr(board, "publish"):
@@ -445,7 +454,8 @@ class TestOrchestratorPublishing:
                     pass  # Expected to fail
 
             # Return result normally
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
+
             result = Result(status="done", task_name="test")
             return EvalResult.from_object(result, agent=agent).artifacts
 
@@ -487,7 +497,8 @@ class TestPhase67Integration:
             captured_ctx = ctx
 
             # Agent returns result
-            from flock.runtime import EvalResult
+            from flock.utils.runtime import EvalResult
+
             task = Task(**artifacts[0].payload)
             result = Result(status="complete", task_name=task.name)
             return EvalResult.from_object(result, agent=agent).artifacts
@@ -536,8 +547,7 @@ class TestPhase67Integration:
         # Create private artifact (only visible to admin)
         private_task = Task(name="secret", priority=10)
         private_artifact = await flock.publish(
-            private_task,
-            visibility=PrivateVisibility(agents={"admin"})
+            private_task, visibility=PrivateVisibility(agents={"admin"})
         )
 
         # Create agent (NOT admin)
@@ -568,7 +578,9 @@ class TestPhase67Integration:
             item.get("payload", {}).get("name") == "secret"
             for item in captured_ctx.artifacts
         )
-        assert not secret_in_context, "Private artifact should NOT be in pre-filtered context"
+        assert not secret_in_context, (
+            "Private artifact should NOT be in pre-filtered context"
+        )
 
         # Agent cannot query for more data (no provider/store)
         with pytest.raises(AttributeError):

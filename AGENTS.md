@@ -105,9 +105,14 @@ uv run python examples/07-orchestrator-components/kitchen_monitor_component.py
 For deep dives into specific topics, see:
 
 **Core Architecture:**
+- **[Architecture Overview](docs/architecture.md)** - Complete system design, module organization, and Phase 1-7 refactoring ⭐ **UPDATED**
 - **[Architecture & Blackboard](docs/guides/blackboard.md)** - Core pattern, structure, and behavior
 - **[Agent Guide](docs/guides/agents.md)** - Complete agent development reference
 - **[Context Providers](docs/guides/context-providers.md)** - Smart filtering & security boundaries for agent context ⭐ **NEW in 0.5**
+
+**Code Patterns & Standards:**
+- **[Error Handling Patterns](docs/patterns/error_handling.md)** - Production-ready error handling guide ⭐ **NEW**
+- **[Async Patterns](docs/patterns/async_patterns.md)** - Async/await best practices and common pitfalls ⭐ **NEW**
 
 **Components & Extensibility:**
 - **[Agent Components](docs/guides/components.md)** - Extend agent behavior with lifecycle hooks
@@ -301,6 +306,8 @@ Kick the tyres with `examples/02-the-blackboard/01_persistent_pizza.py`, then la
 
 **Context Providers are the intelligent filter layer between agents and the blackboard—controlling what each agent sees, reducing token costs by 90%+, and automatically redacting sensitive data.**
 
+**⚠️ IMPORTANT FOR AI AGENTS:** Context Providers implement the security architecture described in [docs/architecture.md](docs/architecture.md) and follow error handling patterns from [docs/patterns/error_handling.md](docs/patterns/error_handling.md). Read these documents to understand the design principles.
+
 #### Why Context Providers Matter
 
 **The Problem:**
@@ -314,7 +321,7 @@ Context Providers enforce a security boundary that:
 - ✅ **Reduces token costs** - Agents see only relevant artifacts (90%+ savings)
 - ✅ **Protects sensitive data** - Auto-redact passwords, API keys, credit cards
 - ✅ **Improves performance** - Less context = faster agent execution
-- ✅ **Enforces security** - Agents cannot bypass provider filtering
+- ✅ **Enforces security** - Agents cannot bypass provider filtering (architecturally impossible!)
 
 **Understanding the Three-Layer Model:**
 
@@ -1275,12 +1282,23 @@ for op in flow:
 
 Always use the appropriate subdirectory:
 - **Tests**: `/tests` - All test files only
-- **Source Code**: `/src/flock` - Production code only
+- **Source Code**: `/src/flock` - Production code following refactored module structure:
+  - `/src/flock/core/` - Core orchestration and agents (Phase 2)
+  - `/src/flock/orchestrator/` - Orchestrator modules (Phase 3 + 5A)
+  - `/src/flock/agent/` - Agent modules (Phase 4)
+  - `/src/flock/components/` - Component library
+  - `/src/flock/engines/` - Engine implementations
+  - `/src/flock/utils/` - Utility modules (Phase 1)
 - **Documentation**: `/docs` - Documentation only
+  - `/docs/patterns/` - Code patterns and best practices
+  - `/docs/guides/` - User guides and tutorials
+  - `/docs/refactor/` - Refactoring documentation (Phase 1-7)
 - **Examples**: `/examples` - Example scripts only
 - **Frontend**: `src/flock/frontend/src` - React components and frontend code
 
 **Never create files in the root directory** - it should only contain configuration files like `pyproject.toml`, `README.md`, etc.
+
+**📐 See [Architecture Overview](docs/architecture.md) for complete module organization details.**
 
 ### Q: How do I add a new dependency?
 
@@ -1620,8 +1638,11 @@ Add to existing test file if relevant, or create new file following naming conve
 
 Python 3.12+, so you can use:
 - `match`/`case` statements
-- `TaskGroup` for parallel execution
+- `TaskGroup` for parallel execution (see [docs/patterns/async_patterns.md](docs/patterns/async_patterns.md))
 - Improved type hints (`list[str]` not `List[str]`)
+- Exception groups with `except*` (see [docs/patterns/error_handling.md](docs/patterns/error_handling.md))
+
+**⚠️ CRITICAL:** Follow error handling and async patterns documented in `/docs/patterns/` - these are REQUIRED for all new code.
 
 ### Q: How do I debug WebSocket issues?
 
@@ -1662,7 +1683,7 @@ uv run python examples/03-the-dashboard/01_declarative_pizza.py  # Start dashboa
 
 **Create orchestrator:**
 ```python
-from flock.orchestrator import Flock
+from flock import Flock  # ✅ Correct import (refactored in Phase 3)
 orchestrator = Flock("openai/gpt-4o")
 ```
 
@@ -1740,6 +1761,9 @@ await orchestrator.serve(dashboard=True)
 ### Documentation
 
 **AI Agent Guides (this repo):**
+- **[Architecture Overview](docs/architecture.md)** - Complete system design, module organization, Phase 1-7 refactoring ⭐ **MUST READ**
+- **[Error Handling Patterns](docs/patterns/error_handling.md)** - Production error handling guide ⭐ **REQUIRED**
+- **[Async Patterns](docs/patterns/async_patterns.md)** - Async/await best practices ⭐ **REQUIRED**
 - **[Architecture Guide](docs/ai-agents/architecture.md)** - Core architecture, project structure, code style
 - **[Development Workflow](docs/ai-agents/development.md)** - Testing, quality standards, versioning
 - **[Frontend Guide](docs/ai-agents/frontend.md)** - Dashboard usage, frontend development
@@ -1760,5 +1784,6 @@ await orchestrator.serve(dashboard=True)
 
 ---
 
-*Last updated: October 13, 2025*
+*Last updated: October 19, 2025*
 *This file follows the modern AGENTS.md format for AI coding agents.*
+*Reflects Phase 1-7 refactoring with updated module organization and patterns.*

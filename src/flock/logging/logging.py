@@ -42,13 +42,6 @@ def in_workflow_context() -> bool:
     if successful. Otherwise, it returns False.
     """
     return False
-    # try:
-    #     workflow.logger.debug("Checking if in workflow context...")
-    #     # loguru_logger.debug("Checking if in workflow context...")
-    #     # This call will succeed only if we're in a workflow context.
-    #     return bool(hasattr(workflow.info(), "is_replaying"))
-    # except Exception:
-    #     return False
 
 
 def get_current_trace_id() -> str:
@@ -374,9 +367,6 @@ class FlockLogger:
         self.min_level_severity = initial_min_level_severity
 
     def _get_logger(self):
-        # if in_workflow_context():
-        #     # Use Temporal's workflow.logger inside a workflow context.
-        #     return workflow.logger
         # Bind our logger with category and trace_id
         return loguru_logger.bind(
             name=self.name,
@@ -562,12 +552,7 @@ def get_logger(name: str = "flock") -> FlockLogger:
 
 def get_module_loggers() -> list[FlockLogger]:
     """Return a cached FlockLogger instance for the given module name."""
-    result = []
-    for kvp in _LOGGER_CACHE:
-        if kvp.startswith("module."):
-            result.append(_LOGGER_CACHE[kvp])
-
-    return result
+    return [_LOGGER_CACHE[kvp] for kvp in _LOGGER_CACHE if kvp.startswith("module.")]
 
 
 def truncate_for_logging(obj, max_item_length=100, max_items=10):

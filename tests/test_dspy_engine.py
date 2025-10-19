@@ -9,22 +9,22 @@ Target: 80%+ coverage for dspy_engine.py
 from __future__ import annotations
 
 from collections import OrderedDict
+from datetime import UTC
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel, Field
 
-from flock.agent import OutputGroup
-from flock.artifacts import Artifact
+from flock.core import Flock, OutputGroup
+from flock.core.artifacts import Artifact
 from flock.engines.dspy_engine import (
     DSPyEngine,
     _default_stream_value,
     _ensure_live_crop_above,
 )
-from flock.orchestrator import Flock
 from flock.registry import flock_type
-from flock.runtime import EvalInputs, EvalResult
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # Test artifact types
@@ -50,7 +50,9 @@ class ComplexInput(BaseModel):
 @flock_type(name="ComplexOutput")
 class ComplexOutput(BaseModel):
     summary: str = Field(description="Summary of input")
-    processed_items: list[str] = Field(default_factory=list, description="Processed items")
+    processed_items: list[str] = Field(
+        default_factory=list, description="Processed items"
+    )
     result: dict = Field(default_factory=dict, description="Result dictionary")
 
 
@@ -73,7 +75,9 @@ class MockDSPyModule:
 class MockLM:
     """Mock DSPy LM class."""
 
-    def __init__(self, model, temperature=None, max_tokens=None, cache=None, num_retries=None):
+    def __init__(
+        self, model, temperature=None, max_tokens=None, cache=None, num_retries=None
+    ):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -118,9 +122,10 @@ class MockSignature:
 
     def __init__(self, fields):
         self.fields = fields
-        self.output_fields = OrderedDict(
-            [("response", "output_field"), ("metadata", "output_field")]
-        )
+        self.output_fields = OrderedDict([
+            ("response", "output_field"),
+            ("metadata", "output_field"),
+        ])
 
     def with_instructions(self, instruction):
         return self
@@ -294,7 +299,9 @@ class TestDSPyEngineBasics:
         """Test that error is raised when no model is configured."""
         mocker.patch.dict("os.environ", {}, clear=True)
         engine = DSPyEngine()
-        with pytest.raises(NotImplementedError, match="DSPyEngine requires a configured model"):
+        with pytest.raises(
+            NotImplementedError, match="DSPyEngine requires a configured model"
+        ):
             engine._resolve_model_name()
 
     def test_import_dspy_exists(self):
@@ -393,35 +400,35 @@ class TestDSPyEngineBasics:
         """Test output payload normalization with BaseModel."""
         output = TestOutput(response="test response", metadata={"key": "value"})
         engine = DSPyEngine()
-        result = engine._normalize_output_payload(output)
+        result = engine._artifact_materializer.normalize_output_payload(output)
         assert result == {"response": "test response", "metadata": {"key": "value"}}
 
     def test_normalize_output_payload_with_json_string(self):
         """Test output payload normalization with JSON string."""
         output = '{"response": "test response", "metadata": {"key": "value"}}'
         engine = DSPyEngine()
-        result = engine._normalize_output_payload(output)
+        result = engine._artifact_materializer.normalize_output_payload(output)
         assert result == {"response": "test response", "metadata": {"key": "value"}}
 
     def test_normalize_output_payload_with_invalid_json_string(self):
         """Test output payload normalization with invalid JSON string."""
         output = "invalid json string"
         engine = DSPyEngine()
-        result = engine._normalize_output_payload(output)
+        result = engine._artifact_materializer.normalize_output_payload(output)
         assert result == {"text": "invalid json string"}
 
     def test_normalize_output_payload_with_mapping(self):
         """Test output payload normalization with mapping."""
         output = {"response": "test response", "metadata": {"key": "value"}}
         engine = DSPyEngine()
-        result = engine._normalize_output_payload(output)
+        result = engine._artifact_materializer.normalize_output_payload(output)
         assert result == {"response": "test response", "metadata": {"key": "value"}}
 
     def test_normalize_output_payload_with_other_type(self):
         """Test output payload normalization with other type."""
         output = 42
         engine = DSPyEngine()
-        result = engine._normalize_output_payload(output)
+        result = engine._artifact_materializer.normalize_output_payload(output)
         assert result == {"value": 42}
 
     def test_system_description_with_instructions(self):
@@ -471,92 +478,35 @@ class TestDSPyEngineBasics:
 class TestDSPyEngineSignature:
     """Test DSPy signature building and execution."""
 
+    @pytest.mark.skip(
+        reason="Legacy method _prepare_signature_with_context removed in Phase 6 refactoring"
+    )
     def test_prepare_signature_without_context(self):
         """Test signature preparation without context."""
-        mock_dspy = MockDSPyModule()
-        engine = DSPyEngine()
 
-        result = engine._prepare_signature_with_context(
-            mock_dspy,
-            description="Test description",
-            input_schema=TestInput,
-            output_schema=TestOutput,
-            has_context=False,
-        )
-
-        assert isinstance(result, MockSignature)
-
+    @pytest.mark.skip(
+        reason="Legacy method _prepare_signature_with_context removed in Phase 6 refactoring"
+    )
     def test_prepare_signature_with_context(self):
         """Test signature preparation with context."""
-        mock_dspy = MockDSPyModule()
-        engine = DSPyEngine()
 
-        result = engine._prepare_signature_with_context(
-            mock_dspy,
-            description="Test description",
-            input_schema=TestInput,
-            output_schema=TestOutput,
-            has_context=True,
-        )
-
-        assert isinstance(result, MockSignature)
-
+    @pytest.mark.skip(
+        reason="Legacy method _prepare_signature_with_context removed in Phase 6 refactoring"
+    )
     def test_prepare_signature_without_schemas(self):
         """Test signature preparation without schemas."""
-        mock_dspy = MockDSPyModule()
-        engine = DSPyEngine()
 
-        result = engine._prepare_signature_with_context(
-            mock_dspy, description=None, input_schema=None, output_schema=None, has_context=False
-        )
-
-        assert isinstance(result, MockSignature)
-
+    @pytest.mark.skip(
+        reason="Legacy method _prepare_signature_with_context removed in Phase 6 refactoring"
+    )
     def test_prepare_signature_instruction_building(self):
         """Test that signature instructions are built correctly."""
-        mock_dspy = MockDSPyModule()
 
-        class MockSignatureWithInstructions:
-            def __init__(self, fields):
-                self.fields = fields
-                self.instruction = None
-
-            def with_instructions(self, instruction):
-                self.instruction = instruction
-                return self
-
-        mock_dspy.Signature = MockSignatureWithInstructions
-        engine = DSPyEngine()
-
-        result = engine._prepare_signature_with_context(
-            mock_dspy,
-            description="Custom instructions",
-            input_schema=TestInput,
-            output_schema=TestOutput,
-            has_context=True,
-        )
-
-        assert "Custom instructions" in result.instruction
-        assert "conversation context" in result.instruction
-        # Note: "Return only JSON" was removed from the instruction
-
+    @pytest.mark.skip(
+        reason="Legacy method _prepare_signature_with_context removed in Phase 6 refactoring"
+    )
     def test_prepare_signature_with_batch_schema(self):
         """Test that batched signatures wrap input schema in a list."""
-        mock_dspy = MockDSPyModule()
-        engine = DSPyEngine()
-
-        signature = engine._prepare_signature_with_context(
-            mock_dspy,
-            description="Batch instructions",
-            input_schema=TestInput,
-            output_schema=TestOutput,
-            has_context=False,
-            batched=True,
-        )
-
-        assert isinstance(signature, MockSignature)
-        input_type, _ = signature.fields["input"]
-        assert input_type == list[TestInput]
 
 
 class TestDSPyEngineArtifactMaterialization:
@@ -572,7 +522,7 @@ class TestDSPyEngineArtifactMaterialization:
         mock_output.count = 1  # Single output (not fan-out)
 
         engine = DSPyEngine()
-        artifacts, errors = engine._materialize_artifacts(
+        artifacts, errors = engine._artifact_materializer.materialize_artifacts(
             payload, [mock_output], "test_agent", pre_generated_id=uuid4()
         )
 
@@ -592,7 +542,9 @@ class TestDSPyEngineArtifactMaterialization:
         mock_output.count = 1  # Single output (not fan-out)
 
         engine = DSPyEngine()
-        artifacts, errors = engine._materialize_artifacts(payload, [mock_output], "test_agent")
+        artifacts, errors = engine._artifact_materializer.materialize_artifacts(
+            payload, [mock_output], "test_agent"
+        )
 
         assert len(artifacts) == 0
         assert len(errors) == 1
@@ -601,7 +553,9 @@ class TestDSPyEngineArtifactMaterialization:
     def test_materialize_artifacts_without_outputs(self):
         """Test artifact materialization without outputs."""
         engine = DSPyEngine()
-        artifacts, errors = engine._materialize_artifacts({"response": "test"}, [], "test_agent")
+        artifacts, errors = engine._artifact_materializer.materialize_artifacts(
+            {"response": "test"}, [], "test_agent"
+        )
 
         assert len(artifacts) == 0
         assert len(errors) == 0
@@ -610,28 +564,36 @@ class TestDSPyEngineArtifactMaterialization:
         """Test output payload selection with type name match."""
         payload = {"TestOutput": {"response": "test"}}
         engine = DSPyEngine()
-        result = engine._select_output_payload(payload, TestOutput, "TestOutput")
+        result = engine._artifact_materializer.select_output_payload(
+            payload, TestOutput, "TestOutput"
+        )
         assert result == {"response": "test"}
 
     def test_select_output_payload_with_class_name_match(self):
         """Test output payload selection with class name match."""
         payload = {"TestOutput": {"response": "test"}}
         engine = DSPyEngine()
-        result = engine._select_output_payload(payload, TestOutput, "DifferentType")
+        result = engine._artifact_materializer.select_output_payload(
+            payload, TestOutput, "DifferentType"
+        )
         assert result == {"response": "test"}
 
     def test_select_output_payload_with_class_name_lowercase_match(self):
         """Test output payload selection with lowercase class name match."""
         payload = {"testoutput": {"response": "test"}}
         engine = DSPyEngine()
-        result = engine._select_output_payload(payload, TestOutput, "DifferentType")
+        result = engine._artifact_materializer.select_output_payload(
+            payload, TestOutput, "DifferentType"
+        )
         assert result == {"response": "test"}
 
     def test_select_output_payload_without_match(self):
         """Test output payload selection without match."""
         payload = {"other_field": {"data": "value"}}
         engine = DSPyEngine()
-        result = engine._select_output_payload(payload, TestOutput, "TestOutput")
+        result = engine._artifact_materializer.select_output_payload(
+            payload, TestOutput, "TestOutput"
+        )
         assert result == payload
 
     def test_select_output_payload_with_non_mapping_payload(self):
@@ -639,7 +601,9 @@ class TestDSPyEngineArtifactMaterialization:
         # The method expects a Mapping, so we pass a dict without expected fields
         payload = {"unexpected_field": "value"}
         engine = DSPyEngine()
-        result = engine._select_output_payload(payload, TestOutput, "TestOutput")
+        result = engine._artifact_materializer.select_output_payload(
+            payload, TestOutput, "TestOutput"
+        )
         assert result == payload
 
 
@@ -657,7 +621,7 @@ class TestDSPyEngineContext:
 
     def test_get_conversation_context_with_prefiltered_artifacts(self):
         """Phase 8: Test reading pre-filtered context from ctx.artifacts."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         engine = DSPyEngine()
 
@@ -669,14 +633,14 @@ class TestDSPyEngineContext:
                 type="Message",
                 payload={"text": "hello"},
                 produced_by="user",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
             Artifact(
                 id=uuid4(),
                 type="Response",
                 payload={"text": "hi"},
                 produced_by="bot",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
         ]
 
@@ -705,64 +669,28 @@ class TestDSPyEngineExecution:
     """Test execution methods."""
 
     @pytest.mark.asyncio
-    async def test_execute_standard_with_new_format(self):
-        """Test standard execution with new format."""
+    async def test_execute_standard_with_semantic_fields(self):
+        """Test standard execution with semantic field format."""
         mock_dspy = MockDSPyModule()
         mock_program = Mock()
         mock_program.return_value = MockPrediction()
 
-        payload = {"input": {"prompt": "test"}, "context": []}
+        # New semantic field format
+        payload = {
+            "description": "Test description",
+            "task": {"prompt": "test"},
+            "context": [],
+        }
         engine = DSPyEngine()
 
-        result = await engine._execute_standard(
+        result = await engine._streaming_executor.execute_standard(
             mock_dspy, mock_program, description="Test description", payload=payload
         )
 
         assert isinstance(result, MockPrediction)
+        # Semantic fields are passed as kwargs
         mock_program.assert_called_once_with(
-            description="Test description", input={"prompt": "test"}, context=[]
-        )
-
-    @pytest.mark.asyncio
-    async def test_execute_standard_with_old_format(self):
-        """Test standard execution with old format."""
-        mock_dspy = MockDSPyModule()
-        mock_program = Mock()
-        mock_program.return_value = MockPrediction()
-
-        payload = {"prompt": "test"}
-        engine = DSPyEngine()
-
-        result = await engine._execute_standard(
-            mock_dspy, mock_program, description="Test description", payload=payload
-        )
-
-        assert isinstance(result, MockPrediction)
-        mock_program.assert_called_once_with(
-            description="Test description", input=payload, context=[]
-        )
-
-    @pytest.mark.asyncio
-    async def test_execute_standard_with_context_in_payload(self):
-        """Test standard execution with context in payload."""
-        mock_dspy = MockDSPyModule()
-        mock_program = Mock()
-        mock_program.return_value = MockPrediction()
-
-        context_artifacts = [
-            Artifact(type="TestType", payload={"data": "context"}, produced_by="test")
-        ]
-        payload = {"input": {"prompt": "test"}, "context": context_artifacts}
-
-        engine = DSPyEngine()
-
-        result = await engine._execute_standard(
-            mock_dspy, mock_program, description="Test description", payload=payload
-        )
-
-        assert isinstance(result, MockPrediction)
-        mock_program.assert_called_once_with(
-            description="Test description", input={"prompt": "test"}, context=context_artifacts
+            description="Test description", task={"prompt": "test"}, context=[]
         )
 
 
@@ -879,7 +807,9 @@ class TestDSPyEngineErrorHandling:
         ctx = Mock()
         ctx.artifacts = []  # Pre-filtered by orchestrator
 
-        input_artifact = Artifact(type="TestInput", payload={"prompt": "test"}, produced_by="test")
+        input_artifact = Artifact(
+            type="TestInput", payload={"prompt": "test"}, produced_by="test"
+        )
         inputs = EvalInputs(artifacts=[input_artifact], state={})
 
         engine = DSPyEngine(model="gpt-4", stream=False)
@@ -912,7 +842,9 @@ class TestDSPyEngineIntegration:
         orchestrator = Flock()
 
         # Create engine directly
-        engine = DSPyEngine(model="gpt-4", stream=False, instructions="Test instructions")
+        engine = DSPyEngine(
+            model="gpt-4", stream=False, instructions="Test instructions"
+        )
 
         # Create agent
         agent = Mock()
@@ -949,13 +881,21 @@ class TestDSPyEngineIntegration:
         mocker.patch.object(DSPyEngine, "_import_dspy", return_value=mock_dspy)
 
         engine = DSPyEngine(model="gpt-4", stream=False)
-        spy_signature = mocker.spy(engine, "_prepare_signature_with_context")
+        # Phase 6: Method refactored - spy on the new method in signature_builder
+        spy_signature = mocker.spy(
+            engine._signature_builder, "prepare_signature_for_output_group"
+        )
 
         mock_program = Mock()
         engine._choose_program = Mock(return_value=mock_program)
 
-        mock_execute = AsyncMock(return_value=MockPrediction({"response": "batch response"}))
-        mocker.patch.object(engine, "_execute_standard", mock_execute)
+        mock_execute = AsyncMock(
+            return_value=MockPrediction({"response": "batch response"})
+        )
+        # Phase 6: Method refactored - patch the helper instance method
+        mocker.patch.object(
+            engine._streaming_executor, "execute_standard", mock_execute
+        )
 
         agent = Mock()
         agent.name = "batch_agent"

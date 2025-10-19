@@ -217,6 +217,12 @@ async def test_your_feature():
     assert result is not None
 ```
 
+**Best Practices:**
+- Follow patterns in [`docs/patterns/error_handling.md`](docs/patterns/error_handling.md)
+- Use async patterns from [`docs/patterns/async_patterns.md`](docs/patterns/async_patterns.md)
+- Verify error messages with `pytest.raises()`
+- Test edge cases and error conditions
+
 ## 📦 Versioning
 
 Flock uses **smart versioning** that only bumps versions for components that actually changed.
@@ -261,17 +267,19 @@ poe version-major   # 0.1.18 → 1.0.0 (breaking changes)
 
 See [`docs/VERSIONING.md`](docs/VERSIONING.md) for complete guide.
 
-## 📝 Code Style
+## 📝 Code Style & Patterns
 
-### Python
+### Python Best Practices
 
 - **Formatter**: Ruff (auto-formats on commit)
 - **Linter**: Ruff with comprehensive rules
 - **Type Checker**: mypy
+- **Error Handling**: Follow [`docs/patterns/error_handling.md`](docs/patterns/error_handling.md)
+- **Async Patterns**: Follow [`docs/patterns/async_patterns.md`](docs/patterns/async_patterns.md)
 
 ```python
 # ✅ Good: Type hints everywhere
-async def execute(self, ctx: Context, artifacts: List[Artifact]) -> List[Artifact]:
+async def execute(self, ctx: Context, artifacts: list[Artifact]) -> list[Artifact]:
     """Execute the agent with given artifacts.
 
     Args:
@@ -280,7 +288,12 @@ async def execute(self, ctx: Context, artifacts: List[Artifact]) -> List[Artifac
 
     Returns:
         List of output artifacts
+
+    Raises:
+        ValueError: If artifacts list is empty
     """
+    if not artifacts:
+        raise ValueError("Artifacts list cannot be empty")
     ...
 
 # ✅ Good: Pydantic models with Field descriptions
@@ -290,7 +303,37 @@ class Movie(BaseModel):
 
     title: str = Field(description="Movie title in CAPS")
     runtime: int = Field(ge=60, le=400, description="Runtime in minutes")
+
+# ✅ Good: Error handling with context
+try:
+    result = await engine.evaluate(inputs)
+except ValueError as e:
+    logger.exception("Evaluation failed: agent=%s", agent.name)
+    raise RuntimeError(f"Engine failed for {agent.name}") from e
 ```
+
+### Error Handling Patterns
+
+**See [`docs/patterns/error_handling.md`](docs/patterns/error_handling.md) for complete guide**
+
+Key principles:
+- ✅ Catch specific exceptions, not broad `Exception`
+- ✅ Add context with `logger.exception()` and `from e`
+- ✅ Use component error hooks for reusable error handling
+- ❌ Never silent failures (empty `except` blocks)
+- ❌ Never lose error context
+
+### Async Patterns
+
+**See [`docs/patterns/async_patterns.md`](docs/patterns/async_patterns.md) for complete guide**
+
+Key principles:
+- ✅ Use sequential operations when order matters
+- ✅ Use `asyncio.gather()` for parallel independent operations
+- ✅ Use `asyncio.TaskGroup` for automatic cancellation (Python 3.11+)
+- ✅ Handle `asyncio.CancelledError` in background tasks
+- ❌ Never block with synchronous operations in async functions
+- ❌ Never create tasks without tracking them
 
 ### TypeScript/React
 
@@ -316,12 +359,79 @@ const useWebSocket = (url: string): WebSocketState => {
 };
 ```
 
-### Code Organization
+## 🏗️ Module Organization
 
-- Keep files under 500 lines
-- Use modular design patterns
-- Separate concerns clearly
-- Maintain clean architecture
+### Where to Add New Code
+
+**See [`docs/architecture.md`](docs/architecture.md) for complete system overview**
+
+```
+src/flock/
+├── core/                   # Core orchestration and agents
+│   ├── orchestrator.py     # Flock orchestrator
+│   └── agent.py            # Agent and AgentBuilder
+│
+├── orchestrator/           # Orchestrator modules (Phase 3+5A)
+│   ├── scheduler.py        # Agent scheduling
+│   ├── artifact_manager.py # Publishing and persistence
+│   ├── component_runner.py # Component hook execution
+│   └── ...                 # More specialized modules
+│
+├── agent/                  # Agent modules (Phase 4)
+│   ├── output_processor.py     # Output artifact creation
+│   ├── mcp_integration.py      # MCP tool access
+│   └── ...                      # More agent modules
+│
+├── components/             # Component library
+│   ├── agent/              # Agent components
+│   └── orchestrator/       # Orchestrator components
+│
+├── engines/                # Engine implementations
+│   ├── dspy_engine.py      # DSPy LLM engine
+│   └── dspy/               # DSPy engine modules
+│
+├── storage/                # Storage backends
+│   ├── sqlite/             # SQLite implementation
+│   └── in_memory/          # In-memory implementation
+│
+└── utils/                  # Utility modules (Phase 1)
+    ├── validation.py       # Input validation
+    ├── formatting.py       # String formatting
+    └── ...                 # More utilities
+```
+
+### File Organization Guidelines
+
+- **Keep files under 500 lines** - Extract modules when approaching this limit
+- **One responsibility per module** - Clear separation of concerns
+- **Use descriptive names** - Module name should indicate purpose
+- **Group related code** - Components, orchestrator modules, agent modules
+- **Public API in `__init__.py`** - Export only public interfaces
+
+**When to create a new module:**
+- File approaching 500 LOC
+- Distinct responsibility can be extracted
+- Code would be reusable elsewhere
+- Module would improve testability
+
+**Examples:**
+```python
+# ✅ Good: Focused module
+# src/flock/orchestrator/scheduler.py (189 LOC)
+class AgentScheduler:
+    """Schedules agents for execution."""
+    ...
+
+# ✅ Good: Utility extraction
+# src/flock/utils/validation.py
+def validate_subscription(subscription: Subscription) -> None:
+    """Validate subscription configuration."""
+    ...
+
+# ❌ Bad: Monolithic file
+# src/flock/everything.py (2000 LOC)
+# Too large, extract modules!
+```
 
 ## ✅ Quality Checklist
 
@@ -340,6 +450,8 @@ Before submitting a pull request, ensure:
 - [ ] Documentation is updated
 - [ ] No hardcoded secrets
 - [ ] Versions bumped if needed (`poe version-check`)
+- [ ] **Error handling follows patterns** ([docs/patterns/error_handling.md](docs/patterns/error_handling.md))
+- [ ] **Async code follows patterns** ([docs/patterns/async_patterns.md](docs/patterns/async_patterns.md))
 
 ### Optional but Recommended
 
@@ -347,6 +459,7 @@ Before submitting a pull request, ensure:
 - [ ] Updated AGENTS.md if workflow changed
 - [ ] Added integration tests
 - [ ] Performance considerations documented
+- [ ] Module stays under 500 LOC
 
 ## 📤 Submitting Changes
 
@@ -372,6 +485,9 @@ git commit -m "perf: optimize graph rendering performance"
 
 # Chore (dependencies, build, etc.)
 git commit -m "chore: bump version to 0.2.0"
+
+# Refactoring
+git commit -m "refactor: extract scheduler module from orchestrator"
 
 # Breaking change
 git commit -m "feat!: redesign agent API (BREAKING CHANGE)"
@@ -409,6 +525,8 @@ None / Describe breaking changes
 - [ ] Tests pass
 - [ ] Documentation updated
 - [ ] Version bumped (if applicable)
+- [ ] Follows error handling patterns
+- [ ] Follows async patterns
 ```
 
 ## 🔧 Common Tasks
@@ -445,7 +563,7 @@ git diff package-lock.json
 
 ```bash
 # Terminal 1: Backend
-uv run python examples/showcase/04_dashboard.py
+uv run python examples/02-dashboard/01_declarative_pizza.py
 
 # Terminal 2: Frontend (if developing)
 cd frontend
@@ -467,7 +585,7 @@ uv run pytest -s -vv tests/test_specific.py
 uv run pytest --lf
 
 # Run with coverage for specific module
-uv run pytest tests/test_orchestrator.py --cov=src/flock/orchestrator.py
+uv run pytest tests/test_orchestrator.py --cov=src/flock/core/orchestrator.py
 ```
 
 ### Update Documentation
@@ -526,26 +644,40 @@ poe version-minor
 git push
 ```
 
+### Import errors after refactoring
+
+**Problem**: `ImportError: cannot import name 'Flock' from 'flock.orchestrator'`
+
+**Solution**: Use new public API imports
+```python
+# ❌ Old (deprecated):
+from flock import Flock
+
+# ✅ New (correct):
+from flock import Flock
+```
+
 ## 📚 Additional Resources
+
+### Architecture & Patterns
+
+- **[Architecture Overview](docs/architecture.md)** - Complete system architecture
+- **[Error Handling Patterns](docs/patterns/error_handling.md)** - Error handling best practices
+- **[Async Patterns](docs/patterns/async_patterns.md)** - Async/await patterns and anti-patterns
 
 ### Documentation
 
 - **Project Overview**: [`README.md`](README.md)
 - **Agent Guide**: [`AGENTS.md`](AGENTS.md)
-- **Development Workflow**: [`docs/patterns/development-workflow.md`](docs/patterns/development-workflow.md)
 - **Versioning Guide**: [`docs/VERSIONING.md`](docs/VERSIONING.md)
 - **Pre-commit Hooks**: [`docs/PRE_COMMIT_HOOKS.md`](docs/PRE_COMMIT_HOOKS.md)
 
 ### Examples
 
-- **Showcase Examples**: [`examples/showcase/`](examples/showcase/)
-- **Feature Examples**: [`examples/features/`](examples/features/)
-
-### Architecture
-
-- **Core Architecture**: [`docs/patterns/core-architecture.md`](docs/patterns/core-architecture.md)
-- **Repository Structure**: [`docs/patterns/repository-structure.md`](docs/patterns/repository-structure.md)
-- **Project Configuration**: [`docs/patterns/project-configuration.md`](docs/patterns/project-configuration.md)
+- **CLI Examples**: [`examples/01-cli/`](examples/01-cli/)
+- **Dashboard Examples**: [`examples/02-dashboard/`](examples/02-dashboard/)
+- **Claude's Workshop**: [`examples/03-claudes-workshop/`](examples/03-claudes-workshop/)
+- **Pattern Examples**: [`examples/00-patterns/`](examples/00-patterns/)
 
 ## 🤝 Getting Help
 
@@ -566,10 +698,24 @@ By contributing to Flock, you agree that your contributions will be licensed und
 
 ---
 
+## 🏆 Code Quality Principles
+
+Following these principles ensures Flock remains maintainable and scalable:
+
+1. **Modularity** - Files under 500 LOC, clear separation of concerns
+2. **Testability** - Isolated modules with clear contracts, high test coverage
+3. **Type Safety** - Full type hints, mypy validation
+4. **Error Handling** - Follow documented patterns, add context to errors
+5. **Async Correctness** - Proper task lifecycle, avoid blocking operations
+6. **Documentation** - Comprehensive docstrings, pattern documentation
+7. **Zero Regressions** - All tests must pass, no breaking changes without major version
+
+---
+
 **Thank you for contributing to Flock!** 🚀
 
 Every contribution, no matter how small, helps build the future of AI agent orchestration.
 
 ---
 
-*Last updated: October 5, 2025*
+*Last updated: October 19, 2025*

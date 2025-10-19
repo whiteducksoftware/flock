@@ -8,15 +8,15 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 
-from flock.components import EngineComponent
+from flock.components.agent import EngineComponent
+from flock.core import Flock
+from flock.core.store import InMemoryBlackboardStore
 from flock.dashboard.collector import DashboardEventCollector
 from flock.dashboard.events import (
     AgentCompletedEvent,
     MessagePublishedEvent,
 )
-from flock.orchestrator import Flock
-from flock.runtime import EvalInputs, EvalResult
-from flock.store import InMemoryBlackboardStore
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 class Idea(BaseModel):
@@ -43,7 +43,9 @@ class Tagline(BaseModel):
 class MovieEngine(EngineComponent):
     """Test engine that generates movie from idea."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         idea = inputs.artifacts[0].payload
         movie = Movie(
             title=f"{idea['topic'].upper()} - THE MOVIE",
@@ -56,7 +58,9 @@ class MovieEngine(EngineComponent):
 class TaglineEngine(EngineComponent):
     """Test engine that generates tagline from movie."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         movie = inputs.artifacts[0].payload
         tagline = Tagline(tagline=f"{movie['title']}: Coming Soon!")
         return EvalResult.from_object(tagline, agent=agent)
@@ -111,7 +115,9 @@ async def test_full_lifecycle_event_capture():
 
     # Verify event ordering (activated before completed for same agent)
     movie_events = [
-        e for e in collector.events if hasattr(e, "agent_name") and e.agent_name == "movie"
+        e
+        for e in collector.events
+        if hasattr(e, "agent_name") and e.agent_name == "movie"
     ]
     if len(movie_events) >= 2:
         # First should be activated or message, last should be completed
@@ -163,7 +169,9 @@ async def test_error_event_capture():
 
     # Create engine that fails
     class FailingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             raise ValueError("Intentional test error")
 
     # Create agent with failing engine
@@ -202,7 +210,9 @@ async def test_multiple_runs_accumulate_events():
 
     # Create simple agent
     class EchoEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             return EvalResult(artifacts=inputs.artifacts)
 
     agent = (
@@ -221,7 +231,9 @@ async def test_multiple_runs_accumulate_events():
     # Verify events accumulated (at least 5 completed events)
     from flock.dashboard.events import AgentCompletedEvent
 
-    completed_events = [e for e in collector.events if isinstance(e, AgentCompletedEvent)]
+    completed_events = [
+        e for e in collector.events if isinstance(e, AgentCompletedEvent)
+    ]
     assert len(completed_events) >= 5
 
 
@@ -233,7 +245,9 @@ async def test_concurrent_agents_event_capture():
 
     # Create two independent agents with higher concurrency
     class FastEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             await asyncio.sleep(0.01)  # Small delay
             return EvalResult(artifacts=inputs.artifacts)
 
@@ -264,10 +278,14 @@ async def test_concurrent_agents_event_capture():
 
     # Verify events from both agents
     agent1_events = [
-        e for e in collector.events if hasattr(e, "agent_name") and e.agent_name == "agent1"
+        e
+        for e in collector.events
+        if hasattr(e, "agent_name") and e.agent_name == "agent1"
     ]
     agent2_events = [
-        e for e in collector.events if hasattr(e, "agent_name") and e.agent_name == "agent2"
+        e
+        for e in collector.events
+        if hasattr(e, "agent_name") and e.agent_name == "agent2"
     ]
 
     assert len(agent1_events) > 0
@@ -292,7 +310,9 @@ async def test_message_published_contains_artifact_payload():
     await orchestrator.invoke(movie_agent, idea)
 
     # Find message_published events
-    message_events = [e for e in collector.events if isinstance(e, MessagePublishedEvent)]
+    message_events = [
+        e for e in collector.events if isinstance(e, MessagePublishedEvent)
+    ]
 
     # Should have at least one artifact published
     assert len(message_events) >= 1
@@ -319,7 +339,9 @@ async def test_agent_completed_includes_metrics():
 
     # Create engine that sets metrics
     class MetricsEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             result = EvalResult(artifacts=inputs.artifacts)
             result.metrics = {
                 "test_metric": 42,
@@ -339,7 +361,9 @@ async def test_agent_completed_includes_metrics():
     await orchestrator.invoke(agent, idea)
 
     # Find completed event
-    completed_events = [e for e in collector.events if isinstance(e, AgentCompletedEvent)]
+    completed_events = [
+        e for e in collector.events if isinstance(e, AgentCompletedEvent)
+    ]
     assert len(completed_events) >= 1
 
     # Verify metrics are captured

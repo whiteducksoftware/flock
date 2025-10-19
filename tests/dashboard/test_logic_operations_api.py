@@ -22,20 +22,20 @@ Related:
   - Dashboard service: src/flock/dashboard/service.py
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel
 
-from flock.artifacts import Artifact
-from flock.batch_accumulator import BatchAccumulator, BatchEngine
-from flock.correlation_engine import CorrelationEngine, CorrelationGroup
-from flock.orchestrator import Flock
+from flock.core import Flock
+from flock.core.artifacts import Artifact
+from flock.core.subscription import BatchSpec, JoinSpec
+from flock.core.visibility import PublicVisibility
+from flock.orchestrator.batch_accumulator import BatchAccumulator, BatchEngine
+from flock.orchestrator.correlation_engine import CorrelationEngine, CorrelationGroup
 from flock.registry import flock_type
-from flock.subscription import BatchSpec, JoinSpec
-from flock.visibility import PublicVisibility
 
 
 # ============================================================================
@@ -80,7 +80,7 @@ def test_get_correlation_groups_empty():
 
     Test ensures function handles the empty/initial state correctly.
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     agent_name = "radiologist"
@@ -114,7 +114,7 @@ def test_get_correlation_groups_single_group_partial():
         "is_expired": False
     }
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     # Setup: Create engine with partial correlation group
     engine = CorrelationEngine()
@@ -132,7 +132,7 @@ def test_get_correlation_groups_single_group_partial():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
 
     # Add one artifact (XRayImage)
     xray_artifact = Artifact(
@@ -183,7 +183,7 @@ def test_get_correlation_groups_multiple_patients():
     - patient_456: Both XRayImage and LabResults collected (complete)
     - patient_789: Only LabResults collected, waiting for XRayImage
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     agent_name = "radiologist"
@@ -198,7 +198,7 @@ def test_get_correlation_groups_multiple_patients():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group1.created_at_time = datetime.now(timezone.utc)
+    group1.created_at_time = datetime.now(UTC)
     xray1 = Artifact(
         id=uuid4(),
         type="XRayImage",
@@ -220,7 +220,7 @@ def test_get_correlation_groups_multiple_patients():
         window_spec=timedelta(minutes=5),
         created_at_sequence=2,
     )
-    group3.created_at_time = datetime.now(timezone.utc)
+    group3.created_at_time = datetime.now(UTC)
     lab3 = Artifact(
         id=uuid4(),
         type="LabResults",
@@ -261,7 +261,7 @@ def test_get_correlation_groups_time_calculations():
 
     Tests time-based window calculations are accurate.
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     agent_name = "radiologist"
@@ -276,7 +276,7 @@ def test_get_correlation_groups_time_calculations():
         window_spec=timedelta(minutes=5),  # 300 seconds
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc) - timedelta(seconds=30)
+    group.created_at_time = datetime.now(UTC) - timedelta(seconds=30)
 
     # Add artifact
     xray = Artifact(
@@ -314,7 +314,7 @@ def test_get_correlation_groups_count_window():
 
     Tests count-based window state extraction.
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     engine.global_sequence = 5  # 5 artifacts published globally
@@ -331,7 +331,7 @@ def test_get_correlation_groups_count_window():
         window_spec=10,  # Count window: 10 artifacts
         created_at_sequence=2,  # Created at sequence 2
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
 
     # Add artifact
     xray = Artifact(
@@ -356,7 +356,9 @@ def test_get_correlation_groups_count_window():
     # created_at_sequence=2, global_sequence=5
     # artifacts_passed = 5 - 2 = 3
     # expires_in_artifacts = 10 - 3 = 7
-    assert group_state["expires_in_seconds"] is None, "Count window should not have time expiry"
+    assert group_state["expires_in_seconds"] is None, (
+        "Count window should not have time expiry"
+    )
     assert group_state["expires_in_artifacts"] == 7, (
         f"Expected 7 artifacts remaining, got {group_state['expires_in_artifacts']}"
     )
@@ -375,7 +377,7 @@ def test_get_batch_state_no_accumulator():
 
     Tests function handles non-existent batch gracefully.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -397,7 +399,7 @@ def test_get_batch_state_size_based():
 
     Tests size-based batch state extraction.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -408,7 +410,7 @@ def test_get_batch_state_size_based():
     # Create batch accumulator with 10 artifacts
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     for i in range(10):
         artifact = Artifact(
@@ -442,7 +444,7 @@ def test_get_batch_state_timeout_based():
 
     Tests timeout-based batch state extraction.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -453,7 +455,7 @@ def test_get_batch_state_timeout_based():
     # Create batch accumulator 18 seconds ago
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc) - timedelta(seconds=18),
+        created_at=datetime.now(UTC) - timedelta(seconds=18),
     )
     # Add at least one artifact (empty batches return None)
     artifact = Artifact(
@@ -492,7 +494,7 @@ def test_get_batch_state_dual_condition():
 
     Tests hybrid batch state extraction.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -503,7 +505,7 @@ def test_get_batch_state_dual_condition():
     # Create batch with 10 artifacts, 12 seconds ago
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc) - timedelta(seconds=12),
+        created_at=datetime.now(UTC) - timedelta(seconds=12),
     )
     for i in range(10):
         artifact = Artifact(
@@ -549,7 +551,7 @@ def test_get_batch_state_group_count():
     - But _group_count = 3 (counting pairs, not individual artifacts)
     - items_collected should be 3, not 6
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "radiologist"
@@ -560,7 +562,7 @@ def test_get_batch_state_group_count():
     # Create batch with 6 artifacts (3 pairs)
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
     # Add 6 artifacts (3 correlated pairs)
@@ -605,7 +607,7 @@ def test_get_batch_state_empty_batch_returns_none():
 
     Tests function doesn't return state for empty batches.
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "email_processor"
@@ -616,7 +618,7 @@ def test_get_batch_state_empty_batch_returns_none():
     # Create empty batch accumulator
     accumulator = BatchAccumulator(
         batch_spec=batch_spec,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     # No artifacts added
 
@@ -642,7 +644,7 @@ def test_compute_agent_status_ready():
 
     Tests default/idle state.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -664,13 +666,15 @@ def test_compute_agent_status_waiting_correlation():
 
     Tests waiting state for JoinSpec correlation.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
     # Create agent with JoinSpec
     agent = orchestrator.agent("radiologist").consumes(
-        XRayImage, LabResults, join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5))
+        XRayImage,
+        LabResults,
+        join=JoinSpec(by=lambda x: x.patient_id, within=timedelta(minutes=5)),
     )
 
     # Manually create correlation group in orchestrator's engine
@@ -682,7 +686,7 @@ def test_compute_agent_status_waiting_correlation():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
 
     # Add one artifact to make it incomplete
     xray = Artifact(
@@ -711,18 +715,20 @@ def test_compute_agent_status_waiting_batch():
 
     Tests waiting state for BatchSpec accumulation.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
     # Create agent with BatchSpec
-    agent = orchestrator.agent("email_processor").consumes(Email, batch=BatchSpec(size=25))
+    agent = orchestrator.agent("email_processor").consumes(
+        Email, batch=BatchSpec(size=25)
+    )
 
     # Manually create batch accumulator in orchestrator's engine
     batch_key = (agent.agent.name, 0)
     accumulator = BatchAccumulator(
         batch_spec=BatchSpec(size=25),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     # Add some artifacts
     for i in range(10):
@@ -752,7 +758,7 @@ def test_compute_agent_status_no_joinspec_or_batchspec():
 
     Tests agents without logic operations are always ready.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -774,7 +780,7 @@ def test_compute_agent_status_multiple_subscriptions_mixed():
 
     Tests agents with mixed subscription states.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -800,7 +806,7 @@ def test_compute_agent_status_multiple_subscriptions_mixed():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
     xray = Artifact(
         id=uuid4(),
         type="XRayImage",
@@ -826,18 +832,20 @@ def test_compute_agent_status_batch_empty_should_be_ready():
 
     Tests edge case: batch accumulator exists but has no artifacts.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
     # Create agent with BatchSpec
-    agent = orchestrator.agent("email_processor").consumes(Email, batch=BatchSpec(size=25))
+    agent = orchestrator.agent("email_processor").consumes(
+        Email, batch=BatchSpec(size=25)
+    )
 
     # Create EMPTY batch accumulator
     batch_key = (agent.agent.name, 0)
     accumulator = BatchAccumulator(
         batch_spec=BatchSpec(size=25),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     # No artifacts added
 
@@ -868,7 +876,7 @@ async def test_integration_correlation_and_batch_together():
 
     This tests the complex case of combined logic operations.
     """
-    from flock.dashboard.service import (
+    from flock.dashboard.routes.helpers import (
         _compute_agent_status,
         _get_batch_state,
         _get_correlation_groups,
@@ -898,7 +906,7 @@ async def test_integration_correlation_and_batch_together():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group1.created_at_time = datetime.now(timezone.utc)
+    group1.created_at_time = datetime.now(UTC)
     xray1 = Artifact(
         id=uuid4(),
         type="XRayImage",
@@ -916,7 +924,7 @@ async def test_integration_correlation_and_batch_together():
         window_spec=timedelta(minutes=5),
         created_at_sequence=2,
     )
-    group2.created_at_time = datetime.now(timezone.utc)
+    group2.created_at_time = datetime.now(UTC)
     lab2 = Artifact(
         id=uuid4(),
         type="LabResults",
@@ -926,14 +934,18 @@ async def test_integration_correlation_and_batch_together():
     )
     group2.waiting_artifacts["LabResults"].append(lab2)
 
-    orchestrator._correlation_engine.correlation_groups[pool_key]["patient_123"] = group1
-    orchestrator._correlation_engine.correlation_groups[pool_key]["patient_456"] = group2
+    orchestrator._correlation_engine.correlation_groups[pool_key]["patient_123"] = (
+        group1
+    )
+    orchestrator._correlation_engine.correlation_groups[pool_key]["patient_456"] = (
+        group2
+    )
 
     # Setup batch state: 2 correlated pairs already batched
     batch_key = (agent_name, subscription_index)
     accumulator = BatchAccumulator(
         batch_spec=BatchSpec(size=5),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     # Simulate 2 correlated pairs (4 artifacts total)
     for i in range(2):
@@ -977,7 +989,9 @@ async def test_integration_correlation_and_batch_together():
     assert batch_state["items_remaining"] == 3
 
     # Assert: Agent status
-    assert agent_status == "waiting", "Agent should be waiting (both correlation and batch active)"
+    assert agent_status == "waiting", (
+        "Agent should be waiting (both correlation and batch active)"
+    )
 
 
 # ============================================================================
@@ -991,7 +1005,7 @@ def test_get_correlation_groups_handles_missing_pool_key():
     WHEN: _get_correlation_groups() is called
     THEN: Should return empty list (not crash)
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     engine = CorrelationEngine()
     agent_name = "nonexistent_agent"
@@ -1010,7 +1024,7 @@ def test_get_batch_state_handles_missing_batch_key():
     WHEN: _get_batch_state() is called
     THEN: Should return None (not crash)
     """
-    from flock.dashboard.service import _get_batch_state
+    from flock.dashboard.routes.helpers import _get_batch_state
 
     engine = BatchEngine()
     agent_name = "nonexistent_agent"
@@ -1032,7 +1046,7 @@ def test_compute_agent_status_handles_agent_with_no_subscriptions():
 
     Edge case: Newly created agent before subscriptions are added.
     """
-    from flock.dashboard.service import _compute_agent_status
+    from flock.dashboard.routes.helpers import _compute_agent_status
 
     orchestrator = Flock()
 
@@ -1059,7 +1073,7 @@ def test_readme_example_correlation_state_extraction():
 
     This is a documentation test that demonstrates typical usage.
     """
-    from flock.dashboard.service import _get_correlation_groups
+    from flock.dashboard.routes.helpers import _get_correlation_groups
 
     # Setup: Healthcare diagnostic agent waiting for patient data
     engine = CorrelationEngine()
@@ -1075,7 +1089,7 @@ def test_readme_example_correlation_state_extraction():
         window_spec=timedelta(minutes=5),
         created_at_sequence=1,
     )
-    group.created_at_time = datetime.now(timezone.utc)
+    group.created_at_time = datetime.now(UTC)
     xray = Artifact(
         id=uuid4(),
         type="XRayImage",
@@ -1102,7 +1116,9 @@ def test_readme_example_correlation_state_extraction():
 
     # Frontend can now display:
     # "Waiting for LabResults for patient_123 (45s elapsed, 255s remaining)"
-    print(f"Waiting for {patient_state['waiting_for']} for {patient_state['correlation_key']}")
+    print(
+        f"Waiting for {patient_state['waiting_for']} for {patient_state['correlation_key']}"
+    )
     print(
         f"Elapsed: {patient_state['elapsed_seconds']}s, Expires in: {patient_state['expires_in_seconds']}s"
     )

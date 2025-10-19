@@ -18,7 +18,7 @@ import asyncio
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.visibility import PrivateVisibility, PublicVisibility
+from flock.core.visibility import PrivateVisibility, PublicVisibility
 
 
 # Define our data models

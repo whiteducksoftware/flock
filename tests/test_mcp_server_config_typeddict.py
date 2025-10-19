@@ -2,9 +2,8 @@
 
 import pytest
 
-from flock.agent import MCPServerConfig
+from flock.core import Flock, MCPServerConfig
 from flock.mcp import StdioServerParameters
-from flock.orchestrator import Flock
 
 
 @pytest.fixture
@@ -26,15 +25,13 @@ def orchestrator():
 
 def test_new_format_with_tool_whitelist(orchestrator):
     """Test new MCPServerConfig format with tool_whitelist."""
-    agent = orchestrator.agent("test_agent").with_mcps(
-        {
-            "filesystem": {
-                "roots": ["/workspace/data"],
-                "tool_whitelist": ["read_file", "write_file"],
-            },
-            "github": {},
-        }
-    )
+    agent = orchestrator.agent("test_agent").with_mcps({
+        "filesystem": {
+            "roots": ["/workspace/data"],
+            "tool_whitelist": ["read_file", "write_file"],
+        },
+        "github": {},
+    })
 
     assert agent.agent.mcp_server_names == {"filesystem", "github"}
     assert agent.agent.mcp_server_mounts == {"filesystem": ["/workspace/data"]}
@@ -43,14 +40,14 @@ def test_new_format_with_tool_whitelist(orchestrator):
 
 def test_new_format_roots_only(orchestrator):
     """Test new format with only roots (no tool_whitelist)."""
-    agent = orchestrator.agent("test_agent").with_mcps(
-        {
-            "filesystem": {"roots": ["/workspace/src", "/workspace/data"]},
-        }
-    )
+    agent = orchestrator.agent("test_agent").with_mcps({
+        "filesystem": {"roots": ["/workspace/src", "/workspace/data"]},
+    })
 
     assert agent.agent.mcp_server_names == {"filesystem"}
-    assert agent.agent.mcp_server_mounts == {"filesystem": ["/workspace/src", "/workspace/data"]}
+    assert agent.agent.mcp_server_mounts == {
+        "filesystem": ["/workspace/src", "/workspace/data"]
+    }
     assert agent.agent.tool_whitelist is None
 
 
@@ -61,39 +58,6 @@ def test_new_format_empty_config(orchestrator):
     assert agent.agent.mcp_server_names == {"filesystem", "github"}
     assert agent.agent.mcp_server_mounts == {}
     assert agent.agent.tool_whitelist is None
-
-
-def test_old_format_still_works(orchestrator):
-    """Test that old format (direct list) still works for backward compatibility."""
-    agent = orchestrator.agent("test_agent").with_mcps(
-        {
-            "filesystem": ["/workspace/data"],  # Old format
-            "github": ["/workspace/.git"],
-        }
-    )
-
-    assert agent.agent.mcp_server_names == {"filesystem", "github"}
-    assert agent.agent.mcp_server_mounts == {
-        "filesystem": ["/workspace/data"],
-        "github": ["/workspace/.git"],
-    }
-
-
-def test_mixed_old_and_new_format(orchestrator):
-    """Test mixing old and new format in same call."""
-    agent = orchestrator.agent("test_agent").with_mcps(
-        {
-            "filesystem": ["/workspace/data"],  # Old format
-            "github": {"roots": ["/workspace/.git"], "tool_whitelist": ["get_repo"]},  # New format
-        }
-    )
-
-    assert agent.agent.mcp_server_names == {"filesystem", "github"}
-    assert agent.agent.mcp_server_mounts == {
-        "filesystem": ["/workspace/data"],
-        "github": ["/workspace/.git"],
-    }
-    assert agent.agent.tool_whitelist == ["get_repo"]
 
 
 def test_typeddict_type_hints():

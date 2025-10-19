@@ -3,14 +3,13 @@
 import asyncio
 
 import pytest
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field
 
-from flock.agent import OutputGroup
-from flock.artifacts import Artifact
-from flock.components import AgentComponent, EngineComponent
+from flock.components.agent import AgentComponent, EngineComponent
+from flock.core.artifacts import Artifact
+from flock.core.visibility import PublicVisibility
 from flock.registry import flock_type
-from flock.runtime import Context, EvalInputs, EvalResult
-from flock.visibility import PublicVisibility
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # Test artifact types - use explicit names
@@ -28,7 +27,9 @@ class AgentOutput(BaseModel):
 class LifecycleTracker(AgentComponent):
     """Component that tracks lifecycle stages."""
 
-    tracker: list[str] = Field(default_factory=list)  # Pydantic field with default_factory
+    tracker: list[str] = Field(
+        default_factory=list
+    )  # Pydantic field with default_factory
 
     async def on_initialize(self, agent, ctx):
         self.tracker.append("initialize")
@@ -62,7 +63,9 @@ class LifecycleTracker(AgentComponent):
 class SimpleEngine(EngineComponent):
     """Simple engine for testing."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         # Create output artifacts
         artifacts = [
             Artifact(
@@ -86,9 +89,13 @@ class StateAddingComponent(AgentComponent):
 class StatefulEngine(EngineComponent):
     """Engine that uses state."""
 
-    state_tracker: list[str] = Field(default_factory=list)  # Pydantic field with default_factory
+    state_tracker: list[str] = Field(
+        default_factory=list
+    )  # Pydantic field with default_factory
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         # Check if state is available
         if "context" in inputs.state:
             self.state_tracker.append(inputs.state["context"])
@@ -98,7 +105,9 @@ class StatefulEngine(EngineComponent):
 class FailingEngine(EngineComponent):
     """Engine that always fails."""
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         raise ValueError("Test error")
 
 
@@ -246,7 +255,9 @@ async def test_agent_respects_max_concurrency(orchestrator):
     max_concurrent = 0
 
     class SlowEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             concurrent_count.append(1)
             nonlocal max_concurrent
             max_concurrent = max(max_concurrent, len(concurrent_count))
@@ -280,7 +291,9 @@ async def test_agent_best_of_n_selects_highest_score(orchestrator):
     invocation_count = [0]
 
     class ScoredEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             invocation_count[0] += 1
             score = invocation_count[0] * 10  # 10, 20, 30
             return EvalResult(artifacts=[], state={}, metrics={"confidence": score})
@@ -307,7 +320,9 @@ async def test_agent_best_of_one_skips_parallel_execution(orchestrator):
     call_count = [0]
 
     class CountingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             call_count[0] += 1
             return EvalResult(artifacts=[], state={})
 
@@ -332,7 +347,9 @@ async def test_agent_strict_validation_requires_artifacts(orchestrator):
     # Arrange
 
     class NonProducingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             # Phase 3: Engine declares it will produce AgentOutput but doesn't
             return EvalResult(
                 artifacts=[],  # Contract violation!
@@ -358,7 +375,9 @@ async def test_utility_agent_without_publishes_works(orchestrator):
     side_effects = []
 
     class SideEffectEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             # Utility agent - no outputs declared, just side effects
             side_effects.append(inputs.artifacts[0].payload["data"])
             return EvalResult(artifacts=[], state={})
@@ -396,7 +415,9 @@ async def test_agent_prevent_self_trigger_blocks_own_artifacts(orchestrator):
     executed_count = [0]
 
     class CountingEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             executed_count[0] += 1
             # Publish same type the agent consumes
             return EvalResult(
@@ -435,7 +456,9 @@ async def test_agent_prevent_self_trigger_disabled_allows_feedback(orchestrator)
     executed_count = [0]
 
     class FeedbackEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             executed_count[0] += 1
             # Always publish (relies on circuit breaker to stop)
             return EvalResult(
@@ -464,7 +487,9 @@ async def test_agent_prevent_self_trigger_disabled_allows_feedback(orchestrator)
 
     # Assert - Should execute multiple times (limited by circuit breaker)
     # Executed_count should be > 1 (proves feedback works) and <= max_iterations
-    assert executed_count[0] > 1, "Agent should process own outputs when prevent_self_trigger=False"
+    assert executed_count[0] > 1, (
+        "Agent should process own outputs when prevent_self_trigger=False"
+    )
     assert executed_count[0] <= orchestrator.max_agent_iterations, (
         "Circuit breaker should limit iterations"
     )
@@ -519,15 +544,21 @@ async def test_agent_validates_high_concurrency(orchestrator):
 
 @pytest.mark.asyncio
 async def test_agent_validation_methods_exist(orchestrator):
-    """Test that validation methods exist and can be called."""
+    """Test that validation methods exist in BuilderValidator and can be called."""
+    from flock.agent.builder_validator import BuilderValidator
+
     # Arrange
-    agent = orchestrator.agent("validator").consumes(AgentInput)
+    agent_builder = orchestrator.agent("validator").consumes(AgentInput)
+    agent = agent_builder.agent
 
-    # Act & Assert - Validation methods should exist
-    assert hasattr(agent, "_validate_self_trigger_risk")
-    assert hasattr(agent, "_validate_best_of")
-    assert hasattr(agent, "_validate_concurrency")
+    # Act & Assert - Validation methods should exist in BuilderValidator
+    assert hasattr(BuilderValidator, "validate_self_trigger_risk")
+    assert hasattr(BuilderValidator, "validate_best_of")
+    assert hasattr(BuilderValidator, "validate_concurrency")
+    assert hasattr(BuilderValidator, "normalize_join")
+    assert hasattr(BuilderValidator, "normalize_batch")
 
-    # Methods should be callable without errors
-    agent._validate_best_of(50)  # Normal value - no warning
-    agent._validate_concurrency(10)  # Normal value - no warning
+    # Phase 5B: Methods are now static on BuilderValidator
+    BuilderValidator.validate_best_of(agent.name, 50)  # Normal value - no warning
+    BuilderValidator.validate_concurrency(agent.name, 10)  # Normal value - no warning
+    BuilderValidator.validate_self_trigger_risk(agent)  # No overlap - no warning

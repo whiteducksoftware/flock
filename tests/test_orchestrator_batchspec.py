@@ -17,23 +17,17 @@ Test-Driven Development (TDD):
 """
 
 from datetime import timedelta
-from unittest.mock import MagicMock
 
 import pytest
+from pydantic import BaseModel
 
 from flock import Flock
-from flock.agent import OutputGroup
-from flock.artifacts import Artifact
-from flock.components import EngineComponent
+from flock.components.agent import EngineComponent
+from flock.core.subscription import BatchSpec
 from flock.engines.examples import SimpleBatchEngine
 from flock.engines.examples.simple_batch_engine import BatchItem as SimpleBatchInput
 from flock.engines.examples.simple_batch_engine import BatchSummary
-from flock.registry import type_registry
-from flock.runtime import EvalInputs, EvalResult
-from flock.subscription import BatchSpec
-
-
-from pydantic import BaseModel
+from flock.utils.runtime import EvalInputs, EvalResult
 
 
 # ============================================================================
@@ -77,12 +71,10 @@ async def test_batchspec_flushes_on_size_threshold():
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
-            executed.append(
-                {
-                    "batch_size": len(inputs.artifacts),
-                    "payloads": [a.payload for a in inputs.artifacts],
-                }
-            )
+            executed.append({
+                "batch_size": len(inputs.artifacts),
+                "payloads": [a.payload for a in inputs.artifacts],
+            })
             return EvalResult(artifacts=[])
 
     agent = (
@@ -461,7 +453,7 @@ async def test_batchspec_with_visibility_filters_before_batching():
 
     Mental model: Visibility filtering happens BEFORE batching.
     """
-    from flock.visibility import PrivateVisibility, PublicVisibility
+    from flock.core.visibility import PrivateVisibility, PublicVisibility
 
     orchestrator = Flock()
     executed = []
@@ -574,7 +566,9 @@ async def test_batch_spec_with_non_batch_engine_logs_error(caplog):
     """
 
     class NonBatchEngine(EngineComponent):
-        async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             return EvalResult.empty()
 
     orchestrator = Flock()

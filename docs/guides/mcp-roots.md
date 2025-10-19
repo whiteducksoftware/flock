@@ -46,7 +46,7 @@ For each server:
 ### Basic Example - Single Server
 
 ```python
-from flock.orchestrator import Flock
+from flock import Flock
 from flock.mcp import StdioServerParameters
 
 flock = Flock(model="openai/gpt-4")

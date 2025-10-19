@@ -3,8 +3,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from flock import Flock
 from flock.mcp import StdioServerParameters
-from flock.orchestrator import Flock
 from flock.registry import flock_type
 
 
