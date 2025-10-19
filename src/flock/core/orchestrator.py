@@ -111,7 +111,7 @@ class Flock(metaclass=AutoTracedMeta):
         # Patch litellm imports and setup logger
         self._patch_litellm_proxy_imports()
         self._logger = logging.getLogger(__name__)
-        self.model = model
+        self.model = model or os.getenv("DEFAULT_MODEL")
 
         # Phase 3: Initialize all components using OrchestratorInitializer
         components = OrchestratorInitializer.initialize_components(
@@ -167,10 +167,6 @@ class Flock(metaclass=AutoTracedMeta):
         # Initialize scheduler and artifact manager
         self._scheduler = AgentScheduler(self, self._component_runner)
         self._artifact_manager = ArtifactManager(self, self.store, self._scheduler)
-
-        # Resolve model default
-        if not model:
-            self.model = os.getenv("DEFAULT_MODEL")
 
         # Log initialization
         self._logger.debug("Orchestrator initialized: components=[]")
