@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from flock import Flock, flock_type
 from flock.components import OrchestratorComponent
-from flock.utils.runtime import Context
+from flock.runtime import Context
 
 
 @flock_type(name="Dish")
@@ -35,9 +35,7 @@ class ChefRanking(BaseModel):
 class KitchenMonitorComponent(OrchestratorComponent):
     """Monitors kitchen activity and tracks chef statistics in real-time."""
 
-    dishes_in_progress: int = Field(
-        default=0, description="Dishes currently being prepared"
-    )
+    dishes_in_progress: int = Field(default=0, description="Dishes currently being prepared")
     completed_dishes: int = Field(default=0, description="Dishes that finished cooking")
     chef_stats: dict[str, dict] = Field(
         default_factory=dict, description="Per-chef statistics"
@@ -70,13 +68,9 @@ class KitchenMonitorComponent(OrchestratorComponent):
             # Spice warning!
             if spice >= 4:
                 self.spice_warnings += 1
-                print(
-                    f"🌶️  SPICE ALERT! {chef} is preparing {dish_name} (🔥 Level {spice})"
-                )
+                print(f"🌶️  SPICE ALERT! {chef} is preparing {dish_name} (🔥 Level {spice})")
 
-            print(
-                f"🍳 {chef} started cooking '{dish_name}' (in kitchen: {self.dishes_in_progress})"
-            )
+            print(f"🍳 {chef} started cooking '{dish_name}' (in kitchen: {self.dishes_in_progress})")
 
     async def on_post_publish(self, ctx: Context, artifact) -> None:
         """Track reviews and completion."""
@@ -101,7 +95,9 @@ class KitchenMonitorComponent(OrchestratorComponent):
             return
 
         elapsed = (
-            (datetime.now() - self.start_time).total_seconds() if self.start_time else 0
+            (datetime.now() - self.start_time).total_seconds()
+            if self.start_time
+            else 0
         )
 
         print("\n" + "=" * 50)
@@ -181,11 +177,17 @@ async def main() -> None:
         Dish(name="Honey Glazed Salmon", chef="Chef Marie", spice_level=1)
     )
 
-    await flock.publish(Dish(name="Inferno Tacos", chef="Chef Carlos", spice_level=4))
+    await flock.publish(
+        Dish(name="Inferno Tacos", chef="Chef Carlos", spice_level=4)
+    )
 
-    await flock.publish(Dish(name="Truffle Risotto", chef="Chef Marie", spice_level=2))
+    await flock.publish(
+        Dish(name="Truffle Risotto", chef="Chef Marie", spice_level=2)
+    )
 
-    await flock.publish(Dish(name="Volcanic Ramen", chef="Chef Akira", spice_level=5))
+    await flock.publish(
+        Dish(name="Volcanic Ramen", chef="Chef Akira", spice_level=5)
+    )
 
     await flock.publish(
         Dish(name="Mild Mushroom Soup", chef="Chef Elena", spice_level=1)

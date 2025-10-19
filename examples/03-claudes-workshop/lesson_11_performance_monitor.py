@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 
 from flock import Flock, flock_type
 from flock.components import OrchestratorComponent
-from flock.utils.runtime import Context
+from flock.runtime import Context
 
 
 # ============================================================================
@@ -163,9 +163,7 @@ class PerformanceMonitorComponent(OrchestratorComponent):
             if actual_time_ms > sla_threshold:
                 violation_pct = ((actual_time_ms - sla_threshold) / sla_threshold) * 100
                 print(f"⚠️  SLA VIOLATION! Request {request_id}")
-                print(
-                    f"   Expected: <{sla_threshold}ms, Actual: {actual_time_ms:.0f}ms"
-                )
+                print(f"   Expected: <{sla_threshold}ms, Actual: {actual_time_ms:.0f}ms")
                 print(f"   Overage: +{violation_pct:.1f}%")
             else:
                 print(f"✅ Request {request_id} completed in {actual_time_ms:.0f}ms")
@@ -193,7 +191,7 @@ class PerformanceMonitorComponent(OrchestratorComponent):
             else 0
         )
 
-        print("\n📈 Request Statistics:")
+        print(f"\n📈 Request Statistics:")
         print(f"   Total requests: {self.total_requests}")
         print(f"   Completed: {self.total_responses}")
         print(f"   Failed: {self.failed_requests}")
@@ -206,13 +204,13 @@ class PerformanceMonitorComponent(OrchestratorComponent):
             if self.total_responses > 0
             else 0
         )
-        print("\n⚡ Performance Metrics:")
+        print(f"\n⚡ Performance Metrics:")
         print(f"   Avg processing time: {avg_time:.0f}ms")
         print(f"   Total tokens consumed: {self.total_tokens:,}")
         print(f"   Avg tokens/request: {self.total_tokens / self.total_responses:.0f}")
 
         # Priority breakdown
-        print("\n🎯 Priority Distribution:")
+        print(f"\n🎯 Priority Distribution:")
         for priority in ["critical", "high", "normal", "low"]:
             count = self.priority_counts.get(priority, 0)
             if count > 0:
@@ -220,7 +218,7 @@ class PerformanceMonitorComponent(OrchestratorComponent):
                 print(f"   {priority.capitalize():8}: {count:3} ({pct:5.1f}%)")
 
         # Health indicators
-        print("\n🏥 System Health:")
+        print(f"\n🏥 System Health:")
         if success_rate >= 99:
             health = "🟢 EXCELLENT"
         elif success_rate >= 95:

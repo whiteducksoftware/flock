@@ -31,8 +31,8 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.core.subscription import JoinSpec
 from flock.registry import flock_type
+from flock.subscription import JoinSpec
 
 
 @flock_type
@@ -134,9 +134,7 @@ async def main():
     ]
 
     for order in orders:
-        print(
-            f"   🛒 Order {order.order_id}: {order.customer_name} - ${order.total_amount:.2f}"
-        )
+        print(f"   🛒 Order {order.order_id}: {order.customer_name} - ${order.total_amount:.2f}")
         await flock.publish(order)
 
     await flock.run_until_idle()

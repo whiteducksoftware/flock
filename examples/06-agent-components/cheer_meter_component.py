@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from flock import Flock, flock_type
 from flock.components import AgentComponent, EngineComponent
-from flock.utils.runtime import EvalInputs, EvalResult
+from flock.runtime import EvalInputs, EvalResult
 
 
 @flock_type(name="Pitch")
@@ -25,9 +25,7 @@ class PitchResult(BaseModel):
 class CheerMeterComponent(AgentComponent):
     """Keeps the hype alive and reports crowd energy after each pitch."""
 
-    applause_level: int = Field(
-        default=0, description="Number of successful pitches so far"
-    )
+    applause_level: int = Field(default=0, description="Number of successful pitches so far")
 
     async def on_post_evaluate(
         self, agent, ctx, inputs: EvalInputs, result: EvalResult
