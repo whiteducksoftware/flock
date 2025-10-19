@@ -34,15 +34,12 @@ class ArtifactValidator:
             >>> class MyModel(BaseModel):
             ...     name: str
             ...     age: int
-            ...
-            >>> artifact = type('obj', (), {'payload': {'name': 'Alice', 'age': 30}})()
+            >>> artifact = type("obj", (), {"payload": {"name": "Alice", "age": 30}})()
             >>> is_valid, model, error = ArtifactValidator.validate_artifact(
-            ...     artifact,
-            ...     MyModel,
-            ...     lambda m: m.age >= 18
+            ...     artifact, MyModel, lambda m: m.age >= 18
             ... )
             >>> assert is_valid
-            >>> assert model.name == 'Alice'
+            >>> assert model.name == "Alice"
         """
         try:
             # Validate against model
