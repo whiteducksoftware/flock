@@ -311,3 +311,68 @@ async def test_agent_min_p_parameter_controls_threshold():
     # The loose agent should have MORE executions than strict
     # (it processes more tickets due to lower threshold)
     assert len(loose_executions) >= len(strict_executions)
+
+
+@pytest.mark.asyncio
+async def test_semantic_threshold_applies_to_list_queries():
+    """Regression test: semantic_threshold should apply to list of queries.
+
+    Bug fix: Previously, semantic_threshold was silently ignored when
+    semantic_match was a list, causing all predicates to use the default
+    threshold (0.4) instead of the specified value.
+    """
+    flock = Flock()
+
+    # Track executions
+    executions = []
+
+    class TestEngine(EngineComponent):
+        async def evaluate(
+            self, agent, ctx, inputs: EvalInputs, output_group
+        ) -> EvalResult:
+            executions.append(inputs.artifacts[0].payload["message"])
+            return EvalResult(artifacts=[], state={})
+
+    # Agent with MODERATE threshold (0.5) and MULTIPLE queries (list)
+    # This should apply 0.5 threshold to BOTH "billing" and "payment"
+    # Without the fix, this would use default 0.4 for all queries
+    strict_list_agent = (
+        flock.agent("strict_list")
+        .consumes(
+            SupportTicket,
+            semantic_match=["billing charge", "payment refund"],
+            semantic_threshold=0.5,  # Should apply to ALL queries in the list
+        )
+        .with_engines(TestEngine())
+    )
+
+    # Ticket 1: Clearly about billing charges AND payment refunds (should match with 0.5 threshold)
+    clear_match = SupportTicket(
+        message="Requesting payment refund for duplicate billing charge on credit card",
+        category="billing",
+    )
+    await flock.publish(clear_match)
+    await flock.run_until_idle()
+
+    # Ticket 2: Loosely related to billing but not payments (should NOT match with strict 0.5)
+    weak_match = SupportTicket(
+        message="Question about invoice format and delivery options", category="support"
+    )
+    await flock.publish(weak_match)
+    await flock.run_until_idle()
+
+    # Verify: Only the clear match should have triggered the agent
+    # The weak match should be filtered out by the 0.5 threshold
+    assert len(executions) >= 1, "Clear match should have been processed"
+    assert "payment refund for duplicate billing" in executions[0], (
+        "First execution should be the clear match"
+    )
+
+    # If threshold was ignored (bug), weak_match would also be processed
+    # With fix, weak_match should be filtered out
+    if len(executions) > 1:
+        # If weak_match was processed, that means threshold was ignored (bug)
+        pytest.fail(
+            f"semantic_threshold was ignored! Weak match was processed: {executions}. "
+            f"Expected only 1 execution, got {len(executions)}"
+        )

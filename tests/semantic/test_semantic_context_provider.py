@@ -234,3 +234,97 @@ async def test_semantic_context_provider_limit():
 
     # Should only return top 3
     assert len(relevant) == 3
+
+
+def test_semantic_context_provider_validation_empty_query():
+    """SemanticContextProvider rejects empty query_text."""
+    with pytest.raises(ValueError, match="query_text cannot be empty"):
+        SemanticContextProvider(query_text="")
+
+    with pytest.raises(ValueError, match="query_text cannot be empty"):
+        SemanticContextProvider(query_text="   ")  # Whitespace only
+
+
+def test_semantic_context_provider_validation_invalid_threshold():
+    """SemanticContextProvider rejects invalid thresholds."""
+    with pytest.raises(ValueError, match="threshold must be between 0 and 1"):
+        SemanticContextProvider(query_text="test", threshold=-0.1)
+
+    with pytest.raises(ValueError, match="threshold must be between 0 and 1"):
+        SemanticContextProvider(query_text="test", threshold=1.5)
+
+
+def test_semantic_context_provider_validation_invalid_limit():
+    """SemanticContextProvider rejects invalid limits."""
+    with pytest.raises(ValueError, match="limit must be at least 1"):
+        SemanticContextProvider(query_text="test", limit=0)
+
+    with pytest.raises(ValueError, match="limit must be at least 1"):
+        SemanticContextProvider(query_text="test", limit=-5)
+
+
+@pytest.mark.asyncio
+async def test_semantic_context_provider_extracts_nested_lists():
+    """SemanticContextProvider extracts text from nested list/tuple structures."""
+
+    @flock_type
+    class ComplexData(BaseModel):
+        tags: list[str]
+        categories: tuple[str, ...]
+        description: str
+
+    store = InMemoryBlackboardStore()
+
+    from flock.registry import type_registry
+
+    await store.publish(
+        Artifact(
+            id=str(uuid.uuid4()),
+            type=type_registry.register(ComplexData),
+            payload={
+                "tags": ["machine learning", "AI research"],
+                "categories": ("neural networks", "deep learning"),
+                "description": "Advanced ML techniques",
+            },
+            produced_by="test",
+        )
+    )
+
+    provider = SemanticContextProvider(
+        query_text="artificial intelligence and neural networks", limit=10
+    )
+
+    relevant = await provider.get_context(store)
+
+    # Should find the artifact by matching tags/categories (nested lists)
+    assert len(relevant) >= 1
+
+
+@pytest.mark.asyncio
+async def test_semantic_context_provider_handles_empty_payload_fields():
+    """SemanticContextProvider skips artifacts with empty text after extraction."""
+
+    @flock_type
+    class EmptyMessage(BaseModel):
+        id: int
+        count: int
+
+    store = InMemoryBlackboardStore()
+
+    from flock.registry import type_registry
+
+    await store.publish(
+        Artifact(
+            id=str(uuid.uuid4()),
+            type=type_registry.register(EmptyMessage),
+            payload={"id": 123, "count": 45},  # No text fields
+            produced_by="test",
+        )
+    )
+
+    provider = SemanticContextProvider(query_text="test query", limit=10)
+
+    relevant = await provider.get_context(store)
+
+    # Should return empty since there's no text to match
+    assert len(relevant) == 0

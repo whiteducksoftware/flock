@@ -110,7 +110,7 @@ class Subscription:
         types: Sequence[type[BaseModel]],
         where: Sequence[Predicate] | None = None,
         text_predicates: Sequence[TextPredicate] | None = None,
-        semantic_match: str | list[str] | dict[str, Any] | None = None,
+        semantic_match: str | list[str | dict[str, Any]] | dict[str, Any] | None = None,
         from_agents: Iterable[str] | None = None,
         tags: Iterable[str] | None = None,
         join: JoinSpec | None = None,
@@ -149,7 +149,7 @@ class Subscription:
         self.priority = priority
 
     def _parse_semantic_match_parameter(
-        self, semantic_match: str | list[str] | dict[str, Any] | None
+        self, semantic_match: str | list[str | dict[str, Any]] | dict[str, Any] | None
     ) -> list[TextPredicate]:
         """Parse the semantic_match parameter into TextPredicate objects.
 
@@ -157,6 +157,7 @@ class Subscription:
             semantic_match: Can be:
                 - str: "query" → TextPredicate(query="query", threshold=0.4)
                 - list: ["q1", "q2"] → multiple TextPredicates (AND logic)
+                       or [{"query": "q1", "threshold": 0.8}, ...] with explicit thresholds
                 - dict: {"query": "...", "threshold": 0.8, "field": "body"}
 
         Returns:
@@ -169,7 +170,19 @@ class Subscription:
             return [TextPredicate(query=semantic_match)]
 
         if isinstance(semantic_match, list):
-            return [TextPredicate(query=q) for q in semantic_match]
+            # Handle both list of strings and list of dicts
+            predicates = []
+            for item in semantic_match:
+                if isinstance(item, str):
+                    predicates.append(TextPredicate(query=item))
+                elif isinstance(item, dict):
+                    query = item.get("query", "")
+                    threshold = item.get("threshold", 0.4)
+                    field = item.get("field", None)
+                    predicates.append(
+                        TextPredicate(query=query, threshold=threshold, field=field)
+                    )
+            return predicates
 
         if isinstance(semantic_match, dict):
             query = semantic_match.get("query", "")

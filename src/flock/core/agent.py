@@ -539,7 +539,11 @@ class AgentBuilder:
         where: Callable[[BaseModel], bool]
         | Sequence[Callable[[BaseModel], bool]]
         | None = None,
-        semantic_match: str | list[str] | dict[str, Any] | None = None,
+        semantic_match: str
+        | list[str]
+        | list[dict[str, Any]]
+        | dict[str, Any]
+        | None = None,
         semantic_threshold: float = 0.0,
         from_agents: Iterable[str] | None = None,
         tags: Iterable[str] | None = None,
@@ -562,9 +566,11 @@ class AgentBuilder:
                 - str: Single query (e.g., "security vulnerability")
                 - list[str]: Multiple queries, all must match (AND logic)
                 - dict: Advanced config with "query", "threshold", "field"
+                - list[dict]: Multiple queries with individual thresholds
             semantic_threshold: Minimum similarity threshold for semantic matching (0.0-1.0).
-                Only used when semantic_match is a simple string or list. Ignored if
-                semantic_match is a dict with explicit "threshold". Default: 0.0 (uses default 0.4)
+                Applied to all queries when semantic_match is a string or list of strings.
+                Ignored if semantic_match is a dict/list of dicts with explicit "threshold".
+                Default: 0.0 (uses default 0.4 when not specified)
             from_agents: Only consume artifacts from specific agents
             tags: Only consume artifacts with matching tags
             join: Join specification for coordinating multiple artifact types
@@ -620,7 +626,9 @@ class AgentBuilder:
 
         # Handle semantic_threshold parameter to control semantic matching threshold
         # If semantic_threshold is provided and semantic_match is simple, convert to dict
-        semantic_param: str | list[str] | dict[str, Any] | None = semantic_match
+        semantic_param: (
+            str | list[str] | list[dict[str, Any]] | dict[str, Any] | None
+        ) = semantic_match
         if semantic_match is not None and semantic_threshold > 0.0:
             if isinstance(semantic_match, str):
                 # Simple string: create dict with semantic_threshold as threshold
@@ -628,11 +636,15 @@ class AgentBuilder:
                     "query": semantic_match,
                     "threshold": semantic_threshold,
                 }
+            elif isinstance(semantic_match, list):
+                # List of strings: convert to list of dicts with semantic_threshold
+                semantic_param = [
+                    {"query": q, "threshold": semantic_threshold}
+                    for q in semantic_match
+                ]
             elif isinstance(semantic_match, dict) and "threshold" not in semantic_match:
                 # Dict without explicit threshold: add semantic_threshold
                 semantic_param = {**semantic_match, "threshold": semantic_threshold}
-            # For list of strings, can't easily apply threshold (would need list of dicts)
-            # So we leave it as-is and semantic_threshold is ignored for list format
 
         # Semantic matching: pass semantic_match parameter to Subscription
         # which will parse it into TextPredicate objects
