@@ -209,7 +209,7 @@ When a ticket is published, here's what happens:
 
 1. **Embedding Generation**: The ticket message is converted to a 384-dimensional vector using the local AI model
 2. **Similarity Computation**: The vector is compared to each agent's `semantic_match` query using cosine similarity
-3. **Threshold Check**: If similarity ≥ 0.35 (default threshold), the agent processes it
+3. **Threshold Check**: If similarity ≥ 0.4 (default threshold), the agent processes it
 4. **Multiple Matches**: A ticket can match multiple agents - each will process it independently
 
 ```
@@ -227,7 +227,7 @@ similarity: 0.87       similarity: 0.12
 
 ## Step 6: Tuning the Threshold
 
-The default threshold (0.35) works well for moderate matching. Adjust it for different needs:
+The default threshold (0.4) works well for moderate matching. Adjust it for different needs:
 
 ```python
 # Strict matching - only very similar content (threshold=0.7)
@@ -260,7 +260,7 @@ support_team_loose = (
 - **0.4-0.6**: Moderate - related concepts (good default)
 - **0.2-0.3**: Loose - broadly related topics
 
-**💡 Key Insight:** Start with the default threshold (0.35) and adjust based on how many false positives/negatives you see!
+**💡 Key Insight:** Start with the default threshold (0.4) and adjust based on how many false positives/negatives you see!
 
 ## Complete Example
 

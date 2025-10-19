@@ -203,7 +203,7 @@ async def test_batched_correlation_continues_after_flush():
         MarketSignal(symbol="TSLA", signal_type="volatility", value=1.2)
     )
     await orchestrator.publish(
-        MarketSignal(symbol="TSLA", signal_type="sentiment", value=0.35)
+        MarketSignal(symbol="TSLA", signal_type="sentiment", value=0.4)
     )
     await orchestrator.publish(
         MarketSignal(symbol="GOOGL", signal_type="volatility", value=0.3)

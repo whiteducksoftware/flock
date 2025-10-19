@@ -132,7 +132,7 @@ async def test_agent_with_semantic_context_provider():
 
             # Use SemanticContextProvider to find similar historical tickets
             provider = SemanticContextProvider(
-                query_text=ticket.message, threshold=0.35, limit=5
+                query_text=ticket.message, threshold=0.4, limit=5
             )
             similar_tickets = await provider.get_context(flock.store)
             similar_counts.append(len(similar_tickets))
@@ -319,7 +319,7 @@ async def test_semantic_threshold_applies_to_list_queries():
 
     Bug fix: Previously, semantic_threshold was silently ignored when
     semantic_match was a list, causing all predicates to use the default
-    threshold (0.35) instead of the specified value.
+    threshold (0.4) instead of the specified value.
     """
     flock = Flock()
 
@@ -335,7 +335,7 @@ async def test_semantic_threshold_applies_to_list_queries():
 
     # Agent with MODERATE threshold (0.5) and MULTIPLE queries (list)
     # This should apply 0.5 threshold to BOTH "billing" and "payment"
-    # Without the fix, this would use default 0.35 for all queries
+    # Without the fix, this would use default 0.4 for all queries
     strict_list_agent = (
         flock.agent("strict_list")
         .consumes(

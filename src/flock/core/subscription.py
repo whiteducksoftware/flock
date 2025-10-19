@@ -30,7 +30,7 @@ class TextPredicate:
     """
 
     query: str
-    threshold: float = 0.35  # Default threshold for semantic matching
+    threshold: float = 0.4  # Default threshold for semantic matching
     field: str | None = None  # Optional field to extract from payload
 
 
@@ -155,7 +155,7 @@ class Subscription:
 
         Args:
             semantic_match: Can be:
-                - str: "query" → TextPredicate(query="query", threshold=0.35)
+                - str: "query" → TextPredicate(query="query", threshold=0.4)
                 - list: ["q1", "q2"] → multiple TextPredicates (AND logic)
                        or [{"query": "q1", "threshold": 0.8}, ...] with explicit thresholds
                 - dict: {"query": "...", "threshold": 0.8, "field": "body"}
@@ -177,7 +177,7 @@ class Subscription:
                     predicates.append(TextPredicate(query=item))
                 elif isinstance(item, dict):
                     query = item.get("query", "")
-                    threshold = item.get("threshold", 0.35)
+                    threshold = item.get("threshold", 0.4)
                     field = item.get("field", None)
                     predicates.append(
                         TextPredicate(query=query, threshold=threshold, field=field)
@@ -186,7 +186,7 @@ class Subscription:
 
         if isinstance(semantic_match, dict):
             query = semantic_match.get("query", "")
-            threshold = semantic_match.get("threshold", 0.35)  # Match dataclass default
+            threshold = semantic_match.get("threshold", 0.4)  # Match dataclass default
             field = semantic_match.get("field", None)
             return [TextPredicate(query=query, threshold=threshold, field=field)]
 
