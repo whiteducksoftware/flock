@@ -471,7 +471,7 @@ quality_control = (
 **Correlate with access control:**
 
 ```python
-from flock.visibility import TenantVisibility
+from flock.core.visibility import TenantVisibility
 
 # Multi-tenant: Correlate orders + shipments per tenant
 tenant_notifications = (

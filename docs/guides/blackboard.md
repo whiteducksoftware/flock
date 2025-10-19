@@ -507,7 +507,7 @@ for artifact in artifacts:
 
 ```python
 # Get artifacts matching criteria
-from flock.visibility import TenantVisibility
+from flock.core.visibility import TenantVisibility
 
 patient_diagnoses = await flock.store.get_artifacts_by_type(
     "Diagnosis",

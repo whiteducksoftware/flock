@@ -1048,7 +1048,7 @@ editor = (
 **Example:**
 
 ```python
-from flock.visibility import PrivateVisibility, LabelledVisibility, TenantVisibility
+from flock.core.visibility import PrivateVisibility, LabelledVisibility, TenantVisibility
 from flock.runtime import AgentIdentity
 
 @flock_type

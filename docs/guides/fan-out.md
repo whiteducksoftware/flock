@@ -546,7 +546,7 @@ notifier = (
 ### Dynamic Visibility
 
 ```python
-from flock.visibility import PrivateVisibility
+from flock.core.visibility import PrivateVisibility
 
 @flock_type
 class Notification(BaseModel):
@@ -579,7 +579,7 @@ notifier = (
 #### Role-Based Dynamic Visibility
 
 ```python
-from flock.visibility import LabelledVisibility
+from flock.core.visibility import LabelledVisibility
 
 @flock_type
 class Report(BaseModel):
@@ -610,7 +610,7 @@ report_generator = (
 #### Tenant-Based Dynamic Visibility
 
 ```python
-from flock.visibility import TenantVisibility
+from flock.core.visibility import TenantVisibility
 
 @flock_type
 class CustomerData(BaseModel):

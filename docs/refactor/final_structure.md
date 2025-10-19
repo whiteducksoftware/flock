@@ -147,7 +147,7 @@ git mv src/flock/store.py src/flock/core/store.py
 # OLD
 from flock.artifacts import Artifact, ArtifactSpec
 from flock.subscription import Subscription
-from flock.visibility import Visibility, PublicVisibility
+from flock.core.visibility import Visibility, PublicVisibility
 from flock.context_provider import ContextProvider
 from flock.store import BlackboardStore, FilterConfig
 
@@ -467,7 +467,7 @@ def find_old_imports(root_dir):
     old_patterns = [
         "from flock.artifacts import",
         "from flock.subscription import",
-        "from flock.visibility import",
+        "from flock.core.visibility import",
         "from flock.context_provider import",
         "from flock.store import",
         "from flock.artifact_collector import",
@@ -614,7 +614,7 @@ IMPORT_MAPPINGS = {
     # Core module moves
     "from flock.artifacts import": "from flock.core.artifacts import",
     "from flock.subscription import": "from flock.core.subscription import",
-    "from flock.visibility import": "from flock.core.visibility import",
+    "from flock.core.visibility import": "from flock.core.visibility import",
     "from flock.context_provider import": "from flock.core.context_provider import",
     "from flock.store import": "from flock.core.store import",
 

@@ -21,7 +21,7 @@ class SubscriptionInfo(BaseModel):
 class VisibilitySpec(BaseModel):
     """Visibility specification for artifacts.
 
-    Matches visibility types from flock.visibility module.
+    Matches visibility types from flock.core.visibility module.
     """
 
     kind: str  # "Public" | "Private" | "Labelled" | "Tenant" | "After"

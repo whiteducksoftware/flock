@@ -269,7 +269,7 @@ trend_analyzer = (
 Control who sees what:
 
 ```python
-from flock.visibility import PrivateVisibility
+from flock.core.visibility import PrivateVisibility
 
 # Only specific agents can see this
 sensitive_data = (

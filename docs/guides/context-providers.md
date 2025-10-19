@@ -905,7 +905,7 @@ flock = Flock("openai/gpt-4.1", context_provider=global_provider)
 **Challenge:** Ensure Customer A's agents never see Customer B's data.
 
 ```python
-from flock.visibility import TenantVisibility
+from flock.core.visibility import TenantVisibility
 from flock.context_provider import FilteredContextProvider
 from flock.store import FilterConfig
 
@@ -1162,7 +1162,7 @@ for item in context:
 
 ```python
 # Test visibility filtering
-from flock.visibility import PrivateVisibility, PublicVisibility, AgentIdentity
+from flock.core.visibility import PrivateVisibility, PublicVisibility, AgentIdentity
 
 # Create test artifacts
 public_artifact = Artifact(visibility=PublicVisibility(), ...)
@@ -1366,7 +1366,7 @@ Here's everything together—a multi-tenant SaaS with role-based filtering and s
 import asyncio
 from pydantic import BaseModel
 from flock import Flock
-from flock.visibility import TenantVisibility, AgentIdentity, LabelledVisibility
+from flock.core.visibility import TenantVisibility, AgentIdentity, LabelledVisibility
 from flock.context_provider import FilteredContextProvider
 from flock.store import FilterConfig
 from examples.context_provider import PasswordRedactorProvider

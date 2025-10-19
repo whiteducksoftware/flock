@@ -617,7 +617,7 @@ After file reorganization, 4 test files required import updates:
 # These all work (same as before):
 from flock import Flock, Agent
 from flock.artifacts import Artifact
-from flock.visibility import PublicVisibility
+from flock.core.visibility import PublicVisibility
 from flock.subscription import Subscription
 
 # New organized imports (optional):
