@@ -4,13 +4,13 @@ This module provides a singleton service for generating and caching embeddings
 using sentence-transformers.
 """
 
-import logging
+from flock.logging.logging import get_logger
 from collections import OrderedDict
 
 import numpy as np
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LRUCache:
@@ -212,6 +212,10 @@ class EmbeddingService:
             return 0.0
 
         similarity = dot_product / (norm1 * norm2)
+
+        logger.debug(
+            f"Computed similarity: {similarity:.4f} between texts '{text1}' and '{text2}'",
+        )
 
         # Clamp to [0, 1] and handle floating point errors
         return float(max(0.0, min(1.0, similarity)))

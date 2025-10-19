@@ -226,11 +226,7 @@ class Agent(metaclass=AutoTracedMeta):
             comp_name = self._component_display_name(component)
             priority = getattr(component, "priority", 0)
             logger.info(
-                "Agent %s: utility added: component=%s, priority=%s, total_utilities=%s",
-                self.name,
-                comp_name,
-                priority,
-                len(self.utilities),
+                f"Agent {self.name}: utility added: component={comp_name}, priority={priority}, total_utilities={len(self.utilities)}"
             )
         self.utilities.sort(key=lambda comp: getattr(comp, "priority", 0))
 

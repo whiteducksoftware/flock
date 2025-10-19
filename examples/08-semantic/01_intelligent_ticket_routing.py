@@ -38,7 +38,6 @@ class SupportTicket(BaseModel):
 
     message: str = Field(description="The customer's issue or question")
     customer_id: str = Field(description="Customer identifier")
-    category: str | None = Field(default=None, description="Auto-assigned category")
 
 
 @flock_type
@@ -99,7 +98,7 @@ billing_team = (
 # Matches: "can't login", "error message", "not working", "broken feature"
 tech_support = (
     flock.agent("tech_support")
-    .consumes(SupportTicket, semantic_match="technical issue error bug problem")
+    .consumes(SupportTicket, semantic_match="technical issue error bug problem device")
     .publishes(TechnicalResponse)
 )
 
@@ -130,7 +129,7 @@ async def main_cli():
     print("   Expected Route: → Security Team")
 
     await flock.publish(security_ticket)
-    await flock.run_until_idle()
+    await flock.run_until_idle(wait_for_input=True)
 
     # Test Case 2: Billing Issue
     print("\n📋 Ticket 2: Billing Issue")
@@ -142,7 +141,7 @@ async def main_cli():
     print("   Expected Route: → Billing Team")
 
     await flock.publish(billing_ticket)
-    await flock.run_until_idle()
+    await flock.run_until_idle(wait_for_input=True)
 
     # Test Case 3: Technical Issue
     print("\n📋 Ticket 3: Technical Problem")
@@ -154,7 +153,7 @@ async def main_cli():
     print("   Expected Route: → Tech Support")
 
     await flock.publish(tech_ticket)
-    await flock.run_until_idle()
+    await flock.run_until_idle(wait_for_input=True)
 
     # Test Case 4: General Question
     print("\n📋 Ticket 4: General Inquiry")
