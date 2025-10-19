@@ -261,7 +261,6 @@ class BlackboardHTTPService:
                             AgentSubscription(
                                 types=list(subscription.type_names),
                                 mode=subscription.mode,
-                                delivery=subscription.delivery,
                             )
                             for subscription in agent.subscriptions
                         ],

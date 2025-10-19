@@ -105,7 +105,6 @@ class Subscription:
         tags: Iterable[str] | None = None,
         join: JoinSpec | None = None,
         batch: BatchSpec | None = None,
-        delivery: str = "exclusive",
         mode: str = "both",
         priority: int = 0,
     ) -> None:
@@ -132,7 +131,6 @@ class Subscription:
         self.tags = set(tags or [])
         self.join = join
         self.batch = batch
-        self.delivery = delivery
         self.mode = mode
         self.priority = priority
 
@@ -164,7 +162,7 @@ class Subscription:
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return (
             f"Subscription(agent={self.agent_name!r}, types={list(self.type_names)!r}, "
-            f"delivery={self.delivery!r}, mode={self.mode!r})"
+            f"mode={self.mode!r})"
         )
 
 

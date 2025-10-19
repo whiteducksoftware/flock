@@ -545,7 +545,6 @@ class AgentBuilder:
         tags: Iterable[str] | None = None,
         join: dict | JoinSpec | None = None,
         batch: dict | BatchSpec | None = None,
-        delivery: str = "exclusive",
         mode: str = "both",
         priority: int = 0,
     ) -> AgentBuilder:
@@ -564,8 +563,7 @@ class AgentBuilder:
             tags: Only consume artifacts with matching tags
             join: Join specification for coordinating multiple artifact types
             batch: Batch specification for processing multiple artifacts together
-            delivery: Delivery mode - "exclusive" (one agent) or "broadcast" (all matching)
-            mode: Processing mode - "both", "streaming", or "batch"
+            mode: Processing mode - "both", "direct", or "events"
             priority: Execution priority (higher = executes first)
 
         Returns:
@@ -617,7 +615,6 @@ class AgentBuilder:
             tags=tags,
             join=join_spec,
             batch=batch_spec,
-            delivery=delivery,
             mode=mode,
             priority=priority,
         )
