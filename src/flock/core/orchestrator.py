@@ -492,12 +492,16 @@ class Flock(metaclass=AutoTracedMeta):
 
     # Runtime --------------------------------------------------------------
 
-    async def run_until_idle(self) -> None:
+    async def run_until_idle(self, *, wait_for_input: bool = False) -> None:
         """Wait for all scheduled agent tasks to complete.
 
         This method blocks until the blackboard reaches a stable state where no
         agents are queued for execution. Essential for batch processing and ensuring
         all agent cascades complete before continuing.
+
+        Args:
+            wait_for_input: If True, waits for user input before returning (default: False).
+                Useful for debugging or step-by-step execution.
 
         Note:
             Automatically resets circuit breaker counters and shuts down MCP connections
@@ -513,6 +517,12 @@ class Flock(metaclass=AutoTracedMeta):
             >>> # Parallel batch processing
             >>> await flock.publish_many([task1, task2, task3])
             >>> await flock.run_until_idle()  # All tasks processed in parallel
+
+            >>> # Step-by-step execution with user prompts
+            >>> await flock.publish(task1)
+            >>> await flock.run_until_idle(wait_for_input=True)  # Pauses for user input
+            >>> await flock.publish(task2)
+            >>> await flock.run_until_idle(wait_for_input=True)  # Pauses again
 
         See Also:
             - publish(): Event-driven artifact publishing
@@ -552,6 +562,12 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Automatically shutdown MCP connections when idle
         await self.shutdown(include_components=False)
+
+        # Wait for user input if requested
+        if wait_for_input:
+            # Use asyncio.to_thread to avoid blocking the event loop
+            # since input() is a blocking I/O operation
+            await asyncio.to_thread(input, "Press any key to continue....")
 
     async def direct_invoke(
         self, agent: Agent, inputs: Sequence[BaseModel | Mapping[str, Any] | Artifact]
