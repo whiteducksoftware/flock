@@ -5,6 +5,12 @@ description = "Flock: A declrative framework for building and orchestrating AI a
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [ "dspy==3.0.3", "litellm==1.78.0", "fastapi>=0.117.1", "httpx>=0.28.1", "aiosqlite>=0.20.0", "pydantic[email]>=2.11.9", "rich>=14.1.0", "typer>=0.19.2", "uvicorn>=0.37.0", "opentelemetry-api>=1.30.0", "opentelemetry-exporter-jaeger>=1.21.0", "opentelemetry-exporter-jaeger-proto-grpc>=1.21.0", "opentelemetry-exporter-otlp>=1.30.0", "opentelemetry-instrumentation-logging>=0.51b0", "opentelemetry-sdk>=1.30.0", "loguru>=0.7.3", "mcp>=1.7.1", "toml>=0.10.2", "poethepoet>=0.30.0", "devtools>=0.12.2", "websockets>=15.0.1", "duckdb>=1.1.0", "hanging-threads>=2.0.7",]
+
+[project.optional-dependencies]
+semantic = [
+    "sentence-transformers>=3.0.0",
+]
+
 [[project.authors]]
 name = "Andre Ratzenberger"
 email = "andre.ratzenberger@whiteduck.de"

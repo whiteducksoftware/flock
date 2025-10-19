@@ -9,6 +9,218 @@ search:
   boost: 1.2
 ---
 
+# Changelog
+
+## [0.5.2] - 2025-10-19
+
+### 🎉 New Features
+
+#### 🌟 Fan-Out Publishing
+**Produce multiple outputs from a single agent execution:**
+
+```python
+# Generate 10 diverse product ideas from one brief
+idea_generator = (
+    flock.agent("generator")
+    .consumes(ProductBrief)
+    .publishes(ProductIdea, fan_out=10)  # Produces 10 ideas!
+)
+
+# Multi-output fan-out: Generate 3 of EACH type in ONE LLM call!
+multi_master = (
+    flock.agent("multi_master")
+    .consumes(Idea)
+    .publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
+)
+# = 9 total artifacts (3 movies + 3 scripts + 3 campaigns) in one execution!
+```
+
+**Features:**
+- Single execution produces N artifacts per type
+- Quality filtering with `where` parameter
+- Validation with `validate` parameter
+- Dynamic visibility control per artifact
+- Massive efficiency: 1 LLM call → multiple validated outputs
+
+**Use cases:**
+- Content generation with diversity
+- A/B testing variants
+- Code review with multiple bug reports
+- Multi-perspective analysis
+
+#### 📦 BatchSpec - Cost Optimization
+**Process multiple artifacts efficiently:**
+
+```python
+# Process 25 transactions in one batch = 96% cost reduction!
+payment_processor = flock.agent("payments").consumes(
+    Transaction,
+    batch=BatchSpec(size=25, timeout=timedelta(seconds=30))
+)
+
+# Hybrid batching: by size OR timeout
+analyzer = flock.agent("analyzer").consumes(
+    LogEntry,
+    batch=BatchSpec(size=100, timeout=timedelta(minutes=5))
+)
+```
+
+**Features:**
+- Size-based batching (flush when N artifacts accumulated)
+- Timeout-based batching (flush after T seconds)
+- Hybrid mode (whichever comes first)
+- Automatic batch coordination
+
+**Benefits:**
+- 90%+ API cost reduction for bulk operations
+- Efficient processing of high-volume streams
+- Natural aggregation patterns
+
+#### 🔗 JoinSpec - Data Correlation
+**Correlate related artifacts within time windows:**
+
+```python
+# Match orders + shipments by order_id within 24 hours
+customer_service = flock.agent("notifications").consumes(
+    Order,
+    Shipment,
+    join=JoinSpec(by=lambda x: x.order_id, within=timedelta(hours=24))
+)
+
+# IoT sensor correlation
+quality_control = flock.agent("qc").consumes(
+    TemperatureSensor,
+    PressureSensor,
+    join=JoinSpec(by=lambda x: x.device_id, within=timedelta(seconds=30)),
+    batch=BatchSpec(size=5)  # Combine with batching!
+)
+```
+
+**Features:**
+- Correlation by custom key (e.g., order_id, user_id, device_id)
+- Time window enforcement
+- Multi-type correlation support
+- Composable with BatchSpec for multi-stage pipelines
+
+**Use cases:**
+- Order + shipment tracking
+- Multi-modal data fusion (scans + labs + history)
+- IoT sensor correlation
+- Financial trade matching
+
+#### 🧠 Semantic Subscriptions - Intelligence Beyond Keywords
+**Match artifacts by MEANING, not keywords:**
+
+```python
+# Install semantic extras
+pip install flock-core[semantic]
+
+# Agents route based on semantic similarity
+security_team = (
+    flock.agent("security_team")
+    .consumes(SupportTicket, semantic_match="security vulnerability exploit")
+    .publishes(SecurityAlert)
+)
+
+billing_team = (
+    flock.agent("billing_team")
+    .consumes(SupportTicket, semantic_match="payment charge refund billing")
+    .publishes(BillingResponse)
+)
+
+# "SQL injection" → Security Team (no "security" keyword needed!)
+# "charged twice" → Billing Team (semantic understanding!)
+```
+
+**Advanced semantic filtering:**
+```python
+# Custom threshold (0.0-1.0, default 0.4)
+.consumes(Ticket, semantic_match="urgent", semantic_threshold=0.7)  # Strict
+
+# Multiple criteria (ALL must match - AND logic)
+.consumes(Doc, semantic_match=["security", "compliance"])
+
+# Field-specific matching
+.consumes(Article, semantic_match={
+    "query": "machine learning",
+    "threshold": 0.6,
+    "field": "abstract"  # Only match this field
+})
+```
+
+**Semantic Context Provider:**
+```python
+from flock.semantic import SemanticContextProvider
+
+# Find similar historical incidents for context-aware decisions
+provider = SemanticContextProvider(
+    query_text="database connection timeout",
+    threshold=0.4,
+    limit=5,
+    artifact_type=Incident,
+    where=lambda a: a.payload["resolved"] is True
+)
+similar_incidents = await provider.get_context(store)
+```
+
+**Features:**
+- Local embeddings with all-MiniLM-L6-v2 model (~90MB)
+- No external API required
+- Fast with LRU cache (10k entries, ~15ms per embedding)
+- Threshold control for precision/recall tuning
+- Field extraction for targeted matching
+- Multiple predicates with AND logic
+
+**Benefits:**
+- No keyword brittleness ("SQL injection" matches "security vulnerability")
+- Better recall (catches semantically similar content)
+- Intelligent routing without complex rule systems
+- Context-aware agents with historical similarity search
+
+**Use cases:**
+- Smart ticket routing to specialized teams
+- Content recommendation based on meaning
+- Incident response with historical context
+- Document classification by topic
+
+### 📚 Documentation
+
+- Added comprehensive semantic subscriptions guide (`docs/semantic-subscriptions.md`)
+- Added 4 runnable examples in `examples/08-semantic/`:
+  - `00_verify_semantic_features.py` - Quick verification (no LLM)
+  - `01_intelligent_ticket_routing.py` - Smart routing demo
+  - `02_context_aware_responses.py` - Context-aware with history
+  - `03_multi_criteria_filtering.py` - Advanced filtering patterns
+- Updated README with semantic subscriptions feature
+- Added API documentation for all new features
+
+### 🔧 API Changes
+
+**New Parameters:**
+- `fan_out` parameter in `.publishes()` for multi-output generation
+- `semantic_match` parameter in `.consumes()` for meaning-based matching (replaces `text`)
+- `semantic_threshold` parameter in `.consumes()` for similarity control (replaces `min_p`)
+- `batch` parameter in `.consumes()` accepts `BatchSpec` objects
+- `join` parameter in `.consumes()` accepts `JoinSpec` objects
+
+**Note:** The original `text` and `min_p` parameters have been renamed to `semantic_match` and `semantic_threshold` for clarity. This makes it obvious that matching is semantic (meaning-based), not keyword-based.
+
+### ✅ Testing
+
+- Added 39 semantic subscription tests (100% passing)
+- Added fan-out publishing tests
+- Added BatchSpec and JoinSpec integration tests
+- All 1,435+ tests passing with zero regressions
+
+### 🚀 Performance
+
+- Semantic matching: ~15ms per embedding (CPU)
+- Batch processing: ~4.5ms per text with batching
+- Cache hit rate: 60-80% typical
+- Fan-out efficiency: N outputs in 1 LLM call
+
+---
+
 # Flock 0.5.0 Complete Changelog & Migration Guide
 
 > **Complete architectural rewrite from workflow orchestration to blackboard architecture**

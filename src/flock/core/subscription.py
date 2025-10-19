@@ -21,8 +21,17 @@ Predicate = Callable[[BaseModel], bool]
 
 @dataclass
 class TextPredicate:
-    text: str
-    min_p: float = 0.0
+    """Semantic text matching predicate.
+
+    Args:
+        query: The semantic query text to match against
+        threshold: Minimum similarity score (0.0 to 1.0) to consider a match
+        field: Optional field name to extract from payload. If None, uses all text.
+    """
+
+    query: str
+    threshold: float = 0.4  # Default threshold for semantic matching
+    field: str | None = None  # Optional field to extract from payload
 
 
 @dataclass
@@ -97,10 +106,11 @@ class Subscription:
     def __init__(
         self,
         *,
-        agent_name: str,
+        agent_name: str | None = None,
         types: Sequence[type[BaseModel]],
         where: Sequence[Predicate] | None = None,
         text_predicates: Sequence[TextPredicate] | None = None,
+        semantic_match: str | list[str] | dict[str, Any] | None = None,
         from_agents: Iterable[str] | None = None,
         tags: Iterable[str] | None = None,
         join: JoinSpec | None = None,
@@ -110,7 +120,7 @@ class Subscription:
     ) -> None:
         if not types:
             raise ValueError("Subscription must declare at least one type.")
-        self.agent_name = agent_name
+        self.agent_name = agent_name or ""
         self.type_models: list[type[BaseModel]] = list(types)
 
         # Register all types and build counts (supports duplicates for count-based AND gates)
@@ -126,13 +136,48 @@ class Subscription:
             self.type_counts[type_name] = self.type_counts.get(type_name, 0) + 1
 
         self.where = list(where or [])
-        self.text_predicates = list(text_predicates or [])
+
+        # Parse semantic_match parameter into TextPredicate objects
+        parsed_text_predicates = self._parse_semantic_match_parameter(semantic_match)
+        self.text_predicates = list(text_predicates or []) + parsed_text_predicates
+
         self.from_agents = set(from_agents or [])
         self.tags = set(tags or [])
         self.join = join
         self.batch = batch
         self.mode = mode
         self.priority = priority
+
+    def _parse_semantic_match_parameter(
+        self, semantic_match: str | list[str] | dict[str, Any] | None
+    ) -> list[TextPredicate]:
+        """Parse the semantic_match parameter into TextPredicate objects.
+
+        Args:
+            semantic_match: Can be:
+                - str: "query" → TextPredicate(query="query", threshold=0.4)
+                - list: ["q1", "q2"] → multiple TextPredicates (AND logic)
+                - dict: {"query": "...", "threshold": 0.8, "field": "body"}
+
+        Returns:
+            List of TextPredicate objects
+        """
+        if semantic_match is None:
+            return []
+
+        if isinstance(semantic_match, str):
+            return [TextPredicate(query=semantic_match)]
+
+        if isinstance(semantic_match, list):
+            return [TextPredicate(query=q) for q in semantic_match]
+
+        if isinstance(semantic_match, dict):
+            query = semantic_match.get("query", "")
+            threshold = semantic_match.get("threshold", 0.4)  # Match dataclass default
+            field = semantic_match.get("field", None)
+            return [TextPredicate(query=query, threshold=threshold, field=field)]
+
+        return []
 
     def accepts_direct(self) -> bool:
         return self.mode in {"direct", "both"}
@@ -157,7 +202,94 @@ class Subscription:
                     return False
             except Exception:
                 return False
+
+        # Evaluate text predicates using semantic matching
+        if self.text_predicates:
+            if not self._matches_text_predicates(artifact):
+                return False
+
         return True
+
+    def _matches_text_predicates(self, artifact: Artifact) -> bool:
+        """Check if artifact matches all text predicates (AND logic).
+
+        Args:
+            artifact: The artifact to check
+
+        Returns:
+            bool: True if all text predicates match (or if semantic unavailable)
+        """
+        # Check if semantic features available
+        try:
+            from flock.semantic import SEMANTIC_AVAILABLE, EmbeddingService
+        except ImportError:
+            # Graceful degradation - if semantic not available, skip text predicates
+            return True
+
+        if not SEMANTIC_AVAILABLE:
+            # Graceful degradation
+            return True
+
+        try:
+            embedding_service = EmbeddingService.get_instance()
+        except Exception:
+            # If embedding service fails, degrade gracefully
+            return True
+
+        # Extract text from artifact payload
+        artifact_text = self._extract_text_from_payload(artifact.payload)
+        if not artifact_text or not artifact_text.strip():
+            # No text to match against
+            return False
+
+        # Check all predicates (AND logic)
+        for predicate in self.text_predicates:
+            try:
+                # Extract text based on field specification
+                if predicate.field:
+                    # Use specific field
+                    text_to_match = str(artifact.payload.get(predicate.field, ""))
+                else:
+                    # Use all text from payload
+                    text_to_match = artifact_text
+
+                if not text_to_match or not text_to_match.strip():
+                    return False
+
+                # Compute semantic similarity
+                similarity = embedding_service.similarity(
+                    predicate.query, text_to_match
+                )
+
+                # Check threshold
+                if similarity < predicate.threshold:
+                    return False
+
+            except Exception:
+                # If any error occurs, fail the match
+                return False
+
+        return True
+
+    def _extract_text_from_payload(self, payload: dict[str, Any]) -> str:
+        """Extract all text content from payload.
+
+        Args:
+            payload: The artifact payload dict
+
+        Returns:
+            str: Concatenated text from all string fields
+        """
+        text_parts = []
+        for value in payload.values():
+            if isinstance(value, str):
+                text_parts.append(value)
+            elif isinstance(value, (list, tuple)):
+                for item in value:
+                    if isinstance(item, str):
+                        text_parts.append(item)
+
+        return " ".join(text_parts)
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return (

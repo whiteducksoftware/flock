@@ -19,7 +19,7 @@ from flock.agent.mcp_integration import MCPIntegration
 # Phase 4: Import extracted modules
 from flock.agent.output_processor import OutputProcessor
 from flock.core.artifacts import Artifact, ArtifactSpec
-from flock.core.subscription import BatchSpec, JoinSpec, Subscription, TextPredicate
+from flock.core.subscription import BatchSpec, JoinSpec, Subscription
 from flock.core.visibility import AgentIdentity, Visibility, ensure_visibility
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
@@ -539,8 +539,8 @@ class AgentBuilder:
         where: Callable[[BaseModel], bool]
         | Sequence[Callable[[BaseModel], bool]]
         | None = None,
-        text: str | None = None,
-        min_p: float = 0.0,
+        semantic_match: str | list[str] | dict[str, Any] | None = None,
+        semantic_threshold: float = 0.0,
         from_agents: Iterable[str] | None = None,
         tags: Iterable[str] | None = None,
         join: dict | JoinSpec | None = None,
@@ -557,8 +557,14 @@ class AgentBuilder:
             *types: Artifact types (Pydantic models) to consume
             where: Optional filter predicate(s). Agent only executes if predicate returns True.
                 Can be a single callable or sequence of callables (all must pass).
-            text: Optional semantic text filter using embedding similarity
-            min_p: Minimum probability threshold for text similarity (0.0-1.0)
+            semantic_match: Optional semantic similarity filter. Matches artifacts based on
+                meaning rather than keywords. Can be:
+                - str: Single query (e.g., "security vulnerability")
+                - list[str]: Multiple queries, all must match (AND logic)
+                - dict: Advanced config with "query", "threshold", "field"
+            semantic_threshold: Minimum similarity threshold for semantic matching (0.0-1.0).
+                Only used when semantic_match is a simple string or list. Ignored if
+                semantic_match is a dict with explicit "threshold". Default: 0.0 (uses default 0.4)
             from_agents: Only consume artifacts from specific agents
             tags: Only consume artifacts with matching tags
             join: Join specification for coordinating multiple artifact types
@@ -585,6 +591,12 @@ class AgentBuilder:
             ...     where=[lambda o: o.total > 100, lambda o: o.status == "pending"],
             ... )
 
+            >>> # Semantic matching
+            >>> agent.consumes(Ticket, semantic_match="security vulnerability")
+
+            >>> # Semantic matching with custom threshold
+            >>> agent.consumes(Ticket, semantic_match="urgent", semantic_threshold=0.6)
+
             >>> # Consume from specific agents
             >>> agent.consumes(Report, from_agents=["analyzer", "validator"])
 
@@ -605,12 +617,30 @@ class AgentBuilder:
         # Phase 5B: Use BuilderValidator for normalization
         join_spec = BuilderValidator.normalize_join(join)
         batch_spec = BuilderValidator.normalize_batch(batch)
-        text_predicates = [TextPredicate(text=text, min_p=min_p)] if text else []
+
+        # Handle semantic_threshold parameter to control semantic matching threshold
+        # If semantic_threshold is provided and semantic_match is simple, convert to dict
+        semantic_param: str | list[str] | dict[str, Any] | None = semantic_match
+        if semantic_match is not None and semantic_threshold > 0.0:
+            if isinstance(semantic_match, str):
+                # Simple string: create dict with semantic_threshold as threshold
+                semantic_param = {
+                    "query": semantic_match,
+                    "threshold": semantic_threshold,
+                }
+            elif isinstance(semantic_match, dict) and "threshold" not in semantic_match:
+                # Dict without explicit threshold: add semantic_threshold
+                semantic_param = {**semantic_match, "threshold": semantic_threshold}
+            # For list of strings, can't easily apply threshold (would need list of dicts)
+            # So we leave it as-is and semantic_threshold is ignored for list format
+
+        # Semantic matching: pass semantic_match parameter to Subscription
+        # which will parse it into TextPredicate objects
         subscription = Subscription(
             agent_name=self._agent.name,
             types=types,
             where=predicates,
-            text_predicates=text_predicates,
+            semantic_match=semantic_param,  # Let Subscription handle conversion
             from_agents=from_agents,
             tags=tags,
             join=join_spec,
