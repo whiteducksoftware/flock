@@ -448,7 +448,7 @@ class ResearchFindings(BaseModel):
 
 #### Public Visibility
 ```python
-from flock.visibility import PublicVisibility
+from flock.core.visibility import PublicVisibility
 
 @flock_type
 class PublicAnnouncement(BaseModel):
@@ -459,7 +459,7 @@ class PublicAnnouncement(BaseModel):
 
 #### Private Visibility
 ```python
-from flock.visibility import PrivateVisibility
+from flock.core.visibility import PrivateVisibility
 
 @flock_type
 class PrivateNote(BaseModel):
@@ -470,7 +470,7 @@ class PrivateNote(BaseModel):
 
 #### Tenant Visibility
 ```python
-from flock.visibility import TenantVisibility
+from flock.core.visibility import TenantVisibility
 
 @flock_type
 class PatientData(BaseModel):
@@ -482,7 +482,7 @@ class PatientData(BaseModel):
 
 #### Labelled Visibility
 ```python
-from flock.visibility import LabelledVisibility
+from flock.core.visibility import LabelledVisibility
 
 @flock_type
 class InternalReport(BaseModel):
@@ -493,7 +493,7 @@ class InternalReport(BaseModel):
 
 #### After Visibility
 ```python
-from flock.visibility import AfterVisibility
+from flock.core.visibility import AfterVisibility
 from datetime import datetime, timedelta
 
 @flock_type

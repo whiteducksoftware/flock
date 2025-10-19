@@ -112,7 +112,7 @@ graph TB
 **Everyone can see the artifact.**
 
 ```python
-from flock.visibility import PublicVisibility
+from flock.core.visibility import PublicVisibility
 
 agent = (
     flock.agent("reporter")
@@ -136,7 +136,7 @@ agent = (
 **Only specified agents can see the artifact.**
 
 ```python
-from flock.visibility import PrivateVisibility
+from flock.core.visibility import PrivateVisibility
 
 field_agent = (
     flock.agent("field_agent")
@@ -163,7 +163,7 @@ field_agent = (
 **Only agents belonging to the same tenant can see the artifact.**
 
 ```python
-from flock.visibility import TenantVisibility
+from flock.core.visibility import TenantVisibility
 
 analyzer = (
     flock.agent("analyzer")
@@ -190,7 +190,7 @@ analyzer = (
 **Only agents with required labels can see the artifact.**
 
 ```python
-from flock.visibility import LabelledVisibility, AgentIdentity
+from flock.core.visibility import LabelledVisibility, AgentIdentity
 
 # Agent with security clearance
 analyst = (
@@ -223,7 +223,7 @@ analyst = (
 
 ```python
 from datetime import timedelta
-from flock.visibility import AfterVisibility, PublicVisibility
+from flock.core.visibility import AfterVisibility, PublicVisibility
 
 pr_team = (
     flock.agent("pr_team")
@@ -253,7 +253,7 @@ pr_team = (
 Agents need **identities** to interact with visibility controls:
 
 ```python
-from flock.visibility import AgentIdentity
+from flock.core.visibility import AgentIdentity
 
 agent = (
     flock.agent("analyst")
@@ -409,7 +409,7 @@ visible_artifacts = [
 **Challenge:** Patient data must only be accessible to treating physicians.
 
 ```python
-from flock.visibility import PrivateVisibility, LabelledVisibility
+from flock.core.visibility import PrivateVisibility, LabelledVisibility
 
 # Patient record only for treating physician
 doctor = (
@@ -438,7 +438,7 @@ lab_tech = (
 **Challenge:** Complete data isolation between customers.
 
 ```python
-from flock.visibility import TenantVisibility
+from flock.core.visibility import TenantVisibility
 
 # Each customer's portfolio is isolated
 trading_agent = (
@@ -458,7 +458,7 @@ trading_agent = (
 **Challenge:** Free users see basic features, pro users see advanced analytics.
 
 ```python
-from flock.visibility import LabelledVisibility
+from flock.core.visibility import LabelledVisibility
 
 # Basic reports for free and pro users
 analyzer = (
@@ -489,7 +489,7 @@ advanced_analyzer = (
 **Challenge:** Multi-level security clearances (Unclassified → Secret → Top Secret).
 
 ```python
-from flock.visibility import LabelledVisibility, AgentIdentity
+from flock.core.visibility import LabelledVisibility, AgentIdentity
 
 # Field agent collects classified intel
 field_ops = (
@@ -519,7 +519,7 @@ analyst = (
 
 ```python
 from datetime import timedelta
-from flock.visibility import AfterVisibility, PublicVisibility
+from flock.core.visibility import AfterVisibility, PublicVisibility
 
 # Embargo for 7 days, then public
 pr_team = (
@@ -788,7 +788,7 @@ import asyncio
 from datetime import timedelta
 from pydantic import BaseModel, Field
 from flock import Flock, flock_type
-from flock.visibility import (
+from flock.core.visibility import (
     PublicVisibility,
     PrivateVisibility,
     TenantVisibility,

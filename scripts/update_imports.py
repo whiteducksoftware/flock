@@ -9,7 +9,7 @@ IMPORT_MAPPINGS = {
     # Core module moves
     "from flock.artifacts import": "from flock.core.artifacts import",
     "from flock.subscription import": "from flock.core.subscription import",
-    "from flock.visibility import": "from flock.core.visibility import",
+    "from flock.core.visibility import": "from flock.core.visibility import",
     "from flock.context_provider import": "from flock.core.context_provider import",
     "from flock.store import": "from flock.core.store import",
     # Orchestrator module moves

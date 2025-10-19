@@ -419,7 +419,7 @@ quality_control = (
 **Batch with access control:**
 
 ```python
-from flock.visibility import TenantVisibility
+from flock.core.visibility import TenantVisibility
 
 # Multi-tenant batch processing
 tenant_batcher = (

@@ -121,7 +121,7 @@ Medical diagnostic systems require:
 
 ```python
 from flock import Flock
-from flock.visibility import PrivateVisibility, TenantVisibility, LabelledVisibility
+from flock.core.visibility import PrivateVisibility, TenantVisibility, LabelledVisibility
 from flock.registry import flock_type
 from pydantic import BaseModel
 
@@ -359,7 +359,7 @@ Multi-tenant platforms need:
 
 ```python
 from flock import Flock
-from flock.visibility import TenantVisibility
+from flock.core.visibility import TenantVisibility
 from flock.subscription import JoinSpec
 from flock.registry import flock_type
 from pydantic import BaseModel

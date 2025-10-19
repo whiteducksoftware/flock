@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
@@ -75,21 +75,21 @@ async def main():
         NewsEvent(
             headline="Major Tech Company Announces Breakthrough in Quantum Computing",
             location="Silicon Valley, CA",
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             initial_details="Leading technology corporation claims to have achieved quantum supremacy with new 1000-qubit processor, potentially revolutionizing cryptography and scientific computing.",
             source_credibility=0.9,
         ),
         NewsEvent(
             headline="City Council Approves New Climate Action Plan",
             location="Portland, OR",
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             initial_details="Local government votes 7-2 to implement aggressive carbon reduction targets, including mandatory solar panels on new construction and expanded public transit.",
             source_credibility=0.85,
         ),
         NewsEvent(
             headline="Archaeological Discovery Reveals Ancient Civilization",
             location="Egyptian Desert",
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             initial_details="International team of archaeologists uncovers 4,000-year-old city with advanced irrigation systems and previously unknown hieroglyphic writing system.",
             source_credibility=0.95,
         ),

@@ -1038,7 +1038,7 @@ We're building enterprise infrastructure for AI agents and tracking the work pub
 ```python
 import os
 from flock import Flock, flock_type
-from flock.visibility import PrivateVisibility, TenantVisibility, LabelledVisibility
+from flock.core.visibility import PrivateVisibility, TenantVisibility, LabelledVisibility
 from flock.identity import AgentIdentity
 from pydantic import BaseModel
 

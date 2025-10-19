@@ -290,7 +290,7 @@ async def test_batch_processing():
 Test access control with visibility types.
 
 ```python
-from flock.visibility import PrivateVisibility, TenantVisibility
+from flock.core.visibility import PrivateVisibility, TenantVisibility
 from flock.identity import AgentIdentity
 
 @pytest.mark.asyncio

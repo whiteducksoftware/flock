@@ -173,7 +173,7 @@ class BotResponse(BaseModel):
 ## Visibility Enums
 
 ```python
-from flock.visibility import (
+from flock.core.visibility import (
     Visibility,      # Base visibility enum
     PublicVisibility,
     PrivateVisibility,

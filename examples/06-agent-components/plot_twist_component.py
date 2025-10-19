@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from flock import Flock, flock_type
 from flock.components import AgentComponent, EngineComponent
-from flock.utils.runtime import EvalInputs, EvalResult
+from flock.runtime import EvalInputs, EvalResult
 
 
 @flock_type(name="StoryIdea")
@@ -28,9 +28,7 @@ class StoryBeat(BaseModel):
 class ForeshadowingComponent(AgentComponent):
     """Slip a hint into the agent's state right before the engine runs."""
 
-    sprinkle_count: int = Field(
-        default=0, description="How many hints we've added so far"
-    )
+    sprinkle_count: int = Field(default=0, description="How many hints we've added so far")
 
     GENRE_CLUES: dict[str, list[str]] = {
         "mystery": [

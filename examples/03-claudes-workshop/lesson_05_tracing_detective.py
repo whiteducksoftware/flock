@@ -111,9 +111,7 @@ async def main():
     print(f"   Case reports filed: {len(reports)}")
 
     if investigations:
-        avg_confidence = sum(inv.confidence_level for inv in investigations) / len(
-            investigations
-        )
+        avg_confidence = sum(inv.confidence_level for inv in investigations) / len(investigations)
         print(f"   Average confidence level: {avg_confidence:.2f}")
 
     print("\n💡 Check .flock/traces.duckdb for complete execution tracing!")

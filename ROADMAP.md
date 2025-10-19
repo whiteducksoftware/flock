@@ -96,7 +96,7 @@ Stay tuned to the issue tracker for milestone updates. We'll publish detailed re
 ```python
 import os
 from flock import Flock, flock_type
-from flock.visibility import PrivateVisibility, TenantVisibility, LabelledVisibility
+from flock.core.visibility import PrivateVisibility, TenantVisibility, LabelledVisibility
 from flock.identity import AgentIdentity
 from pydantic import BaseModel
 
