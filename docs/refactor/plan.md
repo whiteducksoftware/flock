@@ -605,7 +605,7 @@ Flock framework - Agent orchestration system.
 
 # Core imports
 from flock.agent import Agent
-from flock.orchestrator import Flock
+from flock import Flock
 from flock.builder import AgentBuilder
 
 # Component imports

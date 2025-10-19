@@ -651,7 +651,7 @@ git push
 **Solution**: Use new public API imports
 ```python
 # ❌ Old (deprecated):
-from flock.orchestrator import Flock
+from flock import Flock
 
 # ✅ New (correct):
 from flock import Flock

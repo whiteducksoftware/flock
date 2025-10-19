@@ -82,7 +82,7 @@ await flock.run_until_idle()
 ```python
 from typing import Literal
 from pydantic import BaseModel, Field
-from flock.orchestrator import Flock
+from flock import Flock
 from flock.registry import flock_type
 
 @flock_type

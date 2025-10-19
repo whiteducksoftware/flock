@@ -36,7 +36,7 @@ export OLLAMA_API_BASE="http://localhost:1134"
 ### Step 4: Run Your Flock Application
 
 ```python
-from flock.orchestrator import Flock
+from flock import Flock
 
 # Create orchestrator with Ollama model
 orchestrator = Flock("ollama/granite3.3:2b")
@@ -128,7 +128,7 @@ export OLLAMA_API_BASE="http://localhost:1134"
 
 Then in your code:
 ```python
-from flock.orchestrator import Flock
+from flock import Flock
 
 # Model is automatically picked up from environment
 orchestrator = Flock()
@@ -140,7 +140,7 @@ orchestrator = Flock()
 
 ```python
 import os
-from flock.orchestrator import Flock
+from flock import Flock
 
 # Set environment variables
 os.environ["TRELLIS_MODEL"] = "ollama/granite3.3:2b"
@@ -163,7 +163,7 @@ OLLAMA_API_BASE=http://localhost:1134
 Then use `python-dotenv`:
 ```python
 from dotenv import load_dotenv
-from flock.orchestrator import Flock
+from flock import Flock
 
 load_dotenv()  # Load environment variables from .env
 orchestrator = Flock()
@@ -207,7 +207,7 @@ import os
 os.environ["LITELLM_LOG"] = "DEBUG"
 
 # Now run your Flock application
-from flock.orchestrator import Flock
+from flock import Flock
 orchestrator = Flock("ollama/granite3.3:2b")
 ```
 
@@ -248,7 +248,7 @@ uv run python examples/showcase/07_ollama_example.py
 
 3. Create your Flock orchestrator:
    ```python
-   from flock.orchestrator import Flock
+   from flock import Flock
    orchestrator = Flock("ollama/granite3.3:2b")
    ```
 

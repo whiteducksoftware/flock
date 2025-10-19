@@ -27,7 +27,7 @@
 
 **Before:**
 ```python
-from flock.orchestrator import Flock
+from flock import Flock
 ```
 
 **After (Option 1 - RECOMMENDED):**
@@ -41,7 +41,7 @@ from flock.core import Flock  # Use core module directly
 ```
 
 **Impact:**
-- ❌ **51/51 examples** use old path `from flock.orchestrator import Flock`
+- ❌ **51/51 examples** use old path `from flock import Flock`
 - ✅ **Fix is simple:** Change to `from flock import Flock`
 - ⚠️ **Backward compatibility:** Old path `flock.orchestrator` still exists but is deprecated
 
@@ -368,7 +368,7 @@ agent.consumes(
 - [ ] **Update import paths**
   ```python
   # BEFORE:
-  from flock.orchestrator import Flock
+  from flock import Flock
 
   # AFTER:
   from flock import Flock
