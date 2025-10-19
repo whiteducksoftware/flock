@@ -40,32 +40,7 @@ All routing happens automatically based on semantic similarity!
 
 ---
 
-### 02_context_aware_responses.py
-**Learning from historical incidents**
-
-Shows how `SemanticContextProvider` finds similar past incidents and recommends actions based on successful historical resolutions.
-
-**Key Concepts:**
-- `SemanticContextProvider` for historical context
-- Learning from past similar cases
-- Context-enriched decision making
-
-**Run:**
-```bash
-uv run examples/08-semantic/02_context_aware_responses.py
-```
-
-**What You'll See:**
-1. System populates incident history
-2. New incidents arrive
-3. System finds semantically similar past incidents
-4. Recommends actions based on past successful resolutions
-
-Example: "Database connection failures" → Finds similar past "connection pool exhausted" → Recommends "Increase max connections"
-
----
-
-### 03_multi_criteria_filtering.py
+### 02_multi_criteria_filtering.py
 **Advanced semantic filtering with multiple criteria**
 
 Demonstrates sophisticated filtering combining:
@@ -82,7 +57,7 @@ Demonstrates sophisticated filtering combining:
 
 **Run:**
 ```bash
-uv run examples/08-semantic/03_multi_criteria_filtering.py
+uv run examples/08-semantic/02_multi_criteria_filtering.py
 ```
 
 **What You'll See:**

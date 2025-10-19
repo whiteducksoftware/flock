@@ -53,6 +53,7 @@ class ArtifactManager:
         partition_key: str | None = None,
         tags: set[str] | None = None,
         is_dashboard: bool = False,
+        schedule_immediately: bool = True,
     ) -> Artifact:
         """Publish an artifact to the blackboard (event-driven).
 
@@ -125,12 +126,18 @@ class ArtifactManager:
                 "Expected BaseModel, dict, or Artifact."
             )
 
-        # Persist and schedule matching agents
-        await self.persist_and_schedule(artifact)
+        if schedule_immediately:
+            await self.persist_and_schedule(artifact)
+        else:
+            await self.persist(artifact)
+
         return artifact
 
     async def publish_many(
-        self, objects: Iterable[BaseModel | dict | Artifact], **kwargs: Any
+        self,
+        objects: Iterable[BaseModel | dict | Artifact],
+        schedule_immediately: bool = True,
+        **kwargs: Any,
     ) -> list[Artifact]:
         """Publish multiple artifacts at once (event-driven).
 
@@ -150,7 +157,9 @@ class ArtifactManager:
         """
         artifacts = []
         for obj in objects:
-            artifact = await self.publish(obj, **kwargs)
+            artifact = await self.publish(
+                obj, schedule_immediately=schedule_immediately, **kwargs
+            )
             artifacts.append(artifact)
         return artifacts
 
@@ -163,6 +172,15 @@ class ArtifactManager:
         await self._store.publish(artifact)
         self._orchestrator.metrics["artifacts_published"] += 1
         await self._scheduler.schedule_artifact(artifact)
+
+    async def persist(self, artifact: Artifact) -> None:
+        """Persist artifact to store without scheduling.
+
+        Args:
+            artifact: Artifact to publish
+        """
+        await self._store.publish(artifact)
+        self._orchestrator.metrics["artifacts_published"] += 1
 
 
 __all__ = ["ArtifactManager"]

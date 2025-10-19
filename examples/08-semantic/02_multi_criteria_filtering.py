@@ -75,7 +75,7 @@ class AuditReport(BaseModel):
 # ============================================================================
 # 🎛️  SETUP: Create agents with advanced semantic filters
 # ============================================================================
-flock = Flock("openai/gpt-4o-mini")
+flock = Flock()
 
 # Agent 1: STRICT security + compliance filter
 # Requires: BOTH "security" AND "compliance" topics + published status
