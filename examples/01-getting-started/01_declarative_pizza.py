@@ -17,7 +17,7 @@ from flock.registry import flock_type
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
-USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
+USE_DASHBOARD = True  # Set to True for dashboard mode, False for CLI mode
 # ============================================================================
 
 
@@ -38,7 +38,7 @@ class Pizza(BaseModel):
 
 flock = Flock()
 
-pizza_master = flock.agent("pizza_master").consumes(MyDreamPizza).publishes(Pizza, fan_out=3)
+pizza_master = flock.agent("pizza_master").consumes(MyDreamPizza).publishes(Pizza)
 
 
 async def main_cli():

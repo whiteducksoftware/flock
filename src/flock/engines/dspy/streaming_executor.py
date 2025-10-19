@@ -13,12 +13,13 @@ from __future__ import annotations
 import asyncio
 from collections import OrderedDict, defaultdict
 from contextlib import nullcontext
-from datetime import UTC
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Awaitable, Callable, Sequence
 
 from pydantic import BaseModel
 
 from flock.dashboard.events import StreamingOutputEvent
+from flock.engines.streaming.sinks import RichSink, StreamSink, WebSocketSink
 from flock.logging.logging import get_logger
 
 
@@ -56,6 +57,379 @@ class DSPyStreamingExecutor:
         self.stream_vertical_overflow = stream_vertical_overflow
         self.theme = theme
         self.no_output = no_output
+        self._model_stream_cls: Any | None = None
+
+    def _make_listeners(self, dspy_mod, signature) -> list[Any]:
+        """Create DSPy stream listeners for string output fields."""
+        streaming_mod = getattr(dspy_mod, "streaming", None)
+        if not streaming_mod or not hasattr(streaming_mod, "StreamListener"):
+            return []
+
+        listeners: list[Any] = []
+        try:
+            for name, field in getattr(signature, "output_fields", {}).items():
+                if getattr(field, "annotation", None) is str:
+                    listeners.append(
+                        streaming_mod.StreamListener(signature_field_name=name)
+                    )
+        except Exception:
+            return []
+        return listeners
+
+    def _payload_kwargs(self, *, payload: Any, description: str) -> dict[str, Any]:
+        """Normalize payload variations into kwargs for streamify."""
+        if isinstance(payload, dict) and "description" in payload:
+            return payload
+
+        if isinstance(payload, dict) and "input" in payload:
+            return {
+                "description": description,
+                "input": payload["input"],
+                "context": payload.get("context", []),
+            }
+
+        # Legacy fallback: treat payload as the primary input.
+        return {"description": description, "input": payload, "context": []}
+
+    def _artifact_type_label(self, agent: Any, output_group: Any) -> str:
+        """Derive user-facing artifact label for streaming events."""
+        outputs_to_display = (
+            getattr(output_group, "outputs", None)
+            if output_group and hasattr(output_group, "outputs")
+            else getattr(agent, "outputs", [])
+            if hasattr(agent, "outputs")
+            else []
+        )
+
+        if not outputs_to_display:
+            return "output"
+
+        # Preserve ordering while avoiding duplicates.
+        seen: set[str] = set()
+        segments: list[str] = []
+        for output in outputs_to_display:
+            type_name = getattr(getattr(output, "spec", None), "type_name", None)
+            if type_name and type_name not in seen:
+                seen.add(type_name)
+                segments.append(type_name)
+
+        return ", ".join(segments) if segments else "output"
+
+    def _streaming_classes_for(self, dspy_mod: Any) -> tuple[type | None, type | None]:
+        streaming_mod = getattr(dspy_mod, "streaming", None)
+        if not streaming_mod:
+            return None, None
+        status_cls = getattr(streaming_mod, "StatusMessage", None)
+        stream_cls = getattr(streaming_mod, "StreamResponse", None)
+        return status_cls, stream_cls
+
+    def _resolve_model_stream_cls(self) -> Any | None:
+        if self._model_stream_cls is None:
+            try:
+                from litellm import ModelResponseStream  # type: ignore
+            except Exception:  # pragma: no cover - litellm optional at runtime
+                self._model_stream_cls = False
+            else:
+                self._model_stream_cls = ModelResponseStream
+        return self._model_stream_cls or None
+
+    @staticmethod
+    def _normalize_status_message(
+        value: Any,
+    ) -> tuple[str, str | None, str | None, Any | None]:
+        message = getattr(value, "message", "")
+        return "status", str(message), None, None
+
+    @staticmethod
+    def _normalize_stream_response(
+        value: Any,
+    ) -> tuple[str, str | None, str | None, Any | None]:
+        chunk = getattr(value, "chunk", None)
+        signature_field = getattr(value, "signature_field_name", None)
+        return "token", ("" if chunk is None else str(chunk)), signature_field, None
+
+    @staticmethod
+    def _normalize_model_stream(
+        value: Any,
+    ) -> tuple[str, str | None, str | None, Any | None]:
+        token_text = ""
+        try:
+            token_text = value.choices[0].delta.content or ""
+        except Exception:  # pragma: no cover - defensive parity with legacy path
+            token_text = ""
+        signature_field = getattr(value, "signature_field_name", None)
+        return "token", str(token_text), signature_field, None
+
+    def _initialize_display_data(
+        self,
+        *,
+        signature_order: Sequence[str],
+        agent: Any,
+        ctx: Any,
+        pre_generated_artifact_id: Any,
+        output_group: Any,
+        status_field: str,
+    ) -> tuple[OrderedDict[str, Any], str]:
+        """Build the initial Rich display structure for CLI streaming."""
+        display_data: OrderedDict[str, Any] = OrderedDict()
+        display_data["id"] = str(pre_generated_artifact_id)
+
+        artifact_type_name = self._artifact_type_label(agent, output_group)
+        display_data["type"] = artifact_type_name
+
+        payload_section: OrderedDict[str, Any] = OrderedDict()
+        for field_name in signature_order:
+            if field_name != "description":
+                payload_section[field_name] = ""
+        display_data["payload"] = payload_section
+
+        display_data["produced_by"] = getattr(agent, "name", "")
+        correlation_id = None
+        if ctx and getattr(ctx, "correlation_id", None):
+            correlation_id = str(ctx.correlation_id)
+        display_data["correlation_id"] = correlation_id
+        display_data["partition_key"] = None
+        display_data["tags"] = "set()"
+        display_data["visibility"] = OrderedDict([("kind", "Public")])
+        display_data["created_at"] = "streaming..."
+        display_data["version"] = 1
+        display_data["status"] = status_field
+
+        return display_data, artifact_type_name
+
+    def _prepare_rich_env(
+        self,
+        *,
+        console,
+        display_data: OrderedDict[str, Any],
+        agent: Any,
+        overflow_mode: str,
+    ) -> tuple[Any, dict[str, Any], dict[str, Any], str, Any]:
+        """Create formatter metadata and Live context for Rich output."""
+        from rich.live import Live
+
+        from flock.engines.dspy_engine import _ensure_live_crop_above
+
+        _ensure_live_crop_above()
+        formatter, theme_dict, styles, agent_label = self.prepare_stream_formatter(
+            agent
+        )
+        initial_panel = formatter.format_result(
+            display_data, agent_label, theme_dict, styles
+        )
+        live_cm = Live(
+            initial_panel,
+            console=console,
+            refresh_per_second=4,
+            transient=False,
+            vertical_overflow=overflow_mode,
+        )
+        return formatter, theme_dict, styles, agent_label, live_cm
+
+    def _build_rich_sink(
+        self,
+        *,
+        live: Any,
+        formatter: Any | None,
+        display_data: OrderedDict[str, Any],
+        agent_label: str | None,
+        theme_dict: dict[str, Any] | None,
+        styles: dict[str, Any] | None,
+        status_field: str,
+        signature_order: Sequence[str],
+        stream_buffers: defaultdict[str, list[str]],
+        timestamp_factory: Callable[[], str],
+    ) -> RichSink | None:
+        if formatter is None or live is None:
+            return None
+
+        def refresh_panel() -> None:
+            live.update(
+                formatter.format_result(display_data, agent_label, theme_dict, styles)
+            )
+
+        return RichSink(
+            display_data=display_data,
+            stream_buffers=stream_buffers,
+            status_field=status_field,
+            signature_order=signature_order,
+            formatter=formatter,
+            theme_dict=theme_dict,
+            styles=styles,
+            agent_label=agent_label,
+            refresh_panel=refresh_panel,
+            timestamp_factory=timestamp_factory,
+        )
+
+    def _build_websocket_sink(
+        self,
+        *,
+        ws_broadcast: Callable[[StreamingOutputEvent], Awaitable[None]] | None,
+        ctx: Any,
+        agent: Any,
+        pre_generated_artifact_id: Any,
+        artifact_type_name: str,
+    ) -> WebSocketSink | None:
+        if not ws_broadcast:
+            return None
+
+        def event_factory(
+            output_type: str, content: str, sequence: int, is_final: bool
+        ) -> StreamingOutputEvent:
+            return self._build_event(
+                ctx=ctx,
+                agent=agent,
+                artifact_id=pre_generated_artifact_id,
+                artifact_type=artifact_type_name,
+                output_type=output_type,
+                content=content,
+                sequence=sequence,
+                is_final=is_final,
+            )
+
+        return WebSocketSink(ws_broadcast=ws_broadcast, event_factory=event_factory)
+
+    def _collect_sinks(
+        self,
+        *,
+        rich_sink: RichSink | None,
+        ws_sink: WebSocketSink | None,
+    ) -> list[StreamSink]:
+        sinks: list[StreamSink] = []
+        if rich_sink:
+            sinks.append(rich_sink)
+        if ws_sink:
+            sinks.append(ws_sink)
+        return sinks
+
+    async def _dispatch_to_sinks(
+        self, sinks: Sequence[StreamSink], method: str, *args: Any
+    ) -> None:
+        for sink in sinks:
+            await getattr(sink, method)(*args)
+
+    async def _consume_stream(
+        self,
+        stream_generator: Any,
+        sinks: Sequence[StreamSink],
+        dspy_mod: Any,
+    ) -> tuple[Any | None, int]:
+        tokens_emitted = 0
+        final_result: Any | None = None
+
+        async for value in stream_generator:
+            kind, text, signature_field, prediction = self._normalize_value(
+                value, dspy_mod
+            )
+
+            if kind == "status" and text:
+                await self._dispatch_to_sinks(sinks, "on_status", text)
+                continue
+
+            if kind == "token" and text:
+                tokens_emitted += 1
+                await self._dispatch_to_sinks(sinks, "on_token", text, signature_field)
+                continue
+
+            if kind == "prediction":
+                final_result = prediction
+                await self._dispatch_to_sinks(
+                    sinks, "on_final", prediction, tokens_emitted
+                )
+                await self._close_stream_generator(stream_generator)
+                return final_result, tokens_emitted
+
+        return final_result, tokens_emitted
+
+    async def _flush_sinks(self, sinks: Sequence[StreamSink]) -> None:
+        for sink in sinks:
+            await sink.flush()
+
+    def _finalize_stream_display(
+        self,
+        *,
+        rich_sink: RichSink | None,
+        formatter: Any | None,
+        display_data: OrderedDict[str, Any],
+        theme_dict: dict[str, Any] | None,
+        styles: dict[str, Any] | None,
+        agent_label: str | None,
+    ) -> tuple[Any, OrderedDict, dict | None, dict | None, str | None]:
+        if rich_sink:
+            return rich_sink.final_display_data
+        return formatter, display_data, theme_dict, styles, agent_label
+
+    @staticmethod
+    async def _close_stream_generator(stream_generator: Any) -> None:
+        aclose = getattr(stream_generator, "aclose", None)
+        if callable(aclose):
+            try:
+                await aclose()
+            except GeneratorExit:
+                pass
+            except BaseExceptionGroup as exc:  # pragma: no cover - defensive logging
+                remaining = [
+                    err
+                    for err in getattr(exc, "exceptions", [])
+                    if not isinstance(err, GeneratorExit)
+                ]
+                if remaining:
+                    logger.debug("Error closing stream generator", exc_info=True)
+            except Exception:
+                logger.debug("Error closing stream generator", exc_info=True)
+
+    def _build_event(
+        self,
+        *,
+        ctx: Any,
+        agent: Any,
+        artifact_id: Any,
+        artifact_type: str,
+        output_type: str,
+        content: str,
+        sequence: int,
+        is_final: bool,
+    ) -> StreamingOutputEvent:
+        """Construct a StreamingOutputEvent with consistent metadata."""
+        correlation_id = ""
+        run_id = ""
+        if ctx:
+            correlation_id = str(getattr(ctx, "correlation_id", "") or "")
+            run_id = str(getattr(ctx, "task_id", "") or "")
+
+        return StreamingOutputEvent(
+            correlation_id=correlation_id,
+            agent_name=getattr(agent, "name", ""),
+            run_id=run_id,
+            output_type=output_type,
+            content=content,
+            sequence=sequence,
+            is_final=is_final,
+            artifact_id=str(artifact_id) if artifact_id is not None else "",
+            artifact_type=artifact_type,
+        )
+
+    def _normalize_value(
+        self, value: Any, dspy_mod: Any
+    ) -> tuple[str, str | None, str | None, Any | None]:
+        """Normalize raw DSPy streaming values into (kind, text, field, final)."""
+        status_cls, stream_cls = self._streaming_classes_for(dspy_mod)
+        model_stream_cls = self._resolve_model_stream_cls()
+        prediction_cls = getattr(dspy_mod, "Prediction", None)
+
+        if status_cls and isinstance(value, status_cls):
+            return self._normalize_status_message(value)
+
+        if stream_cls and isinstance(value, stream_cls):
+            return self._normalize_stream_response(value)
+
+        if model_stream_cls and isinstance(value, model_stream_cls):
+            return self._normalize_model_stream(value)
+
+        if prediction_cls and isinstance(value, prediction_cls):
+            return "prediction", None, None, value
+
+        return "unknown", None, None, None
 
     async def execute_standard(
         self, dspy_mod, program, *, description: str, payload: dict[str, Any]
@@ -136,32 +510,8 @@ class DSPyStreamingExecutor:
             )
             return result, None
 
-        # Get artifact type name for WebSocket events
-        artifact_type_name = "output"
-        # Use output_group.outputs (current group) if available, otherwise fallback to agent.outputs (all groups)
-        outputs_to_display = (
-            output_group.outputs
-            if output_group and hasattr(output_group, "outputs")
-            else agent.outputs
-            if hasattr(agent, "outputs")
-            else []
-        )
-
-        if outputs_to_display:
-            artifact_type_name = outputs_to_display[0].spec.type_name
-
-        # Prepare stream listeners
-        listeners = []
-        try:
-            streaming_mod = getattr(dspy_mod, "streaming", None)
-            if streaming_mod and hasattr(streaming_mod, "StreamListener"):
-                for name, field in signature.output_fields.items():
-                    if field.annotation is str:
-                        listeners.append(
-                            streaming_mod.StreamListener(signature_field_name=name)
-                        )
-        except Exception:
-            listeners = []
+        artifact_type_name = self._artifact_type_label(agent, output_group)
+        listeners = self._make_listeners(dspy_mod, signature)
 
         # Create streaming task
         streaming_task = dspy_mod.streamify(
@@ -170,157 +520,52 @@ class DSPyStreamingExecutor:
             stream_listeners=listeners if listeners else None,
         )
 
-        # Execute with appropriate payload format
-        if isinstance(payload, dict) and "description" in payload:
-            # Semantic fields: pass all fields as kwargs
-            stream_generator = streaming_task(**payload)
-        elif isinstance(payload, dict) and "input" in payload:
-            # Legacy format: {"input": ..., "context": ...}
-            stream_generator = streaming_task(
-                description=description,
-                input=payload["input"],
-                context=payload.get("context", []),
-            )
-        else:
-            # Old format: direct payload
-            stream_generator = streaming_task(
-                description=description, input=payload, context=[]
+        stream_kwargs = self._payload_kwargs(payload=payload, description=description)
+        stream_generator = streaming_task(**stream_kwargs)
+
+        def event_factory(
+            output_type: str, content: str, sequence: int, is_final: bool
+        ) -> StreamingOutputEvent:
+            return self._build_event(
+                ctx=ctx,
+                agent=agent,
+                artifact_id=pre_generated_artifact_id,
+                artifact_type=artifact_type_name,
+                output_type=output_type,
+                content=content,
+                sequence=sequence,
+                is_final=is_final,
             )
 
-        # Process stream (WebSocket only, no Rich display)
+        sink: StreamSink = WebSocketSink(
+            ws_broadcast=ws_broadcast,
+            event_factory=event_factory,
+        )
+
         final_result = None
-        stream_sequence = 0
-
-        # Track background WebSocket broadcast tasks to prevent garbage collection
-        # Using fire-and-forget pattern to avoid blocking DSPy's streaming loop
-        ws_broadcast_tasks: set[asyncio.Task] = set()
+        tokens_emitted = 0
 
         async for value in stream_generator:
-            try:
-                from dspy.streaming import StatusMessage, StreamResponse
-                from litellm import ModelResponseStream
-            except Exception:
-                StatusMessage = object  # type: ignore
-                StreamResponse = object  # type: ignore
-                ModelResponseStream = object  # type: ignore
+            kind, text, signature_field, prediction = self._normalize_value(
+                value, dspy_mod
+            )
 
-            if isinstance(value, StatusMessage):
-                token = getattr(value, "message", "")
-                if token:
-                    try:
-                        event = StreamingOutputEvent(
-                            correlation_id=str(ctx.correlation_id)
-                            if ctx and ctx.correlation_id
-                            else "",
-                            agent_name=agent.name,
-                            run_id=ctx.task_id if ctx else "",
-                            output_type="log",
-                            content=str(token + "\n"),
-                            sequence=stream_sequence,
-                            is_final=False,
-                            artifact_id=str(pre_generated_artifact_id),
-                            artifact_type=artifact_type_name,
-                        )
-                        # Fire-and-forget to avoid blocking DSPy's streaming loop
-                        task = asyncio.create_task(ws_broadcast(event))
-                        ws_broadcast_tasks.add(task)
-                        task.add_done_callback(ws_broadcast_tasks.discard)
-                        stream_sequence += 1
-                    except Exception as e:
-                        logger.warning(f"Failed to emit streaming event: {e}")
+            if kind == "status" and text:
+                await sink.on_status(text)
+                continue
 
-            elif isinstance(value, StreamResponse):
-                token = getattr(value, "chunk", None)
-                if token:
-                    try:
-                        event = StreamingOutputEvent(
-                            correlation_id=str(ctx.correlation_id)
-                            if ctx and ctx.correlation_id
-                            else "",
-                            agent_name=agent.name,
-                            run_id=ctx.task_id if ctx else "",
-                            output_type="llm_token",
-                            content=str(token),
-                            sequence=stream_sequence,
-                            is_final=False,
-                            artifact_id=str(pre_generated_artifact_id),
-                            artifact_type=artifact_type_name,
-                        )
-                        # Fire-and-forget to avoid blocking DSPy's streaming loop
-                        task = asyncio.create_task(ws_broadcast(event))
-                        ws_broadcast_tasks.add(task)
-                        task.add_done_callback(ws_broadcast_tasks.discard)
-                        stream_sequence += 1
-                    except Exception as e:
-                        logger.warning(f"Failed to emit streaming event: {e}")
+            if kind == "token" and text:
+                tokens_emitted += 1
+                await sink.on_token(text, signature_field)
+                continue
 
-            elif isinstance(value, ModelResponseStream):
-                chunk = value
-                token = chunk.choices[0].delta.content or ""
-                if token:
-                    try:
-                        event = StreamingOutputEvent(
-                            correlation_id=str(ctx.correlation_id)
-                            if ctx and ctx.correlation_id
-                            else "",
-                            agent_name=agent.name,
-                            run_id=ctx.task_id if ctx else "",
-                            output_type="llm_token",
-                            content=str(token),
-                            sequence=stream_sequence,
-                            is_final=False,
-                            artifact_id=str(pre_generated_artifact_id),
-                            artifact_type=artifact_type_name,
-                        )
-                        # Fire-and-forget to avoid blocking DSPy's streaming loop
-                        task = asyncio.create_task(ws_broadcast(event))
-                        ws_broadcast_tasks.add(task)
-                        task.add_done_callback(ws_broadcast_tasks.discard)
-                        stream_sequence += 1
-                    except Exception as e:
-                        logger.warning(f"Failed to emit streaming event: {e}")
+            if kind == "prediction":
+                final_result = prediction
+                await sink.on_final(prediction, tokens_emitted)
+                await self._close_stream_generator(stream_generator)
+                break
 
-            elif isinstance(value, dspy_mod.Prediction):
-                final_result = value
-                # Send final events
-                try:
-                    event = StreamingOutputEvent(
-                        correlation_id=str(ctx.correlation_id)
-                        if ctx and ctx.correlation_id
-                        else "",
-                        agent_name=agent.name,
-                        run_id=ctx.task_id if ctx else "",
-                        output_type="log",
-                        content=f"\nAmount of output tokens: {stream_sequence}",
-                        sequence=stream_sequence,
-                        is_final=True,
-                        artifact_id=str(pre_generated_artifact_id),
-                        artifact_type=artifact_type_name,
-                    )
-                    # Fire-and-forget to avoid blocking DSPy's streaming loop
-                    task = asyncio.create_task(ws_broadcast(event))
-                    ws_broadcast_tasks.add(task)
-                    task.add_done_callback(ws_broadcast_tasks.discard)
-
-                    event = StreamingOutputEvent(
-                        correlation_id=str(ctx.correlation_id)
-                        if ctx and ctx.correlation_id
-                        else "",
-                        agent_name=agent.name,
-                        run_id=ctx.task_id if ctx else "",
-                        output_type="log",
-                        content="--- End of output ---",
-                        sequence=stream_sequence + 1,
-                        is_final=True,
-                        artifact_id=str(pre_generated_artifact_id),
-                        artifact_type=artifact_type_name,
-                    )
-                    # Fire-and-forget to avoid blocking DSPy's streaming loop
-                    task = asyncio.create_task(ws_broadcast(event))
-                    ws_broadcast_tasks.add(task)
-                    task.add_done_callback(ws_broadcast_tasks.discard)
-                except Exception as e:
-                    logger.warning(f"Failed to emit final streaming event: {e}")
+        await sink.flush()
 
         if final_result is None:
             raise RuntimeError(
@@ -328,7 +573,7 @@ class DSPyStreamingExecutor:
             )
 
         logger.info(
-            f"Agent {agent.name}: WebSocket streaming completed ({stream_sequence} tokens)"
+            f"Agent {agent.name}: WebSocket streaming completed ({tokens_emitted} tokens)"
         )
         return final_result, None
 
@@ -345,406 +590,115 @@ class DSPyStreamingExecutor:
         pre_generated_artifact_id: Any = None,
         output_group=None,
     ) -> Any:
-        """Execute DSPy program in streaming mode with Rich table updates.
+        """Execute DSPy program in streaming mode with Rich table updates."""
 
-        Args:
-            dspy_mod: DSPy module
-            program: DSPy program (Predict or ReAct)
-            signature: DSPy Signature
-            description: System description
-            payload: Execution payload with semantic field names
-            agent: Agent instance
-            ctx: Execution context
-            pre_generated_artifact_id: Pre-generated artifact ID for streaming
-            output_group: OutputGroup defining expected outputs
-
-        Returns:
-            Tuple of (DSPy Prediction result, stream display data for final rendering)
-        """
         from rich.console import Console
-        from rich.live import Live
 
         console = Console()
 
         # Get WebSocket broadcast function (security: wrapper prevents object traversal)
-        # Phase 6+7 Security Fix: Use broadcast wrapper from Agent class variable (prevents GOD MODE restoration)
         from flock.core import Agent
 
         ws_broadcast = Agent._websocket_broadcast_global
 
-        # Prepare stream listeners for output field
-        listeners = []
-        try:
-            streaming_mod = getattr(dspy_mod, "streaming", None)
-            if streaming_mod and hasattr(streaming_mod, "StreamListener"):
-                for name, field in signature.output_fields.items():
-                    if field.annotation is str:
-                        listeners.append(
-                            streaming_mod.StreamListener(signature_field_name=name)
-                        )
-        except Exception:
-            listeners = []
-
+        listeners = self._make_listeners(dspy_mod, signature)
         streaming_task = dspy_mod.streamify(
             program,
             is_async_program=True,
             stream_listeners=listeners if listeners else None,
         )
 
-        # Execute with appropriate payload format
-        if isinstance(payload, dict) and "description" in payload:
-            # Semantic fields: pass all fields as kwargs
-            stream_generator = streaming_task(**payload)
-        elif isinstance(payload, dict) and "input" in payload:
-            # Legacy format: {"input": ..., "context": ...}
-            stream_generator = streaming_task(
-                description=description,
-                input=payload["input"],
-                context=payload.get("context", []),
-            )
-        else:
-            # Old format: direct payload
-            stream_generator = streaming_task(
-                description=description, input=payload, context=[]
-            )
+        stream_kwargs = self._payload_kwargs(payload=payload, description=description)
+        stream_generator = streaming_task(**stream_kwargs)
 
-        signature_order = []
         status_field = self.status_output_field
         try:
             signature_order = list(signature.output_fields.keys())
         except Exception:
             signature_order = []
 
-        # Initialize display data in full artifact format (matching OutputUtilityComponent display)
-        display_data: OrderedDict[str, Any] = OrderedDict()
-
-        # Use the pre-generated artifact ID that was created before execution started
-        display_data["id"] = str(pre_generated_artifact_id)
-
-        # Get the artifact type name from agent configuration
-        artifact_type_name = "output"
-        # Use output_group.outputs (current group) if available, otherwise fallback to agent.outputs (all groups)
-        outputs_to_display = (
-            output_group.outputs
-            if output_group and hasattr(output_group, "outputs")
-            else agent.outputs
-            if hasattr(agent, "outputs")
-            else []
+        display_data, artifact_type_name = self._initialize_display_data(
+            signature_order=signature_order,
+            agent=agent,
+            ctx=ctx,
+            pre_generated_artifact_id=pre_generated_artifact_id,
+            output_group=output_group,
+            status_field=status_field,
         )
-
-        if outputs_to_display:
-            artifact_type_name = outputs_to_display[0].spec.type_name
-            for output in outputs_to_display:
-                if output.spec.type_name not in artifact_type_name:
-                    artifact_type_name += ", " + output.spec.type_name
-
-        display_data["type"] = artifact_type_name
-        display_data["payload"] = OrderedDict()
-
-        # Add output fields to payload section
-        for field_name in signature_order:
-            if field_name != "description":  # Skip description field
-                display_data["payload"][field_name] = ""
-
-        display_data["produced_by"] = agent.name
-        display_data["correlation_id"] = (
-            str(ctx.correlation_id) if ctx and ctx.correlation_id else None
-        )
-        display_data["partition_key"] = None
-        display_data["tags"] = "set()"
-        display_data["visibility"] = OrderedDict([("kind", "Public")])
-        display_data["created_at"] = "streaming..."
-        display_data["version"] = 1
-        display_data["status"] = status_field
 
         stream_buffers: defaultdict[str, list[str]] = defaultdict(list)
-        stream_buffers[status_field] = []
-        stream_sequence = 0  # Monotonic sequence for ordering
-
-        # Track background WebSocket broadcast tasks to prevent garbage collection
-        ws_broadcast_tasks: set[asyncio.Task] = set()
-
-        formatter = theme_dict = styles = agent_label = None
-        live_cm = nullcontext()
         overflow_mode = self.stream_vertical_overflow
 
         if not self.no_output:
-            # Import the patch function here to ensure it's applied
-            from flock.engines.dspy_engine import _ensure_live_crop_above
-
-            _ensure_live_crop_above()
             (
                 formatter,
                 theme_dict,
                 styles,
                 agent_label,
-            ) = self.prepare_stream_formatter(agent)
-            initial_panel = formatter.format_result(
-                display_data, agent_label, theme_dict, styles
-            )
-            live_cm = Live(
-                initial_panel,
+                live_cm,
+            ) = self._prepare_rich_env(
                 console=console,
-                refresh_per_second=4,
-                transient=False,
-                vertical_overflow=overflow_mode,
+                display_data=display_data,
+                agent=agent,
+                overflow_mode=overflow_mode,
             )
+        else:
+            formatter = theme_dict = styles = agent_label = None
+            live_cm = nullcontext()
+
+        timestamp_factory = lambda: datetime.now(UTC).isoformat()
 
         final_result: Any = None
+        tokens_emitted = 0
+        sinks: list[StreamSink] = []
+        rich_sink: RichSink | None = None
 
         with live_cm as live:
+            rich_sink = self._build_rich_sink(
+                live=live,
+                formatter=formatter,
+                display_data=display_data,
+                agent_label=agent_label,
+                theme_dict=theme_dict,
+                styles=styles,
+                status_field=status_field,
+                signature_order=signature_order,
+                stream_buffers=stream_buffers,
+                timestamp_factory=timestamp_factory,
+            )
 
-            def _refresh_panel() -> None:
-                if formatter is None or live is None:
-                    return
-                live.update(
-                    formatter.format_result(
-                        display_data, agent_label, theme_dict, styles
-                    )
-                )
+            ws_sink = self._build_websocket_sink(
+                ws_broadcast=ws_broadcast,
+                ctx=ctx,
+                agent=agent,
+                pre_generated_artifact_id=pre_generated_artifact_id,
+                artifact_type_name=artifact_type_name,
+            )
 
-            async for value in stream_generator:
-                try:
-                    from dspy.streaming import StatusMessage, StreamResponse
-                    from litellm import ModelResponseStream
-                except Exception:
-                    StatusMessage = object  # type: ignore
-                    StreamResponse = object  # type: ignore
-                    ModelResponseStream = object  # type: ignore
+            sinks = self._collect_sinks(rich_sink=rich_sink, ws_sink=ws_sink)
+            final_result, tokens_emitted = await self._consume_stream(
+                stream_generator, sinks, dspy_mod
+            )
 
-                if isinstance(value, StatusMessage):
-                    token = getattr(value, "message", "")
-                    if token:
-                        stream_buffers[status_field].append(str(token) + "\n")
-                        display_data["status"] = "".join(stream_buffers[status_field])
-
-                        # Emit to WebSocket (non-blocking to prevent deadlock)
-                        if ws_broadcast and token:
-                            try:
-                                event = StreamingOutputEvent(
-                                    correlation_id=str(ctx.correlation_id)
-                                    if ctx and ctx.correlation_id
-                                    else "",
-                                    agent_name=agent.name,
-                                    run_id=ctx.task_id if ctx else "",
-                                    output_type="llm_token",
-                                    content=str(token + "\n"),
-                                    sequence=stream_sequence,
-                                    is_final=False,
-                                    artifact_id=str(
-                                        pre_generated_artifact_id
-                                    ),  # Phase 6: Track artifact for message streaming
-                                    artifact_type=artifact_type_name,  # Phase 6: Artifact type name
-                                )
-                                # Use create_task to avoid blocking the streaming loop
-                                task = asyncio.create_task(ws_broadcast(event))
-                                ws_broadcast_tasks.add(task)
-                                task.add_done_callback(ws_broadcast_tasks.discard)
-                                stream_sequence += 1
-                            except Exception as e:
-                                logger.warning(f"Failed to emit streaming event: {e}")
-                        else:
-                            logger.debug(
-                                "No WebSocket manager present for streaming event."
-                            )
-
-                        if formatter is not None:
-                            _refresh_panel()
-                    continue
-
-                if isinstance(value, StreamResponse):
-                    token = getattr(value, "chunk", None)
-                    signature_field = getattr(value, "signature_field_name", None)
-                    if signature_field and signature_field != "description":
-                        # Update payload section - accumulate in "output" buffer
-                        buffer_key = f"_stream_{signature_field}"
-                        if token:
-                            stream_buffers[buffer_key].append(str(token))
-                            # Show streaming text in payload
-                            display_data["payload"]["_streaming"] = "".join(
-                                stream_buffers[buffer_key]
-                            )
-
-                            # Emit to WebSocket (non-blocking to prevent deadlock)
-                            if ws_broadcast:
-                                logger.info(
-                                    f"[STREAMING] Emitting StreamResponse token='{token}', sequence={stream_sequence}"
-                                )
-                                try:
-                                    event = StreamingOutputEvent(
-                                        correlation_id=str(ctx.correlation_id)
-                                        if ctx and ctx.correlation_id
-                                        else "",
-                                        agent_name=agent.name,
-                                        run_id=ctx.task_id if ctx else "",
-                                        output_type="llm_token",
-                                        content=str(token),
-                                        sequence=stream_sequence,
-                                        is_final=False,
-                                        artifact_id=str(
-                                            pre_generated_artifact_id
-                                        ),  # Phase 6: Track artifact for message streaming
-                                        artifact_type=artifact_type_name,  # Phase 6: Artifact type name
-                                    )
-                                    # Use create_task to avoid blocking the streaming loop
-                                    task = asyncio.create_task(ws_broadcast(event))
-                                    ws_broadcast_tasks.add(task)
-                                    task.add_done_callback(ws_broadcast_tasks.discard)
-                                    stream_sequence += 1
-                                except Exception as e:
-                                    logger.warning(
-                                        f"Failed to emit streaming event: {e}"
-                                    )
-
-                        if formatter is not None:
-                            _refresh_panel()
-                    continue
-
-                if isinstance(value, ModelResponseStream):
-                    chunk = value
-                    token = chunk.choices[0].delta.content or ""
-                    signature_field = getattr(value, "signature_field_name", None)
-
-                    if signature_field and signature_field != "description":
-                        # Update payload section - accumulate in buffer
-                        buffer_key = f"_stream_{signature_field}"
-                        if token:
-                            stream_buffers[buffer_key].append(str(token))
-                            # Show streaming text in payload
-                            display_data["payload"]["_streaming"] = "".join(
-                                stream_buffers[buffer_key]
-                            )
-                    elif token:
-                        stream_buffers[status_field].append(str(token))
-                        display_data["status"] = "".join(stream_buffers[status_field])
-
-                    # Emit to WebSocket (non-blocking to prevent deadlock)
-                    if ws_broadcast and token:
-                        try:
-                            event = StreamingOutputEvent(
-                                correlation_id=str(ctx.correlation_id)
-                                if ctx and ctx.correlation_id
-                                else "",
-                                agent_name=agent.name,
-                                run_id=ctx.task_id if ctx else "",
-                                output_type="llm_token",
-                                content=str(token),
-                                sequence=stream_sequence,
-                                is_final=False,
-                                artifact_id=str(
-                                    pre_generated_artifact_id
-                                ),  # Phase 6: Track artifact for message streaming
-                                artifact_type=display_data[
-                                    "type"
-                                ],  # Phase 6: Artifact type name from display_data
-                            )
-                            # Use create_task to avoid blocking the streaming loop
-                            task = asyncio.create_task(ws_broadcast(event))
-                            ws_broadcast_tasks.add(task)
-                            task.add_done_callback(ws_broadcast_tasks.discard)
-                            stream_sequence += 1
-                        except Exception as e:
-                            logger.warning(f"Failed to emit streaming event: {e}")
-
-                    if formatter is not None:
-                        _refresh_panel()
-                    continue
-
-                if isinstance(value, dspy_mod.Prediction):
-                    final_result = value
-
-                    # Emit final streaming event (non-blocking to prevent deadlock)
-                    if ws_broadcast:
-                        try:
-                            event = StreamingOutputEvent(
-                                correlation_id=str(ctx.correlation_id)
-                                if ctx and ctx.correlation_id
-                                else "",
-                                agent_name=agent.name,
-                                run_id=ctx.task_id if ctx else "",
-                                output_type="log",
-                                content="\nAmount of output tokens: "
-                                + str(stream_sequence),
-                                sequence=stream_sequence,
-                                is_final=True,  # Mark as final
-                                artifact_id=str(
-                                    pre_generated_artifact_id
-                                ),  # Phase 6: Track artifact for message streaming
-                                artifact_type=display_data[
-                                    "type"
-                                ],  # Phase 6: Artifact type name
-                            )
-                            # Use create_task to avoid blocking the streaming loop
-                            task = asyncio.create_task(ws_broadcast(event))
-                            ws_broadcast_tasks.add(task)
-                            task.add_done_callback(ws_broadcast_tasks.discard)
-                            event = StreamingOutputEvent(
-                                correlation_id=str(ctx.correlation_id)
-                                if ctx and ctx.correlation_id
-                                else "",
-                                agent_name=agent.name,
-                                run_id=ctx.task_id if ctx else "",
-                                output_type="log",
-                                content="--- End of output ---",
-                                sequence=stream_sequence,
-                                is_final=True,  # Mark as final
-                                artifact_id=str(
-                                    pre_generated_artifact_id
-                                ),  # Phase 6: Track artifact for message streaming
-                                artifact_type=display_data[
-                                    "type"
-                                ],  # Phase 6: Artifact type name
-                            )
-                            # Use create_task to avoid blocking the streaming loop
-                            task = asyncio.create_task(ws_broadcast(event))
-                            ws_broadcast_tasks.add(task)
-                            task.add_done_callback(ws_broadcast_tasks.discard)
-                        except Exception as e:
-                            logger.warning(f"Failed to emit final streaming event: {e}")
-
-                    if formatter is not None:
-                        # Update payload section with final values
-                        payload_data = OrderedDict()
-                        for field_name in signature_order:
-                            if field_name != "description" and hasattr(
-                                final_result, field_name
-                            ):
-                                field_value = getattr(final_result, field_name)
-
-                                # Convert BaseModel instances to dicts for proper table rendering
-                                if isinstance(field_value, list):
-                                    # Handle lists of BaseModel instances (fan-out/batch)
-                                    payload_data[field_name] = [
-                                        item.model_dump()
-                                        if isinstance(item, BaseModel)
-                                        else item
-                                        for item in field_value
-                                    ]
-                                elif isinstance(field_value, BaseModel):
-                                    # Handle single BaseModel instance
-                                    payload_data[field_name] = field_value.model_dump()
-                                else:
-                                    # Handle primitive types
-                                    payload_data[field_name] = field_value
-
-                        # Update all fields with actual values
-                        display_data["payload"].clear()
-                        display_data["payload"].update(payload_data)
-
-                        # Update timestamp
-                        from datetime import datetime
-
-                        display_data["created_at"] = datetime.now(UTC).isoformat()
-
-                        # Remove status field from display
-                        display_data.pop("status", None)
-                        _refresh_panel()
+        await self._flush_sinks(sinks)
 
         if final_result is None:
             raise RuntimeError("Streaming did not yield a final prediction.")
 
-        # Return both the result and the display data for final ID update
-        return final_result, (formatter, display_data, theme_dict, styles, agent_label)
+        stream_display = self._finalize_stream_display(
+            rich_sink=rich_sink,
+            formatter=formatter,
+            display_data=display_data,
+            theme_dict=theme_dict,
+            styles=styles,
+            agent_label=agent_label,
+        )
+
+        logger.info(
+            f"Agent {agent.name}: Rich streaming completed ({tokens_emitted} tokens)"
+        )
+
+        return final_result, stream_display
 
     def prepare_stream_formatter(
         self, agent: Any
