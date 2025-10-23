@@ -1,5 +1,9 @@
 """Server component library - Base classes and built-in components."""
 
+from flock.components.server.agents import (
+    AgentsServerComponent,
+    AgentsServerComponentConfig,
+)
 from flock.components.server.artifacts import (
     ArtifactBase,
     ArtifactComponentConfig,
@@ -38,6 +42,8 @@ __all__ = [
     "AgentActivatedEvent",
     "AgentCompletedEvent",
     "AgentErrorEvent",
+    "AgentsServerComponent",
+    "AgentsServerComponentConfig",
     "ArtifactBase",
     "ArtifactComponent",
     "ArtifactComponentConfig",
