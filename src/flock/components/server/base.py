@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, Field
 from pydantic._internal._model_construction import ModelMetaclass
 from typing_extensions import TypeVar
 
@@ -29,6 +29,14 @@ class ServerComponentConfig(BaseModel):
     enabled: bool = Field(
         default=True,
         description="Enable this component."
+    )
+    prefix: str = Field(
+        default="",
+        description="Optional Prefix for the routes of the ServerComponent"
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="OpenAPI tags to order the endpoints of the ServerComponent"
     )
 
 class ServerComponent(BaseModel):

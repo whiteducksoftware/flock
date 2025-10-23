@@ -233,12 +233,144 @@ class ControlRoutesComponent(ServerComponent):
                     "correlation_id": str(artifact.correlation_id),
                     "published_at": artifact.created_at.isoformat(),
                 }
+            except KeyError as ke:
+                logger.exception(
+                    f"ControlRoutesComponent: Unknown artifact type: {artifact_type}"
+                )
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unknown artifact type: {artifact_type}"
+                ) from ke
+            except Exception as ex:
+                logger.exception(
+                    f"Error publishing artifact: {ex!s}"
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=str(ex)
+                ) from ex
+
+        @app.post(self.config.prefix+"/control/invoke", tags=self.config.tags)
+        async def invoke_agent(body: dict[str, Any]) -> dict[str, Any]:
+            """Directly invoke a specific agent.
+
+            Request body:
+                {
+                    "agent_name": "agent_name",
+                    "input": {"type": "TypeName", "field": "value", ...}
+                }
+            Returns:
+                {
+                    "invocation_id": "<uuid>",
+                    "result": "success",
+                }
+            """
+            # Validate required fields
+            agent_name = body.get("agent_name")
+            input_data = body.get("input")
+            if not agent_name:
+                raise HTTPException(
+                    status_code=400,
+                    detail="agent_name is required"
+                )
+            if input_data is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="input is required"
+                )
+            try:
+                # Get agent from orchestrator
+                agent = orchestrator.get_agent(agent_name)
+            except KeyError:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Agent not found: {agent_name}"
+                )
+            try:
+                # Parse input type and create instance
+                input_type = input_data.get("type")
+                if not input_type:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="input.type is required"
+                    )
+                # Resolve type from registry
+                model_class = type_registry.resolve(input_type)
+                # Create payload by removing 'type' key
+                payload = {
+                    k:v for k,v in input_data.items()
+                    if k != "type"
+                }
+                # Validate and create instance
+                try:
+                    instance = model_class(**payload)
+                except ValidationError as ex:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"Validation error: {ex!s}"
+                    )
+                # Invoke agent
+                outputs = await orchestrator.invoke(
+                    agent,
+                    instance,
+                )
+                # Generate invocation ID from first output or create new UUID
+                invocation_id = str(outputs[0].id) if outputs else str(uuid4())
+                # Extract correlation_id from first output (for filter automation)
+                correlation_id = (
+                    str(outputs[0].correlation_id)
+                    if outputs and outputs[0].correlation_id
+                    else None
+                )
+                return {
+                    "invocation_id": invocation_id,
+                    "correlation_id": correlation_id,
+                    "result": "success"
+                }
+            except HTTPException:
+                raise
+            except KeyError:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unknown type: {input_type}"
+                )
+            except Exception as ex:
+                logger.exception(f"Error invoking agent: {ex!s}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=str(ex)
+                )
+
+        @app.post(self.config.prefix+"control/pause", tags=self.config.tags)
+        async def pause_orchestrator() -> dict[str, Any]:
+            """"Pause orchestrator (placeholder).
+
+            Returns:
+                501 Not implemented
+            """
+            raise HTTPException(
+                status_code=501,
+                detail="Pause functionality coming in Phase 12"
+            )
+        @app.post(self.config.prefix+"control/resumt", tags=self.config.tags)
+        async def resume_orchestrator() -> dict[str, Any]:
+            """Resume orchestrator (placeholder).
+
+            Returns:
+                501 Not Implemented
+            """
+            raise HTTPException(
+                status_code=501,
+                detail="Resume functionality coming in Phase 12"
+            )
 
     async def on_startup_async(self, orchestrator):
-        return await super().on_startup_async(orchestrator)
+        # No-op
+        pass
 
     async def on_shutdown_async(self, orchestrator):
-        return await super().on_shutdown_async(orchestrator)
+        # No-op
+        pass
 
     def get_dependencies(self):
         # No dependencies

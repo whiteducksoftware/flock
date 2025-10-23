@@ -17,7 +17,7 @@ from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.core.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 
 
-class ArtifactComponentConfiguration(ServerComponentConfig):
+class ArtifactComponentConfig(ServerComponentConfig):
     """Configuration for Artifacts Component."""
     prefix: str = Field(
         default="/api/v1",
@@ -31,8 +31,8 @@ class ArtifactComponentConfiguration(ServerComponentConfig):
 class ArtifactsComponent(ServerComponent):
     """ServerComponent that provides Endpoints to interact with artifacts on the Blackboard"""
     name: str = "artifacts"
-    config: ArtifactComponentConfiguration = Field(
-        default_factory=ArtifactComponentConfiguration,
+    config: ArtifactComponentConfig = Field(
+        default_factory=ArtifactComponentConfig,
         description="Configuration for the artifact component."
     )
     priority: int = Field(

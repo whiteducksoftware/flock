@@ -2,7 +2,7 @@
 
 from flock.components.server.artifacts import (
     ArtifactBase,
-    ArtifactComponentConfiguration,
+    ArtifactComponentConfig,
     ArtifactPublishRequest,
     ArtifactPublishResponse,
     ArtifactsComponent,
@@ -14,6 +14,10 @@ from flock.components.server.artifacts import (
     VisibilityInfo,
 )
 from flock.components.server.base import ServerComponent, ServerComponentConfig
+from flock.components.server.control import (
+    ControlRoutesComponent,
+    ControlRoutesComponentConfig,
+)
 from flock.components.server.health import HealthAndMetricsComponent, HealthResponse
 from flock.components.server.models import (
     AgentActivatedEvent,
@@ -27,6 +31,7 @@ from flock.components.server.models import (
     VisibilitySpec,
 )
 from flock.components.server.themes import ThemesComponent, ThemesComponentConfig
+from flock.components.server.traces import TracingComponent, TracingComponentConfig
 
 
 __all__ = [
@@ -35,7 +40,7 @@ __all__ = [
     "AgentErrorEvent",
     "ArtifactBase",
     "ArtifactComponent",
-    "ArtifactComponentConfiguration",
+    "ArtifactComponentConfig",
     "ArtifactPublishRequest",
     "ArtifactPublishResponse",
     "ArtifactSummary",
@@ -45,6 +50,8 @@ __all__ = [
     "ArtifactsComponent",
     "BatchItemAddedEvent",
     "ConsumptionRecord",
+    "ControlRoutesComponent",
+    "ControlRoutesComponentConfig",
     "CorrelationGroupUpdatedEvent",
     "HealthAndMetricsComponent",
     "HealthResponse",
@@ -56,6 +63,8 @@ __all__ = [
     "SubscriptionInfo",
     "ThemesComponent",
     "ThemesComponentConfig",
+    "TracingComponent",
+    "TracingComponentConfig",
     "VisibilityInfo",
     "VisibilitySpec",
 ]

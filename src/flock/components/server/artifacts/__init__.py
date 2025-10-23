@@ -1,6 +1,6 @@
 """Module for the Artifact ServerComponent."""
 from flock.components.server.artifacts.artifacts_component import (
-    ArtifactComponentConfiguration,
+    ArtifactComponentConfig,
     ArtifactsComponent,
 )
 from flock.components.server.artifacts.models import (
@@ -18,7 +18,7 @@ from flock.components.server.artifacts.models import (
 
 __all__ = [
     "ArtifactBase",
-    "ArtifactComponentConfiguration",
+    "ArtifactComponentConfig",
     "ArtifactPublishRequest",
     "ArtifactPublishResponse",
     "ArtifactSummary",
