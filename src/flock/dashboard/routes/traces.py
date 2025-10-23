@@ -360,7 +360,7 @@ def register_trace_routes(
             }
         """
         try:
-            history = websocket_manager.get_streaming_history(agent_name)
+            history = await websocket_manager.get_streaming_history(agent_name)
             return {
                 "agent_name": agent_name,
                 "events": [event.model_dump() for event in history],
