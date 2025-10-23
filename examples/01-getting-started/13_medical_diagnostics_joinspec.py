@@ -13,8 +13,9 @@ from datetime import timedelta
 from pydantic import BaseModel, Field
 
 from flock import Flock
+from flock.core.subscription import JoinSpec
 from flock.registry import flock_type
-from flock.subscription import JoinSpec
+
 
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
