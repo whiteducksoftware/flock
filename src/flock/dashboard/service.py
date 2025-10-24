@@ -12,15 +12,14 @@ from typing import Any
 
 from fastapi.middleware.cors import CORSMiddleware
 
+from flock.api.collector import DashboardEventCollector
 from flock.api.service import BlackboardHTTPService
 from flock.core import Flock
-from flock.api.collector import DashboardEventCollector
 from flock.dashboard.graph_builder import GraphAssembler
 from flock.dashboard.routes import (
     register_control_routes,
     register_theme_routes,
     register_trace_routes,
-    register_websocket_routes,
 )
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger

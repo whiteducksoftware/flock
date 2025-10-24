@@ -2,11 +2,13 @@
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import Field
+
 from docs.patterns.server_component_skeleton import ServerComponentConfig
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent
 from flock.core.orchestrator import Flock
 from flock.logging.logging import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -17,7 +19,7 @@ class WebSocketComponentConfig(ServerComponentConfig):
         description="Optional Prefix for the Websocket Endpoint."
     )
     tags: list[str] = Field(
-        default=["WebsSocket"],
+        default=["WebSocket"],
         description="OpenAPI Tags for Endpoints."
     )
     hearbeat_interval: int = Field(

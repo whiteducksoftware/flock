@@ -12,7 +12,7 @@ from flock.components.agent import EngineComponent
 from flock.core import Flock
 from flock.core.store import InMemoryBlackboardStore
 from flock.api.collector import DashboardEventCollector
-from flock.dashboard.events import (
+from flock.api.events import (
     AgentCompletedEvent,
     MessagePublishedEvent,
 )
@@ -190,7 +190,7 @@ async def test_error_event_capture():
         await orchestrator.invoke(failing_agent, idea)
 
     # Verify error event was captured
-    from flock.dashboard.events import AgentErrorEvent
+    from flock.api.events import AgentErrorEvent
 
     error_events = [e for e in collector.events if isinstance(e, AgentErrorEvent)]
     assert len(error_events) == 1
@@ -229,7 +229,7 @@ async def test_multiple_runs_accumulate_events():
         await orchestrator.invoke(agent, idea)
 
     # Verify events accumulated (at least 5 completed events)
-    from flock.dashboard.events import AgentCompletedEvent
+    from flock.api.events import AgentCompletedEvent
 
     completed_events = [
         e for e in collector.events if isinstance(e, AgentCompletedEvent)

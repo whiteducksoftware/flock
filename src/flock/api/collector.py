@@ -18,7 +18,7 @@ from pydantic import PrivateAttr
 
 from flock.components.agent import AgentComponent
 from flock.core.store import AgentSnapshotRecord, BlackboardStore
-from flock.dashboard.events import (
+from flock.api.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
     AgentErrorEvent,

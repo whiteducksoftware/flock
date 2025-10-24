@@ -18,7 +18,7 @@ from typing import Any, Awaitable, Callable, Sequence
 
 from pydantic import BaseModel
 
-from flock.dashboard.events import StreamingOutputEvent
+from flock.api.events import StreamingOutputEvent
 from flock.engines.streaming.sinks import RichSink, StreamSink, WebSocketSink
 from flock.logging.logging import get_logger
 

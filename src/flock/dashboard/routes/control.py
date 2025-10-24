@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from flock.core import Flock
 from flock.api.collector import DashboardEventCollector
-from flock.dashboard.events import MessagePublishedEvent, VisibilitySpec
+from flock.api.events import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger
 from flock.registry import type_registry

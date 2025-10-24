@@ -20,7 +20,7 @@ from flock.core.visibility import (
     TenantVisibility,
 )
 from flock.api.collector import DashboardEventCollector
-from flock.dashboard.events import (
+from flock.api.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
     AgentErrorEvent,

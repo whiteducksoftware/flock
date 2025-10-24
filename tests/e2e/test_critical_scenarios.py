@@ -7,7 +7,7 @@ Tests the 4 critical scenarios from SDD_COMPLETION.md (lines 444-493):
 4. IndexedDB LRU Eviction (storage quota management)
 
 SPECIFICATION: docs/specs/003-real-time-dashboard/SDD_COMPLETION.md Section: Critical Test Scenarios
-
+s
 These tests validate the complete stack behavior from Python backend through WebSocket
 to TypeScript frontend visualization.
 """
@@ -24,7 +24,7 @@ from flock.core.artifacts import Artifact
 from flock.core.store import InMemoryBlackboardStore
 from flock.core.visibility import PublicVisibility
 from flock.api.collector import DashboardEventCollector
-from flock.dashboard.events import (
+from flock.api.events import (
     AgentActivatedEvent,
     MessagePublishedEvent,
     StreamingOutputEvent,

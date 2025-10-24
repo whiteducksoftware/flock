@@ -85,7 +85,7 @@ class EventEmitter:
         for group_state in groups:
             if not group_state["is_complete"]:
                 # Import CorrelationGroupUpdatedEvent
-                from flock.dashboard.events import CorrelationGroupUpdatedEvent
+                from flock.api.events import CorrelationGroupUpdatedEvent
 
                 # Build and emit event
                 event = CorrelationGroupUpdatedEvent(
@@ -143,7 +143,7 @@ class EventEmitter:
             return  # No batch to report (shouldn't happen, but defensive)
 
         # Import BatchItemAddedEvent
-        from flock.dashboard.events import BatchItemAddedEvent
+        from flock.api.events import BatchItemAddedEvent
 
         # Build and emit event
         event = BatchItemAddedEvent(

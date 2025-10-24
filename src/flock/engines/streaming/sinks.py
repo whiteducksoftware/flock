@@ -82,7 +82,7 @@ from typing import (
 
 from pydantic import BaseModel
 
-from flock.dashboard.events import StreamingOutputEvent
+from flock.api.events import StreamingOutputEvent
 from flock.logging.logging import get_logger
 
 

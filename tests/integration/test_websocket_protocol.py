@@ -17,7 +17,7 @@ from flock.core.artifacts import Artifact
 from flock.core.store import InMemoryBlackboardStore
 from flock.core.visibility import PublicVisibility
 from flock.api.collector import DashboardEventCollector
-from flock.dashboard.events import (
+from flock.api.events import (
     AgentActivatedEvent,
     AgentErrorEvent,
     MessagePublishedEvent,
@@ -420,7 +420,7 @@ async def test_json_serialization_deserialization_roundtrip(
     await websocket_manager.add_client(mock_websocket_client)
 
     # Create event with various data types
-    from flock.dashboard.events import VisibilitySpec
+    from flock.api.events import VisibilitySpec
 
     event = MessagePublishedEvent(
         artifact_id=str(uuid4()),
@@ -473,7 +473,7 @@ async def test_websocket_latency_target(
     await websocket_manager.add_client(mock_websocket_client)
 
     # Create simple event
-    from flock.dashboard.events import SubscriptionInfo
+    from flock.api.events import SubscriptionInfo
 
     event = AgentActivatedEvent(
         agent_name="test",

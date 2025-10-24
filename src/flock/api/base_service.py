@@ -2,7 +2,6 @@
 
 from contextlib import asynccontextmanager
 from importlib.metadata import version
-from typing import Self
 
 from fastapi import FastAPI
 

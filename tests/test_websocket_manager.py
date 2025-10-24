@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from flock.dashboard.events import (
+from flock.api.events import (
     AgentActivatedEvent,
     MessagePublishedEvent,
     SubscriptionInfo,
@@ -391,7 +391,7 @@ async def test_remove_client_with_nonexistent_client():
 async def test_broadcast_stores_streaming_history():
     """Test broadcast stores streaming output events in history."""
     try:
-        from flock.dashboard.events import StreamingOutputEvent
+        from flock.api.events import StreamingOutputEvent
         from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
@@ -422,7 +422,7 @@ async def test_broadcast_stores_streaming_history():
 async def test_broadcast_stores_streaming_history_with_max_length():
     """Test streaming history respects maxlen parameter."""
     try:
-        from flock.dashboard.events import StreamingOutputEvent
+        from flock.api.events import StreamingOutputEvent
         from flock.dashboard.websocket import WebSocketManager
 
         # Small maxlen for testing
@@ -496,7 +496,7 @@ async def test_broadcast_message_serialization():
 async def test_broadcast_logging_with_no_clients():
     """Test broadcast logging when no clients are connected."""
     try:
-        from flock.dashboard.events import AgentActivatedEvent
+        from flock.api.events import AgentActivatedEvent
         from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
@@ -857,7 +857,7 @@ async def test_shutdown_with_real_websocket_methods():
 async def test_get_streaming_history_for_existing_agent():
     """Test get_streaming_history returns list for existing agent."""
     try:
-        from flock.dashboard.events import StreamingOutputEvent
+        from flock.api.events import StreamingOutputEvent
         from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
@@ -962,7 +962,7 @@ async def test_concurrent_client_addition_removal():
 async def test_stress_concurrent_broadcasts():
     """Test stress scenario with many concurrent broadcasts."""
     try:
-        from flock.dashboard.events import StreamingOutputEvent
+        from flock.api.events import StreamingOutputEvent
         from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
@@ -1022,7 +1022,7 @@ async def test_memory_management_with_many_connections():
     assert len(manager.clients) == initial_client_count
 
     # Broadcast to all clients
-    from flock.dashboard.events import AgentCompletedEvent
+    from flock.api.events import AgentCompletedEvent
 
     event = AgentCompletedEvent(
         agent_name="test_agent",
@@ -1049,7 +1049,7 @@ async def test_memory_management_with_many_connections():
 async def test_message_ordering_under_concurrency():
     """Test message ordering is preserved under concurrent operations."""
     try:
-        from flock.dashboard.events import MessagePublishedEvent
+        from flock.api.events import MessagePublishedEvent
         from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
@@ -1121,7 +1121,7 @@ async def test_error_recovery_during_broadcast():
         await manager.add_client(client)
 
     # Send multiple broadcasts to trigger failures
-    from flock.dashboard.events import AgentActivatedEvent
+    from flock.api.events import AgentActivatedEvent
 
     for i in range(5):
         event = AgentActivatedEvent(
@@ -1155,7 +1155,7 @@ async def test_error_recovery_during_broadcast():
 async def test_websocket_json_serialization_edge_cases():
     """Test JSON serialization with edge cases and special characters."""
     try:
-        from flock.dashboard.events import MessagePublishedEvent
+        from flock.api.events import MessagePublishedEvent
         from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
@@ -1230,7 +1230,7 @@ async def test_websocket_json_serialization_edge_cases():
 async def test_connection_pool_under_stress():
     """Test connection pool management under high stress conditions."""
     try:
-        from flock.dashboard.events import StreamingOutputEvent
+        from flock.api.events import StreamingOutputEvent
         from flock.dashboard.websocket import WebSocketManager
 
         manager = WebSocketManager()
@@ -1299,7 +1299,7 @@ async def test_timeout_scenarios():
     await manager.add_client(normal_ws2)
 
     # Send a broadcast to test normal operation
-    from flock.dashboard.events import AgentErrorEvent
+    from flock.api.events import AgentErrorEvent
 
     event = AgentErrorEvent(
         agent_name="test_agent",

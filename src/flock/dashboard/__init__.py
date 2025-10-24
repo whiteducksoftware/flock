@@ -5,7 +5,7 @@ Phase 3: WebSocket infrastructure for real-time communication.
 """
 
 from flock.api.collector import DashboardEventCollector
-from flock.dashboard.events import (
+from flock.api.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
     AgentErrorEvent,

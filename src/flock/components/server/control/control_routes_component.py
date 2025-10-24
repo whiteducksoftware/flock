@@ -2,13 +2,16 @@
 
 from typing import Any
 from uuid import uuid4
+
 from fastapi import HTTPException
 from pydantic import Field, ValidationError
+
+from flock.api.events import MessagePublishedEvent, VisibilitySpec
 from flock.components.server.base import ServerComponent, ServerComponentConfig
-from flock.components.server.models.models import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
+
 
 logger = get_logger(__name__)
 
@@ -198,7 +201,7 @@ class ControlRoutesComponent(ServerComponent):
                 try:
                     instance = model_class(**content)
                 except ValidationError as ex:
-                    logger.error(f"ControlRoutesComponent: failed to validate body for type '{artifact_type}': {ex!s}")
+                    logger.exception(f"ControlRoutesComponent: failed to validate body for type '{artifact_type}': {ex!s}")
                     raise HTTPException(
                         status_code=422,
                         detail=f"Validation error: {ex!s}"

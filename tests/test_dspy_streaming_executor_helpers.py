@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from flock.dashboard.events import StreamingOutputEvent
+from flock.api.events import StreamingOutputEvent
 from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor
 from flock.engines.streaming.sinks import RichSink, WebSocketSink
 
