@@ -11,7 +11,7 @@ from typing import Union
 
 from fastapi import WebSocket
 
-from flock.components.server.models.events import (
+from flock.components.server.models.models import (
     AgentActivatedEvent,
     AgentCompletedEvent,
     AgentErrorEvent,
@@ -59,7 +59,7 @@ class WebSocketManager:
     _initialized: bool = False
 
     def __new__(
-        cls, _heartbeat_interval: int = 120, _enable_heartbeat: bool = False
+        cls,
     ):
         """Create or return the singleton instance (thread-safe).
 
@@ -109,9 +109,16 @@ class WebSocketManager:
             Initialization only happens once. Subsequent calls with different parameters
             will be ignored and return the already-initialized singleton instance.
         """
-        # Only initialize once (singleton pattern)
-        if self._initialized:
-            return
+        # Guard against re-initialization
+        if(self._initialized and (heartbeat_interval != self._heartbeat_interval or enable_heartbeat != self._enable_heartbeat)):
+                logger.warning(
+                    "WebSocketManager singleton already initialized with "
+                    f"heartbeat_interval={self._heartbeat_interval}, "
+                    f"enable_heartbeat={self._enable_heartbeat} "
+                    f"Ignoring new parameters: heartbeat_interval={heartbeat_interval}, "
+                    f"enable_heartbeat={enable_heartbeat}"
+                )
+                return
 
         # Store parameters for async initialization
         self._heartbeat_interval = heartbeat_interval
@@ -348,6 +355,14 @@ class WebSocketManager:
         """
         async with self._history_lock:
             return list(self._streaming_history.get(agent_name, []))
+
+    async def _clear_pool(self) -> None:
+        """Clear the Pool (dangerous)."""
+        async with self._clients_lock:
+            client_count = len(self.clients)
+            self.clients.clear()
+            clean_count = len(self.clients)
+            logger.info(f"Removed a total of {client_count} clients from the pool. Pool now contains {clean_count} clients.")
 
 
 __all__ = ["WebSocketEvent", "WebSocketManager"]

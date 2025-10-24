@@ -5,7 +5,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 
-from flock.dashboard.collector import AgentSnapshot, DashboardEventCollector
+from flock.api.collector import AgentSnapshot, DashboardEventCollector
 from flock.dashboard.models.graph import (
     GraphAgentMetrics,
     GraphArtifact,

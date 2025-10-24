@@ -4,7 +4,7 @@ Phase 1: Backend event capture system.
 Phase 3: WebSocket infrastructure for real-time communication.
 """
 
-from flock.dashboard.collector import DashboardEventCollector
+from flock.api.collector import DashboardEventCollector
 from flock.dashboard.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,

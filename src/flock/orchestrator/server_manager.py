@@ -176,7 +176,7 @@ class ServerManager:
             port: Port to bind to
         """
         from flock.core import Agent
-        from flock.dashboard.collector import DashboardEventCollector
+        from flock.api.collector import DashboardEventCollector
         from flock.dashboard.launcher import DashboardLauncher
         from flock.dashboard.service import DashboardHTTPService
         from flock.dashboard.websocket import WebSocketManager

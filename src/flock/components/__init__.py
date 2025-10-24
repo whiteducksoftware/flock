@@ -1,4 +1,4 @@
-"""Component library for extending Flock agents and orchestrators."""
+"""Component library for extending Flock agents, orchestrators, and the internal server of Flock."""
 
 # Agent components
 from flock.components.agent import (

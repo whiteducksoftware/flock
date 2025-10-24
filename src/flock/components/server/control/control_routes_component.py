@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 from pydantic import Field, ValidationError
 from flock.components.server.base import ServerComponent, ServerComponentConfig
-from flock.components.server.models.events import MessagePublishedEvent, VisibilitySpec
+from flock.components.server.models.models import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger
 from flock.registry import type_registry

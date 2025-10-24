@@ -19,7 +19,7 @@ from flock.core.visibility import (
     PublicVisibility,
     TenantVisibility,
 )
-from flock.dashboard.collector import DashboardEventCollector
+from flock.api.collector import DashboardEventCollector
 from flock.dashboard.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,

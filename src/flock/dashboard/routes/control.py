@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import ValidationError
 
 from flock.core import Flock
-from flock.dashboard.collector import DashboardEventCollector
+from flock.api.collector import DashboardEventCollector
 from flock.dashboard.events import MessagePublishedEvent, VisibilitySpec
 from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger

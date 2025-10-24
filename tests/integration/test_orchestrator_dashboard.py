@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from flock.dashboard.collector import DashboardEventCollector
+from flock.api.collector import DashboardEventCollector
 
 
 @pytest.fixture

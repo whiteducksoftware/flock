@@ -19,7 +19,7 @@ from flock.core import Flock
 from flock.core.artifacts import Artifact
 from flock.core.store import InMemoryBlackboardStore
 from flock.core.visibility import PublicVisibility
-from flock.dashboard.collector import DashboardEventCollector
+from flock.api.collector import DashboardEventCollector
 
 
 @pytest.fixture

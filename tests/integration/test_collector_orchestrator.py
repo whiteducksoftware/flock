@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from flock.components.agent import EngineComponent
 from flock.core import Flock
 from flock.core.store import InMemoryBlackboardStore
-from flock.dashboard.collector import DashboardEventCollector
+from flock.api.collector import DashboardEventCollector
 from flock.dashboard.events import (
     AgentCompletedEvent,
     MessagePublishedEvent,

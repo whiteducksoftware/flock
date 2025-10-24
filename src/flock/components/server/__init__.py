@@ -34,8 +34,16 @@ from flock.components.server.models import (
     SubscriptionInfo,
     VisibilitySpec,
 )
+from flock.components.server.static_files import (
+    StaticFilesComponentConfig,
+    StaticFilesServerComponent,
+)
 from flock.components.server.themes import ThemesComponent, ThemesComponentConfig
 from flock.components.server.traces import TracingComponent, TracingComponentConfig
+from flock.components.server.websocket import (
+    WebSocketComponentConfig,
+    WebSocketServerComponent,
+)
 
 
 __all__ = [
@@ -65,6 +73,8 @@ __all__ = [
     "PaginationInfo",
     "ServerComponent",
     "ServerComponentConfig",
+    "StaticFilesComponentConfig",
+    "StaticFilesServerComponent",
     "StreamingOutputEvent",
     "SubscriptionInfo",
     "ThemesComponent",
@@ -73,4 +83,6 @@ __all__ = [
     "TracingComponentConfig",
     "VisibilityInfo",
     "VisibilitySpec",
+    "WebSocketComponentConfig",
+    "WebSocketServerComponent",
 ]

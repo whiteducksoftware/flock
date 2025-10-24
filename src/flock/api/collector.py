@@ -98,7 +98,22 @@ class DashboardEventCollector(AgentComponent):
 
     Phase 1: Events stored in in-memory deque (max 100, LRU eviction).
     Phase 3: Emits events via WebSocket using WebSocketManager.
+
+    Thread Safety:
+    - Uses asyncio.Lock for all mutable state access (events, run_registry, etc.)
+    - All operations that modify state are protected by async locks
+    - No deadlocks: locks are always acquired in the same order and held briefly
+    - Separate locks for different concerns to minimize contention
+
+    Singleton:
+    - __new__ override to ensure a single singleton instance
+    - Singleton is used across entire application
+    - all calls to DashboardEventCollector(...) will return the same instance, initialized with the parameters from the first call.
     """
+
+    _instance: "DashboardEventCollector | None" = None
+    _instance_lock: asyncio.Lock = asyncio.Lock()
+    _initialized: bool = False
 
     priority: int = -100  # Run before other agent utilities for event capture
 
@@ -116,46 +131,117 @@ class DashboardEventCollector(AgentComponent):
     # WebSocketManager for broadcasting events
     _websocket_manager: Optional["WebSocketManager"] = PrivateAttr(default=None)
 
-    # Graph assembly helpers
+    # Asyncio locks for thread-safe operations (separate locks to minimize contention)
+    _events_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
+    _run_times_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
     _graph_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
+    _snapshots_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
+
+    # Graph assembly helpers (protected by _graph_lock)
     _run_registry: dict[str, RunRecord] = PrivateAttr(default_factory=dict)
     _artifact_consumers: dict[str, set[str]] = PrivateAttr(
         default_factory=lambda: defaultdict(set)
     )
     _agent_status: dict[str, str] = PrivateAttr(default_factory=dict)
+
+    # Agent snapshots (protected by _snapshots_lock)
     _agent_snapshots: dict[str, AgentSnapshot] = PrivateAttr(default_factory=dict)
 
+    @classmethod
+    async def reset_singleton(cls) -> None:
+        """Reset the singleton instance (primarily for testing).
+
+        Warning:
+            This should only be used in tests. Calling this in production
+            while DashboardEventCollector is already running my lead to unexpected behavior.
+        """
+        async with cls._instance_lock:
+            if cls._instance is not None:
+                logger.warning("Resetting DasboardEventCollector instance")
+            cls._instance = None
+            cls._initialized = False
+
+    def __new__(cls):
+        """Create or return the singleton instance (thread-safe).
+
+        Returns:
+            The singleton DashboardEventCollector instance.
+        """
+        # Simple singleton pattern - lock is acquired in async __ainit__ if needed
+        if cls._instance is None:
+            instance = super().__new__(cls)
+            cls._instance = instance
+            cls._initialized = True
+
     def __init__(self, *, store: BlackboardStore | None = None, **data):
+
+        # Guard against re-initialization
+        if self._initialized:
+            logger.warning(
+                "DasboardEventCollector singleton already initialized. Ignoring new parameters"
+            )
+            return
+
         super().__init__(**data)
-        # In-memory buffer with max 100 events (LRU eviction)
+        # In-memory buffer with max 100 events (LRU eviction) - protected by _events_lock
         self._events = deque(maxlen=100)
+        # Run start times - protected by _run_times_lock
         self._run_start_times = {}
         self._websocket_manager = None
+
+        # Initialize locks
+        self._events_lock = asyncio.Lock()
+        self._run_times_lock = asyncio.Lock()
         self._graph_lock = asyncio.Lock()
+        self._snapshots_lock = asyncio.Lock()
+
+        # Graph state - protected by _graph_lock
         self._run_registry = {}
         self._artifact_consumers = defaultdict(set)
         self._agent_status = {}
+
+        # Snapshot state - protected by _snapshots_lock
+        self._agent_snapshots = {}
+
         self._store: BlackboardStore | None = store
         self._persistent_loaded = False
-        self._agent_snapshots = {}
 
     def set_websocket_manager(self, manager: "WebSocketManager") -> None:
         """Set WebSocketManager for broadcasting events.
 
         Args:
             manager: WebSocketManager instance to use for broadcasting
+
+        Note:
+            This is a simple setter that doesn't require locking as it's
+            typically called once during initialization before any concurrent access.
         """
         self._websocket_manager = manager
 
     @property
     def events(self) -> deque:
-        """Access events buffer."""
+        """Access events buffer.
+
+        Warning:
+            Direct access to events buffer is not thread-safe.
+            For thread-safe access, use async methods like snapshot_events() instead.
+            This property is maintained for backward compatibility.
+        """
         return self._events
+
+    async def snapshot_events(self) -> list:
+        """Get thread-safe snapshot of current events.
+
+        Returns:
+            List of events (copy of deque contents)
+        """
+        async with self._events_lock:
+            return list(self._events)
 
     async def on_pre_consume(
         self, agent: "Agent", ctx: Context, inputs: list["Artifact"]
     ) -> list["Artifact"]:
-        """Emit agent_activated event when agent begins consuming.
+        """Emit agent_activated event when agent begins consuming (thread-safe).
 
         Args:
             agent: The agent that is consuming
@@ -165,8 +251,9 @@ class DashboardEventCollector(AgentComponent):
         Returns:
             Unmodified inputs (pass-through)
         """
-        # Record start time for duration calculation
-        self._run_start_times[ctx.task_id] = datetime.now(UTC).timestamp()
+        # Record start time for duration calculation (separate lock)
+        async with self._run_times_lock:
+            self._run_start_times[ctx.task_id] = datetime.now(UTC).timestamp()
 
         # Extract consumed types and artifact IDs
         consumed_types = list({artifact.type for artifact in inputs})
@@ -176,6 +263,8 @@ class DashboardEventCollector(AgentComponent):
         produced_types = [output.spec.type_name for output in agent.outputs]
 
         correlation_id = str(ctx.correlation_id) if ctx.correlation_id else ""
+
+        # Update graph state (hold lock briefly)
         async with self._graph_lock:
             run = self._ensure_run_record(
                 run_id=ctx.task_id,
@@ -189,7 +278,9 @@ class DashboardEventCollector(AgentComponent):
                     run.consumed_artifacts.append(artifact_id)
                 self._artifact_consumers[artifact_id].add(agent.name)
             self._agent_status[agent.name] = "running"
-            await self._update_agent_snapshot_locked(agent)
+
+        # Update agent snapshot (separate lock to avoid contention)
+        await self._update_agent_snapshot(agent)
 
         # Build subscription info from agent's subscriptions
         subscription_info = SubscriptionInfo(from_agents=[], tags=[], mode="both")
@@ -203,7 +294,7 @@ class DashboardEventCollector(AgentComponent):
             subscription_info.tags = list(sub.tags) if sub.tags else []
             subscription_info.mode = sub.mode
 
-        # Create and store event
+        # Create event
         event = AgentActivatedEvent(
             correlation_id=correlation_id,
             agent_name=agent.name,
@@ -218,7 +309,10 @@ class DashboardEventCollector(AgentComponent):
             max_concurrency=agent.max_concurrency,
         )
 
-        self._events.append(event)
+        # Store event (separate lock for events buffer)
+        async with self._events_lock:
+            self._events.append(event)
+
         logger.info(
             f"Agent activated: {agent.name} (correlation_id={event.correlation_id})"
         )
@@ -234,7 +328,7 @@ class DashboardEventCollector(AgentComponent):
     async def on_post_publish(
         self, agent: "Agent", ctx: Context, artifact: "Artifact"
     ) -> None:
-        """Emit message_published event when artifact is published.
+        """Emit message_published event when artifact is published (thread-safe).
 
         Args:
             agent: The agent that published the artifact
@@ -246,6 +340,7 @@ class DashboardEventCollector(AgentComponent):
         correlation_id = str(ctx.correlation_id) if ctx.correlation_id else ""
         artifact_id = str(artifact.id)
 
+        # Update graph state (hold lock briefly)
         async with self._graph_lock:
             run = self._ensure_run_record(
                 run_id=ctx.task_id,
@@ -256,9 +351,11 @@ class DashboardEventCollector(AgentComponent):
             run.status = "active"
             if artifact_id not in run.produced_artifacts:
                 run.produced_artifacts.append(artifact_id)
-            await self._update_agent_snapshot_locked(agent)
 
-        # Create and store event
+        # Update agent snapshot (separate lock)
+        await self._update_agent_snapshot(agent)
+
+        # Create event
         event = MessagePublishedEvent(
             correlation_id=correlation_id,
             artifact_id=str(artifact.id),
@@ -272,7 +369,10 @@ class DashboardEventCollector(AgentComponent):
             consumers=[],  # Phase 1: empty, Phase 3: compute from subscription matching
         )
 
-        self._events.append(event)
+        # Store event (separate lock)
+        async with self._events_lock:
+            self._events.append(event)
+
         logger.info(
             f"Message published: {artifact.type} by {artifact.produced_by} (correlation_id={event.correlation_id})"
         )
@@ -284,19 +384,20 @@ class DashboardEventCollector(AgentComponent):
             logger.warning("WebSocket manager not configured, event not broadcast")
 
     async def on_terminate(self, agent: "Agent", ctx: Context) -> None:
-        """Emit agent_completed event when agent finishes successfully.
+        """Emit agent_completed event when agent finishes successfully (thread-safe).
 
         Args:
             agent: The agent that completed
             ctx: Execution context with final state
         """
-        # Calculate duration
-        start_time = self._run_start_times.get(ctx.task_id)
-        if start_time:
-            duration_ms = (datetime.now(UTC).timestamp() - start_time) * 1000
-            del self._run_start_times[ctx.task_id]
-        else:
-            duration_ms = 0.0
+        # Calculate duration (separate lock)
+        async with self._run_times_lock:
+            start_time = self._run_start_times.get(ctx.task_id)
+            if start_time:
+                duration_ms = (datetime.now(UTC).timestamp() - start_time) * 1000
+                del self._run_start_times[ctx.task_id]
+            else:
+                duration_ms = 0.0
 
         # Extract artifacts produced from context state (if tracked)
         artifacts_produced = ctx.state.get("artifacts_produced", [])
@@ -308,7 +409,7 @@ class DashboardEventCollector(AgentComponent):
         if not isinstance(metrics, dict):
             metrics = {}
 
-        # Create and store event
+        # Create event
         event = AgentCompletedEvent(
             correlation_id=str(ctx.correlation_id) if ctx.correlation_id else "",
             agent_name=agent.name,
@@ -319,10 +420,13 @@ class DashboardEventCollector(AgentComponent):
             final_state=dict(ctx.state),
         )
 
-        self._events.append(event)
+        # Store event (separate lock)
+        async with self._events_lock:
+            self._events.append(event)
 
+        # Update graph state (separate lock)
+        correlation_id = str(ctx.correlation_id) if ctx.correlation_id else ""
         async with self._graph_lock:
-            correlation_id = str(ctx.correlation_id) if ctx.correlation_id else ""
             run = self._ensure_run_record(
                 run_id=ctx.task_id,
                 agent_name=agent.name,
@@ -337,14 +441,16 @@ class DashboardEventCollector(AgentComponent):
                 if artifact_id not in run.produced_artifacts:
                     run.produced_artifacts.append(artifact_id)
             self._agent_status[agent.name] = "idle"
-            await self._update_agent_snapshot_locked(agent)
+
+        # Update agent snapshot (separate lock)
+        await self._update_agent_snapshot(agent)
 
         # Broadcast via WebSocket if manager is configured
         if self._websocket_manager:
             await self._websocket_manager.broadcast(event)
 
     async def on_error(self, agent: "Agent", ctx: Context, error: Exception) -> None:
-        """Emit agent_error event when agent execution fails.
+        """Emit agent_error event when agent execution fails (thread-safe).
 
         Args:
             agent: The agent that failed
@@ -360,11 +466,12 @@ class DashboardEventCollector(AgentComponent):
         )
         failed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
-        # Clean up start time tracking
-        if ctx.task_id in self._run_start_times:
-            del self._run_start_times[ctx.task_id]
+        # Clean up start time tracking (separate lock)
+        async with self._run_times_lock:
+            if ctx.task_id in self._run_start_times:
+                del self._run_start_times[ctx.task_id]
 
-        # Create and store event
+        # Create event
         event = AgentErrorEvent(
             correlation_id=str(ctx.correlation_id) if ctx.correlation_id else "",
             agent_name=agent.name,
@@ -375,10 +482,13 @@ class DashboardEventCollector(AgentComponent):
             failed_at=failed_at,
         )
 
-        self._events.append(event)
+        # Store event (separate lock)
+        async with self._events_lock:
+            self._events.append(event)
 
+        # Update graph state (separate lock)
+        correlation_id = str(ctx.correlation_id) if ctx.correlation_id else ""
         async with self._graph_lock:
-            correlation_id = str(ctx.correlation_id) if ctx.correlation_id else ""
             run = self._ensure_run_record(
                 run_id=ctx.task_id,
                 agent_name=agent.name,
@@ -389,14 +499,20 @@ class DashboardEventCollector(AgentComponent):
             run.error_message = error_message
             run.completed_at = datetime.now(UTC)
             self._agent_status[agent.name] = "error"
-            await self._update_agent_snapshot_locked(agent)
+
+        # Update agent snapshot (separate lock)
+        await self._update_agent_snapshot(agent)
 
         # Broadcast via WebSocket if manager is configured
         if self._websocket_manager:
             await self._websocket_manager.broadcast(event)
 
     async def snapshot_graph_state(self) -> GraphState:
-        """Return a thread-safe snapshot of runs, consumptions, and agent status."""
+        """Return a thread-safe snapshot of runs, consumptions, and agent status.
+
+        Returns:
+            GraphState snapshot with copies of internal state
+        """
         async with self._graph_lock:
             consumptions = {
                 artifact_id: sorted(consumers)
@@ -409,19 +525,29 @@ class DashboardEventCollector(AgentComponent):
         )
 
     async def snapshot_agent_registry(self) -> dict[str, AgentSnapshot]:
-        """Return a snapshot of all known agents (active and inactive)."""
+        """Return a thread-safe snapshot of all known agents (active and inactive).
+
+        Returns:
+            Dictionary mapping agent names to AgentSnapshot objects
+        """
         await self.load_persistent_snapshots()
-        async with self._graph_lock:
+        async with self._snapshots_lock:
             return {
                 name: self._clone_snapshot(snapshot)
                 for name, snapshot in self._agent_snapshots.items()
             }
 
     async def load_persistent_snapshots(self) -> None:
+        """Load agent snapshots from persistent store (thread-safe).
+
+        Only loads once per instance lifetime.
+        """
         if self._store is None or self._persistent_loaded:
             return
+
         records = await self._store.load_agent_snapshots()
-        async with self._graph_lock:
+
+        async with self._snapshots_lock:
             for record in records:
                 self._agent_snapshots[record.agent_name] = AgentSnapshot(
                     name=record.agent_name,
@@ -433,11 +559,11 @@ class DashboardEventCollector(AgentComponent):
                     last_seen=record.last_seen,
                     signature=record.signature,
                 )
-        self._persistent_loaded = True
+            self._persistent_loaded = True
 
     async def clear_agent_registry(self) -> None:
-        """Clear cached agent metadata (for explicit resets)."""
-        async with self._graph_lock:
+        """Clear cached agent metadata (thread-safe, for explicit resets)."""
+        async with self._snapshots_lock:
             self._agent_snapshots.clear()
         if self._store is not None:
             await self._store.clear_agent_snapshots()
@@ -450,7 +576,20 @@ class DashboardEventCollector(AgentComponent):
         correlation_id: str,
         ensure_started: bool = False,
     ) -> RunRecord:
-        """Internal helper. Caller must hold _graph_lock."""
+        """Internal helper to get or create run record.
+
+        Warning:
+            Caller MUST hold _graph_lock before calling this method!
+
+        Args:
+            run_id: Unique run identifier
+            agent_name: Name of the agent
+            correlation_id: Correlation ID for the run
+            ensure_started: Whether to set started_at if not already set
+
+        Returns:
+            RunRecord for the specified run_id
+        """
         run = self._run_registry.get(run_id)
         if not run:
             run = RunRecord(
@@ -468,7 +607,14 @@ class DashboardEventCollector(AgentComponent):
                 run.started_at = datetime.now(UTC)
         return run
 
-    async def _update_agent_snapshot_locked(self, agent: "Agent") -> None:
+    async def _update_agent_snapshot(self, agent: "Agent") -> None:
+        """Update agent snapshot with current agent state (thread-safe).
+
+        Acquires _snapshots_lock internally. Safe to call from any context.
+
+        Args:
+            agent: Agent to update snapshot for
+        """
         now = datetime.now(UTC)
         description = agent.description or ""
         subscriptions = sorted({
@@ -494,30 +640,36 @@ class DashboardEventCollector(AgentComponent):
             json.dumps(signature_payload, sort_keys=True).encode("utf-8")
         ).hexdigest()
 
-        snapshot = self._agent_snapshots.get(agent.name)
-        if snapshot is None:
-            snapshot = AgentSnapshot(
-                name=agent.name,
-                description=description,
-                subscriptions=subscriptions,
-                output_types=output_types,
-                labels=labels,
-                first_seen=now,
-                last_seen=now,
-                signature=signature,
-            )
-            self._agent_snapshots[agent.name] = snapshot
-        else:
-            snapshot.description = description
-            snapshot.subscriptions = subscriptions
-            snapshot.output_types = output_types
-            snapshot.labels = labels
-            snapshot.last_seen = now
-            snapshot.signature = signature
+        async with self._snapshots_lock:
+            snapshot = self._agent_snapshots.get(agent.name)
+            if snapshot is None:
+                snapshot = AgentSnapshot(
+                    name=agent.name,
+                    description=description,
+                    subscriptions=subscriptions,
+                    output_types=output_types,
+                    labels=labels,
+                    first_seen=now,
+                    last_seen=now,
+                    signature=signature,
+                )
+                self._agent_snapshots[agent.name] = snapshot
+            else:
+                snapshot.description = description
+                snapshot.subscriptions = subscriptions
+                snapshot.output_types = output_types
+                snapshot.labels = labels
+                snapshot.last_seen = now
+                snapshot.signature = signature
 
+        # Persist to store outside of lock to avoid blocking
         if self._store is not None:
-            record = self._snapshot_to_record(snapshot)
-            await self._store.upsert_agent_snapshot(record)
+            # Re-acquire lock to get snapshot for persistence
+            async with self._snapshots_lock:
+                snapshot = self._agent_snapshots.get(agent.name)
+            if snapshot:
+                record = self._snapshot_to_record(snapshot)
+                await self._store.upsert_agent_snapshot(record)
 
     @staticmethod
     def _clone_snapshot(snapshot: AgentSnapshot) -> AgentSnapshot:
