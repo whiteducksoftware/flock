@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from flock.mcp import StdioServerParameters
 from flock import Flock
 from flock.registry import flock_type
-from flock.subscription import BatchSpec
+from flock.core.subscription import BatchSpec
 
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
