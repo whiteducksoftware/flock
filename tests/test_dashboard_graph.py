@@ -6,13 +6,13 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
+from flock.api.collector import DashboardEventCollector
+from flock.api.graph_builder import GraphAssembler
+from flock.api.models.graph import GraphRequest
 from flock.core import Agent
 from flock.core.artifacts import Artifact
 from flock.core.store import ConsumptionRecord
 from flock.core.visibility import PublicVisibility
-from flock.api.collector import DashboardEventCollector
-from flock.dashboard.graph_builder import GraphAssembler
-from flock.dashboard.models.graph import GraphRequest
 from flock.dashboard.service import DashboardHTTPService
 from flock.utils.runtime import Context
 

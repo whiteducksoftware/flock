@@ -177,7 +177,7 @@ class ServerManager:
         """
         from flock.core import Agent
         from flock.api.collector import DashboardEventCollector
-        from flock.dashboard.launcher import DashboardLauncher
+        from flock.api.launcher import DashboardLauncher
         from flock.dashboard.service import DashboardHTTPService
         from flock.dashboard.websocket import WebSocketManager
 

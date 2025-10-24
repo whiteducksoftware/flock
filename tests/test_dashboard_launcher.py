@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from flock.dashboard.launcher import DashboardLauncher
+from flock.api.launcher import DashboardLauncher
 
 
 class TestDashboardLauncher:
@@ -183,7 +183,7 @@ class TestDashboardLauncher:
 
     def test_frontend_dir_exists(self):
         """Test FRONTEND_DIR points to actual frontend directory."""
-        from flock.dashboard.launcher import FRONTEND_DIR
+        from flock.api.launcher import FRONTEND_DIR
 
         # Should exist in the actual package
         assert FRONTEND_DIR.name == "frontend"

@@ -20,6 +20,9 @@ class StaticFilesComponentConfig(ServerComponentConfig):
         default=["Static Files"],
         description="OpenAPI tags."
     )
+    static_files_path: Path | str | None = Field(
+        description="Path where the static files that should be served are located."
+    )
 
 class StaticFilesServerComponent(ServerComponent):
     """ServerComponent for serving static files."""
@@ -39,14 +42,11 @@ class StaticFilesServerComponent(ServerComponent):
 
     def register_routes(self, app: FastAPI, orchestrator: Flock):
         """Register Routes (mount static files)."""
-        current_files = __file__
-        asset_folder = "assets"
-        full_path = f"{current_files}/{asset_folder}/"
-        static_files_path: Path = Path(full_path)
+        static_files_path: Path = Path(self.config.static_files_path)
 
         if not static_files_path.exists():
             raise ValueError(
-                f"StaticFilesComponent: Static Files dir does not exist: {full_path}"
+                f"StaticFilesComponent: Static Files dir does not exist: {self.config.static_files_path}"
             )
         app.mount(
             "/",

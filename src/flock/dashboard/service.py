@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from flock.api.collector import DashboardEventCollector
 from flock.api.service import BlackboardHTTPService
 from flock.core import Flock
-from flock.dashboard.graph_builder import GraphAssembler
+from flock.api.graph_builder import GraphAssembler
 from flock.dashboard.routes import (
     register_control_routes,
     register_theme_routes,

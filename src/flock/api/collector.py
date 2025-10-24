@@ -16,8 +16,6 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import PrivateAttr
 
-from flock.components.agent import AgentComponent
-from flock.core.store import AgentSnapshotRecord, BlackboardStore
 from flock.api.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
@@ -26,7 +24,9 @@ from flock.api.events import (
     SubscriptionInfo,
     VisibilitySpec,
 )
-from flock.dashboard.models.graph import GraphRun, GraphState
+from flock.api.models.graph import GraphRun, GraphState
+from flock.components.agent import AgentComponent
+from flock.core.store import AgentSnapshotRecord, BlackboardStore
 from flock.logging.logging import get_logger
 from flock.utils.runtime import Context
 

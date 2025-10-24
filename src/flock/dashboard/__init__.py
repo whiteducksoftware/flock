@@ -12,7 +12,7 @@ from flock.api.events import (
     MessagePublishedEvent,
     StreamingOutputEvent,
 )
-from flock.dashboard.graph_builder import GraphAssembler
+from flock.api.graph_builder import GraphAssembler
 from flock.dashboard.service import DashboardHTTPService
 from flock.dashboard.websocket import WebSocketManager
 

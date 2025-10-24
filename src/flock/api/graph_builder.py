@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 
 from flock.api.collector import AgentSnapshot, DashboardEventCollector
-from flock.dashboard.models.graph import (
+from flock.api.models.graph import (
     GraphAgentMetrics,
     GraphArtifact,
     GraphEdge,
@@ -22,7 +22,6 @@ from flock.dashboard.models.graph import (
     GraphTimeRange,
     GraphTimeRangePreset,
 )
-from flock.logging.auto_trace import AutoTracedMeta
 from flock.core import Flock
 from flock.core.store import (
     Artifact,
@@ -32,6 +31,7 @@ from flock.core.store import (
 from flock.core.store import (
     ArtifactEnvelope as StoreArtifactEnvelope,
 )
+from flock.logging.auto_trace import AutoTracedMeta
 
 
 class GraphAssembler(metaclass=AutoTracedMeta):
