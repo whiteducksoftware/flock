@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class ControlRoutesComponentConfig(ServerComponentConfig):
     """Configuration class for ControlRoutesComponent."""
     prefix: str | None = Field(
-        default="/api/",
+        default="/api/plugin/",
         description="Optional prefix for control routes. (Defaults to '/api/)"
     )
     tags: list[str] = Field(

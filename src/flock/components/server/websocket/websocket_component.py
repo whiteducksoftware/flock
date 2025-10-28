@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 class WebSocketComponentConfig(ServerComponentConfig):
     """Config for the WebSocketServerComponent."""
     prefix: str = Field(
-        default="/",
+        default="/plugin/",
         description="Optional Prefix for the Websocket Endpoint."
     )
     tags: list[str] = Field(

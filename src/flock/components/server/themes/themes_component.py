@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 class ThemesComponentConfig(ServerComponentConfig):
     """Configuration class for ThemesService."""
     prefix: str = Field(
-        default="",
+        default="/plugin/",
         description="Optional Prefix."
     )
     tags: list[str] = Field(

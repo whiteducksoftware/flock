@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 class AgentsServerComponentConfig(ServerComponentConfig):
     """Configuration class for Agents Component."""
     prefix: str = Field(
-        default="/api/v1/",
+        default="/api/v1/plugin/",
         description="Optional prefix for Endpoints. Defaults to (and should stay at) '/api/v1/"
     )
     tags: list[str] = Field(

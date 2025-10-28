@@ -7,9 +7,13 @@ Extracted from orchestrator.py to reduce complexity.
 from __future__ import annotations
 
 import asyncio
+import os
 from asyncio import Task
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from flock.components import ServerComponent
+from flock.components.server.health.health_component import HealthComponentConfig
 
 
 if TYPE_CHECKING:
@@ -19,7 +23,8 @@ if TYPE_CHECKING:
 class ServerManager:
     """Manages HTTP service startup for the orchestrator.
 
-    Handles both standard API mode and dashboard mode with WebSocket support.
+    Handles standard API mode, dashboard mode as well as custom modes
+    with plugins.
     """
 
     @staticmethod
@@ -31,17 +36,19 @@ class ServerManager:
         host: str = "127.0.0.1",
         port: int = 8344,
         blocking: bool = True,
+        plugins: list[ServerComponent] | None = None,
     ) -> Task[None] | None:
-        """Start HTTP service for the orchestrator.
+        """Start Server for the orchestrator.
 
         Args:
             orchestrator: The Flock orchestrator instance to serve
             dashboard: Enable real-time dashboard with WebSocket support (default: False)
-            dashboard_v2: Launch the new dashboard v2 frontend (implies dashboard=True)
+            dashboard_v2: (DEPRECATED: Dashboardv2 will be served by default. This parameter will be removed in future releases.)
             host: Host to bind to (default: "127.0.0.1")
             port: Port to bind to (default: 8344)
-            blocking: If True, blocks until server stops. If False, starts server
-                in background and returns task handle (default: True)
+            blocking: If True, blocks until server stops. If False, starts server in background and
+                returns task handle (default: True)
+            plugins: Additional Plugins that can modify the baseline behavior of the server.
 
         Returns:
             None if blocking=True, or Task handle if blocking=False
@@ -51,46 +58,51 @@ class ServerManager:
             await ServerManager.serve(orchestrator)
 
             # With dashboard (WebSocket + browser launch) - runs until interrupted
-            await ServerManager.serve(orchestrator, dashboard=True)
+            await ServerManager.serve(dashboard=True)
 
-            # Non-blocking mode - start server in background
-            task = await ServerManager.serve(orchestrator, dashboard=True, blocking=False)
-            # Now you can publish messages and run other logic
-            await orchestrator.publish(my_message)
-            await orchestrator.run_until_idle()
+            # With custom behavior (Example here is with standard API as well as WebSocketSupport)
+            await ServerManager.serve(
+                plugins=[
+                    WebSocketServerComponent
+                ]
+            )
         """
         # If non-blocking, start server in background task
         if not blocking:
             server_task = asyncio.create_task(
                 ServerManager._serve_impl(
-                    orchestrator,
+                    orchestrator=orchestrator,
                     dashboard=dashboard,
                     dashboard_v2=dashboard_v2,
                     host=host,
                     port=port,
+                    plugins=plugins,
                 )
             )
             # Add cleanup callback
             server_task.add_done_callback(
-                lambda task: ServerManager._cleanup_server_callback(orchestrator, task)
+                lambda task: ServerManager._cleanup_server_callback(
+                    orchestrator=orchestrator, task=task
+                )
             )
             # Store task reference for later cancellation
             orchestrator._server_task = server_task
-            # Give server a moment to start
+            # Give the server a moment to start
             await asyncio.sleep(0.1)
             return server_task
 
         # Blocking mode - run server directly with cleanup
         try:
             await ServerManager._serve_impl(
-                orchestrator,
+                orchestrator=orchestrator,
                 dashboard=dashboard,
                 dashboard_v2=dashboard_v2,
                 host=host,
                 port=port,
+                plugins=plugins,
             )
         finally:
-            # In blocking mode, manually cleanup dashboard launcher
+            # In blocking mode, manually clean up
             if (
                 hasattr(orchestrator, "_dashboard_launcher")
                 and orchestrator._dashboard_launcher is not None
@@ -101,7 +113,7 @@ class ServerManager:
 
     @staticmethod
     def _cleanup_server_callback(orchestrator: Flock, task: Task[None]) -> None:
-        """Cleanup callback when background server task completes."""
+        """Cleanup callback when backround server task completes."""
         # Stop dashboard launcher if it was started
         if (
             hasattr(orchestrator, "_dashboard_launcher")
@@ -109,20 +121,20 @@ class ServerManager:
         ):
             try:
                 orchestrator._dashboard_launcher.stop()
-            except Exception as e:
-                orchestrator._logger.warning(f"Failed to stop dashboard launcher: {e}")
+            except Exception as ex:
+                orchestrator._logger.warning(
+                    f"Failed to stop dashboard launcher: {ex!s}"
+                )
             finally:
                 orchestrator._dashboard_launcher = None
-
         # Clear server task reference
         if hasattr(orchestrator, "_server_task"):
             orchestrator._server_task = None
-
         # Log any exceptions from the task
         try:
             exc = task.exception()
             if exc and not isinstance(exc, asyncio.CancelledError):
-                orchestrator._logger.error(f"Server task failed: {exc}", exc_info=exc)
+                orchestrator._logger.error(f"Server task failed: {exc!s}", exc_info=exc)
         except asyncio.CancelledError:
             pass  # Normal cancellation
 
@@ -134,78 +146,273 @@ class ServerManager:
         dashboard_v2: bool = False,
         host: str = "127.0.0.1",
         port: int = 8344,
+        plugins: list[ServerComponent] | None = None,
     ) -> None:
         """Internal implementation of serve() - actual server logic."""
         if dashboard_v2:
             dashboard = True
-
         if not dashboard:
-            # Standard service without dashboard
-            await ServerManager._serve_standard(orchestrator, host=host, port=port)
-            return
-
+            await ServerManager._serve_standard(
+                orchestrator=orchestrator,
+                host=host,
+                port=port,
+                plugins=plugins,
+            )
         # Dashboard mode with WebSocket and event collection
         await ServerManager._serve_dashboard(
-            orchestrator, dashboard_v2=dashboard_v2, host=host, port=port
+            orchestrator=orchestrator,
+            dashboard_v2=dashboard_v2,
+            host=host,
+            port=port,
+            plugins=plugins,
         )
 
     @staticmethod
-    async def _serve_standard(orchestrator: Flock, *, host: str, port: int) -> None:
+    async def _serve_standard(
+        orchestrator: Flock,
+        *,
+        host: str,
+        port: int,
+        plugins: list[ServerComponent] | None,
+    ) -> None:
         """Serve standard HTTP API without dashboard.
 
         Args:
             orchestrator: The Flock orchestrator instance
             host: Host to bind to
             port: Port to bind to
+            plugins: Optional list of plugins for additional behavior
         """
-        from flock.api.service import BlackboardHTTPService
+        from flock.api.base_service import BaseHTTPService
+        from flock.components.server import (
+            AgentsServerComponent,
+            AgentsServerComponentConfig,
+            ArtifactComponentConfig,
+            ArtifactsComponent,
+            ControlRoutesComponent,
+            ControlRoutesComponentConfig,
+            HealthAndMetricsComponent,
+        )
 
-        service = BlackboardHTTPService(orchestrator)
-        await service.run_async(host=host, port=port)
+        # Set up standard HTTP Components for standard API
+        health_and_metrics = HealthAndMetricsComponent(
+            name="health_internal",
+        )
+
+        agent_endpoints = AgentsServerComponent(
+            name="agents_internal",
+            config=AgentsServerComponentConfig(
+                enabled=True, prefix="/api/v1/", tags=["Agents", "Public API"]
+            ),
+        )
+
+        control_endpoints = ControlRoutesComponent(
+            name="api_internal",
+            config=ControlRoutesComponentConfig(
+                enabled=True, prefix="/api/", tags=["Control", "Public API"]
+            ),
+        )
+
+        artifacts_endpoints = ArtifactsComponent(
+            name="artifacts_internal",
+            config=ArtifactComponentConfig(
+                enabled=True, prefix="/api/v1/", tags=["Artifacts", "Public API"]
+            ),
+        )
+
+        service = BaseHTTPService(
+            orchestrator=orchestrator,
+        ).add_components(
+            components=[
+                health_and_metrics,
+                agent_endpoints,
+                control_endpoints,
+                artifacts_endpoints,
+            ]
+        )
+        for plugin in plugins:
+            service = service.add_component(plugin)
+        await service.run_async(
+            host=host,
+            port=port,
+        )
 
     @staticmethod
     async def _serve_dashboard(
-        orchestrator: Flock, *, dashboard_v2: bool, host: str, port: int
+        orchestrator: Flock,
+        *,
+        dashboard_v2: bool,
+        host: str,
+        port: int,
+        plugins: list[ServerComponent] | None,
     ) -> None:
         """Serve HTTP API with dashboard and WebSocket support.
 
         Args:
             orchestrator: The Flock orchestrator instance
             dashboard_v2: Whether to use v2 dashboard frontend
-            host: Host to bind to
-            port: Port to bind to
+            host: host to bind to
+            port: port to bind to
+            plugins: Optional list for plugins to modify base behavior
         """
-        from flock.core import Agent
+        from flock.api.base_service import BaseHTTPService
+        from flock.components.server import (
+            AgentsServerComponent,
+            AgentsServerComponentConfig,
+            ArtifactComponentConfig,
+            ArtifactsComponent,
+            ControlRoutesComponent,
+            ControlRoutesComponentConfig,
+            CORSComponent,
+            CORSComponentConfig,
+            HealthAndMetricsComponent,
+            StaticFilesComponentConfig,
+            StaticFilesServerComponent,
+            ThemesComponent,
+            ThemesComponentConfig,
+            TracingComponent,
+            TracingComponentConfig,
+            WebSocketComponentConfig,
+            WebSocketServerComponent,
+        )
+
+        # Set up standard HTTP Components for standard API
+        health_and_metrics = HealthAndMetricsComponent(
+            name="health_internal",
+        )
+
+        agent_endpoints = AgentsServerComponent(
+            name="agents_internal",
+            config=AgentsServerComponentConfig(
+                enabled=True, prefix="/api/v1/", tags=["Agents", "Public API"]
+            ),
+        )
+
+        control_endpoints = ControlRoutesComponent(
+            name="api_internal",
+            config=ControlRoutesComponentConfig(
+                enabled=True, prefix="/api/", tags=["Control", "Public API"]
+            ),
+        )
+
+        artifacts_endpoints = ArtifactsComponent(
+            name="artifacts_internal",
+            config=ArtifactComponentConfig(
+                enabled=True, prefix="/api/v1/", tags=["Artifacts", "Public API"]
+            ),
+        )
+
+        # Basic API configuration
+        service = BaseHTTPService(
+            orchestrator=orchestrator,
+        ).add_components(
+            components=[
+                health_and_metrics,
+                agent_endpoints,
+                control_endpoints,
+                artifacts_endpoints,
+            ]
+        )
+
+        # Set up specialized components for the Dashboard
+        dashboard_dev_env = os.environ.get("DASHBOARD_DEV", "0") == "1"
+        heartbeat_interval_str = os.environ.get("WS_HEARTBEAT", "120")
+        heartbeat_interval = str(heartbeat_interval_str)
+        websocket_endpoints = WebSocketServerComponent(
+            name="websocket_internal",
+            config=WebSocketComponentConfig(
+                enabled=True,
+                enable_heartbeat=dashboard_dev_env,
+                hearbeat_interval=heartbeat_interval,
+                prefix="/",
+                tags=["WebSocket", "Public API"],
+            ),
+        )
+
+        # Only add the default CorsMiddleware of no other cors middleware
+        # has been configured with default values
+        if "cors" not in [plugin.name for plugin in plugins] and dashboard_dev_env:
+            service = service.add_component(
+                component=CORSComponent(
+                    name="cors_internal",
+                    config=CORSComponentConfig(
+                        enabled=True,
+                        prefix="",
+                        tags=["CORS"],
+                        allow_origins=["*"],
+                        allow_credentials=True,
+                        allow_methods=["*"],
+                        allow_headers=["*"],
+                    ),
+                )
+            )
+
+        themes_endpoints = ThemesComponent(
+            name="themes_internal",
+            themes_dir=Path(__file__).parent.parent / "themes",
+            config=ThemesComponentConfig(
+                enabled=True, prefix="", tags=["Themes", "Public API"]
+            ),
+        )
+
+        static_files_endpoint = StaticFilesServerComponent(
+            name="static_files_internal",
+            config=StaticFilesComponentConfig(
+                enabled=True,
+                prefix="",
+                tags=["Themes", "Public API"],
+                static_files_path=Path(__file__).parent.parent / "api" / "static_files",
+            ),
+        )
+
+        tracing_endpoint = TracingComponent(
+            name="tracing_internal",
+            config=TracingComponentConfig(
+                enabled=True, prefix="/api/", tags=["Tracing", "Public API"]
+            ),
+        )
+
+        service = service.add_components(
+            components=[
+                websocket_endpoints,
+                themes_endpoints,
+                static_files_endpoint,
+                tracing_endpoint,
+            ]
+        )
+
+        for plugin in plugins:
+            service = service.add_component(plugin)
+
+        # Create required components
         from flock.api.collector import DashboardEventCollector
         from flock.api.launcher import DashboardLauncher
-        from flock.dashboard.service import DashboardHTTPService
-        from flock.dashboard.websocket import WebSocketManager
+        from flock.api.websocket import WebSocketManager
+        from flock.core import Agent
 
-        # Create dashboard components
-        websocket_manager = WebSocketManager()
+        # Get WebSocket singleton instance
+        websocket_manager = WebSocketManager(
+            enable_heartbeat=dashboard_dev_env, heartbeat_interval=heartbeat_interval
+        )
         event_collector = DashboardEventCollector(store=orchestrator.store)
-        event_collector.set_websocket_manager(websocket_manager)
-        await event_collector.load_persistent_snapshots()
-
-        # Store collector reference for agents added later
+        event_collector.set_websocket_manager(manager=websocket_manager)
+        # store collector reference for agents added later
         orchestrator._dashboard_collector = event_collector
-        # Store websocket manager for real-time event emission (Phase 1.2)
+        # Store websocket manager for real-time event emission
         orchestrator._websocket_manager = websocket_manager
-        # Phase 5A: Set websocket manager on EventEmitter for dashboard updates
+        # Set websocket manager on EventEmitter for dashboard updates
         orchestrator._event_emitter.set_websocket_manager(websocket_manager)
 
-        # Phase 6+7: Set class-level WebSocket broadcast wrapper (dashboard mode)
+        # Set class-level WebSocket broadcast wrapper (dashboard mode)
         async def _broadcast_wrapper(event):
             """Isolated broadcast wrapper - no reference chain to orchestrator."""
             return await websocket_manager.broadcast(event)
 
         Agent._websocket_broadcast_global = _broadcast_wrapper
-
         # Inject event collector into all existing agents
         for agent in orchestrator._agents.values():
             # Add dashboard collector with priority ordering handled by agent
             agent._add_utilities([event_collector])
-
         # Start dashboard launcher (npm process + browser)
         launcher_kwargs: dict[str, Any] = {"port": port}
         if dashboard_v2:
@@ -216,19 +423,11 @@ class ServerManager:
         launcher = DashboardLauncher(**launcher_kwargs)
         launcher.start()
 
-        # Create dashboard HTTP service
-        service = DashboardHTTPService(
-            orchestrator=orchestrator,
-            websocket_manager=websocket_manager,
-            event_collector=event_collector,
-            use_v2=dashboard_v2,
-        )
-
-        # Store launcher for cleanup
+        # store launcher for cleanup
         orchestrator._dashboard_launcher = launcher
 
         # Run service (blocking call)
-        # Note: Cleanup is NOT done here - it's handled by:
+        # NOTE: Cleanup is not done here - it's handled by:
         # - ServerManager.serve() finally block (blocking mode)
         # - ServerManager._cleanup_server_callback() (non-blocking mode)
         await service.run_async(host=host, port=port)

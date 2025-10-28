@@ -20,7 +20,7 @@ from flock.core.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 class ArtifactComponentConfig(ServerComponentConfig):
     """Configuration for Artifacts Component."""
     prefix: str = Field(
-        default="/api/v1",
+        default="/api/v1/plugin/",
         description="Optional prefix for all endpoints"
     )
     tags: list[str] = Field(

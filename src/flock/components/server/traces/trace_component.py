@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 class TracingComponentConfig(ServerComponentConfig):
     """Configuration class for ThemesService."""
     prefix: str = Field(
-        default="/api/",
+        default="/api/plugin/",
         description="Optional prefix for the routes for tracing. (Defaults to '/api/')"
     )
     tags: list[str] = Field(
@@ -73,7 +73,7 @@ class TracingComponent(ServerComponent):
             self._db_path = self.config.db_path
 
         if self._db_path is None:
-            self._db_path = Path(".flock/traces.duckdb")
+            self._db_path = Path(__file__).parent.parent.parent.parent.parent / ".flock/traces.duckdb"
 
         if isinstance(self._db_path, str):
             # turn it into a path-object

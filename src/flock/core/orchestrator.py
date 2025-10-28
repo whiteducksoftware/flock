@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
+from flock.components import ServerComponent, ServerComponentConfig
 from flock.components.orchestrator import (
     CollectionResult,
     OrchestratorComponent,
@@ -686,6 +687,7 @@ class Flock(metaclass=AutoTracedMeta):
         host: str = "127.0.0.1",
         port: int = 8344,
         blocking: bool = True,
+        components: list[ServerComponent] | None = None,
     ) -> Task[None] | None:
         """Start HTTP service for the orchestrator.
 
@@ -698,6 +700,7 @@ class Flock(metaclass=AutoTracedMeta):
             port: Port to bind to (default: 8344)
             blocking: If True, blocks until server stops. If False, starts server
                 in background and returns task handle (default: True)
+            plugins: (Optional) List of server-components to modify the behavior of the server
 
         Returns:
             None if blocking=True, or Task handle if blocking=False
@@ -718,6 +721,7 @@ class Flock(metaclass=AutoTracedMeta):
             host=host,
             port=port,
             blocking=blocking,
+            plugins=components,
         )
 
     # Scheduling -----------------------------------------------------------
