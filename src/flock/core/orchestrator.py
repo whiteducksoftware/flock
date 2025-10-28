@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from flock.components import ServerComponent, ServerComponentConfig
+from flock.components import ServerComponent
 from flock.components.orchestrator import (
     CollectionResult,
     OrchestratorComponent,

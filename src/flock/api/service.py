@@ -1,5 +1,22 @@
 from __future__ import annotations
 
+from flock.components.server.artifacts.models import (
+    ArtifactListResponse,
+    ArtifactPublishRequest,
+    ArtifactPublishResponse,
+    ArtifactSummaryResponse,
+)
+from flock.components.server.health.models import HealthResponse
+from flock.components.server.models.models import (
+    Agent,
+    AgentListResponse,
+    AgentRunRequest,
+    AgentRunResponse,
+    AgentSubscription,
+    CorrelationStatusResponse,
+    ProducedArtifact,
+)
+
 
 """HTTP control plane for the blackboard orchestrator."""
 
@@ -10,20 +27,6 @@ from uuid import UUID
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
-from flock.api.models import (
-    Agent,
-    AgentListResponse,
-    AgentRunRequest,
-    AgentRunResponse,
-    AgentSubscription,
-    ArtifactListResponse,
-    ArtifactPublishRequest,
-    ArtifactPublishResponse,
-    ArtifactSummaryResponse,
-    CorrelationStatusResponse,
-    HealthResponse,
-    ProducedArtifact,
-)
 from flock.core.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
 from flock.registry import type_registry
 

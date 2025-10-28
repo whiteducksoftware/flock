@@ -17,7 +17,6 @@ from flock.components.server.models.models import (
     CorrelationStatusResponse,
     ProducedArtifact,
 )
-from flock.core.orchestrator import Flock
 from flock.core.store import FilterConfig
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
@@ -86,7 +85,7 @@ class AgentsServerComponent(ServerComponent):
             end=self._parse_datetime(end, "to")
         )
 
-    def configure(self, app: FastAPI, orchestrator: Flock):
+    def configure(self, app: FastAPI, orchestrator):
         return super().configure(app, orchestrator)
 
     def register_routes(self, app, orchestrator):

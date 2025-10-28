@@ -2,12 +2,10 @@
 
 from typing import Any
 
-from fastapi import FastAPI
 from pydantic import Field
 from starlette.middleware.cors import CORSMiddleware
 
 from flock.components.server.base import ServerComponent, ServerComponentConfig
-from flock.core.orchestrator import Flock
 
 
 class CORSComponentConfig(ServerComponentConfig):
@@ -30,7 +28,10 @@ class CORSComponentConfig(ServerComponentConfig):
 
 class CORSComponent(ServerComponent):
     """Component that allows configuring CORS behavior."""
-    name = "cors"
+    name: str = Field(
+        default="cors",
+        description="Name for the Component"
+    )
     priority: int = Field(
         default=8,
         description="Registration priority."
@@ -40,7 +41,7 @@ class CORSComponent(ServerComponent):
         description="CORS Configuration."
     )
 
-    def configure(self, app: FastAPI, orchestrator: Flock):
+    def configure(self, app, orchestrator):
         app.add_middleware(
             CORSMiddleware,
             allow_origins=self.config.allow_origins,

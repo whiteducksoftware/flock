@@ -7,7 +7,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import Field
 
 from flock.components.server.base import ServerComponent, ServerComponentConfig
-from flock.core.orchestrator import Flock
 
 
 class StaticFilesComponentConfig(ServerComponentConfig):
@@ -26,7 +25,10 @@ class StaticFilesComponentConfig(ServerComponentConfig):
 
 class StaticFilesServerComponent(ServerComponent):
     """ServerComponent for serving static files."""
-    name: str = "static_files"
+    name: str = Field(
+        default="static_files",
+        description="Name for the Component."
+    )
     config: StaticFilesComponentConfig = Field(
         default_factory=StaticFilesComponentConfig,
         description="Configuration for the component."
@@ -36,11 +38,11 @@ class StaticFilesServerComponent(ServerComponent):
         description="Registration priority. STATIC FILES MUST BE REGISTERED LAST AS THEY ACT AS A CATCH-ALL"
     )
 
-    def configure(self, app: FastAPI, orchestrator: Flock):
+    def configure(self, app, orchestrator):
         # No op
         pass
 
-    def register_routes(self, app: FastAPI, orchestrator: Flock):
+    def register_routes(self, app, orchestrator):
         """Register Routes (mount static files)."""
         static_files_path: Path = Path(self.config.static_files_path)
 
@@ -55,11 +57,11 @@ class StaticFilesServerComponent(ServerComponent):
             ),
         )
 
-    async def on_startup_async(self, orchestrator: Flock):
+    async def on_startup_async(self, orchestrator):
         # No - op
         pass
 
-    async def on_shutdown_async(self, orchestrator: Flock):
+    async def on_shutdown_async(self, orchestrator):
         # No - op
         pass
 

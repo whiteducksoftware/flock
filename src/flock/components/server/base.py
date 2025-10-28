@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic._internal._model_construction import ModelMetaclass
 from typing_extensions import TypeVar
 
 from flock.logging.auto_trace import AutoTracedMeta
 
-
-if TYPE_CHECKING: # pragma: no cover - type checking only
-    from fastapi import FastAPI
-
-    from flock.core import Flock
 
 T = TypeVar("T", bound="ServerComponentConfig")
 
@@ -37,6 +32,9 @@ class ServerComponentConfig(BaseModel):
     tags: list[str] = Field(
         default_factory=list,
         description="OpenAPI tags to order the endpoints of the ServerComponent"
+    )
+    model_config: ConfigDict = ConfigDict(
+        arbitrary_types_allowed=True,
     )
 
 class ServerComponent(BaseModel):
@@ -86,11 +84,11 @@ class ServerComponent(BaseModel):
         description="Registration priority (lower runs first, controls route order)."
     )
 
-    def configure(self, app: FastAPI, orchestrator: Flock) -> None:
+    def configure(self, app: Any, orchestrator: Any) -> None:
         """Configure the Component."""
 
     # Lifecycle Hooks
-    def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
+    def register_routes(self, app: Any, orchestrator: Any) -> None:
         """Register HTTP routes to FastAPI app.
 
         Called in priority order during startup.
@@ -114,7 +112,7 @@ class ServerComponent(BaseModel):
             f"{self.__class__.__name__} must implement register_routes()"
         )
 
-    async def on_startup_async(self, orchestrator: Flock) -> None:
+    async def on_startup_async(self, orchestrator: Any) -> None:
         """Async startup hook - runs when the service starts.
 
         Use this for async initialization like connecting to databases,
@@ -133,7 +131,7 @@ class ServerComponent(BaseModel):
             >>>     orchestrator._websocket_manager = self.websocket_manager
         """
 
-    async def on_shutdown_async(self, orchestrator: Flock) -> None:
+    async def on_shutdown_async(self, orchestrator: Any) -> None:
         """Async shutdown hook - runs when the service stops.
 
         Use this for cleanup like closing connections, stopping background tasks,
@@ -172,3 +170,7 @@ class ServerComponent(BaseModel):
             >>> # ValueError: MyComponent requires ArtifactComponent but it's not enabled
         """
         return []
+
+    model_config: ConfigDict = ConfigDict(
+        arbitrary_types_allowed=True,
+    )

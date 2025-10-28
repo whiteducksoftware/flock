@@ -222,6 +222,7 @@ class ServerManager:
 
         service = BaseHTTPService(
             orchestrator=orchestrator,
+            version="0.5.0",
         ).add_components(
             components=[
                 health_and_metrics,
@@ -305,6 +306,7 @@ class ServerManager:
         # Basic API configuration
         service = BaseHTTPService(
             orchestrator=orchestrator,
+            version="0.5.0",
         ).add_components(
             components=[
                 health_and_metrics,
@@ -331,8 +333,8 @@ class ServerManager:
 
         # Only add the default CorsMiddleware of no other cors middleware
         # has been configured with default values
-        if "cors" not in [plugin.name for plugin in plugins] and dashboard_dev_env:
-            service = service.add_component(
+        if (plugins is None or "cors" not in [plugin.name for plugin in plugins]) and dashboard_dev_env:
+                service = service.add_component(
                 component=CORSComponent(
                     name="cors_internal",
                     config=CORSComponentConfig(
@@ -381,8 +383,9 @@ class ServerManager:
             ]
         )
 
-        for plugin in plugins:
-            service = service.add_component(plugin)
+        if plugins is not None:
+            for plugin in plugins:
+                service = service.add_component(plugin)
 
         # Create required components
         from flock.api.collector import DashboardEventCollector

@@ -7,8 +7,8 @@ from fastapi import HTTPException
 from pydantic import Field, ValidationError
 
 from flock.api.events import MessagePublishedEvent, VisibilitySpec
+from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
-from flock.dashboard.websocket import WebSocketManager
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
 
@@ -154,17 +154,17 @@ class ControlRoutesComponent(ServerComponent):
             Returns:
                 {
                     "backend_version": "0.1.18",
-                    "package_name": "flock-flow"
+                    "package_name": "flock"
                 }
             """
             from importlib.metadata import PackageNotFoundError, version
 
             try:
-                backend_version = version("flock-flow")
+                backend_version = version("flock")
             except PackageNotFoundError:
                 # Fallback version if package is not installed
                 backend_version = "0.2.0-dev"
-            return {"backend_version": backend_version, "package_name": "flock-flow"}
+            return {"backend_version": backend_version, "package_name": "flock"}
 
         @app.post(self.config.prefix+"control/publish", tags=self.config.tags)
         async def publish_artifact(body: dict[str, Any]) -> dict[str, str]:

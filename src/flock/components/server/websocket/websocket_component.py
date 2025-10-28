@@ -1,12 +1,11 @@
 """Websocket ServerComponent."""
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import Field
 
 from docs.patterns.server_component_skeleton import ServerComponentConfig
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent
-from flock.core.orchestrator import Flock
 from flock.logging.logging import get_logger
 
 
@@ -41,8 +40,11 @@ class WebSocketServerComponent(ServerComponent):
     3. Keep connection alive
     4. Handle disconnection gracefully
     """
-    name = "websocket"
-    priority = Field(
+    name: str = Field(
+        default="websocket",
+        description="Name for the Component."
+    )
+    priority: int = Field(
         default=7,
         description="Registration priority."
     )
@@ -60,7 +62,7 @@ class WebSocketServerComponent(ServerComponent):
                 enable_heartbeat=self.config.enable_heartbeat,
             )
 
-    def register_routes(self, app: FastAPI, orchestrator: Flock):
+    def register_routes(self, app, orchestrator):
 
         # Should have been handled by configure() but it is good to be cautious
         if self._websocket_manager is None:

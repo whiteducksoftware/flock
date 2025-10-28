@@ -1,7 +1,6 @@
 """HTTP control plane for the blackboard orchestrator."""
 
 from contextlib import asynccontextmanager
-from importlib.metadata import version
 
 from fastapi import FastAPI
 
@@ -32,7 +31,7 @@ class BaseHTTPService:
         orchestrator: Flock,
         *,
         title: str = "Flock API",
-        version: str = version("flock-flow"),
+        version: str = "0.5.0",
         description: str = "API for Flock Orchestrator",
         ):
         self.orchestrator = orchestrator

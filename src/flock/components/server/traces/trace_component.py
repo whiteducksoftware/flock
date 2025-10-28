@@ -11,7 +11,6 @@ from pydantic import Field
 
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
-from flock.core.orchestrator import Flock
 from flock.core.store import FilterConfig
 from flock.logging.logging import get_logger
 
@@ -221,13 +220,15 @@ class TracingComponent(ServerComponent):
                     "error": null
                 }
             """
-            result = Flock.clear_traces()
-            if result["success"]:
-                logger.info(f"TracingComponent: Cleared {result['deleted_count']} trace spans via API")
-            else:
-                logger.error(f"TracingComponent: Failed to clear traces: {result['error']}")
+            if self._db_path_exists:
+                result = orchestrator.clear_traces(db_path=self._db_path)
+                if result["success"]:
+                    logger.info(f"TracingComponent: Cleared {result['deleted_count']} trace spans via API")
+                else:
+                    logger.error(f"TracingComponent: Failed to clear traces: {result['error']}")
 
-            return result
+                return result
+            return {}
 
         @app.post(self.config.prefix+"traces/query", tags=self.config.tags)
         async def execute_trace_query(request: dict[str, Any]) -> dict[str, Any]:
