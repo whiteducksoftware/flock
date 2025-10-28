@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 class BaseHTTPService:
     """HTTP control plane for the blackboard orchestrator.
 
-    HTTP servic built from composable ServerComponents.
+    HTTP service built from composable ServerComponents.
 
     Components are registered in priority order and manage their own routes.
 
