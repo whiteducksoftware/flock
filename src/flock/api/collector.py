@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Optional
 
-from pydantic import PrivateAttr
+from pydantic import Field, PrivateAttr
 
 from flock.api.events import (
     AgentActivatedEvent,
@@ -37,7 +37,6 @@ if TYPE_CHECKING:  # pragma: no cover - type hints only
     from flock.api.websocket import WebSocketManager
     from flock.core import Agent
     from flock.core.artifacts import Artifact
-
 
 @dataclass(slots=True)
 class RunRecord:
@@ -111,7 +110,10 @@ class DashboardEventCollector(AgentComponent):
     - all calls to DashboardEventCollector(...) will return the same instance, initialized with the parameters from the first call.
     """
 
-    _instance: "DashboardEventCollector | None" = None
+    singleton_instance: "DashboardEventCollector | None" = Field(
+        default=None,
+        description="Singleton instance"
+    )
     _instance_lock: asyncio.Lock = asyncio.Lock()
     _initialized: bool = False
 
@@ -156,22 +158,23 @@ class DashboardEventCollector(AgentComponent):
             while DashboardEventCollector is already running my lead to unexpected behavior.
         """
         async with cls._instance_lock:
-            if cls._instance is not None:
+            if cls.singleton_instance is not None:
                 logger.warning("Resetting DasboardEventCollector instance")
-            cls._instance = None
+            cls.singleton_instance = None
             cls._initialized = False
 
-    def __new__(cls):
+    def __new__(cls, *, store: BlackboardStore | None = None, **data):
         """Create or return the singleton instance (thread-safe).
 
         Returns:
             The singleton DashboardEventCollector instance.
         """
         # Simple singleton pattern - lock is acquired in async __ainit__ if needed
-        if cls._instance is None:
+        if cls.singleton_instance is None:
             instance = super().__new__(cls)
-            cls._instance = instance
+            cls.singleton_instance = instance
             cls._initialized = True
+        return cls.singleton_instance
 
     def __init__(self, *, store: BlackboardStore | None = None, **data):
 

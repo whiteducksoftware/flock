@@ -12,11 +12,9 @@ from asyncio import Task
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from flock.components import ServerComponent
-from flock.components.server.health.health_component import HealthComponentConfig
-
 
 if TYPE_CHECKING:
+    from flock.components import ServerComponent
     from flock.core.orchestrator import Flock
 
 

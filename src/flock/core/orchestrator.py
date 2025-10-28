@@ -13,7 +13,10 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from flock.components import ServerComponent
+
+if TYPE_CHECKING:
+    from flock.components import ServerComponent
+
 from flock.components.orchestrator import (
     CollectionResult,
     OrchestratorComponent,

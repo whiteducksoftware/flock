@@ -23,7 +23,11 @@ from flock.components.server.control import (
     ControlRoutesComponentConfig,
 )
 from flock.components.server.cors import CORSComponent, CORSComponentConfig
-from flock.components.server.health import HealthAndMetricsComponent, HealthResponse
+from flock.components.server.health import (
+    HealthAndMetricsComponent,
+    HealthComponentConfig,
+    HealthResponse,
+)
 from flock.components.server.static_files import (
     StaticFilesComponentConfig,
     StaticFilesServerComponent,
@@ -55,6 +59,7 @@ __all__ = [
     "ControlRoutesComponent",
     "ControlRoutesComponentConfig",
     "HealthAndMetricsComponent",
+    "HealthComponentConfig",
     "HealthResponse",
     "PaginationInfo",
     "ServerComponent",

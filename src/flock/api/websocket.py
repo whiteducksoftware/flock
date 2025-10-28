@@ -60,6 +60,8 @@ class WebSocketManager:
 
     def __new__(
         cls,
+        enable_heartbeat: bool = False,
+        heartbeat_interval: int = 120,
     ):
         """Create or return the singleton instance (thread-safe).
 

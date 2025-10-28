@@ -39,6 +39,7 @@ from flock.components.server import (
     CORSComponent,
     CORSComponentConfig,
     HealthAndMetricsComponent,
+    HealthComponentConfig,
     HealthResponse,
     PaginationInfo,
     ServerComponent,
@@ -80,6 +81,8 @@ __all__ = [
     "DeduplicationComponent",
     "EngineComponent",
     "HealthAndMetricsComponent",
+    "HealthComponentConfig",
+    "HealthResponse",
     "HealthResponse",
     "OrchestratorComponent",
     "OrchestratorComponentConfig",
@@ -96,5 +99,5 @@ __all__ = [
     "TracedModelMeta",
     "VisibilityInfo",
     "WebSocketComponentConfig",
-    "WebSocketServerComponent",
+    "WebSocketServerComponent"
 ]
