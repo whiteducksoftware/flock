@@ -349,6 +349,7 @@ class ControlRoutesComponent(ServerComponent):
                     status_code=500,
                     detail=str(ex)
                 )
+
         @app.get(self._join_path(self.config.prefix, "artifact-types"), tags=self.config.tags)
         async def get_artifact_types() -> dict[str, Any]:
             """Get all registered artifact types with their schema.
@@ -398,6 +399,7 @@ class ControlRoutesComponent(ServerComponent):
                 status_code=501,
                 detail="Resume functionality coming in Phase 12"
             )
+
         if self.graph_assembler is not None:
             @app.post(self._join_path(self.config.prefix, "dashboard", "graph"), response_model=GraphSnapshot, tags=self.config.tags)
             async def get_dashboard_graph(request: GraphRequest) -> GraphSnapshot:

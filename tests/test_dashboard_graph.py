@@ -8,12 +8,16 @@ from httpx import ASGITransport
 
 from flock.api.collector import DashboardEventCollector
 from flock.api.graph_builder import GraphAssembler
+from flock.api.websocket import WebSocketManager
+from flock.components.server.control.control_routes_component import (
+    ControlRoutesComponent,
+    ControlRoutesComponentConfig,
+)
 from flock.components.server.models.graph import GraphRequest
 from flock.core import Agent
 from flock.core.artifacts import Artifact
 from flock.core.store import ConsumptionRecord
 from flock.core.visibility import PublicVisibility
-from flock.dashboard.service import DashboardHTTPService
 from flock.utils.runtime import Context
 
 
@@ -86,8 +90,27 @@ async def test_dashboard_graph_endpoint(monkeypatch, orchestrator):
     monkeypatch.setenv("DASHBOARD_GRAPH_V2", "true")
 
     await _setup_artifacts(orchestrator)
-
-    service = DashboardHTTPService(orchestrator)
+    graph_assembler = GraphAssembler(
+        store=orchestrator.store,
+        orchestrator=orchestrator,
+        collector=DashboardEventCollector(
+            store=orchestrator.store,
+        )
+    )
+    service = orchestrator.add_component(
+        ControlRoutesComponent(
+            name="control_routes_test",
+            priority=1,
+            websocket_manager=WebSocketManager(
+                enable_heartbeat=False,
+            ),
+            config=ControlRoutesComponentConfig(
+                prefix="/api/",
+                tags=["Test"]
+            ),
+            graph_assembler=graph_assembler,
+        )
+    )
     transport = ASGITransport(app=service.get_app())
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
