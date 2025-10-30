@@ -9,17 +9,8 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from flock import Flock
-from flock.api.models import (
-    Agent,
-    AgentListResponse,
-    AgentSubscription,
-    ArtifactListResponse,
-    ArtifactPublishResponse,
-    ArtifactTypesResponse,
-    HealthResponse,
-    PaginationInfo,
-)
 from flock.api.service import BlackboardHTTPService
+from flock.components.server.models.models import Agent
 from flock.examples import Idea, Movie
 
 

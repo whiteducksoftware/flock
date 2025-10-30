@@ -8,14 +8,14 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 
-from flock.components.agent import EngineComponent
-from flock.core import Flock
-from flock.core.store import InMemoryBlackboardStore
 from flock.api.collector import DashboardEventCollector
-from flock.api.events import (
+from flock.components.agent import EngineComponent
+from flock.components.server.models.events import (
     AgentCompletedEvent,
     MessagePublishedEvent,
 )
+from flock.core import Flock
+from flock.core.store import InMemoryBlackboardStore
 from flock.utils.runtime import EvalInputs, EvalResult
 
 
@@ -190,7 +190,7 @@ async def test_error_event_capture():
         await orchestrator.invoke(failing_agent, idea)
 
     # Verify error event was captured
-    from flock.api.events import AgentErrorEvent
+    from flock.components.server.models.events import AgentErrorEvent
 
     error_events = [e for e in collector.events if isinstance(e, AgentErrorEvent)]
     assert len(error_events) == 1
@@ -229,7 +229,7 @@ async def test_multiple_runs_accumulate_events():
         await orchestrator.invoke(agent, idea)
 
     # Verify events accumulated (at least 5 completed events)
-    from flock.api.events import AgentCompletedEvent
+    from flock.components.server.models.events import AgentCompletedEvent
 
     completed_events = [
         e for e in collector.events if isinstance(e, AgentCompletedEvent)

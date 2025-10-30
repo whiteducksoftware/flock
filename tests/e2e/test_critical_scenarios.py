@@ -20,15 +20,15 @@ from uuid import uuid4
 
 import pytest
 
-from flock.core.artifacts import Artifact
-from flock.core.store import InMemoryBlackboardStore
-from flock.core.visibility import PublicVisibility
 from flock.api.collector import DashboardEventCollector
-from flock.api.events import (
+from flock.components.server.models.events import (
     AgentActivatedEvent,
     MessagePublishedEvent,
     StreamingOutputEvent,
 )
+from flock.core.artifacts import Artifact
+from flock.core.store import InMemoryBlackboardStore
+from flock.core.visibility import PublicVisibility
 from flock.utils.runtime import Context
 
 

@@ -6,11 +6,11 @@ from uuid import uuid4
 from fastapi import HTTPException
 from pydantic import Field, ValidationError
 
-from flock.api.events import MessagePublishedEvent, VisibilitySpec
 from flock.api.graph_builder import GraphAssembler
-from flock.api.models.graph import GraphRequest, GraphSnapshot
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
+from flock.components.server.models.events import MessagePublishedEvent, VisibilitySpec
+from flock.components.server.models.graph import GraphRequest, GraphSnapshot
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
 

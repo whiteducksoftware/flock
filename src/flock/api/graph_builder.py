@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta, timezone
 
 from flock.api.collector import AgentSnapshot, DashboardEventCollector
-from flock.api.models.graph import (
+from flock.components.server.models.graph import (
     GraphAgentMetrics,
     GraphArtifact,
     GraphEdge,

@@ -215,7 +215,7 @@ async def test_dashboard_event_collector_integration(dashboard_service):
 
     # Verify collector and manager are connected
     # When collector emits events, they should be broadcast via WebSocketManager
-    from flock.api.events import MessagePublishedEvent
+    from flock.components.server.models.events import MessagePublishedEvent
 
     # Create event
     event = MessagePublishedEvent(
@@ -283,7 +283,7 @@ async def test_websocket_connection_lifecycle(dashboard_service):
         assert mock_ws in dashboard_service.websocket_manager.clients
 
         # Send message
-        from flock.api.events import AgentActivatedEvent, SubscriptionInfo
+        from flock.components.server.models.events import AgentActivatedEvent, SubscriptionInfo
 
         event = AgentActivatedEvent(
             agent_name="test",
@@ -1533,7 +1533,7 @@ async def test_get_streaming_history_success(
 ):
     """Test GET /api/streaming-history/{agent_name} returns streaming history."""
     # Mock streaming history events
-    from flock.api.events import StreamingOutputEvent
+    from flock.components.server.models.events import StreamingOutputEvent
 
     mock_events = [
         StreamingOutputEvent(

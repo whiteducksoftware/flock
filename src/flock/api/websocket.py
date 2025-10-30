@@ -11,7 +11,7 @@ from typing import Union
 
 from fastapi import WebSocket
 
-from flock.api.events import (
+from flock.components.server.models.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
     AgentErrorEvent,
