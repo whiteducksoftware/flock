@@ -171,7 +171,7 @@ Engines are **also AgentComponents** - they implement the same lifecycle hooks, 
 
 ```python
 from flock.components import EngineComponent
-from flock.runtime import EvalInputs, EvalResult
+from flock import EvalInputs, EvalResult
 import instructor
 from openai import AsyncOpenAI
 
