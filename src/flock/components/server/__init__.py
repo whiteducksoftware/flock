@@ -17,12 +17,21 @@ from flock.components.server.artifacts import (
     PaginationInfo,
     VisibilityInfo,
 )
+from flock.components.server.auth import (
+    AuthenticationComponent,
+    AuthenticationComponentConfig,
+    RouteSpecificAuthConfig,
+)
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.components.server.control import (
     ControlRoutesComponent,
     ControlRoutesComponentConfig,
 )
-from flock.components.server.cors import CORSComponent, CORSComponentConfig
+from flock.components.server.cors import (
+    CORSComponent,
+    CORSComponentConfig,
+    RouteSpecificCORSConfig,
+)
 from flock.components.server.health import (
     HealthAndMetricsComponent,
     HealthComponentConfig,
@@ -53,6 +62,8 @@ __all__ = [
     "ArtifactWithConsumptions",
     "ArtifactsComponent",
     "ArtifactsComponent",
+    "AuthenticationComponent",
+    "AuthenticationComponentConfig",
     "CORSComponent",
     "CORSComponentConfig",
     "ConsumptionRecord",
@@ -62,6 +73,8 @@ __all__ = [
     "HealthComponentConfig",
     "HealthResponse",
     "PaginationInfo",
+    "RouteSpecificAuthConfig",
+    "RouteSpecificCORSConfig",
     "ServerComponent",
     "ServerComponentConfig",
     "StaticFilesComponentConfig",

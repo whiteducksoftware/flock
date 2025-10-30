@@ -21,6 +21,7 @@ Explore the numbered example folders in this repository:
 - **05 — Custom Engines** (`examples/05-engines`) — deterministic logic engines
 - **06 — Agent Components** (`examples/06-agent-components`) — per-agent behavior patterns
 - **07 — Orchestrator Components** (`examples/07-orchestrator-components`) — global coordination patterns
+- **09 — Server Components** (`examples/09-server-components`) — HTTP middleware and authentication
 
 These examples show how to extend Flock with custom logic:
 
@@ -35,6 +36,10 @@ These examples show how to extend Flock with custom logic:
 **Orchestrator Components** - Global coordination:
 - `quest_tracker_component.py` - Real-time quest scoring system
 - `kitchen_monitor_component.py` - Restaurant performance monitoring
+
+**Server Components** - HTTP API customization:
+- `cors_advanced_example.py` - CORS configuration patterns
+- `authentication_examples.py` - Authentication middleware strategies
 
 ### Feature Examples
 **Focused examples for specific capabilities**

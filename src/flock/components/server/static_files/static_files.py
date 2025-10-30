@@ -19,6 +19,10 @@ class StaticFilesComponentConfig(ServerComponentConfig):
         default=["Static Files"],
         description="OpenAPI tags."
     )
+    mount_point: Path | str | None = Field(
+        default="/",
+        description="The path where the static files should be mounted under. (Defaults to '/')"
+    )
     static_files_path: Path | str | None = Field(
         description="Path where the static files that should be served are located."
     )
