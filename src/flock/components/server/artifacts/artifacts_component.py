@@ -110,13 +110,13 @@ class ArtifactsComponent(ServerComponent):
         )
 
     def configure(self, app, orchestrator):
-        "No-op"
-        return super().configure(app, orchestrator)
+        # No - op
+        pass
 
     def register_routes(self, app, orchestrator):
 
         @app.post(
-            f"{self.config.prefix}/artifacts",
+            self._join_path(self.config.prefix, "artifacts"),
             response_model=ArtifactPublishResponse,
             tags=self.config.tags
             )
@@ -130,7 +130,7 @@ class ArtifactsComponent(ServerComponent):
             return ArtifactPublishResponse(status="accepted")
 
         @app.get(
-            f"{self.config.prefix}/artifacts",
+            self._join_path(self.config.prefix, "artifacts"),
             response_model=ArtifactListResponse,
             tags=self.config.tags,
         )
@@ -175,7 +175,7 @@ class ArtifactsComponent(ServerComponent):
             )
 
         @app.get(
-            f"{self.config.prefix}/artifacts/summary",
+            self._join_path(self.config.prefix, "artifacts/summary"),
             response_model=ArtifactSummaryResponse,
             tags=self.config.tags
         )
@@ -201,7 +201,7 @@ class ArtifactsComponent(ServerComponent):
             return ArtifactSummaryResponse(summary=summary)
 
         @app.get(
-            self.config.prefix+"/artifacts/{artifact_id}",
+            self._join_path(self.config.prefix, "artifacts/{artifact_id}"),
             tags=self.config.tags
         )
         async def get_artifact(artifact_id: UUID) -> dict[str, Any]:

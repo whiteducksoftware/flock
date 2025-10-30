@@ -38,12 +38,9 @@ class HealthAndMetricsComponent(ServerComponent):
 
     def register_routes(self, app, orchestrator):
         """Adds endpoints to the fastapi-app that allow it to respond to health-checks."""
-        health_endpoint_path: str = (
-            f"{'' if not self.config.prefix else self.config.prefix}/health"
-        )
-        metrics_endpoint_path: str = (
-            f"{'' if not self.config.prefix else self.config.prefix}/metrics"
-        )
+        prefix = self.config.prefix if self.config.prefix else ""
+        health_endpoint_path = self._join_path(prefix, "health")
+        metrics_endpoint_path = self._join_path(prefix, "metrics")
 
         @app.get(health_endpoint_path, tags=self.config.tags)
         async def health() -> HealthResponse:

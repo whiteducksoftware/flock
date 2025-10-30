@@ -49,7 +49,7 @@ class ThemesComponent(ServerComponent):
 
     def register_routes(self, app, orchestrator):
         """Register theme routes."""
-        @app.get(self.config.prefix + "/themes", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "themes"), tags=self.config.tags)
         async def list_themes() -> dict[str, list[str]]:
             """List all available theme names.
 
@@ -66,7 +66,7 @@ class ThemesComponent(ServerComponent):
             except Exception as ex:
                 logger.exception(f"Exception occurred while trying to access themes dir: {ex!s}")
                 raise HTTPException(status_code=500, detail=f"Failed to list themes: {ex!s}") from ex
-        @app.get(self.config.prefix + "/themes/{theme_name}", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "themes/{theme_name}"), tags=self.config.tags)
         async def get_theme(theme_name: str) -> dict[str, Any]:
             """Get theme data by name.
 

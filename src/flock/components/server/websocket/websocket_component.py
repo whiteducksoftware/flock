@@ -72,7 +72,7 @@ class WebSocketServerComponent(ServerComponent):
             )
 
         @app.websocket(
-            self.config.prefix+"ws",
+            self._join_path(self.config.prefix, "ws")
         )
         async def websocket_endpoint(websocket: WebSocket) -> None:
             """WebSocket endpoint for real-time BlackBoard Events.

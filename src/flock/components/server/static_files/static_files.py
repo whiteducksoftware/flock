@@ -53,7 +53,9 @@ class StaticFilesServerComponent(ServerComponent):
         app.mount(
             "/",
             StaticFiles(
-                directory=static_files_path
+                directory=static_files_path,
+                html=True,
+                follow_symlink=True,
             ),
         )
 

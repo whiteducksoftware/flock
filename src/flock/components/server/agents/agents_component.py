@@ -39,10 +39,10 @@ class AgentsServerComponent(ServerComponent):
     """ServerComponent that adds Endpoints for interacting with Agents.
 
     Provided Endpoints:
-    - POST /api/v1/agents/{name}/run -> run the agent with agent_name directly
-    - GET /api/v1/agents -> Returns a list of all available agents
-    - GET /api/v1/agents/{agent_id}/history-summary -> Returns a summary of the history of the agent
-    - GET /api/v1/correlations/{correlation_id}/status -> Get the status of a workflow by correlation ID
+    - POST self.config.prefix/agents/{name}/run -> run the agent with agent_name directly
+    - GET self.config.prefix/agents -> Returns a list of all available agents
+    - GET self.config.prefix/agents/{agent_id}/history-summary -> Returns a summary of the history of the agent
+    - GET self.config.prefix/correlations/{correlation_id}/status -> Get the status of a workflow by correlation ID
     """
     name: str = "agents"
     priority: int = Field(
@@ -93,7 +93,7 @@ class AgentsServerComponent(ServerComponent):
 
         # TODO: relevant for MCP-component in the future
         @app.post(
-            self.config.prefix+"agents/{name}/run",
+            self._join_path(self.config.prefix, "agents/{name}/run"),
             tags=self.config.tags,
             response_model=AgentRunResponse
         )
@@ -137,7 +137,7 @@ class AgentsServerComponent(ServerComponent):
             )
 
         @app.get(
-            self.config.prefix+"agents",
+            self._join_path(self.config.prefix, "agents"),
             response_model=AgentListResponse,
             tags=self.config.tags,
         )
@@ -162,7 +162,7 @@ class AgentsServerComponent(ServerComponent):
             )
 
         @app.get(
-            self.config.prefix+"agents/{agent_id}/history-summary",
+            self._join_path(self.config.prefix, "agents/{agent_id}/history-summary"),
             tags=self.config.tags
         )
         async def agent_histroy(
@@ -196,7 +196,7 @@ class AgentsServerComponent(ServerComponent):
 
         # TODO: relevant for MCP-Component in the future
         @app.get(
-            self.config.prefix+"correlations/{correlation_id}/status",
+            self._join_path(self.config.prefix, "correlations/{correlation_id}/status"),
             response_model=CorrelationStatusResponse,
             tags=self.config.tags,
         )

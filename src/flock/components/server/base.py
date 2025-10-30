@@ -171,6 +171,27 @@ class ServerComponent(BaseModel):
         """
         return []
 
+    def _join_path(
+        self,
+        *parts: str
+    ) -> str:
+        """Join URL path parts, handling slashes correctly.
+
+        Ensures exactly one slash between parts and no double slashes.
+
+        Examples:
+            >>> _join_path("/api/v1/", "agents") # -> "/api/v1/agents"
+            >>> _join_path("/api/v1", "agents) # -> "/api/v1/agents"
+            >>> _join_path("/api/v1/", "/agents") # -> "/api/v1/agents"
+        """
+        # Remove trailing slashes from all parts except the last one
+        cleaned = [part.trim().rstrip("/") for part in parts[:-1]]
+        # Add the last part (keep trailing slash if present)
+        if parts:
+            cleaned.append(parts[-1].trim().lstrip("/"))
+        # Join with single slash
+        return "/".join(cleaned)
+
     model_config: ConfigDict = ConfigDict(
         arbitrary_types_allowed=True,
     )

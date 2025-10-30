@@ -361,7 +361,7 @@ class ServerManager:
                 enabled=True,
                 prefix="",
                 tags=["Themes", "Public API"],
-                static_files_path=Path(__file__).parent.parent / "api" / "static_files",
+                static_files_path=Path(__file__).parent.parent / "api" / "static",
             ),
         )
 

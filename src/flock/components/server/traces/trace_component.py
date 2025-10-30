@@ -90,7 +90,7 @@ class TracingComponent(ServerComponent):
     def register_routes(self, app, orchestrator):
         """Register the routes the TracingComponent provides."""
 
-        @app.get(self.config.prefix+"traces", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "traces"), tags=self.config.tags)
         async def get_traces() -> list[dict[str, Any]]:
             """Get OpenTelemetry traces from DuckDB.
 
@@ -164,7 +164,7 @@ class TracingComponent(ServerComponent):
                 logger.exception(f"Error reading traces from DuckDB: {ex!s}")
                 return []
 
-        @app.get(self.config.prefix+"traces/services", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "traces/services"), tags=self.config.tags)
         async def get_traces_services() -> dict[str, Any]:
             """Get list of unique services that have been traced.
 
@@ -209,7 +209,7 @@ class TracingComponent(ServerComponent):
                 )
                 return {"services": [], "operations": []}
 
-        @app.post(self.config.prefix+"traces/clear", tags=self.config.tags)
+        @app.post(self._join_path(self.config.prefix, "traces/clear"), tags=self.config.tags)
         async def clear_traces() -> dict[str, Any]:
             """Clear all traces from DuckDB database.
 
@@ -230,7 +230,7 @@ class TracingComponent(ServerComponent):
                 return result
             return {}
 
-        @app.post(self.config.prefix+"traces/query", tags=self.config.tags)
+        @app.post(self._join_path(self.config.prefix, "traces/query"), tags=self.config.tags)
         async def execute_trace_query(request: dict[str, Any]) -> dict[str, Any]:
             """Execute a DuckDB SQL query on the traces database.
 
@@ -311,7 +311,7 @@ class TracingComponent(ServerComponent):
                     "columns": []
                 }
 
-        @app.get(self.config.prefix+"traces/stats", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "traces/stats"), tags=self.config.tags)
         async def get_trace_stats() -> dict[str, Any]:
             """Get statistics about the trace database.
 
@@ -393,7 +393,7 @@ class TracingComponent(ServerComponent):
                     "database_size_mb": 0,
                 }
 
-        @app.get(self.config.prefix+"streaming-history/{agent_name}", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "streaming-history/{agent_name}"), tags=self.config.tags)
         async def get_streaming_history(agent_name: str) -> dict[str, Any]:
             """Get historical streaming output for a specific agent.
 
@@ -431,7 +431,7 @@ class TracingComponent(ServerComponent):
                     detail=f"Failed to get streaming history: {ex!s}"
                 ) from ex
 
-        @app.get(self.config.prefix+"artifacts/history/{node_id}", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "artifacts/history/{node_id}"), tags=self.config.tags)
         async def get_message_history(node_id: str) -> dict[str, Any]:
             """Get complete message history for a node (both produced and consumed).
 
@@ -524,7 +524,7 @@ class TracingComponent(ServerComponent):
                     detail=f"Failed to get message histor: {ex!s}"
                 ) from ex
 
-        @app.get(self.config.prefix+"agents/{agent_id}/runs", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "agents/{agent_id}/runs"), tags=self.config.tags)
         async def get_agent_runs(agent_id: str) -> dict[str, Any]:
             """Get run history for an agent.
 

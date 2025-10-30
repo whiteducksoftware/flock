@@ -147,7 +147,7 @@ class ControlRoutesComponent(ServerComponent):
                     agent_data["logic_operations"] = logic_operations
             return {"agents": agents}
 
-        @app.get(self.config.prefix+"version", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "version"), tags=self.config.tags)
         async def get_version() -> dict[str, str]:
             """Get version information for the backend and dashboard.
 
@@ -166,7 +166,7 @@ class ControlRoutesComponent(ServerComponent):
                 backend_version = "0.2.0-dev"
             return {"backend_version": backend_version, "package_name": "flock"}
 
-        @app.post(self.config.prefix+"control/publish", tags=self.config.tags)
+        @app.post(self._join_path(self.config.prefix, "control/publish"), tags=self.config.tags)
         async def publish_artifact(body: dict[str, Any]) -> dict[str, str]:
             """Publish artifact with correlation tracking.
 
@@ -253,7 +253,7 @@ class ControlRoutesComponent(ServerComponent):
                     detail=str(ex)
                 ) from ex
 
-        @app.post(self.config.prefix+"/control/invoke", tags=self.config.tags)
+        @app.post(self._join_path(self.config.prefix, "control/invoke"), tags=self.config.tags)
         async def invoke_agent(body: dict[str, Any]) -> dict[str, Any]:
             """Directly invoke a specific agent.
 
@@ -344,7 +344,7 @@ class ControlRoutesComponent(ServerComponent):
                     detail=str(ex)
                 )
 
-        @app.post(self.config.prefix+"control/pause", tags=self.config.tags)
+        @app.post(self._join_path(self.config.prefix, "control/pause"), tags=self.config.tags)
         async def pause_orchestrator() -> dict[str, Any]:
             """"Pause orchestrator (placeholder).
 
@@ -355,7 +355,7 @@ class ControlRoutesComponent(ServerComponent):
                 status_code=501,
                 detail="Pause functionality coming in Phase 12"
             )
-        @app.post(self.config.prefix+"control/resumt", tags=self.config.tags)
+        @app.post(self._join_path(self.config.prefix, "control/resume"), tags=self.config.tags)
         async def resume_orchestrator() -> dict[str, Any]:
             """Resume orchestrator (placeholder).
 
