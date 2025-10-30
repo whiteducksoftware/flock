@@ -1,0 +1,1 @@
+"""Module for the MCP Server Component."""
