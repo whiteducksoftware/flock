@@ -42,8 +42,7 @@ Think of ordering pizza at a restaurant. You tell them WHAT you want, not HOW to
 ```python
 import asyncio
 from pydantic import BaseModel
-from flock import Flock
-from flock.registry import flock_type
+from flock import Flock, flock_type
 
 @flock_type  # 👈 This decorator registers your type with Flock's blackboard
 class MyDreamPizza(BaseModel):
@@ -186,8 +185,7 @@ Now that you understand the declarative approach, let's see how agents can work 
     ```python
     import asyncio
     from pydantic import BaseModel
-    from flock import Flock
-    from flock.registry import flock_type
+    from flock import Flock, flock_type
 
     @flock_type
     class MyDreamPizza(BaseModel):
