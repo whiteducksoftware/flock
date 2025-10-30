@@ -32,8 +32,7 @@ First, let's define the support ticket and response types:
 
 ```python
 from pydantic import BaseModel
-from flock import Flock
-from flock.registry import flock_type
+from flock import Flock, flock_type
 
 @flock_type
 class SupportTicket(BaseModel):
@@ -68,7 +67,7 @@ Each team needs a basic engine to process tickets:
 
 ```python
 from flock.components.agent import EngineComponent
-from flock.utils.runtime import EvalInputs, EvalResult
+from flock import EvalInputs, EvalResult
 
 class SecurityEngine(EngineComponent):
     """Handles security-related tickets with high priority."""
@@ -268,10 +267,9 @@ Here's the full working code:
 
 ```python
 from pydantic import BaseModel
-from flock import Flock
-from flock.registry import flock_type
+from flock import Flock, flock_type,EvalInputs,EvalResult
 from flock.components.agent import EngineComponent
-from flock.utils.runtime import EvalInputs, EvalResult
+ 
 
 # Data models
 @flock_type
