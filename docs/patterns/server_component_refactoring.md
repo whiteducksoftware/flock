@@ -58,7 +58,7 @@ A2AHTTPService?  ← Diamond problem incoming!
 ```python
 # ServerManager._serve_dashboard() creates EVERYTHING
 websocket_manager = WebSocketManager()
-event_collector = DashboardEventCollector(...)
+event_collector = DashboardEventCollector.get_instance(...)
 launcher = DashboardLauncher(...)
 service = DashboardHTTPService(...)
 

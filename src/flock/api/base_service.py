@@ -104,7 +104,8 @@ class BaseHTTPService:
                 lifespan=lifespan_context_manager,
             )
         # Sort by priority (lower first)
-        sorted_components: list[ServerComponent] = self.components[:].sort(key=lambda c: c.priority)
+        sorted_components: list[ServerComponent] = self.components[:]
+        sorted_components.sort(key=lambda c: c.priority)
         # Configure phase (sync)
         logger.debug("Configuring ServerComponents")
         for component in sorted_components:
@@ -169,8 +170,9 @@ class BaseHTTPService:
     def _create_lifespan_context_manager(self, orchestrator: Flock):
         """Create the lifespan callback for the app."""
         # https://fastapi.tiangolo.com/advanced/events/#lifespan-function
-        sorted_components: list[ServerComponent] = self.components[:].sort(key=lambda c: c.priority)
-        reverse_components: list[ServerComponent] = reversed(self.components[:].sort(key=lambda c: c.priority))
+        sorted_components: list[ServerComponent] = self.components[:]
+        sorted_components.sort(key=lambda c: c.priority)
+        reverse_components: list[ServerComponent] = reversed(sorted_components[:])
 
         # Validate dependencies before creating the lifespan-callback
         self._validate_dependencies()

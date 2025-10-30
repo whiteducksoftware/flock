@@ -229,6 +229,6 @@ class AgentsServerComponent(ServerComponent):
         # No-op
         pass
 
-    async def get_dependencies(self):
+    def get_dependencies(self):
         # No dependencies
         return []
