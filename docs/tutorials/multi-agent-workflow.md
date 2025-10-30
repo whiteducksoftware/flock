@@ -68,8 +68,7 @@ Each artifact is produced by one agent and consumed by another. No one "tells" a
 
 ```python
 from pydantic import BaseModel, Field
-from flock import Flock
-from flock.registry import flock_type
+from flock import Flock, flock_type
 
 @flock_type
 class BandConcept(BaseModel):
@@ -227,21 +226,21 @@ Get artifacts from the blackboard by type:
 
 ```python
 # Get the band lineup
-lineups = await flock.store.get_artifacts_by_type("BandLineup")
+lineups = await flock.store.get_by_type(BandLineup)
 if lineups:
     lineup = lineups[-1].obj
     print(f"🎸 Band: {lineup.band_name}")
     print(f"🎵 Sound: {lineup.signature_sound}")
 
 # Get the album
-albums = await flock.store.get_artifacts_by_type("Album")
+albums = await flock.store.get_by_type(Album)
 if albums:
     album = albums[-1].obj
     print(f"💿 Album: {album.title}")
     print(f"⭐ Hit: {album.standout_track}")
 
 # Get marketing copy
-marketing = await flock.store.get_artifacts_by_type("MarketingCopy")
+marketing = await flock.store.get_by_type(MarketingCopy)
 if marketing:
     copy = marketing[-1].obj
     print(f"🔥 Tagline: {copy.billboard_tagline}")
