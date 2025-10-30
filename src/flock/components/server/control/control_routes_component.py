@@ -7,6 +7,8 @@ from fastapi import HTTPException
 from pydantic import Field, ValidationError
 
 from flock.api.events import MessagePublishedEvent, VisibilitySpec
+from flock.api.graph_builder import GraphAssembler
+from flock.api.models.graph import GraphRequest, GraphSnapshot
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.logging.logging import get_logger
@@ -19,7 +21,7 @@ class ControlRoutesComponentConfig(ServerComponentConfig):
     """Configuration class for ControlRoutesComponent."""
     prefix: str | None = Field(
         default="/api/plugin/",
-        description="Optional prefix for control routes. (Defaults to '/api/)"
+        description="Optional prefix for control routes. (Defaults to '/api/plugin)"
     )
     tags: list[str] = Field(
         default=["Control Routes"],
@@ -41,6 +43,10 @@ class ControlRoutesComponent(ServerComponent):
         default_factory=WebSocketManager,
         description="WebSocketManager Singleton instance for broadcasts."
     )
+    graph_assembler: GraphAssembler | None = Field(
+        default=None,
+        description="Optional GraphAssembler. Allows returning snapshots of the State-Graph. (used mainly for visualizing. If a headless API is desired, then this can be omitted.)"
+    )
 
     def configure(self, app, orchestrator):
         return super().configure(app, orchestrator)
@@ -54,7 +60,7 @@ class ControlRoutesComponent(ServerComponent):
             websocket_manager: WebSocket manager for real-time updates
             event_collector: Dashboard event collector
         """
-        @app.get(self.config.prefix+"artifact_types", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "artifact_types"), tags=self.config.tags)
         async def get_artifact_types() -> dict[str, Any]:
             """Get all registered artifact types with their schemas.
 
@@ -85,7 +91,7 @@ class ControlRoutesComponent(ServerComponent):
                 "artifact_types": artifact_types
             }
 
-        @app.get(self.config.prefix+"agents", tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix,"agents"), tags=self.config.tags)
         async def get_agents() -> dict[str, Any]:
             """Get all registered agents with logic operations state.
 
@@ -343,6 +349,32 @@ class ControlRoutesComponent(ServerComponent):
                     status_code=500,
                     detail=str(ex)
                 )
+        @app.get(self._join_path(self.config.prefix, "artifact-types"), tags=self.config.tags)
+        async def get_artifact_types() -> dict[str, Any]:
+            """Get all registered artifact types with their schema.
+
+            Returns:
+                {
+                    "artifact_types": [
+                        {
+                            "name": "TypeName",
+                            "schema": {...}
+                        }
+                    ]
+                }
+            """
+            artifact_types = []
+            for type_name in type_registry._by_name:
+                try:
+                    model_class = type_registry.resolve(type_name=type_name)
+                    # Get Pydantic schema
+                    schema = model_class.model_json_schema()
+                    artifact_types.append({"name": type_name, "schema": schema})
+                except Exception as ex:
+                    logger.warning(f"Could not get schema for type {type_name}: {ex!s}")
+            return {
+                "artifact_types": artifact_types,
+            }
 
         @app.post(self._join_path(self.config.prefix, "control/pause"), tags=self.config.tags)
         async def pause_orchestrator() -> dict[str, Any]:
@@ -366,6 +398,11 @@ class ControlRoutesComponent(ServerComponent):
                 status_code=501,
                 detail="Resume functionality coming in Phase 12"
             )
+        if self.graph_assembler is not None:
+            @app.post(self._join_path(self.config.prefix, "dashboard", "graph"), response_model=GraphSnapshot, tags=self.config.tags)
+            async def get_dashboard_graph(request: GraphRequest) -> GraphSnapshot:
+                """Return server-side assembled dashboard graph snapshot."""
+                return await self.graph_assembler.build_snapshot(request)
 
     async def on_startup_async(self, orchestrator):
         # No-op

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from flock.api.collector import AgentSnapshot, DashboardEventCollector
 from flock.api.models.graph import (
@@ -90,7 +90,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             )
 
         filters_copy = filters.model_copy(deep=True)
-        generated_at = datetime.now(timezone.utc)
+        generated_at = datetime.now(UTC)
 
         return GraphSnapshot(
             generated_at=generated_at,

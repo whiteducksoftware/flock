@@ -255,6 +255,12 @@ class ServerManager:
             plugins: Optional list for plugins to modify base behavior
         """
         from flock.api.base_service import BaseHTTPService
+
+        # Create required components
+        from flock.api.collector import DashboardEventCollector
+        from flock.api.graph_builder import GraphAssembler, GraphRequest, GraphSnapshot
+        from flock.api.launcher import DashboardLauncher
+        from flock.api.websocket import WebSocketManager
         from flock.components.server import (
             AgentsServerComponent,
             AgentsServerComponentConfig,
@@ -274,6 +280,23 @@ class ServerManager:
             WebSocketComponentConfig,
             WebSocketServerComponent,
         )
+        from flock.core import Agent
+        dashboard_dev_env = os.environ.get("DASHBOARD_DEV", "0") == "1"
+        heartbeat_interval_str = os.environ.get("WS_HEARTBEAT", "120")
+        heartbeat_interval = str(heartbeat_interval_str)
+
+        # Get WebSocket singleton instance
+        websocket_manager = WebSocketManager(
+            enable_heartbeat=dashboard_dev_env, heartbeat_interval=heartbeat_interval
+        )
+        event_collector = DashboardEventCollector(store=orchestrator.store)
+        event_collector.set_websocket_manager(manager=websocket_manager)
+        # store collector reference for agents added later
+        orchestrator._dashboard_collector = event_collector
+        # Store websocket manager for real-time event emission
+        orchestrator._websocket_manager = websocket_manager
+        # Set websocket manager on EventEmitter for dashboard updates
+        orchestrator._event_emitter.set_websocket_manager(websocket_manager)
 
         # Set up standard HTTP Components for standard API
         health_and_metrics = HealthAndMetricsComponent(
@@ -292,6 +315,11 @@ class ServerManager:
             config=ControlRoutesComponentConfig(
                 enabled=True, prefix="/api/", tags=["Control", "Public API"]
             ),
+            graph_assembler=GraphAssembler(
+                store=orchestrator.store,
+                collector=event_collector,
+                orchestrator=orchestrator,
+            )
         )
 
         artifacts_endpoints = ArtifactsComponent(
@@ -314,10 +342,7 @@ class ServerManager:
             ]
         )
 
-        # Set up specialized components for the Dashboard
-        dashboard_dev_env = os.environ.get("DASHBOARD_DEV", "0") == "1"
-        heartbeat_interval_str = os.environ.get("WS_HEARTBEAT", "120")
-        heartbeat_interval = str(heartbeat_interval_str)
+
         websocket_endpoints = WebSocketServerComponent(
             name="websocket_internal",
             config=WebSocketComponentConfig(
@@ -331,7 +356,7 @@ class ServerManager:
 
         # Only add the default CorsMiddleware of no other cors middleware
         # has been configured with default values
-        if (plugins is None or "cors" not in [plugin.name for plugin in plugins]) and dashboard_dev_env:
+        if (plugins is None or "cors" not in [plugin.name for plugin in plugins]) or dashboard_dev_env:
                 service = service.add_component(
                 component=CORSComponent(
                     name="cors_internal",
@@ -384,25 +409,6 @@ class ServerManager:
         if plugins is not None:
             for plugin in plugins:
                 service = service.add_component(plugin)
-
-        # Create required components
-        from flock.api.collector import DashboardEventCollector
-        from flock.api.launcher import DashboardLauncher
-        from flock.api.websocket import WebSocketManager
-        from flock.core import Agent
-
-        # Get WebSocket singleton instance
-        websocket_manager = WebSocketManager(
-            enable_heartbeat=dashboard_dev_env, heartbeat_interval=heartbeat_interval
-        )
-        event_collector = DashboardEventCollector(store=orchestrator.store)
-        event_collector.set_websocket_manager(manager=websocket_manager)
-        # store collector reference for agents added later
-        orchestrator._dashboard_collector = event_collector
-        # Store websocket manager for real-time event emission
-        orchestrator._websocket_manager = websocket_manager
-        # Set websocket manager on EventEmitter for dashboard updates
-        orchestrator._event_emitter.set_websocket_manager(websocket_manager)
 
         # Set class-level WebSocket broadcast wrapper (dashboard mode)
         async def _broadcast_wrapper(event):

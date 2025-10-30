@@ -185,10 +185,10 @@ class ServerComponent(BaseModel):
             >>> _join_path("/api/v1/", "/agents") # -> "/api/v1/agents"
         """
         # Remove trailing slashes from all parts except the last one
-        cleaned = [part.trim().rstrip("/") for part in parts[:-1]]
+        cleaned = [part.rstrip("/") for part in parts[:-1]]
         # Add the last part (keep trailing slash if present)
         if parts:
-            cleaned.append(parts[-1].trim().lstrip("/"))
+            cleaned.append(parts[-1].lstrip("/"))
         # Join with single slash
         return "/".join(cleaned)
 
