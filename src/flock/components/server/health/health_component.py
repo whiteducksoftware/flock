@@ -59,10 +59,12 @@ class HealthAndMetricsComponent(ServerComponent):
             return PlainTextResponse("\n".join(lines))
 
     async def on_startup_async(self, orchestrator):
-        return super().on_startup_async(orchestrator)
+        # No - op
+        pass
 
     async def on_shutdown_async(self, orchestrator):
-        return super().on_shutdown_async(orchestrator)
+        # No - op
+        pass
 
     def get_dependencies(self):
         # No dependencies
