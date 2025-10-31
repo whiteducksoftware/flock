@@ -66,10 +66,7 @@ class TestAgentModels:
         ).add_component(
             AgentsServerComponent(
                 name="test_agents",
-                config=AgentsServerComponentConfig(
-                    prefix="/api/v1/",
-                    tags=["Testing"]
-                )
+                config=AgentsServerComponentConfig(prefix="/api/v1/", tags=["Testing"]),
             )
         )
         service.configure()
@@ -205,10 +202,7 @@ class TestEndToEndAPIResponses:
         service = BaseHTTPService(flock).add_component(
             AgentsServerComponent(
                 name="test",
-                config=AgentsServerComponentConfig(
-                    prefix="/api/v1/",
-                    tags=["Testing"]
-                )
+                config=AgentsServerComponentConfig(prefix="/api/v1/", tags=["Testing"]),
             )
         )
         service.configure()
@@ -228,10 +222,7 @@ class TestEndToEndAPIResponses:
         service = BaseHTTPService(flock).add_component(
             ArtifactsComponent(
                 name="test",
-                config=ArtifactComponentConfig(
-                    prefix="/api/v1",
-                    tags=["Testing"]
-                )
+                config=ArtifactComponentConfig(prefix="/api/v1", tags=["Testing"]),
             )
         )
         service.configure()
@@ -256,10 +247,7 @@ class TestEndToEndAPIResponses:
         service = BaseHTTPService(flock).add_component(
             ArtifactsComponent(
                 name="test",
-                config=ArtifactComponentConfig(
-                    prefix="/api/v1",
-                    tags=["Testing"]
-                )
+                config=ArtifactComponentConfig(prefix="/api/v1", tags=["Testing"]),
             )
         )
         service.configure()
@@ -278,10 +266,7 @@ class TestEndToEndAPIResponses:
         flock = Flock()
         service = BaseHTTPService(flock).add_component(
             HealthAndMetricsComponent(
-                name="test",
-                config=HealthComponentConfig(
-                    prefix="/"
-                )
+                name="test", config=HealthComponentConfig(prefix="/")
             )
         )
         service.configure()
@@ -297,26 +282,28 @@ class TestEndToEndAPIResponses:
     def test_openapi_schema_has_proper_refs(self):
         """Test that OpenAPI schema has proper $ref to response models."""
         flock = Flock()
-        service = BaseHTTPService(flock).add_component(
-            AgentsServerComponent(
-                name="test_agents",
-                config=AgentsServerComponentConfig(
-                    prefix="/api/v1",
-                    tags=["Testing"]
+        service = (
+            BaseHTTPService(flock)
+            .add_component(
+                AgentsServerComponent(
+                    name="test_agents",
+                    config=AgentsServerComponentConfig(
+                        prefix="/api/v1", tags=["Testing"]
+                    ),
                 )
             )
-        ).add_component(HealthAndMetricsComponent(
-            name="test_health",
-            config=HealthComponentConfig(
-                prefix="/"
+            .add_component(
+                HealthAndMetricsComponent(
+                    name="test_health", config=HealthComponentConfig(prefix="/")
+                )
             )
-        )).add_component(ArtifactsComponent(
-            name="test_artifacts",
-            config=ArtifactComponentConfig(
-                prefix="/api/v1/",
-                tags=["Testing"]
+            .add_component(
+                ArtifactsComponent(
+                    name="test_artifacts",
+                    config=ArtifactComponentConfig(prefix="/api/v1/", tags=["Testing"]),
+                )
             )
-        ))
+        )
         service.configure()
 
         openapi_schema = service.app.openapi()
@@ -358,36 +345,28 @@ class TestEndToEndAPIResponses:
                 AgentsServerComponent(
                     name="test_agents",
                     config=AgentsServerComponentConfig(
-                        prefix="/api/v1/",
-                        tags=["Testing"]
-                    )
+                        prefix="/api/v1/", tags=["Testing"]
+                    ),
                 )
             )
             .add_component(
                 ControlRoutesComponent(
                     name="test_control",
                     config=ControlRoutesComponentConfig(
-                        prefix="/api/",
-                        tags=["Testing"]
-                    )
+                        prefix="/api/", tags=["Testing"]
+                    ),
                 )
             )
             .add_component(
                 HealthAndMetricsComponent(
                     name="test_health",
-                    config=HealthComponentConfig(
-                        prefix="/",
-                        tags=["Testing"]
-                    )
+                    config=HealthComponentConfig(prefix="/", tags=["Testing"]),
                 )
             )
             .add_component(
                 ArtifactsComponent(
                     name="test_artifacts",
-                    config=ArtifactComponentConfig(
-                        prefix="/api/v1/",
-                        tags=["Testing"]
-                    )
+                    config=ArtifactComponentConfig(prefix="/api/v1/", tags=["Testing"]),
                 )
             )
         )

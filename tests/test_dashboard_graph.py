@@ -116,8 +116,7 @@ async def test_dashboard_graph_endpoint(monkeypatch, orchestrator):
         ControlRoutesComponent(
             name="control_routes_test",
             config=ControlRoutesComponentConfig(
-                prefix="/api/",
-                tags=["Internal Testing"]
+                prefix="/api/", tags=["Internal Testing"]
             ),
             graph_assembler=GraphAssembler(
                 store=orchestrator.store,
@@ -125,10 +124,10 @@ async def test_dashboard_graph_endpoint(monkeypatch, orchestrator):
                     store=orchestrator.store,
                 ),
                 orchestrator=orchestrator,
-            )
+            ),
         )
     )
-    service.configure() # Routes need to be set up first.
+    service.configure()  # Routes need to be set up first.
     transport = ASGITransport(app=service.get_app())
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:

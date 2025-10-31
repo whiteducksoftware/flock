@@ -1,4 +1,18 @@
-# Server Components Guide
+---
+title: Server Components
+description: Guide on how server components can be used to extend and modify the behavior of the flock API
+tags:
+ - http
+ - custom endpoints
+ - endpoints
+ - websockets
+ - authentication
+ - telemetry
+search:
+ boost: 1.3
+---
+
+# ⚙️ Server Components Guide
 
 Server Components extend Flock's HTTP API with custom middleware, routes, and lifecycle management. They provide a modular way to add authentication, CORS, custom endpoints, and other server-side functionality.
 
@@ -35,26 +49,44 @@ Components register in priority order (lower numbers first):
 
 ## Built-in Components
 
+Flock provides a comprehensive set of built-in server components:
+
+### Infrastructure & Monitoring
+
+- **[HealthAndMetricsComponent](server_components/health-component.md)** - Health checks and metrics endpoints
+- **[TracingComponent](server_components/tracing-component.md)** - OpenTelemetry trace query API
+
+### Security
+
+- **[CORSComponent](server_components/cors-component.md)** - Cross-Origin Resource Sharing configuration
+- **[AuthenticationComponent](server_components/authentication-component.md)** - Flexible authentication middleware
+- **[MiddlewareComponent](server_components/middleware-component.md)** - Generic middleware support
+
+### Business Logic
+
+- **[AgentsServerComponent](server_components/agents-component.md)** - Agent metadata and control API
+- **[ArtifactsComponent](server_components/artifacts-component.md)** - Artifact query and publishing API
+- **[ControlRoutesComponent](server_components/control-routes-component.md)** - Control endpoints for orchestrator
+
+### Real-time & Presentation
+
+- **[WebSocketServerComponent](server_components/websocket-component.md)** - Real-time WebSocket updates
+- **[StaticFilesServerComponent](server_components/static-files-component.md)** - Static file serving for dashboard
+- **[ThemesComponent](server_components/themes-component.md)** - UI theme configuration
+
+### Quick Reference
+
+Below are brief examples for each component. Click the component name above for complete documentation.
+
 ### HealthAndMetricsComponent
 
 Provides health check and Prometheus-style metrics endpoints.
 
 ```python
 from flock import Flock
-from flock.components.server import (
-    HealthAndMetricsComponent,
-    HealthComponentConfig
-)
+from flock.components.server import HealthAndMetricsComponent
 
-flock = Flock()
-
-health = HealthAndMetricsComponent(
-    config=HealthComponentConfig(
-        prefix="/api/v1",
-        tags=["Health & Metrics"]
-    )
-)
-
+health = HealthAndMetricsComponent()
 await flock.serve(components=[health])
 ```
 
@@ -62,342 +94,228 @@ await flock.serve(components=[health])
 - `GET /health` - Returns `{"status": "ok"}`
 - `GET /metrics` - Returns Prometheus-style metrics
 
+**📚 [Full Documentation](server_components/health-component.md)**
+
 ### CORSComponent
 
 Configures Cross-Origin Resource Sharing (CORS) policies.
 
 ```python
-from flock.components.server import (
-    CORSComponent,
-    CORSComponentConfig,
-    RouteSpecificCORSConfig
-)
+from flock.components.server import CORSComponent, CORSComponentConfig
 
 cors = CORSComponent(
     config=CORSComponentConfig(
-        # Global settings
         allow_origins=["https://example.com"],
-        allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_credentials=True,
-
-        # Route-specific overrides
-        route_configs=[
-            RouteSpecificCORSConfig(
-                path_pattern=r"^/api/public/.*",
-                allow_origins=["*"],
-                allow_credentials=False
-            ),
-            RouteSpecificCORSConfig(
-                path_pattern=r"^/api/admin/.*",
-                allow_origins=["https://admin.example.com"],
-                allow_methods=["GET", "POST"]
-            )
-        ]
+        allow_credentials=True
     )
 )
 ```
 
-**See also:** [examples/09-server-components/cors_advanced_example.py](../../examples/09-server-components/cors_advanced_example.py)
+**📚 [Full Documentation](server_components/cors-component.md)**
 
 ### AuthenticationComponent
 
 Flexible authentication middleware with support for multiple strategies.
 
 ```python
+from flock.components.server import AuthenticationComponent, AuthenticationComponentConfig
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from flock.components.server import (
-    AuthenticationComponent,
-    AuthenticationComponentConfig,
-    RouteSpecificAuthConfig
-)
 
-# Define authentication handler
 async def api_key_auth(request: Request) -> tuple[bool, Response | None]:
-    """Validate API key from headers."""
     api_key = request.headers.get("X-API-Key")
-
     if api_key == "secret-key":
-        return True, None  # Authentication successful
+        return True, None
+    return False, JSONResponse({"error": "Invalid API key"}, status_code=401)
 
-    # Authentication failed - return error response
-    return False, JSONResponse(
-        {"error": "Invalid API key"},
-        status_code=401
-    )
-
-# Create component
 auth = AuthenticationComponent(
     config=AuthenticationComponentConfig(
         default_handler="api_key",
-        exclude_paths=[
-            r"^/health$",
-            r"^/docs.*"
-        ]
-    )
-)
-
-# Register handler
-auth.register_handler("api_key", api_key_auth)
-
-await flock.serve(components=[auth])
-```
-
-#### Route-Specific Authentication
-
-Different routes can use different authentication strategies:
-
-```python
-async def public_auth(request: Request) -> tuple[bool, Response | None]:
-    """Simple API key for public endpoints."""
-    api_key = request.headers.get("X-API-Key")
-    if api_key and api_key.startswith("public-"):
-        return True, None
-    return False, JSONResponse({"error": "Invalid public key"}, status_code=401)
-
-async def admin_auth(request: Request) -> tuple[bool, Response | None]:
-    """JWT authentication for admin endpoints."""
-    auth_header = request.headers.get("Authorization")
-
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return False, JSONResponse(
-            {"error": "Admin access requires Bearer token"},
-            status_code=403
-        )
-
-    token = auth_header[7:]  # Remove "Bearer " prefix
-
-    # Validate JWT (simplified)
-    if token == "valid-admin-token":
-        return True, None
-
-    return False, JSONResponse(
-        {"error": "Insufficient privileges"},
-        status_code=403
-    )
-
-auth = AuthenticationComponent(
-    config=AuthenticationComponentConfig(
-        route_configs=[
-            RouteSpecificAuthConfig(
-                path_pattern=r"^/api/public/.*",
-                handler_name="public_auth"
-            ),
-            RouteSpecificAuthConfig(
-                path_pattern=r"^/api/admin/.*",
-                handler_name="admin_auth"
-            )
-        ],
         exclude_paths=[r"^/health$", r"^/docs.*"]
     )
 )
-
-auth.register_handler("public_auth", public_auth)
-auth.register_handler("admin_auth", admin_auth)
+auth.register_handler("api_key", api_key_auth)
 ```
 
-#### Disabling Authentication for Specific Routes
+**📚 [Full Documentation](server_components/authentication-component.md)**
 
-You can explicitly disable authentication for certain routes:
+### MiddlewareComponent
+
+Generic middleware support for custom cross-cutting concerns.
 
 ```python
-auth = AuthenticationComponent(
-    config=AuthenticationComponentConfig(
-        default_handler="strict_auth",  # Global authentication
-        route_configs=[
-            RouteSpecificAuthConfig(
-                path_pattern=r"^/api/public/.*",
-                handler_name="unused",
-                enabled=False  # Disable auth for this route
-            )
-        ]
-    )
+from flock.components.server import MiddlewareComponent, MiddlewareComponentConfig
+
+middleware = MiddlewareComponent(
+    config=MiddlewareComponentConfig(middlewares=[...])
 )
 ```
 
-**See also:** [examples/09-server-components/authentication_examples.py](../../examples/09-server-components/authentication_examples.py)
+**📚 [Full Documentation](server_components/middleware-component.md)**
 
 ### WebSocketServerComponent
 
 Manages WebSocket connections for real-time dashboard updates.
 
 ```python
-from flock.components.server import (
-    WebSocketServerComponent,
-    WebSocketComponentConfig
-)
+from flock.components.server import WebSocketServerComponent
 
-websocket = WebSocketServerComponent(
-    config=WebSocketComponentConfig(
-        prefix="/ws",
-        max_connections=100
-    )
-)
+websocket = WebSocketServerComponent()
 ```
 
 **Endpoints:**
-- `WS /ws` - WebSocket connection for live updates
+- `WS /plugin/ws` - WebSocket connection for live updates
+
+**📚 [Full Documentation](server_components/websocket-component.md)**
 
 ### AgentsServerComponent
 
 Exposes agent metadata and control via HTTP endpoints.
 
 ```python
-from flock.components.server import (
-    AgentsServerComponent,
-    AgentsServerComponentConfig
-)
+from flock.components.server import AgentsServerComponent
 
-agents = AgentsServerComponent(
-    config=AgentsServerComponentConfig(
-        prefix="/api/v1",
-        tags=["Agents"]
-    )
-)
+agents = AgentsServerComponent()
 ```
 
 **Endpoints:**
-- `GET /api/v1/agents` - List all agents
-- `GET /api/v1/agents/{name}` - Get agent details
+- `GET /api/v1/plugin/agents` - List all agents
+- `GET /api/v1/plugin/agents/{name}/history-summary` - Agent execution history
+- `GET /api/v1/plugin/correlations/{id}/status` - Workflow status
+
+**📚 [Full Documentation](server_components/agents-component.md)**
 
 ### ArtifactsComponent
 
 Provides REST API for querying and publishing artifacts.
 
 ```python
-from flock.components.server import (
-    ArtifactsComponent,
-    ArtifactComponentConfig
-)
+from flock.components.server import ArtifactsComponent
 
-artifacts = ArtifactsComponent(
-    config=ArtifactComponentConfig(
-        prefix="/api/v1",
-        tags=["Artifacts"],
-        enable_pagination=True,
-        default_page_size=50
-    )
-)
+artifacts = ArtifactsComponent()
 ```
 
 **Endpoints:**
-- `GET /api/v1/artifacts` - Query artifacts (with filtering)
-- `POST /api/v1/artifacts` - Publish new artifact
+- `GET /api/v1/plugin/artifacts` - Query artifacts (with filtering)
+- `POST /api/v1/plugin/artifacts` - Publish new artifact
+
+**📚 [Full Documentation](server_components/artifacts-component.md)**
 
 ### ControlRoutesComponent
 
-Provides control endpoints for agent execution.
+Provides control endpoints for agent execution and graph visualization.
 
 ```python
-from flock.components.server import (
-    ControlRoutesComponent,
-    ControlRoutesComponentConfig
-)
+from flock.components.server import ControlRoutesComponent
 
-control = ControlRoutesComponent(
-    config=ControlRoutesComponentConfig(
-        prefix="/api/v1",
-        tags=["Control"]
-    )
-)
+control = ControlRoutesComponent()
 ```
 
 **Endpoints:**
-- `POST /api/v1/agents/{name}/invoke` - Execute specific agent
+- `GET /api/plugin/artifact_types` - List artifact types with schemas
+- `POST /api/plugin/publish` - Publish artifact and trigger agents
+- `GET /api/plugin/graph` - Get current graph snapshot
+
+**📚 [Full Documentation](server_components/control-routes-component.md)**
+
+### TracingComponent
+
+Provides HTTP API for querying and managing OpenTelemetry traces.
+
+```python
+from flock.components.server import TracingComponent
+
+tracing = TracingComponent()
+```
+
+**Endpoints:**
+- `GET /api/plugin/traces` - Query traces
+- `DELETE /api/plugin/traces/clear` - Clear all traces
+- `POST /api/plugin/traces/query` - Execute custom SQL queries
+- `GET /api/plugin/traces/stats` - Get trace statistics
+
+**📚 [Full Documentation](server_components/tracing-component.md)**
 
 ### StaticFilesServerComponent
 
 Serves static files (dashboard UI, assets).
 
 ```python
-from flock.components.server import (
-    StaticFilesServerComponent,
-    StaticFilesComponentConfig
-)
+from flock.components.server import StaticFilesServerComponent
 
-static = StaticFilesServerComponent(
-    config=StaticFilesComponentConfig(
-        directory="/path/to/static/files",
-        html=True  # Serve index.html for SPA routing
-    ),
-    priority=99  # Must be LAST to avoid route conflicts
-)
+static = StaticFilesServerComponent(priority=99)  # MUST be last!
 ```
 
+**⚠️ Important:** Must have highest priority to avoid catching API routes.
+
+**📚 [Full Documentation](server_components/static-files-component.md)**
+
+### ThemesComponent
+
+Serves UI theme configuration files.
+
+```python
+from flock.components.server import ThemesComponent
+
+themes = ThemesComponent()
+```
+
+**Endpoints:**
+- `GET /plugin/themes` - List available themes
+- `GET /plugin/themes/{name}` - Get theme configuration
+
+**📚 [Full Documentation](server_components/themes-component.md)**
+
 ## Creating Custom Components
+
+Learn how to build your own server components to extend Flock's HTTP API with custom functionality.
+
+**📚 [Custom Components Guide](server_components/custom-components.md)** - Complete tutorial with examples
+
+## Creating Custom Components (Quick Overview)
+
+Server Components are modular extensions that add functionality to Flock's HTTP server. Here's a minimal example:
 
 ### Basic Structure
 
 ```python
-from typing import Any
 from flock.components.server import ServerComponent, ServerComponentConfig
+from pydantic import Field
 
 class MyComponentConfig(ServerComponentConfig):
     """Configuration for my component."""
-
     my_setting: str = "default_value"
 
 class MyComponent(ServerComponent):
     """My custom server component."""
-
+    
     name: str = "my_component"
     priority: int = 10
-    config: MyComponentConfig = MyComponentConfig()
-
-    def configure(self, app: Any, orchestrator: Any) -> None:
+    config: MyComponentConfig = Field(default_factory=MyComponentConfig)
+    
+    def configure(self, app, orchestrator):
         """Configure middleware, etc."""
-        # Add middleware if needed
         pass
-
-    def register_routes(self, app: Any, orchestrator: Any) -> None:
+    
+    def register_routes(self, app, orchestrator):
         """Register HTTP endpoints."""
-
         @app.get("/my-endpoint")
         async def my_endpoint():
             return {"status": "ok"}
-
-    async def on_startup_async(self, orchestrator: Any) -> None:
-        """Async startup tasks."""
-        print("MyComponent starting...")
-
-    async def on_shutdown_async(self, orchestrator: Any) -> None:
-        """Async cleanup tasks."""
-        print("MyComponent stopping...")
 ```
 
-### Example: Custom Logging Component
+### Complete Tutorial
 
-```python
-import time
-from typing import Any
-from starlette.types import ASGIApp, Receive, Scope, Send
-from flock.components.server import ServerComponent, ServerComponentConfig
+For a comprehensive guide on creating custom server components, including:
 
-class LoggingComponent(ServerComponent):
-    """Component that logs all HTTP requests."""
+- Middleware implementation
+- Lifecycle hooks
+- Database integration
+- External service integration
+- Testing strategies
+- Best practices and common pitfalls
 
-    name: str = "request_logging"
-    priority: int = 5  # Run early to capture all requests
-
-    def configure(self, app: Any, orchestrator: Any) -> None:
-        """Add logging middleware."""
-
-        class RequestLoggingMiddleware:
-            def __init__(self, app: ASGIApp):
-                self.app = app
-
-            async def __call__(
-                self,
-                scope: Scope,
-                receive: Receive,
-                send: Send
-            ) -> None:
-                if scope["type"] != "http":
-                    await self.app(scope, receive, send)
-                    return
-
-                start_time = time.time()
-                path = scope.get("path", "")
+**📚 See: [Custom Components Guide](server_components/custom-components.md)**
                 method = scope.get("method", "")
 
                 # Process request
@@ -511,9 +429,9 @@ class RateLimitComponent(ServerComponent):
 ### 1. Use Priority Correctly
 
 ```python
-# ✅ CORRECT: Core infrastructure first
+# ✅ CORRECT: Core infrastructure first, static files last
 health = HealthAndMetricsComponent(priority=0)
-cors = CORSComponent(priority=8)
+cors = CORSComponent(priority=6)
 auth = AuthenticationComponent(priority=7)
 agents = AgentsServerComponent(priority=20)
 static = StaticFilesServerComponent(priority=99)  # Last!
@@ -523,62 +441,40 @@ static = StaticFilesServerComponent(priority=10)  # Will catch all routes!
 agents = AgentsServerComponent(priority=20)  # Never reached
 ```
 
-### 2. Handle Errors in Middleware
+### 2. Always Exclude Health Endpoints from Auth
 
 ```python
-async def auth_handler(request: Request) -> tuple[bool, Response | None]:
-    """Always handle exceptions in auth handlers."""
-    try:
-        api_key = request.headers.get("X-API-Key")
-        # Validate key...
-        return True, None
-    except Exception as e:
-        # Return proper error response
-        return False, JSONResponse(
-            {"error": f"Authentication error: {str(e)}"},
-            status_code=500
-        )
+auth = AuthenticationComponent(
+    config=AuthenticationComponentConfig(
+        default_handler="api_key",
+        exclude_paths=[
+            r"^/health$",
+            r"^/metrics$",
+        ]
+    )
+)
 ```
 
-### 3. Use Dependencies Wisely
+### 3. Use Consistent Prefixes
 
 ```python
-class MyComponent(ServerComponent):
-    def get_dependencies(self) -> list[type[ServerComponent]]:
-        """Declare dependencies for validation."""
-        return [AuthenticationComponent]  # Requires auth component
+# ✅ CORRECT: Consistent versioning
+health = HealthAndMetricsComponent(
+    config=HealthComponentConfig(prefix="/api/v1")
+)
+agents = AgentsServerComponent(
+    config=AgentsServerComponentConfig(prefix="/api/v1")
+)
 ```
 
-### 4. Clean Up Resources
+### 4. Configure CORS Before Authentication
 
 ```python
-class MyComponent(ServerComponent):
-    _db_connection = None
-
-    async def on_startup_async(self, orchestrator: Any) -> None:
-        """Connect to database."""
-        self._db_connection = await connect_to_db()
-
-    async def on_shutdown_async(self, orchestrator: Any) -> None:
-        """Close database connection."""
-        if self._db_connection:
-            await self._db_connection.close()
-```
-
-### 5. Path Joining Helper
-
-Use `_join_path()` for consistent URL handling:
-
-```python
-def register_routes(self, app: Any, orchestrator: Any) -> None:
-    prefix = self.config.prefix or ""
-
-    # ✅ CORRECT: Use helper
-    health_path = self._join_path(prefix, "health")
-    metrics_path = self._join_path(prefix, "metrics")
-
-    # ❌ WRONG: Manual joining
-    health_path = f"{prefix}/health"  # Can create double slashes
+# ✅ CORRECT: CORS handles OPTIONS before auth
+components = [
+    CORSComponent(priority=6),           # Before auth
+    AuthenticationComponent(priority=7), # After CORS
+]
 ```
 
 ## Complete Example
@@ -593,27 +489,20 @@ from flock.components.server import (
     CORSComponentConfig,
     AuthenticationComponent,
     AuthenticationComponentConfig,
-    RouteSpecificAuthConfig,
     AgentsServerComponent,
     ArtifactsComponent,
+    WebSocketServerComponent,
     StaticFilesServerComponent,
 )
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-# Authentication handlers
+# Authentication handler
 async def api_key_auth(request: Request) -> tuple[bool, Response | None]:
     api_key = request.headers.get("X-API-Key")
     if api_key and api_key.startswith("sk-"):
         return True, None
     return False, JSONResponse({"error": "Invalid API key"}, status_code=401)
-
-async def admin_auth(request: Request) -> tuple[bool, Response | None]:
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        # Validate JWT
-        return True, None
-    return False, JSONResponse({"error": "Admin access denied"}, status_code=403)
 
 # Create Flock instance
 flock = Flock()
@@ -623,7 +512,7 @@ components = [
     # 1. Health (priority 0)
     HealthAndMetricsComponent(),
 
-    # 2. CORS (priority 8)
+    # 2. CORS (priority 6)
     CORSComponent(
         config=CORSComponentConfig(
             allow_origins=["https://app.example.com"],
@@ -635,28 +524,23 @@ components = [
     AuthenticationComponent(
         config=AuthenticationComponentConfig(
             default_handler="api_key",
-            route_configs=[
-                RouteSpecificAuthConfig(
-                    path_pattern=r"^/api/admin/.*",
-                    handler_name="admin_auth"
-                )
-            ],
             exclude_paths=[r"^/health$", r"^/metrics$", r"^/docs.*"]
         )
     ),
 
+    
     # 4. Business logic (priority 20)
     AgentsServerComponent(),
     ArtifactsComponent(),
+    WebSocketServerComponent(),
 
     # 5. Static files (priority 99 - MUST BE LAST!)
     StaticFilesServerComponent(priority=99),
 ]
 
-# Register auth handlers
+# Register auth handler
 auth_component = components[2]  # AuthenticationComponent
 auth_component.register_handler("api_key", api_key_auth)
-auth_component.register_handler("admin_auth", admin_auth)
 
 # Start server
 await flock.serve(
@@ -668,11 +552,68 @@ await flock.serve(
 
 ## Related Documentation
 
+- **[Custom Components Guide](server_components/custom-components.md)** - Build your own server components ⭐ **Start Here for Custom Development!**
 - **[REST API Guide](rest-api.md)** - HTTP API reference
 - **[Agent Components](components.md)** - Agent-level components
 - **[Orchestrator Components](orchestrator-components.md)** - Orchestrator-level components
 
 ## Examples
 
-- **[examples/09-server-components/cors_advanced_example.py](../../examples/09-server-components/cors_advanced_example.py)** - CORS configuration patterns
-- **[examples/09-server-components/authentication_examples.py](../../examples/09-server-components/authentication_examples.py)** - Authentication strategies
+Complete example suite in `examples/09-server-components/`:
+
+### Security Components
+- **[01_authentication_component.py](../../examples/09-server-components/01_authentication_component.py)** - API key, JWT, route-specific auth
+- **[02_cors_component.py](../../examples/09-server-components/02_cors_component.py)** - CORS policies and route overrides
+- **[03_middleware_component.py](../../examples/09-server-components/03_middleware_component.py)** - Custom middleware stacks
+
+### Infrastructure Components
+- **[04_health_component.py](../../examples/09-server-components/04_health_component.py)** - Health checks and metrics
+- **[11_tracing_component.py](../../examples/09-server-components/11_tracing_component.py)** - Distributed tracing with OpenTelemetry
+
+### Business Logic Components
+- **[05_websocket_component.py](../../examples/09-server-components/05_websocket_component.py)** - Real-time WebSocket updates
+- **[06_artifacts_component.py](../../examples/09-server-components/06_artifacts_component.py)** - Artifacts REST API
+- **[07_agents_component.py](../../examples/09-server-components/07_agents_component.py)** - Agents REST API
+- **[08_control_routes_component.py](../../examples/09-server-components/08_control_routes_component.py)** - Agent invocation endpoints
+
+### Presentation Components
+- **[09_static_files_component.py](../../examples/09-server-components/09_static_files_component.py)** - Static file serving and SPA routing
+- **[10_themes_component.py](../../examples/09-server-components/10_themes_component.py)** - UI theme configuration
+
+### Complete Examples
+- **[12_complete_composition.py](../../examples/09-server-components/12_complete_composition.py)** - Production-ready server with all components ⭐ **Best Example!**
+
+```
+
+## Related Documentation
+
+- **[Server Components Concepts](../getting-started/server-components-concepts.md)** - Architecture and design patterns ⭐ **Start Here!**
+- **[REST API Guide](rest-api.md)** - HTTP API reference
+- **[Agent Components](components.md)** - Agent-level components
+- **[Orchestrator Components](orchestrator-components.md)** - Orchestrator-level components
+
+## Examples
+
+Complete example suite in `examples/09-server-components/`:
+
+### Security Components
+- **[01_authentication_component.py](../../examples/09-server-components/01_authentication_component.py)** - API key, JWT, route-specific auth
+- **[02_cors_component.py](../../examples/09-server-components/02_cors_component.py)** - CORS policies and route overrides
+- **[03_middleware_component.py](../../examples/09-server-components/03_middleware_component.py)** - Custom middleware stacks
+
+### Infrastructure Components
+- **[04_health_component.py](../../examples/09-server-components/04_health_component.py)** - Health checks and metrics
+- **[11_tracing_component.py](../../examples/09-server-components/11_tracing_component.py)** - Distributed tracing with OpenTelemetry
+
+### Business Logic Components
+- **[05_websocket_component.py](../../examples/09-server-components/05_websocket_component.py)** - Real-time WebSocket updates
+- **[06_artifacts_component.py](../../examples/09-server-components/06_artifacts_component.py)** - Artifacts REST API
+- **[07_agents_component.py](../../examples/09-server-components/07_agents_component.py)** - Agents REST API
+- **[08_control_routes_component.py](../../examples/09-server-components/08_control_routes_component.py)** - Agent invocation endpoints
+
+### Presentation Components
+- **[09_static_files_component.py](../../examples/09-server-components/09_static_files_component.py)** - Static file serving and SPA routing
+- **[10_themes_component.py](../../examples/09-server-components/10_themes_component.py)** - UI theme configuration
+
+### Complete Examples
+- **[12_complete_composition.py](../../examples/09-server-components/12_complete_composition.py)** - Production-ready server with all components ⭐ **Best Example!**

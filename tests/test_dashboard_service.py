@@ -149,46 +149,35 @@ def dashboard_service_with_mocks(orchestrator, mock_artifact, mock_agent):
             BaseHTTPService(orchestrator)
             .add_component(
                 HealthAndMetricsComponent(
-                    name="health_test",
-                    config=HealthComponentConfig(
-                        prefix="/"
-                    )
+                    name="health_test", config=HealthComponentConfig(prefix="/")
                 )
             )
             .add_component(
                 AgentsServerComponent(
                     name="test_agents",
                     config=AgentsServerComponentConfig(
-                        prefix="/api/v1/",
-                        tags=["Testing"]
-                    )
+                        prefix="/api/v1/", tags=["Testing"]
+                    ),
                 )
             )
             .add_component(
                 ControlRoutesComponent(
                     name="test_control",
                     config=ControlRoutesComponentConfig(
-                        prefix="/api/",
-                        tags=["Testing"]
-                    )
+                        prefix="/api/", tags=["Testing"]
+                    ),
                 )
             )
             .add_component(
                 WebSocketServerComponent(
                     name="test_websockets",
-                    config=WebSocketComponentConfig(
-                        prefix="/",
-                        tags=["Testing"]
-                    )
+                    config=WebSocketComponentConfig(prefix="/", tags=["Testing"]),
                 )
             )
             .add_component(
                 ArtifactsComponent(
                     name="test_artifacts",
-                    config=ArtifactComponentConfig(
-                        prefix="/api/v1/",
-                        tags=["Testing"]
-                    )
+                    config=ArtifactComponentConfig(prefix="/api/v1/", tags=["Testing"]),
                 )
             )
         )
@@ -224,16 +213,10 @@ def dashboard_service(orchestrator):
     try:
         from flock.api import BaseHTTPService
 
-        service =  (
-            BaseHTTPService(orchestrator=orchestrator)
-            .add_component(
-                WebSocketServerComponent(
-                    name="test_websocket",
-                    config=WebSocketComponentConfig(
-                        prefix="/",
-                        tags=["Test Websocket"]
-                    )
-                )
+        service = BaseHTTPService(orchestrator=orchestrator).add_component(
+            WebSocketServerComponent(
+                name="test_websocket",
+                config=WebSocketComponentConfig(prefix="/", tags=["Test Websocket"]),
             )
         )
         service.configure()
@@ -305,17 +288,12 @@ async def test_dashboard_dev_environment_variable_cors(orchestrator):
     try:
         from flock.api import BaseHTTPService
 
-        service = (
-            BaseHTTPService(orchestrator=orchestrator)
-            .add_component(
-                CORSComponent(
-                    name="cors_test",
-                    config=CORSComponentConfig(
-                        allow_origins=["*"],
-                        allow_methods=["*"],
-                        allow_headers=["*"]
-                    )
-                )
+        service = BaseHTTPService(orchestrator=orchestrator).add_component(
+            CORSComponent(
+                name="cors_test",
+                config=CORSComponentConfig(
+                    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+                ),
             )
         )
         service.configure()
@@ -347,7 +325,9 @@ async def test_dashboard_dev_environment_variable_cors(orchestrator):
 async def test_get_artifact_types_success(async_client, mocker):
     """Test GET /api/artifact-types returns registered artifact types with schemas."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_type_registry._by_name = ["TestArtifact", "InvalidTestArtifact"]
 
     # Mock model class and schema
@@ -377,7 +357,9 @@ async def test_get_artifact_types_success(async_client, mocker):
 async def test_get_artifact_types_handles_schema_errors(async_client, mocker):
     """Test GET /api/artifact-types handles schema generation errors gracefully."""
     # Mock type_registry with a type that causes schema errors
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_type_registry._by_name = ["TestArtifact", "BrokenType"]
 
     # Mock working type
@@ -407,7 +389,9 @@ async def test_get_artifact_types_handles_schema_errors(async_client, mocker):
 async def test_get_artifact_types_empty_registry(async_client, mocker):
     """Test GET /api/artifact-types with empty type registry."""
     # Mock empty type registry
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_type_registry._by_name = []
 
     # Act
@@ -473,17 +457,13 @@ async def test_get_agents_multiple_agents(async_client, mocker):
         .add_component(
             AgentsServerComponent(
                 name="test_agents",
-                config=AgentsServerComponentConfig(
-                    prefix="/api/v1/"
-                )
+                config=AgentsServerComponentConfig(prefix="/api/v1/"),
             )
         )
         .add_component(
             ControlRoutesComponent(
                 name="test_control_routes",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
+                config=ControlRoutesComponentConfig(prefix="/api/"),
             )
         )
     )
@@ -531,19 +511,13 @@ async def test_get_agents_empty_list(async_client, mocker):
         .add_component(
             AgentsServerComponent(
                 name="test_agents",
-                config=AgentsServerComponentConfig(
-                    prefix="/api/v1/",
-                    tags=["Test"]
-                )
+                config=AgentsServerComponentConfig(prefix="/api/v1/", tags=["Test"]),
             )
         )
         .add_component(
             ControlRoutesComponent(
                 name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/",
-                    tags=["Testing"]
-                )
+                config=ControlRoutesComponentConfig(prefix="/api/", tags=["Testing"]),
             )
         )
     )
@@ -603,23 +577,17 @@ async def test_get_agents_with_joinspec_returns_logic_operations():
     from flock.api import BaseHTTPService
 
     service = (
-        BaseHTTPService(
-            orchestrator=orchestrator
-        )
+        BaseHTTPService(orchestrator=orchestrator)
         .add_component(
             AgentsServerComponent(
                 name="test_agents",
-                config=AgentsServerComponentConfig(
-                    prefix="/api/v1/"
-                )
+                config=AgentsServerComponentConfig(prefix="/api/v1/"),
             )
         )
         .add_component(
             ControlRoutesComponent(
                 name="test_control_routes",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
+                config=ControlRoutesComponentConfig(prefix="/api/"),
             )
         )
     )
@@ -698,15 +666,9 @@ async def test_get_agents_with_batchspec_returns_logic_operations():
     # Create service
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(orchestrator=orchestrator)
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -808,15 +770,9 @@ async def test_get_agents_with_waiting_correlation_groups():
     # Create service
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(orchestrator=orchestrator)
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -905,15 +861,9 @@ async def test_get_agents_with_batch_accumulating():
     # Create service
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(orchestrator=orchestrator)
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -986,15 +936,9 @@ async def test_get_agents_with_both_joinspec_and_batchspec():
     # Create service
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(orchestrator=orchestrator)
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -1050,15 +994,9 @@ async def test_get_agents_without_logic_operations():
     # Create service
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(orchestrator=orchestrator)
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -1123,17 +1061,9 @@ async def test_get_agents_multiple_subscriptions_with_logic_ops():
     # Create service
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(
-            orchestrator=orchestrator
-        )
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -1181,7 +1111,9 @@ async def test_publish_artifact_missing_artifact_type(async_client):
 async def test_publish_artifact_unknown_type(async_client, mocker):
     """Test POST /api/control/publish with unknown artifact type returns 422."""
     # Mock type_registry to raise KeyError
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_type_registry.resolve.side_effect = KeyError("UnknownType")
 
     response = await async_client.post(
@@ -1197,7 +1129,9 @@ async def test_publish_artifact_unknown_type(async_client, mocker):
 async def test_publish_artifact_validation_error(async_client, mocker):
     """Test POST /api/control/publish with invalid content returns 422."""
     # Mock type_registry and model validation error
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_model_class = Mock()
     mock_model_class.side_effect = ValidationError.from_exception_data(
         "TestArtifact",
@@ -1228,7 +1162,9 @@ async def test_publish_artifact_validation_error(async_client, mocker):
 async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
     """Test POST /api/control/publish handles orchestrator errors returns 500."""
     # Mock type_registry to return a mock instance
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -1242,17 +1178,9 @@ async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
     # Create service with mocked orchestrator
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(
-            orchestrator=orchestrator
-        )
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -1279,7 +1207,9 @@ async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
 async def test_invoke_agent_success(async_client, mock_artifact, mocker):
     """Test POST /api/control/invoke successfully invokes agent."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 
@@ -1350,17 +1280,9 @@ async def test_invoke_agent_not_found(orchestrator, mocker):
     # Create service with mocked orchestrator
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(
-            orchestrator=orchestrator
-        )
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -1384,7 +1306,9 @@ async def test_invoke_agent_not_found(orchestrator, mocker):
 async def test_invoke_agent_unknown_input_type(async_client, mocker):
     """Test POST /api/control/invoke with unknown input type returns 422."""
     # Mock type_registry to raise KeyError
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_type_registry.resolve.side_effect = KeyError("UnknownType")
 
     response = await async_client.post(
@@ -1407,7 +1331,9 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
     mocker.patch.object(orchestrator, "get_agent", return_value=mock_agent)
 
     # Mock type_registry and model validation error
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_model_class = Mock()
     mock_model_class.side_effect = ValidationError.from_exception_data(
         "TestArtifact",
@@ -1426,17 +1352,9 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
     # Create service with mocked orchestrator
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(
-            orchestrator=orchestrator
-        )
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -1464,7 +1382,9 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
 async def test_invoke_agent_no_outputs(orchestrator, mocker):
     """Test POST /api/control/invoke when agent returns no outputs."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -1480,17 +1400,9 @@ async def test_invoke_agent_no_outputs(orchestrator, mocker):
     # Create service with mocked orchestrator
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(
-            orchestrator=orchestrator
-        )
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -1520,7 +1432,9 @@ async def test_invoke_agent_no_outputs(orchestrator, mocker):
 async def test_invoke_agent_orchestrator_error(orchestrator, mocker):
     """Test POST /api/control/invoke handles orchestrator errors returns 500."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -1539,17 +1453,9 @@ async def test_invoke_agent_orchestrator_error(orchestrator, mocker):
     # Create service with mocked orchestrator
     from flock.api import BaseHTTPService
 
-    service = (
-        BaseHTTPService(
-            orchestrator=orchestrator
-        )
-        .add_component(
-            ControlRoutesComponent(
-                name="test_control",
-                config=ControlRoutesComponentConfig(
-                    prefix="/api/"
-                )
-            )
+    service = BaseHTTPService(orchestrator=orchestrator).add_component(
+        ControlRoutesComponent(
+            name="test_control", config=ControlRoutesComponentConfig(prefix="/api/")
         )
     )
     service.configure()
@@ -1641,7 +1547,9 @@ async def test_correlation_id_generation_and_timestamp_formatting(
 ):
     """Test that correlation IDs and timestamps are properly formatted."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 
