@@ -11,9 +11,10 @@ including two modes:
 from __future__ import annotations
 
 from collections import OrderedDict, defaultdict
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import nullcontext
 from datetime import UTC, datetime
-from typing import Any, Awaitable, Callable, Sequence
+from typing import Any
 
 from flock.components.server.models.events import StreamingOutputEvent
 from flock.engines.streaming.sinks import RichSink, StreamSink, WebSocketSink

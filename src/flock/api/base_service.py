@@ -33,7 +33,7 @@ class BaseHTTPService:
         title: str = "Flock API",
         version: str = "0.5.0",
         description: str = "API for Flock Orchestrator",
-        ):
+    ):
         self.orchestrator = orchestrator
         self.components: list[ServerComponent] = []
 
@@ -90,7 +90,7 @@ class BaseHTTPService:
         """
         logger.info("Configuring BaseHTTPService")
         if self._configured:
-            return # Noting to do
+            return  # Noting to do
         if self.app is None:
             logger.debug("Creating FastAPI app")
             # No FastAPI app has been instantiated yet
@@ -186,10 +186,12 @@ class BaseHTTPService:
                 try:
                     await component.on_startup_async(orchestrator=orchestrator)
                 except Exception as e:
-                    logger.exception(f"Exception during startup of application: Affected ServerComponent: {component.name}. Exception: {e}")
-                    raise # Raise the exception and stop execution
+                    logger.exception(
+                        f"Exception during startup of application: Affected ServerComponent: {component.name}. Exception: {e}"
+                    )
+                    raise  # Raise the exception and stop execution
             self._started = True
-            yield # App runs...
+            yield  # App runs...
             # The second part of the function will be executed AFTER the application has finished
             for component in reverse_components:
                 if not component.config.enabled:
@@ -197,8 +199,11 @@ class BaseHTTPService:
                 try:
                     await component.on_shutdown_async(orchestrator=orchestrator)
                 except Exception as e:
-                    logger.exception(f"Exception during shutdown of application: Affected ServerComponent: {component.name}. Exception: {e}")
-                    continue # Ignore the exception to ensure proper shutdown if possible.
+                    logger.exception(
+                        f"Exception during shutdown of application: Affected ServerComponent: {component.name}. Exception: {e}"
+                    )
+                    continue  # Ignore the exception to ensure proper shutdown if possible.
             self._started = False
             self._configured = False
+
         return lifespan

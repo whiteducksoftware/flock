@@ -33,6 +33,7 @@ WebSocketEvent = Union[
     AgentErrorEvent,
 ]
 
+
 class WebSocketManager:
     """Thread-safe singleton manager for WebSocket connections and event broadcasting.
 
@@ -112,15 +113,18 @@ class WebSocketManager:
             will be ignored and return the already-initialized singleton instance.
         """
         # Guard against re-initialization
-        if(self._initialized and (heartbeat_interval != self._heartbeat_interval or enable_heartbeat != self._enable_heartbeat)):
-                logger.warning(
-                    "WebSocketManager singleton already initialized with "
-                    f"heartbeat_interval={self._heartbeat_interval}, "
-                    f"enable_heartbeat={self._enable_heartbeat} "
-                    f"Ignoring new parameters: heartbeat_interval={heartbeat_interval}, "
-                    f"enable_heartbeat={enable_heartbeat}"
-                )
-                return
+        if self._initialized and (
+            heartbeat_interval != self._heartbeat_interval
+            or enable_heartbeat != self._enable_heartbeat
+        ):
+            logger.warning(
+                "WebSocketManager singleton already initialized with "
+                f"heartbeat_interval={self._heartbeat_interval}, "
+                f"enable_heartbeat={self._enable_heartbeat} "
+                f"Ignoring new parameters: heartbeat_interval={heartbeat_interval}, "
+                f"enable_heartbeat={enable_heartbeat}"
+            )
+            return
 
         # Store parameters for async initialization
         self._heartbeat_interval = heartbeat_interval
@@ -148,6 +152,7 @@ class WebSocketManager:
             f"WebSocketManager singleton initialized (heartbeat_interval={heartbeat_interval}s, "
             f"enable_heartbeat={enable_heartbeat})"
         )
+
     async def add_client(self, websocket: WebSocket) -> None:
         """Add WebSocket client to connection pool (thread-safe).
 
@@ -346,7 +351,9 @@ class WebSocketManager:
 
         logger.info("WebSocketManager shutdown complete")
 
-    async def get_streaming_history(self, agent_name: str) -> list[StreamingOutputEvent]:
+    async def get_streaming_history(
+        self, agent_name: str
+    ) -> list[StreamingOutputEvent]:
         """Get historical streaming output events for a specific agent (thread-safe).
 
         Args:
@@ -364,7 +371,9 @@ class WebSocketManager:
             client_count = len(self.clients)
             self.clients.clear()
             clean_count = len(self.clients)
-            logger.info(f"Removed a total of {client_count} clients from the pool. Pool now contains {clean_count} clients.")
+            logger.info(
+                f"Removed a total of {client_count} clients from the pool. Pool now contains {clean_count} clients."
+            )
 
 
 __all__ = ["WebSocketEvent", "WebSocketManager"]

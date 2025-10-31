@@ -79,7 +79,7 @@ cors = CORSComponent(
         allow_origins=["https://example.com"],
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_credentials=True,
-        
+
         # Route-specific overrides
         route_configs=[
             RouteSpecificCORSConfig(
@@ -116,10 +116,10 @@ from flock.components.server import (
 async def api_key_auth(request: Request) -> tuple[bool, Response | None]:
     """Validate API key from headers."""
     api_key = request.headers.get("X-API-Key")
-    
+
     if api_key == "secret-key":
         return True, None  # Authentication successful
-    
+
     # Authentication failed - return error response
     return False, JSONResponse(
         {"error": "Invalid API key"},
@@ -158,19 +158,19 @@ async def public_auth(request: Request) -> tuple[bool, Response | None]:
 async def admin_auth(request: Request) -> tuple[bool, Response | None]:
     """JWT authentication for admin endpoints."""
     auth_header = request.headers.get("Authorization")
-    
+
     if not auth_header or not auth_header.startswith("Bearer "):
         return False, JSONResponse(
             {"error": "Admin access requires Bearer token"},
             status_code=403
         )
-    
+
     token = auth_header[7:]  # Remove "Bearer " prefix
-    
+
     # Validate JWT (simplified)
     if token == "valid-admin-token":
         return True, None
-    
+
     return False, JSONResponse(
         {"error": "Insufficient privileges"},
         status_code=403
@@ -334,32 +334,32 @@ from flock.components.server import ServerComponent, ServerComponentConfig
 
 class MyComponentConfig(ServerComponentConfig):
     """Configuration for my component."""
-    
+
     my_setting: str = "default_value"
 
 class MyComponent(ServerComponent):
     """My custom server component."""
-    
+
     name: str = "my_component"
     priority: int = 10
     config: MyComponentConfig = MyComponentConfig()
-    
+
     def configure(self, app: Any, orchestrator: Any) -> None:
         """Configure middleware, etc."""
         # Add middleware if needed
         pass
-    
+
     def register_routes(self, app: Any, orchestrator: Any) -> None:
         """Register HTTP endpoints."""
-        
+
         @app.get("/my-endpoint")
         async def my_endpoint():
             return {"status": "ok"}
-    
+
     async def on_startup_async(self, orchestrator: Any) -> None:
         """Async startup tasks."""
         print("MyComponent starting...")
-    
+
     async def on_shutdown_async(self, orchestrator: Any) -> None:
         """Async cleanup tasks."""
         print("MyComponent stopping...")
@@ -375,17 +375,17 @@ from flock.components.server import ServerComponent, ServerComponentConfig
 
 class LoggingComponent(ServerComponent):
     """Component that logs all HTTP requests."""
-    
+
     name: str = "request_logging"
     priority: int = 5  # Run early to capture all requests
-    
+
     def configure(self, app: Any, orchestrator: Any) -> None:
         """Add logging middleware."""
-        
+
         class RequestLoggingMiddleware:
             def __init__(self, app: ASGIApp):
                 self.app = app
-            
+
             async def __call__(
                 self,
                 scope: Scope,
@@ -395,19 +395,19 @@ class LoggingComponent(ServerComponent):
                 if scope["type"] != "http":
                     await self.app(scope, receive, send)
                     return
-                
+
                 start_time = time.time()
                 path = scope.get("path", "")
                 method = scope.get("method", "")
-                
+
                 # Process request
                 await self.app(scope, receive, send)
-                
+
                 duration = time.time() - start_time
                 print(f"{method} {path} - {duration:.3f}s")
-        
+
         app.add_middleware(RequestLoggingMiddleware)
-    
+
     def register_routes(self, app: Any, orchestrator: Any) -> None:
         """No routes needed for logging."""
         pass
@@ -426,7 +426,7 @@ from flock.components.server import ServerComponent, ServerComponentConfig
 
 class RateLimitConfig(ServerComponentConfig):
     """Configuration for rate limiting."""
-    
+
     max_requests: int = Field(
         default=100,
         description="Maximum requests per window"
@@ -438,26 +438,26 @@ class RateLimitConfig(ServerComponentConfig):
 
 class RateLimitComponent(ServerComponent):
     """Component that implements rate limiting."""
-    
+
     name: str = "rate_limit"
     priority: int = 6  # Before business logic, after CORS
     config: RateLimitConfig = RateLimitConfig()
-    
+
     # Track requests per IP
     _request_counts: dict[str, list[float]] = Field(
         default_factory=lambda: defaultdict(list),
         exclude=True
     )
-    
+
     def configure(self, app: Any, orchestrator: Any) -> None:
         """Add rate limiting middleware."""
         from starlette.types import ASGIApp, Receive, Scope, Send
-        
+
         class RateLimitMiddleware:
             def __init__(self, app: ASGIApp, parent: "RateLimitComponent"):
                 self.app = app
                 self.parent = parent
-            
+
             async def __call__(
                 self,
                 scope: Scope,
@@ -467,20 +467,20 @@ class RateLimitComponent(ServerComponent):
                 if scope["type"] != "http":
                     await self.app(scope, receive, send)
                     return
-                
+
                 # Get client IP
                 client_ip = scope.get("client", ["unknown"])[0]
-                
+
                 # Check rate limit
                 now = time.time()
                 window_start = now - self.parent.config.window_seconds
-                
+
                 # Clean old requests
                 self.parent._request_counts[client_ip] = [
                     t for t in self.parent._request_counts[client_ip]
                     if t > window_start
                 ]
-                
+
                 # Check if over limit
                 if len(self.parent._request_counts[client_ip]) >= self.parent.config.max_requests:
                     response = JSONResponse(
@@ -492,15 +492,15 @@ class RateLimitComponent(ServerComponent):
                     )
                     await response(scope, receive, send)
                     return
-                
+
                 # Record this request
                 self.parent._request_counts[client_ip].append(now)
-                
+
                 # Process request
                 await self.app(scope, receive, send)
-        
+
         app.add_middleware(RateLimitMiddleware, parent=self)
-    
+
     def register_routes(self, app: Any, orchestrator: Any) -> None:
         """No routes needed."""
         pass
@@ -554,11 +554,11 @@ class MyComponent(ServerComponent):
 ```python
 class MyComponent(ServerComponent):
     _db_connection = None
-    
+
     async def on_startup_async(self, orchestrator: Any) -> None:
         """Connect to database."""
         self._db_connection = await connect_to_db()
-    
+
     async def on_shutdown_async(self, orchestrator: Any) -> None:
         """Close database connection."""
         if self._db_connection:
@@ -572,11 +572,11 @@ Use `_join_path()` for consistent URL handling:
 ```python
 def register_routes(self, app: Any, orchestrator: Any) -> None:
     prefix = self.config.prefix or ""
-    
+
     # ✅ CORRECT: Use helper
     health_path = self._join_path(prefix, "health")
     metrics_path = self._join_path(prefix, "metrics")
-    
+
     # ❌ WRONG: Manual joining
     health_path = f"{prefix}/health"  # Can create double slashes
 ```
@@ -622,7 +622,7 @@ flock = Flock()
 components = [
     # 1. Health (priority 0)
     HealthAndMetricsComponent(),
-    
+
     # 2. CORS (priority 8)
     CORSComponent(
         config=CORSComponentConfig(
@@ -630,7 +630,7 @@ components = [
             allow_credentials=True
         )
     ),
-    
+
     # 3. Authentication (priority 7)
     AuthenticationComponent(
         config=AuthenticationComponentConfig(
@@ -644,11 +644,11 @@ components = [
             exclude_paths=[r"^/health$", r"^/metrics$", r"^/docs.*"]
         )
     ),
-    
+
     # 4. Business logic (priority 20)
     AgentsServerComponent(),
     ArtifactsComponent(),
-    
+
     # 5. Static files (priority 99 - MUST BE LAST!)
     StaticFilesServerComponent(priority=99),
 ]

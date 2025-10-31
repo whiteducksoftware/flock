@@ -60,7 +60,9 @@ class TestFlockMCPCachingConfiguration:
 
     def test_to_dict(self):
         """Test serialization to dict."""
-        config = FlockMCPCachingConfiguration(tool_cache_max_size=150, tool_cache_max_ttl=90)
+        config = FlockMCPCachingConfiguration(
+            tool_cache_max_size=150, tool_cache_max_ttl=90
+        )
         result = config.to_dict()
 
         expected = {
@@ -104,7 +106,9 @@ class TestFlockMCPCachingConfiguration:
 
     def test_extra_fields_allowed(self):
         """Test that extra fields are allowed."""
-        config = FlockMCPCachingConfiguration(extra_field="extra_value", another_extra=123)
+        config = FlockMCPCachingConfiguration(
+            extra_field="extra_value", another_extra=123
+        )
         assert config.extra_field == "extra_value"
         assert config.another_extra == 123
 
@@ -158,7 +162,9 @@ class TestFlockMCPCallbackConfiguration:
 
     def test_with_fields(self):
         """Test dynamic field creation."""
-        DynamicConfig = FlockMCPCallbackConfiguration.with_fields(custom_callback=(Mock, None))
+        DynamicConfig = FlockMCPCallbackConfiguration.with_fields(
+            custom_callback=(Mock, None)
+        )
 
         config = DynamicConfig()
         assert hasattr(config, "custom_callback")
@@ -195,7 +201,9 @@ class TestFlockMCPFeatureConfiguration:
 
     def test_to_dict(self):
         """Test serialization to dict."""
-        config = FlockMCPFeatureConfiguration(roots_enabled=False, tool_whitelist=["allowed_tool"])
+        config = FlockMCPFeatureConfiguration(
+            roots_enabled=False, tool_whitelist=["allowed_tool"]
+        )
         result = config.to_dict()
 
         expected = {
@@ -239,7 +247,9 @@ class TestFlockMCPFeatureConfiguration:
 
     def test_with_fields(self):
         """Test dynamic field creation."""
-        DynamicConfig = FlockMCPFeatureConfiguration.with_fields(custom_feature=(bool, True))
+        DynamicConfig = FlockMCPFeatureConfiguration.with_fields(
+            custom_feature=(bool, True)
+        )
 
         config = DynamicConfig()
         assert hasattr(config, "custom_feature")
@@ -384,7 +394,9 @@ class TestFlockMCPConnectionConfiguration:
         )
 
         stdio_params = StdioServerParameters(command="test", args=[])
-        config = DynamicConfig(connection_parameters=stdio_params, transport_type="stdio")
+        config = DynamicConfig(
+            connection_parameters=stdio_params, transport_type="stdio"
+        )
         assert hasattr(config, "custom_connection_field")
         assert config.custom_connection_field == "default"
 
@@ -399,7 +411,9 @@ class TestFlockMCPConfiguration:
             connection_parameters=stdio_params, transport_type="stdio"
         )
 
-        config = FlockMCPConfiguration(name="test_server", connection_config=connection_config)
+        config = FlockMCPConfiguration(
+            name="test_server", connection_config=connection_config
+        )
 
         assert config.name == "test_server"
         assert config.connection_config == connection_config
@@ -436,7 +450,9 @@ class TestFlockMCPConfiguration:
         connection_config = FlockMCPConnectionConfiguration(
             connection_parameters=stdio_params, transport_type="stdio"
         )
-        config = FlockMCPConfiguration(name="test_server", connection_config=connection_config)
+        config = FlockMCPConfiguration(
+            name="test_server", connection_config=connection_config
+        )
         result = config.to_dict()
 
         assert result["name"] == "test_server"
@@ -469,7 +485,11 @@ class TestFlockMCPConfiguration:
         data = {
             "name": "test_server",
             "connection_config": {
-                "connection_parameters": {"transport_type": "stdio", "command": "test", "args": []},
+                "connection_parameters": {
+                    "transport_type": "stdio",
+                    "command": "test",
+                    "args": [],
+                },
                 "transport_type": "stdio",
             },
         }
@@ -517,7 +537,11 @@ class TestFlockMCPConfiguration:
         # Test the specific error message for missing connection_config
         data_no_name = {
             "connection_config": {
-                "connection_parameters": {"transport_type": "stdio", "command": "test", "args": []},
+                "connection_parameters": {
+                    "transport_type": "stdio",
+                    "command": "test",
+                    "args": [],
+                },
                 "transport_type": "stdio",
             }
         }
@@ -557,7 +581,9 @@ class TestFlockMCPConfiguration:
 
     def test_with_fields(self):
         """Test dynamic field creation."""
-        DynamicConfig = FlockMCPConfiguration.with_fields(custom_field=(str, "default_value"))
+        DynamicConfig = FlockMCPConfiguration.with_fields(
+            custom_field=(str, "default_value")
+        )
 
         stdio_params = StdioServerParameters(command="test", args=[])
         connection_config = FlockMCPConnectionConfiguration(
@@ -629,7 +655,9 @@ class TestEdgeCases:
 
     def test_zero_values(self):
         """Test configuration with zero values."""
-        caching_config = FlockMCPCachingConfiguration(tool_cache_max_size=0, tool_cache_max_ttl=0)
+        caching_config = FlockMCPCachingConfiguration(
+            tool_cache_max_size=0, tool_cache_max_ttl=0
+        )
         assert caching_config.tool_cache_max_size == 0
         assert caching_config.tool_cache_max_ttl == 0
 
@@ -697,7 +725,9 @@ class TestTypeSafety:
         ]
 
         config = FlockMCPConnectionConfiguration(
-            connection_parameters=stdio_params, transport_type="stdio", mount_points=mount_points
+            connection_parameters=stdio_params,
+            transport_type="stdio",
+            mount_points=mount_points,
         )
         assert len(config.mount_points) == 2
         assert config.mount_points[0].name == "test1"
@@ -718,7 +748,10 @@ class TestDynamicModelCreation:
     def test_multiple_dynamic_fields(self):
         """Test creating multiple dynamic fields."""
         DynamicConfig = FlockMCPCachingConfiguration.with_fields(
-            field1=(str, "default1"), field2=(int, 42), field3=(bool, True), field4=(list, [])
+            field1=(str, "default1"),
+            field2=(int, 42),
+            field3=(bool, True),
+            field4=(list, []),
         )
 
         config = DynamicConfig()
@@ -729,7 +762,9 @@ class TestDynamicModelCreation:
 
     def test_dynamic_field_inheritance(self):
         """Test that dynamic fields are inherited."""
-        DynamicConfig = FlockMCPConfiguration.with_fields(inherited_field=(str, "inherited_value"))
+        DynamicConfig = FlockMCPConfiguration.with_fields(
+            inherited_field=(str, "inherited_value")
+        )
 
         # Should be able to create instances with the inherited field
         stdio_params = StdioServerParameters(command="test", args=[])
@@ -754,7 +789,9 @@ class TestDynamicModelCreation:
 
     def test_dynamic_field_from_dict(self):
         """Test that dynamic fields can be populated from dict."""
-        DynamicConfig = FlockMCPCachingConfiguration.with_fields(from_dict_field=(str, "default"))
+        DynamicConfig = FlockMCPCachingConfiguration.with_fields(
+            from_dict_field=(str, "default")
+        )
 
         data = {"from_dict_field": "from_dict_value", "tool_cache_max_size": 200}
 

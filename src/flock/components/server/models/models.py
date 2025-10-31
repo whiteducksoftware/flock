@@ -1,5 +1,4 @@
-"""Models for ServerComponents.
-"""
+"""Models for ServerComponents."""
 
 from typing import Any, Literal
 
@@ -44,6 +43,7 @@ class AgentRunResponse(BaseModel):
         description="Artifacts produced by the agent run"
     )
 
+
 # ============================================================================
 # Agent Models
 # ============================================================================
@@ -74,6 +74,7 @@ class AgentListResponse(BaseModel):
 
     agents: list[Agent] = Field(description="List of all registered agents")
 
+
 # ============================================================================
 # Correlation Status Models
 # ============================================================================
@@ -99,6 +100,7 @@ class CorrelationStatusResponse(BaseModel):
     last_activity_at: str | None = Field(
         None, description="Timestamp of most recent artifact (ISO 8601)"
     )
+
 
 __all__ = [
     "Agent",

@@ -1,4 +1,3 @@
-import asyncio
 import sys
 from collections import OrderedDict, defaultdict
 from types import ModuleType, SimpleNamespace
@@ -25,7 +24,10 @@ def test_payload_kwargs_variants() -> None:
     executor = _make_executor()
 
     rich_payload = {"description": "Describe", "task": "do something"}
-    assert executor._payload_kwargs(payload=rich_payload, description="ignored") is rich_payload
+    assert (
+        executor._payload_kwargs(payload=rich_payload, description="ignored")
+        is rich_payload
+    )
 
     legacy_payload = {"input": "story", "context": ["a"]}
     result = executor._payload_kwargs(payload=legacy_payload, description="desc")
@@ -121,7 +123,9 @@ async def test_websocket_sink_emits_events_in_order() -> None:
     async def broadcast(event: StreamingOutputEvent) -> None:
         events.append(event)
 
-    def event_factory(output_type: str, content: str, sequence: int, is_final: bool) -> StreamingOutputEvent:
+    def event_factory(
+        output_type: str, content: str, sequence: int, is_final: bool
+    ) -> StreamingOutputEvent:
         return executor._build_event(  # type: ignore[attr-defined]
             ctx=ctx,
             agent=agent,
@@ -163,21 +167,19 @@ class DummyPrediction:
 
 @pytest.mark.asyncio
 async def test_rich_sink_updates_display_and_finalizes() -> None:
-    display_data = OrderedDict(
-        [
-            ("id", "temp"),
-            ("type", "Report"),
-            ("payload", OrderedDict({"output": "", "detail": ""})),
-            ("produced_by", "agent"),
-            ("correlation_id", None),
-            ("partition_key", None),
-            ("tags", "set()"),
-            ("visibility", OrderedDict([("kind", "Public")])),
-            ("created_at", "streaming..."),
-            ("version", 1),
-            ("status", "_status"),
-        ]
-    )
+    display_data = OrderedDict([
+        ("id", "temp"),
+        ("type", "Report"),
+        ("payload", OrderedDict({"output": "", "detail": ""})),
+        ("produced_by", "agent"),
+        ("correlation_id", None),
+        ("partition_key", None),
+        ("tags", "set()"),
+        ("visibility", OrderedDict([("kind", "Public")])),
+        ("created_at", "streaming..."),
+        ("version", 1),
+        ("status", "_status"),
+    ])
     stream_buffers = defaultdict(list)
 
     refresh_calls: list[int] = []

@@ -1,4 +1,5 @@
 """Module for the Artifact ServerComponent."""
+
 from flock.components.server.artifacts.artifacts_component import (
     ArtifactComponentConfig,
     ArtifactsComponent,
@@ -27,5 +28,5 @@ __all__ = [
     "ArtifactsComponent",
     "ConsumptionRecord",
     "PaginationInfo",
-    "VisibilityInfo"
+    "VisibilityInfo",
 ]

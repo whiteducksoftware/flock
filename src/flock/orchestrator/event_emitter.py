@@ -85,7 +85,9 @@ class EventEmitter:
         for group_state in groups:
             if not group_state["is_complete"]:
                 # Import CorrelationGroupUpdatedEvent
-                from flock.components.server.models.events import CorrelationGroupUpdatedEvent
+                from flock.components.server.models.events import (
+                    CorrelationGroupUpdatedEvent,
+                )
 
                 # Build and emit event
                 event = CorrelationGroupUpdatedEvent(

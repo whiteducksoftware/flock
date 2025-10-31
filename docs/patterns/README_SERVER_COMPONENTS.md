@@ -79,21 +79,21 @@ await ServerManager.serve(
 ```python
 class ServerComponent(BaseModel):
     """Base class for HTTP service components."""
-    
+
     name: str | None = None
     priority: int = 0  # Lower runs first
     config: ServerComponentConfig = Field(default_factory=ServerComponentConfig)
-    
+
     # Lifecycle hooks (same pattern as AgentComponent!)
     def configure(self, app: FastAPI, orchestrator: Flock) -> None:
         """Configure FastAPI app (add middleware, CORS, etc.)"""
-    
+
     async def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
         """Register HTTP routes"""
-    
+
     async def on_startup(self, orchestrator: Flock) -> None:
         """Async startup tasks"""
-    
+
     async def on_shutdown(self, orchestrator: Flock) -> None:
         """Async cleanup tasks"""
 ```
@@ -103,15 +103,15 @@ class ServerComponent(BaseModel):
 ```python
 class BaseHTTPService:
     """HTTP service built from composable ServerComponents."""
-    
+
     def __init__(self, orchestrator: Flock, **kwargs):
         self.orchestrator = orchestrator
         self.components: list[ServerComponent] = []
         self.app = FastAPI(**kwargs)
-    
+
     def add_component(self, component: ServerComponent) -> None:
         """Add a component to the service."""
-    
+
     def configure(self) -> None:
         """Configure FastAPI app with all components."""
         # 1. Sort components by priority
@@ -119,7 +119,7 @@ class BaseHTTPService:
         # 3. Call component.configure() for each
         # 4. Register startup/shutdown hooks
         # 5. Call component.register_routes() for each
-    
+
     async def run_async(self, host: str, port: int) -> None:
         """Run the service asynchronously."""
 ```
@@ -130,11 +130,11 @@ class BaseHTTPService:
 ```python
 class HealthComponent(ServerComponent):
     priority = 5  # Early registration
-    
+
     async def register_routes(self, app, orchestrator):
         @app.get("/health")
         async def health(): ...
-        
+
         @app.get("/metrics")
         async def metrics(): ...
 ```
@@ -143,11 +143,11 @@ class HealthComponent(ServerComponent):
 ```python
 class ArtifactComponent(ServerComponent):
     priority = 10
-    
+
     async def register_routes(self, app, orchestrator):
         @app.post("/api/v1/artifacts")
         async def publish_artifact(): ...
-        
+
         @app.get("/api/v1/artifacts")
         async def list_artifacts(): ...
 ```
@@ -156,21 +156,21 @@ class ArtifactComponent(ServerComponent):
 ```python
 class DashboardComponent(ServerComponent):
     priority = 20  # After base routes
-    
+
     async def on_startup(self, orchestrator):
         # Initialize WebSocketManager, EventCollector, etc.
         self.websocket_manager = WebSocketManager()
         self.launcher = DashboardLauncher()
         self.launcher.start()
-    
+
     async def register_routes(self, app, orchestrator):
         # Register WebSocket endpoint
         @app.websocket("/ws")
         async def websocket_endpoint(): ...
-        
+
         # Mount static files (MUST BE LAST!)
         app.mount("/", StaticFiles(...))
-    
+
     async def on_shutdown(self, orchestrator):
         # Cleanup
         await self.websocket_manager.shutdown()
@@ -182,11 +182,11 @@ class DashboardComponent(ServerComponent):
 class MCPComponent(ServerComponent):
     priority = 30
     config: MCPComponentConfig = Field(default_factory=MCPComponentConfig)
-    
+
     async def register_routes(self, app, orchestrator):
         @app.post("/mcp/tools/list")
         async def list_mcp_tools(): ...
-        
+
         @app.post("/mcp/tools/call")
         async def call_mcp_tool(): ...
 ```
@@ -231,7 +231,7 @@ await ServerManager.serve(
 ```python
 class AuthComponent(ServerComponent):
     priority = 1  # Run FIRST
-    
+
     def configure(self, app, orchestrator):
         @app.middleware("http")
         async def auth_middleware(request, call_next):
@@ -239,7 +239,7 @@ class AuthComponent(ServerComponent):
             if not self._validate_token(request):
                 raise HTTPException(401)
             return await call_next(request)
-    
+
     async def register_routes(self, app, orchestrator):
         pass  # No routes needed
 
@@ -301,14 +301,14 @@ await ServerManager.serve(orchestrator, dashboard=True)
 # Test component in isolation
 def test_artifact_component():
     orchestrator = Flock("openai/gpt-4o")
-    
+
     service = BaseHTTPService(orchestrator)
     service.add_component(ArtifactComponent())
     service.configure()
-    
+
     client = TestClient(service.app)
     response = client.post("/api/v1/artifacts", json={...})
-    
+
     assert response.status_code == 200
 ```
 

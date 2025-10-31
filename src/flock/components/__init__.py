@@ -99,5 +99,5 @@ __all__ = [
     "TracedModelMeta",
     "VisibilityInfo",
     "WebSocketComponentConfig",
-    "WebSocketServerComponent"
+    "WebSocketServerComponent",
 ]

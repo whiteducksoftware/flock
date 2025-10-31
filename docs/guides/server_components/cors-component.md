@@ -94,7 +94,7 @@ cors = CORSComponent(
         # Default: restrictive
         allow_origins=["https://app.example.com"],
         allow_credentials=True,
-        
+
         # Route overrides
         route_configs=[
             # Public API - allow all
@@ -103,7 +103,7 @@ cors = CORSComponent(
                 allow_origins=["*"],
                 allow_credentials=False,
             ),
-            
+
             # Admin API - very strict
             RouteSpecificCORSConfig(
                 path_pattern=r"^/api/admin/.*",

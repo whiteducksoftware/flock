@@ -17,22 +17,25 @@ from flock.logging.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 class TracingComponentConfig(ServerComponentConfig):
     """Configuration class for ThemesService."""
+
     prefix: str = Field(
         default="/api/plugin/",
-        description="Optional prefix for the routes for tracing. (Defaults to '/api/')"
+        description="Optional prefix for the routes for tracing. (Defaults to '/api/')",
     )
     tags: list[str] = Field(
         default=["Tracing"],
-        description="OpenAPI tags for grouping the API-Endpoints of the Component."
+        description="OpenAPI tags for grouping the API-Endpoints of the Component.",
     )
     # FUTURE: Add option for remote tracing DB-Path
     # TODO: Add option for remote tracing DB-Path
     db_path: str | Path | None = Field(
         default=None,
-        description="Optiona path to the DuckDB Tracing Database. If None (default), local database will be used. MUST BE A PATH FOR A LOCAL DB FILE (More options in the future)"
+        description="Optiona path to the DuckDB Tracing Database. If None (default), local database will be used. MUST BE A PATH FOR A LOCAL DB FILE (More options in the future)",
     )
+
 
 class TracingComponent(ServerComponent):
     """ServerComponent that handles trace-related API endpoints.
@@ -47,18 +50,17 @@ class TracingComponent(ServerComponent):
     - /api/artifacts/history/{node_id} -> Get complete message history for a node (both produced and consumed)
     - /api/agents/{agent_id}/runs -> Get run history for an agent
     """
+
     name: str = "tracing"
     priority: int = Field(
-        default=4,
-        description="Registration priority. (Defaults to 4)"
+        default=4, description="Registration priority. (Defaults to 4)"
     )
     config: TracingComponentConfig = Field(
-        default_factory=TracingComponentConfig,
-        description="Optional Config"
+        default_factory=TracingComponentConfig, description="Optional Config"
     )
     websocket_manager: WebSocketManager = Field(
         default_factory=WebSocketManager,
-        description="Singleton WebSocketManagerInstance"
+        description="Singleton WebSocketManagerInstance",
     )
     _db_path: Path | str | None = None
     _db_path_exists: bool = False
@@ -72,7 +74,10 @@ class TracingComponent(ServerComponent):
             self._db_path = self.config.db_path
 
         if self._db_path is None:
-            self._db_path = Path(__file__).parent.parent.parent.parent.parent / ".flock/traces.duckdb"
+            self._db_path = (
+                Path(__file__).parent.parent.parent.parent.parent
+                / ".flock/traces.duckdb"
+            )
 
         if isinstance(self._db_path, str):
             # turn it into a path-object
@@ -85,7 +90,6 @@ class TracingComponent(ServerComponent):
             self._db_path_exists = False
         else:
             self._db_path_exists = True
-
 
     def register_routes(self, app, orchestrator):
         """Register the routes the TracingComponent provides."""
@@ -134,24 +138,26 @@ class TracingComponent(ServerComponent):
                         span = {
                             "name": row[3],
                             "context": {
-                                "trace_id": row[0], # trace_id
-                                "span_id": row[1], # span_id
+                                "trace_id": row[0],  # trace_id
+                                "span_id": row[1],  # span_id
                                 "trace_flags": 0,
                                 "trace_state": "",
                             },
-                            "kind": row[6], # kind
-                            "start_time": row[7], # start_time
-                            "end_time": row[8], # end_time
+                            "kind": row[6],  # kind
+                            "start_time": row[7],  # start_time
+                            "end_time": row[8],  # end_time
                             "status": {
-                                "status_code": row[10], # status_code
-                                "description": row[11], # status_description
+                                "status_code": row[10],  # status_code
+                                "description": row[11],  # status_description
                             },
                             "attributes": json.loads(row[12])
                             if row[12]
-                            else {}, # attributes
-                            "events": json.loads(row[13]) if row[13] else [], # events
-                            "links": json.loads(row[14]) if row[14] else [], # links
-                            "resource": json.loads(row[15]) if row[15] else {}, # resource
+                            else {},  # attributes
+                            "events": json.loads(row[13]) if row[13] else [],  # events
+                            "links": json.loads(row[14]) if row[14] else [],  # links
+                            "resource": json.loads(row[15])
+                            if row[15]
+                            else {},  # resource
                         }
                         # add parent_id if exists
                         if row[2]:
@@ -164,7 +170,10 @@ class TracingComponent(ServerComponent):
                 logger.exception(f"Error reading traces from DuckDB: {ex!s}")
                 return []
 
-        @app.get(self._join_path(self.config.prefix, "traces/services"), tags=self.config.tags)
+        @app.get(
+            self._join_path(self.config.prefix, "traces/services"),
+            tags=self.config.tags,
+        )
         async def get_traces_services() -> dict[str, Any]:
             """Get list of unique services that have been traced.
 
@@ -201,7 +210,7 @@ class TracingComponent(ServerComponent):
                     ).fetchall()
                     return {
                         "services": [row[0] for row in services_result],
-                        "operations": [row[0] for row in operations_result]
+                        "operations": [row[0] for row in operations_result],
                     }
             except Exception as ex:
                 logger.exception(
@@ -209,7 +218,9 @@ class TracingComponent(ServerComponent):
                 )
                 return {"services": [], "operations": []}
 
-        @app.post(self._join_path(self.config.prefix, "traces/clear"), tags=self.config.tags)
+        @app.post(
+            self._join_path(self.config.prefix, "traces/clear"), tags=self.config.tags
+        )
         async def clear_traces() -> dict[str, Any]:
             """Clear all traces from DuckDB database.
 
@@ -223,14 +234,20 @@ class TracingComponent(ServerComponent):
             if self._db_path_exists:
                 result = orchestrator.clear_traces(db_path=self._db_path)
                 if result["success"]:
-                    logger.info(f"TracingComponent: Cleared {result['deleted_count']} trace spans via API")
+                    logger.info(
+                        f"TracingComponent: Cleared {result['deleted_count']} trace spans via API"
+                    )
                 else:
-                    logger.error(f"TracingComponent: Failed to clear traces: {result['error']}")
+                    logger.error(
+                        f"TracingComponent: Failed to clear traces: {result['error']}"
+                    )
 
                 return result
             return {}
 
-        @app.post(self._join_path(self.config.prefix, "traces/query"), tags=self.config.tags)
+        @app.post(
+            self._join_path(self.config.prefix, "traces/query"), tags=self.config.tags
+        )
         async def execute_trace_query(request: dict[str, Any]) -> dict[str, Any]:
             """Execute a DuckDB SQL query on the traces database.
 
@@ -299,19 +316,15 @@ class TracingComponent(ServerComponent):
                     return {
                         "results": results,
                         "columsn": columns,
-                        "row_count": len(results)
+                        "row_count": len(results),
                     }
             except Exception as ex:
-                logger.exception(
-                    f"TracingComponent: DuckDB query error: {ex!s}"
-                )
-                return {
-                    "error": str(ex),
-                    "results": [],
-                    "columns": []
-                }
+                logger.exception(f"TracingComponent: DuckDB query error: {ex!s}")
+                return {"error": str(ex), "results": [], "columns": []}
 
-        @app.get(self._join_path(self.config.prefix, "traces/stats"), tags=self.config.tags)
+        @app.get(
+            self._join_path(self.config.prefix, "traces/stats"), tags=self.config.tags
+        )
         async def get_trace_stats() -> dict[str, Any]:
             """Get statistics about the trace database.
 
@@ -335,14 +348,12 @@ class TracingComponent(ServerComponent):
                     "services_count": 0,
                     "oldest_trace": None,
                     "newest_trace": None,
-                    "database_size_mb": 0
+                    "database_size_mb": 0,
                 }
             try:
                 with duckdb.connect(str(self._db_path), read_only=True) as conn:
                     # Get total spans
-                    total_spans = conn.execute(
-                        "SELECT COUNT(*) FROM spans"
-                    ).fetchone()
+                    total_spans = conn.execute("SELECT COUNT(*) FROM spans").fetchone()
                     # Get total unique traces
                     total_traces = conn.execute(
                         "SELECT COUNT(DISTINCT trace_id) FROM spans"
@@ -378,12 +389,10 @@ class TracingComponent(ServerComponent):
                         "services_count": services_count,
                         "oldest_trace": oldest_trace,
                         "newest_trace": newest_trace,
-                        "database_size_mb": round(size_mb, 2)
+                        "database_size_mb": round(size_mb, 2),
                     }
             except Exception as ex:
-                logger.exception(
-                    f"TraceComponent: Error reading trace stats: {ex!s}"
-                )
+                logger.exception(f"TraceComponent: Error reading trace stats: {ex!s}")
                 return {
                     "total_spans": 0,
                     "total_traces": 0,
@@ -393,7 +402,10 @@ class TracingComponent(ServerComponent):
                     "database_size_mb": 0,
                 }
 
-        @app.get(self._join_path(self.config.prefix, "streaming-history/{agent_name}"), tags=self.config.tags)
+        @app.get(
+            self._join_path(self.config.prefix, "streaming-history/{agent_name}"),
+            tags=self.config.tags,
+        )
         async def get_streaming_history(agent_name: str) -> dict[str, Any]:
             """Get historical streaming output for a specific agent.
 
@@ -417,7 +429,9 @@ class TracingComponent(ServerComponent):
                 }
             """
             try:
-                history = await self.websocket_manager.get_streaming_history(agent_name=agent_name)
+                history = await self.websocket_manager.get_streaming_history(
+                    agent_name=agent_name
+                )
                 return {
                     "agent_name": agent_name,
                     "events": [event.model_dump() for event in history],
@@ -427,11 +441,13 @@ class TracingComponent(ServerComponent):
                     f"TracingComponent: Failed to get streaming history for {agent_name}: {ex!s}"
                 )
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to get streaming history: {ex!s}"
+                    status_code=500, detail=f"Failed to get streaming history: {ex!s}"
                 ) from ex
 
-        @app.get(self._join_path(self.config.prefix, "artifacts/history/{node_id}"), tags=self.config.tags)
+        @app.get(
+            self._join_path(self.config.prefix, "artifacts/history/{node_id}"),
+            tags=self.config.tags,
+        )
         async def get_message_history(node_id: str) -> dict[str, Any]:
             """Get complete message history for a node (both produced and consumed).
 
@@ -467,7 +483,10 @@ class TracingComponent(ServerComponent):
                     produced_artifacts,
                     _produced_count,
                 ) = await orchestrator.store.query_artifacts(
-                    produced_filter, limit=100, offset=0, embed_meta=False,
+                    produced_filter,
+                    limit=100,
+                    offset=0,
+                    embed_meta=False,
                 )
                 messages.extend([
                     {
@@ -485,7 +504,7 @@ class TracingComponent(ServerComponent):
                 ])
                 # 2. Get messsages CONSUMED by this node
                 # Query all artifacts with consumption metadata
-                all_artifacts_filter = FilterConfig() # No filter = all artifacts
+                all_artifacts_filter = FilterConfig()  # No filter = all artifacts
                 all_envelopes, _ = await orchestrator.store.query_artifacts(
                     all_artifacts_filter, limit=500, offset=0, embed_meta=True
                 )
@@ -508,7 +527,8 @@ class TracingComponent(ServerComponent):
                 ])
                 # Sort by timestamp (most recent first)
                 messages.sort(
-                    key=lambda m: m.get("consumed_at", m["timestamp"]), reverse=True,
+                    key=lambda m: m.get("consumed_at", m["timestamp"]),
+                    reverse=True,
                 )
                 return {
                     "node_id": node_id,
@@ -520,11 +540,13 @@ class TracingComponent(ServerComponent):
                     f"TracingComponent: Failed to get message history for {node_id}: {ex!s}"
                 )
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to get message histor: {ex!s}"
+                    status_code=500, detail=f"Failed to get message histor: {ex!s}"
                 ) from ex
 
-        @app.get(self._join_path(self.config.prefix, "agents/{agent_id}/runs"), tags=self.config.tags)
+        @app.get(
+            self._join_path(self.config.prefix, "agents/{agent_id}/runs"),
+            tags=self.config.tags,
+        )
         async def get_agent_runs(agent_id: str) -> dict[str, Any]:
             """Get run history for an agent.
 
@@ -570,8 +592,7 @@ class TracingComponent(ServerComponent):
                     f"TracingComponent: Failed to get run history for {agent_id}: {ex!s}"
                 )
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to get run history: {ex!s}"
+                    status_code=500, detail=f"Failed to get run history: {ex!s}"
                 ) from ex
 
     async def on_shutdown_async(self, orchestrator):

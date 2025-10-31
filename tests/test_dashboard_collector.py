@@ -11,6 +11,13 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
+from flock.api.collector import DashboardEventCollector
+from flock.components.server.models.events import (
+    AgentActivatedEvent,
+    AgentCompletedEvent,
+    AgentErrorEvent,
+    MessagePublishedEvent,
+)
 from flock.core.artifacts import Artifact
 from flock.core.store import InMemoryBlackboardStore
 from flock.core.visibility import (
@@ -18,13 +25,6 @@ from flock.core.visibility import (
     PrivateVisibility,
     PublicVisibility,
     TenantVisibility,
-)
-from flock.api.collector import DashboardEventCollector
-from flock.components.server.models.events import (
-    AgentActivatedEvent,
-    AgentCompletedEvent,
-    AgentErrorEvent,
-    MessagePublishedEvent,
 )
 from flock.utils.runtime import Context
 

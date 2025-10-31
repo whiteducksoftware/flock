@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from flock.api.collector import AgentSnapshot, DashboardEventCollector
 from flock.components.server.models.graph import (
@@ -60,9 +60,13 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
         graph_state: GraphState = await self._collector.snapshot_graph_state()
         agent_snapshots = await self._collector.snapshot_agent_registry()
-        artifacts = self._convert_envelopes_to_artifacts(envelopes, graph_state.consumptions)
+        artifacts = self._convert_envelopes_to_artifacts(
+            envelopes, graph_state.consumptions
+        )
 
-        produced_metrics, consumed_metrics = self._calculate_agent_metrics(artifacts.values())
+        produced_metrics, consumed_metrics = self._calculate_agent_metrics(
+            artifacts.values()
+        )
 
         if request.view_mode == "agent":
             nodes = self._build_agent_nodes(
@@ -117,12 +121,14 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             consumers.update(runtime)
 
             correlation_id = (
-                str(artifact.correlation_id) if artifact.correlation_id is not None else None
+                str(artifact.correlation_id)
+                if artifact.correlation_id is not None
+                else None
             )
             visibility_kind = getattr(artifact.visibility, "kind", None)
             if visibility_kind is None:
                 cls_name = type(artifact.visibility).__name__
-                visibility_kind = cls_name[:-10] if cls_name.endswith("Visibility") else cls_name
+                visibility_kind = cls_name.removesuffix("Visibility")
 
             artifacts[artifact_id] = GraphArtifact(
                 artifact_id=artifact_id,
@@ -186,9 +192,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         existing_names: set[str] = set()
 
         for agent in self._orchestrator.agents:
-            subscriptions = sorted(
-                {type_name for sub in agent.subscriptions for type_name in sub.type_names}
-            )
+            subscriptions = sorted({
+                type_name for sub in agent.subscriptions for type_name in sub.type_names
+            })
             output_types = sorted({output.spec.type_name for output in agent.outputs})
 
             produced = produced_metrics.get(agent.name)
@@ -199,7 +205,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             logic_operations = []
             for idx, subscription in enumerate(agent.subscriptions):
                 if subscription.join or subscription.batch:
-                    logic_config = self._build_logic_config_for_subscription(agent, subscription, idx)
+                    logic_config = self._build_logic_config_for_subscription(
+                        agent, subscription, idx
+                    )
                     if logic_config:
                         logic_operations.append(logic_config)
 
@@ -253,7 +261,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "firstSeen": snapshot.first_seen.isoformat(),
                 "lastSeen": snapshot.last_seen.isoformat(),
                 "signature": snapshot.signature,
-                "logicOperations": list(snapshot.logic_operations),  # Phase 1.2: From snapshot
+                "logicOperations": list(
+                    snapshot.logic_operations
+                ),  # Phase 1.2: From snapshot
             }
 
             nodes.append(
@@ -359,7 +369,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     },
                 )
                 payload["artifact_ids"].append(artifact.artifact_id)
-                payload["latest_timestamp"] = max(payload["latest_timestamp"], artifact.published_at)
+                payload["latest_timestamp"] = max(
+                    payload["latest_timestamp"], artifact.published_at
+                )
                 pair_key = tuple(sorted((producer, consumer)))
                 if edge_id not in pair_group[pair_key]:
                     pair_group[pair_key].append(edge_id)
@@ -415,11 +427,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 # JoinSpec pending edges
                 if subscription.join:
                     pending_join_edges = self._build_pending_join_edges(
-                        agent.name,
-                        sub_idx,
-                        subscription,
-                        artifact_map,
-                        edge_counter
+                        agent.name, sub_idx, subscription, artifact_map, edge_counter
                     )
                     edges.extend(pending_join_edges)
                     edge_counter += len(pending_join_edges)
@@ -427,11 +435,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 # BatchSpec pending edges
                 if subscription.batch:
                     pending_batch_edges = self._build_pending_batch_edges(
-                        agent.name,
-                        sub_idx,
-                        subscription,
-                        artifact_map,
-                        edge_counter
+                        agent.name, sub_idx, subscription, artifact_map, edge_counter
                     )
                     edges.extend(pending_batch_edges)
                     edge_counter += len(pending_batch_edges)
@@ -442,7 +446,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         self,
         agent_name: str,
         sub_idx: int,
-        subscription: "Subscription",  # noqa: F821
+        subscription: Subscription,  # noqa: F821
         artifact_map: Mapping[str, GraphArtifact],
         start_counter: int,
     ) -> list[GraphEdge]:
@@ -451,9 +455,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
         edges: list[GraphEdge] = []
         correlation_groups = _get_correlation_groups(
-            self._orchestrator._correlation_engine,
-            agent_name,
-            sub_idx
+            self._orchestrator._correlation_engine, agent_name, sub_idx
         )
 
         if not correlation_groups:
@@ -470,7 +472,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
             # Get the actual correlation group from engine
             pool_key = (agent_name, sub_idx)
-            groups_dict = self._orchestrator._correlation_engine.correlation_groups.get(pool_key, {})
+            groups_dict = self._orchestrator._correlation_engine.correlation_groups.get(
+                pool_key, {}
+            )
             corr_group = groups_dict.get(correlation_key)
 
             if not corr_group:
@@ -517,7 +521,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         self,
         agent_name: str,
         sub_idx: int,
-        subscription: "Subscription",  # noqa: F821
+        subscription: Subscription,  # noqa: F821
         artifact_map: Mapping[str, GraphArtifact],
         start_counter: int,
     ) -> list[GraphEdge]:
@@ -526,10 +530,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
         edges: list[GraphEdge] = []
         batch_state = _get_batch_state(
-            self._orchestrator._batch_engine,
-            agent_name,
-            sub_idx,
-            subscription.batch
+            self._orchestrator._batch_engine, agent_name, sub_idx, subscription.batch
         )
 
         if not batch_state:
@@ -594,10 +595,14 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             if run.status == "active":
                 continue
             consumed = [
-                artifact_id for artifact_id in run.consumed_artifacts if artifact_id in artifact_ids
+                artifact_id
+                for artifact_id in run.consumed_artifacts
+                if artifact_id in artifact_ids
             ]
             produced = [
-                artifact_id for artifact_id in run.produced_artifacts if artifact_id in artifact_ids
+                artifact_id
+                for artifact_id in run.produced_artifacts
+                if artifact_id in artifact_ids
             ]
             if not consumed or not produced:
                 continue
@@ -677,7 +682,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         consumptions: Mapping[str, Sequence[str]],
         existing_runs: Sequence[GraphRun],
     ) -> list[GraphRun]:
-        existing_keys = {(run.agent_name, run.correlation_id or "") for run in existing_runs}
+        existing_keys = {
+            (run.agent_name, run.correlation_id or "") for run in existing_runs
+        }
 
         produced_buckets: dict[tuple[str, str], list[str]] = defaultdict(list)
         consumed_buckets: dict[tuple[str, str], list[str]] = defaultdict(list)
@@ -720,13 +727,15 @@ class GraphAssembler(metaclass=AutoTracedMeta):
     def _resolve_time_bounds(
         self, time_range: GraphTimeRange
     ) -> tuple[datetime | None, datetime | None]:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         preset = time_range.preset
 
         if preset == GraphTimeRangePreset.ALL:
             return None, None
         if preset == GraphTimeRangePreset.CUSTOM:
-            return self._ensure_timezone(time_range.start), self._ensure_timezone(time_range.end)
+            return self._ensure_timezone(time_range.start), self._ensure_timezone(
+                time_range.end
+            )
 
         if preset == GraphTimeRangePreset.LAST_5_MIN:
             delta = timedelta(minutes=5)
@@ -742,8 +751,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         if value is None:
             return None
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     @staticmethod
     def _optional_set(values: Sequence[str]) -> set[str] | None:
@@ -751,7 +760,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         return cleaned if cleaned else None
 
     @staticmethod
-    def _calculate_label_offsets(groups: Mapping[tuple[str, str], list[str]]) -> dict[str, float]:
+    def _calculate_label_offsets(
+        groups: Mapping[tuple[str, str], list[str]],
+    ) -> dict[str, float]:
         offsets: dict[str, float] = {}
         for edge_ids in groups.values():
             total = len(edge_ids)
@@ -796,6 +807,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
             # Phase 1.2.1: Get waiting state from CorrelationEngine
             from flock.dashboard.routes.helpers import _get_correlation_groups
+
             correlation_groups = _get_correlation_groups(
                 self._orchestrator._correlation_engine, agent.name, idx
             )
@@ -822,11 +834,16 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             if batch_spec.size:
                 config["batch"]["size"] = batch_spec.size
             if batch_spec.timeout:
-                config["batch"]["timeout_seconds"] = int(batch_spec.timeout.total_seconds())
+                config["batch"]["timeout_seconds"] = int(
+                    batch_spec.timeout.total_seconds()
+                )
 
             # Phase 1.2.1: Get waiting state from BatchEngine
             from flock.dashboard.routes.helpers import _get_batch_state
-            batch_state = _get_batch_state(self._orchestrator._batch_engine, agent.name, idx, batch_spec)
+
+            batch_state = _get_batch_state(
+                self._orchestrator._batch_engine, agent.name, idx, batch_spec
+            )
             if batch_state:
                 if "waiting_state" not in config:
                     config["waiting_state"] = {"is_waiting": True}

@@ -250,35 +250,35 @@ from fastapi.security import HTTPBearer
 
 class AuthComponent(ServerComponent):
     """Add authentication to all routes."""
-    
+
     name = "auth"
     priority = 1  # Run FIRST (before other routes)
-    
+
     def configure(self, app, orchestrator):
         security = HTTPBearer()
-        
+
         @app.middleware("http")
         async def auth_middleware(request: Request, call_next):
             # Skip health check
             if request.url.path == "/health":
                 return await call_next(request)
-            
+
             # Verify bearer token
             auth_header = request.headers.get("Authorization")
             if not auth_header or not auth_header.startswith("Bearer "):
                 raise HTTPException(401, "Unauthorized")
-            
+
             # Validate token (your logic here)
             token = auth_header[7:]
             if not self._validate_token(token):
                 raise HTTPException(401, "Invalid token")
-            
+
             return await call_next(request)
-    
+
     async def register_routes(self, app, orchestrator):
         # No routes needed - just middleware
         pass
-    
+
     def _validate_token(self, token: str) -> bool:
         # Your validation logic
         return token == "secret-token-123"
@@ -300,34 +300,34 @@ await ServerManager.serve(
 ```python
 class TenantComponent(ServerComponent):
     """Add tenant isolation to all API calls."""
-    
+
     name = "tenant"
     priority = 2
-    
+
     def configure(self, app, orchestrator):
         @app.middleware("http")
         async def tenant_middleware(request: Request, call_next):
             tenant_id = request.headers.get("X-Tenant-ID")
             if not tenant_id:
                 raise HTTPException(400, "X-Tenant-ID header required")
-            
+
             # Store tenant context
             request.state.tenant_id = tenant_id
-            
+
             return await call_next(request)
-    
+
     async def register_routes(self, app, orchestrator):
         # Override artifact endpoints to filter by tenant
         @app.get("/api/v1/artifacts/tenant")
         async def list_tenant_artifacts(request: Request):
             tenant_id = request.state.tenant_id
-            
+
             # Query only this tenant's artifacts
             artifacts, total = await orchestrator.store.query_artifacts(
                 FilterConfig(tags={f"tenant:{tenant_id}"}),
                 limit=50,
             )
-            
+
             return {"tenant_id": tenant_id, "artifacts": artifacts}
 ```
 
@@ -358,20 +358,20 @@ from fastapi.testclient import TestClient
 
 def test_artifact_component():
     orchestrator = Flock("openai/gpt-4o")
-    
+
     # Create service with ONLY artifact component
     service = BaseHTTPService(orchestrator)
     service.add_component(ArtifactComponent())
     service.configure()
-    
+
     # Test with FastAPI test client
     client = TestClient(service.app)
-    
+
     response = client.post("/api/v1/artifacts", json={
         "type": "MyType",
         "payload": {"message": "hello"}
     })
-    
+
     assert response.status_code == 200
     assert response.json() == {"status": "accepted"}
 
@@ -379,14 +379,14 @@ def test_artifact_component():
 def test_component_ordering():
     """Verify components register in priority order."""
     orchestrator = Flock("openai/gpt-4o")
-    
+
     service = BaseHTTPService(orchestrator)
     service.add_components([
         DashboardComponent(priority=20),
         HealthComponent(priority=5),
         ArtifactComponent(priority=10),
     ])
-    
+
     # Should be sorted by priority
     assert service.components[0].priority == 5   # Health
     assert service.components[1].priority == 10  # Artifact
@@ -410,19 +410,19 @@ def test_component_ordering():
 
 ## FAQ
 
-**Q: Why not just use FastAPI's dependency injection?**  
+**Q: Why not just use FastAPI's dependency injection?**
 A: FastAPI's DI is great for per-request dependencies. ServerComponent handles service-level lifecycle (startup/shutdown), route registration order, and component composition. They serve different purposes.
 
-**Q: Can components depend on each other?**  
+**Q: Can components depend on each other?**
 A: Yes! Use `get_dependencies()` to declare dependencies. BaseHTTPService validates them at configure() time.
 
-**Q: What if two components register the same route?**  
+**Q: What if two components register the same route?**
 A: FastAPI will raise an error. Use priority ordering to control which component "wins", or namespace routes (`/mcp/*`, `/dashboard/*`).
 
-**Q: How do I disable a component?**  
+**Q: How do I disable a component?**
 A: Set `config.enabled = False` or don't add it to the component list.
 
-**Q: Can I hot-reload components in dev mode?**  
+**Q: Can I hot-reload components in dev mode?**
 A: Not currently, but this is a great future enhancement!
 
 ---

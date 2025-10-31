@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from flock import Flock
 from flock.registry import flock_type
 
+
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
@@ -78,7 +79,10 @@ async def main_cli():
                 "Coffee cup with lipstick",
                 "Deleted security footage timestamp",
             ],
-            witness_statements=["Heard shouting around 9 PM", "Saw someone in maintenance uniform"],
+            witness_statements=[
+                "Heard shouting around 9 PM",
+                "Saw someone in maintenance uniform",
+            ],
             time_of_incident="2025-10-09 21:15",
         )
 

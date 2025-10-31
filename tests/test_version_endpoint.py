@@ -5,8 +5,8 @@ from importlib.metadata import version as get_version
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from flock.core import Flock
 from flock.api.service import BlackboardHTTPService
+from flock.core import Flock
 
 
 @pytest.mark.asyncio

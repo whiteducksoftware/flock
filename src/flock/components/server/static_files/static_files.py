@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field
 
@@ -11,35 +10,29 @@ from flock.components.server.base import ServerComponent, ServerComponentConfig
 
 class StaticFilesComponentConfig(ServerComponentConfig):
     """Configuration class for StaticFilesServerComponent."""
-    prefix: str = Field(
-        default="",
-        description="Optional prefix."
-    )
-    tags: list[str] = Field(
-        default=["Static Files"],
-        description="OpenAPI tags."
-    )
+
+    prefix: str = Field(default="", description="Optional prefix.")
+    tags: list[str] = Field(default=["Static Files"], description="OpenAPI tags.")
     mount_point: Path | str | None = Field(
         default="/",
-        description="The path where the static files should be mounted under. (Defaults to '/')"
+        description="The path where the static files should be mounted under. (Defaults to '/')",
     )
     static_files_path: Path | str | None = Field(
         description="Path where the static files that should be served are located."
     )
 
+
 class StaticFilesServerComponent(ServerComponent):
     """ServerComponent for serving static files."""
-    name: str = Field(
-        default="static_files",
-        description="Name for the Component."
-    )
+
+    name: str = Field(default="static_files", description="Name for the Component.")
     config: StaticFilesComponentConfig = Field(
         default_factory=StaticFilesComponentConfig,
-        description="Configuration for the component."
+        description="Configuration for the component.",
     )
     priority: int = Field(
         default=10_000_000,
-        description="Registration priority. STATIC FILES MUST BE REGISTERED LAST AS THEY ACT AS A CATCH-ALL"
+        description="Registration priority. STATIC FILES MUST BE REGISTERED LAST AS THEY ACT AS A CATCH-ALL",
     )
 
     def configure(self, app, orchestrator):

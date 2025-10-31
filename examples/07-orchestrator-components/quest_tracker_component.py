@@ -51,7 +51,9 @@ class QuestTrackerComponent(OrchestratorComponent):
             current_score = self.hero_scores.get(hero, 0)
             self.hero_scores[hero] = current_score + starting_bonus
 
-            print(f"🗡️  {hero} accepted a {difficulty} quest! (+{starting_bonus} points)")
+            print(
+                f"🗡️  {hero} accepted a {difficulty} quest! (+{starting_bonus} points)"
+            )
             print(f"   Current score: {self.hero_scores[hero]}")
 
     async def on_post_publish(self, ctx: Context, artifact) -> None:
@@ -76,9 +78,19 @@ class QuestTrackerComponent(OrchestratorComponent):
 
         print("\n🏆 Hero Leaderboard 🏆")
         print("=" * 40)
-        sorted_heroes = sorted(self.hero_scores.items(), key=lambda x: x[1], reverse=True)
+        sorted_heroes = sorted(
+            self.hero_scores.items(), key=lambda x: x[1], reverse=True
+        )
         for rank, (hero, score) in enumerate(sorted_heroes, 1):
-            medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else "  "
+            medal = (
+                "🥇"
+                if rank == 1
+                else "🥈"
+                if rank == 2
+                else "🥉"
+                if rank == 3
+                else "  "
+            )
             print(f"{medal} {rank}. {hero:15} - {score:4} points")
         print("=" * 40)
         print(f"Total quests tracked: {self.total_quests}\n")

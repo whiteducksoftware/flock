@@ -6,7 +6,4 @@ from flock.components.server.control.control_routes_component import (
 )
 
 
-__all__ = [
-    "ControlRoutesComponent",
-    "ControlRoutesComponentConfig"
-]
+__all__ = ["ControlRoutesComponent", "ControlRoutesComponentConfig"]

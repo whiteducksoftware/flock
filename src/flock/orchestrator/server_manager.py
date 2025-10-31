@@ -198,11 +198,7 @@ class ServerManager:
 
     @staticmethod
     async def _serve_custom(
-        orchestrator: Flock,
-        *,
-        host: str,
-        port: int,
-        plugins: list[ServerComponent]
+        orchestrator: Flock, *, host: str, port: int, plugins: list[ServerComponent]
     ) -> None:
         """Serve custom API without standard plugins.
 
@@ -213,6 +209,7 @@ class ServerManager:
             plugins: List of plugins for custom behavior. Not optional here
         """
         from flock.api.base_service import BaseHTTPService
+
         service = BaseHTTPService(
             orchestrator=orchestrator,
         ).add_components(
@@ -316,7 +313,7 @@ class ServerManager:
 
         # Create required components
         from flock.api.collector import DashboardEventCollector
-        from flock.api.graph_builder import GraphAssembler, GraphRequest, GraphSnapshot
+        from flock.api.graph_builder import GraphAssembler
         from flock.api.launcher import DashboardLauncher
         from flock.api.websocket import WebSocketManager
         from flock.components.server import (
@@ -339,6 +336,7 @@ class ServerManager:
             WebSocketServerComponent,
         )
         from flock.core import Agent
+
         dashboard_dev_env = os.environ.get("DASHBOARD_DEV", "0") == "1"
         heartbeat_interval_str = os.environ.get("WS_HEARTBEAT", "120")
         heartbeat_interval = str(heartbeat_interval_str)
@@ -377,7 +375,7 @@ class ServerManager:
                 store=orchestrator.store,
                 collector=event_collector,
                 orchestrator=orchestrator,
-            )
+            ),
         )
 
         artifacts_endpoints = ArtifactsComponent(
@@ -400,7 +398,6 @@ class ServerManager:
             ]
         )
 
-
         websocket_endpoints = WebSocketServerComponent(
             name="websocket_internal",
             config=WebSocketComponentConfig(
@@ -414,8 +411,10 @@ class ServerManager:
 
         # Only add the default CorsMiddleware of no other cors middleware
         # has been configured with default values
-        if (plugins is None or "cors" not in [plugin.name for plugin in plugins]) or dashboard_dev_env:
-                service = service.add_component(
+        if (
+            plugins is None or "cors" not in [plugin.name for plugin in plugins]
+        ) or dashboard_dev_env:
+            service = service.add_component(
                 component=CORSComponent(
                     name="cors_internal",
                     config=CORSComponentConfig(

@@ -283,7 +283,10 @@ async def test_websocket_connection_lifecycle(dashboard_service):
         assert mock_ws in dashboard_service.websocket_manager.clients
 
         # Send message
-        from flock.components.server.models.events import AgentActivatedEvent, SubscriptionInfo
+        from flock.components.server.models.events import (
+            AgentActivatedEvent,
+            SubscriptionInfo,
+        )
 
         event = AgentActivatedEvent(
             agent_name="test",

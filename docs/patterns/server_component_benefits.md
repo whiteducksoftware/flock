@@ -35,12 +35,12 @@ class MCPHTTPService(BlackboardHTTPService):
     def __init__(self, orchestrator):
         super().__init__(orchestrator)  # Gets artifact/agent routes
         self._register_mcp_routes()
-    
+
     def _register_mcp_routes(self):
         # Duplicate route registration pattern
         app = self.app
         orchestrator = self.orchestrator
-        
+
         @app.post("/mcp/tools/list")
         async def list_mcp_tools():
             # ... MCP logic ...
@@ -57,7 +57,7 @@ class MCPHTTPService(BlackboardHTTPService):
 class MCPComponent(ServerComponent):
     name = "mcp"
     priority = 30
-    
+
     async def register_routes(self, app, orchestrator):
         @app.post("/mcp/tools/list")
         async def list_mcp_tools():
@@ -101,10 +101,10 @@ class AuthenticatedHTTPService(BlackboardHTTPService):
 class AuthComponent(ServerComponent):
     name = "auth"
     priority = 1  # Run first
-    
+
     def configure(self, app, orchestrator):
         app.add_middleware(AuthMiddleware)
-    
+
     async def register_routes(self, app, orchestrator):
         pass  # No routes needed
 
@@ -133,7 +133,7 @@ class CustomService(DashboardHTTPService):  # Gets dashboard
         self.app.add_middleware(AuthMiddleware)
         # Add MCP routes
         self._register_mcp_routes()
-    
+
     def _register_mcp_routes(self):
         # Duplicate MCP route code from MCPHTTPService
         # ... 100+ lines ...
@@ -170,14 +170,14 @@ await ServerManager.serve(
 ```python
 def test_publish_artifact():
     orchestrator = Flock("openai/gpt-4o")
-    
+
     # Must instantiate full service
     service = BlackboardHTTPService(orchestrator)
-    
+
     # Gets ALL routes (health, metrics, artifacts, agents, correlations)
     # even though we only want to test artifact publishing
     client = TestClient(service.app)
-    
+
     response = client.post("/api/v1/artifacts", json={...})
     assert response.status_code == 200
 ```
@@ -193,15 +193,15 @@ def test_publish_artifact():
 ```python
 def test_publish_artifact():
     orchestrator = Flock("openai/gpt-4o")
-    
+
     # Instantiate ONLY artifact component
     service = BaseHTTPService(orchestrator)
     service.add_component(ArtifactComponent())
     service.configure()
-    
+
     # Only artifact routes registered
     client = TestClient(service.app)
-    
+
     response = client.post("/api/v1/artifacts", json={...})
     assert response.status_code == 200
 ```

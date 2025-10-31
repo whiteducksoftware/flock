@@ -17,35 +17,35 @@ from flock.registry import type_registry
 
 logger = get_logger(__name__)
 
+
 class ControlRoutesComponentConfig(ServerComponentConfig):
     """Configuration class for ControlRoutesComponent."""
+
     prefix: str | None = Field(
         default="/api/plugin/",
-        description="Optional prefix for control routes. (Defaults to '/api/plugin)"
+        description="Optional prefix for control routes. (Defaults to '/api/plugin)",
     )
     tags: list[str] = Field(
-        default=["Control Routes"],
-        description="Tags for OpenAPI documentation."
+        default=["Control Routes"], description="Tags for OpenAPI documentation."
     )
+
 
 class ControlRoutesComponent(ServerComponent):
     """Server Component that serves Control Routes."""
+
     name: str = "control"
-    priority: int = Field(
-        default=3,
-        description="Registration priority. Default = 3"
-    )
+    priority: int = Field(default=3, description="Registration priority. Default = 3")
     config: ControlRoutesComponentConfig = Field(
         default_factory=ControlRoutesComponentConfig,
-        description="Config for the ServerComponent."
+        description="Config for the ServerComponent.",
     )
     websocket_manager: WebSocketManager = Field(
         default_factory=WebSocketManager,
-        description="WebSocketManager Singleton instance for broadcasts."
+        description="WebSocketManager Singleton instance for broadcasts.",
     )
     graph_assembler: GraphAssembler | None = Field(
         default=None,
-        description="Optional GraphAssembler. Allows returning snapshots of the State-Graph. (used mainly for visualizing. If a headless API is desired, then this can be omitted.)"
+        description="Optional GraphAssembler. Allows returning snapshots of the State-Graph. (used mainly for visualizing. If a headless API is desired, then this can be omitted.)",
     )
 
     def configure(self, app, orchestrator):
@@ -60,7 +60,10 @@ class ControlRoutesComponent(ServerComponent):
             websocket_manager: WebSocket manager for real-time updates
             event_collector: Dashboard event collector
         """
-        @app.get(self._join_path(self.config.prefix, "artifact_types"), tags=self.config.tags)
+
+        @app.get(
+            self._join_path(self.config.prefix, "artifact_types"), tags=self.config.tags
+        )
         async def get_artifact_types() -> dict[str, Any]:
             """Get all registered artifact types with their schemas.
 
@@ -81,17 +84,12 @@ class ControlRoutesComponent(ServerComponent):
                     model_class = type_registry.resolve(type_name)
                     # Get pydantic schema
                     schema = model_class.model_json_schema()
-                    artifact_types.append({
-                        "name": type_name,
-                        "schema": schema
-                    })
+                    artifact_types.append({"name": type_name, "schema": schema})
                 except Exception as ex:
                     logger.warning(f"Could not get schema for {type_name}: {ex!s}")
-            return {
-                "artifact_types": artifact_types
-            }
+            return {"artifact_types": artifact_types}
 
-        @app.get(self._join_path(self.config.prefix,"agents"), tags=self.config.tags)
+        @app.get(self._join_path(self.config.prefix, "agents"), tags=self.config.tags)
         async def get_agents() -> dict[str, Any]:
             """Get all registered agents with logic operations state.
 
@@ -124,6 +122,7 @@ class ControlRoutesComponent(ServerComponent):
                 _build_logic_config,
                 _compute_agent_status,
             )
+
             agents = []
             for agent in orchestrator.agents:
                 # Extract consumed types from agent subscriptions
@@ -138,14 +137,14 @@ class ControlRoutesComponent(ServerComponent):
                     logic_config = _build_logic_config(
                         agent, subscription, idx, orchestrator
                     )
-                    if logic_config: # Only include if has join/batch
+                    if logic_config:  # Only include if has join/batch
                         logic_operations.append(logic_config)
                 agent_data = {
                     "name": agent.name,
                     "description": agent.description or "",
                     "status": _compute_agent_status(
                         agent, orchestrator
-                    ), # NEW: Dynamic status
+                    ),  # NEW: Dynamic status
                     "subscriptions": consumed_types,
                     "output_types": produced_types,
                 }
@@ -172,7 +171,10 @@ class ControlRoutesComponent(ServerComponent):
                 backend_version = "0.2.0-dev"
             return {"backend_version": backend_version, "package_name": "flock"}
 
-        @app.post(self._join_path(self.config.prefix, "control/publish"), tags=self.config.tags)
+        @app.post(
+            self._join_path(self.config.prefix, "control/publish"),
+            tags=self.config.tags,
+        )
         async def publish_artifact(body: dict[str, Any]) -> dict[str, str]:
             """Publish artifact with correlation tracking.
 
@@ -192,14 +194,10 @@ class ControlRoutesComponent(ServerComponent):
             content = body.get("content")
             if not artifact_type:
                 raise HTTPException(
-                    status_code=400,
-                    detail="artifact_type is required."
+                    status_code=400, detail="artifact_type is required."
                 )
             if content is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="content is requried."
-                )
+                raise HTTPException(status_code=400, detail="content is requried.")
             try:
                 # Resolve type from registry
                 model_class = type_registry.resolve(artifact_type)
@@ -207,10 +205,11 @@ class ControlRoutesComponent(ServerComponent):
                 try:
                     instance = model_class(**content)
                 except ValidationError as ex:
-                    logger.exception(f"ControlRoutesComponent: failed to validate body for type '{artifact_type}': {ex!s}")
+                    logger.exception(
+                        f"ControlRoutesComponent: failed to validate body for type '{artifact_type}': {ex!s}"
+                    )
                     raise HTTPException(
-                        status_code=422,
-                        detail=f"Validation error: {ex!s}"
+                        status_code=422, detail=f"Validation error: {ex!s}"
                     )
                 # Generate correlation id
                 correlation_id = str(uuid4())
@@ -226,18 +225,16 @@ class ControlRoutesComponent(ServerComponent):
                     correlation_id=str(artifact.correlation_id),
                     artifact_id=str(artifact.id),
                     artifact_type=artifact.type,
-                    produced_by=artifact.produced_by, # Will be "orchestrator" or similar for non-agent publishers
+                    produced_by=artifact.produced_by,  # Will be "orchestrator" or similar for non-agent publishers
                     payload=artifact.payload,
                     visibility=VisibilitySpec(
                         kind="Public"
-                    ), # Dashboard-published artifacts are public by default
+                    ),  # Dashboard-published artifacts are public by default
                     tags=list(artifact.tags) if artifact.tags else [],
                     version=artifact.version,
-                    consumers=[], # Will be populated by subscription matching in frontend
+                    consumers=[],  # Will be populated by subscription matching in frontend
                 )
-                await self.websocket_manager.broadcast(
-                    event=event
-                )
+                await self.websocket_manager.broadcast(event=event)
                 return {
                     "correlation_id": str(artifact.correlation_id),
                     "published_at": artifact.created_at.isoformat(),
@@ -247,19 +244,15 @@ class ControlRoutesComponent(ServerComponent):
                     f"ControlRoutesComponent: Unknown artifact type: {artifact_type}"
                 )
                 raise HTTPException(
-                    status_code=422,
-                    detail=f"Unknown artifact type: {artifact_type}"
+                    status_code=422, detail=f"Unknown artifact type: {artifact_type}"
                 ) from ke
             except Exception as ex:
-                logger.exception(
-                    f"Error publishing artifact: {ex!s}"
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail=str(ex)
-                ) from ex
+                logger.exception(f"Error publishing artifact: {ex!s}")
+                raise HTTPException(status_code=500, detail=str(ex)) from ex
 
-        @app.post(self._join_path(self.config.prefix, "control/invoke"), tags=self.config.tags)
+        @app.post(
+            self._join_path(self.config.prefix, "control/invoke"), tags=self.config.tags
+        )
         async def invoke_agent(body: dict[str, Any]) -> dict[str, Any]:
             """Directly invoke a specific agent.
 
@@ -278,45 +271,33 @@ class ControlRoutesComponent(ServerComponent):
             agent_name = body.get("agent_name")
             input_data = body.get("input")
             if not agent_name:
-                raise HTTPException(
-                    status_code=400,
-                    detail="agent_name is required"
-                )
+                raise HTTPException(status_code=400, detail="agent_name is required")
             if input_data is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="input is required"
-                )
+                raise HTTPException(status_code=400, detail="input is required")
             try:
                 # Get agent from orchestrator
                 agent = orchestrator.get_agent(agent_name)
             except KeyError:
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Agent not found: {agent_name}"
+                    status_code=404, detail=f"Agent not found: {agent_name}"
                 )
             try:
                 # Parse input type and create instance
                 input_type = input_data.get("type")
                 if not input_type:
                     raise HTTPException(
-                        status_code=400,
-                        detail="input.type is required"
+                        status_code=400, detail="input.type is required"
                     )
                 # Resolve type from registry
                 model_class = type_registry.resolve(input_type)
                 # Create payload by removing 'type' key
-                payload = {
-                    k:v for k,v in input_data.items()
-                    if k != "type"
-                }
+                payload = {k: v for k, v in input_data.items() if k != "type"}
                 # Validate and create instance
                 try:
                     instance = model_class(**payload)
                 except ValidationError as ex:
                     raise HTTPException(
-                        status_code=422,
-                        detail=f"Validation error: {ex!s}"
+                        status_code=422, detail=f"Validation error: {ex!s}"
                     )
                 # Invoke agent
                 outputs = await orchestrator.invoke(
@@ -334,23 +315,21 @@ class ControlRoutesComponent(ServerComponent):
                 return {
                     "invocation_id": invocation_id,
                     "correlation_id": correlation_id,
-                    "result": "success"
+                    "result": "success",
                 }
             except HTTPException:
                 raise
             except KeyError:
                 raise HTTPException(
-                    status_code=422,
-                    detail=f"Unknown type: {input_type}"
+                    status_code=422, detail=f"Unknown type: {input_type}"
                 )
             except Exception as ex:
                 logger.exception(f"Error invoking agent: {ex!s}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=str(ex)
-                )
+                raise HTTPException(status_code=500, detail=str(ex))
 
-        @app.get(self._join_path(self.config.prefix, "artifact-types"), tags=self.config.tags)
+        @app.get(
+            self._join_path(self.config.prefix, "artifact-types"), tags=self.config.tags
+        )
         async def get_artifact_types() -> dict[str, Any]:
             """Get all registered artifact types with their schema.
 
@@ -377,18 +356,22 @@ class ControlRoutesComponent(ServerComponent):
                 "artifact_types": artifact_types,
             }
 
-        @app.post(self._join_path(self.config.prefix, "control/pause"), tags=self.config.tags)
+        @app.post(
+            self._join_path(self.config.prefix, "control/pause"), tags=self.config.tags
+        )
         async def pause_orchestrator() -> dict[str, Any]:
-            """"Pause orchestrator (placeholder).
+            """ "Pause orchestrator (placeholder).
 
             Returns:
                 501 Not implemented
             """
             raise HTTPException(
-                status_code=501,
-                detail="Pause functionality coming in Phase 12"
+                status_code=501, detail="Pause functionality coming in Phase 12"
             )
-        @app.post(self._join_path(self.config.prefix, "control/resume"), tags=self.config.tags)
+
+        @app.post(
+            self._join_path(self.config.prefix, "control/resume"), tags=self.config.tags
+        )
         async def resume_orchestrator() -> dict[str, Any]:
             """Resume orchestrator (placeholder).
 
@@ -396,12 +379,16 @@ class ControlRoutesComponent(ServerComponent):
                 501 Not Implemented
             """
             raise HTTPException(
-                status_code=501,
-                detail="Resume functionality coming in Phase 12"
+                status_code=501, detail="Resume functionality coming in Phase 12"
             )
 
         if self.graph_assembler is not None:
-            @app.post(self._join_path(self.config.prefix, "dashboard", "graph"), response_model=GraphSnapshot, tags=self.config.tags)
+
+            @app.post(
+                self._join_path(self.config.prefix, "dashboard", "graph"),
+                response_model=GraphSnapshot,
+                tags=self.config.tags,
+            )
             async def get_dashboard_graph(request: GraphRequest) -> GraphSnapshot:
                 """Return server-side assembled dashboard graph snapshot."""
                 return await self.graph_assembler.build_snapshot(request)

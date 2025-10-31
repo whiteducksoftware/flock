@@ -3,8 +3,8 @@ import asyncio
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.registry import flock_type
 from flock.core.visibility import Visibility
+from flock.registry import flock_type
 
 
 @flock_type

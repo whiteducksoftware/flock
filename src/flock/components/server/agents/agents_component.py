@@ -1,6 +1,5 @@
 """ServerComponent that provides Endpoints for interacting with Agents."""
 
-
 from datetime import datetime
 from typing import Any
 
@@ -24,16 +23,18 @@ from flock.registry import type_registry
 
 logger = get_logger(__name__)
 
+
 class AgentsServerComponentConfig(ServerComponentConfig):
     """Configuration class for Agents Component."""
+
     prefix: str = Field(
         default="/api/v1/plugin/",
-        description="Optional prefix for Endpoints. Defaults to (and should stay at) '/api/v1/"
+        description="Optional prefix for Endpoints. Defaults to (and should stay at) '/api/v1/",
     )
     tags: list[str] = Field(
-        default=["Agents", "Public API"],
-        description="A list of tags for OpenAPI spec."
+        default=["Agents", "Public API"], description="A list of tags for OpenAPI spec."
     )
+
 
 class AgentsServerComponent(ServerComponent):
     """ServerComponent that adds Endpoints for interacting with Agents.
@@ -44,25 +45,20 @@ class AgentsServerComponent(ServerComponent):
     - GET self.config.prefix/agents/{agent_id}/history-summary -> Returns a summary of the history of the agent
     - GET self.config.prefix/correlations/{correlation_id}/status -> Get the status of a workflow by correlation ID
     """
+
     name: str = "agents"
     priority: int = Field(
-        default=5,
-        description="Registration Priority (defaults to 5)"
+        default=5, description="Registration Priority (defaults to 5)"
     )
 
-    def _parse_datetime(
-        self,
-        value: str | None,
-        label: str
-    ) -> datetime | None:
+    def _parse_datetime(self, value: str | None, label: str) -> datetime | None:
         if value is None:
             return None
         try:
             return datetime.fromisoformat(value)
-        except ValueError as exc: # pragma: no cover - FastAPI converts
+        except ValueError as exc:  # pragma: no cover - FastAPI converts
             raise HTTPException(
-                status_code=400,
-                detail=f"Invalid {label}:{value}"
+                status_code=400, detail=f"Invalid {label}:{value}"
             ) from exc
 
     def _make_filter_config(
@@ -82,7 +78,7 @@ class AgentsServerComponent(ServerComponent):
             tags=set(tags) if tags else None,
             visibility=set(visibility) if visibility else None,
             start=self._parse_datetime(start, "from"),
-            end=self._parse_datetime(end, "to")
+            end=self._parse_datetime(end, "to"),
         )
 
     def configure(self, app: FastAPI, orchestrator):
@@ -95,20 +91,15 @@ class AgentsServerComponent(ServerComponent):
         @app.post(
             self._join_path(self.config.prefix, "agents/{name}/run"),
             tags=self.config.tags,
-            response_model=AgentRunResponse
+            response_model=AgentRunResponse,
         )
         async def run_agent(name: str, body: AgentRunRequest) -> AgentRunRequest:
             """Invoke an agent directly."""
             try:
                 agent = orchestrator.get_agent(name)
             except KeyError as ex:
-                logger.exception(
-                    f"AgentsComponent: Failed to invoke agent: {ex!s}"
-                )
-                raise HTTPException(
-                    status_code=404,
-                    detail="agent not found"
-                ) from ex
+                logger.exception(f"AgentsComponent: Failed to invoke agent: {ex!s}")
+                raise HTTPException(status_code=404, detail="agent not found") from ex
             inputs = []
             for item in body.inputs:
                 model = type_registry.resolve(item.type)
@@ -121,8 +112,7 @@ class AgentsServerComponent(ServerComponent):
                     f"AgentsComponent: Agent execution for agent {agent.name} failed: {exc!s}"
                 )
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Agent execution failed: {exc}"
+                    status_code=500, detail=f"Agent execution failed: {exc}"
                 ) from exc
             return AgentRunResponse(
                 artifacts=[
@@ -163,7 +153,7 @@ class AgentsServerComponent(ServerComponent):
 
         @app.get(
             self._join_path(self.config.prefix, "agents/{agent_id}/history-summary"),
-            tags=self.config.tags
+            tags=self.config.tags,
         )
         async def agent_histroy(
             agent_id: str,
@@ -216,10 +206,7 @@ class AgentsServerComponent(ServerComponent):
                 logger.exception(
                     f"AgentsServerComponent: failed to retrieve correlation status: {exc!s}"
                 )
-                raise HTTPException(
-                    status_code=400,
-                    detail=str(exc)
-                ) from exc
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     async def on_shutdown_async(self, orchestrator):
         # No-op

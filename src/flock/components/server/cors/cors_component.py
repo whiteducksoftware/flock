@@ -13,31 +13,29 @@ class RouteSpecificCORSConfig(ServerComponentConfig):
 
     path_pattern: str = Field(
         ...,
-        description="Regex pattern to match request paths. Example: '^/api/public/.*' for all /api/public routes."
+        description="Regex pattern to match request paths. Example: '^/api/public/.*' for all /api/public routes.",
     )
     allow_origins: list[str] = Field(
-        default=["*"],
-        description="List of allowed origins for this route pattern."
+        default=["*"], description="List of allowed origins for this route pattern."
     )
     allow_methods: list[str] = Field(
         default=["GET"],
-        description="List of allowed HTTP methods for this route pattern."
+        description="List of allowed HTTP methods for this route pattern.",
     )
     allow_headers: list[str] = Field(
-        default=["*"],
-        description="List of allowed headers for this route pattern."
+        default=["*"], description="List of allowed headers for this route pattern."
     )
     expose_headers: list[str] = Field(
         default_factory=list,
-        description="List of headers to expose to the browser for this route pattern."
+        description="List of headers to expose to the browser for this route pattern.",
     )
     allow_credentials: bool = Field(
         default=False,
-        description="Whether to allow credentials for this route pattern."
+        description="Whether to allow credentials for this route pattern.",
     )
     max_age: int = Field(
         default=600,
-        description="Maximum age (in seconds) for preflight cache for this route pattern."
+        description="Maximum age (in seconds) for preflight cache for this route pattern.",
     )
 
     @field_validator("path_pattern")
@@ -56,38 +54,36 @@ class CORSComponentConfig(ServerComponentConfig):
 
     # Global CORS settings
     allow_origins: list[str] = Field(
-        default=["*"],
-        description="List of allowed origins. Use ['*'] for all origins."
+        default=["*"], description="List of allowed origins. Use ['*'] for all origins."
     )
     allow_origin_regex: str | None = Field(
         default=None,
-        description="Regex pattern for allowed origins. Example: 'https://.*\\.example\\.com' allows all subdomains."
+        description="Regex pattern for allowed origins. Example: 'https://.*\\.example\\.com' allows all subdomains.",
     )
     allow_credentials: bool = Field(
         default=True,
-        description="Whether to allow credentials (cookies, authorization headers)."
+        description="Whether to allow credentials (cookies, authorization headers).",
     )
     allow_methods: list[str] = Field(
         default=["*"],
-        description="List of allowed HTTP methods. Use ['*'] for all methods."
+        description="List of allowed HTTP methods. Use ['*'] for all methods.",
     )
     allow_headers: list[str] = Field(
-        default=["*"],
-        description="List of allowed headers. Use ['*'] for all headers."
+        default=["*"], description="List of allowed headers. Use ['*'] for all headers."
     )
     expose_headers: list[str] = Field(
         default_factory=list,
-        description="List of response headers to expose to the browser."
+        description="List of response headers to expose to the browser.",
     )
     max_age: int = Field(
         default=600,
-        description="Maximum age (in seconds) for browsers to cache preflight responses."
+        description="Maximum age (in seconds) for browsers to cache preflight responses.",
     )
 
     # Route-specific CORS overrides
     route_configs: list[RouteSpecificCORSConfig] = Field(
         default_factory=list,
-        description="Route-specific CORS configurations that override global settings."
+        description="Route-specific CORS configurations that override global settings.",
     )
 
     @field_validator("allow_origin_regex")
@@ -134,22 +130,15 @@ class CORSComponent(ServerComponent):
         ...                 allow_origins=["*"],
         ...                 allow_credentials=False,
         ...             )
-        ...         ]
+        ...         ],
         ...     )
         ... )
     """
 
-    name: str = Field(
-        default="cors",
-        description="Name for the Component"
-    )
-    priority: int = Field(
-        default=8,
-        description="Registration priority."
-    )
+    name: str = Field(default="cors", description="Name for the Component")
+    priority: int = Field(default=8, description="Registration priority.")
     config: CORSComponentConfig = Field(
-        default_factory=CORSComponentConfig,
-        description="CORS Configuration."
+        default_factory=CORSComponentConfig, description="CORS Configuration."
     )
 
     def configure(self, app, orchestrator):
@@ -184,8 +173,7 @@ class CORSComponent(ServerComponent):
 
         # Compile all route patterns
         compiled_patterns = [
-            (re.compile(rc.path_pattern), rc)
-            for rc in self.config.route_configs
+            (re.compile(rc.path_pattern), rc) for rc in self.config.route_configs
         ]
 
         class RouteSpecificCORSMiddleware:
@@ -196,7 +184,9 @@ class CORSComponent(ServerComponent):
                 self.parent = parent
                 self.compiled_patterns = compiled_patterns
 
-            async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+            async def __call__(
+                self, scope: Scope, receive: Receive, send: Send
+            ) -> None:
                 if scope["type"] != "http":
                     await self.app(scope, receive, send)
                     return
@@ -245,4 +235,3 @@ class CORSComponent(ServerComponent):
     def get_dependencies(self) -> list[type[ServerComponent]]:
         """No dependencies for CORS component."""
         return []
-

@@ -11,24 +11,23 @@ from flock.logging.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 class WebSocketComponentConfig(ServerComponentConfig):
     """Config for the WebSocketServerComponent."""
+
     prefix: str = Field(
-        default="/plugin/",
-        description="Optional Prefix for the Websocket Endpoint."
+        default="/plugin/", description="Optional Prefix for the Websocket Endpoint."
     )
     tags: list[str] = Field(
-        default=["WebSocket"],
-        description="OpenAPI Tags for Endpoints."
+        default=["WebSocket"], description="OpenAPI Tags for Endpoints."
     )
     hearbeat_interval: int = Field(
-        default=120,
-        description="Interval for WebSocket Heartbeat."
+        default=120, description="Interval for WebSocket Heartbeat."
     )
     enable_heartbeat: bool = Field(
-        default=False,
-        description="Whether or not to enable the Heartbeat."
+        default=False, description="Whether or not to enable the Heartbeat."
     )
+
 
 class WebSocketServerComponent(ServerComponent):
     """Component for serving WebSocket-Endpoints for interacting with Flock's Blackboard.
@@ -40,17 +39,12 @@ class WebSocketServerComponent(ServerComponent):
     3. Keep connection alive
     4. Handle disconnection gracefully
     """
-    name: str = Field(
-        default="websocket",
-        description="Name for the Component."
-    )
-    priority: int = Field(
-        default=7,
-        description="Registration priority."
-    )
+
+    name: str = Field(default="websocket", description="Name for the Component.")
+    priority: int = Field(default=7, description="Registration priority.")
     config: WebSocketComponentConfig = Field(
         default_factory=WebSocketComponentConfig,
-        description="Optional Config for the Component."
+        description="Optional Config for the Component.",
     )
     _websocket_manager: WebSocketManager | None = None
 
@@ -63,7 +57,6 @@ class WebSocketServerComponent(ServerComponent):
             )
 
     def register_routes(self, app, orchestrator):
-
         # Should have been handled by configure() but it is good to be cautious
         if self._websocket_manager is None:
             self._websocket_manager = WebSocketManager(
@@ -71,9 +64,7 @@ class WebSocketServerComponent(ServerComponent):
                 self.config.enable_heartbeat,
             )
 
-        @app.websocket(
-            self._join_path(self.config.prefix, "ws")
-        )
+        @app.websocket(self._join_path(self.config.prefix, "ws"))
         async def websocket_endpoint(websocket: WebSocket) -> None:
             """WebSocket endpoint for real-time BlackBoard Events.
 
@@ -84,9 +75,7 @@ class WebSocketServerComponent(ServerComponent):
             4. Handle disconnection gracefully
             """
             await websocket.accept()
-            await self._websocket_manager.add_client(
-                websocket
-            )
+            await self._websocket_manager.add_client(websocket)
 
             try:
                 # Keep connection alive and handle incoming messages
@@ -102,10 +91,14 @@ class WebSocketServerComponent(ServerComponent):
                         logger.info("WebSocket client disconnected")
                         break
                     except Exception as ex:
-                        logger.exception(f"WebSocketServerComponent: Error receiving WebSocket message: {ex!s}")
+                        logger.exception(
+                            f"WebSocketServerComponent: Error receiving WebSocket message: {ex!s}"
+                        )
                         break
             except Exception as ex:
-                logger.exception(f"WebSocketServerComponent: WebSocket Endpoint Error: {ex!s}")
+                logger.exception(
+                    f"WebSocketServerComponent: WebSocket Endpoint Error: {ex!s}"
+                )
             finally:
                 # Clean up: remove client from pool
                 await self._websocket_manager.remove_client(websocket)

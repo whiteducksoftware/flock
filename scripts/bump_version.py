@@ -30,7 +30,9 @@ class VersionBumper:
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root
         self.pyproject_path = repo_root / "pyproject.toml"
-        self.package_json_path = repo_root / "src" / "flock" / "frontend" / "package.json"
+        self.package_json_path = (
+            repo_root / "src" / "flock" / "frontend" / "package.json"
+        )
 
     def get_changed_files(self, since: str = "HEAD~1") -> list[str]:
         """Get list of changed files since a git reference.
@@ -60,7 +62,9 @@ class VersionBumper:
                 text=True,
                 check=True,
             )
-            unstaged = result.stdout.strip().split("\n") if result.stdout.strip() else []
+            unstaged = (
+                result.stdout.strip().split("\n") if result.stdout.strip() else []
+            )
 
             # Combine and deduplicate
             changed = list(set(staged + unstaged))
@@ -227,7 +231,9 @@ class VersionBumper:
 
             if not changed_files:
                 print("Info: No changed files detected (checking git diff)")
-                print("   To bump versions anyway, use --force-backend or --force-frontend")
+                print(
+                    "   To bump versions anyway, use --force-backend or --force-frontend"
+                )
                 return
 
             backend_changed, frontend_changed = self.detect_changes(changed_files)

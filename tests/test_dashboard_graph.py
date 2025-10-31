@@ -95,7 +95,7 @@ async def test_dashboard_graph_endpoint(monkeypatch, orchestrator):
         orchestrator=orchestrator,
         collector=DashboardEventCollector(
             store=orchestrator.store,
-        )
+        ),
     )
     service = orchestrator.add_component(
         ControlRoutesComponent(
@@ -104,10 +104,7 @@ async def test_dashboard_graph_endpoint(monkeypatch, orchestrator):
             websocket_manager=WebSocketManager(
                 enable_heartbeat=False,
             ),
-            config=ControlRoutesComponentConfig(
-                prefix="/api/",
-                tags=["Test"]
-            ),
+            config=ControlRoutesComponentConfig(prefix="/api/", tags=["Test"]),
             graph_assembler=graph_assembler,
         )
     )

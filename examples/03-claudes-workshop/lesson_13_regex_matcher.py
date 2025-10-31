@@ -151,15 +151,17 @@ class RegexModerationEngine(EngineComponent):
         if violations:
             if spam_score >= 2 or any("profanity" in v for v in violations):
                 status = "blocked"
-                print(f"   🚫 BLOCKED - Automatic rejection")
+                print("   🚫 BLOCKED - Automatic rejection")
             else:
                 status = "flagged"
-                print(f"   🚩 FLAGGED - Needs review")
+                print("   🚩 FLAGGED - Needs review")
         else:
-            print(f"   ✅ APPROVED - No violations detected")
+            print("   ✅ APPROVED - No violations detected")
 
         # Confidence is deterministic for rule-based systems
-        confidence = 1.0 if status == "blocked" else 0.95 if status == "flagged" else 1.0
+        confidence = (
+            1.0 if status == "blocked" else 0.95 if status == "flagged" else 1.0
+        )
 
         result = ModerationResult(
             message_id=message.message_id,
@@ -257,7 +259,9 @@ Be thorough but fair in your assessment."""
     moderation_results = [a for a in all_artifacts if a.type_name == "ModerationResult"]
     escalations = [a for a in all_artifacts if a.type_name == "EscalationCase"]
 
-    approved = sum(1 for a in moderation_results if a.payload.get("status") == "approved")
+    approved = sum(
+        1 for a in moderation_results if a.payload.get("status") == "approved"
+    )
     flagged = sum(1 for a in moderation_results if a.payload.get("status") == "flagged")
     blocked = sum(1 for a in moderation_results if a.payload.get("status") == "blocked")
 
@@ -288,7 +292,9 @@ Be thorough but fair in your assessment."""
     print("Cost comparison for this demo:")
     print(f"  With LLM for all: ~{len(test_messages) * 2} API calls")
     print(f"  With custom engine: ~{len(escalations)} API calls")
-    print(f"  Savings: ~{((1 - len(escalations)/len(test_messages)) * 100):.0f}% reduction")
+    print(
+        f"  Savings: ~{((1 - len(escalations) / len(test_messages)) * 100):.0f}% reduction"
+    )
     print("=" * 70)
 
 

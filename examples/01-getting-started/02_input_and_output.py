@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from flock import Flock
 from flock.registry import flock_type
 
+
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================

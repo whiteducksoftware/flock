@@ -192,7 +192,9 @@ class Flock(metaclass=AutoTracedMeta):
             >>> my_custom_component = MyCustomServerComponent
             >>> orchestrator = Flock().add_server_component(my_custom_component)
         """
-        if component.name is not None and component.name in [c.name for c in self._server_components]:
+        if component.name is not None and component.name in [
+            c.name for c in self._server_components
+        ]:
             # Component with that name is already registered
             raise ValueError(f"ServerComponent '{component.name}' already registered.")
         self._server_components.append(component)

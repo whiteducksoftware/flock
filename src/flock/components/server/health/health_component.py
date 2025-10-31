@@ -66,4 +66,3 @@ class HealthAndMetricsComponent(ServerComponent):
     def get_dependencies(self):
         # No dependencies
         return []
-

@@ -66,7 +66,9 @@ async def test_websocket_manager_initialization(websocket_manager):
     """Test that WebSocketManager initializes with empty client pool."""
     # Verify manager starts with no connections
     assert len(websocket_manager.clients) == 0
-    assert websocket_manager.heartbeat_interval == 120  # 2 minutes (120 seconds) per updated spec
+    assert (
+        websocket_manager.heartbeat_interval == 120
+    )  # 2 minutes (120 seconds) per updated spec
 
 
 @pytest.mark.asyncio
@@ -551,7 +553,7 @@ async def test_heartbeat_loop_shutdown_condition():
     # Wait for loop to exit with proper cancellation handling
     try:
         await asyncio.wait_for(heartbeat_task, timeout=0.5)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         # If timeout occurs, cancel the task gracefully
         heartbeat_task.cancel()
         try:
@@ -1109,7 +1111,9 @@ async def test_error_recovery_during_broadcast():
 
         async def send_text(self, message: str):
             self.failure_count += 1
-            if self.should_fail and self.failure_count > 2:  # Fail after 2 successful sends
+            if (
+                self.should_fail and self.failure_count > 2
+            ):  # Fail after 2 successful sends
                 raise ConnectionError("Simulated connection failure")
             await super().send_text(message)
 
@@ -1182,7 +1186,9 @@ async def test_websocket_json_serialization_edge_cases():
         # Deeply nested structure
         {
             "artifact_type": "NestedTest",
-            "payload": {"level1": {"level2": {"level3": {"level4": {"deep_value": "found it"}}}}},
+            "payload": {
+                "level1": {"level2": {"level3": {"level4": {"deep_value": "found it"}}}}
+            },
         },
         # Large arrays
         {

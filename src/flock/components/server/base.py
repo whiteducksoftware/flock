@@ -13,6 +13,7 @@ from flock.logging.auto_trace import AutoTracedMeta
 
 T = TypeVar("T", bound="ServerComponentConfig")
 
+
 class TracedModelMeta(ModelMetaclass, AutoTracedMeta):
     """Combined metaclass for Pydantic models with auto-tracing.
 
@@ -20,22 +21,20 @@ class TracedModelMeta(ModelMetaclass, AutoTracedMeta):
     to enable both Pydantic functionality and automatic method tracing.
     """
 
+
 class ServerComponentConfig(BaseModel):
-    enabled: bool = Field(
-        default=True,
-        description="Enable this component."
-    )
+    enabled: bool = Field(default=True, description="Enable this component.")
     prefix: str = Field(
-        default="",
-        description="Optional Prefix for the routes of the ServerComponent"
+        default="", description="Optional Prefix for the routes of the ServerComponent"
     )
     tags: list[str] = Field(
         default_factory=list,
-        description="OpenAPI tags to order the endpoints of the ServerComponent"
+        description="OpenAPI tags to order the endpoints of the ServerComponent",
     )
     model_config: ConfigDict = ConfigDict(
         arbitrary_types_allowed=True,
     )
+
 
 class ServerComponent(BaseModel):
     """Base class for server components.
@@ -70,18 +69,17 @@ class ServerComponent(BaseModel):
     """
 
     name: str | None = Field(
-        default=None,
-        description="Component name (auto-generated if None)"
+        default=None, description="Component name (auto-generated if None)"
     )
 
     config: ServerComponentConfig = Field(
         default_factory=ServerComponentConfig,
-        description="Configuration for the server-component."
+        description="Configuration for the server-component.",
     )
 
     priority: int = Field(
         default=0,
-        description="Registration priority (lower runs first, controls route order)."
+        description="Registration priority (lower runs first, controls route order).",
     )
 
     def configure(self, app: Any, orchestrator: Any) -> None:
@@ -171,18 +169,15 @@ class ServerComponent(BaseModel):
         """
         return []
 
-    def _join_path(
-        self,
-        *parts: str
-    ) -> str:
+    def _join_path(self, *parts: str) -> str:
         """Join URL path parts, handling slashes correctly.
 
         Ensures exactly one slash between parts and no double slashes.
 
         Examples:
-            >>> _join_path("/api/v1/", "agents") # -> "/api/v1/agents"
+            >>> _join_path("/api/v1/", "agents")  # -> "/api/v1/agents"
             >>> _join_path("/api/v1", "agents) # -> "/api/v1/agents"
-            >>> _join_path("/api/v1/", "/agents") # -> "/api/v1/agents"
+            >>> _join_path("/api/v1/", "/agents")  # -> "/api/v1/agents"
         """
         # Remove trailing slashes from all parts except the last one
         cleaned = [part.rstrip("/") for part in parts[:-1]]

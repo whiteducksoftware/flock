@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 class ServerComponentConfig(BaseModel):
     """Configuration for server components.
-    
+
     Example:
         >>> config = ServerComponentConfig(enabled=True)
         >>> custom_config = ServerComponentConfig.model_copy(
@@ -32,10 +32,10 @@ class ServerComponentConfig(BaseModel):
 
 class ServerComponent(BaseModel):
     """Base class for HTTP service components.
-    
+
     Mirrors AgentComponent pattern for consistency. Components register routes,
     handle startup/shutdown, and can configure FastAPI.
-    
+
     Lifecycle:
         1. __init__() - Component creation
         2. configure(app, orchestrator) - Configure FastAPI app (middleware, etc.)
@@ -43,12 +43,12 @@ class ServerComponent(BaseModel):
         4. on_startup(orchestrator) - Async startup tasks
         5. ... service runs ...
         6. on_shutdown(orchestrator) - Async cleanup tasks
-    
+
     Priority System:
         - Lower priority numbers register first
         - Use to control route registration order
         - Static files should be LAST (highest priority)
-    
+
     Example:
         >>> class MyComponent(ServerComponent):
         ...     name = "my_component"
@@ -76,14 +76,14 @@ class ServerComponent(BaseModel):
 
     def configure(self, app: FastAPI, orchestrator: Flock) -> None:
         """Configure FastAPI app (sync - runs before server starts).
-        
+
         Use this to add middleware, exception handlers, CORS, etc.
         Called in priority order during BaseHTTPService.configure().
-        
+
         Args:
             app: FastAPI application instance
             orchestrator: Flock orchestrator instance
-        
+
         Example:
             >>> def configure(self, app, orchestrator):
             ...     app.add_middleware(
@@ -98,17 +98,17 @@ class ServerComponent(BaseModel):
 
     async def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
         """Register HTTP routes to FastAPI app.
-        
+
         Called in priority order during startup. Lower priority numbers
         register first. This is where you define your endpoints.
-        
+
         Args:
             app: FastAPI application instance
             orchestrator: Flock orchestrator instance
-        
+
         Raises:
             NotImplementedError: Must be implemented by subclasses
-        
+
         Example:
             >>> async def register_routes(self, app, orchestrator):
             ...     @app.get("/health")
@@ -126,15 +126,15 @@ class ServerComponent(BaseModel):
 
     async def on_startup(self, orchestrator: Flock) -> None:
         """Async startup hook - runs when service starts.
-        
+
         Use this for async initialization like connecting to databases,
         starting background tasks, launching external processes, etc.
-        
+
         Called in priority order after all routes are registered.
-        
+
         Args:
             orchestrator: Flock orchestrator instance
-        
+
         Example:
             >>> async def on_startup(self, orchestrator):
             ...     self.websocket_manager = WebSocketManager()
@@ -146,16 +146,16 @@ class ServerComponent(BaseModel):
 
     async def on_shutdown(self, orchestrator: Flock) -> None:
         """Async shutdown hook - runs when service stops.
-        
+
         Use this for cleanup like closing connections, stopping background
         tasks, terminating external processes, etc.
-        
+
         Called in REVERSE priority order (highest to lowest) to ensure
         proper cleanup ordering.
-        
+
         Args:
             orchestrator: Flock orchestrator instance
-        
+
         Example:
             >>> async def on_shutdown(self, orchestrator):
             ...     if self.websocket_manager:
@@ -169,13 +169,13 @@ class ServerComponent(BaseModel):
 
     def get_dependencies(self) -> list[type[ServerComponent]]:
         """Return list of component types this component depends on.
-        
+
         Used for automatic ordering validation. BaseHTTPService will
         check that all dependencies are present and enabled.
-        
+
         Returns:
             List of ServerComponent subclass types
-        
+
         Example:
             >>> class MyComponent(ServerComponent):
             ...     def get_dependencies(self):
@@ -192,7 +192,7 @@ class ServerComponent(BaseModel):
 
 class HealthComponent(ServerComponent):
     """Health check and metrics endpoints.
-    
+
     Provides:
     - GET /health - Basic health check
     - GET /metrics - Prometheus-style metrics
@@ -219,7 +219,7 @@ class HealthComponent(ServerComponent):
 
 class ArtifactComponent(ServerComponent):
     """HTTP endpoints for artifact management.
-    
+
     Provides:
     - POST /api/v1/artifacts - Publish artifacts
     - GET /api/v1/artifacts - List/query artifacts
@@ -232,7 +232,7 @@ class ArtifactComponent(ServerComponent):
 
     async def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
         """Register artifact management routes.
-        
+
         TODO: Extract actual implementation from BlackboardHTTPService
         """
         # Implementation would go here
@@ -242,7 +242,7 @@ class ArtifactComponent(ServerComponent):
 
 class DashboardComponent(ServerComponent):
     """WebSocket dashboard with real-time agent visualization.
-    
+
     Provides:
     - WebSocket endpoint at /ws
     - Static file serving for dashboard UI
@@ -283,13 +283,13 @@ class DashboardComponent(ServerComponent):
 
 class MCPComponent(ServerComponent):
     """Model Context Protocol (MCP) server endpoints.
-    
+
     Provides:
     - POST /mcp/tools/list - List available tools
     - POST /mcp/tools/call - Execute tool
     - POST /mcp/resources/list - List available resources
     - POST /mcp/resources/read - Read resource
-    
+
     Exposes Flock agents and artifacts via MCP protocol for AI assistants.
     """
 

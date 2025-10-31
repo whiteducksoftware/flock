@@ -117,7 +117,9 @@ class TestFlockMCPTool:
             },
         )
 
-        flock_tool = FlockMCPTool.from_mcp_tool(mcp_tool, agent_id="agent_789", run_id="run_101")
+        flock_tool = FlockMCPTool.from_mcp_tool(
+            mcp_tool, agent_id="agent_789", run_id="run_101"
+        )
 
         assert flock_tool.name == "mcp_tool"
         assert flock_tool.agent_id == "agent_789"
@@ -139,7 +141,9 @@ class TestFlockMCPTool:
     def test_convert_input_schema_to_tool_args(self, basic_tool_data):
         """Test JSON schema to tool args conversion."""
         tool = FlockMCPTool(**basic_tool_data)
-        args, arg_types, arg_descs = tool._convert_input_schema_to_tool_args(tool.input_schema)
+        args, arg_types, arg_descs = tool._convert_input_schema_to_tool_args(
+            tool.input_schema
+        )
 
         assert "message" in args
         assert "count" in args
@@ -154,7 +158,9 @@ class TestFlockMCPTool:
         mock_convert.side_effect = Exception("Conversion error")
         tool = FlockMCPTool(**basic_tool_data)
 
-        args, arg_types, arg_descs = tool._convert_input_schema_to_tool_args(tool.input_schema)
+        args, arg_types, arg_descs = tool._convert_input_schema_to_tool_args(
+            tool.input_schema
+        )
 
         # Should return empty dicts on error
         assert args == {}
@@ -213,7 +219,9 @@ class TestFlockMCPTool:
             annotations=None,
         )
 
-        non_text_content = ImageContent(type="image", data="base64data", mimeType="image/png")
+        non_text_content = ImageContent(
+            type="image", data="base64data", mimeType="image/png"
+        )
 
         result = CallToolResult(
             content=[
@@ -237,7 +245,9 @@ class TestFlockMCPTool:
             annotations=None,
         )
 
-        non_text_content = ImageContent(type="image", data="base64data", mimeType="image/png")
+        non_text_content = ImageContent(
+            type="image", data="base64data", mimeType="image/png"
+        )
 
         result = CallToolResult(
             content=[non_text_content],
@@ -363,13 +373,17 @@ class TestFlockMCPTool:
 
         with patch("flock.mcp.tool.tracer") as mock_tracer:
             mock_span = MagicMock()
-            mock_tracer.start_as_current_span.return_value.__enter__ = Mock(return_value=mock_span)
+            mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
+                return_value=mock_span
+            )
             mock_tracer.start_as_current_span.return_value.__exit__ = Mock()
 
             result = await dspy_tool.func(message="Trace me")
 
             assert result == "Traced result"
-            mock_tracer.start_as_current_span.assert_called_once_with("tool.test_tool.call")
+            mock_tracer.start_as_current_span.assert_called_once_with(
+                "tool.test_tool.call"
+            )
             mock_span.set_attribute.assert_called_once_with("tool.name", "test_tool")
 
 
@@ -512,7 +526,9 @@ class TestTypeHandlers:
             ),
         )
 
-        await handle_resource_update_notification(notification, mock_logger, mock_client)
+        await handle_resource_update_notification(
+            notification, mock_logger, mock_client
+        )
 
         mock_logger.info.assert_called_once()
         log_message = mock_logger.info.call_args[0][0]
@@ -525,27 +541,35 @@ class TestTypeHandlers:
         assert str(call_args.kwargs["key"]) == "file:///test/resource.txt"
 
     @pytest.mark.asyncio
-    async def test_handle_resource_list_changed_notification(self, mock_logger, mock_client):
+    async def test_handle_resource_list_changed_notification(
+        self, mock_logger, mock_client
+    ):
         """Test resource list changed notification handler."""
         notification = ResourceListChangedNotification(
             method="notifications/resources/list_changed",
             params={"meta": {"count": 10}},  # Use dict for params
         )
 
-        await handle_resource_list_changed_notification(notification, mock_logger, mock_client)
+        await handle_resource_list_changed_notification(
+            notification, mock_logger, mock_client
+        )
 
         mock_logger.info.assert_called_once()
         mock_client.invalidate_resource_list_cache.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_handle_tool_list_changed_notification(self, mock_logger, mock_client):
+    async def test_handle_tool_list_changed_notification(
+        self, mock_logger, mock_client
+    ):
         """Test tool list changed notification handler."""
         notification = ToolListChangedNotification(
             method="notifications/tools/list_changed",
             params={"meta": {"new_tools": 3}},  # Use dict for params
         )
 
-        await handle_tool_list_changed_notification(notification, mock_logger, mock_client)
+        await handle_tool_list_changed_notification(
+            notification, mock_logger, mock_client
+        )
 
         mock_logger.info.assert_called_once()
         log_message = mock_logger.info.call_args[0][0]
@@ -698,19 +722,25 @@ class TestTypeHandlers:
             )
         )
 
-        await handle_incoming_server_notification(log_notification, mock_logger, mock_client)
+        await handle_incoming_server_notification(
+            log_notification, mock_logger, mock_client
+        )
 
         mock_logger.info.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_handle_incoming_server_notification_unrecognized(self, mock_logger, mock_client):
+    async def test_handle_incoming_server_notification_unrecognized(
+        self, mock_logger, mock_client
+    ):
         """Test handling of unrecognized server notification."""
         # Create a mock notification type that's not in the handler map
         mock_notification = MagicMock()
         mock_notification.root = MagicMock()
 
         # Should not raise an error, just no-op
-        await handle_incoming_server_notification(mock_notification, mock_logger, mock_client)
+        await handle_incoming_server_notification(
+            mock_notification, mock_logger, mock_client
+        )
 
         # No logger methods should be called for unrecognized notification
         mock_logger.assert_not_called()
@@ -733,7 +763,9 @@ class TestTypeHandlers:
         create_msg_req = CreateMessageRequest(
             method="sampling/createMessage",
             params=CreateMessageRequestParams(
-                messages=[{"role": "user", "content": TextContent(type="text", text="Hello")}],
+                messages=[
+                    {"role": "user", "content": TextContent(type="text", text="Hello")}
+                ],
                 systemPrompt="You are helpful",
                 maxTokens=100,
             ),
@@ -788,13 +820,17 @@ class TestTypeHandlers:
         from mcp.types import ServerRequest
 
         mock_client = MagicMock()
-        mock_client.sampling_callback = AsyncMock(side_effect=Exception("Callback error"))
+        mock_client.sampling_callback = AsyncMock(
+            side_effect=Exception("Callback error")
+        )
 
         # Create proper ServerRequest wrapper
         create_msg_req = CreateMessageRequest(
             method="sampling/createMessage",
             params=CreateMessageRequestParams(
-                messages=[{"role": "user", "content": TextContent(type="text", text="Hello")}],
+                messages=[
+                    {"role": "user", "content": TextContent(type="text", text="Hello")}
+                ],
                 systemPrompt="Test",
                 maxTokens=100,
             ),
@@ -1145,7 +1181,9 @@ class TestEdgeCases:
         )
 
         # Should not raise an error
-        args, arg_types, arg_descs = tool._convert_input_schema_to_tool_args(complex_schema)
+        args, arg_types, arg_descs = tool._convert_input_schema_to_tool_args(
+            complex_schema
+        )
 
     @pytest.mark.asyncio
     async def test_tool_invocation_timeout_scenario(self):
@@ -1199,7 +1237,9 @@ class TestEdgeCases:
         mock_client.invalidate_resource_list_cache = AsyncMock()
 
         # Should handle gracefully
-        await handle_resource_list_changed_notification(notification, mock_logger, mock_client)
+        await handle_resource_list_changed_notification(
+            notification, mock_logger, mock_client
+        )
 
         mock_logger.info.assert_called_once()
         mock_client.invalidate_resource_list_cache.assert_called_once()

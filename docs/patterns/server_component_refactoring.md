@@ -1,8 +1,8 @@
 # Server Component System - Refactoring Proposal
 
-**Date:** October 21, 2025  
-**Status:** Draft Proposal  
-**Author:** AI Assistant  
+**Date:** October 21, 2025
+**Status:** Draft Proposal
+**Author:** AI Assistant
 
 ## Executive Summary
 
@@ -27,7 +27,7 @@ class BlackboardHTTPService:
     def _register_routes(self):
         @app.post("/api/v1/artifacts")
         async def publish_artifact(): ...
-        
+
         @app.get("/api/v1/artifacts")
         async def list_artifacts(): ...
 
@@ -154,10 +154,10 @@ class ServerComponentConfig(BaseModel):
 
 class ServerComponent(BaseModel):
     """Base class for HTTP service components.
-    
+
     Mirrors AgentComponent pattern for consistency.
     Components register routes, handle startup/shutdown, and can configure FastAPI.
-    
+
     Lifecycle:
         1. __init__() - Component creation
         2. configure() - Configure FastAPI app (middleware, exception handlers, etc.)
@@ -165,7 +165,7 @@ class ServerComponent(BaseModel):
         4. on_startup() - Async startup tasks (connect to resources, etc.)
         5. ... service runs ...
         6. on_shutdown() - Async cleanup tasks
-    
+
     Example:
         >>> class MyComponent(ServerComponent):
         ...     async def register_routes(self, app, orchestrator):
@@ -176,32 +176,32 @@ class ServerComponent(BaseModel):
         ...     async def on_startup(self, orchestrator):
         ...         print("My component started!")
     """
-    
+
     name: str | None = Field(default=None, description="Component name (auto-generated if None)")
     config: ServerComponentConfig = Field(default_factory=ServerComponentConfig)
     priority: int = Field(
         default=0,
         description="Registration priority (lower runs first, controls route order)"
     )
-    
+
     # Lifecycle hooks
-    
+
     def configure(self, app: FastAPI, orchestrator: Flock) -> None:
         """Configure FastAPI app (sync - runs before server starts).
-        
+
         Use this to add middleware, exception handlers, CORS, etc.
-        
+
         Args:
             app: FastAPI application instance
             orchestrator: Flock orchestrator instance
         """
         pass
-    
+
     async def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
         """Register HTTP routes to FastAPI app.
-        
+
         Called in priority order. Lower priority numbers register first.
-        
+
         Args:
             app: FastAPI application instance
             orchestrator: Flock orchestrator instance
@@ -209,34 +209,34 @@ class ServerComponent(BaseModel):
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement register_routes()"
         )
-    
+
     async def on_startup(self, orchestrator: Flock) -> None:
         """Async startup hook - runs when service starts.
-        
+
         Use this for async initialization (connect to databases, start background tasks, etc.)
-        
+
         Args:
             orchestrator: Flock orchestrator instance
         """
         pass
-    
+
     async def on_shutdown(self, orchestrator: Flock) -> None:
         """Async shutdown hook - runs when service stops.
-        
+
         Use this for cleanup (close connections, stop background tasks, etc.)
-        
+
         Args:
             orchestrator: Flock orchestrator instance
         """
         pass
-    
+
     # Helper methods
-    
+
     def get_dependencies(self) -> list[type[ServerComponent]]:
         """Return list of component types this component depends on.
-        
+
         Used for automatic ordering and validation.
-        
+
         Example:
             >>> class MyComponent(ServerComponent):
             ...     def get_dependencies(self):
@@ -267,17 +267,17 @@ if TYPE_CHECKING:
 
 class BaseHTTPService:
     """HTTP service built from composable ServerComponents.
-    
+
     Replaces inheritance-based BlackboardHTTPService with composition.
     Components are registered in priority order and manage their own routes.
-    
+
     Example:
         >>> service = BaseHTTPService(orchestrator, title="My API")
         >>> service.add_component(ArtifactComponent(priority=10))
         >>> service.add_component(DashboardComponent(priority=20))
         >>> await service.run_async(host="0.0.0.0", port=8080)
     """
-    
+
     def __init__(
         self,
         orchestrator: Flock,
@@ -288,68 +288,68 @@ class BaseHTTPService:
     ):
         self.orchestrator = orchestrator
         self.components: list[ServerComponent] = []
-        
+
         # Create FastAPI app
         self.app = FastAPI(title=title, version=version, description=description)
-        
+
         # Track initialization state
         self._configured = False
         self._started = False
-    
+
     def add_component(self, component: ServerComponent) -> None:
         """Add a server component (must be called before configure()).
-        
+
         Args:
             component: ServerComponent instance to add
-        
+
         Raises:
             RuntimeError: If called after configure()
         """
         if self._configured:
             raise RuntimeError("Cannot add components after configure()")
-        
+
         self.components.append(component)
-    
+
     def add_components(self, components: list[ServerComponent]) -> None:
         """Add multiple components at once.
-        
+
         Args:
             components: List of ServerComponent instances
         """
         for component in components:
             self.add_component(component)
-    
+
     def configure(self) -> None:
         """Configure FastAPI app with all components.
-        
+
         1. Sorts components by priority
         2. Validates dependencies
         3. Calls component.configure() for each
         4. Calls component.register_routes() for each
-        
+
         Must be called before run_async().
         """
         if self._configured:
             return
-        
+
         # Sort by priority (lower first)
         self.components.sort(key=lambda c: c.priority)
-        
+
         # Validate dependencies
         self._validate_dependencies()
-        
+
         # Configure phase (sync)
         for component in self.components:
             if component.config.enabled:
                 component.configure(self.app, self.orchestrator)
-        
+
         # Register routes phase (async wrapper needed)
         @self.app.on_event("startup")
         async def _register_routes():
             for component in self.components:
                 if component.config.enabled:
                     await component.register_routes(self.app, self.orchestrator)
-        
+
         # Startup/shutdown hooks
         @self.app.on_event("startup")
         async def _startup():
@@ -357,62 +357,62 @@ class BaseHTTPService:
                 if component.config.enabled:
                     await component.on_startup(self.orchestrator)
             self._started = True
-        
+
         @self.app.on_event("shutdown")
         async def _shutdown():
             for component in reversed(self.components):  # Reverse order
                 if component.config.enabled:
                     await component.on_shutdown(self.orchestrator)
             self._started = False
-        
+
         self._configured = True
-    
+
     def _validate_dependencies(self) -> None:
         """Validate that all component dependencies are satisfied."""
         enabled_types = {type(c) for c in self.components if c.config.enabled}
-        
+
         for component in self.components:
             if not component.config.enabled:
                 continue
-            
+
             for dep_type in component.get_dependencies():
                 if dep_type not in enabled_types:
                     raise ValueError(
                         f"Component {component.name or component.__class__.__name__} "
                         f"requires {dep_type.__name__} but it's not enabled"
                     )
-    
+
     async def run_async(self, host: str = "127.0.0.1", port: int = 8344) -> None:
         """Run the service asynchronously.
-        
+
         Args:
             host: Host to bind to
             port: Port to bind to
         """
         import uvicorn
-        
+
         # Configure if not already done
         if not self._configured:
             self.configure()
-        
+
         # Run server
         config = uvicorn.Config(self.app, host=host, port=port)
         server = uvicorn.Server(config)
         await server.serve()
-    
+
     def run(self, host: str = "127.0.0.1", port: int = 8344) -> None:
         """Run the service synchronously (blocks).
-        
+
         Args:
             host: Host to bind to
             port: Port to bind to
         """
         import uvicorn
-        
+
         # Configure if not already done
         if not self._configured:
             self.configure()
-        
+
         # Run server
         uvicorn.run(self.app, host=host, port=port)
 
@@ -451,32 +451,32 @@ if TYPE_CHECKING:
 
 class ArtifactComponent(ServerComponent):
     """HTTP endpoints for artifact management.
-    
+
     Provides:
     - POST /api/v1/artifacts - Publish artifacts
     - GET /api/v1/artifacts - List/query artifacts
     - GET /api/v1/artifacts/{id} - Get single artifact
     - GET /api/v1/artifacts/summary - Summary statistics
     """
-    
+
     name: str = "artifact"
     priority: int = 10  # Base routes - register early
-    
+
     async def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
         """Register artifact management routes."""
-        
+
         def _serialize_artifact(artifact, consumptions=None) -> dict[str, Any]:
             # ... (same as current implementation)
             pass
-        
+
         def _parse_datetime(value: str | None, label: str) -> datetime | None:
             # ... (same as current implementation)
             pass
-        
+
         def _make_filter_config(...) -> FilterConfig:
             # ... (same as current implementation)
             pass
-        
+
         @app.post("/api/v1/artifacts", response_model=ArtifactPublishResponse, tags=["Artifacts"])
         async def publish_artifact(body: ArtifactPublishRequest) -> ArtifactPublishResponse:
             try:
@@ -484,17 +484,17 @@ class ArtifactComponent(ServerComponent):
             except Exception as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             return ArtifactPublishResponse(status="accepted")
-        
+
         @app.get("/api/v1/artifacts", response_model=ArtifactListResponse, tags=["Artifacts"])
         async def list_artifacts(...) -> ArtifactListResponse:
             # ... (same as current implementation)
             pass
-        
+
         @app.get("/api/v1/artifacts/summary", response_model=ArtifactSummaryResponse, tags=["Artifacts"])
         async def summarize_artifacts(...) -> ArtifactSummaryResponse:
             # ... (same as current implementation)
             pass
-        
+
         @app.get("/api/v1/artifacts/{artifact_id}", tags=["Artifacts"])
         async def get_artifact(artifact_id: UUID) -> dict[str, Any]:
             # ... (same as current implementation)
@@ -532,35 +532,35 @@ if TYPE_CHECKING:
 
 class AgentManagementComponent(ServerComponent):
     """HTTP endpoints for agent management and execution.
-    
+
     Provides:
     - GET /api/v1/agents - List agents
     - POST /api/v1/agents/{name}/run - Execute agent
     - GET /api/v1/agents/{id}/history-summary - Agent history
     - GET /api/v1/correlations/{id}/status - Workflow status
     """
-    
+
     name: str = "agent"
     priority: int = 15  # After artifacts
-    
+
     async def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
         """Register agent management routes."""
-        
+
         @app.get("/api/v1/agents", response_model=AgentListResponse, tags=["Agents"])
         async def list_agents() -> AgentListResponse:
             # ... (same as current implementation)
             pass
-        
+
         @app.post("/api/v1/agents/{name}/run", response_model=AgentRunResponse, tags=["Agents"])
         async def run_agent(name: str, body: AgentRunRequest) -> AgentRunResponse:
             # ... (same as current implementation)
             pass
-        
+
         @app.get("/api/v1/agents/{agent_id}/history-summary", tags=["Agents"])
         async def agent_history(agent_id: str, ...) -> dict:
             # ... (same as current implementation)
             pass
-        
+
         @app.get("/api/v1/correlations/{correlation_id}/status", tags=["Agents"])
         async def get_correlation_status(correlation_id: str) -> dict:
             # ... (same as current implementation)
@@ -607,32 +607,32 @@ class DashboardComponentConfig(ServerComponentConfig):
 
 class DashboardComponent(ServerComponent):
     """WebSocket dashboard with real-time agent visualization.
-    
+
     Provides:
     - WebSocket endpoint at /ws
     - Static file serving for dashboard UI
     - Real-time event streaming
     - Agent graph visualization
     - Trace viewing
-    
+
     Dependencies:
     - Optionally works better with ArtifactComponent for full API
     """
-    
+
     name: str = "dashboard"
     priority: int = 20  # After base routes
     config: DashboardComponentConfig = Field(default_factory=DashboardComponentConfig)
-    
+
     # Runtime state
     websocket_manager: WebSocketManager | None = None
     event_collector: DashboardEventCollector | None = None
     graph_assembler: GraphAssembler | None = None
     launcher: DashboardLauncher | None = None
-    
+
     def configure(self, app: FastAPI, orchestrator: Flock) -> None:
         """Configure CORS middleware if needed."""
         enable_cors = self.config.enable_cors or os.environ.get("DASHBOARD_DEV") == "1"
-        
+
         if enable_cors:
             app.add_middleware(
                 CORSMiddleware,
@@ -641,36 +641,36 @@ class DashboardComponent(ServerComponent):
                 allow_methods=["*"],
                 allow_headers=["*"],
             )
-    
+
     async def on_startup(self, orchestrator: Flock) -> None:
         """Initialize dashboard components."""
         from flock.core import Agent
-        
+
         # Create WebSocket manager and event collector
         self.websocket_manager = WebSocketManager()
         self.event_collector = DashboardEventCollector(store=orchestrator.store)
         self.event_collector.set_websocket_manager(self.websocket_manager)
         await self.event_collector.load_persistent_snapshots()
-        
+
         # Store references on orchestrator
         orchestrator._dashboard_collector = self.event_collector
         orchestrator._websocket_manager = self.websocket_manager
         orchestrator._event_emitter.set_websocket_manager(self.websocket_manager)
-        
+
         # Set WebSocket broadcast on Agent class
         async def _broadcast_wrapper(event):
             return await self.websocket_manager.broadcast(event)
         Agent._websocket_broadcast_global = _broadcast_wrapper
-        
+
         # Inject collector into existing agents
         for agent in orchestrator._agents.values():
             agent._add_utilities([self.event_collector])
-        
+
         # Create graph assembler
         self.graph_assembler = GraphAssembler(
             orchestrator.store, self.event_collector, orchestrator
         )
-        
+
         # Start dashboard launcher (npm + browser)
         if self.config.launch_browser:
             launcher_kwargs = {"port": 8344}  # TODO: Get from run_async() args
@@ -678,10 +678,10 @@ class DashboardComponent(ServerComponent):
                 dashboard_pkg_dir = Path(__file__).parent.parent.parent / "dashboard"
                 launcher_kwargs["frontend_dir"] = dashboard_pkg_dir.parent / "frontend_v2"
                 launcher_kwargs["static_dir"] = dashboard_pkg_dir / "static_v2"
-            
+
             self.launcher = DashboardLauncher(**launcher_kwargs)
             self.launcher.start()
-    
+
     async def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
         """Register dashboard routes (WebSocket, static files, etc.)."""
         from flock.dashboard.routes import (
@@ -690,7 +690,7 @@ class DashboardComponent(ServerComponent):
             register_trace_routes,
             register_websocket_routes,
         )
-        
+
         # Register dashboard route modules
         register_control_routes(app, orchestrator, self.websocket_manager, self.event_collector)
         register_trace_routes(app, orchestrator, self.websocket_manager, self.event_collector)
@@ -703,12 +703,12 @@ class DashboardComponent(ServerComponent):
             self.graph_assembler,
             use_v2=self.config.use_v2,
         )
-    
+
     async def on_shutdown(self, orchestrator: Flock) -> None:
         """Clean up dashboard resources."""
         if self.websocket_manager:
             await self.websocket_manager.shutdown()
-        
+
         if self.launcher:
             self.launcher.stop()
 
@@ -745,29 +745,29 @@ class MCPComponentConfig(ServerComponentConfig):
 
 class MCPComponent(ServerComponent):
     """Model Context Protocol (MCP) server endpoints.
-    
+
     Provides:
     - POST /mcp/tools/list - List available tools
     - POST /mcp/tools/call - Execute tool
     - POST /mcp/resources/list - List available resources
     - POST /mcp/resources/read - Read resource
-    
+
     Exposes Flock agents and artifacts via MCP protocol for AI assistants.
     """
-    
+
     name: str = "mcp"
     priority: int = 30  # After core routes
     config: MCPComponentConfig = Field(default_factory=MCPComponentConfig)
-    
+
     async def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
         """Register MCP protocol endpoints."""
         base = self.config.base_path
-        
+
         @app.post(f"{base}/tools/list", tags=["MCP"])
         async def list_mcp_tools():
             """List available MCP tools."""
             tools = []
-            
+
             if "agent_invoke" in self.config.expose_tools:
                 tools.append({
                     "name": "agent_invoke",
@@ -781,7 +781,7 @@ class MCPComponent(ServerComponent):
                         "required": ["agent_name", "inputs"],
                     },
                 })
-            
+
             if "blackboard_query" in self.config.expose_tools:
                 tools.append({
                     "name": "blackboard_query",
@@ -794,22 +794,22 @@ class MCPComponent(ServerComponent):
                         },
                     },
                 })
-            
+
             return {"tools": tools}
-        
+
         @app.post(f"{base}/tools/call", tags=["MCP"])
         async def call_mcp_tool(request: dict):
             """Execute an MCP tool."""
             tool_name = request.get("name")
             arguments = request.get("arguments", {})
-            
+
             if tool_name == "agent_invoke":
                 agent_name = arguments["agent_name"]
                 inputs = arguments["inputs"]
-                
+
                 agent = orchestrator.get_agent(agent_name)
                 outputs = await orchestrator.direct_invoke(agent, inputs)
-                
+
                 return {
                     "content": [
                         {
@@ -818,16 +818,16 @@ class MCPComponent(ServerComponent):
                         }
                     ]
                 }
-            
+
             elif tool_name == "blackboard_query":
                 type_name = arguments.get("type")
                 limit = arguments.get("limit", 10)
-                
+
                 artifacts, _ = await orchestrator.store.query_artifacts(
                     FilterConfig(type_names={type_name} if type_name else None),
                     limit=limit,
                 )
-                
+
                 return {
                     "content": [
                         {
@@ -836,7 +836,7 @@ class MCPComponent(ServerComponent):
                         }
                     ]
                 }
-            
+
             return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -864,22 +864,22 @@ if TYPE_CHECKING:
 
 class HealthComponent(ServerComponent):
     """Health check and metrics endpoints.
-    
+
     Provides:
     - GET /health - Health check
     - GET /metrics - Prometheus-style metrics
     """
-    
+
     name: str = "health"
     priority: int = 5  # Early registration (no dependencies)
-    
+
     async def register_routes(self, app: FastAPI, orchestrator: Flock) -> None:
         """Register health and metrics routes."""
-        
+
         @app.get("/health", response_model=HealthResponse, tags=["Health"])
         async def health() -> HealthResponse:
             return HealthResponse(status="ok")
-        
+
         @app.get("/metrics", tags=["Health"])
         async def metrics() -> PlainTextResponse:
             lines = [
@@ -918,10 +918,10 @@ if TYPE_CHECKING:
 
 class ServerManager:
     """Manages HTTP service startup for the orchestrator.
-    
+
     Now uses composable ServerComponents instead of inheritance.
     """
-    
+
     @staticmethod
     async def serve(
         orchestrator: Flock,
@@ -934,7 +934,7 @@ class ServerManager:
         components: list[ServerComponent] | None = None,
     ) -> Task[None] | None:
         """Start HTTP service for the orchestrator.
-        
+
         Args:
             orchestrator: The Flock orchestrator instance to serve
             dashboard: Enable real-time dashboard (default: False)
@@ -943,17 +943,17 @@ class ServerManager:
             port: Port to bind to (default: 8344)
             blocking: Block until server stops (default: True)
             components: Custom components (None = use defaults based on dashboard flag)
-        
+
         Returns:
             None if blocking=True, or Task handle if blocking=False
-        
+
         Examples:
             # Basic API (artifacts + agents + health)
             await ServerManager.serve(orchestrator)
-            
+
             # With dashboard
             await ServerManager.serve(orchestrator, dashboard=True)
-            
+
             # Custom components
             from flock.components.server import MCPComponent
             await ServerManager.serve(
@@ -969,7 +969,7 @@ class ServerManager:
         # Determine components
         if components is None:
             components = ServerManager._default_components(dashboard, dashboard_v2)
-        
+
         # Create service
         service = BaseHTTPService(
             orchestrator,
@@ -978,7 +978,7 @@ class ServerManager:
         )
         service.add_components(components)
         service.configure()
-        
+
         # Non-blocking mode
         if not blocking:
             server_task = asyncio.create_task(
@@ -987,11 +987,11 @@ class ServerManager:
             orchestrator._server_task = server_task
             await asyncio.sleep(0.1)  # Let server start
             return server_task
-        
+
         # Blocking mode
         await service.run_async(host=host, port=port)
         return None
-    
+
     @staticmethod
     def _default_components(dashboard: bool, dashboard_v2: bool) -> list[ServerComponent]:
         """Build default component list based on flags."""
@@ -1000,7 +1000,7 @@ class ServerManager:
             ArtifactComponent(priority=10),
             AgentManagementComponent(priority=15),
         ]
-        
+
         if dashboard or dashboard_v2:
             components.append(
                 DashboardComponent(
@@ -1008,7 +1008,7 @@ class ServerManager:
                     config={"use_v2": dashboard_v2, "launch_browser": True},
                 )
             )
-        
+
         return components
 
 
@@ -1110,11 +1110,11 @@ await ServerManager.serve(
 class CustomAuthComponent(ServerComponent):
     name = "custom_auth"
     priority = 1  # Run first!
-    
+
     def configure(self, app, orchestrator):
         # Add custom middleware
         app.add_middleware(MyAuthMiddleware)
-    
+
     async def register_routes(self, app, orchestrator):
         @app.post("/api/v1/custom/authenticate")
         async def custom_auth(credentials):
