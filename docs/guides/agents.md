@@ -758,20 +758,16 @@ MCP is a standardized protocol for giving LLMs access to external tools and data
 
 ```python
 from flock import Flock
+from flock.mcp import StdioServerParameters
 
 # Register MCP server
-flock = Flock(
-    "openai/gpt-4.1",
-    enable_tools_feature=True,  # Enable MCP support
-    mcp_servers={
-        "browse_web": {
-            "command": "npx",
-            "args": [
-                "-y",
-                "@playwright/mcp@latest"
-            ]
-        }
-    }
+flock = Flock("openai/gpt-4.1")
+
+flock.add_mcp(
+    name="browse_web",
+    connection_params=StdioServerParameters(
+        command="npx", args=["-y", "@playwright/mcp@latest"]
+    ),
 )
 
 # Agent with MCP tools
@@ -848,15 +844,13 @@ class ResearchReport(BaseModel):
     sources: list[str]
 
 # Setup with Playwright MCP
-flock = Flock(
-    "openai/gpt-4.1",
-    enable_tools_feature=True,
-    mcp_servers={
-        "browse_web": {
-            "command": "npx",
-            "args": ["-y", "@playwright/mcp@latest"]
-        }
-    }
+flock = Flock("openai/gpt-4.1")
+
+flock.add_mcp(
+    name="browse_web",
+    connection_params=StdioServerParameters(
+        command="npx", args=["-y", "@playwright/mcp@latest"]
+    ),
 )
 
 # Researcher agent with web browsing
