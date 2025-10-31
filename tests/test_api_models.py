@@ -9,8 +9,34 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from flock import Flock
-from flock.api.service import BlackboardHTTPService
-from flock.components.server.models.models import Agent
+from flock.api import BaseHTTPService
+from flock.api.models import ArtifactPublishResponse, ArtifactTypesResponse
+from flock.components.server.agents.agents_component import (
+    AgentsServerComponent,
+    AgentsServerComponentConfig,
+)
+from flock.components.server.artifacts.artifacts_component import (
+    ArtifactComponentConfig,
+    ArtifactsComponent,
+)
+from flock.components.server.artifacts.models import (
+    ArtifactListResponse,
+    PaginationInfo,
+)
+from flock.components.server.control.control_routes_component import (
+    ControlRoutesComponent,
+    ControlRoutesComponentConfig,
+)
+from flock.components.server.health.health_component import (
+    HealthAndMetricsComponent,
+    HealthComponentConfig,
+)
+from flock.components.server.health.models import HealthResponse
+from flock.components.server.models.models import (
+    Agent,
+    AgentListResponse,
+    AgentSubscription,
+)
 from flock.examples import Idea, Movie
 
 
@@ -27,7 +53,7 @@ class TestAgentModels:
         )
         assert agent.description == ""
 
-    def test_agent_with_none_description_converts_to_empty(self):
+    async def test_agent_with_none_description_converts_to_empty(self):
         """Test that None description is handled in endpoint (not in model)."""
         # The model requires a string, so we test the endpoint handles None
         flock = Flock()
@@ -35,7 +61,18 @@ class TestAgentModels:
         # Create agent with None description
         flock.agent("test_agent").consumes(Idea).publishes(Movie)
 
-        service = BlackboardHTTPService(flock)
+        service = BaseHTTPService(
+            orchestrator=flock,
+        ).add_component(
+            AgentsServerComponent(
+                name="test_agents",
+                config=AgentsServerComponentConfig(
+                    prefix="/api/v1/",
+                    tags=["Testing"]
+                )
+            )
+        )
+        service.configure()
         client = TestClient(service.app)
 
         response = client.get("/api/v1/agents")
@@ -165,7 +202,16 @@ class TestEndToEndAPIResponses:
 
         flock.agent("test_agent").consumes(Idea).publishes(Movie)
 
-        service = BlackboardHTTPService(flock)
+        service = BaseHTTPService(flock).add_component(
+            AgentsServerComponent(
+                name="test",
+                config=AgentsServerComponentConfig(
+                    prefix="/api/v1/",
+                    tags=["Testing"]
+                )
+            )
+        )
+        service.configure()
         client = TestClient(service.app)
 
         response = client.get("/api/v1/agents")
@@ -179,7 +225,16 @@ class TestEndToEndAPIResponses:
     def test_post_artifacts_endpoint_returns_proper_model(self):
         """Test POST /api/v1/artifacts returns ArtifactPublishResponse."""
         flock = Flock()
-        service = BlackboardHTTPService(flock)
+        service = BaseHTTPService(flock).add_component(
+            ArtifactsComponent(
+                name="test",
+                config=ArtifactComponentConfig(
+                    prefix="/api/v1",
+                    tags=["Testing"]
+                )
+            )
+        )
+        service.configure()
         client = TestClient(service.app)
 
         response = client.post(
@@ -198,7 +253,16 @@ class TestEndToEndAPIResponses:
     def test_get_artifacts_endpoint_returns_proper_model(self):
         """Test GET /api/v1/artifacts returns ArtifactListResponse."""
         flock = Flock()
-        service = BlackboardHTTPService(flock)
+        service = BaseHTTPService(flock).add_component(
+            ArtifactsComponent(
+                name="test",
+                config=ArtifactComponentConfig(
+                    prefix="/api/v1",
+                    tags=["Testing"]
+                )
+            )
+        )
+        service.configure()
         client = TestClient(service.app)
 
         response = client.get("/api/v1/artifacts?limit=10")
@@ -212,7 +276,15 @@ class TestEndToEndAPIResponses:
     def test_get_health_endpoint_returns_proper_model(self):
         """Test GET /health returns HealthResponse."""
         flock = Flock()
-        service = BlackboardHTTPService(flock)
+        service = BaseHTTPService(flock).add_component(
+            HealthAndMetricsComponent(
+                name="test",
+                config=HealthComponentConfig(
+                    prefix="/"
+                )
+            )
+        )
+        service.configure()
         client = TestClient(service.app)
 
         response = client.get("/health")
@@ -225,7 +297,27 @@ class TestEndToEndAPIResponses:
     def test_openapi_schema_has_proper_refs(self):
         """Test that OpenAPI schema has proper $ref to response models."""
         flock = Flock()
-        service = BlackboardHTTPService(flock)
+        service = BaseHTTPService(flock).add_component(
+            AgentsServerComponent(
+                name="test_agents",
+                config=AgentsServerComponentConfig(
+                    prefix="/api/v1",
+                    tags=["Testing"]
+                )
+            )
+        ).add_component(HealthAndMetricsComponent(
+            name="test_health",
+            config=HealthComponentConfig(
+                prefix="/"
+            )
+        )).add_component(ArtifactsComponent(
+            name="test_artifacts",
+            config=ArtifactComponentConfig(
+                prefix="/api/v1/",
+                tags=["Testing"]
+            )
+        ))
+        service.configure()
 
         openapi_schema = service.app.openapi()
 
@@ -260,8 +352,46 @@ class TestEndToEndAPIResponses:
     def test_openapi_schema_components_defined(self):
         """Test that all response model components are properly defined."""
         flock = Flock()
-        service = BlackboardHTTPService(flock)
-
+        service = (
+            BaseHTTPService(flock)
+            .add_component(
+                AgentsServerComponent(
+                    name="test_agents",
+                    config=AgentsServerComponentConfig(
+                        prefix="/api/v1/",
+                        tags=["Testing"]
+                    )
+                )
+            )
+            .add_component(
+                ControlRoutesComponent(
+                    name="test_control",
+                    config=ControlRoutesComponentConfig(
+                        prefix="/api/",
+                        tags=["Testing"]
+                    )
+                )
+            )
+            .add_component(
+                HealthAndMetricsComponent(
+                    name="test_health",
+                    config=HealthComponentConfig(
+                        prefix="/",
+                        tags=["Testing"]
+                    )
+                )
+            )
+            .add_component(
+                ArtifactsComponent(
+                    name="test_artifacts",
+                    config=ArtifactComponentConfig(
+                        prefix="/api/v1/",
+                        tags=["Testing"]
+                    )
+                )
+            )
+        )
+        service.configure()
         openapi_schema = service.app.openapi()
         schemas = openapi_schema["components"]["schemas"]
 
@@ -285,7 +415,7 @@ class TestEndToEndAPIResponses:
             schema_def = schemas[schema_name]
             if "additionalProperties" in schema_def:
                 # It's ok if it's False or a schema, but not True
-                assert schema_def["additionalProperties"] != True, (
+                assert not schema_def["additionalProperties"], (
                     f"Schema {schema_name} has additionalProperties: true"
                 )
 

@@ -6,6 +6,7 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
+from flock.api.base_service import BaseHTTPService
 from flock.api.collector import DashboardEventCollector
 from flock.api.graph_builder import GraphAssembler
 from flock.api.websocket import WebSocketManager
@@ -97,7 +98,7 @@ async def test_dashboard_graph_endpoint(monkeypatch, orchestrator):
             store=orchestrator.store,
         ),
     )
-    service = orchestrator.add_component(
+    orchestrator = orchestrator.add_component(
         ControlRoutesComponent(
             name="control_routes_test",
             priority=1,
@@ -108,6 +109,26 @@ async def test_dashboard_graph_endpoint(monkeypatch, orchestrator):
             graph_assembler=graph_assembler,
         )
     )
+
+    service = BaseHTTPService(
+        orchestrator=orchestrator,
+    ).add_component(
+        ControlRoutesComponent(
+            name="control_routes_test",
+            config=ControlRoutesComponentConfig(
+                prefix="/api/",
+                tags=["Internal Testing"]
+            ),
+            graph_assembler=GraphAssembler(
+                store=orchestrator.store,
+                collector=DashboardEventCollector(
+                    store=orchestrator.store,
+                ),
+                orchestrator=orchestrator,
+            )
+        )
+    )
+    service.configure() # Routes need to be set up first.
     transport = ASGITransport(app=service.get_app())
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:

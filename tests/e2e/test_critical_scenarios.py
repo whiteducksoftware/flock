@@ -46,7 +46,7 @@ def collector():
 @pytest.fixture
 def websocket_manager():
     """Create WebSocketManager instance."""
-    from flock.dashboard.websocket import WebSocketManager
+    from flock.api.websocket import WebSocketManager
 
     return WebSocketManager()
 

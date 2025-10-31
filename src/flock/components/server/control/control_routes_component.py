@@ -150,6 +150,7 @@ class ControlRoutesComponent(ServerComponent):
                 }
                 if logic_operations:
                     agent_data["logic_operations"] = logic_operations
+                agents.append(agent_data)
             return {"agents": agents}
 
         @app.get(self._join_path(self.config.prefix, "version"), tags=self.config.tags)

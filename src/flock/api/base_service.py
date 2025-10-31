@@ -151,6 +151,17 @@ class BaseHTTPService:
         # Run server
         uvicorn.run(self.app, host=host, port=port)
 
+    def get_app(self) -> FastAPI | None:
+        """Return the App instance.
+
+        Mainly used for getting acces to the underlying
+        FastAPI-App for testing and special use-cases.
+
+        Returns:
+            FastAPI app
+        """
+        return self.app
+
     def _validate_dependencies(self) -> None:
         """Validate that all component dependencies are satisfied."""
         logger.debug("Validating dependencies for configured server-components")

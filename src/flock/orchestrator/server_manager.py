@@ -108,7 +108,7 @@ class ServerManager:
                 host=host,
                 port=port,
                 plugins=plugins,
-                use_default_plugins=False,
+                use_default_plugins=use_default_plugins,
             )
         finally:
             # In blocking mode, manually clean up
@@ -171,7 +171,7 @@ class ServerManager:
             if plugins is None or len(plugins) == 0:
                 # This does not make sense, so tell dev that
                 raise ValueError(
-                    "use_default_plugins was set to 'True', but plugins was 'None' or empty list."
+                    "use_default_plugins was set to 'False', but plugins was 'None' or empty list."
                 )
             await ServerManager._serve_custom(
                 orchestrator=orchestrator,

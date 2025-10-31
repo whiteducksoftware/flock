@@ -3,10 +3,11 @@
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+from flock.core.subscription import Subscription
+
 
 if TYPE_CHECKING:
     from flock.agent import Agent
-    from flock.agent.specification import Subscription
     from flock.core import Flock
     from flock.orchestrator.batch_accumulator import BatchEngine, BatchSpec
     from flock.orchestrator.correlation_engine import CorrelationEngine

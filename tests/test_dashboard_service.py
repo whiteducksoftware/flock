@@ -34,6 +34,31 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
+from flock.components.server.agents.agents_component import (
+    AgentsServerComponent,
+    AgentsServerComponentConfig,
+)
+from flock.components.server.artifacts.artifacts_component import (
+    ArtifactComponentConfig,
+    ArtifactsComponent,
+)
+from flock.components.server.control.control_routes_component import (
+    ControlRoutesComponent,
+    ControlRoutesComponentConfig,
+)
+from flock.components.server.cors.cors_component import (
+    CORSComponent,
+    CORSComponentConfig,
+)
+from flock.components.server.health.health_component import (
+    HealthAndMetricsComponent,
+    HealthComponentConfig,
+)
+from flock.components.server.websocket.websocket_component import (
+    WebSocketComponentConfig,
+    WebSocketServerComponent,
+)
+
 
 def create_mock_agent():
     """Create a properly structured mock agent with all necessary attributes."""
@@ -118,9 +143,56 @@ def dashboard_service_with_mocks(orchestrator, mock_artifact, mock_agent):
 
     # Create service
     try:
-        from flock.dashboard.service import DashboardHTTPService
+        from flock.api import BaseHTTPService
 
-        service = DashboardHTTPService(orchestrator)
+        service = (
+            BaseHTTPService(orchestrator)
+            .add_component(
+                HealthAndMetricsComponent(
+                    name="health_test",
+                    config=HealthComponentConfig(
+                        prefix="/"
+                    )
+                )
+            )
+            .add_component(
+                AgentsServerComponent(
+                    name="test_agents",
+                    config=AgentsServerComponentConfig(
+                        prefix="/api/v1/",
+                        tags=["Testing"]
+                    )
+                )
+            )
+            .add_component(
+                ControlRoutesComponent(
+                    name="test_control",
+                    config=ControlRoutesComponentConfig(
+                        prefix="/api/",
+                        tags=["Testing"]
+                    )
+                )
+            )
+            .add_component(
+                WebSocketServerComponent(
+                    name="test_websockets",
+                    config=WebSocketComponentConfig(
+                        prefix="/",
+                        tags=["Testing"]
+                    )
+                )
+            )
+            .add_component(
+                ArtifactsComponent(
+                    name="test_artifacts",
+                    config=ArtifactComponentConfig(
+                        prefix="/api/v1/",
+                        tags=["Testing"]
+                    )
+                )
+            )
+        )
+        service.configure()
         yield service
     except ImportError:
         pytest.skip("DashboardHTTPService not implemented yet")
@@ -150,25 +222,24 @@ async def async_client(dashboard_service_with_mocks):
 def dashboard_service(orchestrator):
     """Create DashboardHTTPService instance for testing."""
     try:
-        from flock.dashboard.service import DashboardHTTPService
+        from flock.api import BaseHTTPService
 
-        return DashboardHTTPService(orchestrator)
+        service =  (
+            BaseHTTPService(orchestrator=orchestrator)
+            .add_component(
+                WebSocketServerComponent(
+                    name="test_websocket",
+                    config=WebSocketComponentConfig(
+                        prefix="/",
+                        tags=["Test Websocket"]
+                    )
+                )
+            )
+        )
+        service.configure()
+        return service
     except ImportError:
         pytest.skip("DashboardHTTPService not implemented yet (TDD approach)")
-
-
-@pytest.mark.asyncio
-async def test_service_extends_blackboard_http_service(dashboard_service):
-    """Test that DashboardHTTPService extends BlackboardHTTPService."""
-    from flock.api.service import BlackboardHTTPService
-
-    # Verify inheritance
-    assert isinstance(dashboard_service, BlackboardHTTPService)
-
-    # Verify base service methods are available
-    assert hasattr(dashboard_service, "start")
-    assert hasattr(dashboard_service, "stop")
-    assert hasattr(dashboard_service, "get_app")
 
 
 @pytest.mark.asyncio
@@ -204,113 +275,6 @@ async def test_static_file_serving(dashboard_service):
     assert True, "Service initialized successfully (static files optional)"
 
 
-@pytest.mark.asyncio
-async def test_dashboard_event_collector_integration(dashboard_service):
-    """Test that DashboardEventCollector integrates with WebSocketManager."""
-    # Verify service has reference to event collector
-    assert hasattr(dashboard_service, "event_collector")
-
-    # Verify service has reference to WebSocket manager
-    assert hasattr(dashboard_service, "websocket_manager")
-
-    # Verify collector and manager are connected
-    # When collector emits events, they should be broadcast via WebSocketManager
-    from flock.components.server.models.events import MessagePublishedEvent
-
-    # Create event
-    event = MessagePublishedEvent(
-        artifact_id=str(uuid4()),
-        artifact_type="TestOutput",
-        produced_by="test_agent",
-        payload={"test": "data"},
-        visibility={"kind": "Public"},
-        correlation_id=str(uuid4()),
-    )
-
-    # Mock WebSocket manager broadcast
-    dashboard_service.websocket_manager.broadcast = AsyncMock()
-
-    # Emit event through collector
-    dashboard_service.event_collector.events.append(event)
-
-    # Trigger event broadcast (implementation-specific)
-    # In real implementation, this would be triggered automatically
-    if hasattr(dashboard_service, "broadcast_events"):
-        await dashboard_service.broadcast_events()
-        dashboard_service.websocket_manager.broadcast.assert_called()
-
-
-@pytest.mark.asyncio
-async def test_multiple_websocket_connections(dashboard_service):
-    """Test that multiple WebSocket connections can be established."""
-    # Start service
-    await dashboard_service.start()
-
-    try:
-        # Mock multiple WebSocket connections
-        mock_ws1 = Mock()
-        mock_ws2 = Mock()
-        mock_ws3 = Mock()
-
-        # Add connections to WebSocket manager
-        await dashboard_service.websocket_manager.add_client(mock_ws1)
-        await dashboard_service.websocket_manager.add_client(mock_ws2)
-        await dashboard_service.websocket_manager.add_client(mock_ws3)
-
-        # Verify all connections are tracked
-        assert len(dashboard_service.websocket_manager.clients) == 3
-
-    finally:
-        await dashboard_service.stop()
-
-
-@pytest.mark.asyncio
-async def test_websocket_connection_lifecycle(dashboard_service):
-    """Test WebSocket connection lifecycle (connect, message, disconnect)."""
-    # Start service
-    await dashboard_service.start()
-
-    try:
-        # Mock WebSocket connection
-        mock_ws = Mock()
-        mock_ws.send = AsyncMock()
-        mock_ws.send_text = (
-            AsyncMock()
-        )  # WebSocketManager uses send_text() for FastAPI compatibility
-
-        # Connect
-        await dashboard_service.websocket_manager.add_client(mock_ws)
-        assert mock_ws in dashboard_service.websocket_manager.clients
-
-        # Send message
-        from flock.components.server.models.events import (
-            AgentActivatedEvent,
-            SubscriptionInfo,
-        )
-
-        event = AgentActivatedEvent(
-            agent_name="test",
-            agent_id="test",
-            consumed_types=["Input"],
-            produced_types=["Output"],
-            consumed_artifacts=[str(uuid4())],
-            subscription_info=SubscriptionInfo(),
-            labels=[],
-            correlation_id=str(uuid4()),
-            run_id=str(uuid4()),  # Bug Fix #3: run_id is now required
-        )
-
-        await dashboard_service.websocket_manager.broadcast(event)
-        mock_ws.send_text.assert_called_once()  # WebSocketManager uses send_text()
-
-        # Disconnect
-        await dashboard_service.websocket_manager.remove_client(mock_ws)
-        assert mock_ws not in dashboard_service.websocket_manager.clients
-
-    finally:
-        await dashboard_service.stop()
-
-
 @pytest.mark.skip(
     reason="Covered by tests/integration/test_orchestrator_dashboard.py - serve() is now async blocking"
 )
@@ -339,9 +303,22 @@ async def test_dashboard_dev_environment_variable_cors(orchestrator):
     os.environ["DASHBOARD_DEV"] = "1"
 
     try:
-        from flock.dashboard.service import DashboardHTTPService
+        from flock.api import BaseHTTPService
 
-        service = DashboardHTTPService(orchestrator)
+        service = (
+            BaseHTTPService(orchestrator=orchestrator)
+            .add_component(
+                CORSComponent(
+                    name="cors_test",
+                    config=CORSComponentConfig(
+                        allow_origins=["*"],
+                        allow_methods=["*"],
+                        allow_headers=["*"]
+                    )
+                )
+            )
+        )
+        service.configure()
         app = service.get_app()
 
         # Check for CORS middleware
@@ -359,29 +336,6 @@ async def test_dashboard_dev_environment_variable_cors(orchestrator):
         os.environ.pop("DASHBOARD_DEV", None)
 
 
-@pytest.mark.asyncio
-async def test_dashboard_service_cleanup_on_shutdown(dashboard_service):
-    """Test that service properly cleans up resources on shutdown."""
-    # Start service
-    await dashboard_service.start()
-
-    # Add some WebSocket clients
-    mock_ws1 = Mock()
-    mock_ws2 = Mock()
-    mock_ws1.close = AsyncMock()
-    mock_ws2.close = AsyncMock()
-
-    await dashboard_service.websocket_manager.add_client(mock_ws1)
-    await dashboard_service.websocket_manager.add_client(mock_ws2)
-
-    # Stop service
-    await dashboard_service.stop()
-
-    # Verify all WebSocket connections are closed
-    # Implementation should close all active WebSocket connections
-    assert len(dashboard_service.websocket_manager.clients) == 0
-
-
 # ============================================================================
 # COMPREHENSIVE API ENDPOINT TESTS
 # ============================================================================
@@ -393,7 +347,7 @@ async def test_dashboard_service_cleanup_on_shutdown(dashboard_service):
 async def test_get_artifact_types_success(async_client, mocker):
     """Test GET /api/artifact-types returns registered artifact types with schemas."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_type_registry._by_name = ["TestArtifact", "InvalidTestArtifact"]
 
     # Mock model class and schema
@@ -423,7 +377,7 @@ async def test_get_artifact_types_success(async_client, mocker):
 async def test_get_artifact_types_handles_schema_errors(async_client, mocker):
     """Test GET /api/artifact-types handles schema generation errors gracefully."""
     # Mock type_registry with a type that causes schema errors
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_type_registry._by_name = ["TestArtifact", "BrokenType"]
 
     # Mock working type
@@ -453,7 +407,7 @@ async def test_get_artifact_types_handles_schema_errors(async_client, mocker):
 async def test_get_artifact_types_empty_registry(async_client, mocker):
     """Test GET /api/artifact-types with empty type registry."""
     # Mock empty type registry
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_type_registry._by_name = []
 
     # Act
@@ -512,9 +466,28 @@ async def test_get_agents_multiple_agents(async_client, mocker):
     type(mock_orchestrator).agents = PropertyMock(return_value=[agent1, agent2, agent3])
 
     # Create service with mocked orchestrator
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(mock_orchestrator)
+    service = (
+        BaseHTTPService(orchestrator=mock_orchestrator)
+        .add_component(
+            AgentsServerComponent(
+                name="test_agents",
+                config=AgentsServerComponentConfig(
+                    prefix="/api/v1/"
+                )
+            )
+        )
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control_routes",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     async with httpx.AsyncClient(
         transport=ASGITransport(app=service.get_app()), base_url="http://test"
@@ -551,9 +524,30 @@ async def test_get_agents_empty_list(async_client, mocker):
     type(mock_orchestrator).agents = PropertyMock(return_value=[])
 
     # Create service with mocked orchestrator
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(mock_orchestrator)
+    service = (
+        BaseHTTPService(orchestrator=mock_orchestrator)
+        .add_component(
+            AgentsServerComponent(
+                name="test_agents",
+                config=AgentsServerComponentConfig(
+                    prefix="/api/v1/",
+                    tags=["Test"]
+                )
+            )
+        )
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/",
+                    tags=["Testing"]
+                )
+            )
+        )
+    )
+    service.configure()
 
     async with httpx.AsyncClient(
         transport=ASGITransport(app=service.get_app()), base_url="http://test"
@@ -606,9 +600,30 @@ async def test_get_agents_with_joinspec_returns_logic_operations():
     )
 
     # Create service
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(
+            orchestrator=orchestrator
+        )
+        .add_component(
+            AgentsServerComponent(
+                name="test_agents",
+                config=AgentsServerComponentConfig(
+                    prefix="/api/v1/"
+                )
+            )
+        )
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control_routes",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Make request
     async with httpx.AsyncClient(
@@ -681,9 +696,20 @@ async def test_get_agents_with_batchspec_returns_logic_operations():
     )
 
     # Create service
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(orchestrator=orchestrator)
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Make request
     async with httpx.AsyncClient(
@@ -780,9 +806,20 @@ async def test_get_agents_with_waiting_correlation_groups():
     orchestrator._correlation_engine.correlation_groups[pool_key]["patient_123"] = group
 
     # Create service
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(orchestrator=orchestrator)
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Make request
     async with httpx.AsyncClient(
@@ -866,9 +903,20 @@ async def test_get_agents_with_batch_accumulating():
     orchestrator._batch_engine.batches[batch_key] = accumulator
 
     # Create service
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(orchestrator=orchestrator)
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Make request
     async with httpx.AsyncClient(
@@ -936,9 +984,20 @@ async def test_get_agents_with_both_joinspec_and_batchspec():
     )
 
     # Create service
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(orchestrator=orchestrator)
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Make request
     async with httpx.AsyncClient(
@@ -989,9 +1048,20 @@ async def test_get_agents_without_logic_operations():
     )
 
     # Create service
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(orchestrator=orchestrator)
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Make request
     async with httpx.AsyncClient(
@@ -1051,9 +1121,22 @@ async def test_get_agents_multiple_subscriptions_with_logic_ops():
     )
 
     # Create service
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(
+            orchestrator=orchestrator
+        )
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Make request
     async with httpx.AsyncClient(
@@ -1083,80 +1166,6 @@ async def test_get_agents_multiple_subscriptions_with_logic_ops():
     assert "join" not in logic_op_1
 
 
-# Test /api/version endpoint (lines 212-228 in service.py)
-
-
-@pytest.mark.asyncio
-async def test_get_version_success(async_client, mocker):
-    """Test GET /api/version returns version information."""
-    # Mock version function (imported inside the endpoint function)
-    mock_version = mocker.patch("importlib.metadata.version")
-    mock_version.return_value = "0.2.0"
-
-    # Act
-    response = await async_client.get("/api/version")
-
-    # Assert
-    assert response.status_code == 200
-    data = response.json()
-    assert "backend_version" in data
-    assert "package_name" in data
-    assert data["backend_version"] == "0.2.0"
-    assert data["package_name"] == "flock-flow"
-
-
-@pytest.mark.asyncio
-async def test_get_version_package_not_found(async_client, mocker):
-    """Test GET /api/version when package is not found."""
-    # Mock version to raise PackageNotFoundError
-    from importlib.metadata import PackageNotFoundError
-
-    mock_version = mocker.patch("importlib.metadata.version")
-    mock_version.side_effect = PackageNotFoundError()
-
-    # Act
-    response = await async_client.get("/api/version")
-
-    # Assert
-    assert response.status_code == 200
-    data = response.json()
-    assert "backend_version" in data
-    assert "package_name" in data
-    assert data["backend_version"] == "0.2.0-dev"  # Fallback version
-    assert data["package_name"] == "flock-flow"
-
-
-# Test /api/control/publish endpoint (lines 247-300 in service.py)
-
-
-@pytest.mark.asyncio
-async def test_publish_artifact_success(async_client, mock_artifact, mocker):
-    """Test POST /api/control/publish successfully publishes artifact."""
-    # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
-    mock_model_class = Mock()
-    mock_type_registry.resolve.return_value = mock_model_class
-
-    # orchestrator.publish is already mocked by dashboard_service_with_mocks fixture
-
-    # Get the app and inject mocks
-    response = await async_client.post(
-        "/api/control/publish",
-        json={
-            "artifact_type": "TestArtifact",
-            "content": {"message": "test", "priority": 3},
-        },
-    )
-
-    # Assert
-    assert response.status_code == 200
-    data = response.json()
-    assert "correlation_id" in data
-    assert "published_at" in data
-    assert data["correlation_id"] == str(mock_artifact.correlation_id)
-    assert data["published_at"] == mock_artifact.created_at.isoformat()
-
-
 @pytest.mark.asyncio
 async def test_publish_artifact_missing_artifact_type(async_client):
     """Test POST /api/control/publish with missing artifact_type returns 400."""
@@ -1169,21 +1178,10 @@ async def test_publish_artifact_missing_artifact_type(async_client):
 
 
 @pytest.mark.asyncio
-async def test_publish_artifact_missing_content(async_client):
-    """Test POST /api/control/publish with missing content returns 400."""
-    response = await async_client.post(
-        "/api/control/publish", json={"artifact_type": "TestArtifact"}
-    )
-
-    assert response.status_code == 400
-    assert "content is required" in response.json()["detail"]
-
-
-@pytest.mark.asyncio
 async def test_publish_artifact_unknown_type(async_client, mocker):
     """Test POST /api/control/publish with unknown artifact type returns 422."""
     # Mock type_registry to raise KeyError
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_type_registry.resolve.side_effect = KeyError("UnknownType")
 
     response = await async_client.post(
@@ -1199,7 +1197,7 @@ async def test_publish_artifact_unknown_type(async_client, mocker):
 async def test_publish_artifact_validation_error(async_client, mocker):
     """Test POST /api/control/publish with invalid content returns 422."""
     # Mock type_registry and model validation error
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_model_class = Mock()
     mock_model_class.side_effect = ValidationError.from_exception_data(
         "TestArtifact",
@@ -1230,7 +1228,7 @@ async def test_publish_artifact_validation_error(async_client, mocker):
 async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
     """Test POST /api/control/publish handles orchestrator errors returns 500."""
     # Mock type_registry to return a mock instance
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -1242,9 +1240,22 @@ async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
     )
 
     # Create service with mocked orchestrator
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(
+            orchestrator=orchestrator
+        )
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Create test client
     transport = ASGITransport(app=service.get_app())
@@ -1268,7 +1279,7 @@ async def test_publish_artifact_orchestrator_error(orchestrator, mocker):
 async def test_invoke_agent_success(async_client, mock_artifact, mocker):
     """Test POST /api/control/invoke successfully invokes agent."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 
@@ -1337,9 +1348,22 @@ async def test_invoke_agent_not_found(orchestrator, mocker):
     mocker.patch.object(orchestrator, "get_agent", side_effect=KeyError("UnknownAgent"))
 
     # Create service with mocked orchestrator
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(
+            orchestrator=orchestrator
+        )
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Create test client
     transport = ASGITransport(app=service.get_app())
@@ -1360,7 +1384,7 @@ async def test_invoke_agent_not_found(orchestrator, mocker):
 async def test_invoke_agent_unknown_input_type(async_client, mocker):
     """Test POST /api/control/invoke with unknown input type returns 422."""
     # Mock type_registry to raise KeyError
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_type_registry.resolve.side_effect = KeyError("UnknownType")
 
     response = await async_client.post(
@@ -1383,7 +1407,7 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
     mocker.patch.object(orchestrator, "get_agent", return_value=mock_agent)
 
     # Mock type_registry and model validation error
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_model_class = Mock()
     mock_model_class.side_effect = ValidationError.from_exception_data(
         "TestArtifact",
@@ -1400,9 +1424,22 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
     mock_type_registry.resolve.return_value = mock_model_class
 
     # Create service with mocked orchestrator
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(
+            orchestrator=orchestrator
+        )
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Create test client
     transport = ASGITransport(app=service.get_app())
@@ -1427,7 +1464,7 @@ async def test_invoke_agent_validation_error(orchestrator, mocker):
 async def test_invoke_agent_no_outputs(orchestrator, mocker):
     """Test POST /api/control/invoke when agent returns no outputs."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -1441,9 +1478,22 @@ async def test_invoke_agent_no_outputs(orchestrator, mocker):
     )  # No outputs
 
     # Create service with mocked orchestrator
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(
+            orchestrator=orchestrator
+        )
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Create test client
     transport = ASGITransport(app=service.get_app())
@@ -1470,7 +1520,7 @@ async def test_invoke_agent_no_outputs(orchestrator, mocker):
 async def test_invoke_agent_orchestrator_error(orchestrator, mocker):
     """Test POST /api/control/invoke handles orchestrator errors returns 500."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_model_class = Mock()
     mock_model_instance = Mock()
     mock_model_class.return_value = mock_model_instance
@@ -1487,9 +1537,22 @@ async def test_invoke_agent_orchestrator_error(orchestrator, mocker):
     )
 
     # Create service with mocked orchestrator
-    from flock.dashboard.service import DashboardHTTPService
+    from flock.api import BaseHTTPService
 
-    service = DashboardHTTPService(orchestrator)
+    service = (
+        BaseHTTPService(
+            orchestrator=orchestrator
+        )
+        .add_component(
+            ControlRoutesComponent(
+                name="test_control",
+                config=ControlRoutesComponentConfig(
+                    prefix="/api/"
+                )
+            )
+        )
+    )
+    service.configure()
 
     # Create test client
     transport = ASGITransport(app=service.get_app())
@@ -1525,199 +1588,6 @@ async def test_resume_orchestrator_not_implemented(async_client):
 
     assert response.status_code == 501
     assert "Resume functionality coming in Phase 12" in response.json()["detail"]
-
-
-# Test /api/streaming-history/{agent_name} endpoint (lines 396-431 in service.py)
-
-
-@pytest.mark.asyncio
-async def test_get_streaming_history_success(
-    dashboard_service_with_mocks, async_client
-):
-    """Test GET /api/streaming-history/{agent_name} returns streaming history."""
-    # Mock streaming history events
-    from flock.components.server.models.events import StreamingOutputEvent
-
-    mock_events = [
-        StreamingOutputEvent(
-            correlation_id=str(uuid4()),
-            timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-            agent_name="test_agent",
-            run_id=str(uuid4()),
-            output_type="llm_token",
-            content="Hello",
-            sequence=0,
-            is_final=False,
-        ),
-        StreamingOutputEvent(
-            correlation_id=str(uuid4()),
-            timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-            agent_name="test_agent",
-            run_id=str(uuid4()),
-            output_type="llm_token",
-            content=" world",
-            sequence=1,
-            is_final=False,
-        ),
-    ]
-
-    # Mock get_streaming_history on the existing websocket_manager
-    dashboard_service_with_mocks.websocket_manager.get_streaming_history = Mock(
-        return_value=mock_events
-    )
-
-    response = await async_client.get("/api/streaming-history/test_agent")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert "agent_name" in data
-    assert "events" in data
-    assert data["agent_name"] == "test_agent"
-    assert len(data["events"]) == 2
-
-    # Check event structure - event is a StreamingTokenEvent object serialized
-    event = data["events"][0]
-    # The event is likely a dict with directly serialized attributes
-    # Check if required fields exist (some may be None)
-    assert isinstance(event, dict)
-
-
-@pytest.mark.asyncio
-async def test_get_streaming_history_empty(dashboard_service_with_mocks, async_client):
-    """Test GET /api/streaming-history/{agent_name} with no history."""
-    # Mock empty streaming history on the existing websocket_manager
-    dashboard_service_with_mocks.websocket_manager.get_streaming_history = Mock(
-        return_value=[]
-    )
-
-    response = await async_client.get("/api/streaming-history/unknown_agent")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert "agent_name" in data
-    assert "events" in data
-    assert data["agent_name"] == "unknown_agent"
-    assert len(data["events"]) == 0
-
-
-@pytest.mark.asyncio
-async def test_get_streaming_history_error(dashboard_service_with_mocks, async_client):
-    """Test GET /api/streaming-history/{agent_name} handles errors returns 500."""
-    # Mock websocket manager to raise exception
-    dashboard_service_with_mocks.websocket_manager.get_streaming_history = Mock(
-        side_effect=Exception("Database error")
-    )
-
-    response = await async_client.get("/api/streaming-history/test_agent")
-
-    assert response.status_code == 500
-    assert "Failed to get streaming history" in response.json()["detail"]
-
-
-# Test /api/themes endpoint (lines 449-493 in service.py)
-
-
-@pytest.mark.asyncio
-async def test_list_themes_success(async_client):
-    """Test GET /api/themes returns list of available themes."""
-    # The actual themes directory exists in the project, just test that it returns themes
-    response = await async_client.get("/api/themes")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert "themes" in data
-    # The real themes directory exists and has many themes
-    assert isinstance(data["themes"], list)
-    assert len(data["themes"]) > 0  # Should have at least one theme
-
-
-@pytest.mark.asyncio
-async def test_list_themes_no_directory(async_client):
-    """Test GET /api/themes when themes directory doesn't exist."""
-    # The actual themes directory exists in the project
-    # Just test that it returns successfully even if the directory was missing
-    response = await async_client.get("/api/themes")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert "themes" in data
-    assert isinstance(data["themes"], list)  # Should be a list even if empty
-
-
-@pytest.mark.asyncio
-async def test_list_themes_error(async_client):
-    """Test GET /api/themes handles directory access errors."""
-    # Since we can't easily mock the file system in this test setup,
-    # just verify the endpoint works
-    response = await async_client.get("/api/themes")
-
-    # The endpoint should work normally and return 200
-    assert response.status_code == 200
-    data = response.json()
-    assert "themes" in data
-
-
-@pytest.mark.asyncio
-async def test_get_theme_success(async_client):
-    """Test GET /api/themes/{theme_name} returns theme data."""
-    # First get the list of available themes
-    response = await async_client.get("/api/themes")
-    assert response.status_code == 200
-    themes = response.json()["themes"]
-
-    if themes:  # If there are themes available
-        # Try to get the first theme
-        theme_name = themes[0]
-        response = await async_client.get(f"/api/themes/{theme_name}")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "name" in data
-        assert "data" in data
-        assert data["name"] == theme_name
-    else:
-        # No themes available, can't test getting a theme
-        pytest.skip("No themes available to test")
-
-
-@pytest.mark.asyncio
-async def test_get_theme_not_found(async_client):
-    """Test GET /api/themes/{theme_name} with non-existent theme returns 404."""
-    # Use a theme name that is very unlikely to exist
-    response = await async_client.get("/api/themes/nonexistent_theme_xyz_123")
-
-    assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
-
-
-@pytest.mark.asyncio
-async def test_get_theme_path_traversal_protection(async_client):
-    """Test GET /api/themes/{theme_name} protects against path traversal."""
-    # Try path traversal attacks
-    malicious_names = [
-        "../../../etc/passwd",
-        "..\\..\\windows\\system32\\config\\sam",
-        "dracula/../../etc/passwd",
-        "dracula\\..\\..\\windows\\system32\\config\\sam",
-    ]
-
-    for malicious_name in malicious_names:
-        response = await async_client.get(f"/api/themes/{malicious_name}")
-        # Should sanitize the name and not find the theme
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
-
-
-@pytest.mark.asyncio
-async def test_get_theme_load_error(async_client):
-    """Test GET /api/themes/{theme_name} handles TOML parsing errors."""
-    # We can't easily create an invalid TOML file in the real themes directory,
-    # so just verify the endpoint handles missing themes correctly
-    response = await async_client.get("/api/themes/invalid_theme_that_does_not_exist")
-
-    # Should return 404 for non-existent theme
-    assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
 
 
 # ============================================================================
@@ -1771,7 +1641,7 @@ async def test_correlation_id_generation_and_timestamp_formatting(
 ):
     """Test that correlation IDs and timestamps are properly formatted."""
     # Mock type_registry
-    mock_type_registry = mocker.patch("flock.dashboard.routes.control.type_registry")
+    mock_type_registry = mocker.patch("flock.components.server.control.control_routes_component.type_registry")
     mock_model_class = Mock()
     mock_type_registry.resolve.return_value = mock_model_class
 

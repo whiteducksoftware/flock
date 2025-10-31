@@ -269,10 +269,10 @@ class TestServeCommand:
         # Patch the imports that happen inside the function
         mock_create = mocker.patch("flock.examples.create_demo_orchestrator")
 
-        # We need to patch BlackboardHTTPService where it's imported in cli.py
+        # We need to patch BaseHTTPService where it's imported in cli.py
         from flock import cli
 
-        mock_service_cls = mocker.patch.object(cli, "BlackboardHTTPService")
+        mock_service_cls = mocker.patch.object(cli, "BaseHTTPService")
 
         mock_orchestrator = Mock()
         mock_create.return_value = (mock_orchestrator, {})
@@ -295,7 +295,7 @@ class TestServeCommand:
 
         from flock import cli
 
-        mock_service_cls = mocker.patch.object(cli, "BlackboardHTTPService")
+        mock_service_cls = mocker.patch.object(cli, "BaseHTTPService")
 
         mock_orchestrator = Mock()
         mock_create.return_value = (mock_orchestrator, {})
@@ -315,7 +315,7 @@ class TestServeCommand:
 
         from flock import cli
 
-        mock_service_cls = mocker.patch.object(cli, "BlackboardHTTPService")
+        mock_service_cls = mocker.patch.object(cli, "BaseHTTPService")
 
         mock_orchestrator = Mock()
         mock_create.return_value = (mock_orchestrator, {})
@@ -466,10 +466,10 @@ class TestErrorHandling:
         mock_create.return_value = (mock_orchestrator, {})
 
         # Mock the service creation to fail
-        mock_service_cls = mocker.patch("flock.cli.BlackboardHTTPService")
+        mock_service_cls = mocker.patch("flock.cli.BaseHTTPService")
         mock_service_cls.side_effect = ValueError("Service error")
 
-        # The error should be raised when BlackboardHTTPService is instantiated
+        # The error should be raised when BaseHTTPService is instantiated
         with pytest.raises(ValueError, match="Service error"):
             serve()
 
