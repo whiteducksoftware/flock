@@ -180,12 +180,16 @@ class MiddlewareComponent(ServerComponent):
 
         Validates that all referenced factories are registered and adds
         middleware to the app in the order specified in the configuration.
+
+        Note: FastAPI's add_middleware() adds middleware in reverse order
+        (last added is outermost), so we reverse the list before adding.
         """
         # Validate that all referenced factories are registered
         self._validate_factories()
 
-        # Add middleware in order (first in config = outermost in chain)
-        for middleware_config in self.config.middlewares:
+        # Add middleware in reverse order because FastAPI's add_middleware
+        # makes the last added middleware the outermost
+        for middleware_config in reversed(self.config.middlewares):
             if middleware_config.enabled:
                 self._add_middleware(app, middleware_config)
 
@@ -209,28 +213,22 @@ class MiddlewareComponent(ServerComponent):
         """Add a single middleware to the FastAPI app."""
         factory = self._factories[middleware_config.name]
 
-        # Create middleware instance with options
-        middleware_class = factory(app.app if hasattr(app, "app") else app)
+        # Get the factory function from the outer factory
+        # factory(app) returns a function that accepts **options and returns a middleware class
+        inner_factory = factory(app.app if hasattr(app, "app") else app)
 
-        # If factory returns a callable that accepts options, invoke it
-        if callable(middleware_class):
-            try:
-                middleware_instance = middleware_class(**middleware_config.options)
-            except TypeError:
-                # Factory doesn't accept options, use as-is
-                middleware_instance = middleware_class
-        else:
-            middleware_instance = middleware_class
-
-        # Add to FastAPI app
-        # Note: FastAPI's add_middleware expects a class, not an instance
-        # So we need to wrap our instance in a factory
-        if callable(middleware_instance):
+        # If the factory returns a callable that accepts options, create a middleware class
+        # that will be instantiated by FastAPI with the ASGI app
+        if callable(inner_factory):
 
             class MiddlewareWrapper:
-                def __init__(self, app: ASGIApp):
-                    self.app = app
-                    self.middleware = middleware_instance
+                def __init__(self, asgi_app: ASGIApp):
+                    # Call the inner factory to get the middleware instance
+                    # Pass the options from the config
+                    self.middleware = inner_factory(**middleware_config.options)
+                    # Set the app on the middleware if it has an app attribute
+                    if hasattr(self.middleware, "app"):
+                        self.middleware.app = asgi_app
 
                 async def __call__(
                     self, scope: Scope, receive: Receive, send: Send
@@ -240,9 +238,7 @@ class MiddlewareComponent(ServerComponent):
             app.add_middleware(MiddlewareWrapper)
         else:
             # Assume it's already a middleware class
-            app.add_middleware(
-                middleware_instance.__class__, **middleware_config.options
-            )
+            app.add_middleware(inner_factory, **middleware_config.options)
 
     def register_routes(self, app: Any, orchestrator: Any) -> None:
         """No routes to register for middleware component."""
