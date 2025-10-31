@@ -269,7 +269,7 @@ Here's the full working code:
 from pydantic import BaseModel
 from flock import Flock, flock_type,EvalInputs,EvalResult
 from flock.components.agent import EngineComponent
- 
+
 
 # Data models
 @flock_type
