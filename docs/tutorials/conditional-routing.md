@@ -33,8 +33,7 @@ Think of it as **"function calling on steroids"**—instead of defining function
 
 ```python
 from pydantic import BaseModel, Field
-from flock import Flock
-from flock.registry import flock_type
+from flock import Flock, flock_type
 
 @flock_type
 class ResearchQuery(BaseModel):
