@@ -33,7 +33,7 @@ class TracingComponentConfig(ServerComponentConfig):
     # TODO: Add option for remote tracing DB-Path
     db_path: str | Path | None = Field(
         default=None,
-        description="Optiona path to the DuckDB Tracing Database. If None (default), local database will be used. MUST BE A PATH FOR A LOCAL DB FILE (More options in the future)",
+        description="Optional path to the DuckDB Tracing Database. If None (default), local database will be used. MUST BE A PATH FOR A LOCAL DB FILE (More options in the future)",
     )
 
 
