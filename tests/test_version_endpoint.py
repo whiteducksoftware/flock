@@ -6,7 +6,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from flock.core import Flock
-from flock.dashboard.service import DashboardHTTPService
+from flock.api.service import BlackboardHTTPService
 
 
 @pytest.mark.asyncio
@@ -14,7 +14,7 @@ async def test_version_endpoint():
     """Test that version endpoint returns correct version information."""
     # Create orchestrator and service
     orchestrator = Flock()
-    service = DashboardHTTPService(orchestrator)
+    service = BlackboardHTTPService(orchestrator)
     app = service.get_app()
 
     # Create test client
@@ -48,7 +48,7 @@ async def test_version_endpoint():
 async def test_version_endpoint_format():
     """Test that version endpoint returns proper format."""
     orchestrator = Flock()
-    service = DashboardHTTPService(orchestrator)
+    service = BlackboardHTTPService(orchestrator)
     app = service.get_app()
 
     async with AsyncClient(

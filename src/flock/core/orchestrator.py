@@ -714,6 +714,7 @@ class Flock(metaclass=AutoTracedMeta):
         port: int = 8344,
         blocking: bool = True,
         additional_server_components: list[ServerComponent] | None = None,
+        use_default_component: bool = True,
     ) -> Task[None] | None:
         """Start HTTP service for the orchestrator.
 
@@ -727,6 +728,7 @@ class Flock(metaclass=AutoTracedMeta):
             blocking: If True, blocks until server stops. If False, starts server
                 in background and returns task handle (default: True)
             plugins: (Optional) List of server-components to modify the behavior of the server (It is preferred for you to add server components with Flock.add_server_component())
+            use_default_plugins: (Optional) Whether or not the default plugins should be used. IF SET TO TRUE, dashboard=True WILL BE IGNORED
 
         Returns:
             None if blocking=True, or Task handle if blocking=False
@@ -745,7 +747,7 @@ class Flock(metaclass=AutoTracedMeta):
         # Also errors if some components are passed in twice
         if additional_server_components is not None:
             for comp in additional_server_components:
-                self.add_component(comp)
+                self.add_server_component(comp)
 
         return await ServerManager.serve(
             self,
@@ -755,6 +757,7 @@ class Flock(metaclass=AutoTracedMeta):
             port=port,
             blocking=blocking,
             plugins=self._server_components,
+            use_default_plugins=use_default_component,
         )
 
     # Scheduling -----------------------------------------------------------

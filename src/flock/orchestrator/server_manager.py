@@ -35,6 +35,7 @@ class ServerManager:
         port: int = 8344,
         blocking: bool = True,
         plugins: list[ServerComponent] | None = None,
+        use_default_plugins: bool = True,
     ) -> Task[None] | None:
         """Start Server for the orchestrator.
 
@@ -47,24 +48,32 @@ class ServerManager:
             blocking: If True, blocks until server stops. If False, starts server in background and
                 returns task handle (default: True)
             plugins: Additional Plugins that can modify the baseline behavior of the server.
+            use_default_plugins: IF SET TO TRUE, DASHBOARD MODE WILL BE IGNORED AND NO DEFAULT PLUGINS WILL BE USED!
 
         Returns:
             None if blocking=True, or Task handle if blocking=False
 
         Examples:
-            # Basic HTTP API (no dashboard) - runs until interrupted
-            await ServerManager.serve(orchestrator)
+            >>> # Basic HTTP API (no dashboard) - runs until interrupted
+            >>> await ServerManager.serve(orchestrator)
 
-            # With dashboard (WebSocket + browser launch) - runs until interrupted
-            await ServerManager.serve(dashboard=True)
+            >>> # With dashboard (WebSocket + browser launch) - runs until interrupted
+            >>> await ServerManager.serve(dashboard=True)
 
-            # With custom behavior (Example here is with standard API as well as WebSocketSupport)
-            await ServerManager.serve(
-                plugins=[
-                    WebSocketServerComponent
-                ]
-            )
+            >>> # With custom behavior (This will only expose the Websocket Endpoints and NOTHING else)
+            >>> await ServerManager.serve(
+            >>>     plugins=[
+            >>>         WebSocketServerComponent
+            >>>     ],
+            >>>     use_default_plugins=False, # NO DEFAULT API
+            >>> )
         """
+        # First, check if Dev requested no default plugins
+        if not use_default_plugins:
+            # no dashboard mode regardless
+            dashboard = False
+            dashboard_v2 = False
+
         # If non-blocking, start server in background task
         if not blocking:
             server_task = asyncio.create_task(
@@ -75,6 +84,7 @@ class ServerManager:
                     host=host,
                     port=port,
                     plugins=plugins,
+                    use_default_plugins=use_default_plugins,
                 )
             )
             # Add cleanup callback
@@ -98,6 +108,7 @@ class ServerManager:
                 host=host,
                 port=port,
                 plugins=plugins,
+                use_default_plugins=False,
             )
         finally:
             # In blocking mode, manually clean up
@@ -145,10 +156,30 @@ class ServerManager:
         host: str = "127.0.0.1",
         port: int = 8344,
         plugins: list[ServerComponent] | None = None,
+        use_default_plugins: bool = True,
     ) -> None:
         """Internal implementation of serve() - actual server logic."""
+
+        # Double-check just in case
+        if not use_default_plugins:
+            dashboard = False
+            dashboard_v2 = False
         if dashboard_v2:
             dashboard = True
+
+        if not use_default_plugins:
+            if plugins is None or len(plugins) == 0:
+                # This does not make sense, so tell dev that
+                raise ValueError(
+                    "use_default_plugins was set to 'True', but plugins was 'None' or empty list."
+                )
+            await ServerManager._serve_custom(
+                orchestrator=orchestrator,
+                host=host,
+                port=port,
+                plugins=plugins,
+            )
+
         if not dashboard:
             await ServerManager._serve_standard(
                 orchestrator=orchestrator,
@@ -163,6 +194,33 @@ class ServerManager:
             host=host,
             port=port,
             plugins=plugins,
+        )
+
+    @staticmethod
+    async def _serve_custom(
+        orchestrator: Flock,
+        *,
+        host: str,
+        port: int,
+        plugins: list[ServerComponent]
+    ) -> None:
+        """Serve custom API without standard plugins.
+
+        Args:
+            orchestrator: The Flock orchestrator instance
+            host: Host to bind to
+            port: Port to bind to
+            plugins: List of plugins for custom behavior. Not optional here
+        """
+        from flock.api.base_service import BaseHTTPService
+        service = BaseHTTPService(
+            orchestrator=orchestrator,
+        ).add_components(
+            components=plugins,
+        )
+        await service.run_async(
+            host=host,
+            port=port,
         )
 
     @staticmethod
