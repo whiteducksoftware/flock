@@ -70,10 +70,10 @@ from starlette.responses import JSONResponse, Response
 async def api_key_auth(request: Request) -> tuple[bool, Response | None]:
     """Validate API key from headers."""
     api_key = request.headers.get("X-API-Key")
-    
+
     if api_key == "secret-key-12345":
         return True, None  # ✅ Authentication successful
-    
+
     # ❌ Authentication failed
     return False, JSONResponse(
         {"error": "Invalid API key"},
@@ -108,15 +108,15 @@ from datetime import datetime
 async def jwt_auth(request: Request) -> tuple[bool, Response | None]:
     """Validate JWT token from Authorization header."""
     auth_header = request.headers.get("Authorization")
-    
+
     if not auth_header or not auth_header.startswith("Bearer "):
         return False, JSONResponse(
             {"error": "Missing or invalid Authorization header"},
             status_code=401
         )
-    
+
     token = auth_header[7:]  # Remove "Bearer " prefix
-    
+
     try:
         # Validate JWT (use your secret key)
         payload = jwt.decode(
@@ -124,17 +124,17 @@ async def jwt_auth(request: Request) -> tuple[bool, Response | None]:
             "your-secret-key",
             algorithms=["HS256"]
         )
-        
+
         # Check expiration
         if payload.get("exp", 0) < datetime.now().timestamp():
             return False, JSONResponse(
                 {"error": "Token expired"},
                 status_code=401
             )
-        
+
         # ✅ Token valid
         return True, None
-        
+
     except jwt.InvalidTokenError as e:
         return False, JSONResponse(
             {"error": f"Invalid token: {str(e)}"},
@@ -155,10 +155,10 @@ Different routes require different authentication levels:
 async def public_auth(request: Request) -> tuple[bool, Response | None]:
     """Simple API key for public endpoints."""
     api_key = request.headers.get("X-API-Key")
-    
+
     if api_key and api_key.startswith("public-"):
         return True, None
-    
+
     return False, JSONResponse(
         {"error": "Public API key required"},
         status_code=401
@@ -167,27 +167,27 @@ async def public_auth(request: Request) -> tuple[bool, Response | None]:
 async def admin_auth(request: Request) -> tuple[bool, Response | None]:
     """JWT authentication with admin role check."""
     auth_header = request.headers.get("Authorization")
-    
+
     if not auth_header or not auth_header.startswith("Bearer "):
         return False, JSONResponse(
             {"error": "Admin access requires Bearer token"},
             status_code=403
         )
-    
+
     token = auth_header[7:]
-    
+
     try:
         payload = jwt.decode(token, "secret", algorithms=["HS256"])
-        
+
         # Check admin role
         if payload.get("role") != "admin":
             return False, JSONResponse(
                 {"error": "Insufficient privileges"},
                 status_code=403
             )
-        
+
         return True, None
-        
+
     except jwt.InvalidTokenError:
         return False, JSONResponse(
             {"error": "Invalid admin token"},
@@ -249,24 +249,24 @@ from myapp.database import async_session
 async def db_api_key_auth(request: Request) -> tuple[bool, Response | None]:
     """Validate API key against database."""
     api_key = request.headers.get("X-API-Key")
-    
+
     if not api_key:
         return False, JSONResponse(
             {"error": "API key required"},
             status_code=401
         )
-    
+
     # Query database
     async with async_session() as session:
         stmt = select(User).where(User.api_key == api_key, User.active == True)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
-    
+
     if user:
         # Optional: Store user info in request state
         request.state.user = user
         return True, None
-    
+
     return False, JSONResponse(
         {"error": "Invalid or inactive API key"},
         status_code=401
@@ -300,13 +300,13 @@ async def auth_handler(request: Request) -> tuple[bool, Response | None]:
             {"error": "Authentication required"},
             status_code=401  # ✅ Missing/invalid credentials
         )
-    
+
     if not has_permission(request):
         return False, JSONResponse(
             {"error": "Insufficient permissions"},
             status_code=403  # ✅ Valid credentials, insufficient access
         )
-    
+
     return True, None
 ```
 
@@ -321,7 +321,7 @@ async def safe_auth_handler(request: Request) -> tuple[bool, Response | None]:
     except Exception as e:
         # Log error
         logger.error(f"Authentication error: {e}")
-        
+
         # Return generic error (don't leak implementation details)
         return False, JSONResponse(
             {"error": "Authentication service error"},
@@ -335,18 +335,18 @@ async def safe_auth_handler(request: Request) -> tuple[bool, Response | None]:
 async def auth_with_context(request: Request) -> tuple[bool, Response | None]:
     """Store authenticated user in request state for downstream use."""
     token = extract_token(request)
-    
+
     if not token:
         return False, JSONResponse({"error": "No token"}, status_code=401)
-    
+
     user = await validate_and_get_user(token)
-    
+
     if user:
         # ✅ Store user for use in route handlers
         request.state.user = user
         request.state.user_id = user.id
         return True, None
-    
+
     return False, JSONResponse({"error": "Invalid token"}, status_code=401)
 
 # In your route handler:
@@ -366,13 +366,13 @@ async def test_api_key_auth():
     success, response = await api_key_auth(request)
     assert success is True
     assert response is None
-    
+
     # ❌ Invalid key
     request = MockRequest(headers={"X-API-Key": "invalid-key"})
     success, response = await api_key_auth(request)
     assert success is False
     assert response.status_code == 401
-    
+
     # ❌ Missing key
     request = MockRequest(headers={})
     success, response = await api_key_auth(request)
@@ -389,7 +389,7 @@ async def test_api_key_auth():
 async def bad_auth(request: Request) -> tuple[bool, Response | None]:
     api_key = request.headers.get("X-API-Key")
     logger.info(f"Validating key: {api_key}")  # ❌ Leaks secrets!
-    
+
 # ✅ CORRECT: Log without secrets
 async def good_auth(request: Request) -> tuple[bool, Response | None]:
     api_key = request.headers.get("X-API-Key")
@@ -406,7 +406,7 @@ async def enforce_https(request: Request) -> tuple[bool, Response | None]:
             {"error": "HTTPS required"},
             status_code=403
         )
-    
+
     # Continue with normal auth
     return await api_key_auth(request)
 ```
@@ -423,23 +423,23 @@ _request_counts = defaultdict(list)
 async def rate_limited_auth(request: Request) -> tuple[bool, Response | None]:
     """Rate limit authentication attempts."""
     client_ip = request.client.host
-    
+
     # Clean old attempts (last 60 seconds)
     cutoff = time.time() - 60
     _request_counts[client_ip] = [
         t for t in _request_counts[client_ip] if t > cutoff
     ]
-    
+
     # Check rate limit (max 10 attempts per minute)
     if len(_request_counts[client_ip]) >= 10:
         return False, JSONResponse(
             {"error": "Too many authentication attempts"},
             status_code=429
         )
-    
+
     # Record this attempt
     _request_counts[client_ip].append(time.time())
-    
+
     # Continue with normal auth
     return await api_key_auth(request)
 ```

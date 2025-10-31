@@ -288,15 +288,15 @@ class MyComponentConfig(ServerComponentConfig):
 
 class MyComponent(ServerComponent):
     """My custom server component."""
-    
+
     name: str = "my_component"
     priority: int = 10
     config: MyComponentConfig = Field(default_factory=MyComponentConfig)
-    
+
     def configure(self, app, orchestrator):
         """Configure middleware, etc."""
         pass
-    
+
     def register_routes(self, app, orchestrator):
         """Register HTTP endpoints."""
         @app.get("/my-endpoint")
@@ -528,7 +528,7 @@ components = [
         )
     ),
 
-    
+
     # 4. Business logic (priority 20)
     AgentsServerComponent(),
     ArtifactsComponent(),

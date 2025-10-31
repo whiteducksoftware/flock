@@ -174,16 +174,16 @@ ws.onopen = () => {
 
 ws.onmessage = (event) => {
   const message = JSON.parse(event.data);
-  
+
   switch (message.type) {
     case 'agent_execution_started':
       console.log(`Agent ${message.agent_id} started`);
       break;
-    
+
     case 'streaming_output':
       console.log(`Output: ${message.content}`);
       break;
-    
+
     case 'artifact_published':
       console.log(`New artifact: ${message.artifact_type}`);
       break;
@@ -208,19 +208,19 @@ import json
 
 async def connect_to_flock():
     uri = "ws://localhost:8000/plugin/ws"
-    
+
     async with websockets.connect(uri) as websocket:
         print("Connected to Flock WebSocket")
-        
+
         async for message in websocket:
             data = json.loads(message)
-            
+
             if data["type"] == "agent_execution_started":
                 print(f"Agent {data['agent_id']} started")
-            
+
             elif data["type"] == "streaming_output":
                 print(f"Output: {data['content']}")
-            
+
             elif data["type"] == "artifact_published":
                 print(f"New artifact: {data['artifact_type']}")
 

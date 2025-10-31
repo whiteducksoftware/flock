@@ -161,7 +161,9 @@ async def main():
     print("\n   # Filter traces by agent:")
     print("   curl 'http://127.0.0.1:8344/api/v1/traces?agent=data_fetcher'")
     print("\n   # Get traces in time range:")
-    print("   curl 'http://127.0.0.1:8344/api/v1/traces?start=2024-01-01&end=2024-12-31'")
+    print(
+        "   curl 'http://127.0.0.1:8344/api/v1/traces?start=2024-01-01&end=2024-12-31'"
+    )
 
     print("\n   Example Python code:")
     print("""

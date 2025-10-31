@@ -92,9 +92,7 @@ async def admin_handler(request: Request) -> tuple[bool, Response | None]:
     if token == "admin-token-123":
         return True, None
 
-    return False, JSONResponse(
-        {"error": "Insufficient privileges"}, status_code=403
-    )
+    return False, JSONResponse({"error": "Insufficient privileges"}, status_code=403)
 
 
 async def main():
@@ -321,7 +319,9 @@ async def main():
     await flock.run_until_idle()
 
     print("\n✅ Order processed!")
-    print("   Chain: Order → order_validator → OrderValidation → order_processor → OrderConfirmation")
+    print(
+        "   Chain: Order → order_validator → OrderValidation → order_processor → OrderConfirmation"
+    )
 
     # Keep server running
     print("\n⏳ Server running for 60 seconds...")

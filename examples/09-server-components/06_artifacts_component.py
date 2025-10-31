@@ -137,7 +137,9 @@ async def main():
     print("\n   # Publish new artifact:")
     print("   curl -X POST http://127.0.0.1:8344/api/v1/artifacts \\")
     print('     -H "Content-Type: application/json" \\')
-    print('     -d \'{"type": "__main__.Task", "payload": {"title": "New task", "priority": "high", "completed": false}}\'')
+    print(
+        '     -d \'{"type": "__main__.Task", "payload": {"title": "New task", "priority": "high", "completed": false}}\''
+    )
 
     # Keep server running
     print("\n⏳ Keeping server running for 60 seconds...")

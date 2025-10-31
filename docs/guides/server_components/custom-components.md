@@ -22,32 +22,32 @@ from flock.components.server import ServerComponent, ServerComponentConfig
 
 class MyComponentConfig(ServerComponentConfig):
     """Configuration for my component."""
-    
+
     my_setting: str = "default_value"
     enable_feature: bool = True
 
 class MyComponent(ServerComponent):
     """My custom server component."""
-    
+
     name: str = "my_component"  # Unique identifier
     priority: int = 10  # Registration order (0-99)
     config: MyComponentConfig = Field(
         default_factory=MyComponentConfig,
         description="Component configuration"
     )
-    
+
     def configure(self, app: Any, orchestrator: Any) -> None:
         """Configure middleware, app settings, etc."""
         pass
-    
+
     def register_routes(self, app: Any, orchestrator: Any) -> None:
         """Register HTTP endpoints."""
         pass
-    
+
     async def on_startup_async(self, orchestrator: Any) -> None:
         """Async startup tasks."""
         pass
-    
+
     async def on_shutdown_async(self, orchestrator: Any) -> None:
         """Async cleanup tasks."""
         pass
@@ -65,7 +65,7 @@ from flock.components.server import ServerComponentConfig
 
 class RateLimitConfig(ServerComponentConfig):
     """Configuration for rate limiting component."""
-    
+
     max_requests: int = Field(
         default=100,
         description="Maximum requests per window"
@@ -92,14 +92,14 @@ from pydantic import Field, PrivateAttr
 
 class RateLimitComponent(ServerComponent):
     """Component that implements rate limiting."""
-    
+
     name: str = "rate_limit"
     priority: int = 6  # Before business logic, after CORS
     config: RateLimitConfig = Field(
         default_factory=RateLimitConfig,
         description="Rate limiting configuration"
     )
-    
+
     # Private fields for internal state (excluded from serialization)
     _request_counts: dict[str, list[float]] = PrivateAttr(
         default_factory=lambda: defaultdict(list)
@@ -116,12 +116,12 @@ def configure(self, app: Any, orchestrator: Any) -> None:
     from starlette.types import ASGIApp, Receive, Scope, Send
     from starlette.responses import JSONResponse
     import re
-    
+
     class RateLimitMiddleware:
         def __init__(self, app: ASGIApp, parent: "RateLimitComponent"):
             self.app = app
             self.parent = parent
-        
+
         async def __call__(
             self,
             scope: Scope,
@@ -131,27 +131,27 @@ def configure(self, app: Any, orchestrator: Any) -> None:
             if scope["type"] != "http":
                 await self.app(scope, receive, send)
                 return
-            
+
             # Check if path is excluded
             path = scope.get("path", "")
             for pattern in self.parent.config.exclude_paths:
                 if re.match(pattern, path):
                     await self.app(scope, receive, send)
                     return
-            
+
             # Get client IP
             client_ip = scope.get("client", ["unknown"])[0]
-            
+
             # Rate limiting logic
             now = time.time()
             window_start = now - self.parent.config.window_seconds
-            
+
             # Clean old requests
             self.parent._request_counts[client_ip] = [
                 t for t in self.parent._request_counts[client_ip]
                 if t > window_start
             ]
-            
+
             # Check if over limit
             if len(self.parent._request_counts[client_ip]) >= self.parent.config.max_requests:
                 response = JSONResponse(
@@ -163,13 +163,13 @@ def configure(self, app: Any, orchestrator: Any) -> None:
                 )
                 await response(scope, receive, send)
                 return
-            
+
             # Record this request
             self.parent._request_counts[client_ip].append(now)
-            
+
             # Continue to next middleware/route
             await self.app(scope, receive, send)
-    
+
     # Add middleware to FastAPI app
     app.add_middleware(RateLimitMiddleware, parent=self)
 ```
@@ -181,7 +181,7 @@ Add HTTP endpoints in the `register_routes()` method:
 ```python
 def register_routes(self, app: Any, orchestrator: Any) -> None:
     """Register rate limit status endpoint."""
-    
+
     @app.get("/rate-limit/status")
     async def get_rate_limit_status() -> dict[str, Any]:
         """Get current rate limit statistics."""
@@ -190,14 +190,14 @@ def register_routes(self, app: Any, orchestrator: Any) -> None:
             1 for counts in self._request_counts.values()
             if len(counts) >= self.config.max_requests * 0.8  # >80% of limit
         )
-        
+
         return {
             "max_requests": self.config.max_requests,
             "window_seconds": self.config.window_seconds,
             "tracked_ips": total_ips,
             "active_limits": active_limits
         }
-    
+
     @app.delete("/rate-limit/reset")
     async def reset_rate_limits() -> dict[str, str]:
         """Reset all rate limits (admin only)."""
@@ -213,7 +213,7 @@ Add startup and shutdown logic:
 async def on_startup_async(self, orchestrator: Any) -> None:
     """Initialize component on startup."""
     from flock.logging.logging import get_logger
-    
+
     logger = get_logger(__name__)
     logger.info(
         f"RateLimitComponent started: "
@@ -223,10 +223,10 @@ async def on_startup_async(self, orchestrator: Any) -> None:
 async def on_shutdown_async(self, orchestrator: Any) -> None:
     """Cleanup on shutdown."""
     from flock.logging.logging import get_logger
-    
+
     logger = get_logger(__name__)
     logger.info("RateLimitComponent shutting down")
-    
+
     # Optional: Persist rate limit data to database
     # await save_rate_limits(self._request_counts)
 ```
@@ -266,13 +266,13 @@ Declare dependencies on other components:
 ```python
 class MyComponent(ServerComponent):
     name: str = "my_component"
-    
+
     def get_dependencies(self) -> list[type[ServerComponent]]:
         """Declare required components."""
         from flock.components.server import AuthenticationComponent
-        
+
         return [AuthenticationComponent]  # Requires auth
-    
+
     def configure(self, app: Any, orchestrator: Any) -> None:
         # Now we can safely assume AuthenticationComponent is registered
         pass
@@ -286,16 +286,16 @@ Use the `_join_path()` helper for consistent URL construction:
 def register_routes(self, app: Any, orchestrator: Any) -> None:
     """Register routes with proper path handling."""
     prefix = self.config.prefix or ""
-    
+
     # ✅ CORRECT: Use helper
     users_path = self._join_path(prefix, "users")
     posts_path = self._join_path(prefix, "posts")
-    
+
     # Helper handles:
     # - Double slashes: "/api/" + "users" → "/api/users" (not "/api//users")
     # - Missing slashes: "/api" + "users" → "/api/users"
     # - Empty prefixes: "" + "users" → "/users"
-    
+
     @app.get(users_path)
     async def get_users():
         return {"users": []}
@@ -308,15 +308,15 @@ Store component state in requests:
 ```python
 class SessionComponent(ServerComponent):
     """Component that manages sessions."""
-    
+
     def configure(self, app: Any, orchestrator: Any) -> None:
         from starlette.types import ASGIApp, Receive, Scope, Send
-        
+
         class SessionMiddleware:
             def __init__(self, app: ASGIApp, parent: "SessionComponent"):
                 self.app = app
                 self.parent = parent
-            
+
             async def __call__(
                 self,
                 scope: Scope,
@@ -327,11 +327,11 @@ class SessionComponent(ServerComponent):
                     # Create session and store in scope
                     session_id = self.parent._create_session()
                     scope["state"] = {"session_id": session_id}
-                
+
                 await self.app(scope, receive, send)
-        
+
         app.add_middleware(SessionMiddleware, parent=self)
-    
+
     def _create_session(self) -> str:
         """Create a new session."""
         import uuid
@@ -348,38 +348,38 @@ from pydantic import PrivateAttr
 
 class DatabaseComponent(ServerComponent):
     """Component that provides database connectivity."""
-    
+
     name: str = "database"
     priority: int = 0  # Initialize early
-    
+
     _engine: Any = PrivateAttr(default=None)
     _session_factory: Any = PrivateAttr(default=None)
-    
+
     async def on_startup_async(self, orchestrator: Any) -> None:
         """Create database engine and session factory."""
         from sqlalchemy.ext.asyncio import async_sessionmaker
-        
+
         # Create async engine
         self._engine = create_async_engine(
             "postgresql+asyncpg://user:pass@localhost/db",
             echo=True
         )
-        
+
         # Create session factory
         self._session_factory = async_sessionmaker(
             self._engine,
             class_=AsyncSession,
             expire_on_commit=False
         )
-    
+
     async def on_shutdown_async(self, orchestrator: Any) -> None:
         """Close database connections."""
         if self._engine:
             await self._engine.dispose()
-    
+
     def register_routes(self, app: Any, orchestrator: Any) -> None:
         """Register database-backed endpoints."""
-        
+
         @app.get("/users")
         async def get_users():
             async with self._session_factory() as session:
@@ -398,23 +398,23 @@ from pydantic import PrivateAttr
 
 class NotificationComponent(ServerComponent):
     """Component for sending notifications via external service."""
-    
+
     name: str = "notifications"
-    
+
     _http_client: httpx.AsyncClient = PrivateAttr(default=None)
-    
+
     async def on_startup_async(self, orchestrator: Any) -> None:
         """Create HTTP client."""
         self._http_client = httpx.AsyncClient(
             base_url="https://api.notifications.example.com",
             headers={"Authorization": "Bearer <token>"}
         )
-    
+
     async def on_shutdown_async(self, orchestrator: Any) -> None:
         """Close HTTP client."""
         if self._http_client:
             await self._http_client.aclose()
-    
+
     async def send_notification(self, message: str) -> None:
         """Send a notification."""
         response = await self._http_client.post(
@@ -461,7 +461,7 @@ async def test_rate_limit_component():
     """Test rate limiting component."""
     app = FastAPI()
     orchestrator = Flock()
-    
+
     # Create component
     rate_limiter = RateLimitComponent(
         config=RateLimitConfig(
@@ -469,21 +469,21 @@ async def test_rate_limit_component():
             window_seconds=60
         )
     )
-    
+
     # Configure and register
     rate_limiter.configure(app, orchestrator)
     rate_limiter.register_routes(app, orchestrator)
-    
+
     # Test routes exist
     routes = [route.path for route in app.routes]
     assert "/rate-limit/status" in routes
-    
+
     # Test startup
     await rate_limiter.on_startup_async(orchestrator)
-    
+
     # Test functionality
     # ... make requests and verify rate limiting ...
-    
+
     # Test shutdown
     await rate_limiter.on_shutdown_async(orchestrator)
 ```
@@ -497,26 +497,26 @@ def test_rate_limit_integration():
     """Test rate limiting with real HTTP requests."""
     app = FastAPI()
     orchestrator = Flock()
-    
+
     rate_limiter = RateLimitComponent(
         config=RateLimitConfig(max_requests=3, window_seconds=60)
     )
-    
+
     rate_limiter.configure(app, orchestrator)
     rate_limiter.register_routes(app, orchestrator)
-    
+
     # Add a test endpoint
     @app.get("/test")
     async def test_endpoint():
         return {"status": "ok"}
-    
+
     client = TestClient(app)
-    
+
     # Make requests within limit
     for i in range(3):
         response = client.get("/test")
         assert response.status_code == 200
-    
+
     # Next request should be rate limited
     response = client.get("/test")
     assert response.status_code == 429
@@ -552,10 +552,10 @@ async def on_startup_async(self, orchestrator: Any) -> None:
 ```python
 class MyComponentConfig(ServerComponentConfig):
     """Configuration with validation."""
-    
+
     port: int = Field(ge=1, le=65535, description="Server port")
     timeout: float = Field(gt=0, description="Timeout in seconds")
-    
+
     @field_validator("timeout")
     @classmethod
     def validate_timeout(cls, v: float) -> float:
@@ -569,19 +569,19 @@ class MyComponentConfig(ServerComponentConfig):
 ```python
 class MyComponent(ServerComponent):
     """Component for X functionality.
-    
+
     This component provides:
     - Feature A: Description
     - Feature B: Description
-    
+
     Configuration:
         setting1: What it does
         setting2: What it does
-    
+
     Endpoints:
         GET /endpoint1 - Description
         POST /endpoint2 - Description
-    
+
     Example:
         >>> component = MyComponent(
         ...     config=MyComponentConfig(setting1="value")
@@ -597,10 +597,10 @@ async def on_shutdown_async(self, orchestrator: Any) -> None:
     """Ensure all resources are cleaned up."""
     if self._http_client:
         await self._http_client.aclose()
-    
+
     if self._database_connection:
         await self._database_connection.close()
-    
+
     if self._cache:
         await self._cache.clear()
 ```

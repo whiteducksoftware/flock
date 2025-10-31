@@ -716,7 +716,7 @@ class Flock(metaclass=AutoTracedMeta):
         port: int = 8344,
         blocking: bool = True,
         additional_server_components: list[ServerComponent] | None = None,
-        use_default_component: bool = True,
+        use_default_components: bool = True,
     ) -> Task[None] | None:
         """Start HTTP service for the orchestrator.
 
@@ -759,7 +759,7 @@ class Flock(metaclass=AutoTracedMeta):
             port=port,
             blocking=blocking,
             plugins=self._server_components,
-            use_default_plugins=use_default_component,
+            use_default_plugins=use_default_components,
         )
 
     # Scheduling -----------------------------------------------------------

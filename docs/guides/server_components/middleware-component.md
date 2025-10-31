@@ -327,11 +327,11 @@ def test_custom_header_middleware():
         )
     )
     component.register_middleware("headers", custom_header_middleware_factory)
-    
+
     # Test with FastAPI app
     app = FastAPI()
     component.configure(app, orchestrator)
-    
+
     client = TestClient(app)
     response = client.get("/")
     assert response.headers["X-Test"] == "value"
@@ -347,13 +347,13 @@ def create_conditional_middleware(condition: Callable) -> MiddlewareFactory:
             class ConditionalMiddleware:
                 def __init__(self, app):
                     self.app = app
-                
+
                 async def __call__(self, scope, receive, send):
                     if condition(scope):
                         # Apply middleware logic
                         pass
                     await self.app(scope, receive, send)
-            
+
             return ConditionalMiddleware(app)
         return middleware_factory
     return factory
@@ -365,12 +365,12 @@ class InspectionMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Inspect/modify request
         print(f"Request: {request.method} {request.url}")
-        
+
         response = await call_next(request)
-        
+
         # Inspect/modify response
         print(f"Response: {response.status_code}")
-        
+
         return response
 ```
 

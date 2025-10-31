@@ -230,33 +230,33 @@ from flock.components.server import ServerComponent, ServerComponentConfig
 
 class MyComponentConfig(ServerComponentConfig):
     """Configuration for my component."""
-    
+
     my_setting: str = "default_value"
     enable_feature: bool = True
 
 class MyComponent(ServerComponent):
     """My custom server component."""
-    
+
     name: str = "my_component"
     priority: int = 20
     config: MyComponentConfig = MyComponentConfig()
-    
+
     def configure(self, app, orchestrator):
         """Configure middleware (optional)."""
         # Add middleware if needed
         pass
-    
+
     def register_routes(self, app, orchestrator):
         """Register HTTP endpoints."""
-        
+
         @app.get("/my-endpoint")
         async def my_endpoint():
             return {"status": "ok"}
-    
+
     async def on_startup_async(self, orchestrator):
         """Async startup tasks (optional)."""
         print("MyComponent starting...")
-    
+
     async def on_shutdown_async(self, orchestrator):
         """Async cleanup (optional)."""
         print("MyComponent stopping...")
@@ -270,23 +270,23 @@ from starlette.requests import Request
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Log all HTTP requests."""
-    
+
     async def dispatch(self, request: Request, call_next):
         import time
-        
+
         start = time.time()
         response = await call_next(request)
         duration = time.time() - start
-        
+
         print(f"{request.method} {request.url.path} - {duration:.3f}s")
         return response
 
 class LoggingComponent(ServerComponent):
     """Component that adds request logging."""
-    
+
     name: str = "logging"
     priority: int = 5  # Early in the chain
-    
+
     def configure(self, app, orchestrator):
         """Add logging middleware."""
         app.add_middleware(RequestLoggingMiddleware)
@@ -297,17 +297,17 @@ class LoggingComponent(ServerComponent):
 ```python
 class MyAdvancedComponent(ServerComponent):
     """Component that requires authentication."""
-    
+
     name: str = "my_advanced"
     priority: int = 30
-    
+
     def get_dependencies(self):
         """Declare required components."""
         return [AuthenticationComponent]
-    
+
     def register_routes(self, app, orchestrator):
         """Routes that assume auth is configured."""
-        
+
         @app.get("/protected/data")
         async def get_protected_data():
             # Auth middleware already applied
@@ -513,20 +513,20 @@ from flock import Flock
 @pytest.mark.asyncio
 async def test_my_component():
     """Test component in isolation."""
-    
+
     # Arrange
     app = FastAPI()
     orchestrator = Flock()
     component = MyComponent()
-    
+
     # Act
     component.configure(app, orchestrator)
     component.register_routes(app, orchestrator)
     await component.on_startup_async(orchestrator)
-    
+
     # Assert
     assert "/my-endpoint" in [route.path for route in app.routes]
-    
+
     # Cleanup
     await component.on_shutdown_async(orchestrator)
 ```
@@ -537,19 +537,19 @@ async def test_my_component():
 @pytest.mark.asyncio
 async def test_component_composition():
     """Test multiple components together."""
-    
+
     flock = Flock()
-    
+
     components = [
         HealthAndMetricsComponent(),
         MyComponent(),
     ]
-    
+
     await flock.serve(
         components=components,
         blocking=False
     )
-    
+
     # Test endpoints
     async with httpx.AsyncClient() as client:
         response = await client.get("http://127.0.0.1:8344/health")

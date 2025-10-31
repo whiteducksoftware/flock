@@ -142,7 +142,9 @@ async def main():
     # )
 
     print("\n💡 To use this component, start the server with:")
-    print("   await flock.serve(dashboard=True, server_components=[middleware_component])")
+    print(
+        "   await flock.serve(dashboard=True, server_components=[middleware_component])"
+    )
     print("\n📝 Test the middleware by making requests and checking response headers:")
     print("   - X-Request-Duration: Time taken to process the request")
     print("   - X-App-Name: Flock Example")

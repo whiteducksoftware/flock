@@ -105,13 +105,17 @@ async def main():
     print("-" * 60)
 
     print("\n   You can now invoke the agent using curl:")
-    print("\n   curl -X POST http://127.0.0.1:8344/api/v1/agents/text_analyzer/invoke \\")
+    print(
+        "\n   curl -X POST http://127.0.0.1:8344/api/v1/agents/text_analyzer/invoke \\"
+    )
     print('     -H "Content-Type: application/json" \\')
     print('     -d \'{"artifacts": [')
     print("       {")
     print('         "type": "__main__.AnalysisRequest",')
     print('         "payload": {')
-    print('           "text": "This is an amazing product! I love how easy it is to use.",')
+    print(
+        '           "text": "This is an amazing product! I love how easy it is to use.",'
+    )
     print('           "analysis_type": "sentiment"')
     print("         }")
     print("       }")

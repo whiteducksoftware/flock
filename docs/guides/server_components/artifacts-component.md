@@ -146,11 +146,11 @@ while True:
         "/api/v1/plugin/artifacts",
         params={"limit": limit, "offset": offset}
     )
-    
+
     artifacts = response.json()["artifacts"]
     if not artifacts:
         break
-    
+
     process_artifacts(artifacts)
     offset += limit
 ```

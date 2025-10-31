@@ -75,6 +75,7 @@ class MiddlewareComponent(ServerComponent):
         ...             header_name=options.get("header_name", "X-Custom"),
         ...             header_value=options.get("header_value", "default"),
         ...         )
+        ...
         ...     return factory
         >>>
         >>> component = MiddlewareComponent(
@@ -90,7 +91,9 @@ class MiddlewareComponent(ServerComponent):
         ...         ]
         ...     )
         ... )
-        >>> component.register_middleware("custom_header", create_custom_header_middleware)
+        >>> component.register_middleware(
+        ...     "custom_header", create_custom_header_middleware
+        ... )
 
         Using Starlette's built-in middleware:
         >>> from starlette.middleware.gzip import GZipMiddleware
@@ -99,6 +102,7 @@ class MiddlewareComponent(ServerComponent):
         ...     def factory(**options):
         ...         minimum_size = options.get("minimum_size", 1000)
         ...         return GZipMiddleware(app, minimum_size=minimum_size)
+        ...
         ...     return factory
         >>>
         >>> component = MiddlewareComponent(
@@ -118,7 +122,9 @@ class MiddlewareComponent(ServerComponent):
         ...     config=MiddlewareComponentConfig(
         ...         middlewares=[
         ...             MiddlewareConfig(name="logging"),
-        ...             MiddlewareConfig(name="gzip", options={"minimum_size": 500}),
+        ...             MiddlewareConfig(
+        ...                 name="gzip", options={"minimum_size": 500}
+        ...             ),
         ...             MiddlewareConfig(name="custom_header"),
         ...         ]
         ...     )
@@ -160,6 +166,7 @@ class MiddlewareComponent(ServerComponent):
             ...                 await self.app(scope, receive, send)
             ...
             ...         return MyMiddleware(app)
+            ...
             ...     return factory
             >>>
             >>> component.register_middleware("my_middleware", my_middleware_factory)

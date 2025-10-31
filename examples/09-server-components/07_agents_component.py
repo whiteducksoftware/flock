@@ -176,7 +176,9 @@ def calculate_total(items):
     await flock.run_until_idle()
 
     print("\n✅ Workflow completed!")
-    print("   Chain: CodeReview → code_reviewer → ReviewResult → quality_gate → ReviewResult")
+    print(
+        "   Chain: CodeReview → code_reviewer → ReviewResult → quality_gate → ReviewResult"
+    )
     print("                                      → doc_writer → Documentation")
 
     # Example 5: Query agents via API
@@ -189,7 +191,9 @@ def calculate_total(items):
     print("\n   # Get specific agent details:")
     print("   curl http://127.0.0.1:8344/api/v1/agents/code_reviewer")
     print("\n   # Get agent subscriptions:")
-    print("   curl http://127.0.0.1:8344/api/v1/agents/code_reviewer | jq '.subscriptions'")
+    print(
+        "   curl http://127.0.0.1:8344/api/v1/agents/code_reviewer | jq '.subscriptions'"
+    )
     print("\n   # Get agent statistics:")
     print("   curl http://127.0.0.1:8344/api/v1/agents/code_reviewer | jq '.stats'")
 
