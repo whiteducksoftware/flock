@@ -1,3 +1,14 @@
+---
+title: TracingComponent
+description: Tracing Component documentation. Tracing, Analyzing and Querying of Agent Stats
+tags:
+ - endpoints
+ - telemetry
+ - logging
+ - tracing
+search:
+  boost: 1.5
+---
 # TracingComponent
 
 The `TracingComponent` provides HTTP endpoints for querying, analyzing, and managing OpenTelemetry traces stored in DuckDB.

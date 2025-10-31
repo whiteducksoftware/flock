@@ -1,3 +1,13 @@
+---
+title: HealthAndMetricsComponent
+description: Health and Metrics Server Component
+tags:
+ - endpoints
+ - middleware
+ - healthchecks
+search:
+  boost: 1.0
+---
 # HealthAndMetricsComponent
 
 The `HealthAndMetricsComponent` provides essential health check and metrics endpoints for monitoring and observability of your Flock application.

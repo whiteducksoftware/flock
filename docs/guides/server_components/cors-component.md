@@ -1,3 +1,15 @@
+---
+title: CORSComponent
+description: The CORSComponent
+tags:
+ - server-components
+ - cors
+ - endpoints
+ - middleware
+search:
+  boost: 2.0
+---
+
 # Enhanced CORS Component Documentation
 
 ## Overview

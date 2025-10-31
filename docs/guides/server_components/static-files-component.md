@@ -1,3 +1,12 @@
+---
+title: StaticFiles Component
+description: Documentation for the StaticFiles Component
+tags:
+ - static files
+ - endpoints
+search:
+  boost: 0.1
+---
 # StaticFilesServerComponent
 
 The `StaticFilesServerComponent` serves static files (HTML, CSS, JavaScript, images) for the Flock dashboard or custom UIs.

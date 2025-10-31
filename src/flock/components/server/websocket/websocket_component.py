@@ -3,9 +3,8 @@
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import Field
 
-from docs.patterns.server_component_skeleton import ServerComponentConfig
 from flock.api.websocket import WebSocketManager
-from flock.components.server.base import ServerComponent
+from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.logging.logging import get_logger
 
 

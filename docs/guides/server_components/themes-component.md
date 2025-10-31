@@ -1,3 +1,12 @@
+---
+title: ThemesComponent
+description: Documentation for the ThemesComponent
+tags:
+  - themes
+  - endpoints
+search:
+  boost: 0.1
+---
 # ThemesComponent
 
 The `ThemesComponent` serves theme configuration files for the Flock dashboard, enabling customization of the UI appearance.

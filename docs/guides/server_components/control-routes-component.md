@@ -1,3 +1,13 @@
+---
+title: ControlRoutesComponent
+description: The ControlRoutesComponent
+tags:
+ - server-components
+ - endpoints
+ - dashboard
+search:
+  boost: 0.2
+---
 # ControlRoutesComponent
 
 The `ControlRoutesComponent` provides control endpoints for agent execution, artifact type discovery, and graph visualization.

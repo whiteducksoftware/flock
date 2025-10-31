@@ -1,3 +1,14 @@
+---
+title: Custom ServerComponents
+description: How to create your own Custom Server Components
+tags:
+ - endpoints
+ - middleware
+ - custom-endpoints
+ - api
+search:
+  boost: 2.5
+---
 # Creating Custom Server Components
 
 This guide walks you through creating your own Server Components to extend Flock's HTTP API with custom functionality.

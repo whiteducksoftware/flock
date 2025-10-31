@@ -1,3 +1,14 @@
+---
+title: AuthenticationComponent
+description: The Authentication ServerComponent
+tags:
+ - server-components
+ - authentication
+ - endpoints
+ - middleware
+search:
+  boost: 0.6
+---
 # AuthenticationComponent
 
 The `AuthenticationComponent` provides flexible authentication middleware with support for multiple strategies, route-specific authentication, and easy integration with various authentication schemes (API keys, JWT, OAuth, etc.).

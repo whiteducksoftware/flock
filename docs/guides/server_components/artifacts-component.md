@@ -1,3 +1,13 @@
+---
+title: ArtifactsComponent
+description: The Artifacts ServerComponent
+tags:
+ - server-components
+ - endpoints
+ - components
+search:
+  boost: 0.5
+---
 # ArtifactsComponent
 
 The `ArtifactsComponent` provides a REST API for querying and publishing artifacts on the blackboard, enabling external systems to interact with the Flock orchestrator.

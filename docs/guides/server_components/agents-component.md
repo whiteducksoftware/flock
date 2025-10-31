@@ -1,3 +1,13 @@
+---
+title: AgentServerComponent
+description: The AgentServerComponent
+tags:
+ - server-components
+ - endpoints
+ - agents
+search:
+  boost: 0.5
+---
 # AgentsServerComponent
 
 The `AgentsServerComponent` exposes agent metadata and control via HTTP endpoints, enabling programmatic access to agent information and execution history.

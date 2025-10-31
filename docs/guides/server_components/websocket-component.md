@@ -1,3 +1,14 @@
+---
+title: WebSocketServerComponent
+description: WebSocketServerComponent. Provide real-time bidirectional communication
+tags:
+ - websockets
+ - realtime
+ - endpoints
+ - events
+search:
+  boost: 1.6
+---
 # WebSocketServerComponent
 
 The `WebSocketServerComponent` enables real-time bidirectional communication between your Flock server and clients (typically the dashboard). It manages WebSocket connections, broadcasts events, and provides live updates for agent executions and artifact changes.

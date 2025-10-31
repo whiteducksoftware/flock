@@ -1,3 +1,15 @@
+---
+title: MiddlewareComponent
+description: Documentation for the generic Middleware ServerComponent
+tags:
+ - middleware
+ - authentication
+ - logging
+ - telemetry
+ - security
+search:
+  boost: 2.4
+---
 # MiddlewareComponent
 
 The `MiddlewareComponent` is a server component that enables developers to attach custom middleware to the FastAPI application used by Flock. This provides flexibility to add cross-cutting concerns like logging, timing, compression, custom headers, and more.
