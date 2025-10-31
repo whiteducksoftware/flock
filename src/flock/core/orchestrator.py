@@ -849,7 +849,38 @@ class Flock(metaclass=AutoTracedMeta):
     # Component Hook Delegation ───
 
     async def _run_initialize(self) -> None:
-        """Delegate to ComponentRunner module."""
+        """Initialize orchestrator components.
+
+        Checks if any agents have schedule_spec and registers TimerComponent
+        if needed before delegating to ComponentRunner.
+        """
+        # Check if any agents have schedule_spec and TimerComponent isn't already registered
+        has_scheduled_agents = any(
+            hasattr(agent, "schedule_spec") and agent.schedule_spec
+            for agent in self.agents
+        )
+
+        # Check if TimerComponent is already registered
+        from flock.components.orchestrator.scheduling.timer import TimerComponent
+
+        has_timer_component = any(
+            isinstance(c, TimerComponent) for c in self._components
+        )
+
+        # Register TimerComponent if needed
+        if has_scheduled_agents and not has_timer_component:
+            timer_component = TimerComponent()
+            self._components.append(timer_component)
+            self._components.sort(key=lambda c: c.priority)
+
+            # Update ComponentRunner with new sorted components
+            self._component_runner = ComponentRunner(self._components, self._logger)
+
+            self._logger.info(
+                f"TimerComponent registered: priority={timer_component.priority}, "
+                f"scheduled_agents={sum(1 for a in self.agents if hasattr(a, 'schedule_spec') and a.schedule_spec)}"
+            )
+
         await self._component_runner.run_initialize(self)
 
     async def _run_artifact_published(self, artifact: Artifact) -> Artifact | None:

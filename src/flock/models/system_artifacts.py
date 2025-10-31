@@ -5,7 +5,7 @@ These artifacts provide workflow telemetry and error tracking.
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from flock.registry import flock_type
 
@@ -30,4 +30,24 @@ class WorkflowError(BaseModel):
     )
 
 
-__all__ = ["WorkflowError"]
+@flock_type
+class TimerTick(BaseModel):
+    """Internal artifact published by timer component to trigger scheduled agents.
+
+    This is an internal infrastructure artifact. User agents receive
+    empty input (ctx.artifacts = []) with timer metadata in context.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    timer_name: str = Field(description="Agent name for filtering")
+    fire_time: datetime = Field(
+        default_factory=datetime.now, description="When the timer fired"
+    )
+    iteration: int = Field(default=0, description="Number of times timer has fired")
+    schedule_spec: dict = Field(
+        default_factory=dict, description="Original schedule config"
+    )
+
+
+__all__ = ["TimerTick", "WorkflowError"]

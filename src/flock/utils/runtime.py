@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -307,6 +308,66 @@ class Context(BaseModel):
 
     def get_variable(self, key: str, default: Any = None) -> Any:
         return self.state.get(key, default)
+
+    @property
+    def trigger_type(self) -> str:
+        """Type of trigger that invoked this agent.
+
+        Returns:
+            "timer" if triggered by TimerTick artifact, else "artifact"
+
+        Note:
+            Timer-triggered agents always receive exactly one TimerTick artifact.
+            If multiple artifacts are present, this is not a timer trigger.
+        """
+        if self.artifacts and len(self.artifacts) == 1:
+            artifact = self.artifacts[0]
+            # Check if artifact type is TimerTick
+            if artifact.type == "flock.models.system_artifacts.TimerTick":
+                return "timer"
+        return "artifact"
+
+    @property
+    def timer_iteration(self) -> int | None:
+        """Iteration count for timer-triggered agents.
+
+        Returns:
+            Iteration number (0-indexed) if timer-triggered, else None
+
+        Example:
+            >>> if ctx.timer_iteration is not None:
+            ...     print(f"Timer fired {ctx.timer_iteration + 1} times")
+        """
+        if self.trigger_type == "timer" and self.artifacts:
+            # Extract iteration from TimerTick payload
+            return self.artifacts[0].payload.get("iteration")
+        return None
+
+    @property
+    def fire_time(self) -> datetime | None:
+        """Fire time for timer-triggered agents.
+
+        Returns:
+            Datetime when timer fired if timer-triggered, else None
+
+        Example:
+            >>> if ctx.fire_time:
+            ...     print(f"Timer fired at {ctx.fire_time}")
+        """
+        if self.trigger_type == "timer" and self.artifacts:
+            # Extract fire_time from TimerTick payload
+            fire_time_data = self.artifacts[0].payload.get("fire_time")
+            if fire_time_data:
+                # If it's already a datetime, return it
+                if isinstance(fire_time_data, datetime):
+                    return fire_time_data
+                # If it's a string, parse it (shouldn't happen with proper serialization)
+                if isinstance(fire_time_data, str):
+                    from datetime import datetime as dt
+
+                    return dt.fromisoformat(fire_time_data)
+            return fire_time_data
+        return None
 
 
 __all__ = [

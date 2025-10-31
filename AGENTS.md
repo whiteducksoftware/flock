@@ -126,6 +126,10 @@ For deep dives into specific topics, see:
 - **[Semantic Subscriptions](docs/guides/semantic-subscriptions.md)** - AI-powered artifact matching by meaning ⭐ **NEW in 0.5.2**
 - **[Semantic Routing Tutorial](docs/tutorials/semantic-routing.md)** - Step-by-step guide to intelligent ticket routing ⭐ **NEW in 0.5.2**
 
+**Timer-Based Scheduling:**
+- **[Timer Scheduling Guide](docs/guides/scheduling.md)** - Periodic execution, scheduled tasks, timer patterns ⭐ **NEW in 0.6.0**
+- **[Scheduled Agents Tutorial](docs/tutorials/scheduled-agents.md)** - Step-by-step guide from health monitors to multi-agent workflows ⭐ **NEW in 0.6.0**
+
 **Publishing Patterns:**
 - **[Fan-Out Publishing](docs/guides/fan-out.md)** - Generate multiple outputs with filtering/validation ⭐ **NEW in 0.5**
 
@@ -1722,6 +1726,63 @@ billing_agent = (
     .consumes(Ticket, semantic_match=["billing payment", "refund request"])
     .publishes(BillingResponse)
 )
+```
+
+**Timer-based scheduling (periodic execution):**
+```python
+from datetime import timedelta, time
+
+# Periodic execution (every 30 seconds)
+health_monitor = (
+    orchestrator.agent("health_monitor")
+    .description("Monitors system health")
+    .schedule(every=timedelta(seconds=30))
+    .publishes(HealthStatus)
+)
+
+# Daily execution (5 PM every day)
+daily_report = (
+    orchestrator.agent("daily_report")
+    .schedule(at=time(hour=17, minute=0))
+    .publishes(DailyReport)
+)
+
+# Timer + context filtering (powerful pattern!)
+error_analyzer = (
+    orchestrator.agent("error_analyzer")
+    .schedule(every=timedelta(minutes=5))
+    .consumes(LogEntry, where=lambda log: log.level == "ERROR")
+    .publishes(ErrorReport)
+)
+# Agent runs every 5 min, ONLY sees ERROR logs
+
+# With initial delay and repeat limit
+reminder = (
+    orchestrator.agent("reminder")
+    .schedule(
+        every=timedelta(hours=1),
+        after=timedelta(seconds=60),  # Wait 60s before first run
+        max_repeats=10  # Run 10 times then stop
+    )
+    .publishes(Reminder)
+)
+```
+
+**Timer metadata in agent context:**
+```python
+async def my_agent(ctx: AgentContext) -> Result:
+    # Check if timer-triggered
+    if ctx.trigger_type == "timer":
+        iteration = ctx.timer_iteration  # 0, 1, 2, ...
+        fire_time = ctx.fire_time  # datetime when fired
+
+        # Input is always empty for timer triggers
+        assert ctx.artifacts == []
+
+        # Access blackboard context (filtered by .consumes())
+        errors = ctx.get_artifacts(LogEntry)
+
+    return Result(...)
 ```
 
 **Run agent:**
