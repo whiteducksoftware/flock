@@ -170,7 +170,26 @@ delayed_task = (
 - Delayed notifications
 - Scheduled one-time tasks
 
-### 4. With Initial Delay
+### 4. Cron (UTC, 5-field)
+
+Run on a cron schedule in UTC. Supported syntax: `*`, lists (`,`), ranges (`-`), and steps (`/`). Sunday may be `0` or `7`.
+
+```python
+# Every 5 minutes (UTC)
+agent.schedule(cron="*/5 * * * *")
+
+# Every day at 17:00 UTC
+agent.schedule(cron="0 17 * * *")
+
+# Weekdays at 9,11,13,15,17 UTC
+agent.schedule(cron="0 9-17/2 * * 1-5")
+```
+
+Notes:
+- Cron expressions are evaluated in UTC.
+- Day-of-month and day-of-week follow standard cron OR logic (if both are set, matches when either matches).
+
+### 5. With Initial Delay
 
 Add a delay before the first execution:
 
@@ -191,7 +210,7 @@ warmup_agent = (
 - Stagger multiple timers
 - Delayed start after initialization
 
-### 5. With Repeat Limit
+### 6. With Repeat Limit
 
 Limit the number of executions:
 
@@ -343,7 +362,7 @@ async def my_agent(ctx: AgentContext) -> Result:
     # Get fire time
     fire_time = ctx.fire_time  # datetime when timer fired
 
-    # Input is always empty for timer triggers
+    # Input is always empty for timer triggers (internal TimerTick is hidden)
     assert ctx.artifacts == []
 
     # Access blackboard context (filtered by .consumes())
@@ -527,6 +546,10 @@ agent = (
 ### 5. Context Providers Apply to Timers
 
 Timer-triggered agents respect global and per-agent context providers:
+
+### 6. Datetime Without max_repeats Is One-Time
+
+When you schedule with a specific `datetime` and do not provide `max_repeats`, the timer fires once and stops automatically.
 
 ```python
 # Global filter: Only urgent items

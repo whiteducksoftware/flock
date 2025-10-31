@@ -230,6 +230,18 @@ python 03_daily_report_generator.py
 .schedule(at=datetime.now() + timedelta(hours=1)) # 1 hour from now
 ```
 
+### 4. Cron-Based (UTC)
+```python
+# Every 5 minutes (UTC)
+.schedule(cron="*/5 * * * *")
+
+# Every day at 17:00 UTC
+.schedule(cron="0 17 * * *")
+
+# Weekdays at 9,11,13,15,17 UTC
+.schedule(cron="0 9-17/2 * * 1-5")
+```
+
 ### 4. With Options
 ```python
 # Initial delay before first execution

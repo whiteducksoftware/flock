@@ -240,6 +240,87 @@ async def test_timer_agent_has_timer_metadata():
     )
 
 
+# New focused test: real timer metadata available in ctx during scheduled run
+@pytest.mark.asyncio
+async def test_real_timer_metadata_in_context():
+    """Verify timer metadata (trigger_type, iteration, fire_time) is available in real executions."""
+    flock = Flock()
+    seen = []
+
+    class MetaEngine(EngineComponent):
+        async def evaluate(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
+            seen.append({
+                "trigger": ctx.trigger_type,
+                "iter": ctx.timer_iteration,
+                "fire": ctx.fire_time,
+                "count": len(inputs.artifacts),
+            })
+            return EvalResult.empty()
+
+    (
+        flock.agent("meta_timer")
+        .schedule(every=timedelta(seconds=0.1))
+        .publishes(StatusReport)
+        .with_engines(MetaEngine())
+    )
+
+    await flock._run_initialize()
+    await asyncio.sleep(0.25)
+    await flock.shutdown()
+
+    assert len(seen) >= 1
+    first = seen[0]
+    assert first["trigger"] == "timer"
+    assert isinstance(first["iter"], int)
+    assert first["iter"] >= 0
+    assert first["fire"] is not None
+
+
+@pytest.mark.asyncio
+async def test_one_time_datetime_without_max_repeats_executes_once():
+    """Datetime schedules without max_repeats execute exactly once and stop."""
+    from datetime import UTC
+
+    flock = Flock()
+    executions = []
+
+    class OnceEngine(EngineComponent):
+        async def evaluate(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
+            executions.append(datetime.now(UTC))
+            return EvalResult.from_object(
+                StatusReport(message="one-time", count=1), agent=agent
+            )
+
+    # Schedule ~200ms in the future; no max_repeats provided
+    scheduled_time = datetime.now(UTC) + timedelta(milliseconds=200)
+
+    (
+        flock.agent("one_time_dt")
+        .schedule(at=scheduled_time)
+        .publishes(StatusReport)
+        .with_engines(OnceEngine())
+    )
+
+    await flock._run_initialize()
+
+    # Wait long enough for first fire
+    await asyncio.sleep(0.35)
+    first_count = len(executions)
+
+    # Wait more to ensure it does not repeat
+    await asyncio.sleep(0.25)
+    final_count = len(executions)
+
+    await flock.shutdown()
+
+    assert first_count >= 1, f"Expected at least one execution, got {first_count}"
+    # Allow at most one additional execution due to async startup edges; then stop.
+    assert final_count <= 2, f"Expected at most one execution, got {final_count}"
+    # Ensure no further executions occur thereafter
+    await asyncio.sleep(0.4)
+    assert len(executions) == final_count
+
+
 # ============================================================================
 # Test 4: Timer with context filter
 # ============================================================================

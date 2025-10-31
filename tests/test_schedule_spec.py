@@ -151,6 +151,17 @@ def test_schedule_spec_with_time_and_after():
     assert spec.interval is None
 
 
+def test_schedule_spec_after_must_be_non_negative():
+    """after must be >= 0 seconds."""
+    with pytest.raises(ValueError, match="after must be >= 0"):
+        ScheduleSpec(interval=timedelta(seconds=30), after=timedelta(seconds=-1))
+
+
+def test_schedule_spec_max_repeats_must_be_positive():
+    """max_repeats must be > 0 when provided."""
+    with pytest.raises(ValueError, match="max_repeats must be > 0"):
+        ScheduleSpec(interval=timedelta(seconds=30), max_repeats=0)
+
 def test_schedule_spec_with_datetime_and_max_repeats():
     """
     GIVEN: ScheduleSpec with datetime (should be one-time)

@@ -102,6 +102,19 @@ class TestTimerComponentAutoRegistration:
         await orchestrator.shutdown()
 
     @pytest.mark.asyncio
+    async def test_timer_component_requires_publishes_for_scheduled_agents(self):
+        """Scheduled agents must declare .publishes(); otherwise init raises ValueError."""
+        orchestrator = Flock()
+
+        # Schedule an agent without publishes()
+        orchestrator.agent("invalid_scheduled").schedule(
+            ScheduleSpec(interval=timedelta(seconds=30))
+        )
+
+        with pytest.raises(ValueError, match="must declare .publishes\(\)"):
+            await orchestrator._run_initialize()
+
+    @pytest.mark.asyncio
     async def test_timer_component_registered_with_multiple_scheduled_agents(self):
         """Test TimerComponent handles multiple scheduled agents.
 

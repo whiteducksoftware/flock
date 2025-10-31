@@ -105,8 +105,14 @@ class TimerComponent(OrchestratorComponent):
 
             iteration = 0
             while True:
+                # Effective max repeats: implicit one-time for datetime schedules
+                effective_max = (
+                    1
+                    if (hasattr(spec, "at") and isinstance(spec.at, datetime) and spec.max_repeats is None)
+                    else spec.max_repeats
+                )
                 # Check max_repeats
-                if spec.max_repeats is not None and iteration >= spec.max_repeats:
+                if effective_max is not None and iteration >= effective_max:
                     break
 
                 # Publish TimerTick
@@ -216,7 +222,110 @@ class TimerComponent(OrchestratorComponent):
                 # After firing once, this should not be called again (max_repeats=1 implicit)
 
         elif spec.cron:
-            raise NotImplementedError("Cron scheduling not yet supported in v0.6.0")
+            # Cron scheduling (UTC): compute next fire and sleep until then
+            now = datetime.now(UTC)
+            next_fire = self._next_cron_fire(now, spec.cron)
+            seconds_until = max(0.0, (next_fire - now).total_seconds())
+            if seconds_until > 0:
+                await asyncio.sleep(seconds_until)
+
+    # ────────────────────────────────────────────────────────────────────────────
+    # Cron helpers
+    # ────────────────────────────────────────────────────────────────────────────
+    def _next_cron_fire(self, now_utc: datetime, expr: str) -> datetime:
+        """Compute the next datetime (UTC) that matches the given 5-field cron expression.
+
+        Supported syntax: numeric fields with wildcards (*), lists (a,b,c), ranges (a-b), and steps (*/n or a-b/n).
+        Fields: minute (0-59), hour (0-23), day of month (1-31), month (1-12), day of week (0-7, where 0 or 7 = Sunday).
+        Matching semantics for DOM/DOW follow standard cron: if both are specified (not *), match when either matches (OR).
+        """
+        fields = expr.split()
+        if len(fields) != 5:
+            raise ValueError("Cron expression must have 5 fields: 'min hour dom mon dow'")
+
+        minutes = self._parse_cron_field(fields[0], 0, 59)
+        hours = self._parse_cron_field(fields[1], 0, 23)
+        dom = self._parse_cron_field(fields[2], 1, 31)
+        months = self._parse_cron_field(fields[3], 1, 12)
+        dow_raw = self._parse_cron_field(fields[4], 0, 7)
+        # Remap cron DOW (0 or 7 = Sunday) to Python weekday() (0=Mon..6=Sun)
+        dow = set()
+        dow_wild = dow_raw is None
+        if not dow_wild:
+            for d in dow_raw:  # type: ignore[union-attr]
+                if d in (0, 7):
+                    dow.add(6)
+                else:
+                    dow.add(d - 1)
+
+        # Start searching at next minute boundary
+        dt = now_utc.replace(second=0, microsecond=0) + timedelta(minutes=1)
+        attempts = 0
+        max_attempts = 366 * 24 * 60  # up to a year of minutes
+        while attempts < max_attempts:
+            attempts += 1
+            if months is not None and dt.month not in months:
+                dt += timedelta(minutes=1)
+                continue
+
+            minute_ok = (minutes is None) or (dt.minute in minutes)
+            hour_ok = (hours is None) or (dt.hour in hours)
+            dom_ok = (dom is None) or (dt.day in dom)
+            dow_ok = dow_wild or (dt.weekday() in dow)
+
+            # DOM and DOW combine as OR when both specified
+            day_ok = (dom is None and dow_wild) or (dom_ok or dow_ok)
+
+            if minute_ok and hour_ok and day_ok:
+                return dt
+
+            dt += timedelta(minutes=1)
+
+        # Fallback (should never happen): return next minute to avoid infinite loop
+        return now_utc + timedelta(minutes=1)
+
+    def _parse_cron_field(self, field: str, min_v: int, max_v: int) -> set[int] | None:
+        """Parse a cron field into a set of integers or None for wildcard (*)."""
+        field = field.strip()
+        if field == "*":
+            return None
+
+        result: set[int] = set()
+        parts = field.split(",")
+        for part in parts:
+            part = part.strip()
+            if "/" in part:
+                base, step_str = part.split("/", 1)
+                step = int(step_str)
+                if base == "*":
+                    start, end = min_v, max_v
+                elif "-" in base:
+                    a, b = base.split("-", 1)
+                    start, end = int(a), int(b)
+                else:
+                    # Single value with step → interpret as from that value to max
+                    start, end = int(base), max_v
+                for v in range(start, end + 1):
+                    if v < min_v or v > max_v:
+                        continue
+                    if (v - start) % step == 0:
+                        result.add(v)
+                continue
+
+            if "-" in part:
+                a, b = part.split("-", 1)
+                start, end = int(a), int(b)
+                for v in range(start, end + 1):
+                    if min_v <= v <= max_v:
+                        result.add(v)
+                continue
+
+            # Single value
+            v = int(part)
+            if min_v <= v <= max_v:
+                result.add(v)
+
+        return result
 
     async def on_shutdown(self, orchestrator: Flock) -> None:
         """Cancel all timer tasks during shutdown.

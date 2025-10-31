@@ -320,6 +320,11 @@ class Context(BaseModel):
             Timer-triggered agents always receive exactly one TimerTick artifact.
             If multiple artifacts are present, this is not a timer trigger.
         """
+        # Prefer injected timer metadata from Context.state (Option B)
+        meta = self.state.get("__timer__") if isinstance(self.state, dict) else None
+        if isinstance(meta, dict):
+            return "timer"
+
         if self.artifacts and len(self.artifacts) == 1:
             artifact = self.artifacts[0]
             # Check if artifact type is TimerTick
@@ -338,6 +343,14 @@ class Context(BaseModel):
             >>> if ctx.timer_iteration is not None:
             ...     print(f"Timer fired {ctx.timer_iteration + 1} times")
         """
+        # Prefer injected timer metadata
+        meta = self.state.get("__timer__") if isinstance(self.state, dict) else None
+        if isinstance(meta, dict) and self.trigger_type == "timer":
+            try:
+                return int(meta.get("iter")) if meta.get("iter") is not None else None
+            except Exception:
+                return None
+
         if self.trigger_type == "timer" and self.artifacts:
             # Extract iteration from TimerTick payload
             return self.artifacts[0].payload.get("iteration")
@@ -354,6 +367,22 @@ class Context(BaseModel):
             >>> if ctx.fire_time:
             ...     print(f"Timer fired at {ctx.fire_time}")
         """
+        # Prefer injected timer metadata
+        meta = self.state.get("__timer__") if isinstance(self.state, dict) else None
+        if isinstance(meta, dict) and self.trigger_type == "timer":
+            fire_time_data = meta.get("fire")
+            if fire_time_data:
+                if isinstance(fire_time_data, datetime):
+                    return fire_time_data
+                if isinstance(fire_time_data, str):
+                    from datetime import datetime as dt
+
+                    try:
+                        return dt.fromisoformat(fire_time_data)
+                    except Exception:
+                        return None
+            return fire_time_data
+
         if self.trigger_type == "timer" and self.artifacts:
             # Extract fire_time from TimerTick payload
             fire_time_data = self.artifacts[0].payload.get("fire_time")

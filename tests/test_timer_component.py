@@ -537,15 +537,45 @@ class TestWaitForNextFire:
         # Assert - Should return immediately (or very quickly) for past datetime
         assert elapsed < 0.1  # Should not sleep
 
-    @pytest.mark.asyncio
-    async def test_wait_for_next_fire_cron_raises_not_implemented(self):
-        """Test cron scheduling raises NotImplementedError."""
-        # Arrange
-        component = TimerComponent()
-        spec = ScheduleSpec(cron="0 * * * *")
+    def test_cron_next_fire_basic(self):
+        """Cron next-fire helper computes a reasonable next timestamp (UTC)."""
+        from datetime import UTC
 
-        # Act & Assert
-        with pytest.raises(
-            NotImplementedError, match="Cron scheduling not yet supported"
-        ):
-            await component._wait_for_next_fire(spec)
+        component = TimerComponent()
+        now = datetime.now(UTC)
+        # Next minute of current hour
+        next_min = (now.minute + 1) % 60
+        expr = f"{next_min} {now.hour} * * *"
+        next_fire = component._next_cron_fire(now, expr)
+
+        assert next_fire >= now
+        assert next_fire.minute == next_min
+        assert next_fire.hour in {now.hour, (now.hour + 1) % 24}
+
+    def test_cron_next_fire_range_list_step(self):
+        """Cron next-fire supports ranges, steps, and weekdays."""
+        from datetime import UTC
+
+        component = TimerComponent()
+        # Weekdays 1-5 (Mon-Fri), hours 9-17 step 2 → 9,11,13,15,17
+        expr = "0 9-17/2 * * 1-5"
+        # Choose a Sunday to force next weekday; if today is Sunday, fine; else use now
+        now = datetime.now(UTC)
+        next_fire = component._next_cron_fire(now, expr)
+        # Zero minute
+        assert next_fire.minute == 0
+        # Hour in 9,11,13,15,17
+        assert next_fire.hour in {9, 11, 13, 15, 17}
+        # Weekday Mon-Fri
+        assert next_fire.weekday() in {0, 1, 2, 3, 4}
+
+    def test_cron_every_five_minutes(self):
+        """Cron */5 * * * * schedules to the next 5-minute boundary."""
+        from datetime import UTC
+
+        component = TimerComponent()
+        now = datetime.now(UTC).replace(second=0, microsecond=0)
+        expr = "*/5 * * * *"
+        nf = component._next_cron_fire(now, expr)
+        assert nf.minute % 5 == 0
+        assert nf >= now + timedelta(minutes=1)

@@ -144,12 +144,34 @@ class ContextBuilder:
         # SECURITY: Context is now just data - engines can't query anything
         from flock.utils.runtime import Context
 
+        # Option B: Inject timer metadata into Context.state when triggered by TimerTick
+        # without exposing TimerTick as an input artifact to the engine.
+        timer_meta: dict[str, Any] | None = None
+        try:
+            for a in artifacts:
+                if a.type == "flock.models.system_artifacts.TimerTick":
+                    payload = a.payload or {}
+                    timer_meta = {
+                        "name": payload.get("timer_name"),
+                        "iter": payload.get("iteration"),
+                        "fire": payload.get("fire_time"),
+                    }
+                    break
+        except Exception:
+            # Defensive: never break context building due to malformed payloads
+            timer_meta = None
+
+        state: dict[str, Any] = {}
+        if timer_meta is not None:
+            state["__timer__"] = timer_meta
+
         ctx = Context(
             artifacts=context_artifacts,  # Pre-filtered conversation context
             agent_identity=agent.identity,
             task_id=str(uuid4()),
             correlation_id=resolved_correlation_id,
             is_batch=is_batch,
+            state=state,
         )
 
         # Log context creation for debugging

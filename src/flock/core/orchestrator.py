@@ -869,6 +869,14 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Register TimerComponent if needed
         if has_scheduled_agents and not has_timer_component:
+            # Validation: scheduled agents must declare publishes()
+            for agent in self.agents:
+                if hasattr(agent, "schedule_spec") and agent.schedule_spec:
+                    if not getattr(agent, "output_groups", []):
+                        raise ValueError(
+                            f"Scheduled agent '{agent.name}' must declare .publishes()"
+                        )
+
             timer_component = TimerComponent()
             self._components.append(timer_component)
             self._components.sort(key=lambda c: c.priority)

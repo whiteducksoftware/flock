@@ -148,7 +148,7 @@ class ScheduleSpec:
     max_repeats: int | None = None
 
     def __post_init__(self):
-        """Validate that exactly one trigger type is specified."""
+        """Validate schedule parameters."""
         trigger_count = sum([
             self.interval is not None,
             self.at is not None,
@@ -158,6 +158,12 @@ class ScheduleSpec:
             raise ValueError(
                 "Exactly one of 'interval', 'at', or 'cron' must be specified"
             )
+
+        # Positive value validations
+        if self.after is not None and self.after.total_seconds() < 0:
+            raise ValueError("after must be >= 0 seconds")
+        if self.max_repeats is not None and self.max_repeats <= 0:
+            raise ValueError("max_repeats must be > 0")
 
 
 class Subscription:

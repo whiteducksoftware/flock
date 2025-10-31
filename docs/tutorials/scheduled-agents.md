@@ -26,6 +26,10 @@ This tutorial teaches timer-based agent scheduling through **four progressive ex
 
 **Time:** ~30 minutes total
 
+> Notes
+> - Cron schedules are supported (UTC, 5 fields: `*`, lists, ranges, steps; Sunday 0 or 7).
+> - Datetime without `max_repeats` is implicitly one-time.
+
 ---
 
 ## Tutorial 1: Simple Periodic Health Monitor
