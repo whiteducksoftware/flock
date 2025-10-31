@@ -179,6 +179,7 @@ class ServerManager:
                 port=port,
                 plugins=plugins,
             )
+            return
 
         if not dashboard:
             await ServerManager._serve_standard(
@@ -187,6 +188,7 @@ class ServerManager:
                 port=port,
                 plugins=plugins,
             )
+            return
         # Dashboard mode with WebSocket and event collection
         await ServerManager._serve_dashboard(
             orchestrator=orchestrator,
@@ -195,6 +197,7 @@ class ServerManager:
             port=port,
             plugins=plugins,
         )
+        return
 
     @staticmethod
     async def _serve_custom(
@@ -284,8 +287,9 @@ class ServerManager:
                 artifacts_endpoints,
             ]
         )
-        for plugin in plugins:
-            service = service.add_component(plugin)
+        if plugins:
+            for plugin in plugins:
+                service = service.add_component(plugin)
         await service.run_async(
             host=host,
             port=port,
