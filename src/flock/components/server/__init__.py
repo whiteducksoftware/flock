@@ -37,6 +37,7 @@ from flock.components.server.health import (
     HealthComponentConfig,
     HealthResponse,
 )
+from flock.components.server.mcp import MCPServerComponent, MCPServerComponentConfig
 from flock.components.server.models import (
     Agent,
     AgentActivatedEvent,
@@ -133,6 +134,8 @@ __all__ = [
     "HealthAndMetricsComponent",
     "HealthComponentConfig",
     "HealthResponse",
+    "MCPServerComponent",
+    "MCPServerComponentConfig",
     "MessagePublishedEvent",
     "PaginationInfo",
     "ProducedArtifact",
