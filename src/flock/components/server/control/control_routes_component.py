@@ -1,6 +1,6 @@
 """ServerComponent that serves control routes."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -13,6 +13,12 @@ from flock.components.server.models.events import MessagePublishedEvent, Visibil
 from flock.components.server.models.graph import GraphRequest, GraphSnapshot
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
+
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+
+    from flock.core import Flock
 
 
 logger = get_logger(__name__)
@@ -48,10 +54,10 @@ class ControlRoutesComponent(ServerComponent):
         description="Optional GraphAssembler. Allows returning snapshots of the State-Graph. (used mainly for visualizing. If a headless API is desired, then this can be omitted.)",
     )
 
-    def configure(self, app, orchestrator):
-        return super().configure(app, orchestrator)
+    def configure(self, app: "FastAPI", orchestrator: "Flock"):
+        """NO-OP"""
 
-    def register_routes(self, app, orchestrator):
+    def register_routes(self, app: "FastAPI", orchestrator: "Flock"):
         """Register control API endponts for interacting with the orchestrator and (optionally) the dashboard.
 
         Args:
@@ -62,7 +68,10 @@ class ControlRoutesComponent(ServerComponent):
         """
 
         @app.get(
-            self._join_path(self.config.prefix, "artifact_types"), tags=self.config.tags
+            self._join_path(self.config.prefix, "artifact_types"),
+            tags=self.config.tags,
+            operation_id="default_control_get_artifact_types",
+            summary="Return all registered artifact types with their schemas",
         )
         async def get_artifact_types() -> dict[str, Any]:
             """Get all registered artifact types with their schemas.
@@ -89,7 +98,12 @@ class ControlRoutesComponent(ServerComponent):
                     logger.warning(f"Could not get schema for {type_name}: {ex!s}")
             return {"artifact_types": artifact_types}
 
-        @app.get(self._join_path(self.config.prefix, "agents"), tags=self.config.tags)
+        @app.get(
+            self._join_path(self.config.prefix, "agents"),
+            tags=self.config.tags,
+            operation_id="default_control_get_agents",
+            summary="Get all registered agents with logic operations state.",
+        )
         async def get_agents() -> dict[str, Any]:
             """Get all registered agents with logic operations state.
 
@@ -153,7 +167,12 @@ class ControlRoutesComponent(ServerComponent):
                 agents.append(agent_data)
             return {"agents": agents}
 
-        @app.get(self._join_path(self.config.prefix, "version"), tags=self.config.tags)
+        @app.get(
+            self._join_path(self.config.prefix, "version"),
+            tags=self.config.tags,
+            operation_id="default_control_get_version",
+            description="Get version information for the backend and dashboard.",
+        )
         async def get_version() -> dict[str, str]:
             """Get version information for the backend and dashboard.
 
@@ -175,13 +194,15 @@ class ControlRoutesComponent(ServerComponent):
         @app.post(
             self._join_path(self.config.prefix, "control/publish"),
             tags=self.config.tags,
+            operation_id="default_control_publish_artifact",
+            summary="Publish artifact with correlation tracking",
         )
         async def publish_artifact(body: dict[str, Any]) -> dict[str, str]:
             """Publish artifact with correlation tracking.
 
             Request body:
             {
-                "artifact_typ": "TypeName",
+                "artifact_type": "TypeName",
                 "content": {"field": "value", ...}
             }
             Returns:
@@ -252,7 +273,10 @@ class ControlRoutesComponent(ServerComponent):
                 raise HTTPException(status_code=500, detail=str(ex)) from ex
 
         @app.post(
-            self._join_path(self.config.prefix, "control/invoke"), tags=self.config.tags
+            self._join_path(self.config.prefix, "control/invoke"),
+            tags=self.config.tags,
+            operation_id="default_control_invoke_agent",
+            summary="Directly invoke a specific agent.",
         )
         async def invoke_agent(body: dict[str, Any]) -> dict[str, Any]:
             """Directly invoke a specific agent.

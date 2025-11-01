@@ -257,28 +257,28 @@ class HealthResponse(BaseModel):
 __all__ = [
     # Agent models
     "Agent",
-    "AgentSubscription",
+    # History
+    "AgentHistorySummary",
     "AgentListResponse",
+    # Agent run models
+    "AgentRunRequest",
+    "AgentRunResponse",
+    "AgentSubscription",
     # Artifact models
     "ArtifactBase",
-    "ArtifactWithConsumptions",
     "ArtifactListResponse",
     "ArtifactPublishRequest",
     "ArtifactPublishResponse",
     "ArtifactSummaryResponse",
-    "PaginationInfo",
-    "ConsumptionRecord",
-    # Agent run models
-    "AgentRunRequest",
-    "AgentRunResponse",
-    "ProducedArtifact",
+    "ArtifactTypeSchema",
     # Schema discovery
     "ArtifactTypesResponse",
-    "ArtifactTypeSchema",
-    # History
-    "AgentHistorySummary",
+    "ArtifactWithConsumptions",
+    "ConsumptionRecord",
     # Correlation status
     "CorrelationStatusResponse",
     # Health
     "HealthResponse",
+    "PaginationInfo",
+    "ProducedArtifact",
 ]

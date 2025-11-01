@@ -1,7 +1,7 @@
 """ServerComponent used to interact with artifacts on the Blackboard."""
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from fastapi import HTTPException, Query
@@ -15,6 +15,12 @@ from flock.components.server.artifacts.models import (
 )
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.core.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
+
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+
+    from flock.core import Flock
 
 
 class ArtifactComponentConfig(ServerComponentConfig):
@@ -105,15 +111,17 @@ class ArtifactsComponent(ServerComponent):
             end=self._parse_datetime(end, "to"),
         )
 
-    def configure(self, app, orchestrator):
+    def configure(self, app: "FastAPI", orchestrator: "Flock"):
         # No - op
         pass
 
-    def register_routes(self, app, orchestrator):
+    def register_routes(self, app: "FastAPI", orchestrator: "Flock"):
         @app.post(
             self._join_path(self.config.prefix, "artifacts"),
             response_model=ArtifactPublishResponse,
             tags=self.config.tags,
+            operation_id="default_publish_artifact",
+            summary="Publish an artifact to the blackboard",
         )
         async def publish_artifact(
             body: ArtifactPublishRequest,
@@ -128,6 +136,8 @@ class ArtifactsComponent(ServerComponent):
             self._join_path(self.config.prefix, "artifacts"),
             response_model=ArtifactListResponse,
             tags=self.config.tags,
+            operation_id="default_list_artifacts",
+            summary="List all artifacts with a given filter.",
         )
         async def list_artifacts(
             type_names: list[str] | None = Query(None, alias="type"),
@@ -175,6 +185,8 @@ class ArtifactsComponent(ServerComponent):
             self._join_path(self.config.prefix, "artifacts/summary"),
             response_model=ArtifactSummaryResponse,
             tags=self.config.tags,
+            operation_id="default_summarize_artifacts",
+            summary="Summarize available artifacts",
         )
         async def summarize_artifacts(
             type_names: list[str] | None = Query(None, alias="type"),
@@ -200,6 +212,8 @@ class ArtifactsComponent(ServerComponent):
         @app.get(
             self._join_path(self.config.prefix, "artifacts/{artifact_id}"),
             tags=self.config.tags,
+            operation_id="default_get_artifact",
+            description="Get a specific artifact by its ID",
         )
         async def get_artifact(artifact_id: UUID) -> dict[str, Any]:
             artifact = await orchestrator.store.get(artifact_id)

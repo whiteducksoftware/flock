@@ -6,6 +6,73 @@ from pydantic import BaseModel, Field
 
 
 # ============================================================================
+# MCP Models
+# ============================================================================
+class AgentInformation(BaseModel):
+    """Contains the name of an Agent as well as a short description of the Agent."""
+
+    name: str = Field(..., description="Name of the Agent")
+    description: str = Field(..., description="Description of the Agent.")
+
+
+class AgentList(BaseModel):
+    """Contains a list of all available Agents."""
+
+    available_agents: list[AgentInformation] = Field(
+        ..., description="List of all available Agents."
+    )
+
+
+class AgentInput(BaseModel):
+    """Type annotaded input for Agents.
+
+    For each input an Agent can have,
+    this describes the type and the payload.
+    """
+
+    type: str = Field(description="Input type name")
+    payload: dict[str, Any] = Field(
+        default_factory=dict, description="Input payload data"
+    )
+
+
+class AgentInvokation(BaseModel):
+    """Arguments for invoking a specific Agent."""
+
+    name: str = Field(default="", description="Name of the Agent to invoke.")
+
+    inputs: list[AgentInput] = Field(
+        default_factory=list,
+        description="List of inputs for the Agent",
+    )
+
+
+class ArtifactResult(BaseModel):
+    """Artifact produced by an Agent."""
+
+    id: str = Field(description="Artifact UUID")
+    type: str = Field(description="Artifact type name")
+    payload: dict[str, Any] = Field(description="Artifact payload data")
+    produced_by: str = Field(
+        description="Name of the Agent that produced this artifact"
+    )
+
+
+class AgentInvokationResult(BaseModel):
+    """Result of a direct invokation of an Agent."""
+
+    artifacts: list[ArtifactResult] = Field(
+        default_factory=list, description="Artifacts produced by the Agent."
+    )
+
+
+class AgentInvokationError(BaseModel):
+    """Error that resulted from an erronious invokation of an Agent."""
+
+    message: str = Field(description="Message with the Error and Reason for failure")
+
+
+# ============================================================================
 # Agent Run Models
 # ============================================================================
 
@@ -70,7 +137,7 @@ class Agent(BaseModel):
 
 
 class AgentListResponse(BaseModel):
-    """Response for GET /api/v1/agents."""
+    """Contains a list of all available Agents."""
 
     agents: list[Agent] = Field(description="List of all registered agents")
 
@@ -104,7 +171,7 @@ class CorrelationStatusResponse(BaseModel):
 
 __all__ = [
     "Agent",
-    "AgentListResponse",
+    "AgentList",
     "AgentRunInput",
     "AgentRunRequest",
     "AgentRunResponse",

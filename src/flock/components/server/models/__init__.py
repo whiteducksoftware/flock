@@ -30,7 +30,7 @@ from flock.components.server.models.graph import (
 )
 from flock.components.server.models.models import (
     Agent,
-    AgentListResponse,
+    AgentList,
     AgentRunInput,
     AgentRunRequest,
     AgentRunResponse,
@@ -47,7 +47,7 @@ __all__ = [
     "AgentActivatedEvent",
     "AgentCompletedEvent",
     "AgentErrorEvent",
-    "AgentListResponse",
+    "AgentList",
     "AgentRunInput",
     "AgentRunRequest",
     "AgentRunResponse",

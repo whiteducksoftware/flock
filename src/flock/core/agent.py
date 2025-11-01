@@ -164,6 +164,7 @@ class Agent(metaclass=AutoTracedMeta):
         self.prevent_self_trigger: bool = True  # T065: Prevent infinite feedback loops
         # Phase 3: Per-agent context provider (security fix)
         self.context_provider: Any = None
+        self.expose_mcp: bool = False
 
         # Phase 4: Initialize extracted modules
         self._output_processor = OutputProcessor(name)

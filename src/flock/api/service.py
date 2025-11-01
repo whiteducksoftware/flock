@@ -9,7 +9,7 @@ from flock.components.server.artifacts.models import (
 from flock.components.server.health.models import HealthResponse
 from flock.components.server.models.models import (
     Agent,
-    AgentListResponse,
+    AgentList,
     AgentRunRequest,
     AgentRunResponse,
     AgentSubscription,
@@ -251,11 +251,9 @@ class BlackboardHTTPService:
                 ]
             )
 
-        @app.get(
-            "/api/v1/agents", response_model=AgentListResponse, tags=["Public API"]
-        )
-        async def list_agents() -> AgentListResponse:
-            return AgentListResponse(
+        @app.get("/api/v1/agents", response_model=AgentList, tags=["Public API"])
+        async def list_agents() -> AgentList:
+            return AgentList(
                 agents=[
                     Agent(
                         name=agent.name,

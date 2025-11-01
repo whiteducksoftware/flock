@@ -1,15 +1,16 @@
 """ServerComponent that provides Endpoints for interacting with Agents."""
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import Field
 
+from flock.api.models import AgentListResponse
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.components.server.models.models import (
     Agent,
-    AgentListResponse,
+    AgentList,
     AgentRunRequest,
     AgentRunResponse,
     AgentSubscription,
@@ -19,6 +20,12 @@ from flock.components.server.models.models import (
 from flock.core.store import FilterConfig
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
+
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+
+    from flock.core import Flock
 
 
 logger = get_logger(__name__)
@@ -81,17 +88,18 @@ class AgentsServerComponent(ServerComponent):
             end=self._parse_datetime(end, "to"),
         )
 
-    def configure(self, app: FastAPI, orchestrator):
+    def configure(self, app: "FastAPI", orchestrator: "Flock"):
         return super().configure(app, orchestrator)
 
-    def register_routes(self, app, orchestrator):
+    def register_routes(self, app: "FastAPI", orchestrator: "Flock"):
         """Register the routes this component provides."""
 
-        # TODO: relevant for MCP-component in the future
         @app.post(
             self._join_path(self.config.prefix, "agents/{name}/run"),
             tags=self.config.tags,
             response_model=AgentRunResponse,
+            operation_id="default_run_agent",
+            summary="Run an Agent directly. Returns the output of the agent.",
         )
         async def run_agent(name: str, body: AgentRunRequest) -> AgentRunRequest:
             """Invoke an agent directly."""
@@ -128,8 +136,10 @@ class AgentsServerComponent(ServerComponent):
 
         @app.get(
             self._join_path(self.config.prefix, "agents"),
-            response_model=AgentListResponse,
+            response_model=AgentList,
             tags=self.config.tags,
+            operation_id="default_list_agents",
+            summary="List all available agents",
         )
         async def list_agents() -> AgentListResponse:
             """List available Agents."""
@@ -154,6 +164,8 @@ class AgentsServerComponent(ServerComponent):
         @app.get(
             self._join_path(self.config.prefix, "agents/{agent_id}/history-summary"),
             tags=self.config.tags,
+            operation_id="default_agent_history",
+            summary="Get a summary of the run history of an agent.",
         )
         async def agent_histroy(
             agent_id: str,
@@ -184,11 +196,12 @@ class AgentsServerComponent(ServerComponent):
                 "summary": summary,
             }
 
-        # TODO: relevant for MCP-Component in the future
         @app.get(
             self._join_path(self.config.prefix, "correlations/{correlation_id}/status"),
             response_model=CorrelationStatusResponse,
             tags=self.config.tags,
+            operation_id="default_get_correlation_status",
+            summary="Get the status of a workflow by correlation ID.",
         )
         async def get_correlation_status(
             correlation_id: str,

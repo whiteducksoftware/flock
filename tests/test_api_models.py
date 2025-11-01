@@ -34,7 +34,7 @@ from flock.components.server.health.health_component import (
 from flock.components.server.health.models import HealthResponse
 from flock.components.server.models.models import (
     Agent,
-    AgentListResponse,
+    AgentList,
     AgentSubscription,
 )
 from flock.examples import Idea, Movie
@@ -102,7 +102,7 @@ class TestAgentModels:
 
     def test_agent_list_response_empty(self):
         """AgentListResponse should handle empty agent list."""
-        response = AgentListResponse(agents=[])
+        response = AgentList(agents=[])
         assert response.agents == []
 
     def test_agent_subscription_model(self):
@@ -212,7 +212,7 @@ class TestEndToEndAPIResponses:
         assert response.status_code == 200
 
         # Validate against Pydantic model
-        data = AgentListResponse(**response.json())
+        data = AgentList(**response.json())
         assert len(data.agents) == 1
         assert data.agents[0].name == "test_agent"
 

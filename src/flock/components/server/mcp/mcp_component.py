@@ -7,6 +7,10 @@ from fastapi_mcp import AuthConfig, FastApiMCP
 from pydantic import Field
 
 from flock.components.server.base import ServerComponent, ServerComponentConfig
+from flock.components.server.mcp.default_mcp_endpoints import (
+    register_agent_invokation_route,
+    register_list_available_agent_route,
+)
 from flock.logging.logging import get_logger
 
 
@@ -102,13 +106,13 @@ class MCPServerComponentConfig(ServerComponentConfig):
             backwards compatibility with older MCP implementations.
         """,
     )
-    register_default_routes: bool = Field(
+    register_default_tools: bool = Field(
         default=True,
         description="Register the default routes of the Flock-MCP Server.",
     )
-    tags: list[str] = Field(
-        default=["MCP", "Public API"],
-        description="OpenAPI Tags for ordering the endpoints.",
+    exposed_agents: list[str] = Field(
+        default_factory=list,
+        description="List of agents that should be exposed via MCP. If ['*'] is being passed, then all agents will be exposed.",
     )
 
 
@@ -133,9 +137,27 @@ class MCPServerComponent(ServerComponent):
     )
 
     def configure(self, app: "FastAPI", orchestrator: "Flock"):
+        default_operations: list[str] = []
+
         if not self.is_mounted and self.mcp_app is None:
             logger.info("MCP-Server has not been instantiated yet.")
             # the mcp-server has not yet been mounted to the fastapi app
+            if self.config.register_default_tools:
+                default_operations = [
+                    "list_available_agents",  # listing all available agents
+                    "invoke_agent",  # invoke an agent directly
+                    "get_workflow_status",  # Get the status of a workflow by correlation id
+                    "publish_artifact",  # Publish a task to the Blackboard
+                    "list_artifacts",  # List all artifacts with a given correlation id
+                    "summarize_artifacts",  # summarize all artifacts for a given correlation id
+                    "get_artifact",  # Get a specific artifact by correlation id
+                    "list_artifact_type_names",  # Get all registered artifact types with their schemas
+                    "get_artifact_schema",  # Get specific schema for an artifact
+                ]
+            if self.config.included_operations is not None and isinstance(
+                self.config.included_operations, list
+            ):
+                default_operations.extend(self.config.included_operations)
             self.mcp_app = FastApiMCP(
                 fastapi=app,
                 name=self.config.mcp_server_name,
@@ -154,18 +176,35 @@ class MCPServerComponent(ServerComponent):
     def register_routes(self, app: "FastAPI", orchestrator: "Flock"):
         logger.info("Registering routes.")
         # check if we should register the default routes first, and register them
-        if self.config.register_default_routes:
-
-            @app.post(
-                self._join_path(
-                    self.config.prefix,
-                    "invoke-agent",
-                ),
+        if self.config.register_default_tools:
+            register_agent_invokation_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self.config.prefix, "invoke_agent"),
                 tags=self.config.tags,
+                logger=logger,
                 operation_id="invoke_agent",
             )
-            async def invoke_agent() -> None:
-                pass
+            agents_to_expose = []
+            if (
+                self.config.exposed_agents is not None
+                and len(self.config.exposed_agents) >= 1
+            ):
+                agents_to_expose = (
+                    [agent.name for agent in orchestrator.agents]
+                    if self.config.exposed_agents[0] == "*"
+                    else self.config.exposed_agents
+                )
+
+            register_list_available_agent_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self),
+                tags=self.config.tags,
+                logger=logger,
+                operation_id="list_available_agents",
+                exposed_agents=agents_to_expose,
+            )
 
         # At the end, register the mcp_app
         if not self.is_mounted and self.mcp_app is not None:
@@ -183,6 +222,7 @@ class MCPServerComponent(ServerComponent):
                 raise ValueError(
                     f"Invalid transport option passed: {self.config.transport}. Valid values are: 'http', 'legacy_sse'"
                 )
+            logger.info("MCP-Server mounted")
 
     async def on_startup_async(self, orchestrator: "Flock"):
         if self.mcp_app is not None:
