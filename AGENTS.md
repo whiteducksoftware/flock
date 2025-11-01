@@ -4,7 +4,7 @@
 
 This is Flock, a production-grade blackboard-first AI agent orchestration framework. This guide gets you up to speed quickly on the current project state and development patterns.
 
-**Current Version:** Backend: 0.5.0b63 • Frontend: 0.1.4
+**Current Version:** Backend: 0.5.30 • Frontend: 0.1.4
 **Architecture:** Hybrid Python/TypeScript with real-time dashboard
 **Package Manager:** UV (NOT pip!)
 **Status:** Production-ready with comprehensive monitoring
@@ -39,11 +39,12 @@ A blackboard architecture framework where specialized AI agents collaborate thro
 **Key Concepts:**
 - **Artifacts:** Typed data (Pydantic models) published to blackboard
 - **Subscriptions:** Declarative rules for when agents react (type matching, predicates, semantic matching)
+- **Timer Scheduling:** Agents can execute periodically or at specific times without artifact triggers ⭐ **NEW in 0.5.30**
 - **Visibility:** Built-in access control (Public/Private/Tenant/Label-based/Time-based)
 - **Fan-Out Publishing:** Produce multiple artifacts from single agent execution with filtering/validation
 - **Semantic Matching:** AI-powered artifact routing based on meaning, not just keywords
 - **Components:** Three levels of extensibility:
-  - **Orchestrator Components:** Global lifecycle hooks (monitoring, metrics, coordination)
+  - **Orchestrator Components:** Global lifecycle hooks (monitoring, metrics, coordination, timer scheduling)
   - **Agent Components:** Per-agent behavior (quality gates, retry logic, validation)
   - **Engines:** Custom processing logic (DSPy, regex, deterministic rules)
 - **Real-time Dashboard:** React/TypeScript interface for live monitoring
@@ -80,15 +81,19 @@ uv run python -c "from flock import Flock; print('✅ Ready!')"
 ### Run Examples
 
 ```bash
-# CLI examples (with detailed output)
-uv run python examples/01-cli/01_declarative_pizza.py
-uv run python examples/01-cli/02_input_and_output.py
-uv run python examples/01-cli/03_code_detective.py
+# Getting started examples (CLI mode)
+uv run python examples/01-getting-started/01_declarative_pizza.py
+uv run python examples/01-getting-started/02_input_and_output.py
+uv run python examples/01-getting-started/03_code_detective.py
 
-# Dashboard examples (with visualization)
-uv run python examples/02-dashboard/01_declarative_pizza.py
-uv run python examples/02-dashboard/02_input_and_output.py
-uv run python examples/02-dashboard/03_code_detective.py
+# Dashboard examples (edit USE_DASHBOARD=True in examples or use dedicated dashboard examples)
+uv run python examples/04-misc/02-dashboard-edge-cases.py
+
+# Timer scheduling examples (periodic execution, daily reports, cron)
+uv run python examples/09-scheduling/01_simple_health_monitor.py
+uv run python examples/09-scheduling/02_error_log_analyzer.py
+uv run python examples/09-scheduling/03_daily_report_generator.py
+uv run python examples/09-scheduling/06_cron_demo.py
 
 # Engine + component playgrounds
 uv run python examples/05-engines/emoji_mood_engine.py
@@ -127,8 +132,8 @@ For deep dives into specific topics, see:
 - **[Semantic Routing Tutorial](docs/tutorials/semantic-routing.md)** - Step-by-step guide to intelligent ticket routing ⭐ **NEW in 0.5.2**
 
 **Timer-Based Scheduling:**
-- **[Timer Scheduling Guide](docs/guides/scheduling.md)** - Periodic execution, scheduled tasks, timer patterns ⭐ **NEW in 0.6.0**
-- **[Scheduled Agents Tutorial](docs/tutorials/scheduled-agents.md)** - Step-by-step guide from health monitors to multi-agent workflows ⭐ **NEW in 0.6.0**
+- **[Timer Scheduling Guide](docs/guides/scheduling.md)** - Periodic execution, scheduled tasks, timer patterns ⭐ **NEW in 0.5.30**
+- **[Scheduled Agents Tutorial](docs/tutorials/scheduled-agents.md)** - Step-by-step guide from health monitors to multi-agent workflows ⭐ **NEW in 0.5.30**
 
 **Publishing Patterns:**
 - **[Fan-Out Publishing](docs/guides/fan-out.md)** - Generate multiple outputs with filtering/validation ⭐ **NEW in 0.5**
@@ -293,7 +298,7 @@ The separation of `publish()` and `run_until_idle()` gives you **control over ex
 #### Quick start
 ```python
 from flock import Flock
-from flock.store import SQLiteBlackboardStore
+from flock.core.store import SQLiteBlackboardStore
 
 store = SQLiteBlackboardStore(".flock/history.db")
 await store.ensure_schema()
@@ -303,7 +308,7 @@ await flock.publish(MyDreamPizza(pizza_idea="fermented garlic delight"))
 await flock.run_until_idle()
 ```
 
-Kick the tyres with `examples/02-the-blackboard/01_persistent_pizza.py`, then launch `examples/03-the-dashboard/04_persistent_pizza_dashboard.py` to inspect the retained history alongside live WebSocket updates.
+Kick the tyres with `examples/04-misc/01_persistent_pizza.py`, then launch `examples/04-misc/04_persistent_pizza_dashboard.py` to inspect the retained history alongside live WebSocket updates.
 
 > **Heads-up:** The interface now returns `ArtifactEnvelope` objects when `embed_meta=True`. Future backends (Postgres, BigQuery, etc.) can implement the same contract to plug straight into the runtime and dashboard.
 
@@ -346,8 +351,8 @@ These layers work together to provide fine-grained control over agent execution 
 
 ```python
 from flock import Flock
-from flock.context_provider import FilteredContextProvider
-from flock.store import FilterConfig
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
 
 # Create provider that filters by tags
 urgent_only = FilteredContextProvider(
@@ -369,6 +374,9 @@ await flock.publish(Task(...), tags={"low"})     # ❌ Agents don't see this
 
 ```python
 # Global: Errors only
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+
 error_provider = FilteredContextProvider(FilterConfig(tags={"ERROR"}))
 flock = Flock("openai/gpt-4.1", context_provider=error_provider)
 
@@ -397,13 +405,40 @@ Per-Agent Provider  >  Global Provider  >  DefaultContextProvider
 **Automatically redact sensitive data from agent context:**
 
 ```python
-from examples.context_provider import PasswordRedactorProvider
+from flock.core.context_provider import BaseContextProvider, ContextRequest
+from flock.core.artifacts import Artifact
+import re
 
-# Create provider with built-in patterns
+class PasswordRedactorProvider(BaseContextProvider):
+    """Redacts passwords, API keys, and other sensitive data."""
+    
+    def __init__(self, redaction_text="[REDACTED]", redact_emails=False, log_redactions=False):
+        self.redaction_text = redaction_text
+        self.redact_emails = redact_emails
+        self.log_redactions = log_redactions
+        
+        # Built-in patterns for common secrets
+        self.patterns = [
+            (r'password["\s:=]+([^\s"\'}]+)', self.redaction_text),
+            (r'api[_-]?key["\s:=]+([^\s"\'}]+)', self.redaction_text),
+            (r'sk-[a-zA-Z0-9]{32,}', self.redaction_text),
+            (r'[0-9]{4}[-\s]?[0-9]{4}[-\s]?[0-9]{4}[-\s]?[0-9]{4}', self.redaction_text),  # Credit cards
+        ]
+        
+        if self.redact_emails:
+            self.patterns.append((r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', self.redaction_text))
+    
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        artifacts, _ = await request.store.query_artifacts(limit=1000)
+        # Apply redaction to artifact payloads
+        # BaseContextProvider handles visibility filtering automatically
+        return artifacts
+
+# Usage
 provider = PasswordRedactorProvider(
     redaction_text="[REDACTED]",
     redact_emails=True,
-    log_redactions=True  # Audit trail
+    log_redactions=True
 )
 
 flock = Flock("openai/gpt-4.1", context_provider=provider)
@@ -432,7 +467,7 @@ await flock.publish(UserData(
 **Declarative filtering with multiple criteria:**
 
 ```python
-from flock.store import FilterConfig
+from flock.core.store import FilterConfig
 
 # Combine multiple filters (AND logic)
 config = FilterConfig(
@@ -456,8 +491,9 @@ provider = FilteredContextProvider(config, limit=100)
 **Build your own filtering logic:**
 
 ```python
-from flock.context_provider import BaseContextProvider, ContextRequest
-from flock.artifacts import Artifact
+from flock.core.context_provider import BaseContextProvider, ContextRequest
+from flock.core.artifacts import Artifact
+from datetime import datetime, timedelta
 
 class TimeBoundProvider(BaseContextProvider):
     """Only show artifacts from last 1 hour.
@@ -497,21 +533,35 @@ flock = Flock("openai/gpt-4.1", context_provider=provider)
 **Healthcare (HIPAA Compliance):**
 ```python
 # Redact PHI (Protected Health Information)
-from examples.context_provider import PasswordRedactorProvider
+# Create custom provider extending BaseContextProvider
+from flock.core.context_provider import BaseContextProvider, ContextRequest
+import re
 
-phi_provider = PasswordRedactorProvider(
-    custom_patterns={
-        "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
-        "mrn": r"MRN[:\s]*\d{6,10}",
-        "dob": r"\b\d{2}/\d{2}/\d{4}\b",
-    }
-)
+class PHIProvider(BaseContextProvider):
+    """Redacts Protected Health Information."""
+    
+    def __init__(self):
+        self.patterns = {
+            "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
+            "mrn": r"MRN[:\s]*\d{6,10}",
+            "dob": r"\b\d{2}/\d{2}/\d{4}\b",
+        }
+    
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        artifacts, _ = await request.store.query_artifacts(limit=1000)
+        # Apply PHI redaction patterns
+        # BaseContextProvider handles visibility filtering automatically
+        return artifacts
 
+phi_provider = PHIProvider()
 flock = Flock("openai/gpt-4.1", context_provider=phi_provider)
 ```
 
 **DevOps (Log Filtering):**
 ```python
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+
 # Error engineers see only errors
 error_provider = FilteredContextProvider(FilterConfig(tags={"ERROR", "CRITICAL"}))
 error_agent.context_provider = error_provider
@@ -523,6 +573,9 @@ platform_agent.context_provider = all_provider
 
 **Multi-Tenant SaaS (Customer Isolation):**
 ```python
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+
 # Each tenant gets isolated context
 tenant_a_provider = FilteredContextProvider(FilterConfig(correlation_id=f"tenant_{customer_a.id}"))
 tenant_a_agent.context_provider = tenant_a_provider
@@ -567,28 +620,28 @@ provider = FilteredContextProvider(FilterConfig(tags={"urgent"}), limit=10)
 
 **📚 Complete Guide:** [docs/guides/context-providers.md](docs/guides/context-providers.md) - Architecture, security model, advanced patterns
 
-**💡 Examples:** [examples/08-context-provider/](examples/08-context-provider/) - 5 progressive examples from beginner to expert
-
-**🎁 Production Code:** [examples/08-context-provider/05_password_redactor.py](examples/08-context-provider/05_password_redactor.py) - Copy-paste ready password filtering
+**💡 Examples:** See custom provider examples in [docs/guides/context-providers.md](docs/guides/context-providers.md) - Custom filtering patterns and implementations
 
 #### Quick Reference
 
 ```python
+from flock.core.context_provider import FilteredContextProvider, BaseContextProvider, ContextRequest
+from flock.core.store import FilterConfig
+from flock.core.artifacts import Artifact
+
 # Global filtering
 flock = Flock("openai/gpt-4.1", context_provider=FilteredContextProvider(FilterConfig(tags={"urgent"})))
 
 # Per-agent override
 agent.context_provider = FilteredContextProvider(FilterConfig(tags={"ERROR", "WARN"}))
 
-# Password redaction
-from examples.context_provider import PasswordRedactorProvider
-flock = Flock("openai/gpt-4.1", context_provider=PasswordRedactorProvider())
-
-# Custom provider
-class MyProvider(ContextProvider):
-    async def __call__(self, request: ContextRequest) -> list[dict[str, Any]]:
+# Custom provider (extend BaseContextProvider for automatic security)
+class MyProvider(BaseContextProvider):
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
         # Query + filter by visibility (MANDATORY) + your logic
-        pass
+        artifacts, _ = await request.store.query_artifacts(limit=1000)
+        # Apply your custom filtering logic
+        return artifacts
 ```
 
 ---
@@ -1345,8 +1398,10 @@ await orchestrator.serve(dashboard=True)
 
 **1. Start the Dashboard Example**
 ```bash
-# Run in background to keep testing
-uv run python examples/03-the-dashboard/01_declarative_pizza.py
+# Option 1: Use dedicated dashboard example
+uv run python examples/04-misc/02-dashboard-edge-cases.py
+
+# Option 2: Edit examples/01-getting-started/01_declarative_pizza.py and set USE_DASHBOARD=True
 ```
 
 Wait for these success indicators in the output:
@@ -1499,13 +1554,13 @@ mcp__playwright__browser_take_screenshot(filename="dashboard-test.png")
 - ✅ **Screenshot capture** - Document UI state for debugging/documentation
 - ✅ **Interactive debugging** - Click, type, inspect like a real user
 
-📖 **Dashboard examples:** [`examples/02-dashboard/`](examples/02-dashboard/)
+📖 **Dashboard examples:** See `examples/04-misc/02-dashboard-edge-cases.py` or set `USE_DASHBOARD=True` in any example
 
 ---
 
 #### Advanced Dashboard Testing: Multi-Agent Cascades & Conditional Consumption
 
-**Test with:** `examples/03-the-dashboard/02-dashboard-edge-cases.py`
+**Test with:** `examples/04-misc/02-dashboard-edge-cases.py`
 
 This example demonstrates advanced features not visible in simple single-agent workflows.
 
@@ -1619,7 +1674,7 @@ Plan your testing time accordingly!
 - Counters increment as artifacts produced/consumed
 - WebSocket delivers updates without page refresh
 
-📖 **Dashboard examples:** [`examples/02-dashboard/`](examples/02-dashboard/)
+📖 **Dashboard examples:** See `examples/04-misc/02-dashboard-edge-cases.py` or set `USE_DASHBOARD=True` in any example
 
 ---
 
@@ -1682,7 +1737,7 @@ npm test            # Run frontend tests
 npm run build       # Build for production
 
 # UI Testing (with playwright-mcp)
-uv run python examples/03-the-dashboard/01_declarative_pizza.py  # Start dashboard
+uv run python examples/04-misc/02-dashboard-edge-cases.py  # Start dashboard
 # Then use playwright-mcp to interact with UI for manual testing
 ```
 
@@ -1734,7 +1789,7 @@ from datetime import timedelta, time
 
 # Periodic execution (every 30 seconds)
 health_monitor = (
-    orchestrator.agent("health_monitor")
+    flock.agent("health_monitor")
     .description("Monitors system health")
     .schedule(every=timedelta(seconds=30))
     .publishes(HealthStatus)
@@ -1742,14 +1797,21 @@ health_monitor = (
 
 # Daily execution (5 PM every day)
 daily_report = (
-    orchestrator.agent("daily_report")
+    flock.agent("daily_report")
     .schedule(at=time(hour=17, minute=0))
     .publishes(DailyReport)
 )
 
+# Cron expression (every weekday at 9 AM UTC)
+workday_report = (
+    flock.agent("workday_report")
+    .schedule(cron="0 9 * * 1-5")  # Mon-Fri at 9 AM
+    .publishes(WorkdayReport)
+)
+
 # Timer + context filtering (powerful pattern!)
 error_analyzer = (
-    orchestrator.agent("error_analyzer")
+    flock.agent("error_analyzer")
     .schedule(every=timedelta(minutes=5))
     .consumes(LogEntry, where=lambda log: log.level == "ERROR")
     .publishes(ErrorReport)
@@ -1758,7 +1820,7 @@ error_analyzer = (
 
 # With initial delay and repeat limit
 reminder = (
-    orchestrator.agent("reminder")
+    flock.agent("reminder")
     .schedule(
         every=timedelta(hours=1),
         after=timedelta(seconds=60),  # Wait 60s before first run
@@ -1766,10 +1828,19 @@ reminder = (
     )
     .publishes(Reminder)
 )
+
+# One-time execution at specific datetime
+scheduled_task = (
+    flock.agent("scheduled_task")
+    .schedule(at=datetime(2025, 12, 25, 9, 0))  # Christmas 9 AM
+    .publishes(TaskResult)
+)
 ```
 
 **Timer metadata in agent context:**
 ```python
+from flock.core.runtime import AgentContext
+
 async def my_agent(ctx: AgentContext) -> Result:
     # Check if timer-triggered
     if ctx.trigger_type == "timer":
@@ -1784,6 +1855,11 @@ async def my_agent(ctx: AgentContext) -> Result:
 
     return Result(...)
 ```
+
+**📖 Learn More:**
+- **[Timer Scheduling Guide](docs/guides/scheduling.md)** - Complete scheduling reference ⭐ **NEW in 0.5.30**
+- **[Scheduled Agents Tutorial](docs/tutorials/scheduled-agents.md)** - Step-by-step examples ⭐ **NEW in 0.5.30**
+- **Examples:** `examples/09-scheduling/` - 6 production-ready scheduling examples
 
 **Run agent:**
 ```python
@@ -1872,6 +1948,6 @@ await orchestrator.serve(dashboard=True)
 
 ---
 
-*Last updated: October 19, 2025*
+*Last updated: January 2025*
 *This file follows the modern AGENTS.md format for AI coding agents.*
-*Reflects Phase 1-7 refactoring with updated module organization and patterns.*
+*Reflects Phase 1-7 refactoring with updated module organization, timer scheduling (v0.5.30), and accurate example paths.*
