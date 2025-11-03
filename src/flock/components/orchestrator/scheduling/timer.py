@@ -7,6 +7,7 @@ Creates background tasks that will publish TimerTick artifacts at configured int
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,18 @@ from flock.models.system_artifacts import TimerTick
 if TYPE_CHECKING:
     from flock.core import Flock
     from flock.core.subscription import ScheduleSpec
+
+
+@dataclass
+class TimerState:
+    """Timer state for a scheduled agent."""
+
+    iteration: int = 0
+    last_fire_time: datetime | None = None
+    next_fire_time: datetime | None = None
+    is_active: bool = True
+    is_completed: bool = False
+    is_stopped: bool = False
 
 
 class TimerComponent(OrchestratorComponent):
@@ -54,6 +67,7 @@ class TimerComponent(OrchestratorComponent):
         """
         super().__init__(**kwargs)
         self._timer_tasks: dict[str, asyncio.Task] = {}
+        self._timer_states: dict[str, TimerState] = {}
 
     async def on_initialize(self, orchestrator: Flock) -> None:
         """Start timer tasks for all scheduled agents.
@@ -72,6 +86,12 @@ class TimerComponent(OrchestratorComponent):
         for agent in orchestrator.agents:
             # Check if agent has schedule_spec attribute and it's not None
             if hasattr(agent, "schedule_spec") and agent.schedule_spec:
+                # Initialize timer state
+                self._timer_states[agent.name] = TimerState()
+                # Calculate initial next fire time
+                self._timer_states[agent.name].next_fire_time = self._calculate_next_fire_time(
+                    agent.schedule_spec
+                )
                 # Create background task for this scheduled agent
                 task = asyncio.create_task(
                     self._timer_loop(orchestrator, agent.name, agent.schedule_spec)
@@ -98,6 +118,16 @@ class TimerComponent(OrchestratorComponent):
         Note:
             Implementation of wait-for-next-fire logic is deferred to Task 2.3
         """
+        # Effective max repeats: implicit one-time for datetime schedules
+        effective_max = (
+            1
+            if (hasattr(spec, "at") and isinstance(spec.at, datetime) and spec.max_repeats is None)
+            else spec.max_repeats
+        )
+        is_one_time = (
+            hasattr(spec, "at") and isinstance(spec.at, datetime) and spec.max_repeats is None
+        )
+
         try:
             # Initial delay
             if spec.after:
@@ -105,20 +135,24 @@ class TimerComponent(OrchestratorComponent):
 
             iteration = 0
             while True:
-                # Effective max repeats: implicit one-time for datetime schedules
-                effective_max = (
-                    1
-                    if (hasattr(spec, "at") and isinstance(spec.at, datetime) and spec.max_repeats is None)
-                    else spec.max_repeats
-                )
                 # Check max_repeats
                 if effective_max is not None and iteration >= effective_max:
+                    if agent_name in self._timer_states:
+                        self._timer_states[agent_name].is_stopped = True
+                        self._timer_states[agent_name].is_active = False
+                        self._timer_states[agent_name].next_fire_time = None
                     break
+
+                # Update timer state
+                fire_time = datetime.now(UTC)
+                if agent_name in self._timer_states:
+                    self._timer_states[agent_name].iteration = iteration
+                    self._timer_states[agent_name].last_fire_time = fire_time
 
                 # Publish TimerTick
                 tick = TimerTick(
                     timer_name=agent_name,
-                    fire_time=datetime.now(UTC),
+                    fire_time=fire_time,
                     iteration=iteration,
                     schedule_spec=self._serialize_schedule_spec(spec),
                 )
@@ -132,12 +166,23 @@ class TimerComponent(OrchestratorComponent):
                 # Increment iteration
                 iteration += 1
 
-                # Wait for next fire (stub for now - Task 2.3)
+                # Calculate next fire time before waiting
+                if agent_name in self._timer_states:
+                    self._timer_states[agent_name].next_fire_time = self._calculate_next_fire_time(spec)
+
+                # Wait for next fire
                 await self._wait_for_next_fire(spec)
 
         except asyncio.CancelledError:
             # Graceful shutdown
-            pass
+            if agent_name in self._timer_states:
+                self._timer_states[agent_name].is_active = False
+        finally:
+            # Mark as completed if one-time schedule
+            if is_one_time and agent_name in self._timer_states:
+                self._timer_states[agent_name].is_completed = True
+                self._timer_states[agent_name].is_active = False
+                self._timer_states[agent_name].next_fire_time = None
 
     def _serialize_schedule_spec(self, spec: ScheduleSpec) -> dict:
         """Convert ScheduleSpec to dict for TimerTick.
@@ -160,6 +205,46 @@ class TimerComponent(OrchestratorComponent):
         if spec.max_repeats:
             result["max_repeats"] = spec.max_repeats
         return result
+
+    def _calculate_next_fire_time(self, spec: ScheduleSpec) -> datetime | None:
+        """Calculate the next fire time for a schedule spec.
+
+        Args:
+            spec: Schedule specification
+
+        Returns:
+            Next fire datetime in UTC, or None if cannot be calculated
+        """
+        now = datetime.now(UTC)
+
+        if spec.interval:
+            # Next fire is now + interval
+            return now + spec.interval
+
+        elif spec.at:
+            if isinstance(spec.at, time):
+                # Daily scheduling: calculate next occurrence
+                target = now.replace(
+                    hour=spec.at.hour,
+                    minute=spec.at.minute,
+                    second=spec.at.second if spec.at.second else 0,
+                    microsecond=0,
+                )
+                if target <= now:
+                    # Time passed today, schedule for tomorrow
+                    target += timedelta(days=1)
+                return target
+
+            elif isinstance(spec.at, datetime):
+                # One-time scheduling
+                target = spec.at if spec.at.tzinfo else spec.at.replace(tzinfo=UTC)
+                return target if target > now else None
+
+        elif spec.cron:
+            # Cron scheduling
+            return self._next_cron_fire(now, spec.cron)
+
+        return None
 
     async def _wait_for_next_fire(self, spec: ScheduleSpec) -> None:
         """Calculate and wait until next timer fire.
@@ -351,5 +436,16 @@ class TimerComponent(OrchestratorComponent):
         if self._timer_tasks:
             await asyncio.gather(*self._timer_tasks.values(), return_exceptions=True)
 
+    def get_timer_state(self, agent_name: str) -> TimerState | None:
+        """Get timer state for an agent.
 
-__all__ = ["TimerComponent"]
+        Args:
+            agent_name: Name of the agent
+
+        Returns:
+            TimerState if agent has a timer, None otherwise
+        """
+        return self._timer_states.get(agent_name)
+
+
+__all__ = ["TimerComponent", "TimerState"]

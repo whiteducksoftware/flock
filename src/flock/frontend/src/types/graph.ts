@@ -179,3 +179,23 @@ export interface BatchState {
   timeout_remaining_seconds?: number;
   will_flush: 'on_size' | 'on_timeout' | 'unknown';
 }
+
+// Phase 1.6: Scheduled Agents Visualization
+export interface ScheduleSpecDisplay {
+  type: 'interval' | 'time' | 'datetime' | 'cron';
+  interval?: string; // ISO 8601 duration (e.g., "PT30S")
+  time?: string; // Time string (e.g., "17:00:00")
+  datetime?: string; // ISO 8601 datetime
+  cron?: string; // Cron expression
+  after?: string; // Initial delay (ISO 8601 duration)
+  max_repeats?: number | null;
+}
+
+export interface TimerStateDisplay {
+  iteration: number;
+  last_fire_time: string | null; // ISO 8601 datetime
+  next_fire_time: string | null; // ISO 8601 datetime
+  is_active: boolean;
+  is_completed: boolean;
+  is_stopped: boolean;
+}

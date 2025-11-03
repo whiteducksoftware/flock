@@ -3,6 +3,8 @@ import { NodeProps, Handle, Position } from '@xyflow/react';
 import { useUIStore } from '../../store/uiStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import LogicOperationsDisplay from './LogicOperationsDisplay';
+import ScheduledAgentDisplay from './ScheduledAgentDisplay';
+import { ScheduleSpecDisplay, TimerStateDisplay } from '../../types/graph';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
 // Agent-specific properties populated by backend snapshot
@@ -18,6 +20,8 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   const sentByType = nodeData.sentByType || {};
   const streamingTokens = nodeData.streamingTokens || [];
   const logicOperations = nodeData.logicOperations || []; // Phase 1.4: Logic operations state
+  const scheduleSpec = nodeData.scheduleSpec as ScheduleSpecDisplay | undefined; // Phase 1.6: Schedule spec
+  const timerState = nodeData.timerState as TimerStateDisplay | undefined; // Phase 1.6: Timer state
 
   // Merge known types with actual counts - show all types even with 0 count
   // Start with actual counts, then add known types that haven't happened yet
@@ -308,6 +312,14 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
                 {streamingTokens.join('')}
               </div>
             </div>
+          )}
+          {/* Phase 1.6: Scheduled Agent Display */}
+          {scheduleSpec && (
+            <ScheduledAgentDisplay
+              scheduleSpec={scheduleSpec}
+              timerState={timerState || null}
+              compactNodeView={compactNodeView}
+            />
           )}
           {/* Phase 1.4: Logic Operations Display (JoinSpec/BatchSpec waiting states) */}
           <LogicOperationsDisplay logicOperations={logicOperations} compactNodeView={compactNodeView} />

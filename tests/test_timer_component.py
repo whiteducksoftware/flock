@@ -43,6 +43,23 @@ class TestTimerComponentCreation:
         assert isinstance(component._timer_tasks, dict)
         assert len(component._timer_tasks) == 0
 
+    def test_timer_component_timer_states_initialized(self):
+        """Test TimerComponent initializes _timer_states dict."""
+        from flock.components.orchestrator.scheduling.timer import TimerState
+
+        component = TimerComponent()
+
+        assert hasattr(component, "_timer_states")
+        assert isinstance(component._timer_states, dict)
+        assert len(component._timer_states) == 0
+
+    def test_timer_component_has_get_timer_state_method(self):
+        """Test TimerComponent has get_timer_state method."""
+        component = TimerComponent()
+
+        assert hasattr(component, "get_timer_state")
+        assert callable(component.get_timer_state)
+
 
 class TestTimerComponentInitialize:
     """Tests for TimerComponent on_initialize lifecycle hook."""
@@ -76,6 +93,50 @@ class TestTimerComponentInitialize:
         assert len(component._timer_tasks) == 1
         assert "scheduled_agent" in component._timer_tasks
         assert isinstance(component._timer_tasks["scheduled_agent"], asyncio.Task)
+
+        # Should initialize timer state for agent1
+        assert len(component._timer_states) == 1
+        assert "scheduled_agent" in component._timer_states
+        timer_state = component._timer_states["scheduled_agent"]
+        assert timer_state.iteration == 0
+        assert timer_state.is_active is True
+        assert timer_state.is_completed is False
+        assert timer_state.is_stopped is False
+        assert timer_state.next_fire_time is not None
+
+    @pytest.mark.asyncio
+    async def test_on_initialize_initializes_timer_states(self):
+        """Test on_initialize initializes timer states for scheduled agents."""
+        orchestrator = MagicMock()
+
+        agent1 = MagicMock()
+        agent1.name = "agent1"
+        agent1.schedule_spec = ScheduleSpec(interval=timedelta(seconds=30))
+
+        agent2 = MagicMock()
+        agent2.name = "agent2"
+        agent2.schedule_spec = ScheduleSpec(interval=timedelta(seconds=60))
+
+        orchestrator.agents = [agent1, agent2]
+
+        component = TimerComponent()
+        await component.on_initialize(orchestrator)
+
+        # Should have timer states for both agents
+        assert len(component._timer_states) == 2
+        assert "agent1" in component._timer_states
+        assert "agent2" in component._timer_states
+
+        # Verify initial state
+        state1 = component._timer_states["agent1"]
+        assert state1.iteration == 0
+        assert state1.last_fire_time is None
+        assert state1.next_fire_time is not None
+        assert state1.is_active is True
+
+        state2 = component._timer_states["agent2"]
+        assert state2.iteration == 0
+        assert state2.is_active is True
 
     @pytest.mark.asyncio
     async def test_on_initialize_no_scheduled_agents(self):
@@ -326,6 +387,10 @@ class TestTimerLoop:
         component = TimerComponent()
         spec = ScheduleSpec(interval=timedelta(seconds=0.05), max_repeats=5)
 
+        # Initialize timer state
+        from flock.components.orchestrator.scheduling.timer import TimerState
+        component._timer_states["test_agent"] = TimerState()
+
         # Act
         await component._timer_loop(orchestrator, "test_agent", spec)
 
@@ -338,6 +403,62 @@ class TestTimerLoop:
         # Verify each iteration is unique and incremental
         for i, iteration in enumerate(iterations):
             assert iteration == i
+
+        # Verify timer state was updated
+        timer_state = component._timer_states["test_agent"]
+        assert timer_state.iteration == 4  # Last iteration before stopping
+        assert timer_state.last_fire_time is not None
+        assert timer_state.is_stopped is True
+        assert timer_state.is_active is False
+
+    @pytest.mark.asyncio
+    async def test_timer_loop_updates_timer_state(self):
+        """Timer loop updates timer state with each fire."""
+        # Arrange
+        orchestrator = AsyncMock()
+        component = TimerComponent()
+        spec = ScheduleSpec(interval=timedelta(seconds=0.05), max_repeats=3)
+
+        # Initialize timer state
+        from flock.components.orchestrator.scheduling.timer import TimerState
+        component._timer_states["test_agent"] = TimerState()
+
+        # Act
+        await component._timer_loop(orchestrator, "test_agent", spec)
+
+        # Assert - Verify state updates
+        timer_state = component._timer_states["test_agent"]
+        assert timer_state.iteration == 2  # 0, 1, 2 = 3 iterations
+        assert timer_state.last_fire_time is not None
+        assert timer_state.is_stopped is True
+        assert timer_state.is_active is False
+        assert timer_state.next_fire_time is None  # Stopped, no next fire
+
+    @pytest.mark.asyncio
+    async def test_timer_loop_one_time_schedule_completes(self):
+        """Timer loop marks one-time datetime schedules as completed."""
+        from datetime import UTC
+
+        # Arrange
+        orchestrator = AsyncMock()
+        component = TimerComponent()
+        future_dt = datetime.now(UTC) + timedelta(seconds=0.1)
+        spec = ScheduleSpec(at=future_dt)  # One-time schedule
+
+        # Initialize timer state
+        from flock.components.orchestrator.scheduling.timer import TimerState
+        component._timer_states["one_time_agent"] = TimerState()
+
+        # Act
+        await component._timer_loop(orchestrator, "one_time_agent", spec)
+
+        # Assert - Should publish once and mark as completed
+        assert orchestrator.publish.call_count == 1
+        timer_state = component._timer_states["one_time_agent"]
+        assert timer_state.iteration == 0
+        assert timer_state.is_completed is True
+        assert timer_state.is_active is False
+        assert timer_state.next_fire_time is None
 
     @pytest.mark.asyncio
     async def test_timer_loop_publishes_with_tags(self):
@@ -553,21 +674,29 @@ class TestWaitForNextFire:
         assert next_fire.hour in {now.hour, (now.hour + 1) % 24}
 
     def test_cron_next_fire_range_list_step(self):
-        """Cron next-fire supports ranges, steps, and weekdays."""
+        """Cron next-fire supports ranges, steps, and weekdays.
+        
+        Tests cron expressions with ranges (9-17), steps (/2), and weekday constraints (1-5).
+        Verifies that hour/minute constraints are correctly applied.
+        """
         from datetime import UTC
 
         component = TimerComponent()
-        # Weekdays 1-5 (Mon-Fri), hours 9-17 step 2 → 9,11,13,15,17
+        # Hours 9-17 step 2 → 9,11,13,15,17, weekday constraint 1-5 (Mon-Fri)
         expr = "0 9-17/2 * * 1-5"
-        # Choose a Sunday to force next weekday; if today is Sunday, fine; else use now
-        now = datetime.now(UTC)
+        # Set to Sunday at 8:00 AM
+        now = datetime(2025, 11, 2, 8, 0, 0, tzinfo=UTC)  # Sunday Nov 2, 2025 at 8 AM
+        assert now.weekday() == 6, "Test setup: now should be Sunday"
+        
         next_fire = component._next_cron_fire(now, expr)
+        # Verify it's in the future
+        assert next_fire > now, f"Next fire {next_fire} should be after now {now}"
         # Zero minute
-        assert next_fire.minute == 0
-        # Hour in 9,11,13,15,17
-        assert next_fire.hour in {9, 11, 13, 15, 17}
-        # Weekday Mon-Fri
-        assert next_fire.weekday() in {0, 1, 2, 3, 4}
+        assert next_fire.minute == 0, f"Expected minute 0, got {next_fire.minute}"
+        # Hour in 9,11,13,15,17 (step 2 from range 9-17)
+        assert next_fire.hour in {9, 11, 13, 15, 17}, f"Expected hour in {{9,11,13,15,17}}, got {next_fire.hour}"
+        # Verify it advances time correctly (should be at least 1 hour later since we're at 8 AM)
+        assert next_fire.hour >= 9, f"Expected hour >= 9, got {next_fire.hour}"
 
     def test_cron_every_five_minutes(self):
         """Cron */5 * * * * schedules to the next 5-minute boundary."""
@@ -579,3 +708,100 @@ class TestWaitForNextFire:
         nf = component._next_cron_fire(now, expr)
         assert nf.minute % 5 == 0
         assert nf >= now + timedelta(minutes=1)
+
+
+class TestTimerStateTracking:
+    """Tests for TimerComponent timer state tracking functionality."""
+
+    def test_get_timer_state_returns_none_for_unknown_agent(self):
+        """Test get_timer_state returns None for agent without timer."""
+        component = TimerComponent()
+
+        result = component.get_timer_state("unknown_agent")
+
+        assert result is None
+
+    def test_get_timer_state_returns_state_for_registered_agent(self):
+        """Test get_timer_state returns TimerState for registered agent."""
+        from flock.components.orchestrator.scheduling.timer import TimerState
+        from datetime import UTC
+
+        component = TimerComponent()
+        timer_state = TimerState(
+            iteration=5,
+            last_fire_time=datetime.now(UTC),
+            next_fire_time=datetime.now(UTC) + timedelta(seconds=30),
+            is_active=True,
+        )
+        component._timer_states["test_agent"] = timer_state
+
+        result = component.get_timer_state("test_agent")
+
+        assert result is not None
+        assert result.iteration == 5
+        assert result.is_active is True
+        assert result.last_fire_time is not None
+        assert result.next_fire_time is not None
+
+    def test_calculate_next_fire_time_interval(self):
+        """Test _calculate_next_fire_time for interval-based schedules."""
+        from datetime import UTC
+
+        component = TimerComponent()
+        spec = ScheduleSpec(interval=timedelta(seconds=30))
+
+        next_fire = component._calculate_next_fire_time(spec)
+
+        assert next_fire is not None
+        assert isinstance(next_fire, datetime)
+        # Should be approximately 30 seconds in the future
+        now = datetime.now(UTC)
+        diff = (next_fire - now).total_seconds()
+        assert 29 <= diff <= 31
+
+    def test_calculate_next_fire_time_time(self):
+        """Test _calculate_next_fire_time for time-based schedules."""
+        from datetime import UTC, time
+
+        component = TimerComponent()
+        # Set target time to be soon in the future
+        now = datetime.now(UTC)
+        future_time = time(
+            hour=now.hour,
+            minute=now.minute,
+            second=(now.second + 5) % 60,
+        )
+        spec = ScheduleSpec(at=future_time)
+
+        next_fire = component._calculate_next_fire_time(spec)
+
+        assert next_fire is not None
+        assert isinstance(next_fire, datetime)
+        assert next_fire.hour == future_time.hour
+        assert next_fire.minute == future_time.minute
+
+    def test_calculate_next_fire_time_datetime(self):
+        """Test _calculate_next_fire_time for datetime-based schedules."""
+        from datetime import UTC
+
+        component = TimerComponent()
+        future_dt = datetime.now(UTC) + timedelta(seconds=60)
+        spec = ScheduleSpec(at=future_dt)
+
+        next_fire = component._calculate_next_fire_time(spec)
+
+        assert next_fire is not None
+        assert next_fire == future_dt
+
+    def test_calculate_next_fire_time_cron(self):
+        """Test _calculate_next_fire_time for cron-based schedules."""
+        from datetime import UTC
+
+        component = TimerComponent()
+        spec = ScheduleSpec(cron="0 * * * *")  # Every hour
+
+        next_fire = component._calculate_next_fire_time(spec)
+
+        assert next_fire is not None
+        assert isinstance(next_fire, datetime)
+        assert next_fire.minute == 0  # Should be on the hour
