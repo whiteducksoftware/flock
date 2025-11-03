@@ -104,8 +104,12 @@ async def main() -> None:
         await store.ensure_schema()
 
         ideas = [
-            MyDreamPizza(pizza_idea="classic margherita with fresh basil and mozzarella"),
-            MyDreamPizza(pizza_idea="hawaiian remix with charred pineapple and jalapeño chutney"),
+            MyDreamPizza(
+                pizza_idea="classic margherita with fresh basil and mozzarella"
+            ),
+            MyDreamPizza(
+                pizza_idea="hawaiian remix with charred pineapple and jalapeño chutney"
+            ),
         ]
 
         await flock.publish_many(ideas)
@@ -113,7 +117,9 @@ async def main() -> None:
         await flock.run_until_idle()
 
         print(f"\n✅ History stored in: {db_path}")
-        print("Next: run `uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py`")
+        print(
+            "Next: run `uv run python examples/03-the-dashboard/02-dashboard-edge-cases.py`"
+        )
     finally:
         await store.close()
 

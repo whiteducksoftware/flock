@@ -12,9 +12,10 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from flock.mcp import StdioServerParameters
 from flock import Flock
+from flock.mcp import StdioServerParameters
 from flock.registry import flock_type
+
 
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
@@ -79,20 +80,18 @@ except Exception as e:
         "Can search directories, extract metadata, and generate insights from file contents."
     )
     .consumes(FileSearchRequest)
-    .with_mcps(
-        {
-            "filesystem": {
-                "tool_whitelist": [
-                    "read_text_file",
-                    "list_directory",
-                    "list_directory_with_sizes",
-                    "search_files",
-                    "get_file_info",
-                    "list_allowed_directories",
-                ]
-            }
+    .with_mcps({
+        "filesystem": {
+            "tool_whitelist": [
+                "read_text_file",
+                "list_directory",
+                "list_directory_with_sizes",
+                "search_files",
+                "get_file_info",
+                "list_allowed_directories",
+            ]
         }
-    )
+    })
     .publishes(FileAnalysisReport)
 )
 
@@ -117,7 +116,9 @@ async def main_cli():
         print("✅ Analysis complete!\n")
         print(f"📄 File: {report.filename}")
         print(f"📍 Location: {report.file_path}")
-        print(f"📊 Size: {report.file_size_bytes:,} bytes ({report.line_count:,} lines)")
+        print(
+            f"📊 Size: {report.file_size_bytes:,} bytes ({report.line_count:,} lines)"
+        )
         print(f"\n📝 Summary:\n{report.content_summary}\n")
         print(f"💡 Key findings ({len(report.key_findings)}):")
         for i, finding in enumerate(report.key_findings, 1):

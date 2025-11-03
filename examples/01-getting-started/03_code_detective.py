@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from flock import Flock
 from flock.registry import flock_type
 
+
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
@@ -37,16 +38,15 @@ class BugDiagnosis(BaseModel):
     affected_components: list[str]
     suggested_fix: str
     requires_hotfix: bool
-    confidence_score: float = Field(...,ge=0, le=1)
-    
+    confidence_score: float = Field(..., ge=0, le=1)
+
+
 # Types nobody are subscribed to (but still can see) can be used for global instructions
 # or other context steering and seeding
 # like announcements on a real blackboard
 @flock_type
 class GlobalInstructions(BaseModel):
     instructions: str
-
-
 
 
 flock = Flock()
@@ -75,8 +75,12 @@ async def main_cli():
             reporter="mike.frontend@company.com",
         ),
     ]
-    await flock.publish(GlobalInstructions(instructions="ALWAYS SPEAK IN RIDDLES AND LIKE MASTER YODA FROM STAR WARS"))
-    #publish a list of entities with publish_many
+    await flock.publish(
+        GlobalInstructions(
+            instructions="ALWAYS SPEAK IN RIDDLES AND LIKE MASTER YODA FROM STAR WARS"
+        )
+    )
+    # publish a list of entities with publish_many
     await flock.publish_many(bug_reports)
     await flock.run_until_idle()
 
@@ -94,7 +98,11 @@ async def main_cli():
 
 async def main_dashboard():
     """Dashboard mode: Serve with interactive web interface"""
-    await flock.publish(GlobalInstructions(instructions="ALWAYS SPEAK IN RIDDLES AND LIKE MASTER YODA FROM STAR WARS"))
+    await flock.publish(
+        GlobalInstructions(
+            instructions="ALWAYS SPEAK IN RIDDLES AND LIKE MASTER YODA FROM STAR WARS"
+        )
+    )
     await flock.serve(dashboard=True)
 
 

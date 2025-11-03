@@ -104,7 +104,9 @@ for dir_name in INCLUDE_DIRS:
         full_module = f"flock.{module_path_str}"
 
         # Create doc path (e.g., reference/api/engines/dspy_engine.md)
-        doc_path = Path("reference", "api", dir_name, *rel_path.parts[:-1], f"{rel_path.stem}.md")
+        doc_path = Path(
+            "reference", "api", dir_name, *rel_path.parts[:-1], f"{rel_path.stem}.md"
+        )
 
         # Generate markdown content
         with mkdocs_gen_files.open(doc_path, "w") as f:

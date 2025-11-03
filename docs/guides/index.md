@@ -48,6 +48,14 @@ Comprehensive guides for building production-ready multi-agent systems with Floc
 
     [:octicons-arrow-right-24: REST API Guide](rest-api.md)
 
+-   **🔧 Server Components**
+
+    ---
+
+    Extend Flock's HTTP API with custom middleware, authentication, and routes.
+
+    [:octicons-arrow-right-24: Server Components Guide](server-components.md)
+
 </div>
 
 ---
@@ -133,6 +141,7 @@ Comprehensive observability with OpenTelemetry and DuckDB.
 
 ### Observability
 - **[REST API](rest-api.md)** - HTTP endpoints for integration and monitoring
+- **[Server Components](server-components.md)** - Custom middleware and authentication
 - **[Trace Capture](tracing/auto-tracing.md)** - Automatic trace collection
 - **[Trace Analysis](tracing/how_to_use_tracing_effectively.md)** - Debugging workflows
 - **[Dashboard Viewer](tracing/trace-module.md)** - Visual trace exploration
@@ -148,6 +157,8 @@ Looking for specific tasks? Here are quick links:
 - **Enable parallel execution** → [Batching Pattern](blackboard.md)
 - **Debug agent execution** → [Tracing Effectively](tracing/how_to_use_tracing_effectively.md)
 - **Add real-time monitoring** → [Dashboard Guide](dashboard.md)
+- **Add authentication to API** → [Server Components - Authentication](server-components.md#authenticationcomponent)
+- **Configure CORS** → [Server Components - CORS](server-components.md#corscomponent)
 - **Integrate with external systems** → [REST API Guide](rest-api.md)
 - **Track workflow completion** → [Correlation Status](rest-api.md#correlation-status-workflow-tracking)
 - **Implement multi-tenancy** → [Tenant Visibility](visibility.md#3-tenantvisibility-multi-tenancy)

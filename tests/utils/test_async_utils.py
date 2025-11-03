@@ -11,7 +11,10 @@ from flock.utils.async_utils import AsyncLockRequired, async_lock_required
 @pytest.fixture(scope="function", autouse=True)
 def event_loop_policy():
     """Set event loop policy for Windows."""
-    if asyncio.get_event_loop_policy().__class__.__name__ == "WindowsProactorEventLoopPolicy":
+    if (
+        asyncio.get_event_loop_policy().__class__.__name__
+        == "WindowsProactorEventLoopPolicy"
+    ):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
@@ -36,9 +39,7 @@ class TestAsyncLockRequired:
         obj = MyClass()
 
         # Run two methods concurrently - they should execute sequentially due to lock
-        await asyncio.gather(
-            obj.locked_method("first"), obj.locked_method("second")
-        )
+        await asyncio.gather(obj.locked_method("first"), obj.locked_method("second"))
 
         # Verify sequential execution (one completes before other starts)
         assert obj.execution_order in [

@@ -9,14 +9,15 @@ together for a daily digest.
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, Field
 
-from flock.mcp import StdioServerParameters
 from flock import Flock
+from flock.mcp import StdioServerParameters
 from flock.registry import flock_type
 from flock.core.subscription import BatchSpec
+
 
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
@@ -28,7 +29,7 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 @flock_type
 class Trigger(BaseModel):
     today_date: str = Field(
-        default=datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"),
+        default=datetime.now(tz=UTC).strftime("%Y-%m-%d"),
         description="Today's date in YYYY-MM-DD format",
     )
 
@@ -135,7 +136,9 @@ async def main_cli():
             print(f"   • {takeaway}")
     else:
         print("❌ No digest was generated!")
-        print("💡 Make sure MCPs are installed (duckduckgo-mcp-server and mcp-read-website-fast)")
+        print(
+            "💡 Make sure MCPs are installed (duckduckgo-mcp-server and mcp-read-website-fast)"
+        )
 
 
 async def main_dashboard():

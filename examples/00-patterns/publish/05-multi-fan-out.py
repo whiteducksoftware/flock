@@ -14,8 +14,11 @@ class Idea(BaseModel):
 @flock_type
 class Character(BaseModel):
     name: str
-    potential_actors: dict[str, str] = Field(..., description="Potential actors and reasons why they are a good fit")
+    potential_actors: dict[str, str] = Field(
+        ..., description="Potential actors and reasons why they are a good fit"
+    )
     backstory: str
+
 
 @flock_type
 class Movie(BaseModel):
@@ -38,7 +41,9 @@ class MovieScript(BaseModel):
 @flock_type
 class MovieCampaign(BaseModel):
     title: str
-    taglines: list[str] = Field(..., description="Catchy phrases to promote the movie. IN ALL CAPS")
+    taglines: list[str] = Field(
+        ..., description="Catchy phrases to promote the movie. IN ALL CAPS"
+    )
     poster_descriptions: list[str] = Field(max_length=3)
 
 
@@ -51,7 +56,9 @@ flock = Flock()
 # - Pydantic validation on every field (min_length, ge/le constraints, custom descriptions)
 # - All generated coherently in ONE LLM call!
 multi_master = (
-    flock.agent("multi_master").consumes(Idea).publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
+    flock.agent("multi_master")
+    .consumes(Idea)
+    .publishes(Movie, MovieScript, MovieCampaign, fan_out=3)
 )
 
 # compare with
@@ -65,6 +72,7 @@ multi_master = (
 # multi_master = (
 #     flock.agent("multi_master").consumes(Idea).publishes(Movie, fan_out=3).publishes(MovieScript, fan_out=3).publishes(MovieCampaign, fan_out=3)
 # )
+
 
 async def main():
     idea = Idea(story_idea="An action thriller set in space")

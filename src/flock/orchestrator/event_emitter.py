@@ -68,8 +68,8 @@ class EventEmitter:
         if self._websocket_manager is None:
             return
 
-        # Import _get_correlation_groups helper from dashboard service
-        from flock.dashboard.routes.helpers import _get_correlation_groups
+        # Import _get_correlation_groups helper from control component
+        from flock.components.server.control.helpers import _get_correlation_groups
 
         # Get current correlation groups state from engine
         groups = _get_correlation_groups(
@@ -85,7 +85,9 @@ class EventEmitter:
         for group_state in groups:
             if not group_state["is_complete"]:
                 # Import CorrelationGroupUpdatedEvent
-                from flock.dashboard.events import CorrelationGroupUpdatedEvent
+                from flock.components.server.models.events import (
+                    CorrelationGroupUpdatedEvent,
+                )
 
                 # Build and emit event
                 event = CorrelationGroupUpdatedEvent(
@@ -131,8 +133,8 @@ class EventEmitter:
         if self._websocket_manager is None:
             return
 
-        # Import _get_batch_state helper from dashboard service
-        from flock.dashboard.routes.helpers import _get_batch_state
+        # Import _get_batch_state helper from control routes component
+        from flock.components.server.control.helpers import _get_batch_state
 
         # Get current batch state from engine
         batch_state = _get_batch_state(
@@ -143,7 +145,7 @@ class EventEmitter:
             return  # No batch to report (shouldn't happen, but defensive)
 
         # Import BatchItemAddedEvent
-        from flock.dashboard.events import BatchItemAddedEvent
+        from flock.components.server.models.events import BatchItemAddedEvent
 
         # Build and emit event
         event = BatchItemAddedEvent(

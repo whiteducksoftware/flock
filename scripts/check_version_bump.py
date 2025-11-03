@@ -75,7 +75,9 @@ def check_version_changed(file_path: Path, compare_to: str = "HEAD~1") -> bool:
             current_pyproject = toml.load(file_path)
 
             old_version = old_pyproject.get("project", {}).get("version", "0.0.0")
-            current_version = current_pyproject.get("project", {}).get("version", "0.0.0")
+            current_version = current_pyproject.get("project", {}).get(
+                "version", "0.0.0"
+            )
 
             return old_version != current_version
 
@@ -133,16 +135,22 @@ def main():
 
     # Check if versions were bumped
     backend_version_bumped = check_version_changed(repo_root / "pyproject.toml")
-    frontend_version_bumped = check_version_changed(repo_root / "frontend" / "package.json")
+    frontend_version_bumped = check_version_changed(
+        repo_root / "frontend" / "package.json"
+    )
 
     # Report findings
     warnings = []
 
     if backend_changed and not backend_version_bumped:
-        warnings.append("   ⚠️  Backend code changed but version not bumped in pyproject.toml")
+        warnings.append(
+            "   ⚠️  Backend code changed but version not bumped in pyproject.toml"
+        )
 
     if frontend_changed and not frontend_version_bumped:
-        warnings.append("   ⚠️  Frontend code changed but version not bumped in package.json")
+        warnings.append(
+            "   ⚠️  Frontend code changed but version not bumped in package.json"
+        )
 
     if warnings:
         print()

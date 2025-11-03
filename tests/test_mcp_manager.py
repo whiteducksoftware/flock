@@ -72,7 +72,9 @@ def mock_client():
     client = AsyncMock()
     client.disconnect = AsyncMock()
     client.get_tools = AsyncMock(
-        return_value=[Mock(spec=FlockMCPTool, name="test_tool", description="Test tool")]
+        return_value=[
+            Mock(spec=FlockMCPTool, name="test_tool", description="Test tool")
+        ]
     )
     return client
 
@@ -191,7 +193,8 @@ class TestFlockMCPClientManager:
             return_value=AsyncMock(),
         )
         mock_sse = mocker.patch(
-            "flock.mcp.servers.sse.flock_sse_server.FlockSSEClient", return_value=AsyncMock()
+            "flock.mcp.servers.sse.flock_sse_server.FlockSSEClient",
+            return_value=AsyncMock(),
         )
         mock_http = mocker.patch(
             "flock.mcp.servers.streamable_http.flock_streamable_http_server.FlockStreamableHttpClient",
@@ -260,7 +263,9 @@ class TestFlockMCPClientManager:
     async def test_get_tools_for_agent_graceful_degradation(self, manager, mocker):
         """Test graceful degradation when server fails to load tools."""
         # Mock get_client to raise an exception
-        mocker.patch.object(manager, "get_client", side_effect=Exception("Connection failed"))
+        mocker.patch.object(
+            manager, "get_client", side_effect=Exception("Connection failed")
+        )
 
         tools = await manager.get_tools_for_agent("agent_1", "run_1", {"test_server"})
 
@@ -417,7 +422,10 @@ class TestFlockMCPClientManager:
         mock_client3 = AsyncMock()
 
         manager._pool[key1] = {"test_server": mock_client1}
-        manager._pool[key2] = {"test_server": mock_client2, "test_server2": mock_client3}
+        manager._pool[key2] = {
+            "test_server": mock_client2,
+            "test_server2": mock_client3,
+        }
 
         await manager.cleanup_all()
 
@@ -529,7 +537,9 @@ class TestFlockMCPClientManager:
         client1 = await manager.get_client("test_server", "agent_1", "run_1")
         client2 = await manager.get_client("test_server", "agent_1", "run_2")
         client3 = await manager.get_client("test_server", "agent_2", "run_1")
-        client4 = await manager.get_client("test_server", "agent_1", "run_1")  # Same as client1
+        client4 = await manager.get_client(
+            "test_server", "agent_1", "run_1"
+        )  # Same as client1
 
         # Verify that separate clients were created for each unique (agent, run) pair
         assert mock_client_class.call_count == 3

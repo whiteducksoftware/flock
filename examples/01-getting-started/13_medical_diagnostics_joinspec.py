@@ -17,6 +17,7 @@ from flock.core.subscription import JoinSpec
 from flock.registry import flock_type
 
 
+
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================

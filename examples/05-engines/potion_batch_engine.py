@@ -22,7 +22,9 @@ class PotionRecipe(BaseModel):
     title: str = Field(description="Name of the completed potion")
     incantation: str = Field(description="Short mantra for dramatic flair")
     tasting_notes: str = Field(description="How the potion feels when activated")
-    ingredients: list[str] = Field(description="Ingredient summary", default_factory=list)
+    ingredients: list[str] = Field(
+        description="Ingredient summary", default_factory=list
+    )
 
 
 class PotionBatchEngine(EngineComponent):
@@ -32,7 +34,9 @@ class PotionBatchEngine(EngineComponent):
     create a draft or full potion recipe.
     """
 
-    async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group) -> EvalResult:
+    async def evaluate(
+        self, agent, ctx, inputs: EvalInputs, output_group
+    ) -> EvalResult:
         """Process single ingredient or batch with auto-detection.
 
         Auto-detects batch mode via ctx.is_batch flag (set by orchestrator when
@@ -67,23 +71,22 @@ class PotionBatchEngine(EngineComponent):
                 ingredients=[f"{item.name} ({item.effect})" for item in ingredients],
             )
             return EvalResult.from_object(recipe, agent=agent)
-        else:
-            # Single mode: Create draft placeholder
-            ingredient = inputs.first_as(PotionIngredient)
-            if not ingredient:
-                return EvalResult.empty()
+        # Single mode: Create draft placeholder
+        ingredient = inputs.first_as(PotionIngredient)
+        if not ingredient:
+            return EvalResult.empty()
 
-            hint = (
-                f"{ingredient.name} whispers that patience is key. "
-                "Add a few more curious ingredients to coax the potion to life."
-            )
-            placeholder = PotionRecipe(
-                title="Potion Draft",
-                incantation="Not quite ready...",
-                tasting_notes=hint,
-                ingredients=[ingredient.name],
-            )
-            return EvalResult.from_object(placeholder, agent=agent)
+        hint = (
+            f"{ingredient.name} whispers that patience is key. "
+            "Add a few more curious ingredients to coax the potion to life."
+        )
+        placeholder = PotionRecipe(
+            title="Potion Draft",
+            incantation="Not quite ready...",
+            tasting_notes=hint,
+            ingredients=[ingredient.name],
+        )
+        return EvalResult.from_object(placeholder, agent=agent)
 
     def _name_potion(self, ingredients: list[PotionIngredient]) -> str:
         anchors = [item.name for item in ingredients]
@@ -118,13 +121,25 @@ async def main() -> None:
         .with_engines(PotionBatchEngine())
     )
 
-    await flock.publish(PotionIngredient(name="Moondew", effect="glows gently in starlight"))
-    await flock.publish(PotionIngredient(name="Thunderpetal", effect="sparks courage in the heart"))
-    await flock.publish(PotionIngredient(name="Echofern", effect="echoes forgotten melodies"))
+    await flock.publish(
+        PotionIngredient(name="Moondew", effect="glows gently in starlight")
+    )
+    await flock.publish(
+        PotionIngredient(name="Thunderpetal", effect="sparks courage in the heart")
+    )
+    await flock.publish(
+        PotionIngredient(name="Echofern", effect="echoes forgotten melodies")
+    )
 
-    await flock.publish(PotionIngredient(name="Frostvine", effect="chills time for a moment"))
-    await flock.publish(PotionIngredient(name="Sunburst Zest", effect="radiates joyful warmth"))
-    await flock.publish(PotionIngredient(name="Silver Husk", effect="shields the dreamer"))
+    await flock.publish(
+        PotionIngredient(name="Frostvine", effect="chills time for a moment")
+    )
+    await flock.publish(
+        PotionIngredient(name="Sunburst Zest", effect="radiates joyful warmth")
+    )
+    await flock.publish(
+        PotionIngredient(name="Silver Husk", effect="shields the dreamer")
+    )
 
     await flock.run_until_idle()
 

@@ -1,7 +1,6 @@
 """Tests for ArtifactValidator utility."""
 
-import pytest
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from flock.utils.validation import ArtifactValidator
 

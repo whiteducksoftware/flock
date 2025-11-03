@@ -11,9 +11,10 @@ import asyncio
 
 from pydantic import BaseModel
 
-from flock.mcp import StdioServerParameters
 from flock import Flock
+from flock.mcp import StdioServerParameters
 from flock.registry import flock_tool, flock_type
+
 
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes

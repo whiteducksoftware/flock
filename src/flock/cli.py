@@ -10,9 +10,10 @@ from rich.console import Console
 from rich.table import Table
 from typer.models import OptionInfo
 
+from flock.api import BaseHTTPService
+
 # Lazy import: only import examples when CLI commands are invoked
 # This prevents polluting type_registry on every package import
-from flock.api.service import BlackboardHTTPService
 from flock.core.store import SQLiteBlackboardStore
 
 
@@ -84,7 +85,7 @@ def serve(
         store = asyncio.run(_prepare())
 
     orchestrator, _ = create_demo_orchestrator(store=store)
-    service = BlackboardHTTPService(orchestrator)
+    service = BaseHTTPService(orchestrator)
     service.run(host=host, port=port)
 
 

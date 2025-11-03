@@ -1,4 +1,4 @@
-"""Component library for extending Flock agents and orchestrators."""
+"""Component library for extending Flock agents, orchestrators, and the internal server of Flock."""
 
 # Agent components
 from flock.components.agent import (
@@ -21,21 +21,83 @@ from flock.components.orchestrator import (
     ScheduleDecision,
 )
 
+# Server components
+from flock.components.server import (
+    AgentsServerComponent,
+    AgentsServerComponentConfig,
+    ArtifactBase,
+    ArtifactComponentConfig,
+    ArtifactPublishRequest,
+    ArtifactPublishResponse,
+    ArtifactsComponent,
+    ArtifactSummary,
+    ArtifactSummaryResponse,
+    ArtifactWithConsumptions,
+    ConsumptionRecord,
+    ControlRoutesComponent,
+    ControlRoutesComponentConfig,
+    CORSComponent,
+    CORSComponentConfig,
+    HealthAndMetricsComponent,
+    HealthComponentConfig,
+    HealthResponse,
+    PaginationInfo,
+    ServerComponent,
+    ServerComponentConfig,
+    StaticFilesComponentConfig,
+    StaticFilesServerComponent,
+    ThemesComponent,
+    ThemesComponentConfig,
+    VisibilityInfo,
+    WebSocketComponentConfig,
+    WebSocketServerComponent,
+)
+
 
 __all__ = [
     # Agent components
     "AgentComponent",
     "AgentComponentConfig",
-    "EngineComponent",
-    "OutputUtilityComponent",
-    "OutputUtilityConfig",
-    "TracedModelMeta",
+    # Server components
+    "AgentsServerComponent",
+    "AgentsServerComponentConfig",
+    "ArtifactBase",
+    "ArtifactComponentConfig",
+    "ArtifactPublishRequest",
+    "ArtifactPublishResponse",
+    "ArtifactSummary",
+    "ArtifactSummaryResponse",
+    "ArtifactWithConsumptions",
+    "ArtifactsComponent",
     # Orchestrator components
     "BuiltinCollectionComponent",
+    "CORSComponent",
+    "CORSComponentConfig",
     "CircuitBreakerComponent",
     "CollectionResult",
+    "ConsumptionRecord",
+    "ControlRoutesComponent",
+    "ControlRoutesComponentConfig",
     "DeduplicationComponent",
+    "EngineComponent",
+    "HealthAndMetricsComponent",
+    "HealthComponentConfig",
+    "HealthResponse",
+    "HealthResponse",
     "OrchestratorComponent",
     "OrchestratorComponentConfig",
+    "OutputUtilityComponent",
+    "OutputUtilityConfig",
+    "PaginationInfo",
     "ScheduleDecision",
+    "ServerComponent",
+    "ServerComponentConfig",
+    "StaticFilesComponentConfig",
+    "StaticFilesServerComponent",
+    "ThemesComponent",
+    "ThemesComponentConfig",
+    "TracedModelMeta",
+    "VisibilityInfo",
+    "WebSocketComponentConfig",
+    "WebSocketServerComponent",
 ]

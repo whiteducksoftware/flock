@@ -12,8 +12,9 @@ import asyncio
 from pydantic import BaseModel, Field
 
 from flock import Flock
+from flock.core.visibility import PrivateVisibility
 from flock.registry import flock_type
-from flock.core.visibility import PrivateVisibility, PublicVisibility
+
 
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
