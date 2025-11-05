@@ -10,15 +10,13 @@ including two modes:
 
 from __future__ import annotations
 
-import asyncio
 from collections import OrderedDict, defaultdict
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import nullcontext
 from datetime import UTC, datetime
-from typing import Any, Awaitable, Callable, Sequence
+from typing import Any
 
-from pydantic import BaseModel
-
-from flock.dashboard.events import StreamingOutputEvent
+from flock.components.server.models.events import StreamingOutputEvent
 from flock.engines.streaming.sinks import RichSink, StreamSink, WebSocketSink
 from flock.logging.logging import get_logger
 

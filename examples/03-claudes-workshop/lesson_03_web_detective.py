@@ -2,8 +2,8 @@ import asyncio
 
 from pydantic import BaseModel, Field
 
-from flock.mcp import StdioServerParameters
 from flock import Flock
+from flock.mcp import StdioServerParameters
 from flock.registry import flock_tool, flock_type
 
 
@@ -77,12 +77,20 @@ async def main():
         ResearchQuery(
             topic="Latest developments in quantum computing",
             depth="comprehensive",
-            focus_areas=["hardware advances", "software frameworks", "commercial applications"],
+            focus_areas=[
+                "hardware advances",
+                "software frameworks",
+                "commercial applications",
+            ],
         ),
         ResearchQuery(
             topic="Sustainable agriculture technologies 2025",
             depth="overview",
-            focus_areas=["vertical farming", "AI crop monitoring", "water conservation"],
+            focus_areas=[
+                "vertical farming",
+                "AI crop monitoring",
+                "water conservation",
+            ],
         ),
     ]
 

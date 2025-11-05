@@ -32,6 +32,14 @@ Welcome to Flock! This section will help you get up and running quickly with the
 
     [:octicons-arrow-right-24: Learn Concepts](concepts.md)
 
+-   **🔧 Server Components**
+
+    ---
+
+    Understand Flock's composable HTTP server architecture and component system.
+
+    [:octicons-arrow-right-24: Server Components Concepts](server-components-concepts.md)
+
 </div>
 
 ---

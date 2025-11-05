@@ -62,7 +62,9 @@ async def main():
         flock.agent("classified_agent")
         .description("An agent with security clearance")
         .consumes(Message)
-        .publishes(Report, visibility=PrivateVisibility(agents={"hidden"})) # important since report may contain classified info
+        .publishes(
+            Report, visibility=PrivateVisibility(agents={"hidden"})
+        )  # important since report may contain classified info
     )
 
     # Publish some messages - mix of public and classified

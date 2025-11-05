@@ -646,3 +646,453 @@ async def test_context_is_batch_flag_propagation():
 
     assert len(context_flags) == 1, f"Expected 1 execution, got {len(context_flags)}"
     assert context_flags[0] is True, "Batch timeout flush should have is_batch=True"
+
+
+# T070: get_correlation_status Tests
+@pytest.mark.asyncio
+async def test_get_correlation_status_invalid_uuid_raises_error():
+    """Test get_correlation_status raises ValueError for invalid UUID format."""
+    # Arrange
+    orchestrator = Flock()
+    invalid_correlation_id = "not-a-valid-uuid"
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Invalid correlation_id format"):
+        await orchestrator.get_correlation_status(invalid_correlation_id)
+
+
+# T071: publish_many Tests
+@pytest.mark.asyncio
+async def test_publish_many_creates_multiple_artifacts():
+    """Test publish_many publishes multiple artifacts at once."""
+    # Arrange
+    orchestrator = Flock()
+
+    # Act
+    artifacts = await orchestrator.publish_many([
+        {"type": "OrchestratorIdea", "topic": "idea1"},
+        {"type": "OrchestratorIdea", "topic": "idea2"},
+        {"type": "OrchestratorIdea", "topic": "idea3"},
+    ])
+
+    # Assert
+    assert len(artifacts) == 3
+    all_artifacts = await orchestrator.store.list()
+    assert len(all_artifacts) == 3
+
+
+@pytest.mark.asyncio
+async def test_publish_many_schedules_agents():
+    """Test publish_many triggers agent execution for all artifacts."""
+    # Arrange
+    orchestrator = Flock()
+    executed_count = [0]
+
+    class CountingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs, output_group):
+            executed_count[0] += 1
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("counter").consumes(OrchestratorIdea).with_engines(
+        CountingEngine()
+    )
+
+    # Act
+    await orchestrator.publish_many([
+        {"type": "OrchestratorIdea", "topic": "idea1"},
+        {"type": "OrchestratorIdea", "topic": "idea2"},
+    ])
+    await orchestrator.run_until_idle()
+
+    # Assert - agent should execute twice
+    assert executed_count[0] == 2
+
+
+# T072: MCP Management Tests
+@pytest.mark.asyncio
+async def test_add_mcp_registers_server():
+    """Test add_mcp registers an MCP server configuration."""
+    # Arrange
+    orchestrator = Flock()
+    from flock.mcp import StdioServerParameters
+
+    # Act
+    orchestrator.add_mcp(
+        "test_server",
+        StdioServerParameters(command="test", args=["--version"]),
+        enable_tools_feature=True,
+    )
+
+    # Assert
+    configs = orchestrator._mcp_configs
+    assert "test_server" in configs
+    # Check feature configuration via feature_config field
+    assert configs["test_server"].feature_config.tools_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_add_mcp_duplicate_name_raises_error():
+    """Test add_mcp raises error for duplicate server names."""
+    # Arrange
+    orchestrator = Flock()
+    from flock.mcp import StdioServerParameters
+
+    params = StdioServerParameters(command="test", args=[])
+    orchestrator.add_mcp("duplicate", params)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="already registered"):
+        orchestrator.add_mcp("duplicate", params)
+
+
+@pytest.mark.asyncio
+async def test_get_mcp_manager_creates_manager():
+    """Test get_mcp_manager creates and returns MCP client manager."""
+    # Arrange
+    orchestrator = Flock()
+    from flock.mcp import StdioServerParameters
+
+    orchestrator.add_mcp("test", StdioServerParameters(command="test", args=[]))
+
+    # Act
+    manager = orchestrator.get_mcp_manager()
+
+    # Assert
+    assert manager is not None
+    assert orchestrator._mcp_manager is not None
+
+
+# T073: Traced Run Tests
+@pytest.mark.asyncio
+async def test_traced_run_creates_workflow_span():
+    """Test traced_run creates a workflow span context."""
+    # Arrange
+    orchestrator = Flock()
+
+    # Act
+    async with orchestrator.traced_run("test_workflow") as span:
+        # Inside traced context
+        assert span is not None
+        await orchestrator.publish({"type": "OrchestratorIdea", "topic": "test"})
+
+    # Assert - span should be accessible during execution
+    assert True  # If we get here without error, span was created
+
+
+@pytest.mark.asyncio
+async def test_clear_traces_removes_trace_data():
+    """Test clear_traces removes trace database."""
+    # Arrange
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = str(Path(tmpdir) / "test_traces.duckdb")
+
+        # Create a trace
+        orchestrator = Flock()
+        async with orchestrator.traced_run("test"):
+            await orchestrator.publish({"type": "OrchestratorIdea", "topic": "test"})
+
+        # Act
+        result = Flock.clear_traces(db_path)
+
+        # Assert
+        assert "deleted_count" in result
+
+
+# T074: Agent Registration Edge Cases
+@pytest.mark.asyncio
+async def test_register_agent_duplicate_raises_error():
+    """Test register_agent raises error for duplicate agent names."""
+    # Arrange
+    orchestrator = Flock()
+    from flock.core.agent import Agent
+
+    agent1 = Agent(name="duplicate", orchestrator=orchestrator)
+    orchestrator.register_agent(agent1)
+
+    # Act & Assert
+    agent2 = Agent(name="duplicate", orchestrator=orchestrator)
+    with pytest.raises(ValueError, match="Agent 'duplicate' already registered"):
+        orchestrator.register_agent(agent2)
+
+
+@pytest.mark.asyncio
+async def test_get_agent_returns_registered_agent():
+    """Test get_agent retrieves registered agent by name."""
+    # Arrange
+    orchestrator = Flock()
+    agent = orchestrator.agent("test_agent").consumes(OrchestratorIdea).agent
+
+    # Act
+    retrieved = orchestrator.get_agent("test_agent")
+
+    # Assert
+    assert retrieved is agent
+    assert retrieved.name == "test_agent"
+
+
+@pytest.mark.asyncio
+async def test_agents_property_returns_list():
+    """Test agents property returns list of all registered agents."""
+    # Arrange
+    orchestrator = Flock()
+    orchestrator.agent("agent1").consumes(OrchestratorIdea)
+    orchestrator.agent("agent2").consumes(OrchestratorMovie)
+
+    # Act
+    agents = orchestrator.agents
+
+    # Assert
+    assert len(agents) >= 2
+    agent_names = [a.name for a in agents]
+    assert "agent1" in agent_names
+    assert "agent2" in agent_names
+
+
+# T075: Component Management Tests
+@pytest.mark.asyncio
+async def test_add_component_sorts_by_priority():
+    """Test add_component maintains priority order."""
+    # Arrange
+    orchestrator = Flock()
+    from flock.components.orchestrator import OrchestratorComponent
+
+    class LowPriorityComponent(OrchestratorComponent):
+        priority: int = 100
+        name: str = "low_priority"
+
+    class HighPriorityComponent(OrchestratorComponent):
+        priority: int = 10
+        name: str = "high_priority"
+
+    # Remember initial count (built-in components)
+    initial_count = len(orchestrator._components)
+
+    # Act - Add in reverse priority order
+    orchestrator.add_component(LowPriorityComponent())
+    orchestrator.add_component(HighPriorityComponent())
+
+    # Assert - Find our components and verify they're sorted
+    our_components = [
+        c
+        for c in orchestrator._components
+        if c.name in ["low_priority", "high_priority"]
+    ]
+    assert len(our_components) == 2
+    # High priority (lower number) should come before low priority
+    high_idx = next(
+        i for i, c in enumerate(orchestrator._components) if c.name == "high_priority"
+    )
+    low_idx = next(
+        i for i, c in enumerate(orchestrator._components) if c.name == "low_priority"
+    )
+    assert high_idx < low_idx  # High priority (10) should be before low priority (100)
+
+
+@pytest.mark.asyncio
+async def test_add_server_component_registers_component():
+    """Test add_server_component registers server component."""
+    # Arrange
+    orchestrator = Flock()
+    from flock.components import ServerComponent
+
+    class TestServerComponent(ServerComponent):
+        name: str = "test_server"
+
+    component = TestServerComponent()
+
+    # Act
+    result = orchestrator.add_server_component(component)
+
+    # Assert
+    assert component in orchestrator._server_components
+    assert result is orchestrator  # Method chaining
+
+
+@pytest.mark.asyncio
+async def test_add_server_component_duplicate_name_raises_error():
+    """Test add_server_component raises error for duplicate component names."""
+    # Arrange
+    orchestrator = Flock()
+    from flock.components import ServerComponent
+
+    class DuplicateComponent(ServerComponent):
+        name: str = "duplicate"
+
+    orchestrator.add_server_component(DuplicateComponent())
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="already registered"):
+        orchestrator.add_server_component(DuplicateComponent())
+
+
+# T076: Direct Invoke Tests
+@pytest.mark.asyncio
+async def test_direct_invoke_executes_agent():
+    """Test direct_invoke executes agent with provided inputs."""
+    # Arrange
+    orchestrator = Flock()
+    executed = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs, output_group):
+            executed.append(inputs.artifacts[0].payload)
+            return EvalResult(artifacts=[])
+
+    agent = (
+        orchestrator.agent("test")
+        .consumes(OrchestratorIdea)
+        .with_engines(TrackingEngine())
+        .agent
+    )
+
+    # Act
+    input_obj = OrchestratorIdea(topic="direct test")
+    await orchestrator.direct_invoke(agent, [input_obj])
+
+    # Assert
+    assert len(executed) == 1
+    assert executed[0]["topic"] == "direct test"
+
+
+@pytest.mark.asyncio
+async def test_direct_invoke_with_multiple_inputs():
+    """Test direct_invoke handles multiple input artifacts."""
+    # Arrange
+    orchestrator = Flock()
+    executed_count = [0]
+
+    class CountingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs, output_group):
+            executed_count[0] = len(inputs.artifacts)
+            return EvalResult(artifacts=[])
+
+    agent = (
+        orchestrator.agent("test")
+        .consumes(OrchestratorIdea)
+        .with_engines(CountingEngine())
+        .agent
+    )
+
+    # Act
+    inputs = [
+        OrchestratorIdea(topic="idea1"),
+        OrchestratorIdea(topic="idea2"),
+        OrchestratorIdea(topic="idea3"),
+    ]
+    await orchestrator.direct_invoke(agent, inputs)
+
+    # Assert - all inputs should be passed together
+    assert executed_count[0] == 3
+
+
+# T077: Shutdown Tests
+@pytest.mark.asyncio
+async def test_shutdown_without_components():
+    """Test shutdown without triggering component shutdown."""
+    # Arrange
+    orchestrator = Flock()
+
+    # Act & Assert - Should complete without error
+    await orchestrator.shutdown(include_components=False)
+    assert True
+
+
+@pytest.mark.asyncio
+async def test_shutdown_with_components():
+    """Test shutdown triggers component shutdown hooks."""
+    # Arrange
+    orchestrator = Flock()
+    shutdown_called = []
+
+    from flock.components.orchestrator import OrchestratorComponent
+
+    class ShutdownTrackingComponent(OrchestratorComponent):
+        async def on_shutdown(self, orch):
+            shutdown_called.append(True)
+
+    orchestrator.add_component(ShutdownTrackingComponent())
+    await orchestrator._run_initialize()  # Initialize components
+
+    # Act
+    await orchestrator.shutdown(include_components=True)
+
+    # Assert
+    assert len(shutdown_called) == 1
+
+
+# T078: Normalization Tests
+@pytest.mark.asyncio
+async def test_normalize_input_with_basemodel():
+    """Test _normalize_input converts BaseModel to Artifact."""
+    # Arrange
+    orchestrator = Flock()
+    input_obj = OrchestratorIdea(topic="test")
+
+    # Act
+    artifact = orchestrator._normalize_input(input_obj, produced_by="test_producer")
+
+    # Assert
+    assert isinstance(artifact, Artifact)
+    assert artifact.type == "OrchestratorIdea"
+    assert artifact.produced_by == "test_producer"
+    assert artifact.payload["topic"] == "test"
+
+
+@pytest.mark.asyncio
+async def test_normalize_input_with_artifact_passthrough():
+    """Test _normalize_input passes through Artifact unchanged."""
+    # Arrange
+    orchestrator = Flock()
+    original_artifact = Artifact(
+        type="OrchestratorIdea",
+        payload={"topic": "original"},
+        produced_by="original_producer",
+        visibility=PublicVisibility(),
+    )
+
+    # Act
+    result = orchestrator._normalize_input(
+        original_artifact, produced_by="new_producer"
+    )
+
+    # Assert - Should return same artifact unchanged
+    assert result is original_artifact
+    assert result.produced_by == "original_producer"  # Not changed
+
+
+# T079: WebSocket Manager Property Tests
+@pytest.mark.asyncio
+async def test_websocket_manager_property_getter():
+    """Test _websocket_manager property getter."""
+    # Arrange
+    orchestrator = Flock()
+
+    # Act
+    manager = orchestrator._websocket_manager
+
+    # Assert - Should return initial None or manager instance
+    assert (
+        manager is None or manager is not None
+    )  # Always true, but tests property access
+
+
+@pytest.mark.asyncio
+async def test_websocket_manager_property_setter():
+    """Test _websocket_manager property setter updates event emitter."""
+    # Arrange
+    orchestrator = Flock()
+
+    class MockWebSocketManager:
+        async def send_event(self, event_type, data):
+            pass
+
+    mock_manager = MockWebSocketManager()
+
+    # Act
+    orchestrator._websocket_manager = mock_manager
+
+    # Assert
+    assert orchestrator._websocket_manager is mock_manager

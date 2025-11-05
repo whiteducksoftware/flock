@@ -41,7 +41,9 @@ class MockFlockMCPClient(FlockMCPClient):
         mock_read_stream = AsyncMock()
         mock_write_stream = AsyncMock()
         mock_cm = AsyncMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=(mock_read_stream, mock_write_stream))
+        mock_cm.__aenter__ = AsyncMock(
+            return_value=(mock_read_stream, mock_write_stream)
+        )
         mock_cm.__aexit__ = AsyncMock(return_value=None)
         return mock_cm
 
@@ -117,7 +119,9 @@ def mock_client_session():
         )
     )
     session.call_tool = AsyncMock(
-        return_value=CallToolResult(content=[TextContent(type="text", text="Test result")])
+        return_value=CallToolResult(
+            content=[TextContent(type="text", text="Test result")]
+        )
     )
     session.send_ping = AsyncMock()
     session.send_roots_list_changed = AsyncMock()
@@ -196,7 +200,9 @@ class TestSessionProxy:
         mock_client_session.list_tools.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_session_proxy_with_timeout_retry(self, mcp_client, mock_client_session, mocker):
+    async def test_session_proxy_with_timeout_retry(
+        self, mcp_client, mock_client_session, mocker
+    ):
         """Test session proxy retry on timeout."""
         mcp_client.client_session = mock_client_session
 
@@ -221,7 +227,9 @@ class TestSessionProxy:
         assert result is None  # Returns None after max retries exceeded
 
     @pytest.mark.asyncio
-    async def test_session_proxy_with_broken_pipe_error(self, mcp_client, mock_client_session):
+    async def test_session_proxy_with_broken_pipe_error(
+        self, mcp_client, mock_client_session
+    ):
         """Test session proxy retry on BrokenPipeError."""
         mcp_client.client_session = mock_client_session
 
@@ -243,7 +251,9 @@ class TestSessionProxy:
         assert result is None  # Returns None after max retries exceeded
 
     @pytest.mark.asyncio
-    async def test_session_proxy_max_retries_exceeded(self, mcp_client, mock_client_session):
+    async def test_session_proxy_max_retries_exceeded(
+        self, mcp_client, mock_client_session
+    ):
         """Test session proxy when max retries are exceeded."""
         mcp_client.client_session = mock_client_session
         mcp_client.config.connection_config.max_retries = 1
@@ -262,7 +272,9 @@ class TestSessionProxy:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_session_proxy_mcp_error_no_retry(self, mcp_client, mock_client_session):
+    async def test_session_proxy_mcp_error_no_retry(
+        self, mcp_client, mock_client_session
+    ):
         """Test session proxy doesn't retry on application-level MCP errors."""
         mcp_client.client_session = mock_client_session
 
@@ -390,10 +402,14 @@ class TestRootsOperations:
         mock_client_session.send_roots_list_changed.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_set_roots_with_mcp_error(self, mcp_client, mock_client_session, mocker):
+    async def test_set_roots_with_mcp_error(
+        self, mcp_client, mock_client_session, mocker
+    ):
         """Test setting roots with MCP error handling."""
         mcp_client.client_session = mock_client_session
-        mock_client_session.send_roots_list_changed.side_effect = McpError(error=MagicMock())
+        mock_client_session.send_roots_list_changed.side_effect = McpError(
+            error=MagicMock()
+        )
 
         # Mock logger
         mock_logger = mocker.patch("flock.mcp.client.logger")
@@ -506,7 +522,9 @@ class TestConnectionManagement:
         # Mock ClientSession
         mock_session = AsyncMock()
         mock_client_session_class = mocker.patch("flock.mcp.client.ClientSession")
-        mock_client_session_class.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_client_session_class.return_value.__aenter__ = AsyncMock(
+            return_value=mock_session
+        )
 
         await mcp_client._create_session()
 
@@ -527,7 +545,9 @@ class TestConnectionManagement:
         # Mock ClientSession
         mock_session = AsyncMock()
         mock_client_session_class = mocker.patch("flock.mcp.client.ClientSession")
-        mock_client_session_class.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_client_session_class.return_value.__aenter__ = AsyncMock(
+            return_value=mock_session
+        )
 
         await mcp_client._create_session()
 
@@ -668,7 +688,9 @@ class TestEdgeCases:
         mock_transport.__aenter__ = AsyncMock(return_value="unexpected_result")
         mcp_client.create_transport = AsyncMock(return_value=mock_transport)
 
-        with pytest.raises(RuntimeError, match="create_transport returned unexpected tuple"):
+        with pytest.raises(
+            RuntimeError, match="create_transport returned unexpected tuple"
+        ):
             await mcp_client._create_session()
 
     @pytest.mark.asyncio
@@ -679,12 +701,15 @@ class TestEdgeCases:
         mcp_client.create_transport = AsyncMock(return_value=mock_transport)
 
         with pytest.raises(
-            RuntimeError, match="create_transport did not create any read or write streams"
+            RuntimeError,
+            match="create_transport did not create any read or write streams",
         ):
             await mcp_client._create_session()
 
     @pytest.mark.asyncio
-    async def test_session_proxy_closed_resource_error(self, mcp_client, mock_client_session):
+    async def test_session_proxy_closed_resource_error(
+        self, mcp_client, mock_client_session
+    ):
         """Test session proxy with ClosedResourceError."""
         mcp_client.client_session = mock_client_session
         mock_client_session.list_tools.side_effect = ClosedResourceError()

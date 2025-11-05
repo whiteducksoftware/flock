@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import pytest
 
-from flock.dashboard.events import StreamingOutputEvent
+from flock.components.server.models.events import StreamingOutputEvent
 from flock.engines.dspy_engine import DSPyEngine
 
 

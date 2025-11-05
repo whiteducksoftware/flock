@@ -195,6 +195,7 @@ nav:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quick-start.md
     - Core Concepts: getting-started/concepts.md
+    - Server Components Concepts: getting-started/server-components-concepts.md
 
   - 📖 Tutorials:
     - Overview: tutorials/index.md
@@ -210,11 +211,20 @@ nav:
     - Overview: guides/index.md
     - Agents: guides/agents.md
     - Agent Components: guides/components.md
+    - Orchestrator Components: guides/orchestrator-components.md
+    - Server Components: guides/server-components.md
     - Blackboard: guides/blackboard.md
     - Visibility Controls: guides/visibility.md
     - Dashboard: guides/dashboard.md
+    - REST API: guides/rest-api.md
     - Patterns: guides/patterns.md
     - Semantic Subscriptions: guides/semantic-subscriptions.md
+    - Predicates: guides/predicates.md
+    - Join Operations: guides/join-operations.md
+    - Batch Processing: guides/batch-processing.md
+    - Fan-Out Publishing: guides/fan-out.md
+    - Context Providers: guides/context-providers.md
+    - Persistent Blackboard: guides/persistent-blackboard.md
     - Use Cases: guides/use-cases.md
     - Testing Strategies: guides/testing.md
     - Distributed Tracing:

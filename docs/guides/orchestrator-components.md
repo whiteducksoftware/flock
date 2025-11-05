@@ -21,7 +21,7 @@ from flock.orchestrator_component import OrchestratorComponent, ScheduleDecision
 class MaintenanceWindowComponent(OrchestratorComponent):
     maintenance_start: int = 22  # 10 PM
     maintenance_end: int = 6     # 6 AM
-    
+
     async def on_before_schedule(self, orch, artifact, agent, subscription):
         current_hour = datetime.now().hour
         if self.maintenance_start <= current_hour or current_hour < self.maintenance_end:
@@ -104,7 +104,7 @@ async def on_before_schedule(self, orch, artifact, agent, subscription):
     if count >= self.max_iterations:
         logger.warning(f"Circuit breaker tripped for {agent.name}")
         return ScheduleDecision.SKIP  # Skip this agent
-    
+
     self._iteration_counts[agent.name] = count + 1
     return ScheduleDecision.CONTINUE  # Proceed normally
 ```
@@ -128,7 +128,7 @@ async def on_collect_artifacts(self, orch, artifact, agent, subscription):
     # Store artifact
     key = (agent.name, subscription)
     self._collected[key].append(artifact)
-    
+
     # Check if we have enough
     if len(self._collected[key]) >= 3:
         artifacts = self._collected[key][:3]
@@ -182,7 +182,7 @@ async def on_agent_scheduled(self, orch, agent, artifacts, task):
     # Track metrics
     self._metrics["scheduled_count"] += 1
     self._metrics["agents"][agent.name] = self._metrics["agents"].get(agent.name, 0) + 1
-    
+
     # Notify dashboard
     await self.dashboard.notify_agent_scheduled(agent.name, len(artifacts))
 ```
@@ -202,7 +202,7 @@ async def on_agent_scheduled(self, orch, agent, artifacts, task):
 async def on_idle(self, orch):
     logger.info(f"Orchestrator idle, resetting circuit breaker counts")
     self._iteration_counts.clear()
-    
+
     # Flush metrics to external system
     await self.metrics_client.flush(self._metrics)
 ```
@@ -221,10 +221,10 @@ async def on_idle(self, orch):
 ```python
 async def on_shutdown(self, orch):
     logger.info(f"Shutting down {self.name}")
-    
+
     # Close external connections
     await self.dashboard_client.close()
-    
+
     # Save state to disk
     await self.save_state()
 ```
@@ -315,26 +315,26 @@ from flock.orchestrator_component import (
 
 class MyCustomComponent(OrchestratorComponent):
     """Custom component description.
-    
+
     Attributes:
         my_config: Configuration parameter description
     """
-    
+
     # Configuration (Pydantic fields)
     my_config: str = "default_value"
     priority: int = 50  # Execution order
-    
+
     # Implement lifecycle hooks as needed
     async def on_initialize(self, orch):
         logger.info(f"Initializing {self.name}")
         self._state = {}
-    
+
     async def on_before_schedule(self, orch, artifact, agent, subscription):
         # Your logic here
         if some_condition:
             return ScheduleDecision.SKIP
         return ScheduleDecision.CONTINUE
-    
+
     async def on_idle(self, orch):
         # Cleanup
         self._state.clear()
@@ -353,30 +353,30 @@ from collections import defaultdict
 
 class RateLimiterComponent(OrchestratorComponent):
     """Limit agent executions per time window."""
-    
+
     max_calls: int = 100
     window_seconds: int = 60
     priority: int = 15
-    
+
     async def on_initialize(self, orch):
         self._call_times = defaultdict(list)
-    
+
     async def on_before_schedule(self, orch, artifact, agent, subscription):
         now = datetime.now()
         window_start = now - timedelta(seconds=self.window_seconds)
-        
+
         # Clean old timestamps
         recent_calls = [
             t for t in self._call_times[agent.name]
             if t > window_start
         ]
         self._call_times[agent.name] = recent_calls
-        
+
         # Check limit
         if len(recent_calls) >= self.max_calls:
             logger.warning(f"Rate limit exceeded for {agent.name}")
             return ScheduleDecision.DEFER
-        
+
         # Record this call
         self._call_times[agent.name].append(now)
         return ScheduleDecision.CONTINUE
@@ -387,9 +387,9 @@ class RateLimiterComponent(OrchestratorComponent):
 ```python
 class PriorityQueueComponent(OrchestratorComponent):
     """Schedule high-priority artifacts first."""
-    
+
     priority: int = 20
-    
+
     async def on_before_agent_schedule(self, orch, agent, artifacts):
         # Sort by priority (metadata field)
         sorted_artifacts = sorted(
@@ -406,27 +406,27 @@ class PriorityQueueComponent(OrchestratorComponent):
 ```python
 class MetricsComponent(OrchestratorComponent):
     """Collect orchestrator metrics."""
-    
+
     priority: int = 100  # Run last to capture everything
-    
+
     async def on_initialize(self, orch):
         self._metrics = {
             "artifacts_published": 0,
             "agents_scheduled": 0,
             "agents_skipped": 0,
         }
-    
+
     async def on_artifact_published(self, orch, artifact):
         self._metrics["artifacts_published"] += 1
         return artifact  # Pass through
-    
+
     async def on_before_schedule(self, orch, artifact, agent, subscription):
         # Just track, don't modify
         return ScheduleDecision.CONTINUE
-    
+
     async def on_agent_scheduled(self, orch, agent, artifacts, task):
         self._metrics["agents_scheduled"] += 1
-    
+
     async def on_idle(self, orch):
         logger.info(f"Metrics: {self._metrics}")
         # Send to monitoring system
@@ -498,14 +498,14 @@ Make it clear what each hook does:
 ```python
 class MyComponent(OrchestratorComponent):
     """One-line description.
-    
+
     Detailed explanation of what this component does,
     when to use it, and any important caveats.
     """
-    
+
     async def on_before_schedule(self, orch, artifact, agent, subscription):
         """Skip scheduling if agent is overloaded.
-        
+
         Returns SKIP if agent has >10 pending tasks,
         otherwise returns CONTINUE.
         """
@@ -524,14 +524,14 @@ Test components in isolation:
 async def test_circuit_breaker_trips():
     component = CircuitBreakerComponent(max_iterations=3)
     await component.on_initialize(mock_orch)
-    
+
     # First 3 calls succeed
     for _ in range(3):
         result = await component.on_before_schedule(
             mock_orch, artifact, agent, subscription
         )
         assert result == ScheduleDecision.CONTINUE
-    
+
     # 4th call trips breaker
     result = await component.on_before_schedule(
         mock_orch, artifact, agent, subscription
@@ -548,12 +548,12 @@ Test components with orchestrator:
 async def test_component_integration():
     flock = Flock("openai/gpt-4.1")
     flock.add_component(MyCustomComponent())
-    
+
     agent = flock.agent("test").consumes(Input).publishes(Output)
-    
+
     await flock.publish(Input(data="test"))
     await flock.run_until_idle()
-    
+
     # Assert component behavior
     outputs = await flock.store.get_by_type(Output)
     assert len(outputs) == 1
@@ -605,12 +605,12 @@ async def on_artifact_published(self, orch, artifact):
 async def on_collect_artifacts(self, orch, artifact, agent, subscription):
     key = (agent.name, subscription)
     self._buffer[key].append(artifact)
-    
+
     if len(self._buffer[key]) >= self.batch_size:
         batch = self._buffer[key]
         self._buffer[key] = []
         return CollectionResult(artifacts=batch, complete=True)
-    
+
     return CollectionResult.waiting()
 ```
 
@@ -626,7 +626,7 @@ class Flock:
     def __init__(self, max_iterations=1000):
         self.max_iterations = max_iterations
         self._iteration_counts = {}
-    
+
     async def _schedule_artifact(self, artifact):
         # Circuit breaker hardcoded here
         if self._iteration_counts[agent.name] >= self.max_iterations:
@@ -699,14 +699,14 @@ slow_components = conn.execute("""
 
 ### Beginner Examples
 
-**Quest Tracker** - Game quest monitoring with scoring and leaderboards  
+**Quest Tracker** - Game quest monitoring with scoring and leaderboards
 [`examples/07-orchestrator-components/quest_tracker_component.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/07-orchestrator-components/quest_tracker_component.py)
 
 - Demonstrates: `on_pre_publish`, `on_post_publish`, `on_cycle_complete`
 - Use case: Real-time game state tracking
 - Complexity: ⭐ Beginner
 
-**Kitchen Monitor** - Restaurant kitchen performance monitoring  
+**Kitchen Monitor** - Restaurant kitchen performance monitoring
 [`examples/07-orchestrator-components/kitchen_monitor_component.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/07-orchestrator-components/kitchen_monitor_component.py)
 
 - Demonstrates: Resource tracking, spice alerts, chef rankings
@@ -715,7 +715,7 @@ slow_components = conn.execute("""
 
 ### Advanced Examples
 
-**Performance Monitor** - Production-grade service monitoring  
+**Performance Monitor** - Production-grade service monitoring
 [`examples/03-claudes-workshop/lesson_11_performance_monitor.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/03-claudes-workshop/lesson_11_performance_monitor.py)
 
 - Demonstrates: SLA monitoring, alerting, performance dashboards

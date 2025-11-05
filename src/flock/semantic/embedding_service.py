@@ -4,10 +4,11 @@ This module provides a singleton service for generating and caching embeddings
 using sentence-transformers.
 """
 
-from flock.logging.logging import get_logger
 from collections import OrderedDict
 
 import numpy as np
+
+from flock.logging.logging import get_logger
 
 
 logger = get_logger(__name__)

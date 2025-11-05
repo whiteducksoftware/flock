@@ -16,6 +16,7 @@ from flock import Flock
 from flock.registry import flock_type
 from flock.core.subscription import BatchSpec, JoinSpec
 
+
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================

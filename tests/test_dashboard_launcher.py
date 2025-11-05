@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from flock.dashboard.launcher import DashboardLauncher
+from flock.api.launcher import DashboardLauncher
 
 
 class TestDashboardLauncher:
@@ -81,7 +81,9 @@ class TestDashboardLauncher:
 
     @patch("subprocess.Popen")
     @patch("subprocess.run")
-    def test_start_production_build(self, mock_run, mock_popen, launcher, mock_frontend_dir):
+    def test_start_production_build(
+        self, mock_run, mock_popen, launcher, mock_frontend_dir
+    ):
         """Test production build runs when not in dev mode."""
         launcher.dev_mode = False
         launcher._start_npm_process()
@@ -114,7 +116,9 @@ class TestDashboardLauncher:
     @patch("webbrowser.open")
     @patch("subprocess.run")
     @patch.dict(os.environ, {"DASHBOARD_DEV": "1"})
-    def test_start_full_flow(self, mock_run, mock_browser, mock_popen, launcher, mock_frontend_dir):
+    def test_start_full_flow(
+        self, mock_run, mock_browser, mock_popen, launcher, mock_frontend_dir
+    ):
         """Test full start flow in dev mode: install deps, start server, launch browser."""
         # Set dev mode
         launcher.dev_mode = True
@@ -183,7 +187,7 @@ class TestDashboardLauncher:
 
     def test_frontend_dir_exists(self):
         """Test FRONTEND_DIR points to actual frontend directory."""
-        from flock.dashboard.launcher import FRONTEND_DIR
+        from flock.api.launcher import FRONTEND_DIR
 
         # Should exist in the actual package
         assert FRONTEND_DIR.name == "frontend"

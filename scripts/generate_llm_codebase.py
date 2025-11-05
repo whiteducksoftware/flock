@@ -49,7 +49,9 @@ def get_repo_root() -> Path:
     return Path.cwd()
 
 
-def should_exclude_path(path: Path, exclude_patterns: list[str], tests_mode: str) -> bool:
+def should_exclude_path(
+    path: Path, exclude_patterns: list[str], tests_mode: str
+) -> bool:
     """Check if a path should be excluded."""
     path_str = str(path)
 
@@ -76,18 +78,16 @@ def should_exclude_path(path: Path, exclude_patterns: list[str], tests_mode: str
             return True
 
     # Handle test files based on mode
-    is_test = any(
-        [
-            "/test/" in path_str,
-            "/tests/" in path_str,
-            path.name.startswith("test_"),
-            path.name.endswith("_test.py"),
-            path.name.endswith(".test.ts"),
-            path.name.endswith(".test.tsx"),
-            path.name.endswith(".spec.ts"),
-            path.name.endswith(".spec.tsx"),
-        ]
-    )
+    is_test = any([
+        "/test/" in path_str,
+        "/tests/" in path_str,
+        path.name.startswith("test_"),
+        path.name.endswith("_test.py"),
+        path.name.endswith(".test.ts"),
+        path.name.endswith(".test.tsx"),
+        path.name.endswith(".spec.ts"),
+        path.name.endswith(".spec.tsx"),
+    ])
 
     if tests_mode == "exclude" and is_test:
         return True
@@ -151,10 +151,15 @@ def collect_files(
 
     for ext in extensions:
         for path in root.rglob(f"*{ext}"):
-            if path.is_file() and not should_exclude_path(path, exclude_patterns, tests_mode):
+            if path.is_file() and not should_exclude_path(
+                path, exclude_patterns, tests_mode
+            ):
                 # Check file size
                 if max_size_bytes and path.stat().st_size > max_size_bytes:
-                    print(f"⏭️  Skipping {path.relative_to(root)} (too large)", file=sys.stderr)
+                    print(
+                        f"⏭️  Skipping {path.relative_to(root)} (too large)",
+                        file=sys.stderr,
+                    )
                     continue
                 files.append(path)
 

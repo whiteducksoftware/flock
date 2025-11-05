@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from flock import Flock
 from flock.registry import flock_type
 
+
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
@@ -33,7 +34,8 @@ class DebateTopic(BaseModel):
         description="The context in which the debate takes place",
     )
     stakes: str = Field(
-        default="Future of humanity depends on it", description="The stakes of the debate"
+        default="Future of humanity depends on it",
+        description="The stakes of the debate",
     )
 
 
