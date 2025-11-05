@@ -214,21 +214,33 @@ class TestTracingComponent:
 
     def test_configure_with_nonexistent_db_path(self, app, orchestrator):
         """Test configure with non-existent db_path."""
-        config = TracingComponentConfig(db_path="/nonexistent/traces.duckdb")
+        from pathlib import Path
+        
+        # Use OS-agnostic path that works on all platforms
+        nonexistent_path = "nonexistent/traces.duckdb"
+        config = TracingComponentConfig(db_path=nonexistent_path)
         component = TracingComponent(config=config)
         component.configure(app, orchestrator)
 
-        assert component._db_path == Path("/nonexistent/traces.duckdb")
+        assert component._db_path == Path(nonexistent_path)
         assert component._db_path_exists is False
 
     def test_configure_string_db_path_conversion(self, app, orchestrator):
         """Test that string db_path is converted to Path object."""
-        config = TracingComponentConfig(db_path="/test/path/traces.duckdb")
+        from pathlib import Path
+        
+        # Use OS-agnostic path that works on all platforms
+        test_path = "test/path/traces.duckdb"
+        config = TracingComponentConfig(db_path=test_path)
         component = TracingComponent(config=config)
         component.configure(app, orchestrator)
 
         assert isinstance(component._db_path, Path)
-        assert str(component._db_path) == "/test/path/traces.duckdb"
+        # Check that the path is converted correctly (OS-agnostic comparison)
+        expected_path = Path(test_path)
+        assert component._db_path == expected_path
+        assert component._db_path.name == "traces.duckdb"
+        assert component._db_path.suffix == ".duckdb"
 
     @pytest.mark.asyncio
     async def test_get_traces_success(self, app, orchestrator, temp_db):

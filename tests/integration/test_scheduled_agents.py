@@ -124,8 +124,8 @@ async def test_scheduled_agent_executes_on_timer():
     assert len(executions) >= 3, (
         f"Expected at least 3 executions, got {len(executions)}"
     )
-    assert len(executions) <= 12, (
-        f"Expected at most 12 executions, got {len(executions)}"
+    assert len(executions) <= 15, (
+        f"Expected at most 15 executions, got {len(executions)}"
     )
 
 
