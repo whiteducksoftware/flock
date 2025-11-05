@@ -35,33 +35,6 @@ const ScheduledAgentDisplay = memo(({ scheduleSpec, timerState, compactNodeView 
     return () => clearInterval(interval);
   }, []);
 
-  // Format schedule badge (compact display)
-  const formatScheduleBadge = (spec: ScheduleSpecDisplay): string => {
-    if (spec.type === 'interval' && spec.interval) {
-      // Parse ISO 8601 duration (PT30S, PT5M, PT1H, P1D)
-      const match = spec.interval.match(/PT?(\d+)([SMH])|P(\d+)D/);
-      if (match) {
-        const value = match[1] || match[3];
-        const unit = match[2] || 'D';
-        return `${value}${unit === 'S' ? 's' : unit === 'M' ? 'm' : unit === 'H' ? 'h' : 'd'}`;
-      }
-      return spec.interval;
-    } else if (spec.type === 'time' && spec.time) {
-      // Format time (17:00:00 -> 5:00 PM)
-      const [hours, minutes] = spec.time.split(':');
-      const hour = parseInt(hours || '0', 10);
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const displayHour = hour % 12 || 12;
-      return `${displayHour}:${minutes} ${ampm}`;
-    } else if (spec.type === 'datetime') {
-      return '1x'; // One-time indicator
-    } else if (spec.type === 'cron' && spec.cron) {
-      // Truncate cron if too long
-      return spec.cron.length > 10 ? `${spec.cron.substring(0, 10)}...` : spec.cron;
-    }
-    return '?';
-  };
-
   // Calculate next fire countdown
   const calculateNextFireCountdown = (nextFireTime: string | null): string | null => {
     if (!nextFireTime) return null;
@@ -141,7 +114,6 @@ const ScheduledAgentDisplay = memo(({ scheduleSpec, timerState, compactNodeView 
     return base;
   };
 
-  const scheduleBadge = formatScheduleBadge(scheduleSpec);
   const nextFireCountdown = timerState ? calculateNextFireCountdown(timerState.next_fire_time) : null;
   const lastFireRelative = timerState ? formatRelativeTime(timerState.last_fire_time) : 'Never';
   const scheduleDetails = formatScheduleDetails(scheduleSpec);
@@ -152,28 +124,6 @@ const ScheduledAgentDisplay = memo(({ scheduleSpec, timerState, compactNodeView 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
-      {/* Schedule Badge */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '4px 8px',
-          background: 'rgba(20, 184, 166, 0.1)',
-          borderLeft: '2px solid var(--color-teal-500, #14b8a6)',
-          borderRadius: 'var(--radius-sm)',
-          fontSize: '10px',
-          fontFamily: 'var(--font-family-mono)',
-          color: 'var(--color-teal-700, #0f766e)',
-          fontWeight: 600,
-        }}
-        title={`Schedule: ${scheduleDetails}`}
-        aria-label={`Scheduled agent: ${scheduleDetails}`}
-      >
-        <span>⏰</span>
-        <span>{scheduleBadge}</span>
-      </div>
-
       {/* Timer Panel */}
       {!compactNodeView && (
         <div
@@ -269,7 +219,7 @@ const ScheduledAgentDisplay = memo(({ scheduleSpec, timerState, compactNodeView 
                 }}
                 title={`Timer has fired ${timerState.iteration} times`}
               >
-                <span>Run #{timerState.iteration}</span>
+                <span>Run #{timerState.iteration + 1}</span>
                 {isStopped && (
                   <span style={{ fontSize: '9px', opacity: 0.8 }}>(final)</span>
                 )}

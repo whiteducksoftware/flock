@@ -64,6 +64,29 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
     }
   }, [receivedByType, sentByType]);
 
+  // Format schedule badge for header display
+  const formatScheduleBadge = (spec: ScheduleSpecDisplay): string => {
+    if (spec.type === 'interval' && spec.interval) {
+      // Parse ISO 8601 duration (PT30S, PT5M, PT1H, P1D)
+      const match = spec.interval.match(/PT?(\d+)([SMHD])/);
+      if (match && match[1] && match[2]) {
+        const value = match[1];
+        const unit = match[2].toLowerCase();
+        return `${value}${unit}`;
+      }
+    }
+    if (spec.type === 'time' && spec.time) {
+      return spec.time; // e.g., "17:00"
+    }
+    if (spec.type === 'datetime' && spec.datetime) {
+      return '1x'; // One-time schedule
+    }
+    if (spec.type === 'cron' && spec.cron) {
+      return spec.cron; // Show cron expression
+    }
+    return '';
+  };
+
   const handleDoubleClick = () => {
     useUIStore.getState().openDetailWindow(name);
   };
@@ -132,12 +155,39 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-2)' }}>
-        <span style={{
-          fontWeight: 600,
-          fontSize: compactNodeView ? '14px' : '16px',
-          color: 'var(--color-text-primary)',
-          lineHeight: 1.4,
-        }}>{name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
+          <span style={{
+            fontWeight: 600,
+            fontSize: compactNodeView ? '14px' : '16px',
+            color: 'var(--color-text-primary)',
+            lineHeight: 1.4,
+          }}>{name}</span>
+          {scheduleSpec && (
+            <span
+              style={{
+                fontSize: '12px',
+                opacity: 0.8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+              }}
+              title={`Scheduled: ${formatScheduleBadge(scheduleSpec)}`}
+            >
+              ⏰ {formatScheduleBadge(scheduleSpec)}
+            </span>
+          )}
+          {!scheduleSpec && (
+            <span
+              style={{
+                fontSize: '12px',
+                opacity: 0.8,
+              }}
+              title="Event-driven agent (triggered by messages)"
+            >
+              ⚡
+            </span>
+          )}
+        </div>
         <span
           style={{
             width: compactNodeView ? '12px' : '14px',
@@ -146,7 +196,6 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
             backgroundColor: statusStyle.indicatorColor,
             display: 'inline-block',
             flexShrink: 0,
-            marginLeft: 'var(--spacing-2)',
             animation: (status === 'running' && showStatusPulse) ? 'pulse 2s infinite' : 'none',
           }}
           title={status}
