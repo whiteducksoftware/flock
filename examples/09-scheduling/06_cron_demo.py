@@ -52,16 +52,27 @@ async def main() -> None:
         return
 
     if DEMO_MODE:
-        # CLI demo: initialize components and run just long enough to see a tick
-        await flock._run_initialize()
-
+        # CLI demo: run briefly to observe cron behavior
+        print("Cron demo running... waiting for next minute boundary (UTC)")
+        
+        # Start the orchestrator in background
+        serve_task = asyncio.create_task(flock.serve())
+        
         # Sleep until a bit after the next minute boundary so at least one tick fires
         now = datetime.now(UTC)
         next_minute = (now.replace(second=0, microsecond=0) + timedelta(minutes=1))
         sleep_for = (next_minute - now).total_seconds() + 5.0  # buffer
-        print("Cron demo running... waiting for next minute boundary (UTC)")
-        await asyncio.sleep(max(6.0, sleep_for))
-        await flock.shutdown()
+        
+        try:
+            await asyncio.sleep(max(6.0, sleep_for))
+        except KeyboardInterrupt:
+            print("\nStopping cron demo...")
+        finally:
+            serve_task.cancel()
+            try:
+                await serve_task
+            except asyncio.CancelledError:
+                pass
         return
 
     # Default: serve in CLI mode (blocking)
