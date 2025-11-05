@@ -364,9 +364,7 @@ class Subscription:
             if isinstance(value, str):
                 text_parts.append(value)
             elif isinstance(value, (list, tuple)):
-                for item in value:
-                    if isinstance(item, str):
-                        text_parts.append(item)
+                text_parts.extend(item for item in value if isinstance(item, str))
 
         return " ".join(text_parts)
 

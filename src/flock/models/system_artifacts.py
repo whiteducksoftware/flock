@@ -4,6 +4,7 @@ These artifacts provide workflow telemetry and error tracking.
 """
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -45,7 +46,7 @@ class TimerTick(BaseModel):
         default_factory=datetime.now, description="When the timer fired"
     )
     iteration: int = Field(default=0, description="Number of times timer has fired")
-    schedule_spec: dict = Field(
+    schedule_spec: dict[str, Any] = Field(
         default_factory=dict, description="Original schedule config"
     )
 

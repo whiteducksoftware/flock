@@ -386,9 +386,7 @@ class Agent(metaclass=AutoTracedMeta):
             return await run_chain()
 
         async with asyncio.TaskGroup() as tg:  # Python 3.12
-            tasks: list[asyncio.Task[EvalResult]] = []
-            for _ in range(self.best_of_n):
-                tasks.append(tg.create_task(run_chain()))
+            tasks = [tg.create_task(run_chain()) for _ in range(self.best_of_n)]
         results = [task.result() for task in tasks]
         if not results:
             return EvalResult(artifacts=[], state={})

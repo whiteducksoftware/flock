@@ -47,7 +47,7 @@ class TestTimerComponentAutoRegistration:
             orchestrator.agent("scheduled_agent")
             .consumes(DummyInput)
             .publishes(DummyOutput)
-            .schedule(ScheduleSpec(interval=timedelta(seconds=30)))
+            .schedule(every=timedelta(seconds=30))
         )
 
         # Act - Initialize components (would normally happen on first publish/run)
@@ -108,7 +108,7 @@ class TestTimerComponentAutoRegistration:
 
         # Schedule an agent without publishes()
         orchestrator.agent("invalid_scheduled").schedule(
-            ScheduleSpec(interval=timedelta(seconds=30))
+            ScheduleSpec(interval=timedelta(minutes=5))
         )
 
         with pytest.raises(ValueError, match="must declare .publishes\(\)"):
@@ -130,14 +130,14 @@ class TestTimerComponentAutoRegistration:
             orchestrator.agent("timer_agent_1")
             .consumes(DummyInput)
             .publishes(DummyOutput)
-            .schedule(ScheduleSpec(interval=timedelta(seconds=30)))
+            .schedule(every=timedelta(seconds=30))
         )
 
         agent2 = (
             orchestrator.agent("timer_agent_2")
             .consumes(DummyInput)
             .publishes(DummyOutput)
-            .schedule(ScheduleSpec(interval=timedelta(minutes=5)))
+            .schedule(every=timedelta(minutes=5))
         )
 
         # Act - Initialize components
@@ -176,7 +176,7 @@ class TestTimerComponentAutoRegistration:
             orchestrator.agent("scheduled_agent")
             .consumes(DummyInput)
             .publishes(DummyOutput)
-            .schedule(ScheduleSpec(interval=timedelta(seconds=30)))
+            .schedule(every=timedelta(seconds=30))
         )
 
         # Act - Initialize components
@@ -241,7 +241,7 @@ class TestTimerComponentAutoRegistration:
             orchestrator.agent("scheduled_agent")
             .consumes(DummyInput)
             .publishes(DummyOutput)
-            .schedule(ScheduleSpec(interval=timedelta(seconds=30)))
+            .schedule(every=timedelta(seconds=30))
         )
 
         # Create a regular agent (no schedule)
@@ -285,7 +285,7 @@ class TestTimerComponentAutoRegistration:
             orchestrator.agent("scheduled_agent")
             .consumes(DummyInput)
             .publishes(DummyOutput)
-            .schedule(ScheduleSpec(interval=timedelta(seconds=30)))
+            .schedule(every=timedelta(seconds=30))
         )
 
         # Act - Initialize components multiple times
@@ -328,7 +328,7 @@ class TestTimerComponentIntegration:
             orchestrator.agent("scheduled_agent")
             .consumes(DummyInput)
             .publishes(DummyOutput)
-            .schedule(ScheduleSpec(interval=timedelta(seconds=30)))
+            .schedule(every=timedelta(seconds=30))
         )
 
         # Act - Initialize and then shutdown
