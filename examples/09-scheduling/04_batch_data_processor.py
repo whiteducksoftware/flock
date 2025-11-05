@@ -63,7 +63,7 @@ class AggregatedData(BaseModel):
 # ============================================================================
 # AGENT SETUP: Create sensor simulator and batch processor
 # ============================================================================
-flock = Flock("openai/gpt-4o-mini")
+flock = Flock()
 
 # Agent 1: Simulate sensors publishing data every 5 seconds
 # In production, this would be actual sensor data ingestion

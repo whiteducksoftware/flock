@@ -64,7 +64,7 @@ class DailyReport(BaseModel):
 # ============================================================================
 # AGENT SETUP: Create transaction processor and daily reporter
 # ============================================================================
-flock = Flock("openai/gpt-4o-mini")
+flock = Flock()
 
 # Agent 1: Process transactions (simulated - runs every 15 seconds for demo)
 # In production, this would be triggered by actual transactions

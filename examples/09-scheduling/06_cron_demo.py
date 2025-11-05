@@ -31,7 +31,7 @@ USE_DASHBOARD = False
 
 
 async def main() -> None:
-    flock = Flock("openai/gpt-4.1")
+    flock = Flock()
 
     # Every minute (UTC) at second 0
     agent = (

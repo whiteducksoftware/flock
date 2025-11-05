@@ -59,7 +59,7 @@ class Reminder(BaseModel):
 # ============================================================================
 # AGENT SETUP: Create meeting scheduler and reminder agent
 # ============================================================================
-flock = Flock("openai/gpt-4o-mini")
+flock = Flock()
 
 # For demo purposes, we'll schedule reminders shortly in the future
 # In production, you would schedule at actual meeting times

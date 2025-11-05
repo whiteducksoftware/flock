@@ -49,7 +49,7 @@ class HealthStatus(BaseModel):
 # ============================================================================
 # AGENT SETUP: Create scheduled health monitor
 # ============================================================================
-flock = Flock("openai/gpt-4o-mini")
+flock = Flock()
 
 # Schedule agent to run every 30 seconds
 # This creates a timer trigger that fires at regular intervals

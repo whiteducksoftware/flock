@@ -59,7 +59,7 @@ class ErrorReport(BaseModel):
 # ============================================================================
 # AGENT SETUP: Create log collector and error analyzer
 # ============================================================================
-flock = Flock("openai/gpt-4o-mini")
+flock = Flock()
 
 # Agent 1: Continuously collect logs (simulated)
 # This agent runs every 10 seconds and publishes various log entries
