@@ -49,7 +49,7 @@ const ScheduledAgentDisplay = memo(({ scheduleSpec, timerState, compactNodeView 
     } else if (spec.type === 'time' && spec.time) {
       // Format time (17:00:00 -> 5:00 PM)
       const [hours, minutes] = spec.time.split(':');
-      const hour = parseInt(hours, 10);
+      const hour = parseInt(hours || '0', 10);
       const ampm = hour >= 12 ? 'PM' : 'AM';
       const displayHour = hour % 12 || 12;
       return `${displayHour}:${minutes} ${ampm}`;
@@ -116,7 +116,7 @@ const ScheduledAgentDisplay = memo(({ scheduleSpec, timerState, compactNodeView 
       }
     } else if (spec.type === 'time' && spec.time) {
       const [hours, minutes] = spec.time.split(':');
-      const hour = parseInt(hours, 10);
+      const hour = parseInt(hours || '0', 10);
       const ampm = hour >= 12 ? 'PM' : 'AM';
       const displayHour = hour % 12 || 12;
       base = `Daily at ${displayHour}:${minutes} ${ampm} UTC`;

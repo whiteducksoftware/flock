@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import ScheduledAgentDisplay from './ScheduledAgentDisplay';
 import { ScheduleSpecDisplay, TimerStateDisplay } from '../../types/graph';
 
@@ -322,7 +322,7 @@ describe('ScheduledAgentDisplay', () => {
       
       // Verify it shows a reasonable countdown (between 29-31 seconds)
       const secondsMatch = countdownText.match(/(\d+)s/);
-      if (secondsMatch) {
+      if (secondsMatch && secondsMatch[1]) {
         const seconds = parseInt(secondsMatch[1], 10);
         expect(seconds).toBeGreaterThanOrEqual(29);
         expect(seconds).toBeLessThanOrEqual(31);
