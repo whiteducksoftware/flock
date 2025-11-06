@@ -5,6 +5,14 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 
+# Load environment variables from .env file early
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv not available, environment variables must be set manually
+    pass
+
 import typer
 from rich.console import Console
 from rich.table import Table
