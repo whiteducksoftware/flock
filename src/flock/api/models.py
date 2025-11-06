@@ -122,6 +122,19 @@ class ArtifactPublishRequest(BaseModel):
     )
 
 
+class ArtifactValidationResponse(BaseModel):
+    """Contains information if a given Artifact is acceptable."""
+
+    acceptable: bool = Field(
+        default=True,
+        description="True, if validation succeeded. False otherwise. If False, the 'reason' property will contain information as to what went wrong.",
+    )
+    reason: str = Field(
+        default="Validation succeeded.",
+        description="Contains additional information. If 'acceptable'==True, then it will reflect that, otherwise it contains information as to what went wrong during validation.",
+    )
+
+
 class ArtifactPublishTrackingResponse(BaseModel):
     """Response for a successful ArtifactPublishRequest."""
 

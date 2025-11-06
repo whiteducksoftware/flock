@@ -18,6 +18,7 @@ from flock.components.server.mcp.default_mcp_endpoints import (
     register_default_list_available_agents_route,
     register_default_publish_artifact_route,
     register_default_summarize_artifacts_route,
+    register_default_validate_artifact_schema_route,
 )
 from flock.logging.logging import get_logger
 
@@ -167,6 +168,7 @@ class MCPServerComponent(ServerComponent):
                     "get_artifact",  # Get a specific artifact by correlation id
                     "list_artifact_type_names",  # Get all registered artifact types with their schemas
                     "get_artifact_schema",  # Get specific schema for an artifact
+                    "validate_artifact_schema",  # Validate an artifact schema
                 ]
             if self.config.included_operations is not None and isinstance(
                 self.config.included_operations, list
@@ -284,6 +286,14 @@ class MCPServerComponent(ServerComponent):
                 tags=self.config.tags,
                 operation_id="get_artifact_schema",
                 logger=logger,
+            )
+
+            register_default_validate_artifact_schema_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self.config.prefix, "validate_artifact_schema"),
+                operation_id="validate_artifact_schema",
+                tags=self.config.tags,
             )
 
         # At the end, register the mcp_app

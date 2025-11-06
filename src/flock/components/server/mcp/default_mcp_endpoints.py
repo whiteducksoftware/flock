@@ -13,6 +13,7 @@ from flock.api.models import (
     ArtifactSummaryResponse,
     ArtifactTypeNamesErrorResponse,
     ArtifactTypeNamesResponse,
+    ArtifactValidationResponse,
     ConsumptionRecord,
     CorrelationStatusErrorResponse,
     CorrelationStatusResponse,
@@ -87,6 +88,83 @@ def _serialize_artifact(
         ]
         data["consumed_by"] = sorted({record.consumer for record in consumptions})
     return data
+
+
+def register_default_validate_artifact_schema_route(
+    app: "FastAPI",
+    orchestrator: "Flock",
+    path: str,
+    tags: list[str],
+    operation_id: str,
+    logger: FlockLogger,
+):
+    """Register the default validate artifact route."""
+
+    @app.post(
+        path,
+        tags=tags,
+        operation_id=operation_id,
+        summary="Validate the schema for an artifact.",
+        description="Validate the schema for an artifact.",
+        response_model=ArtifactValidationResponse,
+    )
+    async def validate_artifact_schema(
+        body: ArtifactPublishRequest,
+    ) -> ArtifactValidationResponse:
+        """Validate an artifact schema before publishing the Artifact to the BlackBoard.
+
+        This tool can be used to check if a given artifact would be acceptable in its given form.
+        This checks if the BlackBoard: a) knows the given Artifact Type, and b) all fields contain
+        the correct types and values.
+        This Tool can therefore be used to validate a request before publishing it to the BlackBoard,
+        allowing the caller to refine and validate calls and reduce the amount of errors.
+        """
+        try:
+            artifact_type = body.type
+            payload = body.payload
+            if not artifact_type or artifact_type == "":
+                logger.exception("MCPServerComponent: Validation")
+                return ArtifactValidationResponse(
+                    acceptable=False,
+                    reason="TypeName must be included. Cannot be null/None or empty string.",
+                )
+            if payload is None:
+                return ArtifactValidationResponse(
+                    acceptable=False, reason="Payload cannot be null/None."
+                )
+            try:
+                # Resolve type from registry
+                model_class = type_registry.resolve(artifact_type)
+            except KeyError:
+                logger.exception(
+                    f"MCPServerComponent: Unable to resolve artifact type for type_name: {artifact_type}"
+                )
+                return ArtifactValidationResponse(
+                    acceptable=False,
+                    reason=f"Unable to resolve TypeName for artifact. TypeName {artifact_type} not known.",
+                )
+            # Validate instance creation
+            try:
+                _ = model_class(**payload)
+            except ValidationError as valex:
+                logger.exception(
+                    f"Unable to validate payload for type: {artifact_type}: {valex!s}"
+                )
+                return ArtifactValidationResponse(
+                    acceptable=False,
+                    reason=f"Validation error for payload for ArtifactType: {artifact_type}: {valex!s}",
+                )
+            return ArtifactValidationResponse(
+                acceptable=True,
+                reason="Validation successful. Artifact would be acceptable in given form.",
+            )
+        except Exception as ex:
+            logger.exception(
+                f"MCPServerComponent: Exception occurred during TypeValidation for Artifact: {artifact_type}: {ex!s}"
+            )
+            return ArtifactValidationResponse(
+                acceptable=False, reason=f"Validation failed. Error: {ex!s}"
+            )
 
 
 def register_default_get_artifact_schema_route(
