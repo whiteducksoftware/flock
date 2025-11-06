@@ -6,10 +6,15 @@ import httpx
 from fastapi_mcp import AuthConfig, FastApiMCP
 from pydantic import Field
 
+from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.components.server.mcp.default_mcp_endpoints import (
-    register_agent_invokation_route,
-    register_list_available_agent_route,
+    register_default_get_workflow_status_route,
+    register_default_invokation_route,
+    register_default_list_artifacts_route,
+    register_default_list_available_agents_route,
+    register_default_publish_artifact_route,
+    register_default_summarize_artifacts_route,
 )
 from flock.logging.logging import get_logger
 
@@ -135,9 +140,15 @@ class MCPServerComponent(ServerComponent):
         default=False,
         description="Indicates if the internal mcp_server instance has already been mounted.",
     )
+    websocket_manager: WebSocketManager | None = Field(
+        default=None,
+        description="Optional WebSocketManager instance. If not provided, the default Flock global WebSocketManager will be used (recommended)."
+    )
 
     def configure(self, app: "FastAPI", orchestrator: "Flock"):
         default_operations: list[str] = []
+        if self.websocket_manager is None:
+            self.websocket_manager = WebSocketManager()
 
         if not self.is_mounted and self.mcp_app is None:
             logger.info("MCP-Server has not been instantiated yet.")
@@ -177,7 +188,7 @@ class MCPServerComponent(ServerComponent):
         logger.info("Registering routes.")
         # check if we should register the default routes first, and register them
         if self.config.register_default_tools:
-            register_agent_invokation_route(
+            register_default_invokation_route(
                 app=app,
                 orchestrator=orchestrator,
                 path=self._join_path(self.config.prefix, "invoke_agent"),
@@ -196,14 +207,51 @@ class MCPServerComponent(ServerComponent):
                     else self.config.exposed_agents
                 )
 
-            register_list_available_agent_route(
+            register_default_list_available_agents_route(
                 app=app,
                 orchestrator=orchestrator,
-                path=self._join_path(self),
+                path=self._join_path(self.config.prefix, "list_agents"),
                 tags=self.config.tags,
                 logger=logger,
                 operation_id="list_available_agents",
                 exposed_agents=agents_to_expose,
+            )
+
+            register_default_publish_artifact_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self.config.prefix, "publish_artifact"),
+                tags=self.config.tags,
+                logger=logger,
+                operation_id="publish_artifact",
+                websocket_manager=self.websocket_manager if self.websocket_manager is not None else WebSocketManager(),
+            )
+
+            register_default_get_workflow_status_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self.config.prefix, "get_workflow_status"),
+                tags=self.config.tags,
+                operation_id="get_workflow_status",
+                logger=logger,
+            )
+
+            register_default_list_artifacts_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self.config.prefix, "list_artifacts"),
+                tags=self.config.tags,
+                operation_id="list_artifacts",
+                logger=logger,
+            )
+
+            register_default_summarize_artifacts_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self.config.prefix, "summarize_artifacts"),
+                tags=self.config.tags,
+                operation_id="summarize_artifacts",
+                logger=logger,
             )
 
         # At the end, register the mcp_app

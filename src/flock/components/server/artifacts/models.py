@@ -59,6 +59,14 @@ class PaginationInfo(BaseModel):
     offset: int = Field(description="Offset into the result set")
     total: int = Field(description="Total number of items matching the query")
 
+class ArtifactListRequest(BaseModel):
+    """Request for listing Artifacts."""
+    type_names: list[str] | None = Field(default=None, description="Type Name to include")
+    produced_by: list[str] | None = Field(default=None, description="Agent Names to include")
+    correlation_id: str = Field(..., description="Associated Correlation ID. Required")
+    tags: list[str] | None = Field(default=None, description="Tags to include")
+    limit: int = Field(default=50, ge=1, le=500, description="Max number of results per page")
+    offset: int = Field(default=0, ge=0, description="Offset for pagination")
 
 class ArtifactListResponse(BaseModel):
     """Response for GET /api/v1/artifacts."""
@@ -68,6 +76,9 @@ class ArtifactListResponse(BaseModel):
     )
     pagination: PaginationInfo = Field(description="Pagination information")
 
+class ArtifactListRequestError(BaseModel):
+    """Error Model for ArtifactListRequest"""
+    reason: str = Field(..., description="Reason for failure.")
 
 class ArtifactPublishRequest(BaseModel):
     """Request body for POST /api/v1/artifacts."""

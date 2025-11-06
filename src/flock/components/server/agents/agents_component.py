@@ -167,7 +167,7 @@ class AgentsServerComponent(ServerComponent):
             operation_id="default_agent_history",
             summary="Get a summary of the run history of an agent.",
         )
-        async def agent_histroy(
+        async def agent_history(
             agent_id: str,
             type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),

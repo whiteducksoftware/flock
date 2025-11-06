@@ -214,6 +214,7 @@ class ArtifactsComponent(ServerComponent):
             tags=self.config.tags,
             operation_id="default_get_artifact",
             description="Get a specific artifact by its ID",
+            summary="Get a specific artifact by its ID"
         )
         async def get_artifact(artifact_id: UUID) -> dict[str, Any]:
             artifact = await orchestrator.store.get(artifact_id)
