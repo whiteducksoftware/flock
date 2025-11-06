@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Error Log Analyzer - CORRECTED VERSION
+Error Log Analyzer
 Demonstrates scheduled agents with context filtering using proper Flock API.
 
 This example shows:
@@ -16,10 +16,6 @@ import random
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
 
-# Flock imports
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from flock import Flock
 from flock.registry import flock_type

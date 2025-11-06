@@ -87,8 +87,8 @@ async def main_cli():
     print("=" * 70)
     print()
 
-    # Use run_until_idle with timeout for proper CLI demo mode
-    # This initializes timers and runs for specified duration
+    # Use run_until_idle with timeout when using scheduled agents in CLI mode
+    # active timer will prevent the idle state from being reached
     await flock.run_until_idle(timeout=120)  # 2 minutes
 
     print()
