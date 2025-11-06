@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import ValidationError
 
@@ -11,6 +11,8 @@ from flock.api.models import (
     ArtifactSummaryErrorResponse,
     ArtifactSummaryRequest,
     ArtifactSummaryResponse,
+    ArtifactTypeNamesErrorResponse,
+    ArtifactTypeNamesResponse,
     ConsumptionRecord,
     CorrelationStatusErrorResponse,
     CorrelationStatusResponse,
@@ -48,7 +50,7 @@ def _make_filter_config(filter: ArtifactListRequest) -> FilterConfig:
         produced_by=set(filter.produced_by) if filter.produced_by else None,
         correlation_id=filter.correlation_id,
         tags=None,
-        visibility=None,
+        visibility=["Public"],
         start=None,
         end=None,
     )
@@ -86,7 +88,133 @@ def _serialize_artifact(
         data["consumed_by"] = sorted({record.consumer for record in consumptions})
     return data
 
-def register_default_get_artifact_by_correlation_id_route(
+
+def register_default_get_artifact_schema_route(
+    app: "FastAPI",
+    orchestrator: "Flock",
+    path: str,
+    tags: list[str],
+    operation_id: str,
+    logger: FlockLogger,
+):
+    """Register the default get artifact schema route."""
+
+    @app.post(
+        path,
+        tags=tags,
+        operation_id=operation_id,
+        summary="Get the schema for a given artifact.",
+        description="Get the schema for a given artifact.",
+        response_model=dict[str, Any],
+    )
+    async def get_artifact_schema(artifact_type_name: str) -> dict[str, Any]:
+        """Get the schema for a registered Artifact by name.
+
+        This tool returns the schema for a Artifact by its TypeName
+        that is being used on the BlackBoard.
+        Artifacts can be Types that Agents connected to the BlackBoard
+        accept (listen to if they are published) and/or produce.
+
+        This tool is useful if the list of available Agents
+        and the Artifacts/Events they accept is known, and/or
+        the list of ArtifactTypes that are accepted by the BlackBoard
+        is known and the schema for a given Artifact needs to be retrieved
+        before either invoking an Agent directly or publishing (recommended) an
+        Artifact to the BlackBoard for async processing.
+        This way, a client/caller/agent does not have to guess or infer
+        the ArtifactSchema before publishing to the BlackBoard.
+
+        Returns:
+            {
+                "artifact_schema": {
+                    "type_name": "TypeName",
+                    "schema": {...}
+                }
+            }
+        """
+        # Registry look-up to determine if TypeName is actually registered
+        try:
+            registered_type = type_registry.resolve(type_name=artifact_type_name)
+            schema = registered_type.model_json_schema()
+            return {
+                "artifact_schema": {
+                    "type_name": artifact_type_name,
+                    "schema": schema,
+                }
+            }
+        except KeyError as ex:
+            logger.exception(
+                f"MCPServerComponent: No Type with TypeName {artifact_type_name} registered: {ex!s}"
+            )
+            return {
+                "error": True,
+                "reason": f"Unable to resolve Artifact-Schema for TypeName: {artifact_type_name}. No such Type is known.",
+            }
+
+
+def register_default_list_artifact_type_names_route(
+    app: "FastAPI",
+    orchestrator: "Flock",
+    path: str,
+    tags: list[str],
+    operation_id: str,
+    logger: FlockLogger,
+):
+    """Register the default list artifact type names route."""
+
+    @app.get(
+        path,
+        tags=tags,
+        operation_id=operation_id,
+        summary="Get all names for publicly visible artifact types.",
+        description="Get all names for publicly visible artifact types",
+        response_model=ArtifactTypeNamesResponse | ArtifactTypeNamesErrorResponse,
+    )
+    async def get_artifact_type_names() -> (
+        ArtifactTypeNamesResponse | ArtifactTypeNamesErrorResponse
+    ):
+        """Get all names for the registered types.
+
+        This helper-tool allows the retrieval of a list of all available
+        ArtifactTypeNames. This helps in figuring out the schemas
+        Artifacts that Agents react to and produce.
+
+        The returned TypeNames list can then be used to look up
+        the schema for a specific Artifact Type that a given Agent
+        accepts.
+
+        The list of TypeNames returned contains all names for
+        ArtifactTypes that are publicly visible, where 'publicly visible'
+        means that these types of Artifacts/Events can be retrieved
+        by external clients/agents. Internally used types are not returned
+        and should not be used by external systems.
+        """
+        try:
+            # Get all registered Artifact Types
+            type_names_dict = type_registry._by_name
+            type_names = list(type_names_dict.keys())
+
+            from flock.models.system_artifacts import WorkflowError
+
+            workflow_error_type = type_registry.name_for(WorkflowError)
+
+            # filter artifacts
+            filtered_names = [
+                name for name in type_names if name != workflow_error_type
+            ]
+            return ArtifactTypeNamesResponse(
+                type_names=filtered_names,
+            )
+        except Exception as ex:
+            logger.exception(
+                f"MCPServerComponent: Unable to retireve Artifact type names: {ex!s}"
+            )
+            return ArtifactTypeNamesErrorResponse(
+                reason=f"Unable to retrieve Artifact type names. Error: {ex!s}"
+            )
+
+
+def register_default_get_artifact_by_id_route(
     app: "FastAPI",
     orchestrator: "Flock",
     path: str,
@@ -95,7 +223,8 @@ def register_default_get_artifact_by_correlation_id_route(
     logger: FlockLogger,
 ):
     """Register the default get_artifact endpoint."""
-    @app.get(
+
+    @app.post(
         path,
         tags=tags,
         operation_id=operation_id,
@@ -108,6 +237,23 @@ def register_default_get_artifact_by_correlation_id_route(
         Args:
             artifact_id: the id of the artifact in question.
         """
+        try:
+            artifact = await orchestrator.store.get(artifact_id)
+            if artifact is None:
+                return {
+                    "error": True,
+                    "reason": f"Artifact with id {artifact_id} not Found",
+                }
+            return _serialize_artifact(artifact=artifact)
+        except Exception as ex:
+            logger.exception(
+                f"MCPServerComponent: Unable to retrieve artifact with id {artifact_id}. Error: {ex!s}"
+            )
+            return {
+                "error": True,
+                "reason": f"Unable to retrieve artifact with id {artifact_id}. Error: {ex!s}",
+            }
+
 
 def register_default_summarize_artifacts_route(
     app: "FastAPI",
@@ -119,7 +265,7 @@ def register_default_summarize_artifacts_route(
 ):
     """Register the default summarize artifacts endpoint."""
 
-    @app.get(
+    @app.post(
         path,
         tags=tags,
         operation_id=operation_id,
@@ -166,7 +312,7 @@ def register_default_list_artifacts_route(
 ):
     """Register the list artifacts endpoint."""
 
-    @app.get(
+    @app.post(
         path,
         response_model=ArtifactListResponse | ArtifactListRequestError,
         tags=tags,

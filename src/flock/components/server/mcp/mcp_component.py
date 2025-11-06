@@ -9,8 +9,11 @@ from pydantic import Field
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.components.server.mcp.default_mcp_endpoints import (
+    register_default_get_artifact_by_id_route,
+    register_default_get_artifact_schema_route,
     register_default_get_workflow_status_route,
     register_default_invokation_route,
+    register_default_list_artifact_type_names_route,
     register_default_list_artifacts_route,
     register_default_list_available_agents_route,
     register_default_publish_artifact_route,
@@ -142,7 +145,7 @@ class MCPServerComponent(ServerComponent):
     )
     websocket_manager: WebSocketManager | None = Field(
         default=None,
-        description="Optional WebSocketManager instance. If not provided, the default Flock global WebSocketManager will be used (recommended)."
+        description="Optional WebSocketManager instance. If not provided, the default Flock global WebSocketManager will be used (recommended).",
     )
 
     def configure(self, app: "FastAPI", orchestrator: "Flock"):
@@ -224,7 +227,9 @@ class MCPServerComponent(ServerComponent):
                 tags=self.config.tags,
                 logger=logger,
                 operation_id="publish_artifact",
-                websocket_manager=self.websocket_manager if self.websocket_manager is not None else WebSocketManager(),
+                websocket_manager=self.websocket_manager
+                if self.websocket_manager is not None
+                else WebSocketManager(),
             )
 
             register_default_get_workflow_status_route(
@@ -251,6 +256,33 @@ class MCPServerComponent(ServerComponent):
                 path=self._join_path(self.config.prefix, "summarize_artifacts"),
                 tags=self.config.tags,
                 operation_id="summarize_artifacts",
+                logger=logger,
+            )
+
+            register_default_get_artifact_by_id_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self.config.prefix, "get_artifact_by_id"),
+                tags=self.config.tags,
+                operation_id="get_artifact",
+                logger=logger,
+            )
+
+            register_default_list_artifact_type_names_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self.config.prefix, "get_artifact_type_names"),
+                tags=self.config.tags,
+                operation_id="list_artifact_type_names",
+                logger=logger,
+            )
+
+            register_default_get_artifact_schema_route(
+                app=app,
+                orchestrator=orchestrator,
+                path=self._join_path(self.config.prefix, "get_artifact_schema"),
+                tags=self.config.tags,
+                operation_id="get_artifact_schema",
                 logger=logger,
             )
 

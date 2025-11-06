@@ -121,22 +121,22 @@ class ArtifactPublishRequest(BaseModel):
         default_factory=dict, description="Artifact payload data"
     )
 
+
 class ArtifactPublishTrackingResponse(BaseModel):
     """Response for a successful ArtifactPublishRequest."""
+
     correlation_id: str = Field(
         ...,
-        description="Correlation ID for the resulting Workflow that has been triggered in response to a publication.")
-    published_at: str = Field(
-        ...,
-        description="ISO Timestamp string"
+        description="Correlation ID for the resulting Workflow that has been triggered in response to a publication.",
     )
+    published_at: str = Field(..., description="ISO Timestamp string")
+
 
 class ArtifactPublishErrorResponse(BaseModel):
     """Response for a failed ArtifactPublishRequest."""
-    reason: str = Field(
-        ...,
-        description="Reason for failure."
-    )
+
+    reason: str = Field(..., description="Reason for failure.")
+
 
 class ArtifactPublishResponse(BaseModel):
     """Response for POST /api/v1/artifacts."""
@@ -156,15 +156,44 @@ class ArtifactSummaryResponse(BaseModel):
 
     summary: dict[str, Any] = Field(description="Summary statistics")
 
+
 class ArtifactSummaryErrorResponse(BaseModel):
     """Error response for summarize_artifacts."""
+
     reason: str = Field(..., description="Reason for Error.")
+
 
 class ArtifactSummaryRequest(BaseModel):
     """Request for Artifact-Summaries."""
-    type_names: list[str] | None = Field(default=None, description="Type Names to filter for")
-    produced_by: list[str] | None = Field(default=None, description="Agent Names to filter for")
-    correlation_id: str | None = Field(default=None, description="Optional Workflow-correlation-id to filter for")
+
+    type_names: list[str] | None = Field(
+        default=None, description="Type Names to filter for"
+    )
+    produced_by: list[str] | None = Field(
+        default=None, description="Agent Names to filter for"
+    )
+    correlation_id: str | None = Field(
+        default=None, description="Optional Workflow-correlation-id to filter for"
+    )
+
+
+class ArtifactTypeNamesResponse(BaseModel):
+    """Response that contains all publicly visible TypeNames.
+
+    This object can then be used to look up the schema definition
+    for a specific type.
+    """
+
+    type_names: list[str] = Field(
+        ..., description="Type Names for all publicly visible Artifact Types"
+    )
+
+
+class ArtifactTypeNamesErrorResponse(BaseModel):
+    """Response that contains details when looking up TypeNames for artifacts."""
+
+    reason: str = Field(..., description="The reason why the call failed.")
+
 
 # ============================================================================
 # Agent Run Models
@@ -246,7 +275,9 @@ class AgentHistorySummary(BaseModel):
 # ============================================================================
 class CorrelationStatusErrorResponse(BaseModel):
     """Response Model for Error during get_workflow_status."""
+
     reason: str = Field(..., description="Reason for Error.")
+
 
 class CorrelationStatusResponse(BaseModel):
     """Response for GET /api/v1/correlations/{correlation_id}/status."""
