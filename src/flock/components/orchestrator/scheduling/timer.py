@@ -88,6 +88,16 @@ class TimerComponent(OrchestratorComponent):
         for agent in orchestrator.agents:
             # Check if agent has schedule_spec attribute and it's not None
             if hasattr(agent, "schedule_spec") and agent.schedule_spec:
+                # CRITICAL FIX: Skip if timer task already exists for this agent
+                if agent.name in self._timer_tasks:
+                    # Check if existing task is still running
+                    existing_task = self._timer_tasks[agent.name]
+                    if not existing_task.done():
+                        # Task already exists and is running, skip to prevent duplicates
+                        continue
+                    # Task exists but is done, remove it before creating new one
+                    del self._timer_tasks[agent.name]
+                
                 # Initialize timer state
                 self._timer_states[agent.name] = TimerState()
                 # Calculate initial next fire time
