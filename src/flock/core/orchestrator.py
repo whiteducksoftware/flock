@@ -521,7 +521,26 @@ class Flock(metaclass=AutoTracedMeta):
 
     # Runtime --------------------------------------------------------------
 
-    async def run_until_idle(self, *, wait_for_input: bool = False) -> None:
+    def _has_active_timers(self) -> bool:
+        """Check if any scheduled agents have active timers.
+        
+        Returns:
+            True if any timers are active (running), False otherwise.
+        """
+        # Find TimerComponent among registered components
+        from flock.components.orchestrator.scheduling.timer import TimerComponent
+        
+        for component in self._components:
+            if isinstance(component, TimerComponent):
+                # Check if any timer states are active
+                for timer_state in component._timer_states.values():
+                    if timer_state.is_active and not timer_state.is_stopped:
+                        return True
+                break
+        
+        return False
+
+    async def run_until_idle(self, *, wait_for_input: bool = False, timeout: float | None = None) -> None:
         """Wait for all scheduled agent tasks to complete.
 
         This method blocks until the blackboard reaches a stable state where no
@@ -531,10 +550,14 @@ class Flock(metaclass=AutoTracedMeta):
         Args:
             wait_for_input: If True, waits for user input before returning (default: False).
                 Useful for debugging or step-by-step execution.
+            timeout: If provided, exits after this many seconds even if not idle.
+                Useful for scheduled agent demos that should run for a limited time.
 
         Note:
             Automatically resets circuit breaker counters and shuts down MCP connections
             when idle. Used with publish() for event-driven workflows.
+            If timeout is provided, the method will exit after the specified duration
+            even if scheduled agents (timers) are still active.
 
         Examples:
             >>> # Event-driven workflow (recommended)
@@ -553,36 +576,62 @@ class Flock(metaclass=AutoTracedMeta):
             >>> await flock.publish(task2)
             >>> await flock.run_until_idle(wait_for_input=True)  # Pauses again
 
+            >>> # Scheduled agents with timeout (demo mode)
+            >>> await flock.run_until_idle(timeout=120)  # Run for 2 minutes max
+
         See Also:
             - publish(): Event-driven artifact publishing
             - publish_many(): Batch publishing for parallel execution
             - invoke(): Direct agent invocation without cascade
         """
-        while self._scheduler.pending_tasks:
-            await asyncio.sleep(0.01)
-            pending = {
-                task for task in self._scheduler.pending_tasks if not task.done()
-            }
-            self._scheduler._tasks = pending
+        # CRITICAL: Initialize orchestrator components to ensure TimerComponent is ready
+        # This ensures scheduled agents work properly in CLI mode with run_until_idle
+        if not hasattr(self, '_orchestrator') or not self._orchestrator:
+            await self._run_initialize()
 
-        # Phase 5A: Check for pending work using LifecycleManager properties
-        pending_batches = self._lifecycle_manager.has_pending_batches
-        pending_correlations = self._lifecycle_manager.has_pending_correlations
+        # Start timeout tracking if specified
+        start_time = datetime.now()
+        
+        while True:
+            # Check timeout first
+            if timeout is not None:
+                elapsed = (datetime.now() - start_time).total_seconds()
+                if elapsed >= timeout:
+                    # Timeout reached - exit even if not idle
+                    break
+            
+            # Check for pending scheduler tasks
+            if self._scheduler.pending_tasks:
+                await asyncio.sleep(0.01)
+                pending = {
+                    task for task in self._scheduler.pending_tasks if not task.done()
+                }
+                self._scheduler._tasks = pending
+                continue  # Not idle due to pending tasks
 
-        # Ensure watchdog loops remain active while pending work exists.
-        if pending_batches:
-            await self._lifecycle_manager.start_batch_timeout_checker()
+            # Phase 5A: Check for pending work using LifecycleManager properties
+            pending_batches = self._lifecycle_manager.has_pending_batches
+            pending_correlations = self._lifecycle_manager.has_pending_correlations
 
-        if pending_correlations:
-            await self._lifecycle_manager.start_correlation_cleanup()
+            # Ensure watchdog loops remain active while pending work exists.
+            if pending_batches:
+                await self._lifecycle_manager.start_batch_timeout_checker()
+                continue  # Not idle due to pending batches
 
-        # If deferred work is still outstanding, consider the orchestrator quiescent for
-        # now but leave watchdog tasks running to finish the job.
-        if pending_batches or pending_correlations:
-            self._agent_iteration_count.clear()
-            return
+            if pending_correlations:
+                await self._lifecycle_manager.start_correlation_cleanup()
+                continue  # Not idle due to pending correlations
 
-        # Notify components that orchestrator reached idle state
+            # CRITICAL: Check for active timers - system is NOT idle if timers are running
+            has_active_timers = self._has_active_timers()
+            if has_active_timers:
+                await asyncio.sleep(0.1)  # Brief sleep when timers are active
+                continue  # Not idle due to active timers
+
+            # If we get here, system is truly idle (no tasks, no batches, no correlations, no timers)
+            break
+
+        # Notify components that orchestrator reached idle state or timeout
         if self._component_runner.is_initialized:
             await self._component_runner.run_idle(self)
 

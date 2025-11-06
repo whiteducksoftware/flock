@@ -82,29 +82,18 @@ async def main_cli():
     print("SIMPLE HEALTH MONITOR - Interval Scheduling Demo")
     print("=" * 70)
     print(f"Started at: {datetime.now().strftime('%H:%M:%S')}")
-    print("Monitoring system health every 30 seconds...")
+    print("Health monitor fires every 30 seconds")
     print("This demo will run for 2 minutes to show multiple iterations.")
     print("=" * 70)
     print()
 
-    # Start the orchestrator in the background
-    serve_task = asyncio.create_task(flock.serve())
-
-    # Let it run for 2 minutes (will show ~4 iterations)
-    try:
-        await asyncio.sleep(120)
-    except KeyboardInterrupt:
-        print("\n\nStopping health monitor...")
-    finally:
-        serve_task.cancel()
-        try:
-            await serve_task
-        except asyncio.CancelledError:
-            pass
+    # Use run_until_idle with timeout for proper CLI demo mode
+    # This initializes timers and runs for specified duration
+    await flock.run_until_idle(timeout=120)  # 2 minutes
 
     print()
     print("=" * 70)
-    print("Health monitoring demo complete!")
+    print("Health monitor demo complete!")
     print("=" * 70)
 
 
