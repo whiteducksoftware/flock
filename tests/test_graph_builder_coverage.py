@@ -25,6 +25,7 @@ class TestGraphBuilderCoverage:
         
         # Create request with statistics enabled
         request = GraphRequest(
+            view_mode="agent",
             options=GraphRequestOptions(include_statistics=True)
         )
         
@@ -45,6 +46,7 @@ class TestGraphBuilderCoverage:
         assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
         
         request = GraphRequest(
+            view_mode="agent",
             options=GraphRequestOptions(include_statistics=False)
         )
         
@@ -77,7 +79,7 @@ class TestGraphBuilderCoverage:
         await collector.load_persistent_snapshots()
         assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
         
-        request = GraphRequest()
+        request = GraphRequest(view_mode="agent")
         result = await assembler.build_snapshot(request)
         
         # Should still build graph successfully
