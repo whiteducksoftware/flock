@@ -197,7 +197,9 @@ class TimerComponent(OrchestratorComponent):
                 if agent_name in self._timer_states:
                     self._timer_states[
                         agent_name
-                    ].next_fire_time = self._calculate_next_fire_time(spec, base_time=fire_time)
+                    ].next_fire_time = self._calculate_next_fire_time(
+                        spec, base_time=fire_time
+                    )
 
                 # Wait for next fire (for interval schedules, wait after publish)
                 # For non-interval schedules, we already waited before publish
@@ -212,6 +214,7 @@ class TimerComponent(OrchestratorComponent):
             # CRITICAL FIX #3: Handle unexpected exceptions and mark timer as inactive
             # This prevents run_until_idle() from spinning forever waiting for crashed timers
             from flock.logging.logging import get_logger
+
             logger = get_logger(__name__)
             logger.error(
                 f"Timer loop crashed for agent '{agent_name}': {e}",

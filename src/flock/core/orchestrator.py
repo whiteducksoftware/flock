@@ -643,7 +643,9 @@ class Flock(metaclass=AutoTracedMeta):
                     # Batches have expired - give timeout checker a moment to flush them
                     # This allows tests like test_joinspec_time_expiry_vs_batch_timeout_behavior
                     # to work correctly where batches timeout and flush
-                    await asyncio.sleep(0.15)  # Slightly longer than cleanup_interval to ensure one iteration
+                    await asyncio.sleep(
+                        0.15
+                    )  # Slightly longer than cleanup_interval to ensure one iteration
                     # Recheck for new scheduler tasks that might have been created by batch flush
                     continue
                 # If no batches have expired yet, they're just waiting - system is idle
