@@ -851,6 +851,8 @@ await flock.serve(dashboard=True)  # API + Dashboard on port 8344
 - Parallel + sequential execution (automatic)
 - Zero-trust security (5 visibility types)
 - Semantic subscriptions with local embeddings
+- Timer-based agent scheduling (interval, daily, cron, one-time)
+- Server components for extensible HTTP API
 - Circuit breakers and feedback prevention
 - OpenTelemetry + DuckDB tracing
 - Real-time dashboard with 7-mode trace viewer
