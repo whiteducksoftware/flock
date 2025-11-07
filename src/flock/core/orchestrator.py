@@ -588,7 +588,8 @@ class Flock(metaclass=AutoTracedMeta):
         """
         # CRITICAL: Initialize orchestrator components to ensure TimerComponent is ready
         # This ensures scheduled agents work properly in CLI mode with run_until_idle
-        if not hasattr(self, "_orchestrator") or not self._orchestrator:
+        # Check if components are initialized using the proper attribute
+        if not self._components_initialized():
             await self._run_initialize()
 
         # Start timeout tracking if specified
