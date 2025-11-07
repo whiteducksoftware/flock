@@ -146,7 +146,7 @@ describe('ScheduledAgentDisplay', () => {
       );
 
       // "Run #" and iteration number are in the same span, but may be split
-      const elements = screen.getAllByText((content, element) => {
+      const elements = screen.getAllByText((_content, element) => {
         return element?.textContent?.includes('Run #42') ?? false;
       });
       expect(elements.length).toBeGreaterThan(0);
@@ -221,7 +221,7 @@ describe('ScheduledAgentDisplay', () => {
 
       expect(screen.getByText('⏸ Stopped')).toBeInTheDocument();
       // "Run #" and iteration number are in the same span, but may be split
-      const elements = screen.getAllByText((content, element) => {
+      const elements = screen.getAllByText((_content, element) => {
         return element?.textContent?.includes('Run #10') ?? false;
       });
       expect(elements.length).toBeGreaterThan(0);
