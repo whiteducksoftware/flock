@@ -189,7 +189,7 @@ class TestTimerComponentShutdown:
         # Manually add timer tasks (simulate running tasks)
         async def dummy_task():
             try:
-                await asyncio.sleep(100)
+                await asyncio.sleep(0.1)  # Short wait for test
             except asyncio.CancelledError:
                 pass
 
