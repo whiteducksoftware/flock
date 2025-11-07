@@ -77,6 +77,7 @@ dev = [
  "jupyterlab>=4.3.3",
  "radon>=6.0.1",
  "types-croniter>=6.0.0.20250809",
+ "pytest-timeout>=2.4.0",
 ]
 
 [project.license]
@@ -161,6 +162,8 @@ docstring-code-line-length = 72
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = [ "tests",]
+timeout = 300  # 5 minutes global timeout for all tests
+timeout_method = "thread"  # Use thread-based timeout to handle async tests
 
 [tool.coverage.run]
 source = [ "src/flock",]

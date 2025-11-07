@@ -98,8 +98,8 @@ async def test_emit_correlation_event_when_artifact_added_to_group():
     xray = XRayImage(patient_id="patient_123", image_data="scan.png")
     await orchestrator.publish(xray)
 
-    # Wait for async processing
-    await orchestrator.run_until_idle()
+    # Wait for async processing (with timeout to prevent infinite blocking)
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Assert: WebSocket broadcast should be called with CorrelationGroupUpdatedEvent
     assert mock_websocket_manager.broadcast.called, "broadcast() should be called"
@@ -148,7 +148,7 @@ async def test_no_correlation_event_when_dashboard_disabled():
     # Publish artifact - should NOT crash, should NOT emit
     xray = XRayImage(patient_id="patient_123", image_data="scan.png")
     await orchestrator.publish(xray)
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # No assertion needed - test passes if no exception raised
 
@@ -187,7 +187,7 @@ async def test_no_correlation_event_when_group_completes():
 
     await orchestrator.publish(xray)
     await orchestrator.publish(lab)
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # The first artifact will emit an event (group incomplete)
     # The second artifact should NOT emit (group complete - agent triggered instead)
@@ -223,7 +223,7 @@ async def test_correlation_event_content_with_time_window():
 
     xray = XRayImage(patient_id="patient_123", image_data="scan.png")
     await orchestrator.publish(xray)
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Get event
     event = mock_websocket_manager.broadcast.call_args[0][0]
@@ -259,7 +259,7 @@ async def test_correlation_event_content_with_count_window():
 
     xray = XRayImage(patient_id="patient_123", image_data="scan.png")
     await orchestrator.publish(xray)
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Get event
     event = mock_websocket_manager.broadcast.call_args[0][0]
@@ -302,7 +302,7 @@ async def test_emit_batch_event_when_artifact_added():
     # Publish first email - should start batch
     email = Email(subject="Test 1", body="Body 1")
     await orchestrator.publish(email)
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Assert: WebSocket broadcast should be called with BatchItemAddedEvent
     assert mock_websocket_manager.broadcast.called, "broadcast() should be called"
@@ -343,7 +343,7 @@ async def test_no_batch_event_when_dashboard_disabled():
     # Publish artifact - should NOT crash
     email = Email(subject="Test", body="Body")
     await orchestrator.publish(email)
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # No assertion needed - test passes if no exception
 
@@ -376,7 +376,7 @@ async def test_no_batch_event_when_batch_flushes():
         email = Email(subject=f"Test {i}", body=f"Body {i}")
         await orchestrator.publish(email)
 
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # First 2 emails should emit events (batch not full)
     # Third email should NOT emit (batch full - triggers agent)
@@ -407,7 +407,7 @@ async def test_batch_event_content_size_based():
         email = Email(subject=f"Test {i}", body=f"Body {i}")
         await orchestrator.publish(email)
 
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Get latest event (last call)
     event = mock_websocket_manager.broadcast.call_args[0][0]
@@ -439,7 +439,7 @@ async def test_batch_event_content_timeout_based():
 
     email = Email(subject="Test", body="Body")
     await orchestrator.publish(email)
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Get event
     event = mock_websocket_manager.broadcast.call_args[0][0]
@@ -474,7 +474,7 @@ async def test_batch_event_content_hybrid():
         email = Email(subject=f"Test {i}", body=f"Body {i}")
         await orchestrator.publish(email)
 
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Get latest event
     event = mock_websocket_manager.broadcast.call_args[0][0]
@@ -525,7 +525,7 @@ async def test_events_emitted_for_joinspec_and_batchspec_together():
     # Patient 1: XRay then Lab (completes correlation, starts batch)
     xray1 = XRayImage(patient_id="patient_123", image_data="scan1.png")
     await orchestrator.publish(xray1)
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Should emit CorrelationGroupUpdatedEvent
     call_count_after_xray = mock_websocket_manager.broadcast.call_count
@@ -533,7 +533,7 @@ async def test_events_emitted_for_joinspec_and_batchspec_together():
 
     lab1 = LabResults(patient_id="patient_123", test_results="results1.pdf")
     await orchestrator.publish(lab1)
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Should emit BatchItemAddedEvent (correlation complete, batch started)
     call_count_after_lab = mock_websocket_manager.broadcast.call_count
@@ -618,7 +618,7 @@ async def test_multiple_artifacts_emit_multiple_events():
         email = Email(subject=f"Test {i}", body=f"Body {i}")
         await orchestrator.publish(email)
 
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Should have 5 broadcast calls (one per email)
     assert mock_websocket_manager.broadcast.call_count == 5, (

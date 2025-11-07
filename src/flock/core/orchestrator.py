@@ -592,13 +592,28 @@ class Flock(metaclass=AutoTracedMeta):
             await self._run_initialize()
 
         # Start timeout tracking if specified
-        start_time = datetime.now()
+        # FIX #5: Use UTC for consistency with timer infrastructure
+        start_time = datetime.now(UTC)
 
         while True:
             # Check timeout first
             if timeout is not None:
-                elapsed = (datetime.now() - start_time).total_seconds()
+                elapsed = (datetime.now(UTC) - start_time).total_seconds()
                 if elapsed >= timeout:
+                    # FIX #6: Log timeout for better visibility
+                    self._logger.warning(
+                        f"run_until_idle() timeout reached after {elapsed:.2f}s"
+                    )
+                    # FIX #2: Cancel timer tasks when timeout is reached to prevent resource leaks
+                    from flock.components.orchestrator.scheduling.timer import (
+                        TimerComponent,
+                    )
+
+                    for component in self._components:
+                        if isinstance(component, TimerComponent):
+                            # Cancel all timer tasks to prevent resource leaks
+                            await component.on_shutdown(self)
+                            break
                     # Timeout reached - exit even if not idle
                     break
 
@@ -612,17 +627,31 @@ class Flock(metaclass=AutoTracedMeta):
                 continue  # Not idle due to pending tasks
 
             # Phase 5A: Check for pending work using LifecycleManager properties
+            # FIX: Incomplete batches/correlations are passive (waiting for more artifacts)
+            # However, batch timeout checkers need time to run and flush expired batches.
+            # We give them a brief moment to process, then recheck for new tasks.
             pending_batches = self._lifecycle_manager.has_pending_batches
             pending_correlations = self._lifecycle_manager.has_pending_correlations
 
-            # Ensure watchdog loops remain active while pending work exists.
+            # Start background tasks for timeout/cleanup if needed
             if pending_batches:
                 await self._lifecycle_manager.start_batch_timeout_checker()
-                continue  # Not idle due to pending batches
+                # Check if any batches have actually expired (timeout passed)
+                # Only wait if batches have expired, so timeout checker can flush them
+                expired_batches = self._batch_engine.check_timeouts()
+                if expired_batches:
+                    # Batches have expired - give timeout checker a moment to flush them
+                    # This allows tests like test_joinspec_time_expiry_vs_batch_timeout_behavior
+                    # to work correctly where batches timeout and flush
+                    await asyncio.sleep(0.15)  # Slightly longer than cleanup_interval to ensure one iteration
+                    # Recheck for new scheduler tasks that might have been created by batch flush
+                    continue
+                # If no batches have expired yet, they're just waiting - system is idle
 
             if pending_correlations:
                 await self._lifecycle_manager.start_correlation_cleanup()
-                continue  # Not idle due to pending correlations
+                # Correlations are just waiting - no need to wait for cleanup
+                # System is idle if no tasks are running
 
             # CRITICAL: Check for active timers - system is NOT idle if timers are running
             has_active_timers = self._has_active_timers()

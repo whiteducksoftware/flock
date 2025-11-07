@@ -161,6 +161,14 @@ class TimerComponent(OrchestratorComponent):
                         self._timer_states[agent_name].next_fire_time = None
                     break
 
+                # CRITICAL FIX #1: Wait BEFORE publishing for non-interval schedules
+                # This prevents immediate fire on startup for datetime/cron schedules
+                # For interval schedules, we publish immediately then wait
+                # For non-interval schedules (datetime/cron), we wait first then publish
+                if not spec.interval:
+                    # Wait for scheduled time before publishing
+                    await self._wait_for_next_fire(spec)
+
                 # Update timer state
                 fire_time = datetime.now(UTC)
                 if agent_name in self._timer_states:
@@ -190,13 +198,31 @@ class TimerComponent(OrchestratorComponent):
                         agent_name
                     ].next_fire_time = self._calculate_next_fire_time(spec)
 
-                # Wait for next fire
-                await self._wait_for_next_fire(spec)
+                # Wait for next fire (for interval schedules, wait after publish)
+                # For non-interval schedules, we already waited before publish
+                if spec.interval:
+                    await self._wait_for_next_fire(spec)
 
         except asyncio.CancelledError:
             # Graceful shutdown
             if agent_name in self._timer_states:
                 self._timer_states[agent_name].is_active = False
+        except Exception as e:
+            # CRITICAL FIX #3: Handle unexpected exceptions and mark timer as inactive
+            # This prevents run_until_idle() from spinning forever waiting for crashed timers
+            from flock.logging.logging import get_logger
+            logger = get_logger(__name__)
+            logger.error(
+                f"Timer loop crashed for agent '{agent_name}': {e}",
+                exc_info=True,
+            )
+            if agent_name in self._timer_states:
+                self._timer_states[agent_name].is_active = False
+                self._timer_states[agent_name].is_stopped = True
+            # Remove task from dictionary since it's crashed
+            if agent_name in self._timer_tasks:
+                del self._timer_tasks[agent_name]
+            raise  # Re-raise for visibility
         finally:
             # Mark as completed if one-time schedule
             if is_one_time and agent_name in self._timer_states:
@@ -223,7 +249,8 @@ class TimerComponent(OrchestratorComponent):
         if spec.after:
             result["after"] = str(spec.after)
         if spec.max_repeats:
-            result["max_repeats"] = str(spec.max_repeats)
+            # FIX #4: Keep max_repeats as integer for type consistency
+            result["max_repeats"] = spec.max_repeats
         return result
 
     def _calculate_next_fire_time(self, spec: ScheduleSpec) -> datetime | None:

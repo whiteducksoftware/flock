@@ -23,58 +23,60 @@ describe('ScheduledAgentDisplay', () => {
   });
 
   describe('Schedule Badge', () => {
-    it('should render interval schedule badge', () => {
+    it('should render interval schedule details', () => {
       const scheduleSpec: ScheduleSpecDisplay = {
         type: 'interval',
         interval: 'PT30S',
       };
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={null} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={null} compactNodeView={false} />
       );
 
-      expect(screen.getByText('30s')).toBeInTheDocument();
+      // Check that schedule details are shown in the expanded view
+      expect(screen.getByText('Every 30 seconds')).toBeInTheDocument();
     });
 
-    it('should render time schedule badge', () => {
+    it('should render time schedule details', () => {
       const scheduleSpec: ScheduleSpecDisplay = {
         type: 'time',
         time: '17:00:00',
       };
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={null} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={null} compactNodeView={false} />
       );
 
-      // Should appear in badge (more specific query)
-      const badge = screen.getByLabelText(/Scheduled agent:/i);
-      expect(badge).toHaveTextContent(/5:00 PM/i);
+      // Check that schedule details are shown
+      expect(screen.getByText(/Daily at.*PM UTC/i)).toBeInTheDocument();
     });
 
-    it('should render datetime schedule badge (one-time)', () => {
+    it('should render datetime schedule details (one-time)', () => {
       const scheduleSpec: ScheduleSpecDisplay = {
         type: 'datetime',
         datetime: '2025-01-15T09:00:00Z',
       };
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={null} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={null} compactNodeView={false} />
       );
 
-      expect(screen.getByText('1x')).toBeInTheDocument();
+      // Check that schedule details are shown
+      expect(screen.getByText(/Scheduled:/i)).toBeInTheDocument();
     });
 
-    it('should render cron schedule badge', () => {
+    it('should render cron schedule details', () => {
       const scheduleSpec: ScheduleSpecDisplay = {
         type: 'cron',
         cron: '0 * * * *',
       };
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={null} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={null} compactNodeView={false} />
       );
 
-      expect(screen.getByText('0 * * * *')).toBeInTheDocument();
+      // Check that schedule details are shown
+      expect(screen.getByText(/Cron: 0 \* \* \* \*/i)).toBeInTheDocument();
     });
   });
 
@@ -121,7 +123,7 @@ describe('ScheduledAgentDisplay', () => {
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       // Should show approximately 25s
@@ -136,14 +138,18 @@ describe('ScheduledAgentDisplay', () => {
         interval: 'PT30S',
       };
       const timerState = createTimerState({
-        iteration: 42,
+        iteration: 41,  // iteration + 1 = 42
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
-      expect(screen.getByText('Run #42')).toBeInTheDocument();
+      // "Run #" and iteration number are in the same span, but may be split
+      const elements = screen.getAllByText((content, element) => {
+        return element?.textContent?.includes('Run #42') ?? false;
+      });
+      expect(elements.length).toBeGreaterThan(0);
     });
 
     it('should display last fire time', () => {
@@ -157,7 +163,7 @@ describe('ScheduledAgentDisplay', () => {
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       expect(screen.getByText(/Last:/i)).toBeInTheDocument();
@@ -172,7 +178,7 @@ describe('ScheduledAgentDisplay', () => {
       const timerState = createTimerState();
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       expect(screen.getByText(/Every 30 seconds/i)).toBeInTheDocument();
@@ -191,7 +197,7 @@ describe('ScheduledAgentDisplay', () => {
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       expect(screen.getByText('✓ Completed')).toBeInTheDocument();
@@ -206,15 +212,19 @@ describe('ScheduledAgentDisplay', () => {
       const timerState = createTimerState({
         is_stopped: true,
         is_active: false,
-        iteration: 10,
+        iteration: 9,  // iteration + 1 = 10
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       expect(screen.getByText('⏸ Stopped')).toBeInTheDocument();
-      expect(screen.getByText(/Run #10/i)).toBeInTheDocument();
+      // "Run #" and iteration number are in the same span, but may be split
+      const elements = screen.getAllByText((content, element) => {
+        return element?.textContent?.includes('Run #10') ?? false;
+      });
+      expect(elements.length).toBeGreaterThan(0);
       expect(screen.getByText(/\(final\)/i)).toBeInTheDocument();
     });
 
@@ -230,7 +240,7 @@ describe('ScheduledAgentDisplay', () => {
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       expect(screen.queryByText(/Next:/i)).not.toBeInTheDocument();
@@ -246,7 +256,7 @@ describe('ScheduledAgentDisplay', () => {
       const timerState = createTimerState();
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       expect(screen.getByText(/Every 5 minutes/i)).toBeInTheDocument();
@@ -260,7 +270,7 @@ describe('ScheduledAgentDisplay', () => {
       const timerState = createTimerState();
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       expect(screen.getByText(/Daily at 5:00 PM UTC/i)).toBeInTheDocument();
@@ -274,7 +284,7 @@ describe('ScheduledAgentDisplay', () => {
       const timerState = createTimerState();
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       expect(screen.getByText(/Cron: 0 \* \* \* \*/i)).toBeInTheDocument();
@@ -289,7 +299,7 @@ describe('ScheduledAgentDisplay', () => {
       const timerState = createTimerState();
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       expect(screen.getByText(/\(max 10\)/i)).toBeInTheDocument();
@@ -311,7 +321,7 @@ describe('ScheduledAgentDisplay', () => {
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       // Should show countdown (approximately 30s, may vary slightly due to render timing)
@@ -344,7 +354,7 @@ describe('ScheduledAgentDisplay', () => {
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       // Verify component renders schedule details
@@ -372,8 +382,12 @@ describe('ScheduledAgentDisplay', () => {
       );
 
       // Should still render schedule badge (using aria-label)
-      const badge = screen.getByLabelText(/Scheduled agent:/i);
-      expect(badge).toHaveTextContent('30s');
+      // Multiple elements have this label, get the first one (the icon badge)
+      const badges = screen.getAllByLabelText('Scheduled timer');
+      const badge = badges[0];
+      expect(badge).toBeInTheDocument();
+      // Check that schedule details are shown
+      expect(screen.getByText('Every 30 seconds')).toBeInTheDocument();
       
       // When timerState is null, "Last:" section is not rendered (only shown when timerState exists)
       // Timer panel should still render but without iteration count or last fire time
@@ -392,7 +406,7 @@ describe('ScheduledAgentDisplay', () => {
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       // Should not show next fire countdown
@@ -409,7 +423,7 @@ describe('ScheduledAgentDisplay', () => {
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       // When last_fire_time is null, the "Last:" section is not rendered
@@ -429,7 +443,10 @@ describe('ScheduledAgentDisplay', () => {
         <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={null} compactNodeView={false} />
       );
 
-      const badge = screen.getByLabelText(/Scheduled agent:/i);
+      // Check for the timer icon badge with aria-label "Scheduled timer"
+      // Multiple elements have this label, get the first one (the icon badge)
+      const badges = screen.getAllByLabelText('Scheduled timer');
+      const badge = badges[0];
       expect(badge).toBeInTheDocument();
     });
 
@@ -447,7 +464,7 @@ describe('ScheduledAgentDisplay', () => {
       });
 
       render(
-        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} />
+        <ScheduledAgentDisplay scheduleSpec={scheduleSpec} timerState={timerState} compactNodeView={false} />
       );
 
       const countdown = screen.getByTitle(/Next execution in/i);
