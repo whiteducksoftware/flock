@@ -11,7 +11,7 @@ search:
 
 # Changelog
 
-## [0.5.30] - 2025-01-XX
+## [0.5.30] - 2025-11-07
 
 ### 🎉 New Features
 
