@@ -3,7 +3,7 @@
 These artifacts provide workflow telemetry and error tracking.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -43,7 +43,7 @@ class TimerTick(BaseModel):
 
     timer_name: str = Field(description="Agent name for filtering")
     fire_time: datetime = Field(
-        default_factory=datetime.now, description="When the timer fired"
+        default_factory=lambda: datetime.now(UTC), description="When the timer fired"
     )
     iteration: int = Field(default=0, description="Number of times timer has fired")
     schedule_spec: dict[str, Any] = Field(
