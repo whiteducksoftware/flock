@@ -1,6 +1,6 @@
 # Timer Scheduling Examples
 
-Welcome to the Flock timer scheduling examples! This directory contains 5 production-ready examples demonstrating different timer scheduling patterns introduced in Flock v0.6.0.
+Welcome to the Flock timer scheduling examples! This directory contains 6 production-ready examples demonstrating different timer scheduling patterns introduced in Flock v0.5.30.
 
 ## Overview
 
@@ -23,7 +23,7 @@ agent.consumes(Order).publishes(Receipt)
 # ctx.artifacts = [<the triggering Order>]
 ```
 
-**Timer Trigger** (New in v0.6.0):
+**Timer Trigger** (New in v0.5.30):
 ```python
 agent.schedule(every=timedelta(minutes=5)).consumes(Order).publishes(Report)
 # Agent executes every 5 minutes (timer-triggered)
@@ -152,6 +152,32 @@ Demonstrates one-time execution at a specific datetime. Perfect for reminders, s
 
 ---
 
+### 06. Cron Schedule Demo
+**Pattern:** Cron-Based Scheduling (UTC)
+**Schedule:** `cron="*/1 * * * *"` (every minute UTC)
+**Use Case:** Cron-style scheduling, UTC timezone support, periodic tasks
+
+```bash
+python 06_cron_demo.py
+```
+
+Demonstrates cron expression scheduling for precise time-based execution. The agent fires every minute on UTC boundaries, perfect for scheduled tasks that need exact timing.
+
+**Key Learnings:**
+- Using `.schedule(cron="...")` for cron expressions
+- UTC timezone interpretation
+- Using `.calls(...)` for side effects after publishing
+- Cron expression syntax (minute hour day month weekday)
+
+**Cron Examples:**
+- `"*/5 * * * *"` - Every 5 minutes
+- `"0 9 * * 1-5"` - Weekdays at 9 AM UTC
+- `"0 0 1 * *"` - First day of month at midnight UTC
+
+**Note:** Cron expressions are always interpreted in UTC. For local time scheduling, use `.schedule(at=time(...))` instead.
+
+---
+
 ## Configuration: CLI vs Dashboard Mode
 
 **All examples support two modes** via the `USE_DASHBOARD` flag:
@@ -232,6 +258,9 @@ python 03_daily_report_generator.py
 
 ### 4. Cron-Based (UTC)
 ```python
+# Every minute (UTC)
+.schedule(cron="*/1 * * * *")
+
 # Every 5 minutes (UTC)
 .schedule(cron="*/5 * * * *")
 
@@ -347,6 +376,7 @@ await flock.serve()
 3. **04_batch_data_processor.py** - See batch aggregation in action
 4. **03_daily_report_generator.py** - Master time-based scheduling
 5. **05_one_time_reminder.py** - Explore one-time execution
+6. **06_cron_demo.py** - Learn cron expression scheduling
 
 ## Tips
 
@@ -378,7 +408,7 @@ FLOCK_AUTO_TRACE=true python 01_simple_health_monitor.py
 
 After mastering these examples:
 
-- **Advanced patterns:** Check `../00-patterns/` for specialized patterns
+- **Advanced patterns:** Check `../02-patterns/` for specialized patterns
 - **MCP integration:** See `../01-getting-started/05_mcp_and_tools.py`
 - **Batch processing:** Review `../01-getting-started/14_ecommerce_batch_processing.py`
 - **Production deployment:** Explore `../04-misc/` for production examples
@@ -386,8 +416,9 @@ After mastering these examples:
 ## Documentation
 
 For complete timer scheduling documentation:
-- **API Reference:** `.flock/schedule/API_EXAMPLES.md`
-- **Design Document:** `.flock/schedule/DESIGN.md`
+- **[Timer Scheduling Guide](../../docs/guides/scheduling.md)** - Complete scheduling reference
+- **[Scheduled Agents Tutorial](../../docs/tutorials/scheduled-agents.md)** - Step-by-step examples
+- **AGENTS.md** - Timer scheduling section in main guide
 
 ## Troubleshooting
 

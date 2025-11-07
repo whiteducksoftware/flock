@@ -157,7 +157,7 @@ pip install uvx npm  # or their equivalents
 
 After mastering these examples:
 
-- **Advanced patterns**: Check `../00-patterns/` for specialized patterns
+- **Advanced patterns**: Check `../02-patterns/` for specialized patterns
 - **Engines**: See `../05-engines/` for custom processing logic
 - **Components**: Explore `../06-agent-components/` and `../07-orchestrator-components/`
 - **Production**: Review `../04-misc/` for production deployment examples

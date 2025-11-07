@@ -166,6 +166,90 @@ uv run 04-misc/05_lm_studio.py
 
 ---
 
+### 06 - PRD Generator 📋
+**Feature:** Product Requirements Document generation with comprehensive structure
+
+Generate complete PRDs with structured sections:
+- Stakeholder management (RACI)
+- Business goals and metrics
+- Technical requirements
+- Risk assessment
+- Timeline and milestones
+- Success criteria
+
+```bash
+uv run 04-misc/06_prd.py
+```
+
+**Key Features:**
+- **Structured output** - Complete PRD with all standard sections
+- **Stakeholder tracking** - RACI matrix and contact management
+- **Business alignment** - Goals, metrics, and success criteria
+- **Risk management** - Identified risks with mitigation strategies
+- **Timeline planning** - Milestones and dependencies
+
+**Concepts:**
+- Complex nested Pydantic models
+- Multi-section document generation
+- Structured business documentation
+- Real-world document templates
+
+**Use Cases:**
+- Product planning
+- Requirements documentation
+- Stakeholder communication
+- Project management
+- Technical specification
+
+---
+
+### 07 - Logging Configuration 📝
+**Feature:** Advanced logging configuration and control
+
+Demonstrate Flock's logging system with granular control:
+- Per-module log levels
+- Flock-specific logging
+- External library filtering
+- Debug mode configuration
+
+```bash
+uv run 04-misc/07_logging.py
+```
+
+**Key Features:**
+- **Granular control** - Set log levels per module
+- **Flock logging** - Control framework logging separately
+- **External filtering** - Suppress noisy third-party logs
+- **Debug mode** - Enable detailed engine logging
+
+**Concepts:**
+- `configure_logging()` function
+- Log level hierarchy
+- Module-specific configuration
+- Production vs development logging
+
+**Use Cases:**
+- Debugging agent execution
+- Production logging setup
+- Noise reduction in logs
+- Performance monitoring
+- Troubleshooting
+
+**Example Configuration:**
+```python
+from flock.logging.logging import configure_logging
+
+configure_logging(
+    flock_level="DEBUG",           # Flock framework logs
+    external_level="ERROR",        # Third-party libraries
+    specific_levels={
+        "flock.engines.dspy_engine": "DEBUG",  # Detailed engine logs
+    }
+)
+```
+
+---
+
 ## 🎓 When to Use These Examples
 
 | Example | Use Case |
@@ -175,6 +259,8 @@ uv run 04-misc/05_lm_studio.py
 | **03 - Scale Test** | Validate architecture at 100+ agents |
 | **04 - Dashboard + Persistence** | Production monitoring setup |
 | **05 - LM Studio** | Local LLMs, privacy, cost optimization |
+| **06 - PRD Generator** | Product planning, requirements documentation |
+| **07 - Logging Configuration** | Debugging, production logging setup |
 
 ## 🔑 Key Features Demonstrated
 
