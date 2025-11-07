@@ -87,6 +87,140 @@ async def test_graph_assembler_agent_and_blackboard(orchestrator):
 
 
 @pytest.mark.asyncio
+async def test_graph_assembler_includes_schedule_data(orchestrator):
+    """Test GraphAssembler includes scheduleSpec and timerState for scheduled agents."""
+    from datetime import timedelta
+    from flock.core.subscription import ScheduleSpec
+    from pydantic import BaseModel
+
+    class TestOutput(BaseModel):
+        value: str
+
+    # Create scheduled agent using builder pattern
+    scheduled_agent = (
+        orchestrator.agent("scheduled_agent")
+        .publishes(TestOutput)
+        .schedule(every=timedelta(seconds=30))
+    )
+
+    # Create normal agent
+    normal_agent = (
+        orchestrator.agent("normal_agent")
+        .publishes(TestOutput)
+    )
+
+    # Initialize orchestrator to start timer component
+    await orchestrator._run_initialize()
+
+    collector = DashboardEventCollector(store=orchestrator.store)
+    await collector.load_persistent_snapshots()
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+
+    snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
+
+    # Find scheduled agent node
+    scheduled_node = next((n for n in snapshot.nodes if n.id == "scheduled_agent"), None)
+    assert scheduled_node is not None
+
+    # Verify schedule data is included
+    assert "scheduleSpec" in scheduled_node.data
+    schedule_spec = scheduled_node.data["scheduleSpec"]
+    assert schedule_spec["type"] == "interval"
+    assert "interval" in schedule_spec
+
+    # Verify timer state is included if timer component is available
+    timer_component = assembler._get_timer_component()
+    if timer_component:
+        assert "timerState" in scheduled_node.data
+        timer_state = scheduled_node.data["timerState"]
+        assert "iteration" in timer_state
+        assert "is_active" in timer_state
+        assert timer_state["iteration"] == 0  # Initial state
+
+    # Verify normal agent doesn't have schedule data
+    normal_node = next((n for n in snapshot.nodes if n.id == "normal_agent"), None)
+    assert normal_node is not None
+    assert "scheduleSpec" not in normal_node.data
+    assert "timerState" not in normal_node.data
+
+    await orchestrator.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_graph_assembler_serializes_schedule_spec(orchestrator):
+    """Test GraphAssembler correctly serializes different schedule types."""
+    from datetime import timedelta, time, datetime, UTC
+    from flock.core.subscription import ScheduleSpec
+    from pydantic import BaseModel
+
+    class TestOutput(BaseModel):
+        value: str
+
+    # Test interval schedule
+    interval_agent = (
+        orchestrator.agent("interval_agent")
+        .publishes(TestOutput)
+        .schedule(every=timedelta(seconds=30))
+    )
+
+    # Test time schedule
+    time_agent = (
+        orchestrator.agent("time_agent")
+        .publishes(TestOutput)
+        .schedule(at=time(hour=17, minute=0))
+    )
+
+    # Test datetime schedule
+    future_dt = datetime.now(UTC) + timedelta(days=1)
+    datetime_agent = (
+        orchestrator.agent("datetime_agent")
+        .publishes(TestOutput)
+        .schedule(at=future_dt)
+    )
+
+    # Test cron schedule
+    cron_agent = (
+        orchestrator.agent("cron_agent")
+        .publishes(TestOutput)
+        .schedule(cron="0 * * * *")
+    )
+
+    await orchestrator._run_initialize()
+
+    collector = DashboardEventCollector(store=orchestrator.store)
+    await collector.load_persistent_snapshots()
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+
+    snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
+
+    # Verify interval schedule
+    interval_node = next((n for n in snapshot.nodes if n.id == "interval_agent"), None)
+    assert interval_node is not None
+    assert interval_node.data["scheduleSpec"]["type"] == "interval"
+    assert "PT30S" in interval_node.data["scheduleSpec"]["interval"]
+
+    # Verify time schedule
+    time_node = next((n for n in snapshot.nodes if n.id == "time_agent"), None)
+    assert time_node is not None
+    assert time_node.data["scheduleSpec"]["type"] == "time"
+    assert "17:00:00" in time_node.data["scheduleSpec"]["time"]
+
+    # Verify datetime schedule
+    datetime_node = next((n for n in snapshot.nodes if n.id == "datetime_agent"), None)
+    assert datetime_node is not None
+    assert datetime_node.data["scheduleSpec"]["type"] == "datetime"
+    assert "datetime" in datetime_node.data["scheduleSpec"]
+
+    # Verify cron schedule
+    cron_node = next((n for n in snapshot.nodes if n.id == "cron_agent"), None)
+    assert cron_node is not None
+    assert cron_node.data["scheduleSpec"]["type"] == "cron"
+    assert cron_node.data["scheduleSpec"]["cron"] == "0 * * * *"
+
+    await orchestrator.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_dashboard_graph_endpoint(monkeypatch, orchestrator):
     monkeypatch.setenv("DASHBOARD_GRAPH_V2", "true")
 

@@ -211,6 +211,29 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     if logic_config:
                         logic_operations.append(logic_config)
 
+            # Phase 1.6: Include schedule data for scheduled agents
+            schedule_spec_data = None
+            timer_state_data = None
+            if hasattr(agent, "schedule_spec") and agent.schedule_spec:
+                schedule_spec_data = self._serialize_schedule_spec(agent.schedule_spec)
+                # Get timer state from TimerComponent if available
+                timer_component = self._get_timer_component()
+                if timer_component:
+                    timer_state = timer_component.get_timer_state(agent.name)
+                    if timer_state:
+                        timer_state_data = {
+                            "iteration": timer_state.iteration,
+                            "last_fire_time": timer_state.last_fire_time.isoformat()
+                            if timer_state.last_fire_time
+                            else None,
+                            "next_fire_time": timer_state.next_fire_time.isoformat()
+                            if timer_state.next_fire_time
+                            else None,
+                            "is_active": timer_state.is_active,
+                            "is_completed": timer_state.is_completed,
+                            "is_stopped": timer_state.is_stopped,
+                        }
+
             node_data = {
                 "name": agent.name,
                 "status": agent_status.get(agent.name, "idle"),
@@ -227,6 +250,12 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "signature": snapshot.signature if snapshot else None,
                 "logicOperations": logic_operations,  # Phase 1.2
             }
+
+            # Add schedule data if present
+            if schedule_spec_data:
+                node_data["scheduleSpec"] = schedule_spec_data
+            if timer_state_data:
+                node_data["timerState"] = timer_state_data
 
             nodes.append(
                 GraphNode(
@@ -850,3 +879,62 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 config["waiting_state"]["batch_state"] = batch_state
 
         return config
+
+    def _get_timer_component(self):
+        """Get TimerComponent from orchestrator if available.
+
+        Returns:
+            TimerComponent instance or None
+        """
+        from flock.components.orchestrator.scheduling.timer import TimerComponent
+
+        if hasattr(self._orchestrator, "_components"):
+            for component in self._orchestrator._components:
+                if isinstance(component, TimerComponent):
+                    return component
+        return None
+
+    def _serialize_schedule_spec(self, spec) -> dict:
+        """Serialize ScheduleSpec to dict for dashboard.
+
+        Args:
+            spec: ScheduleSpec instance
+
+        Returns:
+            Dictionary with schedule specification data
+        """
+        from datetime import datetime, time
+
+        result = {}
+
+        # Determine schedule type
+        if spec.interval:
+            result["type"] = "interval"
+            # Convert timedelta to ISO 8601 duration string (e.g., "PT30S")
+            total_seconds = int(spec.interval.total_seconds())
+            if total_seconds < 60:
+                result["interval"] = f"PT{total_seconds}S"
+            elif total_seconds < 3600:
+                result["interval"] = f"PT{total_seconds // 60}M"
+            elif total_seconds < 86400:
+                result["interval"] = f"PT{total_seconds // 3600}H"
+            else:
+                result["interval"] = f"P{total_seconds // 86400}D"
+        elif spec.at:
+            if isinstance(spec.at, time):
+                result["type"] = "time"
+                result["time"] = spec.at.isoformat()
+            elif isinstance(spec.at, datetime):
+                result["type"] = "datetime"
+                result["datetime"] = spec.at.isoformat()
+        elif spec.cron:
+            result["type"] = "cron"
+            result["cron"] = spec.cron
+
+        # Add optional fields
+        if spec.after:
+            result["after"] = f"PT{int(spec.after.total_seconds())}S"
+        if spec.max_repeats is not None:
+            result["max_repeats"] = spec.max_repeats
+
+        return result

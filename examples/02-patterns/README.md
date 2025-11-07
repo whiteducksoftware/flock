@@ -19,7 +19,7 @@ These examples show the evolution from simple single-output agents to advanced f
 The most basic pattern - one input artifact produces one output artifact. Each execution creates exactly one Movie from one Idea.
 
 ```bash
-uv run 00-patterns/01-single_publish.py
+uv run examples/02-patterns/publish/01-single_publish.py
 ```
 
 **Use Case:** Simple 1:1 transformations
@@ -32,7 +32,7 @@ uv run 00-patterns/01-single_publish.py
 One agent execution produces multiple different artifact types. The agent outputs a Movie, a MovieScript, AND a MovieCampaign all in a single LLM call!
 
 ```bash
-uv run 00-patterns/02-multi_publish.py
+uv run examples/02-patterns/publish/02-multi_publish.py
 ```
 
 **Use Case:** When you need multiple perspectives or outputs from the same input
@@ -47,7 +47,7 @@ uv run 00-patterns/02-multi_publish.py
 Complex orchestration where different agents produce multiple artifact types, creating rich blackboard interactions.
 
 ```bash
-uv run 00-patterns/03-multi-artifact-multi-publish.py
+uv run examples/02-patterns/publish/03-multi-artifact-multi-publish.py
 ```
 
 **Use Case:** Complex workflows with multiple agents each producing varied outputs
@@ -60,7 +60,7 @@ uv run 00-patterns/03-multi-artifact-multi-publish.py
 Generate multiple variations of the same type! One Idea produces 4 different Movie concepts—perfect for creative brainstorming.
 
 ```bash
-uv run 00-patterns/04-fan-out.py
+uv run examples/02-patterns/publish/04-fan-out.py
 ```
 
 **Use Case:**
@@ -82,7 +82,7 @@ The ultimate publishing pattern! Generate 3 instances of EACH type = 9 total art
 - 3 MovieCampaigns
 
 ```bash
-uv run 00-patterns/05-multi-fan-out.py
+uv run examples/02-patterns/publish/05-multi-fan-out.py
 ```
 
 **Use Case:** Maximum creative output with perfect context alignment

@@ -8,7 +8,7 @@
   <a href="LICENSE" target="_blank"><img alt="License" src="https://img.shields.io/github/license/whiteducksoftware/flock?style=for-the-badge"></a>
   <a href="https://whiteduck.de" target="_blank"><img alt="Built by white duck" src="https://img.shields.io/badge/Built%20by-white%20duck%20GmbH-white?style=for-the-badge&labelColor=black"></a>
   <a href="https://codecov.io/gh/whiteducksoftware/flock" target="_blank"><img alt="Test Coverage" src="https://codecov.io/gh/whiteducksoftware/flock/branch/main/graph/badge.svg?token=YOUR_TOKEN_HERE&style=for-the-badge"></a>
-  <img alt="Tests" src="https://img.shields.io/badge/tests-1400+-brightgreen?style=for-the-badge">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-1800+-brightgreen?style=for-the-badge">
 </p>
 
 ---
@@ -417,6 +417,65 @@ multi_master = (
 
 **📖 [Full Fan-Out Guide →](https://whiteducksoftware.github.io/flock/guides/fan-out/)**
 
+### ⏰ Timer-Based Agent Scheduling (New in 0.5.30!)
+
+**Run agents on schedules, not just events:**
+
+```python
+from datetime import timedelta, time
+
+# Periodic health checks (every 30 seconds)
+health_monitor = (
+    flock.agent("health_monitor")
+    .schedule(every=timedelta(seconds=30))
+    .publishes(HealthStatus)
+)
+
+# Daily reports (5 PM every day)
+daily_report = (
+    flock.agent("daily_report")
+    .schedule(at=time(hour=17, minute=0))
+    .publishes(DailyReport)
+)
+
+# Cron expressions (every weekday at 9 AM UTC)
+workday_report = (
+    flock.agent("workday_report")
+    .schedule(cron="0 9 * * 1-5")  # Mon-Fri at 9 AM
+    .publishes(WorkdayReport)
+)
+
+# One-time scheduled task
+scheduled_task = (
+    flock.agent("scheduled_task")
+    .schedule(at=datetime(2025, 12, 25, 9, 0))  # Christmas 9 AM
+    .publishes(TaskResult)
+)
+```
+
+**Timer agents receive empty input with timer metadata:**
+```python
+async def health_check(ctx: AgentContext) -> HealthStatus:
+    # ctx.artifacts = []  # Empty for timer triggers
+    # ctx.trigger_type == "timer"  # Know it's timer-triggered
+    # ctx.timer_iteration  # How many times fired (0, 1, 2...)
+    # ctx.fire_time  # When timer fired
+    
+    # Access filtered blackboard context
+    recent_errors = ctx.get_artifacts(LogEntry)  # Only ERROR logs
+    
+    return HealthStatus(healthy=len(recent_errors) == 0)
+```
+
+**Why this is powerful:**
+- ✅ **No event dependency** - Agents run independently on time
+- ✅ **Context filtering** - Combine `.schedule()` + `.consumes()` for filtered context
+- ✅ **Precise timing** - Interval, daily, cron, or one-time execution
+- ✅ **Lifecycle control** - Initial delays, repeat limits, graceful shutdown
+- ✅ **Production-ready** - Timer state tracking, drift prevention, crash recovery
+
+**📖 [Timer Scheduling Guide →](https://whiteducksoftware.github.io/flock/guides/scheduling/)**
+
 ### 🔒 Zero-Trust Visibility Controls
 
 **Built-in security (not bolt-on):**
@@ -543,6 +602,42 @@ analyzer.with_utilities(LoggingComponent())
 **Built-in components:** Rate limiting, caching, metrics, budget tracking, circuit breakers, deduplication
 
 **📖 [Agent Components Guide →](https://whiteducksoftware.github.io/flock/guides/components/)**
+
+### 🛠️ Server Components (New in 0.5.30!)
+
+**Extend Flock's HTTP API with custom middleware, routes, and lifecycle management:**
+
+```python
+from flock.components.server import ServerComponent
+
+class CustomAPIComponent(ServerComponent):
+    async def on_startup(self, orchestrator):
+        # Add custom routes, middleware, or startup logic
+        pass
+    
+    async def on_shutdown(self, orchestrator):
+        # Cleanup resources
+        pass
+
+# Register server component
+flock.add_server_component(CustomAPIComponent())
+```
+
+**Built-in server components:**
+- **TimerComponent** - Manages scheduled agent execution
+- **ControlRoutesComponent** - Agent/artifact management API
+- **GraphRoutesComponent** - Dashboard graph data API
+- **TraceComponent** - OpenTelemetry trace viewer
+- **StaticFilesComponent** - Dashboard UI serving
+
+**Why this matters:**
+- ✅ **Modular architecture** - Add features without modifying core
+- ✅ **Lifecycle hooks** - Startup/shutdown coordination
+- ✅ **Custom endpoints** - Extend API with domain-specific routes
+- ✅ **Middleware support** - Authentication, logging, rate limiting
+- ✅ **Production-ready** - Proper initialization order, error handling
+
+**📖 [Orchestrator Components Guide →](https://whiteducksoftware.github.io/flock/guides/orchestrator-components/)**
 
 ### Production Safety
 
@@ -756,6 +851,8 @@ await flock.serve(dashboard=True)  # API + Dashboard on port 8344
 - Parallel + sequential execution (automatic)
 - Zero-trust security (5 visibility types)
 - Semantic subscriptions with local embeddings
+- Timer-based agent scheduling (interval, daily, cron, one-time)
+- Server components for extensible HTTP API
 - Circuit breakers and feedback prevention
 - OpenTelemetry + DuckDB tracing
 - Real-time dashboard with 7-mode trace viewer

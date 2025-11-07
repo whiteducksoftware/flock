@@ -677,7 +677,7 @@ from flock import Flock
 - **CLI Examples**: [`examples/01-cli/`](examples/01-cli/)
 - **Dashboard Examples**: [`examples/02-dashboard/`](examples/02-dashboard/)
 - **Claude's Workshop**: [`examples/03-claudes-workshop/`](examples/03-claudes-workshop/)
-- **Pattern Examples**: [`examples/00-patterns/`](examples/00-patterns/)
+- **Pattern Examples**: [`examples/02-patterns/`](examples/02-patterns/)
 
 ## 🤝 Getting Help
 

@@ -11,6 +11,156 @@ search:
 
 # Changelog
 
+## [0.5.30] - 2025-11-07
+
+### 🎉 New Features
+
+#### ⏰ Timer-Based Agent Scheduling
+**Schedule agents to execute periodically or at specific times without requiring artifact triggers:**
+
+```python
+from datetime import timedelta, time, datetime
+from flock import Flock
+
+flock = Flock("openai/gpt-4.1")
+
+# Periodic execution (every 30 seconds)
+health_monitor = (
+    flock.agent("health_monitor")
+    .description("Monitors system health")
+    .schedule(every=timedelta(seconds=30))
+    .publishes(HealthStatus)
+)
+
+# Daily execution (5 PM every day)
+daily_report = (
+    flock.agent("daily_report")
+    .schedule(at=time(hour=17, minute=0))
+    .publishes(DailyReport)
+)
+
+# Cron expression (every weekday at 9 AM UTC)
+workday_report = (
+    flock.agent("workday_report")
+    .schedule(cron="0 9 * * 1-5")  # Mon-Fri at 9 AM
+    .publishes(WorkdayReport)
+)
+
+# One-time execution at specific datetime
+reminder = (
+    flock.agent("reminder")
+    .schedule(at=datetime(2025, 12, 25, 9, 0))  # Christmas 9 AM
+    .publishes(Reminder)
+)
+```
+
+**Features:**
+- **Interval-based scheduling** - Execute at regular intervals (`every=timedelta`)
+- **Time-based scheduling** - Execute daily at specific time (`at=time`)
+- **DateTime-based scheduling** - One-time execution at specific datetime (`at=datetime`)
+- **Cron support** - Full 5-field cron expressions (UTC timezone) with `*`, lists, ranges, steps
+- **Initial delay** - Wait before first execution (`after=timedelta`)
+- **Repeat limits** - Control execution count (`max_repeats=int`)
+- **Timer metadata** - Access `ctx.trigger_type`, `ctx.timer_iteration`, `ctx.fire_time` in agent context
+- **Context filtering** - Combine timers with `.consumes()` to filter blackboard context
+
+**Use cases:**
+- Periodic monitoring (health checks, system status)
+- Scheduled reports (daily summaries, weekly analytics)
+- Batch processing (process accumulated data at intervals)
+- Cleanup tasks (delete old records, archive data)
+- Time-based alerts (check for stale data, missed deadlines)
+
+**Timer Component:**
+- `TimerComponent` orchestrator component manages timer tasks and state
+- Automatic timer lifecycle management (startup, shutdown, cancellation)
+- Timer state tracking (iteration count, last/next fire times)
+- Background task management with graceful shutdown
+
+**Documentation:**
+- Complete scheduling guide (`docs/guides/scheduling.md`)
+- Step-by-step tutorial (`docs/tutorials/scheduled-agents.md`)
+- 6 production-ready examples (`examples/10-scheduling/`)
+
+#### 🔧 Server Components Improvements
+
+**Critical Fix: Orchestrator Component Initialization**
+- Fixed server startup to ensure orchestrator components (like `TimerComponent`) initialize before HTTP server starts
+- Prevents timer scheduling failures in dashboard/server mode
+- Ensures all orchestrator components are ready before accepting requests
+
+**Impact:**
+- Scheduled agents now work correctly in `flock.serve()` mode
+- Timer components initialize properly in CLI and dashboard modes
+- No more race conditions between server startup and timer initialization
+
+### 🔧 API Changes
+
+**New Methods:**
+- `.schedule(every=timedelta)` - Periodic execution
+- `.schedule(at=time)` - Daily execution at specific time
+- `.schedule(at=datetime)` - One-time execution at datetime
+- `.schedule(cron=str)` - Cron expression scheduling
+- `.schedule(after=timedelta)` - Initial delay before first execution
+- `.schedule(max_repeats=int)` - Limit number of executions
+
+**New Context Properties (Timer-Triggered Agents):**
+- `ctx.trigger_type` - `"timer"` for timer-triggered executions
+- `ctx.timer_iteration` - Current iteration count (0, 1, 2, ...)
+- `ctx.fire_time` - Datetime when timer fired
+
+**Validation:**
+- Scheduled agents must declare `.publishes()` (enforced at agent creation)
+- `after >= 0` validation (non-negative initial delay)
+- `max_repeats > 0` validation (positive repeat limit)
+- Cannot combine `.schedule()` with `.batch()` (mutually exclusive)
+
+### 📚 Documentation
+
+- Added comprehensive timer scheduling guide (`docs/guides/scheduling.md`) - 890+ lines
+- Added scheduled agents tutorial (`docs/tutorials/scheduled-agents.md`) - 1,060+ lines
+- Added 6 production-ready examples in `examples/10-scheduling/`:
+  - `01_simple_health_monitor.py` - Basic periodic monitoring
+  - `02_error_log_analyzer.py` - Timer + context filtering pattern
+  - `03_daily_report_generator.py` - Daily scheduled reports
+  - `04_batch_data_processor.py` - Periodic batch processing
+  - `05_one_time_reminder.py` - One-time datetime execution
+  - `06_cron_demo.py` - Cron expression examples
+- Updated `AGENTS.md` with timer scheduling patterns and best practices
+
+### ✅ Testing
+
+- Added 38 timer component unit tests (`tests/test_timer_component.py`)
+- Added integration tests for scheduled agent workflows (`tests/integration/test_scheduled_agents.py`)
+- Added timer component registration tests (`tests/test_timer_component_registration.py`)
+- Added agent schedule API tests (`tests/test_agent_schedule_api.py`)
+- Added timer tick tests (`tests/test_timer_tick.py`)
+- Added dashboard graph visualization tests for scheduled agents (`tests/test_dashboard_graph.py`)
+- All tests passing with comprehensive coverage
+
+### 🚀 Dependencies
+
+- Added `croniter>=6.0.0` for cron expression parsing
+- Added `python-dotenv>=1.2.1` for automatic `.env` file loading
+- Added `types-croniter>=6.0.0.20250809` for type hints
+
+### 🐛 Bug Fixes
+
+- Fixed timer scheduling in dashboard mode (orchestrator initialization before server start)
+- Fixed duplicate timer task creation (prevented multiple timers for same agent)
+- Fixed CLI mode timer support (orchestrator initialization in CLI)
+- Fixed frontend TypeScript compilation errors for scheduled agent visualization
+- Fixed server component tests to be OS-agnostic
+
+### 📦 Other Improvements
+
+- Automatic `.env` file loading on import (via `python-dotenv`)
+- Improved scheduled agent demo patterns and `run_until_idle()` API
+- Enhanced dashboard visualization for scheduled agents (shows next fire time, iteration count)
+- Restructured examples directory (moved patterns to `02-patterns/`, added `10-scheduling/`)
+
+---
+
 ## [0.5.2] - 2025-10-19
 
 ### 🎉 New Features

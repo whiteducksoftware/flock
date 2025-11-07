@@ -86,13 +86,13 @@ async def test_batchspec_flushes_on_size_threshold():
     # Publish 2 artifacts - should NOT flush yet
     await orchestrator.publish(Event(id=1, data="e1"))
     await orchestrator.publish(Event(id=2, data="e2"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 0, "Batch not full yet, no flush"
 
     # Publish 3rd artifact - should flush
     await orchestrator.publish(Event(id=3, data="e3"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 1, "Batch flushed after size threshold"
     assert executed[0]["batch_size"] == 3, "Batch contains 3 artifacts"
@@ -126,7 +126,7 @@ async def test_batchspec_continues_batching_after_flush():
     # Publish 6 artifacts - should trigger 2 flushes
     for i in range(1, 7):
         await orchestrator.publish(Event(id=i, data=f"e{i}"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 2, "Two batches flushed"
     assert executed[0] == [1, 2, 3], "First batch: 1-3"
@@ -160,7 +160,7 @@ async def test_batchspec_partial_batch_stays_pending():
     await orchestrator.publish(Event(id=1, data="e1"))
     await orchestrator.publish(Event(id=2, data="e2"))
     await orchestrator.publish(Event(id=3, data="e3"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 0, "Partial batch should NOT flush"
 
@@ -205,7 +205,7 @@ async def test_batchspec_multiple_agents_independent_batches():
     # Publish 6 artifacts
     for i in range(1, 7):
         await orchestrator.publish(Event(id=i, data=f"e{i}"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Agent 1: Batch size 2 → 3 flushes (2, 2, 2)
     assert len(executed_agent1) == 3, "Agent1: 3 batches"
@@ -242,7 +242,7 @@ async def test_batchspec_with_single_type_subscription():
     # Publish 4 events → 2 batches
     for i in range(1, 5):
         await orchestrator.publish(Event(id=i, data=f"e{i}"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 2, "Two batches"
     assert executed[0] == [1, 2], "First batch"
@@ -281,7 +281,7 @@ async def test_batchspec_flushes_on_timeout():
 
     # Publish 1 artifact
     await orchestrator.publish(Event(id=1, data="e1"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 0, "No immediate flush"
 
@@ -291,7 +291,7 @@ async def test_batchspec_flushes_on_timeout():
     # Trigger timeout check (orchestrator should have background task)
     # For now, we'll manually trigger it
     await orchestrator._check_batch_timeouts()
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 1, "Timeout flush triggered"
     assert executed[0] == 1, "Partial batch of 1"
@@ -329,13 +329,13 @@ async def test_batchspec_size_or_timeout_whichever_first():
     await orchestrator.publish(Event(id=1, data="e1"))
     await orchestrator.publish(Event(id=2, data="e2"))
     await orchestrator.publish(Event(id=3, data="e3"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 0, "No flush yet"
 
     await asyncio.sleep(0.25)  # 250ms > 200ms
     await orchestrator._check_batch_timeouts()
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 1, "Timeout flush"
     assert executed[0] == 3, "Partial batch of 3"
@@ -343,7 +343,7 @@ async def test_batchspec_size_or_timeout_whichever_first():
     # Scenario 2: Size wins (5 artifacts published quickly)
     for i in range(4, 9):
         await orchestrator.publish(Event(id=i, data=f"e{i}"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 2, "Size flush (before timeout)"
     assert executed[1] == 5, "Full batch of 5"
@@ -377,24 +377,24 @@ async def test_batchspec_timeout_resets_after_flush():
     # Batch 1: Size flush (2 artifacts)
     await orchestrator.publish(Event(id=1, data="e1"))
     await orchestrator.publish(Event(id=2, data="e2"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 1, "Size flush"
 
     # Wait past timeout
     await asyncio.sleep(0.15)
     await orchestrator._check_batch_timeouts()
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 1, "No spurious timeout flush (accumulator empty)"
 
     # Batch 2: Timeout flush (1 artifact)
     await orchestrator.publish(Event(id=3, data="e3"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     await asyncio.sleep(0.15)
     await orchestrator._check_batch_timeouts()
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 2, "New timeout flush"
     assert executed[1] == 1, "Partial batch"
@@ -427,13 +427,13 @@ async def test_batchspec_shutdown_flushes_partial_batch():
     await orchestrator.publish(Event(id=1, data="e1"))
     await orchestrator.publish(Event(id=2, data="e2"))
     await orchestrator.publish(Event(id=3, data="e3"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 0, "No flush yet (partial)"
 
     # Simulate shutdown - flush all partial batches
     await orchestrator._flush_all_batches()
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 1, "Shutdown flushed partial batch"
     assert executed[0] == 3, "All 3 artifacts delivered"
@@ -479,7 +479,7 @@ async def test_batchspec_with_visibility_filters_before_batching():
     await orchestrator.publish(
         Event(id=4, data="e4"), visibility=PrivateVisibility(labels={"team_b"})
     )
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # Only 2 public events should batch (team_b events filtered out)
     assert len(executed) == 1, "One batch"
@@ -516,7 +516,7 @@ async def test_batchspec_with_where_predicate_filters_before_batching():
     # Publish 5 events: 1, 2, 3, 4, 5 (only 2, 4 pass predicate)
     for i in range(1, 6):
         await orchestrator.publish(Event(id=i, data=f"e{i}"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     assert len(executed) == 1, "One batch (2 and 4)"
     assert executed[0] == [2, 4], "Only even IDs batched"
@@ -542,7 +542,7 @@ async def test_simple_batch_engine_processes_all_artifacts():
     await orchestrator.publish(SimpleBatchInput(value=1))
     await orchestrator.publish(SimpleBatchInput(value=2))
     await orchestrator.publish(SimpleBatchInput(value=3))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     outputs = [
         artifact
@@ -582,7 +582,7 @@ async def test_batch_spec_with_non_batch_engine_logs_error(caplog):
     await orchestrator.publish(SimpleBatchInput(value=10))
     await orchestrator.publish(SimpleBatchInput(value=20))
 
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
 
     # No outputs should be produced because the engine failed before publishing.
     outputs = [
@@ -622,7 +622,7 @@ async def test_batchspec_performance_batching_overhead():
     start = time.time()
     for i in range(1, 101):
         await orchestrator.publish(Event(id=i, data=f"e{i}"))
-    await orchestrator.run_until_idle()
+    await orchestrator.run_until_idle(timeout=5.0)
     end = time.time()
 
     # Verify all batches triggered

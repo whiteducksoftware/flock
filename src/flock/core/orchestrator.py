@@ -521,7 +521,28 @@ class Flock(metaclass=AutoTracedMeta):
 
     # Runtime --------------------------------------------------------------
 
-    async def run_until_idle(self, *, wait_for_input: bool = False) -> None:
+    def _has_active_timers(self) -> bool:
+        """Check if any scheduled agents have active timers.
+
+        Returns:
+            True if any timers are active (running), False otherwise.
+        """
+        # Find TimerComponent among registered components
+        from flock.components.orchestrator.scheduling.timer import TimerComponent
+
+        for component in self._components:
+            if isinstance(component, TimerComponent):
+                # Check if any timer states are active
+                for timer_state in component._timer_states.values():
+                    if timer_state.is_active and not timer_state.is_stopped:
+                        return True
+                break
+
+        return False
+
+    async def run_until_idle(
+        self, *, wait_for_input: bool = False, timeout: float | None = None
+    ) -> None:
         """Wait for all scheduled agent tasks to complete.
 
         This method blocks until the blackboard reaches a stable state where no
@@ -531,10 +552,14 @@ class Flock(metaclass=AutoTracedMeta):
         Args:
             wait_for_input: If True, waits for user input before returning (default: False).
                 Useful for debugging or step-by-step execution.
+            timeout: If provided, exits after this many seconds even if not idle.
+                Useful for scheduled agent demos that should run for a limited time.
 
         Note:
             Automatically resets circuit breaker counters and shuts down MCP connections
             when idle. Used with publish() for event-driven workflows.
+            If timeout is provided, the method will exit after the specified duration
+            even if scheduled agents (timers) are still active.
 
         Examples:
             >>> # Event-driven workflow (recommended)
@@ -553,36 +578,94 @@ class Flock(metaclass=AutoTracedMeta):
             >>> await flock.publish(task2)
             >>> await flock.run_until_idle(wait_for_input=True)  # Pauses again
 
+            >>> # Scheduled agents with timeout (demo mode)
+            >>> await flock.run_until_idle(timeout=120)  # Run for 2 minutes max
+
         See Also:
             - publish(): Event-driven artifact publishing
             - publish_many(): Batch publishing for parallel execution
             - invoke(): Direct agent invocation without cascade
         """
-        while self._scheduler.pending_tasks:
-            await asyncio.sleep(0.01)
-            pending = {
-                task for task in self._scheduler.pending_tasks if not task.done()
-            }
-            self._scheduler._tasks = pending
+        # CRITICAL: Initialize orchestrator components to ensure TimerComponent is ready
+        # This ensures scheduled agents work properly in CLI mode with run_until_idle
+        # Check if components are initialized using the proper property
+        if not self._components_initialized:
+            await self._run_initialize()
 
-        # Phase 5A: Check for pending work using LifecycleManager properties
-        pending_batches = self._lifecycle_manager.has_pending_batches
-        pending_correlations = self._lifecycle_manager.has_pending_correlations
+        # Start timeout tracking if specified
+        # FIX #5: Use UTC for consistency with timer infrastructure
+        start_time = datetime.now(UTC)
 
-        # Ensure watchdog loops remain active while pending work exists.
-        if pending_batches:
-            await self._lifecycle_manager.start_batch_timeout_checker()
+        while True:
+            # Check timeout first
+            if timeout is not None:
+                elapsed = (datetime.now(UTC) - start_time).total_seconds()
+                if elapsed >= timeout:
+                    # FIX #6: Log timeout for better visibility
+                    self._logger.warning(
+                        f"run_until_idle() timeout reached after {elapsed:.2f}s"
+                    )
+                    # FIX #2: Cancel timer tasks when timeout is reached to prevent resource leaks
+                    from flock.components.orchestrator.scheduling.timer import (
+                        TimerComponent,
+                    )
 
-        if pending_correlations:
-            await self._lifecycle_manager.start_correlation_cleanup()
+                    for component in self._components:
+                        if isinstance(component, TimerComponent):
+                            # Cancel all timer tasks to prevent resource leaks
+                            await component.on_shutdown(self)
+                            break
+                    # Timeout reached - exit even if not idle
+                    break
 
-        # If deferred work is still outstanding, consider the orchestrator quiescent for
-        # now but leave watchdog tasks running to finish the job.
-        if pending_batches or pending_correlations:
-            self._agent_iteration_count.clear()
-            return
+            # Check for pending scheduler tasks
+            if self._scheduler.pending_tasks:
+                await asyncio.sleep(0.01)
+                pending = {
+                    task for task in self._scheduler.pending_tasks if not task.done()
+                }
+                self._scheduler._tasks = pending
+                continue  # Not idle due to pending tasks
 
-        # Notify components that orchestrator reached idle state
+            # Phase 5A: Check for pending work using LifecycleManager properties
+            # FIX: Incomplete batches/correlations are passive (waiting for more artifacts)
+            # However, batch timeout checkers need time to run and flush expired batches.
+            # We give them a brief moment to process, then recheck for new tasks.
+            pending_batches = self._lifecycle_manager.has_pending_batches
+            pending_correlations = self._lifecycle_manager.has_pending_correlations
+
+            # Start background tasks for timeout/cleanup if needed
+            if pending_batches:
+                await self._lifecycle_manager.start_batch_timeout_checker()
+                # Check if any batches have actually expired (timeout passed)
+                # Only wait if batches have expired, so timeout checker can flush them
+                expired_batches = self._batch_engine.check_timeouts()
+                if expired_batches:
+                    # Batches have expired - give timeout checker a moment to flush them
+                    # This allows tests like test_joinspec_time_expiry_vs_batch_timeout_behavior
+                    # to work correctly where batches timeout and flush
+                    await asyncio.sleep(
+                        0.15
+                    )  # Slightly longer than cleanup_interval to ensure one iteration
+                    # Recheck for new scheduler tasks that might have been created by batch flush
+                    continue
+                # If no batches have expired yet, they're just waiting - system is idle
+
+            if pending_correlations:
+                await self._lifecycle_manager.start_correlation_cleanup()
+                # Correlations are just waiting - no need to wait for cleanup
+                # System is idle if no tasks are running
+
+            # CRITICAL: Check for active timers - system is NOT idle if timers are running
+            has_active_timers = self._has_active_timers()
+            if has_active_timers:
+                await asyncio.sleep(0.1)  # Brief sleep when timers are active
+                continue  # Not idle due to active timers
+
+            # If we get here, system is truly idle (no tasks, no batches, no correlations, no timers)
+            break
+
+        # Notify components that orchestrator reached idle state or timeout
         if self._component_runner.is_initialized:
             await self._component_runner.run_idle(self)
 
@@ -891,7 +974,46 @@ class Flock(metaclass=AutoTracedMeta):
     # Component Hook Delegation ───
 
     async def _run_initialize(self) -> None:
-        """Delegate to ComponentRunner module."""
+        """Initialize orchestrator components.
+
+        Checks if any agents have schedule_spec and registers TimerComponent
+        if needed before delegating to ComponentRunner.
+        """
+        # Check if any agents have schedule_spec and TimerComponent isn't already registered
+        has_scheduled_agents = any(
+            hasattr(agent, "schedule_spec") and agent.schedule_spec
+            for agent in self.agents
+        )
+
+        # Check if TimerComponent is already registered
+        from flock.components.orchestrator.scheduling.timer import TimerComponent
+
+        has_timer_component = any(
+            isinstance(c, TimerComponent) for c in self._components
+        )
+
+        # Register TimerComponent if needed
+        if has_scheduled_agents and not has_timer_component:
+            # Validation: scheduled agents must declare publishes()
+            for agent in self.agents:
+                if hasattr(agent, "schedule_spec") and agent.schedule_spec:
+                    if not getattr(agent, "output_groups", []):
+                        raise ValueError(
+                            f"Scheduled agent '{agent.name}' must declare .publishes()"
+                        )
+
+            timer_component = TimerComponent()
+            self._components.append(timer_component)
+            self._components.sort(key=lambda c: c.priority)
+
+            # Update ComponentRunner with new sorted components
+            self._component_runner = ComponentRunner(self._components, self._logger)
+
+            self._logger.info(
+                f"TimerComponent registered: priority={timer_component.priority}, "
+                f"scheduled_agents={sum(1 for a in self.agents if hasattr(a, 'schedule_spec') and a.schedule_spec)}"
+            )
+
         await self._component_runner.run_initialize(self)
 
     async def _run_artifact_published(self, artifact: Artifact) -> Artifact | None:

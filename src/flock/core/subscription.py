@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -98,6 +98,72 @@ class BatchSpec:
     def __post_init__(self):
         if self.size is None and self.timeout is None:
             raise ValueError("BatchSpec requires at least one of: size, timeout")
+
+
+@dataclass
+class ScheduleSpec:
+    """
+    Specification for timer-based agent scheduling.
+
+    Triggers agent on a timer-based schedule:
+    - Interval: Periodic execution (e.g., every 30 seconds)
+    - Time: Daily execution at specific time (e.g., 5 PM daily)
+    - Datetime: One-time execution at specific datetime
+    - Cron: Cron expression (e.g., "0 * * * *")
+
+    Examples:
+        # Interval-based (periodic)
+        ScheduleSpec(interval=timedelta(seconds=30))
+
+        # Time-based (daily at 5 PM)
+        ScheduleSpec(at=time(hour=17, minute=0))
+
+        # Datetime-based (one-time)
+        ScheduleSpec(at=datetime(2025, 11, 1, 9, 0))
+
+        # Cron-based (hourly)
+        ScheduleSpec(cron="0 * * * *")
+
+        # With options (delay + max repeats)
+        ScheduleSpec(
+            interval=timedelta(seconds=30),
+            after=timedelta(seconds=10),
+            max_repeats=5
+        )
+
+    Args:
+        interval: Optional periodic interval (e.g., timedelta(seconds=30))
+        at: Optional time (daily) or datetime (one-time)
+        cron: Optional cron expression (e.g., "0 * * * *")
+        after: Optional initial delay before first execution
+        max_repeats: Optional maximum number of executions (None = infinite)
+
+    Note: Exactly one of interval, at, or cron must be specified.
+    """
+
+    interval: timedelta | None = None
+    at: time | datetime | None = None
+    cron: str | None = None
+    after: timedelta | None = None
+    max_repeats: int | None = None
+
+    def __post_init__(self):
+        """Validate schedule parameters."""
+        trigger_count = sum([
+            self.interval is not None,
+            self.at is not None,
+            self.cron is not None,
+        ])
+        if trigger_count != 1:
+            raise ValueError(
+                "Exactly one of 'interval', 'at', or 'cron' must be specified"
+            )
+
+        # Positive value validations
+        if self.after is not None and self.after.total_seconds() < 0:
+            raise ValueError("after must be >= 0 seconds")
+        if self.max_repeats is not None and self.max_repeats <= 0:
+            raise ValueError("max_repeats must be > 0")
 
 
 class Subscription:
@@ -298,9 +364,7 @@ class Subscription:
             if isinstance(value, str):
                 text_parts.append(value)
             elif isinstance(value, (list, tuple)):
-                for item in value:
-                    if isinstance(item, str):
-                        text_parts.append(item)
+                text_parts.extend(item for item in value if isinstance(item, str))
 
         return " ".join(text_parts)
 
@@ -314,6 +378,7 @@ class Subscription:
 __all__ = [
     "BatchSpec",
     "JoinSpec",
+    "ScheduleSpec",
     "Subscription",
     "TextPredicate",
 ]

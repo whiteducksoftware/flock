@@ -110,11 +110,17 @@ class TestStaticFilesServerComponent:
 
     def test_register_routes_nonexistent_dir_raises(self, app, orchestrator):
         """Test that registering routes with nonexistent directory raises error."""
-        config = StaticFilesComponentConfig(static_files_path="/nonexistent/path")
-        component = StaticFilesServerComponent(config=config)
+        import tempfile
+        import os
+        
+        # Create a path that definitely doesn't exist on any OS
+        with tempfile.TemporaryDirectory() as temp_dir:
+            nonexistent_path = os.path.join(temp_dir, "definitely_does_not_exist_12345")
+            config = StaticFilesComponentConfig(static_files_path=nonexistent_path)
+            component = StaticFilesServerComponent(config=config)
 
-        with pytest.raises(ValueError, match="does not exist"):
-            component.register_routes(app, orchestrator)
+            with pytest.raises(ValueError, match="does not exist"):
+                component.register_routes(app, orchestrator)
 
     @pytest.mark.asyncio
     async def test_on_startup_async_no_op(self, orchestrator, temp_static_dir):

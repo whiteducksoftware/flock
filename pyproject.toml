@@ -1,10 +1,36 @@
 [project]
 name = "flock-core"
-version = "0.5.25"
+version = "0.5.30"
 description = "Flock: A declrative framework for building and orchestrating AI agents."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [ "dspy==3.0.3", "litellm==1.78.0", "fastapi>=0.117.1", "httpx>=0.28.1", "aiosqlite>=0.20.0", "pydantic[email]>=2.11.9", "rich>=14.1.0", "typer>=0.19.2", "uvicorn>=0.37.0", "opentelemetry-api>=1.30.0", "opentelemetry-exporter-jaeger>=1.21.0", "opentelemetry-exporter-jaeger-proto-grpc>=1.21.0", "opentelemetry-exporter-otlp>=1.30.0", "opentelemetry-instrumentation-logging>=0.51b0", "opentelemetry-sdk>=1.30.0", "loguru>=0.7.3", "mcp>=1.7.1", "toml>=0.10.2", "poethepoet>=0.30.0", "devtools>=0.12.2", "websockets>=15.0.1", "duckdb>=1.1.0", "hanging-threads>=2.0.7",]
+dependencies = [
+ "dspy==3.0.3",
+ "litellm==1.78.0",
+ "fastapi>=0.117.1",
+ "httpx>=0.28.1",
+ "aiosqlite>=0.20.0",
+ "pydantic[email]>=2.11.9",
+ "rich>=14.1.0",
+ "typer>=0.19.2",
+ "uvicorn>=0.37.0",
+ "opentelemetry-api>=1.30.0",
+ "opentelemetry-exporter-jaeger>=1.21.0",
+ "opentelemetry-exporter-jaeger-proto-grpc>=1.21.0",
+ "opentelemetry-exporter-otlp>=1.30.0",
+ "opentelemetry-instrumentation-logging>=0.51b0",
+ "opentelemetry-sdk>=1.30.0",
+ "loguru>=0.7.3",
+ "mcp>=1.7.1",
+ "toml>=0.10.2",
+ "poethepoet>=0.30.0",
+ "devtools>=0.12.2",
+ "websockets>=15.0.1",
+ "duckdb>=1.1.0",
+ "hanging-threads>=2.0.7",
+ "croniter>=6.0.0",
+ "python-dotenv>=1.2.1",
+]
 
 [project.optional-dependencies]
 semantic = [
@@ -50,6 +76,8 @@ dev = [
  "notebook>=7.2.2",
  "jupyterlab>=4.3.3",
  "radon>=6.0.1",
+ "types-croniter>=6.0.0.20250809",
+ "pytest-timeout>=2.4.0",
 ]
 
 [project.license]
@@ -134,6 +162,8 @@ docstring-code-line-length = 72
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = [ "tests",]
+timeout = 300  # 5 minutes global timeout for all tests
+timeout_method = "thread"  # Use thread-based timeout to handle async tests
 
 [tool.coverage.run]
 source = [ "src/flock",]
@@ -154,6 +184,7 @@ _ensure-uv = "python scripts/ensure_uv.py"
 install = [ "_init", "build",]
 build = [ "_sync", "_build", "_install",]
 lint = "ruff check src/flock/"
+lintfix = "ruff check src/flock/ --fix"
 format = "ruff format src/flock/"
 docs = "mkdocs serve"
 docs-serve = "mkdocs serve"

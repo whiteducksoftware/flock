@@ -239,6 +239,11 @@ class ServerManager:
             port: Port to bind to
             plugins: Optional list of plugins for additional behavior
         """
+        # CRITICAL: Initialize orchestrator components before starting server
+        # This ensures TimerComponent and other orchestrator components are ready
+        if not hasattr(orchestrator, "_orchestrator") or not orchestrator._orchestrator:
+            await orchestrator._run_initialize()
+
         from flock.api.base_service import BaseHTTPService
         from flock.components.server import (
             AgentsServerComponent,
@@ -313,6 +318,11 @@ class ServerManager:
             port: port to bind to
             plugins: Optional list for plugins to modify base behavior
         """
+        # CRITICAL: Initialize orchestrator components before starting server
+        # This ensures TimerComponent and other orchestrator components are ready
+        if not hasattr(orchestrator, "_orchestrator") or not orchestrator._orchestrator:
+            await orchestrator._run_initialize()
+
         from flock.api.base_service import BaseHTTPService
 
         # Create required components

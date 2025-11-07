@@ -6,6 +6,7 @@ import asyncio
 import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from pydantic import BaseModel
@@ -19,10 +20,11 @@ from flock.agent.mcp_integration import MCPIntegration
 # Phase 4: Import extracted modules
 from flock.agent.output_processor import OutputProcessor
 from flock.core.artifacts import Artifact, ArtifactSpec
-from flock.core.subscription import BatchSpec, JoinSpec, Subscription
+from flock.core.subscription import BatchSpec, JoinSpec, ScheduleSpec, Subscription
 from flock.core.visibility import AgentIdentity, Visibility, ensure_visibility
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
+from flock.models.system_artifacts import TimerTick
 from flock.registry import function_registry, type_registry
 from flock.utils.runtime import Context, EvalInputs, EvalResult
 
@@ -164,6 +166,8 @@ class Agent(metaclass=AutoTracedMeta):
         self.prevent_self_trigger: bool = True  # T065: Prevent infinite feedback loops
         # Phase 3: Per-agent context provider (security fix)
         self.context_provider: Any = None
+        # Phase 6: Timer-based scheduling
+        self.schedule_spec: ScheduleSpec | None = None
 
         # Phase 4: Initialize extracted modules
         self._output_processor = OutputProcessor(name)
@@ -382,9 +386,7 @@ class Agent(metaclass=AutoTracedMeta):
             return await run_chain()
 
         async with asyncio.TaskGroup() as tg:  # Python 3.12
-            tasks: list[asyncio.Task[EvalResult]] = []
-            for _ in range(self.best_of_n):
-                tasks.append(tg.create_task(run_chain()))
+            tasks = [tg.create_task(run_chain()) for _ in range(self.best_of_n)]
         results = [task.result() for task in tasks]
         if not results:
             return EvalResult(artifacts=[], state={})
@@ -657,6 +659,98 @@ class AgentBuilder:
             priority=priority,
         )
         self._agent.subscriptions.append(subscription)
+        return self
+
+    def schedule(
+        self,
+        every: timedelta | None = None,
+        at: time | datetime | None = None,
+        cron: str | None = None,
+        after: timedelta | None = None,
+        max_repeats: int | None = None,
+    ) -> AgentBuilder:
+        """Schedule periodic agent execution.
+
+        The agent will execute on a timer rather than waiting for artifacts.
+        Can be combined with .consumes() to filter blackboard context.
+        Exactly one of every, at, or cron must be specified.
+
+        Args:
+            every: Execute at regular intervals (e.g., timedelta(seconds=30))
+            at: Execute at specific time (daily if `time`, once if `datetime`)
+            cron: Execute on cron schedule (future enhancement)
+            after: Initial delay before first execution
+            max_repeats: Maximum executions (None = infinite)
+
+        Returns:
+            AgentBuilder for method chaining
+
+        Raises:
+            ValueError: If schedule() is combined with batch processing
+
+        Examples:
+            >>> # Interval-based scheduling
+            >>> agent = (
+            ...     flock.agent("health_check")
+            ...     .schedule(every=timedelta(seconds=30))
+            ...     .publishes(HealthStatus)
+            ... )
+
+            >>> # Daily time-based scheduling
+            >>> agent = (
+            ...     flock.agent("daily_report")
+            ...     .schedule(at=time(hour=17, minute=0))
+            ...     .publishes(Report)
+            ... )
+
+            >>> # One-time datetime scheduling
+            >>> agent = (
+            ...     flock.agent("one_time_task")
+            ...     .schedule(at=datetime(2025, 11, 1, 9, 0))
+            ...     .publishes(Result)
+            ... )
+
+            >>> # With options
+            >>> agent = (
+            ...     flock.agent("delayed_task")
+            ...     .schedule(
+            ...         every=timedelta(seconds=30),
+            ...         after=timedelta(seconds=10),
+            ...         max_repeats=5,
+            ...     )
+            ...     .publishes(Result)
+            ... )
+        """
+        # Validate: schedule() and batch are mutually exclusive
+        # Check if any existing subscriptions have batch configuration
+        for subscription in self._agent.subscriptions:
+            if subscription.batch is not None:
+                raise ValueError(
+                    "schedule() and batch processing are mutually exclusive. "
+                    "Timer-based agents cannot use batch processing."
+                )
+
+        # Create schedule specification
+        self._agent.schedule_spec = ScheduleSpec(
+            interval=every,
+            at=at,
+            cron=cron,
+            after=after,
+            max_repeats=max_repeats,
+        )
+
+        # Auto-subscribe to own timer ticks (filtered by timer_name)
+        # This is transparent to the user - they don't see TimerTick in their code
+        def timer_filter(tick: BaseModel) -> bool:
+            # Type narrowing: we know tick is TimerTick from subscription type
+            assert isinstance(tick, TimerTick)
+            return tick.timer_name == self._agent.name
+
+        self.consumes(
+            TimerTick,
+            where=timer_filter,
+        )
+
         return self
 
     def publishes(

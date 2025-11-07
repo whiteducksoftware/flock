@@ -125,7 +125,7 @@ Runs agents and displays results in terminal.
 ```python
 USE_DASHBOARD = True
 ```
-Launches interactive web interface at `http://localhost:8000`.
+Launches interactive web interface at `http://localhost:8344`.
 
 ## 💡 Tips
 

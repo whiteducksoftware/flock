@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -307,6 +308,95 @@ class Context(BaseModel):
 
     def get_variable(self, key: str, default: Any = None) -> Any:
         return self.state.get(key, default)
+
+    @property
+    def trigger_type(self) -> str:
+        """Type of trigger that invoked this agent.
+
+        Returns:
+            "timer" if triggered by TimerTick artifact, else "artifact"
+
+        Note:
+            Timer-triggered agents always receive exactly one TimerTick artifact.
+            If multiple artifacts are present, this is not a timer trigger.
+        """
+        # Prefer injected timer metadata from Context.state (Option B)
+        meta = self.state.get("__timer__") if isinstance(self.state, dict) else None
+        if isinstance(meta, dict):
+            return "timer"
+
+        if self.artifacts and len(self.artifacts) == 1:
+            artifact = self.artifacts[0]
+            # Check if artifact type is TimerTick
+            if artifact.type == "flock.models.system_artifacts.TimerTick":
+                return "timer"
+        return "artifact"
+
+    @property
+    def timer_iteration(self) -> int | None:
+        """Iteration count for timer-triggered agents.
+
+        Returns:
+            Iteration number (0-indexed) if timer-triggered, else None
+
+        Example:
+            >>> if ctx.timer_iteration is not None:
+            ...     print(f"Timer fired {ctx.timer_iteration + 1} times")
+        """
+        # Prefer injected timer metadata
+        meta = self.state.get("__timer__") if isinstance(self.state, dict) else None
+        if isinstance(meta, dict) and self.trigger_type == "timer":
+            try:
+                return int(meta.get("iter")) if meta.get("iter") is not None else None
+            except Exception:
+                return None
+
+        if self.trigger_type == "timer" and self.artifacts:
+            # Extract iteration from TimerTick payload
+            return self.artifacts[0].payload.get("iteration")
+        return None
+
+    @property
+    def fire_time(self) -> datetime | None:
+        """Fire time for timer-triggered agents.
+
+        Returns:
+            Datetime when timer fired if timer-triggered, else None
+
+        Example:
+            >>> if ctx.fire_time:
+            ...     print(f"Timer fired at {ctx.fire_time}")
+        """
+        # Prefer injected timer metadata
+        meta = self.state.get("__timer__") if isinstance(self.state, dict) else None
+        if isinstance(meta, dict) and self.trigger_type == "timer":
+            fire_time_data = meta.get("fire")
+            if fire_time_data:
+                if isinstance(fire_time_data, datetime):
+                    return fire_time_data
+                if isinstance(fire_time_data, str):
+                    from datetime import datetime as dt
+
+                    try:
+                        return dt.fromisoformat(fire_time_data)
+                    except Exception:
+                        return None
+            return fire_time_data
+
+        if self.trigger_type == "timer" and self.artifacts:
+            # Extract fire_time from TimerTick payload
+            fire_time_data = self.artifacts[0].payload.get("fire_time")
+            if fire_time_data:
+                # If it's already a datetime, return it
+                if isinstance(fire_time_data, datetime):
+                    return fire_time_data
+                # If it's a string, parse it (shouldn't happen with proper serialization)
+                if isinstance(fire_time_data, str):
+                    from datetime import datetime as dt
+
+                    return dt.fromisoformat(fire_time_data)
+            return fire_time_data
+        return None
 
 
 __all__ = [
