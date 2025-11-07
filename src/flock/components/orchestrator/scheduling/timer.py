@@ -192,11 +192,12 @@ class TimerComponent(OrchestratorComponent):
                 # Increment iteration
                 iteration += 1
 
-                # Calculate next fire time before waiting
+                # Calculate next fire time based on actual fire_time (not current time after publish)
+                # This prevents drift accumulation from publish execution time
                 if agent_name in self._timer_states:
                     self._timer_states[
                         agent_name
-                    ].next_fire_time = self._calculate_next_fire_time(spec)
+                    ].next_fire_time = self._calculate_next_fire_time(spec, base_time=fire_time)
 
                 # Wait for next fire (for interval schedules, wait after publish)
                 # For non-interval schedules, we already waited before publish
@@ -253,19 +254,24 @@ class TimerComponent(OrchestratorComponent):
             result["max_repeats"] = spec.max_repeats
         return result
 
-    def _calculate_next_fire_time(self, spec: ScheduleSpec) -> datetime | None:
+    def _calculate_next_fire_time(
+        self, spec: ScheduleSpec, base_time: datetime | None = None
+    ) -> datetime | None:
         """Calculate the next fire time for a schedule spec.
 
         Args:
             spec: Schedule specification
+            base_time: Base time to calculate from (defaults to current time).
+                For interval schedules, should be the actual fire_time to prevent drift.
 
         Returns:
             Next fire datetime in UTC, or None if cannot be calculated
         """
-        now = datetime.now(UTC)
+        now = base_time if base_time is not None else datetime.now(UTC)
 
         if spec.interval:
-            # Next fire is now + interval
+            # Next fire is base_time + interval
+            # Using base_time (actual fire_time) prevents drift from publish execution time
             return now + spec.interval
 
         if spec.at:
