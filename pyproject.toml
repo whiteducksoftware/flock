@@ -181,6 +181,7 @@ _ensure-uv = "python scripts/ensure_uv.py"
 install = [ "_init", "build",]
 build = [ "_sync", "_build", "_install",]
 lint = "ruff check src/flock/"
+lintfix = "ruff check src/flock/ --fix"
 format = "ruff format src/flock/"
 docs = "mkdocs serve"
 docs-serve = "mkdocs serve"

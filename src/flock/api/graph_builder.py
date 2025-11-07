@@ -223,8 +223,12 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     if timer_state:
                         timer_state_data = {
                             "iteration": timer_state.iteration,
-                            "last_fire_time": timer_state.last_fire_time.isoformat() if timer_state.last_fire_time else None,
-                            "next_fire_time": timer_state.next_fire_time.isoformat() if timer_state.next_fire_time else None,
+                            "last_fire_time": timer_state.last_fire_time.isoformat()
+                            if timer_state.last_fire_time
+                            else None,
+                            "next_fire_time": timer_state.next_fire_time.isoformat()
+                            if timer_state.next_fire_time
+                            else None,
                             "is_active": timer_state.is_active,
                             "is_completed": timer_state.is_completed,
                             "is_stopped": timer_state.is_stopped,
@@ -899,7 +903,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         Returns:
             Dictionary with schedule specification data
         """
-        from datetime import timedelta, time, datetime
+        from datetime import datetime, time
 
         result = {}
 

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+
 # Load environment variables from .env file early
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     # python-dotenv not available, environment variables must be set manually

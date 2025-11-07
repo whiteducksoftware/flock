@@ -241,9 +241,9 @@ class ServerManager:
         """
         # CRITICAL: Initialize orchestrator components before starting server
         # This ensures TimerComponent and other orchestrator components are ready
-        if not hasattr(orchestrator, '_orchestrator') or not orchestrator._orchestrator:
+        if not hasattr(orchestrator, "_orchestrator") or not orchestrator._orchestrator:
             await orchestrator._run_initialize()
-        
+
         from flock.api.base_service import BaseHTTPService
         from flock.components.server import (
             AgentsServerComponent,
@@ -320,9 +320,9 @@ class ServerManager:
         """
         # CRITICAL: Initialize orchestrator components before starting server
         # This ensures TimerComponent and other orchestrator components are ready
-        if not hasattr(orchestrator, '_orchestrator') or not orchestrator._orchestrator:
+        if not hasattr(orchestrator, "_orchestrator") or not orchestrator._orchestrator:
             await orchestrator._run_initialize()
-        
+
         from flock.api.base_service import BaseHTTPService
 
         # Create required components

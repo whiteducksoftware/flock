@@ -523,13 +523,13 @@ class Flock(metaclass=AutoTracedMeta):
 
     def _has_active_timers(self) -> bool:
         """Check if any scheduled agents have active timers.
-        
+
         Returns:
             True if any timers are active (running), False otherwise.
         """
         # Find TimerComponent among registered components
         from flock.components.orchestrator.scheduling.timer import TimerComponent
-        
+
         for component in self._components:
             if isinstance(component, TimerComponent):
                 # Check if any timer states are active
@@ -537,10 +537,12 @@ class Flock(metaclass=AutoTracedMeta):
                     if timer_state.is_active and not timer_state.is_stopped:
                         return True
                 break
-        
+
         return False
 
-    async def run_until_idle(self, *, wait_for_input: bool = False, timeout: float | None = None) -> None:
+    async def run_until_idle(
+        self, *, wait_for_input: bool = False, timeout: float | None = None
+    ) -> None:
         """Wait for all scheduled agent tasks to complete.
 
         This method blocks until the blackboard reaches a stable state where no
@@ -586,12 +588,12 @@ class Flock(metaclass=AutoTracedMeta):
         """
         # CRITICAL: Initialize orchestrator components to ensure TimerComponent is ready
         # This ensures scheduled agents work properly in CLI mode with run_until_idle
-        if not hasattr(self, '_orchestrator') or not self._orchestrator:
+        if not hasattr(self, "_orchestrator") or not self._orchestrator:
             await self._run_initialize()
 
         # Start timeout tracking if specified
         start_time = datetime.now()
-        
+
         while True:
             # Check timeout first
             if timeout is not None:
@@ -599,7 +601,7 @@ class Flock(metaclass=AutoTracedMeta):
                 if elapsed >= timeout:
                     # Timeout reached - exit even if not idle
                     break
-            
+
             # Check for pending scheduler tasks
             if self._scheduler.pending_tasks:
                 await asyncio.sleep(0.01)

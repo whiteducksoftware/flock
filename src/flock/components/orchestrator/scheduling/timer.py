@@ -97,13 +97,13 @@ class TimerComponent(OrchestratorComponent):
                         continue
                     # Task exists but is done, remove it before creating new one
                     del self._timer_tasks[agent.name]
-                
+
                 # Initialize timer state
                 self._timer_states[agent.name] = TimerState()
                 # Calculate initial next fire time
-                self._timer_states[agent.name].next_fire_time = self._calculate_next_fire_time(
-                    agent.schedule_spec
-                )
+                self._timer_states[
+                    agent.name
+                ].next_fire_time = self._calculate_next_fire_time(agent.schedule_spec)
                 # Create background task for this scheduled agent
                 task = asyncio.create_task(
                     self._timer_loop(orchestrator, agent.name, agent.schedule_spec)
@@ -133,11 +133,17 @@ class TimerComponent(OrchestratorComponent):
         # Effective max repeats: implicit one-time for datetime schedules
         effective_max = (
             1
-            if (hasattr(spec, "at") and isinstance(spec.at, datetime) and spec.max_repeats is None)
+            if (
+                hasattr(spec, "at")
+                and isinstance(spec.at, datetime)
+                and spec.max_repeats is None
+            )
             else spec.max_repeats
         )
         is_one_time = (
-            hasattr(spec, "at") and isinstance(spec.at, datetime) and spec.max_repeats is None
+            hasattr(spec, "at")
+            and isinstance(spec.at, datetime)
+            and spec.max_repeats is None
         )
 
         try:
@@ -180,7 +186,9 @@ class TimerComponent(OrchestratorComponent):
 
                 # Calculate next fire time before waiting
                 if agent_name in self._timer_states:
-                    self._timer_states[agent_name].next_fire_time = self._calculate_next_fire_time(spec)
+                    self._timer_states[
+                        agent_name
+                    ].next_fire_time = self._calculate_next_fire_time(spec)
 
                 # Wait for next fire
                 await self._wait_for_next_fire(spec)
