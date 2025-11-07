@@ -88,7 +88,7 @@ flock.add_mcp(
     .description(
         "Creates a github issue for a given task in the specified repository using the github mcp tools."
     )
-    .with_mcps({"github_tools": {"tool_whitelist": ["create_issue"]}})
+    .with_mcps({"github_tools": {"tool_whitelist": ["issue_write","issue_read"]}})
     .consumes(Task)
     .publishes(Issue)
     .max_concurrency(5)
