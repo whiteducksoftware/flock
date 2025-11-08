@@ -298,7 +298,7 @@ class Context(BaseModel):
         description="Agent identity (informational) - engines cannot use this to query data",
     )
 
-    correlation_id: UUID | None = None
+    correlation_id: str | None = None
     task_id: str
     state: dict[str, Any] = Field(default_factory=dict)
     is_batch: bool = Field(

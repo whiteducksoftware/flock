@@ -32,19 +32,19 @@ from flock.registry import flock_type
 
 # Test artifact types
 @flock_type(name="TestTypeA")
-class TestTypeA(BaseModel):
+class SampleTypeA(BaseModel):
     value: int = Field(description="Test value")
     valid: bool = Field(default=True, description="Validity flag")
 
 
 @flock_type(name="TestTypeB")
-class TestTypeB(BaseModel):
+class SampleTypeB(BaseModel):
     name: str = Field(description="Test name")
     score: int = Field(description="Score value", ge=0, le=100)
 
 
 @flock_type(name="TestTypeC")
-class TestTypeC(BaseModel):
+class SampleTypeC(BaseModel):
     priority: int = Field(description="Priority level")
 
 
@@ -59,7 +59,7 @@ def test_publishes_single_call_multiple_types():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, TestTypeB, TestTypeC)
+    agent = flock.agent("test").publishes(SampleTypeA, SampleTypeB, SampleTypeC)
 
     # Assert - Agent should have output_groups instead of outputs
     assert hasattr(agent.agent, "output_groups")
@@ -89,7 +89,7 @@ def test_publishes_multiple_calls_create_groups():
     flock = Flock()
 
     # Act - Chain multiple publishes calls
-    agent = flock.agent("test").publishes(TestTypeA).publishes(TestTypeB)
+    agent = flock.agent("test").publishes(SampleTypeA).publishes(SampleTypeB)
 
     # Assert - Should create 2 output groups
     assert len(agent.agent.output_groups) == 2
@@ -113,9 +113,9 @@ def test_publishes_three_separate_calls():
     # Act
     agent = (
         flock.agent("test")
-        .publishes(TestTypeA)
-        .publishes(TestTypeB)
-        .publishes(TestTypeC)
+        .publishes(SampleTypeA)
+        .publishes(SampleTypeB)
+        .publishes(SampleTypeC)
     )
 
     # Assert
@@ -136,7 +136,7 @@ def test_publishes_duplicate_counting():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, TestTypeA, TestTypeA)
+    agent = flock.agent("test").publishes(SampleTypeA, SampleTypeA, SampleTypeA)
 
     # Assert
     assert len(agent.agent.output_groups) == 1
@@ -145,7 +145,7 @@ def test_publishes_duplicate_counting():
     # Should have 3 outputs, each with count=1 (duplicates counted as separate outputs)
     assert len(group.outputs) == 3
 
-    # All outputs should be TestTypeA
+    # All outputs should be SampleTypeA
     for output in group.outputs:
         assert output.spec.type_name == "TestTypeA"
         assert output.count == 1
@@ -158,7 +158,7 @@ def test_publishes_mixed_duplicates():
 
     # Act
     agent = flock.agent("test").publishes(
-        TestTypeA, TestTypeB, TestTypeA, TestTypeC, TestTypeB
+        SampleTypeA, SampleTypeB, SampleTypeA, SampleTypeC, SampleTypeB
     )
 
     # Assert
@@ -186,7 +186,7 @@ def test_publishes_fan_out_sugar():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, fan_out=3)
+    agent = flock.agent("test").publishes(SampleTypeA, fan_out=3)
 
     # Assert
     assert len(agent.agent.output_groups) == 1
@@ -206,7 +206,7 @@ def test_publishes_fan_out_applies_to_all_types():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, TestTypeB, fan_out=5)
+    agent = flock.agent("test").publishes(SampleTypeA, SampleTypeB, fan_out=5)
 
     # Assert
     group = agent.agent.output_groups[0]
@@ -223,7 +223,7 @@ def test_publishes_fan_out_one_is_default():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, fan_out=1)
+    agent = flock.agent("test").publishes(SampleTypeA, fan_out=1)
 
     # Assert
     group = agent.agent.output_groups[0]
@@ -238,7 +238,7 @@ def test_publishes_fan_out_zero_raises():
 
     # Act & Assert
     with pytest.raises(ValueError) as exc_info:
-        flock.agent("test").publishes(TestTypeA, fan_out=0)
+        flock.agent("test").publishes(SampleTypeA, fan_out=0)
 
     # Error message should mention the constraint
     error_msg = str(exc_info.value).lower()
@@ -253,7 +253,7 @@ def test_publishes_fan_out_negative_raises():
 
     # Act & Assert
     with pytest.raises(ValueError) as exc_info:
-        flock.agent("test").publishes(TestTypeA, fan_out=-5)
+        flock.agent("test").publishes(SampleTypeA, fan_out=-5)
 
     error_msg = str(exc_info.value).lower()
     assert "fan_out" in error_msg or "count" in error_msg
@@ -273,7 +273,7 @@ def test_publishes_where_predicate():
         return obj.valid if hasattr(obj, "valid") else False  # type: ignore
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, where=filter_valid)
+    agent = flock.agent("test").publishes(SampleTypeA, where=filter_valid)
 
     # Assert
     group = agent.agent.output_groups[0]
@@ -284,8 +284,8 @@ def test_publishes_where_predicate():
     assert output.filter_predicate == filter_valid
 
     # Test that predicate works
-    valid_obj = TestTypeA(value=10, valid=True)
-    invalid_obj = TestTypeA(value=20, valid=False)
+    valid_obj = SampleTypeA(value=10, valid=True)
+    invalid_obj = SampleTypeA(value=20, valid=False)
     assert output.filter_predicate(valid_obj) is True
     assert output.filter_predicate(invalid_obj) is False
 
@@ -297,7 +297,7 @@ def test_publishes_where_with_lambda():
 
     # Act
     agent = flock.agent("test").publishes(
-        TestTypeA,
+        SampleTypeA,
         where=lambda x: x.value > 50,  # type: ignore
     )
 
@@ -306,8 +306,8 @@ def test_publishes_where_with_lambda():
     assert output.filter_predicate is not None
 
     # Test predicate
-    high_value = TestTypeA(value=100, valid=True)
-    low_value = TestTypeA(value=10, valid=True)
+    high_value = SampleTypeA(value=100, valid=True)
+    low_value = SampleTypeA(value=10, valid=True)
     assert output.filter_predicate(high_value) is True
     assert output.filter_predicate(low_value) is False
 
@@ -318,7 +318,7 @@ def test_publishes_where_none_by_default():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA)
+    agent = flock.agent("test").publishes(SampleTypeA)
 
     # Assert
     output = agent.agent.output_groups[0].outputs[0]
@@ -342,7 +342,7 @@ def test_publishes_dynamic_visibility():
         return PrivateVisibility(agents={"admin"})
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeB, visibility=dynamic_vis)
+    agent = flock.agent("test").publishes(SampleTypeB, visibility=dynamic_vis)
 
     # Assert
     output = agent.agent.output_groups[0].outputs[0]
@@ -362,7 +362,7 @@ def test_publishes_static_visibility():
     private_vis = PrivateVisibility(agents={"agent1", "agent2"})
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, visibility=private_vis)
+    agent = flock.agent("test").publishes(SampleTypeA, visibility=private_vis)
 
     # Assert
     output = agent.agent.output_groups[0].outputs[0]
@@ -375,7 +375,7 @@ def test_publishes_visibility_default_is_public():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA)
+    agent = flock.agent("test").publishes(SampleTypeA)
 
     # Assert
     output = agent.agent.output_groups[0].outputs[0]
@@ -398,7 +398,7 @@ def test_publishes_validate_single():
         return obj.score > 0 if hasattr(obj, "score") else False  # type: ignore
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeB, validate=validate_positive)
+    agent = flock.agent("test").publishes(SampleTypeB, validate=validate_positive)
 
     # Assert
     output = agent.agent.output_groups[0].outputs[0]
@@ -406,8 +406,8 @@ def test_publishes_validate_single():
     assert callable(output.validate_predicate)
 
     # Test validation works
-    valid_obj = TestTypeB(name="test", score=50)
-    invalid_obj = TestTypeB(name="test", score=0)
+    valid_obj = SampleTypeB(name="test", score=50)
+    invalid_obj = SampleTypeB(name="test", score=0)
     assert output.validate_predicate(valid_obj) is True
     assert output.validate_predicate(invalid_obj) is False
 
@@ -429,7 +429,7 @@ def test_publishes_validate_list_of_tuples():
     ]
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeB, validate=validators)
+    agent = flock.agent("test").publishes(SampleTypeB, validate=validators)
 
     # Assert
     output = agent.agent.output_groups[0].outputs[0]
@@ -445,8 +445,8 @@ def test_publishes_validate_list_of_tuples():
         assert isinstance(item[1], str)
 
     # Test validators work
-    valid_obj = TestTypeB(name="Good Name", score=85)
-    short_name = TestTypeB(name="AB", score=50)
+    valid_obj = SampleTypeB(name="Good Name", score=85)
+    short_name = SampleTypeB(name="AB", score=50)
 
     assert output.validate_predicate[0][0](valid_obj) is True
     assert output.validate_predicate[0][0](short_name) is False
@@ -459,7 +459,7 @@ def test_publishes_validate_none_by_default():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA)
+    agent = flock.agent("test").publishes(SampleTypeA)
 
     # Assert
     output = agent.agent.output_groups[0].outputs[0]
@@ -478,7 +478,7 @@ def test_publishes_group_description():
     custom_desc = "Generate high-quality artifacts with special care"
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, description=custom_desc)
+    agent = flock.agent("test").publishes(SampleTypeA, description=custom_desc)
 
     # Assert
     group = agent.agent.output_groups[0]
@@ -498,7 +498,7 @@ def test_publishes_description_applies_to_group():
     desc = "Both types need special handling"
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, TestTypeB, description=desc)
+    agent = flock.agent("test").publishes(SampleTypeA, SampleTypeB, description=desc)
 
     # Assert
     group = agent.agent.output_groups[0]
@@ -513,7 +513,7 @@ def test_publishes_description_none_by_default():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA)
+    agent = flock.agent("test").publishes(SampleTypeA)
 
     # Assert
     group = agent.agent.output_groups[0]
@@ -541,7 +541,7 @@ def test_publishes_combined_parameters():
 
     # Act
     agent = flock.agent("test").publishes(
-        TestTypeA, fan_out=3, where=filter_fn, validate=validate_fn, description=desc
+        SampleTypeA, fan_out=3, where=filter_fn, validate=validate_fn, description=desc
     )
 
     # Assert
@@ -570,8 +570,8 @@ def test_publishes_all_sugar_parameters_with_multiple_types():
 
     # Act
     agent = flock.agent("test").publishes(
-        TestTypeA,
-        TestTypeB,
+        SampleTypeA,
+        SampleTypeB,
         fan_out=2,
         where=filter_fn,
         visibility=vis,
@@ -606,7 +606,7 @@ def test_publishes_fan_out_zero_is_invalid():
 
     # Act & Assert
     with pytest.raises(ValueError) as exc_info:
-        flock.agent("test").publishes(TestTypeA, fan_out=0)
+        flock.agent("test").publishes(SampleTypeA, fan_out=0)
 
     error_msg = str(exc_info.value).lower()
     # Should mention that fan_out must be >= 1
@@ -620,7 +620,7 @@ def test_publishes_fan_out_negative_is_invalid():
 
     # Act & Assert
     with pytest.raises(ValueError):
-        flock.agent("test").publishes(TestTypeA, fan_out=-10)
+        flock.agent("test").publishes(SampleTypeA, fan_out=-10)
 
 
 def test_publishes_large_fan_out_is_valid():
@@ -629,7 +629,7 @@ def test_publishes_large_fan_out_is_valid():
     flock = Flock()
 
     # Act - Should not raise
-    agent = flock.agent("test").publishes(TestTypeA, fan_out=1000)
+    agent = flock.agent("test").publishes(SampleTypeA, fan_out=1000)
 
     # Assert
     output = agent.agent.output_groups[0].outputs[0]
@@ -644,9 +644,9 @@ def test_publishes_chaining_with_other_methods():
     # Act - Chain publishes with consumes
     agent = (
         flock.agent("test")
-        .consumes(TestTypeA)
-        .publishes(TestTypeB)
-        .publishes(TestTypeC)
+        .consumes(SampleTypeA)
+        .publishes(SampleTypeB)
+        .publishes(SampleTypeC)
     )
 
     # Assert
@@ -665,7 +665,7 @@ def test_publishes_returns_publish_builder():
     flock = Flock()
 
     # Act
-    result = flock.agent("test").publishes(TestTypeA)
+    result = flock.agent("test").publishes(SampleTypeA)
 
     # Assert - Should return PublishBuilder (or similar chainable object)
     from flock.core import AgentBuilder, PublishBuilder
@@ -674,7 +674,7 @@ def test_publishes_returns_publish_builder():
     assert isinstance(result, (PublishBuilder, AgentBuilder))
 
     # Should be able to chain with other agent methods
-    result.consumes(TestTypeB)  # Should not raise
+    result.consumes(SampleTypeB)  # Should not raise
 
 
 def test_publishes_builder_chaining():
@@ -685,9 +685,9 @@ def test_publishes_builder_chaining():
     # Act - Chain with only_for (existing PublishBuilder method)
     agent = (
         flock.agent("test")
-        .publishes(TestTypeA)
+        .publishes(SampleTypeA)
         .only_for("agent1", "agent2")
-        .publishes(TestTypeB)
+        .publishes(SampleTypeB)
     )
 
     # Assert - Should have created 2 groups
@@ -725,7 +725,7 @@ def test_publishes_with_none_types_filtered():
     # Act - Try to pass None (should be filtered or raise)
     # This tests defensive programming
     try:
-        agent = flock.agent("test").publishes(TestTypeA, None, TestTypeB)  # type: ignore
+        agent = flock.agent("test").publishes(SampleTypeA, None, SampleTypeB)  # type: ignore
 
         # If it doesn't raise, None should be filtered out
         group = agent.agent.output_groups[0]
@@ -746,9 +746,9 @@ def test_publishes_preserves_group_order():
     # Act
     agent = (
         flock.agent("test")
-        .publishes(TestTypeA, description="First")
-        .publishes(TestTypeB, description="Second")
-        .publishes(TestTypeC, description="Third")
+        .publishes(SampleTypeA, description="First")
+        .publishes(SampleTypeB, description="Second")
+        .publishes(SampleTypeC, description="Third")
     )
 
     # Assert - Order should be preserved
@@ -766,7 +766,7 @@ def test_publishes_fan_out_with_duplicates():
     flock = Flock()
 
     # Act
-    agent = flock.agent("test").publishes(TestTypeA, TestTypeA, fan_out=2)
+    agent = flock.agent("test").publishes(SampleTypeA, SampleTypeA, fan_out=2)
 
     # Assert
     group = agent.agent.output_groups[0]
@@ -791,8 +791,8 @@ def test_publishes_agent_can_be_registered():
     # Act
     agent = (
         flock.agent("test")
-        .consumes(TestTypeA)
-        .publishes(TestTypeB, fan_out=3, where=lambda x: True)
+        .consumes(SampleTypeA)
+        .publishes(SampleTypeB, fan_out=3, where=lambda x: True)
     )
 
     # Assert - Agent should be registered
@@ -807,8 +807,8 @@ def test_publishes_group_structure_complete():
 
     # Act
     agent = flock.agent("test").publishes(
-        TestTypeA,
-        TestTypeB,
+        SampleTypeA,
+        SampleTypeB,
         visibility=PrivateVisibility(agents={"test"}),
         description="Test group",
     )
@@ -945,9 +945,9 @@ async def test_multiple_publishes_calls_engine_multiple_times():
     flock = Flock()
 
     # Create artifacts for each of the 3 engine calls
-    artifact_a = TestTypeA(value=100, valid=True)
-    artifact_b = TestTypeB(name="Test B", score=85)
-    artifact_c = TestTypeC(priority=5)
+    artifact_a = SampleTypeA(value=100, valid=True)
+    artifact_b = SampleTypeB(name="Test B", score=85)
+    artifact_c = SampleTypeC(priority=5)
 
     # Mock engine that will be called 3 times
     mock_engine = CountingMockEngine(
@@ -961,10 +961,10 @@ async def test_multiple_publishes_calls_engine_multiple_times():
     # Create agent with 3 separate publishes calls
     agent = (
         flock.agent("multi_publish_agent")
-        .consumes(TestTypeA)  # Trigger
-        .publishes(TestTypeA)  # Group 1
-        .publishes(TestTypeB)  # Group 2
-        .publishes(TestTypeC)  # Group 3
+        .consumes(SampleTypeA)  # Trigger
+        .publishes(SampleTypeA)  # Group 1
+        .publishes(SampleTypeB)  # Group 2
+        .publishes(SampleTypeC)  # Group 3
         .with_engines(mock_engine)
         .with_utilities(NoOpUtility())
     )
@@ -974,7 +974,7 @@ async def test_multiple_publishes_calls_engine_multiple_times():
     input_artifacts = [
         Artifact(
             type="TestTypeA",
-            payload=TestTypeA(value=1, valid=True).model_dump(),
+            payload=SampleTypeA(value=1, valid=True).model_dump(),
             produced_by="test",
         )
     ]
@@ -1003,9 +1003,9 @@ async def test_single_publishes_calls_engine_once():
     # Arrange
     flock = Flock()
 
-    artifact_a = TestTypeA(value=1, valid=True)
-    artifact_b = TestTypeB(name="Test", score=90)
-    artifact_c = TestTypeC(priority=3)
+    artifact_a = SampleTypeA(value=1, valid=True)
+    artifact_b = SampleTypeB(name="Test", score=90)
+    artifact_c = SampleTypeC(priority=3)
 
     mock_engine = CountingMockEngine(
         artifacts_per_call=[
@@ -1016,8 +1016,8 @@ async def test_single_publishes_calls_engine_once():
     # Single .publishes() with multiple types = ONE group
     agent = (
         flock.agent("single_publish_agent")
-        .consumes(TestTypeA)
-        .publishes(TestTypeA, TestTypeB, TestTypeC)  # ALL in one call
+        .consumes(SampleTypeA)
+        .publishes(SampleTypeA, SampleTypeB, SampleTypeC)  # ALL in one call
         .with_engines(mock_engine)
         .with_utilities(NoOpUtility())
     )
@@ -1026,7 +1026,7 @@ async def test_single_publishes_calls_engine_once():
     input_artifacts = [
         Artifact(
             type="TestTypeA",
-            payload=TestTypeA(value=1, valid=True).model_dump(),
+            payload=SampleTypeA(value=1, valid=True).model_dump(),
             produced_by="test",
         )
     ]
@@ -1053,17 +1053,17 @@ async def test_fan_out_calls_engine_once_generates_multiple():
 
     # Engine returns 3 artifacts in a single call
     artifacts = [
-        TestTypeA(value=1, valid=True),
-        TestTypeA(value=2, valid=True),
-        TestTypeA(value=3, valid=True),
+        SampleTypeA(value=1, valid=True),
+        SampleTypeA(value=2, valid=True),
+        SampleTypeA(value=3, valid=True),
     ]
 
     mock_engine = CountingMockEngine(artifacts_per_call=[artifacts])
 
     agent = (
         flock.agent("fanout_agent")
-        .consumes(TestTypeB)
-        .publishes(TestTypeA, fan_out=3)  # Expect 3 artifacts, but 1 call
+        .consumes(SampleTypeB)
+        .publishes(SampleTypeA, fan_out=3)  # Expect 3 artifacts, but 1 call
         .with_engines(mock_engine)
         .with_utilities(NoOpUtility())
     )
@@ -1072,7 +1072,7 @@ async def test_fan_out_calls_engine_once_generates_multiple():
     input_artifacts = [
         Artifact(
             type="TestTypeB",
-            payload=TestTypeB(name="test", score=50).model_dump(),
+            payload=SampleTypeB(name="test", score=50).model_dump(),
             produced_by="test",
         )
     ]
@@ -1086,7 +1086,7 @@ async def test_fan_out_calls_engine_once_generates_multiple():
     # Should generate 3 artifacts
     type_a_artifacts = [a for a in output_artifacts if a.type == "TestTypeA"]
     assert len(type_a_artifacts) == 3, (
-        f"Expected 3 TestTypeA artifacts with fan_out=3, got {len(type_a_artifacts)}"
+        f"Expected 3 SampleTypeA artifacts with fan_out=3, got {len(type_a_artifacts)}"
     )
 
 
@@ -1114,20 +1114,20 @@ async def test_each_engine_call_receives_group_specific_context():
             # Return appropriate artifact based on call number
             call_num = len(contexts_received)
             if call_num == 1:
-                artifact = TestTypeA(value=1, valid=True)
+                artifact = SampleTypeA(value=1, valid=True)
             elif call_num == 2:
-                artifact = TestTypeB(name="B", score=50)
+                artifact = SampleTypeB(name="B", score=50)
             else:
-                artifact = TestTypeC(priority=1)
+                artifact = SampleTypeC(priority=1)
 
             return EvalResult.from_objects(artifact, agent=agent)
 
     agent = (
         flock.agent("context_test")
-        .consumes(TestTypeA)
-        .publishes(TestTypeA, description="First group")  # Group 1
-        .publishes(TestTypeB, description="Second group")  # Group 2
-        .publishes(TestTypeC, description="Third group")  # Group 3
+        .consumes(SampleTypeA)
+        .publishes(SampleTypeA, description="First group")  # Group 1
+        .publishes(SampleTypeB, description="Second group")  # Group 2
+        .publishes(SampleTypeC, description="Third group")  # Group 3
         .with_engines(ContextTrackingEngine())
         .with_utilities(NoOpUtility())
     )
@@ -1136,7 +1136,7 @@ async def test_each_engine_call_receives_group_specific_context():
     input_artifacts = [
         Artifact(
             type="TestTypeA",
-            payload=TestTypeA(value=1, valid=True).model_dump(),
+            payload=SampleTypeA(value=1, valid=True).model_dump(),
             produced_by="test",
         )
     ]
@@ -1167,12 +1167,12 @@ async def test_artifacts_from_all_groups_collected():
     flock = Flock()
 
     # Each group produces different artifacts
-    group1_artifacts = [TestTypeA(value=10, valid=True)]
+    group1_artifacts = [SampleTypeA(value=10, valid=True)]
     group2_artifacts = [
-        TestTypeB(name="B1", score=60),
-        TestTypeB(name="B2", score=70),
+        SampleTypeB(name="B1", score=60),
+        SampleTypeB(name="B2", score=70),
     ]
-    group3_artifacts = [TestTypeC(priority=5)]
+    group3_artifacts = [SampleTypeC(priority=5)]
 
     mock_engine = CountingMockEngine(
         artifacts_per_call=[
@@ -1184,10 +1184,10 @@ async def test_artifacts_from_all_groups_collected():
 
     agent = (
         flock.agent("collector")
-        .consumes(TestTypeA)
-        .publishes(TestTypeA)  # Group 1: 1 artifact
-        .publishes(TestTypeB, fan_out=2)  # Group 2: 2 artifacts
-        .publishes(TestTypeC)  # Group 3: 1 artifact
+        .consumes(SampleTypeA)
+        .publishes(SampleTypeA)  # Group 1: 1 artifact
+        .publishes(SampleTypeB, fan_out=2)  # Group 2: 2 artifacts
+        .publishes(SampleTypeC)  # Group 3: 1 artifact
         .with_engines(mock_engine)
         .with_utilities(NoOpUtility())
     )
@@ -1196,7 +1196,7 @@ async def test_artifacts_from_all_groups_collected():
     input_artifacts = [
         Artifact(
             type="TestTypeA",
-            payload=TestTypeA(value=1, valid=True).model_dump(),
+            payload=SampleTypeA(value=1, valid=True).model_dump(),
             produced_by="test",
         )
     ]
@@ -1212,9 +1212,9 @@ async def test_artifacts_from_all_groups_collected():
     type_b = [a for a in outputs if a.type == "TestTypeB"]
     type_c = [a for a in outputs if a.type == "TestTypeC"]
 
-    assert len(type_a) >= 1, "Should have TestTypeA from group 1"
-    assert len(type_b) >= 2, "Should have 2 TestTypeB from group 2"
-    assert len(type_c) >= 1, "Should have TestTypeC from group 3"
+    assert len(type_a) >= 1, "Should have SampleTypeA from group 1"
+    assert len(type_b) >= 2, "Should have 2 SampleTypeB from group 2"
+    assert len(type_c) >= 1, "Should have SampleTypeC from group 3"
 
 
 # ============================================================================
@@ -1244,20 +1244,20 @@ async def test_engine_calls_are_sequential_not_parallel():
 
             # Return artifact
             if call_num == 1:
-                artifact = TestTypeA(value=call_num, valid=True)
+                artifact = SampleTypeA(value=call_num, valid=True)
             elif call_num == 2:
-                artifact = TestTypeB(name=f"Call {call_num}", score=50)
+                artifact = SampleTypeB(name=f"Call {call_num}", score=50)
             else:
-                artifact = TestTypeC(priority=call_num)
+                artifact = SampleTypeC(priority=call_num)
 
             return EvalResult.from_objects(artifact, agent=agent)
 
     agent = (
         flock.agent("sequential")
-        .consumes(TestTypeA)
-        .publishes(TestTypeA)
-        .publishes(TestTypeB)
-        .publishes(TestTypeC)
+        .consumes(SampleTypeA)
+        .publishes(SampleTypeA)
+        .publishes(SampleTypeB)
+        .publishes(SampleTypeC)
         .with_engines(SequentialTrackingEngine())
         .with_utilities(NoOpUtility())
     )
@@ -1266,7 +1266,7 @@ async def test_engine_calls_are_sequential_not_parallel():
     input_artifacts = [
         Artifact(
             type="TestTypeA",
-            payload=TestTypeA(value=1, valid=True).model_dump(),
+            payload=SampleTypeA(value=1, valid=True).model_dump(),
             produced_by="test",
         )
     ]
@@ -1309,18 +1309,18 @@ async def test_error_in_group_stops_subsequent_groups():
 
             # Return artifact for other calls
             if call_count == 1:
-                artifact = TestTypeA(value=1, valid=True)
+                artifact = SampleTypeA(value=1, valid=True)
             else:
-                artifact = TestTypeC(priority=1)
+                artifact = SampleTypeC(priority=1)
 
             return EvalResult.from_objects(artifact, agent=agent)
 
     agent = (
         flock.agent("failing")
-        .consumes(TestTypeA)
-        .publishes(TestTypeA)  # Group 1: succeeds
-        .publishes(TestTypeB)  # Group 2: FAILS
-        .publishes(TestTypeC)  # Group 3: should NOT execute
+        .consumes(SampleTypeA)
+        .publishes(SampleTypeA)  # Group 1: succeeds
+        .publishes(SampleTypeB)  # Group 2: FAILS
+        .publishes(SampleTypeC)  # Group 3: should NOT execute
         .with_engines(FailingEngine())
         .with_utilities(NoOpUtility())
     )
@@ -1329,7 +1329,7 @@ async def test_error_in_group_stops_subsequent_groups():
     input_artifacts = [
         Artifact(
             type="TestTypeA",
-            payload=TestTypeA(value=1, valid=True).model_dump(),
+            payload=SampleTypeA(value=1, valid=True).model_dump(),
             produced_by="test",
         )
     ]
@@ -1358,8 +1358,8 @@ async def test_mock_engine_verifies_call_count_and_behavior():
     flock = Flock()
 
     # Create a more sophisticated mock
-    artifacts_group1 = TestTypeA(value=1, valid=True)
-    artifacts_group2 = TestTypeB(name="Group2", score=75)
+    artifacts_group1 = SampleTypeA(value=1, valid=True)
+    artifacts_group2 = SampleTypeB(name="Group2", score=75)
 
     mock_engine = CountingMockEngine(
         artifacts_per_call=[
@@ -1370,9 +1370,9 @@ async def test_mock_engine_verifies_call_count_and_behavior():
 
     agent = (
         flock.agent("mock_test")
-        .consumes(TestTypeA)
-        .publishes(TestTypeA)
-        .publishes(TestTypeB)
+        .consumes(SampleTypeA)
+        .publishes(SampleTypeA)
+        .publishes(SampleTypeB)
         .with_engines(mock_engine)
         .with_utilities(NoOpUtility())
     )
@@ -1381,7 +1381,7 @@ async def test_mock_engine_verifies_call_count_and_behavior():
     input_artifacts = [
         Artifact(
             type="TestTypeA",
-            payload=TestTypeA(value=1, valid=True).model_dump(),
+            payload=SampleTypeA(value=1, valid=True).model_dump(),
             produced_by="test",
         )
     ]
@@ -1406,8 +1406,8 @@ async def test_mock_engine_verifies_call_count_and_behavior():
     type_a_outputs = [a for a in outputs if a.type == "TestTypeA"]
     type_b_outputs = [a for a in outputs if a.type == "TestTypeB"]
 
-    assert len(type_a_outputs) >= 1, "Should have TestTypeA from group 1"
-    assert len(type_b_outputs) >= 1, "Should have TestTypeB from group 2"
+    assert len(type_a_outputs) >= 1, "Should have SampleTypeA from group 1"
+    assert len(type_b_outputs) >= 1, "Should have SampleTypeB from group 2"
 
 
 # ============================================================================
@@ -1426,7 +1426,7 @@ async def test_agent_without_publishes_no_engine_calls():
     # Agent with no publishes
     agent = (
         flock.agent("no_publish")
-        .consumes(TestTypeA)
+        .consumes(SampleTypeA)
         .with_engines(mock_engine)
         .with_utilities(NoOpUtility())
         # NO .publishes() calls
@@ -1436,7 +1436,7 @@ async def test_agent_without_publishes_no_engine_calls():
     input_artifacts = [
         Artifact(
             type="TestTypeA",
-            payload=TestTypeA(value=1, valid=True).model_dump(),
+            payload=SampleTypeA(value=1, valid=True).model_dump(),
             produced_by="test",
         )
     ]

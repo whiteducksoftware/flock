@@ -92,11 +92,14 @@ class BlackboardStore:
     async def list_by_type(self, type_name: str) -> list[Artifact]:
         raise NotImplementedError
 
-    async def get_by_type(self, artifact_type: type[T]) -> list[T]:
+    async def get_by_type(
+        self, artifact_type: type[T], *, correlation_id: str | None = None
+    ) -> list[T]:
         """Get artifacts by Pydantic type, returning data already cast.
 
         Args:
             artifact_type: The Pydantic model class (e.g., BugAnalysis)
+            correlation_id: Optional correlation ID to filter results
 
         Returns:
             List of data objects of the specified type (not Artifact wrappers)
@@ -104,6 +107,9 @@ class BlackboardStore:
         Example:
             bug_analyses = await store.get_by_type(BugAnalysis)
             # Returns list[BugAnalysis] directly, no .data access needed
+
+            # Filter by correlation_id
+            bug_analyses = await store.get_by_type(BugAnalysis, correlation_id="workflow-123")
         """
         raise NotImplementedError
 
@@ -212,10 +218,19 @@ class InMemoryBlackboardStore(BlackboardStore):
             canonical = type_registry.resolve_name(type_name)
             return list(self._by_type.get(canonical, []))
 
-    async def get_by_type(self, artifact_type: type[T]) -> list[T]:
+    async def get_by_type(
+        self, artifact_type: type[T], *, correlation_id: str | None = None
+    ) -> list[T]:
         async with self._lock:
             canonical = type_registry.resolve_name(artifact_type.__name__)
             artifacts = self._by_type.get(canonical, [])
+            # Filter by correlation_id if provided
+            if correlation_id is not None:
+                artifacts = [
+                    artifact
+                    for artifact in artifacts
+                    if artifact.correlation_id == correlation_id
+                ]
             return [artifact_type(**artifact.payload) for artifact in artifacts]  # type: ignore
 
     async def extend(
@@ -560,19 +575,32 @@ class SQLiteBlackboardStore(BlackboardStore):
             await cursor.close()
             return [self._row_to_artifact(row) for row in rows]
 
-    async def get_by_type(self, artifact_type: type[T]) -> list[T]:  # type: ignore[override]
+    async def get_by_type(
+        self, artifact_type: type[T], *, correlation_id: str | None = None
+    ) -> list[T]:  # type: ignore[override]
         with tracer.start_as_current_span("sqlite_store.get_by_type"):
             conn = await self._get_connection()
             canonical = type_registry.resolve_name(artifact_type.__name__)
-            cursor = await conn.execute(
+            
+            # Build query with optional correlation_id filter
+            if correlation_id is not None:
+                query = """
+                    SELECT payload
+                    FROM artifacts
+                    WHERE canonical_type = ? AND correlation_id = ?
+                    ORDER BY created_at ASC, rowid ASC
                 """
-                SELECT payload
-                FROM artifacts
-                WHERE canonical_type = ?
-                ORDER BY created_at ASC, rowid ASC
-                """,
-                (canonical,),
-            )
+                params = (canonical, correlation_id)
+            else:
+                query = """
+                    SELECT payload
+                    FROM artifacts
+                    WHERE canonical_type = ?
+                    ORDER BY created_at ASC, rowid ASC
+                """
+                params = (canonical,)
+            
+            cursor = await conn.execute(query, params)
             rows = await cursor.fetchall()
             await cursor.close()
             results: list[T] = []

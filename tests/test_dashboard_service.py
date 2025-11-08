@@ -90,7 +90,7 @@ from flock.registry import flock_type
 
 # Test data models for API testing
 @flock_type(name="TestArtifact")
-class TestArtifact(BaseModel):
+class SampleArtifact(BaseModel):
     """Test artifact type for API endpoint tests."""
 
     message: str = Field(description="Test message")

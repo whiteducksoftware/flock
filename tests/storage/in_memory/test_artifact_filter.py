@@ -14,14 +14,14 @@ from flock.storage.in_memory.artifact_filter import ArtifactFilter
 
 
 @flock_type(name="TestFilterTypeA")
-class TestFilterTypeA(BaseModel):
+class SampleFilterTypeA(BaseModel):
     """Test type A for filter tests."""
 
     data: str
 
 
 @flock_type(name="TestFilterTypeB")
-class TestFilterTypeB(BaseModel):
+class SampleFilterTypeB(BaseModel):
     """Test type B for filter tests."""
 
     value: int

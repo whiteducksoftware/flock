@@ -47,7 +47,7 @@ class ContextRequest:
     """
 
     agent: Any  # Agent type to avoid circular import
-    correlation_id: UUID
+    correlation_id: str
     store: BlackboardStore
     agent_identity: AgentIdentity
     exclude_ids: set[UUID] | None = None
@@ -367,7 +367,7 @@ class CorrelatedContextProvider(BaseContextProvider):
             Workflow artifacts (will be visibility-filtered by base class)
         """
         artifacts, _ = await request.store.query_artifacts(
-            FilterConfig(correlation_id=str(request.correlation_id)),
+            FilterConfig(correlation_id=request.correlation_id),
             limit=-1,  # Get all workflow artifacts
         )
         return artifacts

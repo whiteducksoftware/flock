@@ -19,7 +19,7 @@ class Artifact(BaseModel):
     type: str
     payload: dict[str, Any]
     produced_by: str
-    correlation_id: UUID | None = None
+    correlation_id: str | None = None
     partition_key: str | None = None
     tags: set[str] = Field(default_factory=set)
     visibility: Visibility = Field(default_factory=lambda: ensure_visibility(None))
@@ -47,7 +47,7 @@ class ArtifactSpec(BaseModel):
         produced_by: str,
         data: dict[str, Any],
         visibility: Visibility | None = None,
-        correlation_id: UUID | None = None,
+        correlation_id: str | None = None,
         partition_key: str | None = None,
         tags: set[str] | None = None,
         version: int = 1,

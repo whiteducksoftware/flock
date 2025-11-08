@@ -61,7 +61,7 @@ class ContextBuilder:
         *,
         agent: Agent,
         artifacts: list[Artifact],
-        correlation_id: UUID | None = None,
+        correlation_id: str | None = None,
         is_batch: bool = False,
     ) -> Context:
         """Build Context with pre-filtered artifacts (Phase 8 security fix).
@@ -115,7 +115,7 @@ class ContextBuilder:
         resolved_correlation_id = correlation_id or (
             artifacts[0].correlation_id
             if artifacts and artifacts[0].correlation_id
-            else uuid4()
+            else str(uuid4())
         )
 
         # Step 1: Resolve provider (agent > global > default)

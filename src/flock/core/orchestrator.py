@@ -251,7 +251,7 @@ class Flock(metaclass=AutoTracedMeta):
         """Get the status of a workflow by correlation ID.
 
         Args:
-            correlation_id: The correlation ID to check
+            correlation_id: The correlation ID to check (can be any string)
 
         Returns:
             Dictionary containing workflow status information:
@@ -262,21 +262,15 @@ class Flock(metaclass=AutoTracedMeta):
             - started_at: Timestamp of first artifact (if any)
             - last_activity_at: Timestamp of most recent artifact (if any)
         """
-        from uuid import UUID
-
-        try:
-            correlation_uuid = UUID(correlation_id)
-        except ValueError as exc:
-            raise ValueError(
-                f"Invalid correlation_id format: {correlation_id}"
-            ) from exc
-
         # Check if orchestrator has pending work for this correlation
         # 1. Check active tasks for this correlation_id
-        has_active_tasks = (
-            correlation_uuid in self._scheduler._correlation_tasks
-            and bool(self._scheduler._correlation_tasks[correlation_uuid])
-        )
+        # Note: _correlation_tasks may not exist in all scheduler implementations
+        has_active_tasks = False
+        if hasattr(self._scheduler, "_correlation_tasks"):
+            has_active_tasks = (
+                correlation_id in self._scheduler._correlation_tasks
+                and bool(self._scheduler._correlation_tasks[correlation_id])
+            )
 
         # 2. Check correlation groups (for agents with JoinSpec that haven't yielded yet)
         has_pending_groups = False
@@ -285,7 +279,7 @@ class Flock(metaclass=AutoTracedMeta):
                 # Check if this group belongs to our correlation
                 for type_name, artifacts in group.waiting_artifacts.items():
                     if any(
-                        artifact.correlation_id == correlation_uuid
+                        artifact.correlation_id == correlation_id
                         for artifact in artifacts
                     ):
                         has_pending_groups = True

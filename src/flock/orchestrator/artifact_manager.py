@@ -93,7 +93,7 @@ class ArtifactManager:
                 payload=obj.model_dump(),
                 produced_by="external",
                 visibility=visibility or PublicVisibility(),
-                correlation_id=correlation_id or uuid4(),
+                correlation_id=correlation_id or str(uuid4()),
                 partition_key=partition_key,
                 tags=tags or set(),
             )

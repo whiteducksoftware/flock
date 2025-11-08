@@ -29,13 +29,13 @@ from flock.core.visibility import (
 from flock.utils.runtime import Context
 
 
-class TestInput(BaseModel):
+class SampleInput(BaseModel):
     """Test input artifact type."""
 
     content: str
 
 
-class TestOutput(BaseModel):
+class SampleOutput(BaseModel):
     """Test output artifact type."""
 
     result: str

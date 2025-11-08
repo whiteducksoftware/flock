@@ -46,7 +46,7 @@ async def main_cli():
         print("❌ DSPy adapters not available. Install dspy>=3.0.0")
         return
 
-    flock = Flock("openai/gpt-4o")
+    flock = Flock()
 
     # Note: To use MCP tools, you need to register MCP servers first
     # Example:
@@ -73,7 +73,6 @@ async def main_cli():
         # .with_mcps(["filesystem", "github"])  # MCP tools available
         .with_engines(
             DSPyEngine(
-                model="openai/gpt-4o",
                 adapter=JSONAdapter(),  # Native function calling enabled by default
                 stream=False,  # Disable streaming for cleaner output
             )
@@ -94,13 +93,13 @@ async def main_cli():
     # Get results
     results = await flock.store.get_by_type(ResearchReport)
     if results:
-        result = results[0].payload
-        print(f"✅ Summary: {result['summary']}\n")
-        print(f"📚 Sources ({len(result['sources'])}):")
-        for i, source in enumerate(result["sources"], 1):
+        result = results[0]
+        print(f"✅ Summary: {result.summary}\n")
+        print(f"📚 Sources ({len(result.sources)}):")
+        for i, source in enumerate(result.sources, 1):
             print(f"   {i}. {source}")
-        print(f"\n🔍 Findings ({len(result['findings'])}):")
-        for i, finding in enumerate(result["findings"], 1):
+        print(f"\n🔍 Findings ({len(result.findings)}):")
+        for i, finding in enumerate(result.findings, 1):
             print(f"   {i}. {finding}")
 
     print("\n✅ Research complete!")
@@ -113,7 +112,7 @@ async def main_cli():
 
 async def main_dashboard():
     """Dashboard mode: Serve with interactive web interface"""
-    await Flock("openai/gpt-4o").serve(dashboard=True)
+    await Flock().serve(dashboard=True)
 
 
 async def main():

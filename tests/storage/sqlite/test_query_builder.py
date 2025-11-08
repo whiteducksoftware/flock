@@ -11,7 +11,7 @@ from flock.storage.sqlite.query_builder import SQLiteQueryBuilder
 
 
 @flock_type(name="TestTypeA")
-class TestTypeA(BaseModel):
+class SampleTypeA(BaseModel):
     """Test type A for query builder tests."""
 
     data: str

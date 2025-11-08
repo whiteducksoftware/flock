@@ -43,7 +43,7 @@ async def main_cli():
         print("❌ DSPy adapters not available. Install dspy>=3.0.0")
         return
 
-    flock = Flock("openai/gpt-4o")
+    flock = Flock()
 
     # Agent with ChatAdapter (default)
     chat_agent = (
@@ -53,9 +53,7 @@ async def main_cli():
         .publishes(AnalysisResult)
         .with_engines(
             DSPyEngine(
-                model="openai/gpt-4o",
                 adapter=ChatAdapter(),  # Explicit ChatAdapter
-                stream=False,  # Disable streaming for cleaner output
             )
         )
     )
@@ -68,9 +66,7 @@ async def main_cli():
         .publishes(AnalysisResult)
         .with_engines(
             DSPyEngine(
-                model="openai/gpt-4o",
                 adapter=JSONAdapter(),  # Better structured output parsing
-                stream=False,  # Disable streaming for cleaner output
             )
         )
     )
@@ -85,13 +81,12 @@ async def main_cli():
     await flock.run_until_idle()
 
     # Get results
-    chat_results = await flock.store.get_by_type(AnalysisResult)
-    chat_results = [r for r in chat_results if r.correlation_id == "chat_test"]
+    chat_results = await flock.store.get_by_type(AnalysisResult, correlation_id="chat_test")
     if chat_results:
-        result = chat_results[0].payload
-        print(f"   ✅ Sentiment: {result['sentiment']}")
-        print(f"   ✅ Confidence: {result['confidence']:.2f}")
-        print(f"   ✅ Key Points: {len(result['key_points'])}")
+        result = chat_results[0]
+        print(f"   ✅ Sentiment: {result.sentiment}")
+        print(f"   ✅ Confidence: {result.confidence:.2f}")
+        print(f"   ✅ Key Points: {len(result.key_points)}")
 
     print("\n🟢 Testing JSONAdapter (structured outputs)...")
     print(f"   Input: {request.text}\n")
@@ -99,13 +94,12 @@ async def main_cli():
     await flock.run_until_idle()
 
     # Get results
-    json_results = await flock.store.get_by_type(AnalysisResult)
-    json_results = [r for r in json_results if r.correlation_id == "json_test"]
+    json_results = await flock.store.get_by_type(AnalysisResult, correlation_id="json_test")
     if json_results:
-        result = json_results[0].payload
-        print(f"   ✅ Sentiment: {result['sentiment']}")
-        print(f"   ✅ Confidence: {result['confidence']:.2f}")
-        print(f"   ✅ Key Points: {len(result['key_points'])}")
+        result = json_results[0]
+        print(f"   ✅ Sentiment: {result.sentiment}")
+        print(f"   ✅ Confidence: {result.confidence:.2f}")
+        print(f"   ✅ Key Points: {len(result.key_points)}")
 
     print("\n✅ Both adapters completed!")
     print("\n💡 Key Differences:")
@@ -116,7 +110,7 @@ async def main_cli():
 
 async def main_dashboard():
     """Dashboard mode: Serve with interactive web interface"""
-    await Flock("openai/gpt-4o").serve(dashboard=True)
+    await Flock().serve(dashboard=True)
 
 
 async def main():

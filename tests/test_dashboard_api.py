@@ -568,7 +568,7 @@ async def test_control_endpoints_use_json_content_type(orchestrator):
 
     # Act - Try to publish with non-JSON content type
     response = client.post(
-        "/api/control/publish", data="not json", headers={"Content-Type": "text/plain"}
+        "/api/control/publish", content="not json", headers={"Content-Type": "text/plain"}
     )
 
     # Assert - Should reject non-JSON (422 Unprocessable Entity or 400 Bad Request)
