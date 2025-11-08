@@ -104,6 +104,9 @@ class MockPredict:
     def __call__(self, **kwargs):
         return MockPrediction()
 
+    async def acall(self, **kwargs):
+        return self.__call__(**kwargs)
+
 
 class MockReAct:
     """Mock DSPy ReAct."""
@@ -115,6 +118,9 @@ class MockReAct:
 
     def __call__(self, **kwargs):
         return MockPrediction()
+
+    async def acall(self, **kwargs):
+        return self.__call__(**kwargs)
 
 
 class MockSignature:
@@ -673,7 +679,7 @@ class TestDSPyEngineExecution:
         """Test standard execution with semantic field format."""
         mock_dspy = MockDSPyModule()
         mock_program = Mock()
-        mock_program.return_value = MockPrediction()
+        mock_program.acall = AsyncMock(return_value=MockPrediction())
 
         # New semantic field format
         payload = {
@@ -689,8 +695,31 @@ class TestDSPyEngineExecution:
 
         assert isinstance(result, MockPrediction)
         # Semantic fields are passed as kwargs
-        mock_program.assert_called_once_with(
+        mock_program.acall.assert_awaited_once_with(
             description="Test description", task={"prompt": "test"}, context=[]
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_standard_without_acall_falls_back_to_sync(self):
+        """Standard execution should fallback to sync call when acall missing."""
+        mock_dspy = MockDSPyModule()
+        mock_program = Mock(return_value=MockPrediction())
+
+        payload = {
+            "description": "Fallback description",
+            "task": {"prompt": "sync"},
+            "context": [],
+        }
+
+        engine = DSPyEngine()
+
+        result = await engine._streaming_executor.execute_standard(
+            mock_dspy, mock_program, description="Fallback description", payload=payload
+        )
+
+        assert isinstance(result, MockPrediction)
+        mock_program.assert_called_once_with(
+            description="Fallback description", task={"prompt": "sync"}, context=[]
         )
 
 

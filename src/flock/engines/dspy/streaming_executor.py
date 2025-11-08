@@ -10,6 +10,7 @@ including two modes:
 
 from __future__ import annotations
 
+import asyncio
 from collections import OrderedDict, defaultdict
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import nullcontext
@@ -446,6 +447,9 @@ class DSPyStreamingExecutor:
         # Handle semantic fields format: {"description": ..., "task": ..., "report": ...}
         if isinstance(payload, dict) and "description" in payload:
             # Semantic fields: pass all fields as kwargs
+            acall = getattr(program, "acall", None)
+            if acall and asyncio.iscoroutinefunction(acall):
+                return await acall(**payload)
             return program(**payload)
 
         # Fallback for unexpected payload format

@@ -1,5 +1,6 @@
 """Represents a MCP Tool in a format which is compatible with Flock's ecosystem."""
 
+import warnings
 from typing import Any, Self, TypeVar
 
 from dspy import Tool as DSPyTool
@@ -14,6 +15,16 @@ from flock.logging.logging import get_logger
 
 logger = get_logger("mcp.tool")
 tracer = trace.get_tracer(__name__)
+
+# Suppress RuntimeWarnings about unawaited coroutines during introspection
+# These warnings occur when libraries (Pydantic, copy, httpx) introspect the
+# async function stored in DSPyTool. The warnings are false positives - the
+# coroutine is properly awaited when the tool is actually executed by DSPy.
+# warnings.filterwarnings(
+#     "ignore",
+#     message=r"coroutine '.*' was never awaited",
+#     category=RuntimeWarning,
+# )
 
 T = TypeVar("T", bound="FlockMCPTool")
 
@@ -116,12 +127,28 @@ class FlockMCPTool(BaseModel):
         return res
 
     def as_dspy_tool(self, server: Any) -> DSPyTool:
-        """Wrap this tool as a DSPyTool for downstream."""
+        """Wrap this tool as a DSPyTool for downstream.
+
+        DSPy natively supports async functions - when the tool is called via
+        `tool.acall()` or `tool.__call__()`, DSPy detects if the function returns
+        a coroutine and handles it appropriately (see dspy.adapters.types.tool.Tool).
+
+        Note: RuntimeWarnings about unawaited coroutines may appear during
+        introspection by libraries (Pydantic, copy, httpx) when they access the
+        function object. These are false positives - the coroutine is properly
+        awaited when the tool is actually executed by DSPy.
+        """
         args, arg_type, args_desc = self._convert_input_schema_to_tool_args(
             self.input_schema
         )
 
         async def func(*args, **kwargs):
+            """Async function wrapper for MCP tool execution.
+
+            DSPy's Tool class natively supports async functions - it calls this
+            function and checks if the result is a coroutine, then handles it
+            appropriately via tool.acall() or tool.__call__().
+            """
             with tracer.start_as_current_span(f"tool.{self.name}.call") as span:
                 span.set_attribute("tool.name", self.name)
                 try:
@@ -148,6 +175,8 @@ class FlockMCPTool(BaseModel):
                     )
                     span.record_exception(e)
 
+        # DSPy natively supports async functions - it will detect the coroutine
+        # and handle it via tool.acall() or tool.__call__() with async conversion
         return DSPyTool(
             func=func,
             name=self.name,
