@@ -20,11 +20,11 @@ tracer = trace.get_tracer(__name__)
 # These warnings occur when libraries (Pydantic, copy, httpx) introspect the
 # async function stored in DSPyTool. The warnings are false positives - the
 # coroutine is properly awaited when the tool is actually executed by DSPy.
-warnings.filterwarnings(
-    "ignore",
-    message=r"coroutine '.*' was never awaited",
-    category=RuntimeWarning,
-)
+# warnings.filterwarnings(
+#     "ignore",
+#     message=r"coroutine '.*' was never awaited",
+#     category=RuntimeWarning,
+# )
 
 T = TypeVar("T", bound="FlockMCPTool")
 
