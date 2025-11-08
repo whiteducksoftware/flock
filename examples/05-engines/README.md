@@ -28,6 +28,97 @@ Custom engines let you implement deterministic logic without LLM calls—perfect
 
 ## 📚 Examples
 
+### 01_adapter_comparison.py 🔄
+**Pattern:** Compare ChatAdapter vs JSONAdapter for structured output parsing
+
+Demonstrates the difference between adapters:
+- **ChatAdapter**: Default adapter, text-based parsing with `[[ ## field_name ## ]]` markers
+- **JSONAdapter**: Better structured output parsing, uses OpenAI's structured outputs API, native function calling enabled
+
+```bash
+uv run python examples/05-engines/01_adapter_comparison.py
+```
+
+**How It Works:**
+```python
+from dspy.adapters import ChatAdapter, JSONAdapter
+from flock.engines import DSPyEngine
+
+# ChatAdapter (default)
+chat_agent = (
+    flock.agent("chat_analyzer")
+    .consumes(AnalysisRequest)
+    .publishes(AnalysisResult)
+    .with_engines(
+        DSPyEngine(model="openai/gpt-4o", adapter=ChatAdapter())
+    )
+)
+
+# JSONAdapter (better parsing)
+json_agent = (
+    flock.agent("json_analyzer")
+    .consumes(AnalysisRequest)
+    .publishes(AnalysisResult)
+    .with_engines(
+        DSPyEngine(model="openai/gpt-4o", adapter=JSONAdapter())
+    )
+)
+```
+
+**Use Cases:**
+- Understanding adapter differences
+- Choosing the right adapter for your use case
+- Improving parsing reliability
+
+**Benefits:**
+- ✅ **Better Parsing**: JSONAdapter uses structured outputs API
+- ✅ **Native Function Calling**: Enabled by default in JSONAdapter
+- ✅ **Backward Compatible**: ChatAdapter remains default
+
+---
+
+### 02_json_adapter_mcp_tools.py 🔧
+**Pattern:** JSONAdapter with MCP tools and native function calling
+
+Demonstrates JSONAdapter's native function calling feature:
+- **Native function calling**: Enabled by default in JSONAdapter
+- **MCP tool integration**: Better tool calling with MCP servers
+- **Structured outputs**: More reliable parsing
+
+```bash
+uv run python examples/05-engines/02_json_adapter_mcp_tools.py
+```
+
+**How It Works:**
+```python
+from dspy.adapters import JSONAdapter
+
+agent = (
+    flock.agent("researcher")
+    .consumes(ResearchQuery)
+    .publishes(ResearchReport)
+    .with_mcps(["filesystem", "github"])  # MCP tools
+    .with_engines(
+        DSPyEngine(
+            model="openai/gpt-4o",
+            adapter=JSONAdapter()  # Native function calling enabled
+        )
+    )
+)
+```
+
+**Use Cases:**
+- MCP tool integration
+- Research agents with tool calling
+- Agents that need reliable structured outputs
+
+**Benefits:**
+- ✅ **Better Tool Integration**: Native function calling works seamlessly with MCP
+- ✅ **Reliable Parsing**: Structured outputs API ensures correct format
+- ✅ **Production Ready**: More robust than ChatAdapter for complex outputs
+
+---
+
 ### emoji_mood_engine.py 😊
 **Pattern:** Keyword-based mood detection with emoji mapping
 

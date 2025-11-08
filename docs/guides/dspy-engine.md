@@ -1047,6 +1047,99 @@ logger.info(f"Payload: {data}")
 
 ---
 
+## DSPy Adapter Configuration
+
+**DSPy adapters** control how prompts are formatted and responses are parsed. Flock's `DSPyEngine` supports configuring adapters for better reliability and features.
+
+### Available Adapters
+
+- **ChatAdapter** (default): Text-based parsing with `[[ ## field_name ## ]]` markers
+- **JSONAdapter**: JSON-based parsing with structured outputs API support
+- **XMLAdapter**: XML-based parsing
+- **TwoStepAdapter**: Two-step generation process
+
+### Using JSONAdapter
+
+JSONAdapter provides several advantages:
+
+- ✅ **Better Parsing Reliability**: Uses OpenAI's structured outputs API when supported
+- ✅ **Native Function Calling**: Enabled by default for better MCP tool integration
+- ✅ **More Robust**: Handles malformed JSON better than ChatAdapter
+
+```python
+from dspy.adapters import JSONAdapter
+from flock.engines import DSPyEngine
+
+agent = (
+    flock.agent("analyst")
+    .consumes(Data)
+    .publishes(Report)
+    .with_engines(
+        DSPyEngine(
+            model="openai/gpt-4o",
+            adapter=JSONAdapter()  # Better structured output parsing
+        )
+    )
+)
+```
+
+### Using ChatAdapter (Default)
+
+ChatAdapter is the default adapter and works with any LLM:
+
+```python
+from dspy.adapters import ChatAdapter
+
+agent = (
+    flock.agent("analyst")
+    .consumes(Data)
+    .publishes(Report)
+    .with_engines(
+        DSPyEngine(
+            model="openai/gpt-4o",
+            adapter=ChatAdapter()  # Explicit default
+        )
+    )
+)
+```
+
+### Adapter with MCP Tools
+
+JSONAdapter's native function calling works seamlessly with MCP tools:
+
+```python
+from dspy.adapters import JSONAdapter
+
+agent = (
+    flock.agent("researcher")
+    .consumes(Query)
+    .publishes(Report)
+    .with_mcps(["filesystem", "github"])
+    .with_engines(
+        DSPyEngine(
+            model="openai/gpt-4o",
+            adapter=JSONAdapter()  # Native function calling enabled
+        )
+    )
+)
+```
+
+### When to Use Which Adapter
+
+| Scenario | Recommended Adapter | Why |
+|----------|-------------------|-----|
+| Structured outputs needed | JSONAdapter | Better parsing reliability |
+| MCP tools integration | JSONAdapter | Native function calling enabled |
+| Any LLM compatibility | ChatAdapter | Works with all models |
+| Simple use cases | ChatAdapter (default) | No configuration needed |
+
+### Examples
+
+- **[Adapter Comparison](../../examples/05-engines/01_adapter_comparison.py)** - Compare ChatAdapter vs JSONAdapter
+- **[JSONAdapter with MCP Tools](../../examples/05-engines/02_json_adapter_mcp_tools.py)** - Native function calling example
+
+---
+
 ## Next Steps
 
 - **[Agent Development](agents.md)** - Build agents using DSPyEngine
@@ -1072,5 +1165,5 @@ logger.info(f"Payload: {data}")
 
 ---
 
-*Last updated: 2025-10-15*
-*Updated with semantic field naming: 2025-10-15*
+*Last updated: 2025-01-15*
+*Updated with adapter configuration support: 2025-01-15*

@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field
 
 from flock.components.agent import EngineComponent
 from flock.core.artifacts import Artifact
+
+if TYPE_CHECKING:
+    from dspy.adapters import Adapter
 from flock.engines.dspy.artifact_materializer import DSPyArtifactMaterializer
 from flock.engines.dspy.signature_builder import DSPySignatureBuilder
 from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor
@@ -153,6 +156,14 @@ class DSPyEngine(EngineComponent):
     enable_cache: bool = Field(
         default=False,
         description="Enable caching of DSPy program results",
+    )
+    adapter: Any | None = Field(
+        default=None,
+        description=(
+            "DSPy adapter to use for prompt formatting and response parsing. "
+            "Defaults to ChatAdapter if not specified. "
+            "Use JSONAdapter for better structured output reliability and native function calling."
+        ),
     )
 
     def model_post_init(self, __context: Any) -> None:
@@ -302,7 +313,12 @@ class DSPyEngine(EngineComponent):
             f"Total tools for agent {agent.name}: {len(combined_tools)} (native: {len(native_tools)}, mcp: {len(mcp_tools)})"
         )
 
-        with dspy_mod.context(lm=lm):
+        # Determine adapter to use (defaults to ChatAdapter for backward compatibility)
+        from dspy.adapters import ChatAdapter
+
+        adapter_to_use = self.adapter or ChatAdapter()
+
+        with dspy_mod.context(lm=lm, adapter=adapter_to_use):
             program = self._choose_program(dspy_mod, signature, combined_tools)
 
             # Detect if there's already an active Rich Live context
