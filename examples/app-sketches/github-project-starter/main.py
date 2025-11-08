@@ -11,7 +11,7 @@ from flock.registry import flock_type
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
-USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
+USE_DASHBOARD = True  # Set to True for dashboard mode, False for CLI mode
 # ============================================================================
 
 
@@ -98,11 +98,11 @@ flock.add_mcp(
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
     project = Project(
-        title="TicTacToe", description="A sleek designed web based TicTacToe game."
+        title="4Connect", description="A sleek designed web based 4Connect game."
     )
     await flock.publish(project)
     await flock.run_until_idle()
-    print("✅ TicTacToe generation complete! Check the dashboard for results.")
+    print("✅ 4Connect generation complete! Check the dashboard for results.")
 
 
 async def main_dashboard():

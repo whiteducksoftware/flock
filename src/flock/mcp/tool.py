@@ -128,11 +128,11 @@ class FlockMCPTool(BaseModel):
 
     def as_dspy_tool(self, server: Any) -> DSPyTool:
         """Wrap this tool as a DSPyTool for downstream.
-        
+
         DSPy natively supports async functions - when the tool is called via
         `tool.acall()` or `tool.__call__()`, DSPy detects if the function returns
         a coroutine and handles it appropriately (see dspy.adapters.types.tool.Tool).
-        
+
         Note: RuntimeWarnings about unawaited coroutines may appear during
         introspection by libraries (Pydantic, copy, httpx) when they access the
         function object. These are false positives - the coroutine is properly
@@ -144,7 +144,7 @@ class FlockMCPTool(BaseModel):
 
         async def func(*args, **kwargs):
             """Async function wrapper for MCP tool execution.
-            
+
             DSPy's Tool class natively supports async functions - it calls this
             function and checks if the result is a coroutine, then handles it
             appropriately via tool.acall() or tool.__call__().
