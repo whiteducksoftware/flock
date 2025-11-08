@@ -137,7 +137,7 @@ async def test_scenario_1_e2e_agent_execution_visualization(
     movie_agent = orchestrator.agent("movie")._agent
     tagline_agent = orchestrator.agent("tagline")._agent
 
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
 
     # Track timing for performance validation
     start_time = time.perf_counter()
@@ -300,7 +300,7 @@ async def test_scenario_2_websocket_reconnection_after_restart(
     await websocket_manager.add_client(mock_websocket_client)
 
     # Send initial event to verify connection
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     event = AgentActivatedEvent(
         agent_name="test_agent",
         agent_id="test_agent",
@@ -410,9 +410,9 @@ async def test_scenario_3_correlation_id_filtering(
 
     # Setup: Create events with 3 different correlation IDs
     correlation_ids = [
-        uuid4(),
-        uuid4(),
-        uuid4(),
+        str(uuid4()),
+        str(uuid4()),
+        str(uuid4()),
     ]
 
     agent = orchestrator.agent("test_agent")._agent
@@ -532,7 +532,7 @@ async def test_scenario_4_backend_data_volume_for_lru_eviction(
 
     # Setup: Generate large payload to simulate data volume
     # Typical event: ~1KB, need ~2000 events to reach 2MB
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
 
     agent = orchestrator.agent("data_generator")._agent
 

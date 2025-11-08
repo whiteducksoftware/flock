@@ -67,7 +67,7 @@ def test_agent(orchestrator):
 @pytest.fixture
 def test_context(orchestrator):
     """Create test context with correlation_id."""
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     return Context(
         board=orchestrator.store,
         orchestrator=orchestrator,
@@ -291,7 +291,7 @@ async def test_correlation_id_propagation(
 ):
     """Test that correlation_id is correctly propagated from context to all events."""
     # Create context with specific correlation_id
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     ctx = Context(
         board=orchestrator.store,
         orchestrator=orchestrator,
@@ -427,8 +427,8 @@ async def test_multiple_agents_different_correlation_ids(orchestrator):
     agent2 = orchestrator.agent("agent2")._agent
 
     # Create two contexts with different correlation_ids
-    corr_id_1 = uuid4()
-    corr_id_2 = uuid4()
+    corr_id_1 = str(uuid4())
+    corr_id_2 = str(uuid4())
 
     ctx1 = Context(
         board=orchestrator.store,

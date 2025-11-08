@@ -106,7 +106,7 @@ async def test_execute_streaming_websocket_only_end_to_end():
         no_output=True,
     )
 
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     ctx = SimpleNamespace(correlation_id=correlation_id, task_id="task-123")
     agent = SimpleNamespace(name="test_agent", outputs=[])
     artifact_id = uuid4()
@@ -221,7 +221,7 @@ async def test_execute_streaming_cli_with_websocket_end_to_end(monkeypatch):
         no_output=False,  # Enable output to test RichSink
     )
 
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     ctx = SimpleNamespace(correlation_id=correlation_id, task_id="task-456")
     agent = SimpleNamespace(name="cli_agent", outputs=[])
     artifact_id = uuid4()
@@ -320,7 +320,7 @@ async def test_execute_streaming_handles_empty_tokens():
         no_output=True,
     )
 
-    ctx = SimpleNamespace(correlation_id=uuid4(), task_id="task-789")
+    ctx = SimpleNamespace(correlation_id=str(uuid4()), task_id="task-789")
     agent = SimpleNamespace(name="filter_agent", outputs=[])
     artifact_id = uuid4()
 
@@ -385,7 +385,7 @@ async def test_execute_streaming_without_websocket_manager(monkeypatch):
         no_output=False,
     )
 
-    ctx = SimpleNamespace(correlation_id=uuid4(), task_id="task-no-ws")
+    ctx = SimpleNamespace(correlation_id=str(uuid4()), task_id="task-no-ws")
     agent = SimpleNamespace(name="no_ws_agent", outputs=[])
     artifact_id = uuid4()
 
@@ -434,7 +434,7 @@ async def test_websocket_only_fallback_to_standard_execution():
         no_output=True,
     )
 
-    ctx = SimpleNamespace(correlation_id=uuid4(), task_id="task-fallback")
+    ctx = SimpleNamespace(correlation_id=str(uuid4()), task_id="task-fallback")
     agent = SimpleNamespace(name="fallback_agent", outputs=[])
     artifact_id = uuid4()
 

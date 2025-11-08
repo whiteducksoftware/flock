@@ -33,7 +33,7 @@ async def test_fetch_graph_artifacts_returns_envelopes(tmp_path):
     store = SQLiteBlackboardStore(str(db_path))
     await store.ensure_schema()
 
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
 
     artifact = Artifact(
         type="GraphType",

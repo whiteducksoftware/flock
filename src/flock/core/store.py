@@ -891,7 +891,13 @@ class SQLiteBlackboardStore(BlackboardStore):
         visibility_data = json.loads(row["visibility"])
         tags = json.loads(row["tags"])
         correlation_raw = row["correlation_id"]
-        correlation = UUID(correlation_raw) if correlation_raw else None
+        # correlation_id is now stored as string, but handle legacy UUID objects
+        if correlation_raw is None:
+            correlation = None
+        elif isinstance(correlation_raw, UUID):
+            correlation = str(correlation_raw)
+        else:
+            correlation = str(correlation_raw) if correlation_raw else None
         return Artifact(
             id=UUID(row["artifact_id"]),
             type=row["type"],

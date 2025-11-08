@@ -329,7 +329,9 @@ class ControlRoutesComponent(ServerComponent):
                 raise HTTPException(status_code=500, detail=str(ex))
 
         @app.get(
-            self._join_path(self.config.prefix, "artifact-types"), tags=self.config.tags
+            self._join_path(self.config.prefix, "artifact-types"),
+            tags=self.config.tags,
+            operation_id="get_artifact_types_list",
         )
         async def get_artifact_types() -> dict[str, Any]:
             """Get all registered artifact types with their schema.

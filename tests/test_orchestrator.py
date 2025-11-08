@@ -651,14 +651,15 @@ async def test_context_is_batch_flag_propagation():
 # T070: get_correlation_status Tests
 @pytest.mark.asyncio
 async def test_get_correlation_status_invalid_uuid_raises_error():
-    """Test get_correlation_status raises ValueError for invalid UUID format."""
+    """Test get_correlation_status accepts any string (no longer validates UUID format)."""
     # Arrange
     orchestrator = Flock()
     invalid_correlation_id = "not-a-valid-uuid"
 
-    # Act & Assert
-    with pytest.raises(ValueError, match="Invalid correlation_id format"):
-        await orchestrator.get_correlation_status(invalid_correlation_id)
+    # Act & Assert - correlation_id can now be any string, so this should not raise
+    result = await orchestrator.get_correlation_status(invalid_correlation_id)
+    assert result is not None
+    assert result["correlation_id"] == invalid_correlation_id
 
 
 # T071: publish_many Tests

@@ -112,7 +112,7 @@ class TestContextProviderProtocol:
 
         # Should be able to create ContextRequest
         agent = MockAgent("test-agent")
-        correlation = uuid4()
+        correlation = str(uuid4())
         store = MockStore([])
 
         request = ContextRequest(
@@ -149,7 +149,7 @@ class TestDefaultContextProviderSecurity:
         """
         from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Create artifacts with different visibility
         public_artifact = Artifact(
@@ -204,7 +204,7 @@ class TestDefaultContextProviderSecurity:
         """
         from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Create private artifact (only "admin" allowed)
         secret = Artifact(
@@ -253,7 +253,7 @@ class TestDefaultContextProviderSecurity:
         """
         from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Tenant A's data
         tenant_a_artifact = Artifact(
@@ -306,7 +306,7 @@ class TestDefaultContextProviderSecurity:
         """
         from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Classified document (requires "clearance:secret" label)
         classified_doc = Artifact(
@@ -362,8 +362,8 @@ class TestDefaultContextProviderSecurity:
         """
         from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
-        correlation_a = uuid4()
-        correlation_b = uuid4()
+        correlation_a = str(uuid4())
+        correlation_b = str(uuid4())
 
         # Artifacts from different workflows
         artifact_a = Artifact(
@@ -410,7 +410,7 @@ class TestDefaultContextProviderSecurity:
         """
         from flock.core.context_provider import ContextRequest, DefaultContextProvider
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         artifact = Artifact(
             id=uuid4(),
@@ -646,7 +646,7 @@ class TestFilteredContextProvider:
         from flock.core.context_provider import ContextRequest, FilteredContextProvider
         from flock.core.store import FilterConfig
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Create artifacts with different tags
         important_artifact = Artifact(
@@ -696,7 +696,7 @@ class TestFilteredContextProvider:
         from flock.core.context_provider import ContextRequest, FilteredContextProvider
         from flock.core.store import FilterConfig
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Create artifacts of different types
         task_artifact = Artifact(
@@ -744,7 +744,7 @@ class TestFilteredContextProvider:
         from flock.core.context_provider import ContextRequest, FilteredContextProvider
         from flock.core.store import FilterConfig
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Create artifacts with same tag but different visibility
         public_important = Artifact(
@@ -799,7 +799,7 @@ class TestFilteredContextProvider:
         from flock.core.context_provider import ContextRequest, FilteredContextProvider
         from flock.core.store import FilterConfig
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Create 5 artifacts with same tag
         artifacts = [
@@ -840,7 +840,7 @@ class TestFilteredContextProvider:
         from flock.core.context_provider import ContextRequest, FilteredContextProvider
         from flock.core.store import FilterConfig
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         artifact = Artifact(
             id=uuid4(),
@@ -901,8 +901,8 @@ class TestCorrelatedContextProvider:
             CorrelatedContextProvider,
         )
 
-        correlation_a = uuid4()
-        correlation_b = uuid4()
+        correlation_a = str(uuid4())
+        correlation_b = str(uuid4())
 
         # Artifacts from different workflows
         artifact_a = Artifact(
@@ -947,7 +947,7 @@ class TestCorrelatedContextProvider:
             CorrelatedContextProvider,
         )
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Public and private artifacts in same workflow
         public_artifact = Artifact(
@@ -1004,7 +1004,7 @@ class TestRecentContextProvider:
 
         from flock.core.context_provider import ContextRequest, RecentContextProvider
 
-        correlation = uuid4()
+        correlation = str(uuid4())
         base_time = datetime.now()
 
         # Create 5 artifacts with different timestamps
@@ -1045,7 +1045,7 @@ class TestRecentContextProvider:
         """SECURITY: RecentContextProvider MUST enforce visibility."""
         from flock.core.context_provider import ContextRequest, RecentContextProvider
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Create artifacts with different visibility
         public_artifacts = [
@@ -1108,7 +1108,7 @@ class TestTimeWindowContextProvider:
             TimeWindowContextProvider,
         )
 
-        correlation = uuid4()
+        correlation = str(uuid4())
         now = datetime.now()
 
         # Create artifacts at different times
@@ -1159,7 +1159,7 @@ class TestTimeWindowContextProvider:
             TimeWindowContextProvider,
         )
 
-        correlation = uuid4()
+        correlation = str(uuid4())
         now = datetime.now()
 
         # Recent public and private artifacts
@@ -1217,7 +1217,7 @@ class TestEmptyContextProvider:
         """EmptyContextProvider must always return empty list."""
         from flock.core.context_provider import ContextRequest, EmptyContextProvider
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Create artifacts (should be ignored)
         artifacts = [
@@ -1256,7 +1256,7 @@ class TestEmptyContextProvider:
         """
         from flock.core.context_provider import ContextRequest, EmptyContextProvider
 
-        correlation = uuid4()
+        correlation = str(uuid4())
 
         # Mix of public and private artifacts
         public_artifact = Artifact(

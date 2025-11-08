@@ -114,7 +114,7 @@ def mock_artifact():
         payload={"message": "test", "priority": 3},
         produced_by="test_agent",
         visibility=PublicVisibility(),
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         created_at=datetime.now(UTC),
     )
 
@@ -1556,7 +1556,7 @@ async def test_correlation_id_generation_and_timestamp_formatting(
     # Mock orchestrator.publish with fixed timestamp (already done by fixture, just update the artifact)
     fixed_time = datetime(2025, 1, 15, 10, 30, 45, tzinfo=UTC)
     mock_artifact.created_at = fixed_time
-    mock_artifact.correlation_id = uuid4()
+    mock_artifact.correlation_id = str(uuid4())
 
     response = await async_client.post(
         "/api/control/publish",

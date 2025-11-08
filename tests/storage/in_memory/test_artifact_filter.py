@@ -35,7 +35,7 @@ def base_artifact():
         produced_by="agent1",
         payload={"data": "test"},
         tags={"alpha", "beta"},
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         visibility=PublicVisibility(),
     )
 

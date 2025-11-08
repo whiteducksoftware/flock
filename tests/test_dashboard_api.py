@@ -88,7 +88,7 @@ def mock_dashboard_service(orchestrator):
         payload={"message": "test", "priority": 3},
         produced_by="external",
         visibility=PublicVisibility(),
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         created_at=datetime.now(UTC),
     )
     orchestrator.publish = AsyncMock(return_value=mock_artifact)
@@ -136,7 +136,7 @@ async def test_publish_accepts_artifact_type_and_content(orchestrator):
         payload={"message": "hello", "priority": 3},
         produced_by="external",
         visibility=PublicVisibility(),
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         created_at=datetime.now(UTC),
     )
     orchestrator.publish = AsyncMock(return_value=mock_artifact)
@@ -172,7 +172,7 @@ async def test_publish_accepts_artifact_type_and_content(orchestrator):
 async def test_publish_calls_orchestrator_publish_with_correct_parameters(orchestrator):
     """Test publish endpoint calls orchestrator.publish() with correct parameters."""
     # Arrange
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     mock_artifact = Artifact(
         id=uuid4(),
         type="ControlTestArtifact",
@@ -192,7 +192,7 @@ async def test_publish_calls_orchestrator_publish_with_correct_parameters(orches
     # For now, test expected behavior through direct orchestrator call
     result = await orchestrator.publish(
         {"type": "ControlTestArtifact", "message": "test", "priority": 2},
-        correlation_id=str(correlation_id),
+        correlation_id=correlation_id,
     )
 
     # Assert
@@ -205,7 +205,7 @@ async def test_publish_calls_orchestrator_publish_with_correct_parameters(orches
 async def test_publish_returns_correlation_id_and_timestamp(orchestrator):
     """Test publish endpoint returns correlation_id and published_at timestamp."""
     # Arrange
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     published_at = datetime.now(UTC)
     mock_artifact = Artifact(
         id=uuid4(),
@@ -228,7 +228,7 @@ async def test_publish_returns_correlation_id_and_timestamp(orchestrator):
     # Act - Test expected orchestrator behavior
     artifact = await orchestrator.publish(
         {"type": "ControlTestArtifact", "message": "test", "priority": 1},
-        correlation_id=str(correlation_id),
+        correlation_id=correlation_id,
     )
 
     # Assert - Verify artifact has required fields for response
@@ -498,7 +498,7 @@ async def test_resume_endpoint_returns_501_not_implemented():
 async def test_publish_with_custom_correlation_id(orchestrator):
     """Test publish endpoint accepts and uses custom correlation_id."""
     # Arrange
-    custom_correlation_id = uuid4()
+    custom_correlation_id = str(uuid4())
     mock_artifact = Artifact(
         id=uuid4(),
         type="ControlTestArtifact",
@@ -513,7 +513,7 @@ async def test_publish_with_custom_correlation_id(orchestrator):
     # Act
     artifact = await orchestrator.publish(
         {"type": "ControlTestArtifact", "message": "tracked", "priority": 4},
-        correlation_id=str(custom_correlation_id),
+        correlation_id=custom_correlation_id,
     )
 
     # Assert

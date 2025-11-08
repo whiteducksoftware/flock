@@ -88,7 +88,7 @@ class TestStreamingOutputEventCreation:
         """Test that status messages create events with output_type='log'."""
         # Arrange
         ctx = Mock()
-        ctx.correlation_id = uuid4()
+        ctx.correlation_id = str(uuid4())
         ctx.task_id = "task-123"
         agent = Mock()
         agent.name = "test_agent"
@@ -116,7 +116,7 @@ class TestStreamingOutputEventCreation:
         """Test that stream responses create events with output_type='llm_token'."""
         # Arrange
         ctx = Mock()
-        ctx.correlation_id = uuid4()
+        ctx.correlation_id = str(uuid4())
         ctx.task_id = "task-123"
         agent = Mock()
         agent.name = "test_agent"
@@ -141,7 +141,7 @@ class TestStreamingOutputEventCreation:
         """Test that final events are marked with is_final=True."""
         # Arrange
         ctx = Mock()
-        ctx.correlation_id = uuid4()
+        ctx.correlation_id = str(uuid4())
         ctx.task_id = "task-123"
         agent = Mock()
         agent.name = "test_agent"
@@ -164,7 +164,7 @@ class TestStreamingOutputEventCreation:
     def test_event_includes_correlation_id(self):
         """Test that events include correlation_id from context."""
         # Arrange
-        correlation_id = uuid4()
+        correlation_id = str(uuid4())
         ctx = Mock()
         ctx.correlation_id = correlation_id
         ctx.task_id = "task-123"
@@ -189,7 +189,7 @@ class TestStreamingOutputEventCreation:
         """Test that timestamp is automatically generated."""
         # Arrange
         ctx = Mock()
-        ctx.correlation_id = uuid4()
+        ctx.correlation_id = str(uuid4())
         ctx.task_id = "task-123"
         agent = Mock()
         agent.name = "test_agent"
@@ -218,7 +218,7 @@ class TestSequenceOrdering:
         """Test that sequence numbers can increment."""
         # Arrange
         ctx = Mock()
-        ctx.correlation_id = uuid4()
+        ctx.correlation_id = str(uuid4())
         ctx.task_id = "task-123"
         agent = Mock()
         agent.name = "test_agent"

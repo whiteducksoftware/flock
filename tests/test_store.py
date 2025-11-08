@@ -248,7 +248,7 @@ async def test_store_query_and_summary(store):
             payload={"data": "alpha-1"},
             produced_by="agent1",
             tags={"alpha", "beta"},
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             created_at=base_time,
         ),
         Artifact(
@@ -257,7 +257,7 @@ async def test_store_query_and_summary(store):
             payload={"data": "alpha-2"},
             produced_by="agent1",
             tags={"alpha"},
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             created_at=base_time + timedelta(minutes=1),
         ),
         Artifact(
@@ -266,7 +266,7 @@ async def test_store_query_and_summary(store):
             payload={"data": "beta"},
             produced_by="agent2",
             tags={"beta"},
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             created_at=base_time + timedelta(minutes=2),
         ),
     ]
@@ -324,7 +324,7 @@ async def test_query_artifacts_embed_meta_returns_consumptions(store):
         payload={"value": "embedded"},
         produced_by="agent_source",
         tags={"history"},
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         created_at=now,
     )
     await store.publish(artifact)
@@ -365,7 +365,7 @@ async def test_agent_history_summary_counts(store):
         payload={"value": "summary"},
         produced_by="agent_producer",
         tags={"summary"},
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         created_at=now,
     )
     await store.publish(artifact)

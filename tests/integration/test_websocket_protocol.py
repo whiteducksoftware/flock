@@ -81,7 +81,7 @@ async def test_full_event_flow_agent_activated(
 
     # Create test agent and context
     agent = orchestrator.agent("test_agent")._agent
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     ctx = Context(
         board=orchestrator.store,
         orchestrator=orchestrator,
@@ -133,7 +133,7 @@ async def test_all_five_event_types_serialization(
     await websocket_manager.add_client(mock_websocket_client)
 
     # Create test context
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     ctx = Context(
         board=orchestrator.store,
         orchestrator=orchestrator,
@@ -236,7 +236,7 @@ async def test_correlation_id_propagation_through_websocket(
     await websocket_manager.add_client(mock_websocket_client)
 
     # Create context with specific correlation_id
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     ctx = Context(
         board=orchestrator.store,
         orchestrator=orchestrator,
@@ -301,7 +301,7 @@ async def test_multiple_clients_receive_same_events(
     await websocket_manager.add_client(client3)
 
     # Create and emit event
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     ctx = Context(
         board=orchestrator.store,
         orchestrator=orchestrator,
@@ -353,7 +353,7 @@ async def test_event_ordering_preservation(
     await websocket_manager.add_client(mock_websocket_client)
 
     # Create context
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     ctx = Context(
         board=orchestrator.store,
         orchestrator=orchestrator,

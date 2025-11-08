@@ -287,7 +287,7 @@ async def test_engine_component_get_conversation_context():
     from flock.utils.runtime import Context
 
     # Phase 8: Context contains pre-filtered artifacts (evaluated by orchestrator)
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
 
     pre_filtered_artifacts = [
         Artifact(
@@ -345,7 +345,7 @@ async def test_engine_component_get_context_with_max_artifacts():
 
     ctx = Context(
         artifacts=pre_filtered_artifacts,
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         task_id="test-task",
     )
 
@@ -401,7 +401,7 @@ async def test_engine_component_get_context_with_exclude_types():
 
     ctx = Context(
         artifacts=pre_filtered_artifacts,
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         task_id="test-task",
     )
 
@@ -429,7 +429,7 @@ async def test_engine_component_get_context_disabled():
                 created_at=datetime.now(UTC),
             )
         ],
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         task_id="test-task",
     )
 
@@ -455,7 +455,7 @@ async def test_engine_component_should_use_context():
     engine = EngineComponent(enable_context=True)
 
     artifact_with_corr_id = Artifact(
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         type="test_message",
         payload={"test": "data"},
         produced_by="test_agent",
