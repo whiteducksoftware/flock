@@ -8,13 +8,17 @@ tools like web search and file operations into your agents.
 """
 
 import asyncio
+import os
 
 from pydantic import BaseModel
-
+from dspy.adapters import ChatAdapter, JSONAdapter
 from flock import Flock
+from flock.engines.dspy.adapter.json_adapter import DSPyJSONAdapter
+from flock.engines.dspy_engine import DSPyEngine
 from flock.mcp import StdioServerParameters
+from flock.mcp.types.types import StreamableHttpServerParameters
 from flock.registry import flock_tool, flock_type
-
+from dspy.adapters.baml_adapter import BAMLAdapter
 
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
@@ -75,6 +79,19 @@ except Exception as e:
 
 try:
     flock.add_mcp(
+        name="zai_search_web",
+        enable_tools_feature=True,
+        connection_params=StreamableHttpServerParameters(
+            url="https://api.z.ai/api/mcp/web_search_prime/mcp",
+            headers={"Authorization": "Bearer " + os.getenv("ZAI_KEY", "")},
+        ),
+    )
+    print("✅ Added ZAI GLM search MCP")
+except Exception as e:
+    print(f"⚠️  Could not add search MCP (is uvx installed?): {e}")
+
+try:
+    flock.add_mcp(
         name="read-website",
         enable_tools_feature=True,
         connection_params=StdioServerParameters(
@@ -96,6 +113,11 @@ except Exception as e:
     .with_mcps(["search_web", "read-website"])
     .with_tools([write_report, get_current_date])
     .publishes(Report)
+    .with_engines(
+            DSPyEngine(
+                adapter=BAMLAdapter(),  # Better structured output parsing
+            )
+        )
 )
 
 
