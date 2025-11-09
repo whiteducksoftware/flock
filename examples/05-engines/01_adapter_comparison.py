@@ -8,7 +8,11 @@ and JSONAdapter for structured output parsing reliability.
 """
 
 import asyncio
-
+from typing import Any
+import dspy
+from dspy.adapters.baml_adapter import BAMLAdapter
+from dspy.adapters.two_step_adapter import TwoStepAdapter
+from dspy.adapters.xml_adapter import XMLAdapter
 from pydantic import BaseModel, Field
 
 from flock import Flock
@@ -49,7 +53,7 @@ async def main_cli():
     chat_agent = (
         flock.agent("chat_analyzer")
         .description("Analyze text using ChatAdapter (default)")
-        .consumes(AnalysisRequest)
+        .consumes(AnalysisRequest, tags=set({"chat_test"}))
         .publishes(AnalysisResult)
         .with_engines(
             DSPyEngine(
@@ -62,11 +66,47 @@ async def main_cli():
     json_agent = (
         flock.agent("json_analyzer")
         .description("Analyze text using JSONAdapter (structured outputs)")
-        .consumes(AnalysisRequest)
+        .consumes(AnalysisRequest, tags=set({"json_test"}))
         .publishes(AnalysisResult)
         .with_engines(
             DSPyEngine(
                 adapter=JSONAdapter(),  # Better structured output parsing
+            )
+        )
+    )
+
+    baml_agent = (
+        flock.agent("baml_analyzer")
+        .description("Analyze text using BAMLAdapter (structured outputs)")
+        .consumes(AnalysisRequest, tags=set({"baml_test"}))
+        .publishes(AnalysisResult)
+        .with_engines(
+            DSPyEngine(
+                adapter=BAMLAdapter(),  # Better structured output parsing
+            )
+        )
+    )
+
+    xml_agent = (
+        flock.agent("xml_analyzer")
+        .description("Analyze text using XMLAdapter (structured outputs)")
+        .consumes(AnalysisRequest, tags=set({"xml_test"}))
+        .publishes(AnalysisResult)
+        .with_engines(
+            DSPyEngine(
+                adapter=XMLAdapter(),  # Better structured output parsing
+            )
+        )
+    )
+
+    two_step_agent = (
+        flock.agent("two_step_analyzer")
+        .description("Analyze text using TwoStepAdapter (structured outputs)")
+        .consumes(AnalysisRequest, tags=set({"two_step_test"}))
+        .publishes(AnalysisResult)
+        .with_engines(
+            DSPyEngine(
+                adapter=TwoStepAdapter(dspy.LM("azure/gpt-4.1")),  # Better structured output parsing
             )
         )
     )
@@ -77,7 +117,7 @@ async def main_cli():
 
     print("🔵 Testing ChatAdapter (default)...")
     print(f"   Input: {request.text}\n")
-    await flock.publish(request, correlation_id="chat_test")
+    await flock.publish(request, tags=set({"chat_test"}))
     await flock.run_until_idle()
 
     # Get results
@@ -88,10 +128,11 @@ async def main_cli():
         print(f"   ✅ Confidence: {result.confidence:.2f}")
         print(f"   ✅ Key Points: {len(result.key_points)}")
 
-    print("\n🟢 Testing JSONAdapter (structured outputs)...")
-    print(f"   Input: {request.text}\n")
-    await flock.publish(request, correlation_id="json_test")
-    await flock.run_until_idle()
+    for tag in ["json_test", "baml_test", "xml_test", "two_step_test"]:
+        print(f"\n🟢 Testing {tag} (structured outputs)...")
+        print(f"   Input: {request.text}\n")
+        await flock.publish(request, tags=set[str]({tag}))
+        await flock.run_until_idle()
 
     # Get results
     json_results = await flock.store.get_by_type(AnalysisResult, correlation_id="json_test")
