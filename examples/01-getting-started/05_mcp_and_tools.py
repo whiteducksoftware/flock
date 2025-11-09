@@ -116,7 +116,7 @@ except Exception as e:
     .publishes(Report)
     .with_engines(
             DSPyEngine(
-                #adapter=BAMLAdapter(),  # Better structured output parsing
+                adapter=BAMLAdapter(),  # Better structured output parsing
                 max_tokens=64000,
                 max_tool_calls=50,
             )
