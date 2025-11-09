@@ -92,7 +92,7 @@ except Exception as e:
 
 try:
     flock.add_mcp(
-        name="read-website",
+        name="read_website",
         enable_tools_feature=True,
         connection_params=StdioServerParameters(
             command="npx",
@@ -108,14 +108,17 @@ except Exception as e:
     .description(
         "Researches information on the web and writes a beautifully "
         "formatted markdown report with sources and key insights."
+        "Does at least 6 web searches 6 read_website to have done extensive research."
     )
     .consumes(Task)
-    .with_mcps(["search_web", "read-website"])
+    .with_mcps(["zai_search_web", "read_website"])
     .with_tools([write_report, get_current_date])
     .publishes(Report)
     .with_engines(
             DSPyEngine(
-                adapter=BAMLAdapter(),  # Better structured output parsing
+                #adapter=BAMLAdapter(),  # Better structured output parsing
+                max_tokens=64000,
+                max_tool_calls=50,
             )
         )
 )

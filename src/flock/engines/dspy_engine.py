@@ -127,7 +127,7 @@ class DSPyEngine(EngineComponent):
     instructions: str | None = None
     temperature: float = 1.0
     max_tokens: int = 32000
-    max_tool_calls: int = 10
+    max_tool_calls: int = 100
     max_retries: int = 0
     stream: bool = Field(
         default_factory=lambda: _default_stream_value(),
