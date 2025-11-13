@@ -25,7 +25,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.core import OutputGroup
+from flock.core import FanOutRange, OutputGroup
 from flock.core.visibility import PrivateVisibility, PublicVisibility, Visibility
 from flock.registry import flock_type
 
@@ -257,6 +257,55 @@ def test_publishes_fan_out_negative_raises():
 
     error_msg = str(exc_info.value).lower()
     assert "fan_out" in error_msg or "count" in error_msg
+
+
+def test_publishes_with_fan_out_tuple_stores_fan_out_range():
+    """.publishes(A, fan_out=(3, 10)) stores FanOutRange on outputs."""
+    flock_instance = Flock()
+
+    agent = flock_instance.agent("test").publishes(SampleTypeA, fan_out=(3, 10))
+
+    assert len(agent.agent.output_groups) == 1
+    group = agent.agent.output_groups[0]
+    assert len(group.outputs) == 1
+
+    output = group.outputs[0]
+    assert isinstance(output.fan_out, FanOutRange)
+    assert output.fan_out.min == 3
+    assert output.fan_out.max == 10
+    # count should default to max for backwards-compatible hints
+    assert output.count == 10
+
+
+def test_publishes_with_fan_out_range_instance():
+    """.publishes(A, fan_out=FanOutRange(...)) accepts explicit range."""
+    flock_instance = Flock()
+    range_spec = FanOutRange(min=2, max=4)
+
+    agent = flock_instance.agent("test").publishes(SampleTypeA, fan_out=range_spec)
+
+    group = agent.agent.output_groups[0]
+    output = group.outputs[0]
+    # Should preserve the same FanOutRange instance
+    assert output.fan_out is range_spec
+    assert output.count == 4
+
+
+def test_publishes_fan_out_tuple_applies_to_all_types():
+    """.publishes(A, B, fan_out=(3, 10)) applies same range to both."""
+    flock_instance = Flock()
+
+    agent = flock_instance.agent("test").publishes(
+        SampleTypeA, SampleTypeB, fan_out=(3, 10)
+    )
+
+    group = agent.agent.output_groups[0]
+    assert len(group.outputs) == 2
+    for output in group.outputs:
+        assert isinstance(output.fan_out, FanOutRange)
+        assert output.fan_out.min == 3
+        assert output.fan_out.max == 10
+        assert output.count == 10
 
 
 # ============================================================================

@@ -20,6 +20,7 @@ from flock.agent.mcp_integration import MCPIntegration
 # Phase 4: Import extracted modules
 from flock.agent.output_processor import OutputProcessor
 from flock.core.artifacts import Artifact, ArtifactSpec
+from flock.core.fan_out import FanOutRange, FanOutSpec, normalize_fan_out
 from flock.core.subscription import BatchSpec, JoinSpec, ScheduleSpec, Subscription
 from flock.core.visibility import AgentIdentity, Visibility, ensure_visibility
 from flock.logging.auto_trace import AutoTracedMeta
@@ -76,7 +77,8 @@ class MCPServerConfig(TypedDict, total=False):
 class AgentOutput:
     spec: ArtifactSpec
     default_visibility: Visibility
-    count: int = 1  # Number of artifacts to generate (fan-out)
+    fan_out: FanOutRange | None = None  # Optional fan-out range
+    count: int = 1  # Backwards-compatible count hint (defaults to 1)
     filter_predicate: Callable[[BaseModel], bool] | None = None  # Where clause
     validate_predicate: (
         Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None
@@ -84,7 +86,13 @@ class AgentOutput:
     group_description: str | None = None  # Group description override
 
     def __post_init__(self):
-        """Validate field constraints."""
+        """Validate field constraints and normalize fan-out."""
+        # If explicit FanOutRange provided, derive count from its max bound
+        if self.fan_out is not None:
+            # FanOutRange.__post_init__ enforces min/max invariants
+            self.count = self.fan_out.max
+
+        # Backwards-compatible validation for count-based construction
         if self.count < 1:
             raise ValueError(f"count must be >= 1, got {self.count}")
 
@@ -757,7 +765,7 @@ class AgentBuilder:
         self,
         *types: type[BaseModel],
         visibility: Visibility | Callable[[BaseModel], Visibility] | None = None,
-        fan_out: int | None = None,
+        fan_out: FanOutSpec | None = None,
         where: Callable[[BaseModel], bool] | None = None,
         validate: Callable[[BaseModel], bool]
         | list[tuple[Callable, str]]
@@ -797,9 +805,8 @@ class AgentBuilder:
             - TenantVisibility: Multi-tenant isolation
             - LabelledVisibility: Role-based access control
         """
-        # Validate fan_out if provided
-        if fan_out is not None and fan_out < 1:
-            raise ValueError(f"fan_out must be >= 1, got {fan_out}")
+        # Normalize fan_out specification to FanOutRange (or None)
+        fan_out_range = normalize_fan_out(fan_out) if fan_out is not None else None
 
         # Resolve visibility
         resolved_visibility = (
@@ -809,14 +816,14 @@ class AgentBuilder:
         # Create AgentOutput objects for this group
         outputs: list[AgentOutput] = []
 
-        if fan_out is not None:
+        if fan_out_range is not None:
             # Apply fan_out to ALL types
             for model in types:
                 spec = ArtifactSpec.from_model(model)
                 output = AgentOutput(
                     spec=spec,
                     default_visibility=resolved_visibility,
-                    count=fan_out,
+                    fan_out=fan_out_range,
                     filter_predicate=where,
                     validate_predicate=validate,
                     group_description=description,

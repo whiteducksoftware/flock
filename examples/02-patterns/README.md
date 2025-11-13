@@ -93,6 +93,19 @@ uv run examples/02-patterns/publish/05-multi-fan-out.py
 
 ---
 
+### 06 - Dynamic Fan-Out
+**Pattern:** `consumes(Brief).publishes(Idea, fan_out=(min, max))`
+
+Adaptive fan-out where the engine decides how many artifacts to generate within a range, based on input complexity and quality requirements.
+
+```bash
+uv run examples/02-patterns/publish/06_dynamic_fan_out.py
+```
+
+**Use Case:** When different inputs warrant different amounts of exploration (simple vs complex briefs), and you want to combine this with `where`/`validate` filtering without wasting tokens.
+
+---
+
 ## 🎓 Learning Path
 
 Work through these examples in order:
@@ -101,6 +114,7 @@ Work through these examples in order:
 2. **Try 02** - See how multi-publish works
 3. **Move to 04** - Learn fan-out for same-type generation
 4. **Master 05** - Combine everything for maximum output
+5. **Explore 06** - Use dynamic fan-out for adaptive, cost-aware generation
 
 ## 🔑 Key Concepts
 

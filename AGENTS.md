@@ -285,6 +285,41 @@ The separation of `publish()` and `run_until_idle()` gives you **control over ex
 
 ---
 
+### 🌱 Dynamic Fan-Out - Adaptive Output Counts
+
+Flock's fan-out publishing supports **dynamic ranges** in addition to fixed counts:
+
+- `fan_out=10` → fixed: always 10 artifacts.
+- `fan_out=(min, max)` → dynamic: engine decides how many artifacts to generate within the range.
+- `FanOutRange(min, max)` → explicit type exported from `flock.core`.
+
+**Key semantics for AI agents and contributors:**
+- `min` / `max` apply to the **raw engine output list** (before `where` / `validate`).
+- If the engine returns fewer than `min` items, a warning is logged but all items are kept.
+- If the engine returns more than `max` items, the list is truncated to `max`.
+- `where` and `validate` are applied **after** range checks; final published count may be `< min`.
+- Dynamic fan-out is fully backward compatible with existing `fan_out=int` usage.
+
+**Example:**
+```python
+from flock.core import FanOutRange
+
+idea_agent = (
+    flock.agent("idea_generator")
+    .consumes(BlogBrief)
+    .publishes(
+        BlogIdea,
+        fan_out=(5, 20),              # or FanOutRange(min=5, max=20)
+        where=lambda i: i.score >= 7,  # filter AFTER range checks
+    )
+)
+```
+
+**Where to look:**
+- Implementation: `src/flock/core/fan_out.py`, `AgentOutput` / `.publishes()`, DSPy signature builder & artifact materializer.
+- Examples: `examples/02-patterns/publish/06_dynamic_fan_out.py`.
+- Docs: `docs/guides/fan-out.md`, `docs/guides/patterns.md`.
+
 ### 🗄️ Persistent Blackboard History (SQLite Store)
 
 **Production teams asked for auditability—now the blackboard can keep a full historical trail.**

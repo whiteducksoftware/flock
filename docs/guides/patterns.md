@@ -110,6 +110,30 @@ idea_generator = (
 # 1 ProductBrief → 10 ProductIdea artifacts in ONE execution
 ```
 
+**Dynamic Fan-Out Variant (Recommended for variable complexity):**
+
+Instead of a fixed count, you can let the engine decide how many artifacts to generate within a range:
+
+```python
+from flock.core import FanOutRange
+
+adaptive_generator = (
+    flock.agent("adaptive_generator")
+    .consumes(ProductBrief)
+    .publishes(
+        ProductIdea,
+        fan_out=(5, 20),              # or FanOutRange(min=5, max=20)
+        where=lambda i: i.score >= 8,  # filter AFTER range checks
+    )
+)
+```
+
+**Semantics:**
+- `min` / `max` apply to the **raw list** returned by the engine.
+- If the engine returns fewer than `min` items, a warning is logged but all items are kept.
+- If the engine returns more than `max` items, the list is truncated to `max`.
+- `where` / `validate` run afterwards; the final published count may be less than `min`.
+
 ---
 
 ### 4. Multi-Output Fan-Out (Multiple Types, Multiple Artifacts Each)
