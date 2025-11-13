@@ -70,3 +70,17 @@ def test_fan_out_range_is_fixed_and_fixed_count_logic():
     assert dynamic.is_fixed() is False
     assert dynamic.fixed_count() is None
 
+
+def test_fan_out_range_invalid_min_raises_value_error():
+    """FanOutRange enforces min >= 1."""
+    with pytest.raises(ValueError) as exc:
+        FanOutRange(min=0, max=1)
+    assert "fan_out min must be >= 1" in str(exc.value)
+
+
+def test_fan_out_range_max_less_than_min_raises_value_error():
+    """FanOutRange enforces max >= min."""
+    with pytest.raises(ValueError) as exc:
+        FanOutRange(min=5, max=3)
+    message = str(exc.value)
+    assert "fan_out max" in message and "must be >= min" in message

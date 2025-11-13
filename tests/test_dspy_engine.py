@@ -554,6 +554,8 @@ class TestDSPyEngineArtifactMaterialization:
 
         assert len(artifacts) == 0
         assert len(errors) == 1
+        # Error should mention both type name and missing field
+        assert errors[0].startswith("TestOutput validation error:")
         assert "response" in errors[0]
 
     def test_materialize_artifacts_without_outputs(self):
@@ -586,6 +588,60 @@ class TestDSPyEngineArtifactMaterialization:
         assert len(errors) == 0
         assert artifacts[0].type == "TestOutput"
         assert artifacts[0].payload["response"] == "test response"
+
+    def test_materialize_artifacts_fixed_fan_out_mismatch_adds_error(self):
+        """Fixed FanOutRange with wrong count should report error and still materialize."""
+        from flock.core.fan_out import FanOutRange
+
+        payload = {
+            "TestOutput": [
+                {"response": "one", "metadata": None},
+            ]
+        }
+
+        mock_output = Mock()
+        mock_output.spec.model = SampleOutput
+        mock_output.spec.type_name = "TestOutput"
+        mock_output.count = 1
+        mock_output.fan_out = FanOutRange(min=2, max=2)
+
+        engine = DSPyEngine()
+        artifacts, errors = engine._artifact_materializer.materialize_artifacts(
+            payload, [mock_output], "test_agent"
+        )
+
+        # We still materialize what we got, but record the mismatch
+        assert len(artifacts) == 1
+        assert artifacts[0].payload["response"] == "one"
+        assert any("Fan-out expected exactly 2 TestOutput instances" in e for e in errors)
+
+    def test_materialize_artifacts_dynamic_fan_out_truncates_and_warns(self):
+        """Dynamic FanOutRange above max should truncate list and record warning."""
+        from flock.core.fan_out import FanOutRange
+
+        payload = {
+            "TestOutput": [
+                {"response": "r1", "metadata": None},
+                {"response": "r2", "metadata": None},
+                {"response": "r3", "metadata": None},
+            ]
+        }
+
+        mock_output = Mock()
+        mock_output.spec.model = SampleOutput
+        mock_output.spec.type_name = "TestOutput"
+        mock_output.count = 1
+        mock_output.fan_out = FanOutRange(min=1, max=2)
+
+        engine = DSPyEngine()
+        artifacts, errors = engine._artifact_materializer.materialize_artifacts(
+            payload, [mock_output], "test_agent"
+        )
+
+        assert len(artifacts) == 2
+        responses = [a.payload["response"] for a in artifacts]
+        assert responses == ["r1", "r2"]
+        assert any("Truncating to 2." in e for e in errors)
 
     def test_select_output_payload_with_type_name_match(self):
         """Test output payload selection with type name match."""

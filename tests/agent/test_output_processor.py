@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from flock.agent.output_processor import OutputProcessor
 from flock.core.artifacts import Artifact
+from flock.core.fan_out import FanOutRange
 from flock.core.visibility import PrivateVisibility, PublicVisibility
 from flock.registry import flock_type
 from flock.utils.runtime import Context, EvalResult
@@ -330,3 +331,55 @@ def test_select_payload_returns_none_when_not_found(processor, mock_output_decl)
     payload = processor.select_payload(mock_output_decl, result)
 
     assert payload is None
+
+
+@pytest.mark.asyncio
+async def test_make_outputs_for_group_fixed_fan_out_range_validate(
+    processor, mock_context, mock_output_group
+):
+    """Fixed FanOutRange mismatch should raise engine contract violation."""
+    # Configure FanOutRange for fixed count of 2
+    output_decl = mock_output_group.outputs[0]
+    output_decl.fan_out = FanOutRange(min=2, max=2)
+
+    # Engine produces only 1 matching artifact
+    artifact = Artifact(
+        type="SampleOutput",
+        payload={"value": "test", "score": 5},
+        produced_by="engine",
+    )
+    result = EvalResult(artifacts=[artifact], state={})
+
+    with pytest.raises(ValueError, match="Engine contract violation"):
+        await processor.make_outputs_for_group(mock_context, result, mock_output_group)
+
+
+@pytest.mark.asyncio
+async def test_make_outputs_for_group_dynamic_fan_out_logs_warning(
+    mocker, processor, mock_context, mock_output_group
+):
+    """Dynamic FanOutRange outside range should log warning but not raise."""
+    output_decl = mock_output_group.outputs[0]
+    output_decl.fan_out = FanOutRange(min=1, max=2)
+
+    # Engine produces 3 matching artifacts (above max)
+    artifacts = [
+        Artifact(
+            type="SampleOutput",
+            payload={"value": f"v{i}", "score": i},
+            produced_by="engine",
+        )
+        for i in range(3)
+    ]
+    result = EvalResult(artifacts=artifacts, state={})
+
+    # Patch logger to capture warnings
+    warning_spy = mocker.spy(processor._logger, "warning")
+
+    outputs = await processor.make_outputs_for_group(
+        mock_context, result, mock_output_group
+    )
+
+    # All artifacts still pass through apply; we just warn
+    assert len(outputs) == 3
+    assert warning_spy.call_count == 1
