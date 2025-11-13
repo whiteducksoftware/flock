@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from flock.core.artifacts import Artifact
+from flock.core.fan_out import FanOutRange
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
 from flock.utils.runtime import EvalInputs
@@ -277,6 +278,8 @@ class DSPySignatureBuilder:
 
             # Handle fan-out: pluralize field name and use list[Type]
             fan_out_range = getattr(output_decl, "fan_out", None)
+            if not isinstance(fan_out_range, FanOutRange):
+                fan_out_range = None
             if output_decl.count > 1 or fan_out_range is not None:
                 field_name = self._pluralize(field_name)
                 output_type = list[output_schema]
@@ -444,6 +447,8 @@ class DSPySignatureBuilder:
 
             # Handle fan-out: field name is pluralized
             fan_out_range = getattr(output_decl, "fan_out", None)
+            if not isinstance(fan_out_range, FanOutRange):
+                fan_out_range = None
             if output_decl.count > 1 or fan_out_range is not None:
                 field_name = self._pluralize(field_name)
 

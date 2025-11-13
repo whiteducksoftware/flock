@@ -11,12 +11,10 @@ This package contains extracted components from the main DSPy engine:
 from flock.engines.dspy.artifact_materializer import DSPyArtifactMaterializer
 from flock.engines.dspy.signature_builder import DSPySignatureBuilder
 from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor
-from flock.engines.dspy.adapter.json_adapter import DSPyJSONAdapter
 
 
 __all__ = [
     "DSPyArtifactMaterializer",
     "DSPySignatureBuilder",
     "DSPyStreamingExecutor",
-    "DSPyJSONAdapter",
 ]

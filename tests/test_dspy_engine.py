@@ -566,6 +566,27 @@ class TestDSPyEngineArtifactMaterialization:
         assert len(artifacts) == 0
         assert len(errors) == 0
 
+    def test_materialize_artifacts_ignores_non_fan_out_range(self):
+        """Non-FanOutRange fan_out values should not trigger fan-out logic."""
+        payload = {"response": "test response", "metadata": {"key": "value"}}
+
+        mock_output = Mock()
+        mock_output.spec.model = SampleOutput
+        mock_output.spec.type_name = "TestOutput"
+        mock_output.count = 1
+        # Simulate legacy or mocked fan_out values that are not FanOutRange
+        mock_output.fan_out = 10
+
+        engine = DSPyEngine()
+        artifacts, errors = engine._artifact_materializer.materialize_artifacts(
+            payload, [mock_output], "test_agent"
+        )
+
+        assert len(artifacts) == 1
+        assert len(errors) == 0
+        assert artifacts[0].type == "TestOutput"
+        assert artifacts[0].payload["response"] == "test response"
+
     def test_select_output_payload_with_type_name_match(self):
         """Test output payload selection with type name match."""
         payload = {"TestOutput": {"response": "test"}}

@@ -12,7 +12,7 @@ import asyncio
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.engines import DSPyEngine
+from flock.engines import DSPyEngine, JSONAdapter
 from flock.registry import flock_type
 
 
@@ -40,12 +40,6 @@ class ResearchReport(BaseModel):
 
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
-    try:
-        from dspy.adapters import JSONAdapter
-    except ImportError:
-        print("❌ DSPy adapters not available. Install dspy>=3.0.0")
-        return
-
     flock = Flock()
 
     # Note: To use MCP tools, you need to register MCP servers first
@@ -124,4 +118,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main(), debug=True)
-

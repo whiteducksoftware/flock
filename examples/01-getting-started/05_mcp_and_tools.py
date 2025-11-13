@@ -13,7 +13,6 @@ import os
 from pydantic import BaseModel
 from dspy.adapters import ChatAdapter, JSONAdapter
 from flock import Flock
-from flock.engines.dspy.adapter.json_adapter import DSPyJSONAdapter
 from flock.engines.dspy_engine import DSPyEngine
 from flock.mcp import StdioServerParameters
 from flock.mcp.types.types import StreamableHttpServerParameters

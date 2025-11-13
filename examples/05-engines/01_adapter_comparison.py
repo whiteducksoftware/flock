@@ -9,14 +9,19 @@ and JSONAdapter for structured output parsing reliability.
 
 import asyncio
 from typing import Any
+
 import dspy
-from dspy.adapters.baml_adapter import BAMLAdapter
-from dspy.adapters.two_step_adapter import TwoStepAdapter
-from dspy.adapters.xml_adapter import XMLAdapter
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.engines import DSPyEngine
+from flock.engines import (
+    BAMLAdapter,
+    ChatAdapter,
+    DSPyEngine,
+    JSONAdapter,
+    TwoStepAdapter,
+    XMLAdapter,
+)
 from flock.registry import flock_type
 
 
@@ -41,12 +46,6 @@ class AnalysisResult(BaseModel):
 
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
-    try:
-        from dspy.adapters import ChatAdapter, JSONAdapter
-    except ImportError:
-        print("❌ DSPy adapters not available. Install dspy>=3.0.0")
-        return
-
     flock = Flock()
 
     # Agent with ChatAdapter (default)
@@ -163,4 +162,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main(), debug=True)
-
