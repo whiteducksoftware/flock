@@ -5,10 +5,10 @@ Phase 4: Extracted from agent.py to eliminate C-rated complexity in _make_output
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from flock.core.artifacts import Artifact
+from flock.core.fan_out import FanOutRange
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
 from flock.utils.runtime import Context, EvalResult
@@ -40,7 +40,8 @@ class OutputProcessor:
             agent_name: Name of the agent (for error messages and logging)
         """
         self._agent_name = agent_name
-        self._logger = logging.getLogger(__name__)
+        # Use the Flock logger for consistent formatting, filtering, and tracing
+        self._logger = logger
 
     async def make_outputs_for_group(
         self,
@@ -82,18 +83,46 @@ class OutputProcessor:
                 if artifact_canonical == expected_canonical:
                     matching_artifacts.append(artifact)
 
-            # 2. STRICT VALIDATION: Engine must produce exactly what was promised
+            # 2. STRICT VALIDATION: Engine must produce what was promised
             # (This happens BEFORE filtering so engine contract is validated first)
-            expected_count = output_decl.count
+            fan_out_range = getattr(output_decl, "fan_out", None)
+            if not isinstance(fan_out_range, FanOutRange):
+                fan_out_range = None
             actual_count = len(matching_artifacts)
 
-            if actual_count != expected_count:
-                raise ValueError(
-                    f"Engine contract violation in agent '{self._agent_name}': "
-                    f"Expected {expected_count} artifact(s) of type '{output_decl.spec.type_name}', "
-                    f"but engine produced {actual_count}. "
-                    f"Check your engine implementation to ensure it generates the correct number of outputs."
-                )
+            if fan_out_range is None:
+                # Legacy / fixed-count behavior: expect exact count
+                expected_count = output_decl.count
+                if actual_count != expected_count:
+                    raise ValueError(
+                        f"Engine contract violation in agent '{self._agent_name}': "
+                        f"Expected {expected_count} artifact(s) of type '{output_decl.spec.type_name}', "
+                        f"but engine produced {actual_count}. "
+                        f"Check your engine implementation to ensure it generates the correct number of outputs."
+                    )
+            else:
+                # FanOutRange-aware behavior
+                if fan_out_range.is_fixed():
+                    expected_count = fan_out_range.fixed_count()
+                    if actual_count != expected_count:
+                        raise ValueError(
+                            f"Engine contract violation in agent '{self._agent_name}': "
+                            f"Expected {expected_count} artifact(s) of type '{output_decl.spec.type_name}', "
+                            f"but engine produced {actual_count}. "
+                            f"Check your engine implementation to ensure it generates the correct number of outputs."
+                        )
+                else:
+                    # Dynamic range: validate against min/max but do not raise
+                    if actual_count < fan_out_range.min or actual_count > fan_out_range.max:
+                        self._logger.warning(
+                            "Dynamic fan-out range hint not met in agent '%s': "
+                            "range=(%s, %s), actual=%s for type '%s'",
+                            self._agent_name,
+                            fan_out_range.min,
+                            fan_out_range.max,
+                            actual_count,
+                            output_decl.spec.type_name,
+                        )
 
             # 3. Apply WHERE filtering (Phase 5)
             # Filtering reduces the number of published artifacts (this is intentional)

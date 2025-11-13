@@ -1,5 +1,4 @@
 import json
-import logging
 from typing import Any, get_origin
 
 import json_repair
@@ -21,8 +20,9 @@ from dspy.clients.lm import LM
 from dspy.signatures.signature import Signature, SignatureMeta
 from dspy.utils.callback import BaseCallback
 from dspy.utils.exceptions import AdapterParseError
+from flock.logging.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _has_open_ended_mapping(signature: SignatureMeta) -> bool:

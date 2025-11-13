@@ -833,6 +833,31 @@ gh pr create --base some-other-branch --title "..." --body "..."
 
 ---
 
+### 📡 Logging Consistency - Always Use the Flock Logger
+
+For any new logging in the codebase, **always** use the Flock logging helper instead of the stdlib logger:
+
+```python
+from flock.logging.logging import get_logger
+
+logger = get_logger(__name__)
+
+logger.info("something happened")
+logger.warning("something might be wrong")
+logger.error("something is wrong")
+```
+
+**Guidelines:**
+- Do **not** call `logging.getLogger(__name__)` directly in Flock modules (except inside `flock.logging.logging` itself).
+- Prefer module-level `logger = get_logger(__name__)` and, if needed, inject or reuse that logger inside classes (e.g., `self._logger = logger`).
+- This keeps:
+  - log formatting,
+  - log level configuration,
+  - filtering and tracing
+  consistent across all modules.
+
+---
+
 ## 🔍 Observability & Debugging with OpenTelemetry + DuckDB
 
 Flock includes **production-grade distributed tracing** that captures every operation with full input/output data—enabling both human and AI-assisted debugging.

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 from asyncio import Task
 from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
@@ -28,6 +27,7 @@ from flock.core.store import BlackboardStore, ConsumptionRecord
 from flock.core.subscription import Subscription
 from flock.core.visibility import PublicVisibility, Visibility
 from flock.logging.auto_trace import AutoTracedMeta
+from flock.logging.logging import get_logger
 from flock.mcp import (
     FlockMCPClientManager,
     FlockMCPConfiguration,
@@ -114,7 +114,7 @@ class Flock(metaclass=AutoTracedMeta):
         """
         # Patch litellm imports and setup logger
         self._patch_litellm_proxy_imports()
-        self._logger = logging.getLogger(__name__)
+        self._logger = get_logger(__name__)
         self.model = model or os.getenv("DEFAULT_MODEL")
 
         # Phase 3: Initialize all components using OrchestratorInitializer

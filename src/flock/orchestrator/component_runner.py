@@ -6,9 +6,10 @@ Components can modify artifacts, control scheduling decisions, and handle collec
 
 from __future__ import annotations
 
-import logging
 from asyncio import Task
 from typing import TYPE_CHECKING, Any
+
+from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
@@ -34,16 +35,16 @@ class ComponentRunner:
     def __init__(
         self,
         components: list[OrchestratorComponent],
-        logger: logging.Logger | None = None,
+        logger: Any | None = None,
     ) -> None:
         """Initialize the component runner.
 
         Args:
             components: List of orchestrator components (should be pre-sorted by priority)
-            logger: Logger instance (defaults to module logger if not provided)
+            logger: Logger instance (defaults to Flock logger if not provided)
         """
         self._components = components
-        self._logger = logger or logging.getLogger(__name__)
+        self._logger = logger or get_logger(__name__)
         self._initialized = False
 
     @property

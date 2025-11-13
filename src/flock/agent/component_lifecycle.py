@@ -5,7 +5,6 @@ Phase 4: Extracted from agent.py to organize component hook execution logic.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -41,7 +40,7 @@ class ComponentLifecycle:
             agent_name: Name of the agent (for logging)
         """
         self._agent_name = agent_name
-        self._logger = logging.getLogger(__name__)
+        self._logger = logger
 
     def _component_display_name(
         self, component: AgentComponent | EngineComponent

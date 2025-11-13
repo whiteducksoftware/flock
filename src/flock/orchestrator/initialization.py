@@ -7,7 +7,6 @@ Extracted from orchestrator.py to reduce __init__ complexity.
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 from typing import TYPE_CHECKING, Any
 
@@ -41,7 +40,7 @@ class OrchestratorInitializer:
         store: BlackboardStore | None,
         context_provider: Any,
         max_agent_iterations: int,
-        logger: logging.Logger,
+        logger: Any,
         model: str | None,
     ) -> dict[str, Any]:
         """Initialize all orchestrator components and state.
@@ -57,7 +56,8 @@ class OrchestratorInitializer:
             Dictionary of initialized components and state
 
         Examples:
-            >>> logger = logging.getLogger(__name__)
+            >>> from flock.logging.logging import get_logger
+            >>> logger = get_logger(__name__)
             >>> components = OrchestratorInitializer.initialize_components(
             ...     store=None,
             ...     context_provider=None,
@@ -141,7 +141,7 @@ class OrchestratorInitializer:
     def initialize_components_and_runner(
         components_list: list[OrchestratorComponent],
         max_agent_iterations: int,
-        logger: logging.Logger,
+        logger: Any,
     ) -> dict[str, Any]:
         """Initialize built-in components and create ComponentRunner.
 

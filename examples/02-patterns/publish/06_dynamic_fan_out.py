@@ -15,7 +15,10 @@ import asyncio
 
 from pydantic import BaseModel, Field
 
+from dspy.adapters.baml_adapter import BAMLAdapter
+
 from flock import Flock
+from flock.engines.dspy_engine import DSPyEngine
 from flock.registry import flock_type
 
 
@@ -23,16 +26,13 @@ from flock.registry import flock_type
 class ProjectIdea(BaseModel):
     name: str = Field(description="Project name")
     vision: str = Field(description="High-level project vision")
-    complexity: str = Field(
-        description="rough size/complexity: small, medium, large",
-        default="medium",
-    )
 
 
 @flock_type
 class Milestone(BaseModel):
-    title: str
-    description: str
+    id: str = Field(description="Unique identifier for the milestone")
+    title: str = Field(description="Title of the milestone")
+    description: str = Field(description="Detailed description of the milestone")
     order: int = Field(description="Milestone order in the roadmap")
     risk: str = Field(
         description="risk level: low, medium, high",
@@ -43,9 +43,14 @@ class Milestone(BaseModel):
 @flock_type
 class UserStory(BaseModel):
     milestone_title: str = Field(description="Title of the parent milestone")
-    as_a: str
-    i_want: str
-    so_that: str
+    milestone_id: str = Field(description="ID of the parent milestone")
+    description: str = Field(description="Detailed description of the user story")
+    as_a : str = Field(description="Role of the user")
+    i_want: str = Field(description="What the user wants to achieve")
+    so_that: str = Field(description="Reason/benefit for the user")
+    acceptance_criterias: list[str] = Field(
+        description="List of acceptance criteria", min_length=3
+    )
     estimate: int = Field(
         description="Story points (1-13)",
         ge=1,
@@ -53,7 +58,7 @@ class UserStory(BaseModel):
     )
 
 
-flock = Flock()
+flock = Flock("azure/gpt-5")
 
 
 project_planner = (
@@ -62,12 +67,18 @@ project_planner = (
         "Break a project idea into milestones. "
         "Simple projects should have fewer milestones, complex projects more. "
         "Mark higher-risk milestones so downstream agents can prioritise them."
+        "Should always start with a 'milestone 0' for setup, scaffolding and initial configuration of the project and environment."
     )
     .consumes(ProjectIdea)
     .publishes(
         Milestone,
-        fan_out=(3, 8),  # Engine decides 3–8 milestones based on project complexity
+        fan_out=(3, 10),  # Engine decides 3–10 milestones based on project complexity
     )
+    .with_engines(
+            DSPyEngine(
+                adapter=BAMLAdapter(),  # Better structured output parsing
+            )
+    ).max_concurrency(1)
 )
 
 
@@ -82,31 +93,28 @@ milestone_planner = (
         UserStory,
         fan_out=(2, 10),  # Engine decides 2–10 stories per milestone
     )
+    .with_engines(
+            DSPyEngine(
+                adapter=BAMLAdapter(),  # Better structured output parsing
+            )
+    ).max_concurrency(1)
 )
 
 
 async def main():
-    small_project = ProjectIdea(
-        name="Documentation Cleanup",
-        vision="Refresh the existing documentation site and fix obvious issues.",
-        complexity="small",
+    project = ProjectIdea(
+        name="4connect",
+        vision="Implement the game 4connect as a web application.",
     )
 
-    large_project = ProjectIdea(
-        name="New AI-Powered Onboarding",
-        vision=(
-            "Design and implement an AI-assisted onboarding experience that helps new "
-            "users explore core features, suggests next steps, and tracks adoption."
-        ),
-        complexity="large",
-    )
+    # project = ProjectIdea(
+    #     name="Outlook-GPT",
+    #     vision=(
+    #         "Design and implement a modern AI-first email client."
+    #     ),
+    # )
 
-    print("\n=== Small Project (expected fewer milestones & stories) ===")
-    await flock.publish(small_project)
-    await flock.run_until_idle()
-
-    print("\n=== Large Project (expected more milestones & stories) ===")
-    await flock.publish(large_project)
+    await flock.publish(project)
     await flock.run_until_idle()
 
     # Inspect published milestones and user stories
@@ -114,12 +122,12 @@ async def main():
     milestone_artifacts = [a for a in all_artifacts if "Milestone" in a.type]
     story_artifacts = [a for a in all_artifacts if "UserStory" in a.type]
 
-    print(f"\nTotal Milestones after filtering: {len(milestone_artifacts)}")
+    print(f"\nTotal Milestones: {len(milestone_artifacts)}")
     for a in milestone_artifacts:
         m = Milestone(**a.payload)
         print(f"- [M{m.order}] {m.title} (risk={m.risk})")
 
-    print(f"\nTotal UserStories after filtering: {len(story_artifacts)}")
+    print(f"\nTotal UserStories: {len(story_artifacts)}")
     for a in story_artifacts[:20]:  # print first few stories
         s = UserStory(**a.payload)
         print(
