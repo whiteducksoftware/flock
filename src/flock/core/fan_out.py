@@ -49,6 +49,12 @@ def normalize_fan_out(spec: FanOutSpec | None) -> FanOutRange | None:
         return None
 
     if isinstance(spec, int):
+        # Backwards compatibility: fan_out=1 behaves like the default (no fan-out).
+        # Explicit ranges (via tuple or FanOutRange) are required to trigger list semantics.
+        if spec < 1:
+            raise ValueError(f"fan_out must be >= 1, got {spec}")
+        if spec == 1:
+            return None
         return FanOutRange(min=spec, max=spec)
 
     if isinstance(spec, tuple):

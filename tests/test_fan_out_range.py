@@ -8,13 +8,19 @@ from flock.core.fan_out import FanOutRange, normalize_fan_out
 
 
 def test_normalize_fan_out_with_int_returns_fixed_range():
-    """normalize_fan_out(int) returns fixed FanOutRange."""
+    """normalize_fan_out(int>1) returns fixed FanOutRange."""
     result = normalize_fan_out(5)
     assert isinstance(result, FanOutRange)
     assert result.min == 5
     assert result.max == 5
     assert result.is_fixed() is True
     assert result.fixed_count() == 5
+
+
+def test_normalize_fan_out_one_returns_none():
+    """normalize_fan_out(1) returns None (same as default)."""
+    result = normalize_fan_out(1)
+    assert result is None
 
 
 def test_normalize_fan_out_with_tuple_returns_range():
