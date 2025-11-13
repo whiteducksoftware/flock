@@ -238,7 +238,7 @@ class TestDSPyEngineBasics:
         assert engine.instructions is None
         assert engine.temperature == 1.0
         assert engine.max_tokens == 32000
-        assert engine.max_tool_calls == 10
+        assert engine.max_tool_calls == 100
         assert engine.max_retries == 0
         assert engine.no_output is False
         assert engine.stream_vertical_overflow == "crop_above"
