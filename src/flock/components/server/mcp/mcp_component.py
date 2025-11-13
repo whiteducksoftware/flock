@@ -294,6 +294,7 @@ class MCPServerComponent(ServerComponent):
                 path=self._join_path(self.config.prefix, "validate_artifact_schema"),
                 operation_id="validate_artifact_schema",
                 tags=self.config.tags,
+                logger=logger,
             )
 
         # At the end, register the mcp_app
@@ -302,9 +303,11 @@ class MCPServerComponent(ServerComponent):
             if self.config.transport == "http":
                 logger.info("Using StreamableHTTP-Transport Protocol")
                 self.mcp_app.mount_http(mount_path=self._join_path(self.config.prefix))
+                logger.info(f"Mounted MCP-Server at {self._join_path(self.config.prefix)}")
             elif self.config.transport == "legacy_sse":
                 logger.info("Using ServerSentEvents-Transport Protocol")
                 self.mcp_app.mount_sse(mount_path=self._join_path(self.config.prefix))
+                logger.info(f"Mounted MCP-Server at {self._join_path(self.config.prefix)}")
             else:
                 logger.exception(
                     f"Invalid tranport option passed: {self.config.transport}. Valid values are 'http', 'legacy_sse'"
@@ -325,5 +328,8 @@ class MCPServerComponent(ServerComponent):
         """No-Op"""
 
     def get_dependencies(self):
-        """No dependencies."""
+        """No dependencies.
+
+        All Endpoints are independently created.
+        """
         return []

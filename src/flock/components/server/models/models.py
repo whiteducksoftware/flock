@@ -73,6 +73,208 @@ class AgentInvokationError(BaseModel):
 
 
 # ============================================================================
+# MCP Unified Response Models (Single-Type for Better Schema Generation)
+# ============================================================================
+
+
+class MCPAgentInvokationResponse(BaseModel):
+    """Unified response for MCP agent invocation tool.
+
+    Combines success and error states into a single model for better
+    MCP tool schema generation (avoids union types that get stripped).
+    """
+
+    success: bool = Field(
+        description="True if agent invocation succeeded, False if it failed"
+    )
+    artifacts: list[ArtifactResult] | None = Field(
+        default=None,
+        description="Artifacts produced by the agent (only present when success=True)",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Error message explaining what went wrong (only present when success=False)",
+    )
+
+
+class MCPArtifactPublishResponse(BaseModel):
+    """Unified response for MCP artifact publish tool.
+
+    Combines success and error states into a single model.
+    """
+
+    success: bool = Field(
+        description="True if artifact was published successfully, False if it failed"
+    )
+    correlation_id: str | None = Field(
+        default=None,
+        description="Correlation ID for tracking the triggered workflow (only present when success=True)",
+    )
+    published_at: str | None = Field(
+        default=None,
+        description="ISO 8601 timestamp when artifact was published (only present when success=True)",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Error message explaining why publication failed (only present when success=False)",
+    )
+
+
+class MCPWorkflowStatusResponse(BaseModel):
+    """Unified response for MCP workflow status tool.
+
+    Combines success and error states into a single model.
+    """
+
+    success: bool = Field(
+        description="True if workflow status was retrieved successfully, False if it failed"
+    )
+    correlation_id: str | None = Field(
+        default=None, description="The correlation ID (only present when success=True)"
+    )
+    state: str | None = Field(
+        default=None,
+        description="Workflow state: 'active', 'completed', 'failed', 'not_found' (only present when success=True)",
+    )
+    has_pending_work: bool | None = Field(
+        default=None,
+        description="Whether the orchestrator has pending work (only present when success=True)",
+    )
+    artifact_count: int | None = Field(
+        default=None,
+        description="Total number of artifacts with this correlation_id (only present when success=True)",
+    )
+    error_count: int | None = Field(
+        default=None,
+        description="Number of WorkflowError artifacts (only present when success=True)",
+    )
+    started_at: str | None = Field(
+        default=None,
+        description="Timestamp of first artifact ISO 8601 (only present when success=True)",
+    )
+    last_activity_at: str | None = Field(
+        default=None,
+        description="Timestamp of most recent artifact ISO 8601 (only present when success=True)",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Error message if status lookup failed (only present when success=False)",
+    )
+
+
+class MCPArtifactSummaryResponse(BaseModel):
+    """Unified response for MCP artifact summary tool.
+
+    Combines success and error states into a single model.
+    """
+
+    success: bool = Field(
+        description="True if summary was generated successfully, False if it failed"
+    )
+    summary: dict[str, Any] | None = Field(
+        default=None,
+        description="Summary statistics about artifacts (only present when success=True)",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Error message explaining why summary failed (only present when success=False)",
+    )
+
+
+class MCPArtifactTypeNamesResponse(BaseModel):
+    """Unified response for MCP artifact type names tool.
+
+    Combines success and error states into a single model.
+    """
+
+    success: bool = Field(
+        description="True if type names were retrieved successfully, False if it failed"
+    )
+    type_names: list[str] | None = Field(
+        default=None,
+        description="List of all publicly visible artifact type names (only present when success=True)",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Error message explaining why retrieval failed (only present when success=False)",
+    )
+
+
+class MCPArtifactSchemaResponse(BaseModel):
+    """Unified response for MCP artifact schema tool.
+
+    Combines success and error states into a single model.
+    """
+
+    success: bool = Field(
+        description="True if schema was retrieved successfully, False if it failed"
+    )
+    type_name: str | None = Field(
+        default=None,
+        description="The artifact type name (only present when success=True)",
+    )
+    artifact_schema: dict[str, Any] | None = Field(
+        default=None,
+        description="Full JSON schema for the artifact type (only present when success=True)",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Error message explaining why schema retrieval failed (only present when success=False)",
+    )
+
+
+class MCPArtifactListResponse(BaseModel):
+    """Unified response for MCP list artifacts tool.
+
+    Combines success and error states into a single model.
+    """
+
+    success: bool = Field(
+        description="True if artifacts were listed successfully, False if it failed"
+    )
+    items: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="List of artifacts with full metadata (only present when success=True)",
+    )
+    total: int | None = Field(
+        default=None,
+        description="Total number of artifacts matching query (only present when success=True)",
+    )
+    limit: int | None = Field(
+        default=None,
+        description="Number of items per page (only present when success=True)",
+    )
+    offset: int | None = Field(
+        default=None,
+        description="Offset into the result set (only present when success=True)",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Error message explaining why listing failed (only present when success=False)",
+    )
+
+
+class MCPArtifactResponse(BaseModel):
+    """Unified response for MCP get artifact by ID tool.
+
+    Combines success and error states into a single model.
+    """
+
+    success: bool = Field(
+        description="True if artifact was retrieved successfully, False if it failed"
+    )
+    artifact: dict[str, Any] | None = Field(
+        default=None,
+        description="Complete artifact data including payload and metadata (only present when success=True)",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Error message explaining why retrieval failed (only present when success=False)",
+    )
+
+
+
+# ============================================================================
 # Agent Run Models
 # ============================================================================
 

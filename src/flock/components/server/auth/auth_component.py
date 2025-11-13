@@ -134,7 +134,7 @@ class AuthenticationComponent(ServerComponent):
     # Internal registry for authentication handlers
     _handlers: dict[str, AuthHandler] = PrivateAttr(default_factory=dict)
 
-    def register_handler(self, name: str, handler: AuthHandler) -> None:
+    def register_handler(self, name: str, handler: AuthHandler) -> "AuthenticationComponent":
         """Register a custom authentication handler.
 
         Args:
@@ -157,6 +157,7 @@ class AuthenticationComponent(ServerComponent):
         if name in self._handlers:
             raise ValueError(f"Authentication handler '{name}' is already registered")
         self._handlers[name] = handler
+        return self
 
     def configure(self, app: Any, orchestrator: Any) -> None:
         """Configure authentication middleware.

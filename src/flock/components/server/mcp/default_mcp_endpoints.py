@@ -4,35 +4,30 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from flock.api.models import (
+    Agent,
     AgentListResponse,
-    ArtifactPublishErrorResponse,
+    AgentSubscription,
     ArtifactPublishRequest,
-    ArtifactPublishTrackingResponse,
-    ArtifactSummaryErrorResponse,
     ArtifactSummaryRequest,
-    ArtifactSummaryResponse,
-    ArtifactTypeNamesErrorResponse,
-    ArtifactTypeNamesResponse,
     ArtifactValidationResponse,
     ConsumptionRecord,
-    CorrelationStatusErrorResponse,
-    CorrelationStatusResponse,
 )
 from flock.api.websocket import WebSocketManager
 from flock.components.server.artifacts.models import (
     ArtifactListRequest,
-    ArtifactListRequestError,
-    ArtifactListResponse,
 )
 from flock.components.server.models.events import MessagePublishedEvent, VisibilitySpec
 from flock.components.server.models.models import (
-    Agent,
     AgentInvokation,
-    AgentInvokationError,
-    AgentInvokationResult,
-    AgentRunResponse,
-    AgentSubscription,
     ArtifactResult,
+    MCPAgentInvokationResponse,
+    MCPArtifactListResponse,
+    MCPArtifactPublishResponse,
+    MCPArtifactResponse,
+    MCPArtifactSchemaResponse,
+    MCPArtifactSummaryResponse,
+    MCPArtifactTypeNamesResponse,
+    MCPWorkflowStatusResponse,
 )
 from flock.core.store import ArtifactEnvelope, FilterConfig
 from flock.logging.logging import FlockLogger
@@ -104,20 +99,46 @@ def register_default_validate_artifact_schema_route(
         path,
         tags=tags,
         operation_id=operation_id,
-        summary="Validate the schema for an artifact.",
-        description="Validate the schema for an artifact.",
+        summary="Validate artifact schema before publishing to the blackboard",
+        description=(
+            "Validates that an artifact conforms to its registered schema in the Flock system. "
+            "Use this to verify artifact structure before publishing to prevent errors."
+        ),
         response_model=ArtifactValidationResponse,
     )
     async def validate_artifact_schema(
         body: ArtifactPublishRequest,
     ) -> ArtifactValidationResponse:
-        """Validate an artifact schema before publishing the Artifact to the BlackBoard.
+        """Validate an artifact schema before publishing to the Blackboard.
 
-        This tool can be used to check if a given artifact would be acceptable in its given form.
-        This checks if the BlackBoard: a) knows the given Artifact Type, and b) all fields contain
-        the correct types and values.
-        This Tool can therefore be used to validate a request before publishing it to the BlackBoard,
-        allowing the caller to refine and validate calls and reduce the amount of errors.
+        **About Flock's Blackboard System:**
+        Flock uses a blackboard architecture where AI agents collaborate through a shared workspace.
+        Agents publish typed artifacts (structured data objects) to the blackboard, and other agents
+        subscribe to specific artifact types they can process. This creates emergent workflows without
+        direct agent-to-agent coupling.
+
+        **What This Tool Does:**
+        Validates that a proposed artifact:
+        1. Has a type name that is registered in the Flock type registry
+        2. Contains a valid payload with all required fields
+        3. Has correct field types according to the Pydantic schema
+        4. Would be accepted if published to the blackboard
+
+        **When to Use:**
+        - Before publishing artifacts to avoid validation errors
+        - To verify you have the correct field names and types
+        - To test artifact construction without triggering agent workflows
+        - To reduce failed publish attempts and improve reliability
+
+        **Args:**
+            body: ArtifactPublishRequest containing:
+                - type: The artifact type name (e.g., "MyDreamPizza")
+                - payload: Dictionary of field values matching the schema
+
+        **Returns:**
+            ArtifactValidationResponse with:
+                - acceptable (bool): Whether the artifact is valid
+                - reason (str): Explanation of validation result or error details
         """
         try:
             artifact_type = body.type
@@ -181,53 +202,74 @@ def register_default_get_artifact_schema_route(
         path,
         tags=tags,
         operation_id=operation_id,
-        summary="Get the schema for a given artifact.",
-        description="Get the schema for a given artifact.",
-        response_model=dict[str, Any],
+        summary="Get the Pydantic schema for a registered artifact type",
+        description=(
+            "Retrieves the complete JSON schema for any artifact type registered in the Flock system. "
+            "Essential for understanding what fields and types an artifact requires."
+        ),
+        response_model=MCPArtifactSchemaResponse,
     )
-    async def get_artifact_schema(artifact_type_name: str) -> dict[str, Any]:
-        """Get the schema for a registered Artifact by name.
+    async def get_artifact_schema(artifact_type_name: str) -> MCPArtifactSchemaResponse:
+        """Get the complete schema for a registered artifact type.
 
-        This tool returns the schema for a Artifact by its TypeName
-        that is being used on the BlackBoard.
-        Artifacts can be Types that Agents connected to the BlackBoard
-        accept (listen to if they are published) and/or produce.
+        **About Artifact Types in Flock:**
+        Artifacts are strongly-typed data objects (Pydantic models) that agents produce and consume.
+        Each artifact type has a schema that defines:
+        - Required and optional fields
+        - Field types (string, integer, nested objects, etc.)
+        - Validation rules and constraints
+        - Documentation for each field
 
-        This tool is useful if the list of available Agents
-        and the Artifacts/Events they accept is known, and/or
-        the list of ArtifactTypes that are accepted by the BlackBoard
-        is known and the schema for a given Artifact needs to be retrieved
-        before either invoking an Agent directly or publishing (recommended) an
-        Artifact to the BlackBoard for async processing.
-        This way, a client/caller/agent does not have to guess or infer
-        the ArtifactSchema before publishing to the BlackBoard.
+        **What This Tool Does:**
+        Returns the full JSON Schema (based on Pydantic models) for a given artifact type name.
+        This schema shows you exactly what structure the artifact expects, which is essential for:
+        - Understanding what data to provide when publishing artifacts
+        - Knowing what fields will be available when consuming artifacts
+        - Discovering the structure of agent inputs and outputs
 
-        Returns:
-            {
-                "artifact_schema": {
-                    "type_name": "TypeName",
-                    "schema": {...}
+        **Workflow:**
+        1. Use `get_artifact_type_names` to see all available types
+        2. Use this tool to get the schema for specific types of interest
+        3. Use the schema to construct valid artifact payloads
+        4. Use `validate_artifact_schema` to verify your payload before publishing
+
+        **Args:**
+            artifact_type_name: The registered type name (e.g., "Pizza", "Review", "CustomerRequest")
+
+        **Returns:**
+            On success:
+                {
+                    "artifact_schema": {
+                        "type_name": "TypeName",
+                        "schema": {<JSON Schema object with properties, required fields, etc.>}
+                    }
                 }
-            }
+            On error:
+                {
+                    "error": true,
+                    "reason": "Unable to resolve Artifact-Schema for TypeName: ... No such Type is known."
+                }
         """
         # Registry look-up to determine if TypeName is actually registered
         try:
             registered_type = type_registry.resolve(type_name=artifact_type_name)
             schema = registered_type.model_json_schema()
-            return {
-                "artifact_schema": {
-                    "type_name": artifact_type_name,
-                    "schema": schema,
-                }
-            }
+            return MCPArtifactSchemaResponse(
+                success=True,
+                type_name=artifact_type_name,
+                artifact_schema=schema,
+                error_message=None,
+            )
         except KeyError as ex:
             logger.exception(
                 f"MCPServerComponent: No Type with TypeName {artifact_type_name} registered: {ex!s}"
             )
-            return {
-                "error": True,
-                "reason": f"Unable to resolve Artifact-Schema for TypeName: {artifact_type_name}. No such Type is known.",
-            }
+            return MCPArtifactSchemaResponse(
+                success=False,
+                type_name=None,
+                artifact_schema=None,
+                error_message=f"Unable to resolve Artifact-Schema for TypeName: {artifact_type_name}. No such Type is known.",
+            )
 
 
 def register_default_list_artifact_type_names_route(
@@ -244,28 +286,50 @@ def register_default_list_artifact_type_names_route(
         path,
         tags=tags,
         operation_id=operation_id,
-        summary="Get all names for publicly visible artifact types.",
-        description="Get all names for publicly visible artifact types",
-        response_model=ArtifactTypeNamesResponse | ArtifactTypeNamesErrorResponse,
+        summary="List all publicly available artifact type names in the system",
+        description=(
+            "Returns a list of all artifact type names that can be published to the blackboard. "
+            "Use this to discover what types of data the system accepts."
+        ),
+        response_model=MCPArtifactTypeNamesResponse,
     )
-    async def get_artifact_type_names() -> (
-        ArtifactTypeNamesResponse | ArtifactTypeNamesErrorResponse
-    ):
-        """Get all names for the registered types.
+    async def get_artifact_type_names() -> MCPArtifactTypeNamesResponse:
+        """Get all registered artifact type names available in the Flock system.
 
-        This helper-tool allows the retrieval of a list of all available
-        ArtifactTypeNames. This helps in figuring out the schemas
-        Artifacts that Agents react to and produce.
+        **About the Type Registry:**
+        Flock maintains a registry of all artifact types (Pydantic models) that agents can produce
+        and consume. This registry ensures type safety and enables automatic agent subscription
+        matching based on types.
 
-        The returned TypeNames list can then be used to look up
-        the schema for a specific Artifact Type that a given Agent
-        accepts.
+        **What This Tool Does:**
+        Returns a list of all artifact type names that are:
+        - Publicly visible (can be used by external clients)
+        - Registered in the type registry
+        - Available for publishing to the blackboard
+        - Consumable by one or more agents
 
-        The list of TypeNames returned contains all names for
-        ArtifactTypes that are publicly visible, where 'publicly visible'
-        means that these types of Artifacts/Events can be retrieved
-        by external clients/agents. Internally used types are not returned
-        and should not be used by external systems.
+        This is typically the first tool you'll use when exploring a Flock system, as it shows
+        you what types of data you can work with.
+
+        **Workflow:**
+        1. Call this tool to get all available type names
+        2. Use `get_artifact_schema` to examine specific types that interest you
+        3. Use `list_available_agents` to see which agents consume/produce these types
+        4. Construct and publish artifacts of the appropriate types
+
+        **Note:**
+        Internal system types (like WorkflowError) are filtered out, as these are used
+        internally and should not be published by external clients.
+
+        **Returns:**
+            On success:
+                {
+                    "type_names": ["Pizza", "Review", "CustomerRequest", ...]
+                }
+            On error:
+                {
+                    "reason": "Unable to retrieve Artifact type names. Error: ..."
+                }
         """
         try:
             # Get all registered Artifact Types
@@ -280,15 +344,19 @@ def register_default_list_artifact_type_names_route(
             filtered_names = [
                 name for name in type_names if name != workflow_error_type
             ]
-            return ArtifactTypeNamesResponse(
+            return MCPArtifactTypeNamesResponse(
+                success=True,
                 type_names=filtered_names,
+                error_message=None,
             )
         except Exception as ex:
             logger.exception(
                 f"MCPServerComponent: Unable to retireve Artifact type names: {ex!s}"
             )
-            return ArtifactTypeNamesErrorResponse(
-                reason=f"Unable to retrieve Artifact type names. Error: {ex!s}"
+            return MCPArtifactTypeNamesResponse(
+                success=False,
+                type_names=None,
+                error_message=f"Unable to retrieve Artifact type names. Error: {ex!s}",
             )
 
 
@@ -306,31 +374,75 @@ def register_default_get_artifact_by_id_route(
         path,
         tags=tags,
         operation_id=operation_id,
-        summary="Get a specific artifact by its artifact ID",
-        description="Get a specific artifact by its artifact ID",
+        summary="Retrieve a specific artifact from the blackboard by its ID",
+        description=(
+            "Fetches the complete artifact data including payload, metadata, and consumption history. "
+            "Use this to inspect artifacts produced during workflow execution."
+        ),
+        response_model=MCPArtifactResponse,
     )
-    async def get_artifact(artifact_id: str) -> dict[str, Any]:
-        """Get a specific artifact by its artifact ID.
+    async def get_artifact(artifact_id: str) -> MCPArtifactResponse:
+        """Get a specific artifact by its unique ID.
 
-        Args:
-            artifact_id: the id of the artifact in question.
+        **About Artifacts on the Blackboard:**
+        Every artifact published to the blackboard receives a unique ID and is stored with:
+        - Full payload data
+        - Metadata (producer, timestamp, visibility, tags)
+        - Correlation ID linking it to a workflow
+        - Consumption records showing which agents processed it
+
+        **What This Tool Does:**
+        Retrieves the complete artifact data by ID, including:
+        - id: Unique identifier
+        - type: Artifact type name
+        - payload: The actual data (fields and values)
+        - produced_by: Which agent created it (or "external" if published by a client)
+        - visibility: Access control settings
+        - created_at: Timestamp when published
+        - correlation_id: Workflow UUID this artifact belongs to
+        - tags: Optional labels for filtering/categorization
+        - consumed_by: List of agents that processed this artifact
+
+        **When to Use:**
+        - After getting workflow status, to retrieve final results
+        - To inspect intermediate artifacts in a workflow
+        - To debug why certain agents triggered or didn't trigger
+        - To examine the exact data that was produced by an agent
+
+        **Args:**
+            artifact_id: The unique ID of the artifact (obtained from publish responses,
+                        workflow queries, or artifact listings)
+
+        **Returns:**
+            On success: Full artifact object with all fields
+            On error:
+                {
+                    "error": true,
+                    "reason": "Artifact with id ... not Found" | "Unable to retrieve artifact..."
+                }
         """
         try:
             artifact = await orchestrator.store.get(artifact_id)
             if artifact is None:
-                return {
-                    "error": True,
-                    "reason": f"Artifact with id {artifact_id} not Found",
-                }
-            return _serialize_artifact(artifact=artifact)
+                return MCPArtifactResponse(
+                    success=False,
+                    artifact=None,
+                    error_message=f"Artifact with id {artifact_id} not Found",
+                )
+            return MCPArtifactResponse(
+                success=True,
+                artifact=_serialize_artifact(artifact=artifact),
+                error_message=None,
+            )
         except Exception as ex:
             logger.exception(
                 f"MCPServerComponent: Unable to retrieve artifact with id {artifact_id}. Error: {ex!s}"
             )
-            return {
-                "error": True,
-                "reason": f"Unable to retrieve artifact with id {artifact_id}. Error: {ex!s}",
-            }
+            return MCPArtifactResponse(
+                success=False,
+                artifact=None,
+                error_message=f"Unable to retrieve artifact with id {artifact_id}. Error: {ex!s}",
+            )
 
 
 def register_default_summarize_artifacts_route(
@@ -347,17 +459,64 @@ def register_default_summarize_artifacts_route(
         path,
         tags=tags,
         operation_id=operation_id,
-        summary="Summarize available artifacts",
-        description="Summarize available artifacts",
-        response_model=ArtifactSummaryResponse | ArtifactSummaryErrorResponse,
+        summary="Get aggregated statistics about artifacts on the blackboard",
+        description=(
+            "Returns summary statistics (counts by type, producer, etc.) for artifacts matching "
+            "the filter criteria. Useful for understanding workflow progress without fetching all data."
+        ),
+        response_model=MCPArtifactSummaryResponse,
     )
     async def summarize_artifacts(
         summary_request: ArtifactSummaryRequest,
-    ) -> ArtifactSummaryResponse | ArtifactSummaryErrorResponse:
-        """Summarize Artifacts.
+    ) -> MCPArtifactSummaryResponse:
+        """Get aggregated statistics about artifacts on the blackboard.
 
-        Allows to optionally filter for type_names, which agents where involved in producing the artifacts, which workflow the artifacts are associated with.
-        Returns a summary of all Artifacts matching the provided filter parameters.
+        **About Workflow Tracking:**
+        As agents execute in a Flock workflow, they produce artifacts that accumulate on the
+        blackboard. Instead of retrieving all artifacts (which can be large), this tool provides
+        summary statistics to understand workflow progress and scope.
+
+        **What This Tool Does:**
+        Returns aggregated counts and statistics for artifacts matching your filter criteria:
+        - Count of artifacts by type
+        - Count of artifacts by producing agent
+        - Total artifact count
+        - Distribution across correlation IDs (workflows)
+
+        **Filter Options:**
+        - type_names: Only count artifacts of specific types (e.g., ["Pizza", "Review"])
+        - produced_by: Only count artifacts from specific agents (e.g., ["pizza_master", "reviewer"])
+        - correlation_id: Only count artifacts from a specific workflow
+
+        **When to Use:**
+        - To check workflow progress without downloading full artifact payloads
+        - To see how many artifacts of each type have been produced
+        - To verify which agents have executed in a workflow
+        - To get an overview before deciding which artifacts to fetch in detail
+
+        **Performance:**
+        This is much faster than `list_artifacts` when you only need counts, as it doesn't
+        transfer full payload data.
+
+        **Args:**
+            summary_request: ArtifactSummaryRequest with optional filters:
+                - type_names (optional): List of type names to include
+                - produced_by (optional): List of agent names to include
+                - correlation_id (optional): Specific workflow UUID
+
+        **Returns:**
+            On success:
+                {
+                    "summary": {
+                        "total_count": 42,
+                        "by_type": {"Pizza": 10, "Review": 20, ...},
+                        "by_producer": {"pizza_master": 10, "reviewer": 20, ...}
+                    }
+                }
+            On error:
+                {
+                    "reason": "Unable to summarize artifacts: ..."
+                }
         """
         try:
             filters = _make_filter_config(
@@ -370,13 +529,19 @@ def register_default_summarize_artifacts_route(
                 )
             )
             summary = await orchestrator.store.summarize_artifacts(filters)
-            return ArtifactSummaryResponse(summary=summary)
+            return MCPArtifactSummaryResponse(
+                success=True,
+                summary=summary,
+                error_message=None,
+            )
         except Exception as ex:
             logger.exception(
                 f"MCPServerComponent: Unable to summarize artifacts: {ex!s}"
             )
-            return ArtifactSummaryErrorResponse(
-                reason=f"Unable to summarize artifacts: {ex!s}"
+            return MCPArtifactSummaryResponse(
+                success=False,
+                summary=None,
+                error_message=f"Unable to summarize artifacts: {ex!s}",
             )
 
 
@@ -392,15 +557,83 @@ def register_default_list_artifacts_route(
 
     @app.post(
         path,
-        response_model=ArtifactListResponse | ArtifactListRequestError,
+        response_model=MCPArtifactListResponse,
         tags=tags,
         operation_id=operation_id,
-        summary="List all artifacts with a given filter.",
+        summary="Query and retrieve artifacts from the blackboard with filtering and pagination",
+        description=(
+            "Returns a filtered, paginated list of artifacts with their full payloads and metadata. "
+            "Use this to retrieve actual artifact data after checking workflow status."
+        ),
     )
     async def list_artifacts(
         artifact_filter: ArtifactListRequest,
-    ) -> ArtifactListResponse | ArtifactListRequestError:
-        """List all Artifacts that match the filter-criteria."""
+    ) -> MCPArtifactListResponse:
+        """Query and retrieve artifacts from the blackboard with comprehensive filtering.
+
+        **About Blackboard Persistence:**
+        All artifacts published to the blackboard are persisted and can be queried later.
+        This enables you to:
+        - Retrieve workflow results after completion
+        - Inspect intermediate processing steps
+        - Analyze which agents participated in a workflow
+        - Debug why certain behaviors occurred
+
+        **What This Tool Does:**
+        Returns a list of artifacts matching your filter criteria, with full payload data
+        and metadata. Unlike `summarize_artifacts` which only returns counts, this tool
+        provides the actual artifact data you can use.
+
+        **Filter Criteria (all optional, combine with AND logic):**
+        - type_names: Only artifacts of these types (e.g., ["Pizza", "Review"])
+        - produced_by: Only artifacts from these agents (e.g., ["pizza_master"])
+        - correlation_id: Only artifacts from a specific workflow UUID
+
+        **Pagination:**
+        - limit: Maximum number of artifacts to return (default: 100)
+        - offset: Number of artifacts to skip (for subsequent pages)
+
+        **Each Artifact Includes:**
+        - id: Unique identifier
+        - type: Artifact type name
+        - payload: Full data with all fields
+        - produced_by: Creating agent name (or "external")
+        - visibility: Access control settings
+        - created_at: ISO timestamp
+        - correlation_id: Workflow UUID
+        - tags: Optional labels
+        - consumed_by: List of agents that processed this artifact
+        - consumptions: Detailed consumption records with timestamps
+
+        **Common Workflows:**
+        1. Publish artifact → Get correlation_id
+        2. Poll workflow status until "completed"
+        3. List artifacts with correlation_id filter
+        4. Process results from final artifacts
+
+        **Args:**
+            artifact_filter: ArtifactListRequest with:
+                - type_names (optional): Filter by type
+                - produced_by (optional): Filter by producer
+                - correlation_id (optional): Filter by workflow
+                - limit (default: 100): Max results to return
+                - offset (default: 0): Results to skip
+
+        **Returns:**
+            On success:
+                {
+                    "items": [<artifact objects with full data>],
+                    "pagination": {
+                        "limit": 100,
+                        "offset": 0,
+                        "total": 250  // Total matching artifacts
+                    }
+                }
+            On error:
+                {
+                    "reason": "Error while trying to create list for artifacts: ..."
+                }
+        """
         filters = _make_filter_config(artifact_filter)
         try:
             artifacts, total = await orchestrator.store.query_artifacts(
@@ -417,20 +650,25 @@ def register_default_list_artifacts_route(
                     )
                 else:
                     items.append(_serialize_artifact(artifact))
-            return ArtifactListResponse(
+            return MCPArtifactListResponse(
+                success=True,
                 items=items,
-                pagination={
-                    "limit": artifact_filter.limit,
-                    "offset": artifact_filter.offset,
-                    "total": total,
-                },
+                total=total,
+                limit=artifact_filter.limit,
+                offset=artifact_filter.offset,
+                error_message=None,
             )
         except Exception as ex:
             logger.exception(
                 f"MCPServerComponent: Error while calling list_artifacts: {ex!s}"
             )
-            return ArtifactListRequestError(
-                reason=f"Error while trying to create list for artifacts: {ex!s}"
+            return MCPArtifactListResponse(
+                success=False,
+                items=None,
+                total=None,
+                limit=None,
+                offset=None,
+                error_message=f"Error while trying to create list for artifacts: {ex!s}",
             )
 
 
@@ -448,44 +686,101 @@ def register_default_get_workflow_status_route(
         path,
         tags=tags,
         operation_id=operation_id,
-        summary="Get the status of a Workflow with its Correlation UUID.",
-        response_model=CorrelationStatusResponse | CorrelationStatusErrorResponse,
+        summary="Check the execution status of a workflow by its correlation ID",
+        description=(
+            "Returns whether a workflow is active, completed, or failed. Essential for tracking "
+            "asynchronous agent execution after publishing artifacts to the blackboard."
+        ),
+        response_model=MCPWorkflowStatusResponse,
     )
     async def get_workflow_status(
         correlation_id: str,
-    ) -> CorrelationStatusResponse | CorrelationStatusErrorResponse:
-        """Get the status of a workflow by correlation ID.
+    ) -> MCPWorkflowStatusResponse:
+        """Get the current execution status of a workflow by its correlation ID.
 
-        Once an artifact is published, a workflow is created with a unique UUID
-        that can be used to track the work of the agents as they react to the publication.
-        A single Workflow is identified by its UUID and is triggered through the publication
-        of an event the the BlackBoard. Individual Agents react to the publication of that
-        Event and publish results themselves in turn, which may trigger other agents.
+        **About Workflows in Flock:**
+        When you publish an artifact to the blackboard, Flock creates a workflow identified by
+        a unique correlation UUID. This workflow tracks all subsequent agent executions triggered
+        by that initial artifact and any cascading downstream processing.
 
-        A Workflow can have several states:
-            - 'active' - work is still pending. Agents are actively processing events associated with this Workflow
-            - 'completed' - (success) All possible processing steps are completed and there are no more Agents left that could process/publish in the context of the given Workflow
-            - 'failed' - An Error occurred during the Workflow
-            - 'not_found' - There are no Artifacts associated with the given Workflow UUID
-        In addition, the has_pending_work property of the response indicates if the BlackBoard Orchestrator has work (Agents) scheduled for the given Workflow
-        This tool is useful for polling to check if a workflow has completed.
+        A workflow emerges from:
+        1. Initial artifact publication → Gets correlation_id
+        2. Agents subscribed to that type activate
+        3. They produce output artifacts (with same correlation_id)
+        4. Downstream agents trigger on those outputs
+        5. Process continues until no more agents can execute
 
-        Request-Body:
-            {
-                "correlation_id": "<uuid>",
-            }
+        **What This Tool Does:**
+        Checks the current state of a workflow without retrieving all artifact data.
+        This is the primary way to know when asynchronous processing has completed.
+
+        **Workflow States:**
+        - "active": Agents are currently executing or work is pending
+        - "completed": All agents have finished, no more work pending (success)
+        - "failed": An error occurred during execution
+        - "not_found": No artifacts exist with this correlation_id
+
+        **Additional Information:**
+        - has_pending_work: Boolean indicating if the orchestrator has scheduled agents
+        - artifact_count: Number of artifacts produced in this workflow
+        - agent_executions: Count of how many times agents have executed
+
+        **Typical Usage Pattern:**
+        ```
+        1. Publish artifact → Receive correlation_id
+        2. Poll get_workflow_status(correlation_id) every few seconds
+        3. When status == "completed" and has_pending_work == false:
+           → Workflow is done, retrieve results with list_artifacts
+        4. If status == "failed":
+           → Check artifacts for error details
+        ```
+
+        **Args:**
+            correlation_id: UUID string returned from publish_artifact
+
+        **Returns:**
+            On success:
+                {
+                    "status": "active" | "completed" | "failed" | "not_found",
+                    "has_pending_work": true | false,
+                    "correlation_id": "uuid-string",
+                    "artifact_count": 42,
+                    "agent_executions": 15
+                }
+            On error:
+                {
+                    "reason": "Failed to retrieve correlation status: ..."
+                }
         """
         try:
             status = await orchestrator.get_correlation_status(
                 correlation_id=correlation_id
             )
-            return CorrelationStatusResponse(**status)
+            return MCPWorkflowStatusResponse(
+                success=True,
+                correlation_id=status.get("correlation_id"),
+                state=status.get("state"),
+                has_pending_work=status.get("has_pending_work"),
+                artifact_count=status.get("artifact_count"),
+                error_count=status.get("error_count"),
+                started_at=status.get("started_at"),
+                last_activity_at=status.get("last_activity_at"),
+                error_message=None,
+            )
         except ValueError as exc:
             logger.exception(
                 f"MCPServerComponent: failed to retrieve correlation status: {exc!s}"
             )
-            return CorrelationStatusErrorResponse(
-                reason=f"Failed to retrieve correlation status: {exc!s}"
+            return MCPWorkflowStatusResponse(
+                success=False,
+                correlation_id=None,
+                state=None,
+                has_pending_work=None,
+                artifact_count=None,
+                error_count=None,
+                started_at=None,
+                last_activity_at=None,
+                error_message=f"Failed to retrieve correlation status: {exc!s}",
             )
 
 
@@ -504,63 +799,117 @@ def register_default_publish_artifact_route(
         path,
         tags=tags,
         operation_id=operation_id,
-        summary="Publish an artifact to the blackboard.",
-        response_model=ArtifactPublishTrackingResponse | ArtifactPublishErrorResponse,
+        summary="Publish an artifact to the blackboard and initiate agent workflow",
+        description=(
+            "Publishes a typed artifact to Flock's blackboard, triggering all subscribed agents "
+            "to process it asynchronously. Returns a correlation ID for tracking the workflow. "
+            "This is the primary way to interact with the Flock agent system."
+        ),
+        response_model=MCPArtifactPublishResponse,
     )
     async def publish_artifact(
         body: ArtifactPublishRequest,
-    ) -> ArtifactPublishTrackingResponse:
-        """Publish an artifact to the Blackboard.
+    ) -> MCPArtifactPublishResponse:
+        """Publish an artifact to the blackboard and trigger agent workflow execution.
 
-        The Blackboard is a shared data store where agents publish and consume artifacts.
-        - Agents or External Clients publish Artifacts
-        - Agents subscribe to Artifacts they can process
-        - Workflows emerge from type-based subscriptions
-        - Execution is automatic (matching agents trigger when their data appears.)
+        **FLOCK'S CORE CONCEPT - THE BLACKBOARD PATTERN:**
+        Flock uses a blackboard architecture, a pattern from AI research where:
+        - A shared workspace (blackboard) holds data (artifacts)
+        - Specialized agents monitor the blackboard
+        - Agents activate when they see data they can process
+        - Agents publish their results back to the blackboard
+        - Other agents react to those results, creating emergent workflows
+        - No direct agent-to-agent communication needed
 
-        How the blackboard works:
-        1. Artifact published -> Appears on Blackboard and a Correlation ID is generated
-        2. Matching Agents triggered -> All agents subscribed to that type activate.
-        3. Parallel execution -> Multiple agents work concurrently
-        4. Results published -> Output artifacts appear on the Blackboard
-        5. Cascade continues -> Downstream Agents trigger automatically
+        **How Publishing Works:**
+        1. You publish a typed artifact (e.g., CustomerRequest, PizzaIdea)
+        2. Flock generates a correlation_id to track this workflow
+        3. The artifact appears on the blackboard
+        4. ALL agents subscribed to that type are triggered automatically
+        5. Agents execute in parallel (no sequential bottleneck)
+        6. Each agent publishes its output artifacts (with same correlation_id)
+        7. Downstream agents trigger on those outputs
+        8. Process cascades until no more agents can execute
+        9. Workflow reaches "completed" state
 
-        The state of a Workflow that has been created by the publication of
-        an Artifact can be queried with its corresponding Correlation ID.
-        This method returns such a Correlation ID upon a successful publication
-        to the Blackboard which can be used to query the blackboard to get the
-        state of a workflow.
+        **Why This Pattern:**
+        - ✅ Decoupled: Agents don't know about each other
+        - ✅ Scalable: New agents can be added without changing existing ones
+        - ✅ Parallel: Multiple agents process simultaneously
+        - ✅ Emergent: Complex workflows emerge from simple subscriptions
+        - ✅ Resilient: Failed agents don't block others
 
-        Processing of a published Artifact is asynchronous and does not
-        produce a result right away. Use the correlation-id to query the
-        blackboard about the status of the workflow triggered by a Artifact publication
-        and retrieve relevant produced artifacts upon workflow completion.
+        **Publishing is Asynchronous:**
+        This endpoint returns immediately with a correlation_id. It does NOT wait for
+        agents to complete processing. Use the correlation_id to:
+        - Poll with `get_workflow_status` to know when processing completes
+        - Retrieve results with `list_artifacts` when workflow is done
 
-        Returns:
-            ArtifactPublishTrackingResponse containing the uuid of the workflow and creation date
-            ArtifactPublishErrorResponse on error, this contains a reason as to why publication failed
+        **Type Safety:**
+        The artifact must match a registered Pydantic schema. Use these tools to ensure correctness:
+        - `get_artifact_type_names` - See what types are available
+        - `get_artifact_schema` - Get the schema for a type
+        - `validate_artifact_schema` - Verify before publishing
 
-        Example:
-            Request-body:
+        **Args:**
+            body: ArtifactPublishRequest containing:
+                - type: Registered artifact type name (e.g., "CustomerRequest")
+                - payload: Dictionary with fields matching the schema
+
+        **Returns:**
+            On success:
                 {
-                    "type": "TypeName",
-                    "payload": {"field": "value", ...}
+                    "correlation_id": "uuid-string",  // Use this to track the workflow
+                    "published_at": "2025-11-13T10:30:00Z"
                 }
-            Response:
+            On error:
                 {
-                    "correlation_id": "uuid-str",
-                    "published_at": "iso-timestamp",
+                    "reason": "No artifact_type has been provided." |
+                             "Payload was None." |
+                             "Unable to validate payload for type '...':" |
+                             "Unknown artifact_type: ..."
                 }
+
+        **Example Workflow:**
+        ```
+        # 1. Publish artifact
+        response = publish_artifact({
+            "type": "CustomerRequest",
+            "payload": {"customer_id": "123", "request": "Order pizza"}
+        })
+        correlation_id = response["correlation_id"]
+
+        # 2. Poll for completion
+        while True:
+            status = get_workflow_status(correlation_id)
+            if status["status"] == "completed" and not status["has_pending_work"]:
+                break
+            time.sleep(2)
+
+        # 3. Get results
+        results = list_artifacts({
+            "correlation_id": correlation_id,
+            "limit": 100
+        })
+        ```
         """
         # Validate required fields
         artifact_type = body.type
         payload = body.payload
         if not artifact_type or artifact_type == "":
-            return ArtifactPublishErrorResponse(
-                reason="No artifact_type has been provided."
+            return MCPArtifactPublishResponse(
+                success=False,
+                correlation_id=None,
+                published_at=None,
+                error_message="No artifact_type has been provided.",
             )
         if payload is None:
-            return ArtifactPublishErrorResponse(reason="Payload was None.")
+            return MCPArtifactPublishResponse(
+                success=False,
+                correlation_id=None,
+                published_at=None,
+                error_message="Payload was None.",
+            )
         try:
             # Resolve type from registry
             model_class = type_registry.resolve(artifact_type)
@@ -571,8 +920,11 @@ def register_default_publish_artifact_route(
                 logger.exception(
                     f"MCPServerComponent: failed to validate payload for type '{artifact_type}': {ex!s}"
                 )
-                return ArtifactPublishErrorResponse(
-                    reason=f"Unable to validate payload for type '{artifact_type}': {ex!s}"
+                return MCPArtifactPublishResponse(
+                    success=False,
+                    correlation_id=None,
+                    published_at=None,
+                    error_message=f"Unable to validate payload for type '{artifact_type}': {ex!s}",
                 )
             # Generate correlation ID
             correlation_id = str(uuid4())
@@ -587,31 +939,40 @@ def register_default_publish_artifact_route(
             event = MessagePublishedEvent(
                 correlation_id=str(artifact.correlation_id),
                 artifact_id=str(artifact.id),
-                artifact_type=artifact_type,
+                artifact_type=artifact.type,
                 produced_by=artifact.produced_by,
+                payload=artifact.payload,
                 visibility=VisibilitySpec(
                     kind="Public",
-                ),
+                ), # MCP-Published Artifacts are public by default
                 tags=list(artifact.tags) if artifact.tags else [],
                 version=artifact.version,
                 consumers=[],  # Will be populated by subscription matching in frontend
             )
             await websocket_manager.broadcast(event=event)
-            return ArtifactPublishTrackingResponse(
+            return MCPArtifactPublishResponse(
+                success=True,
                 correlation_id=str(artifact.correlation_id),
                 published_at=artifact.created_at.isoformat(),
+                error_message=None,
             )
         except KeyError as ke:
             logger.exception(
                 f"MCPServerComponent: Unknown artifact type: {artifact_type}: {ke!s}"
             )
-            return ArtifactPublishErrorResponse(
-                reason=f"Unknown artifact_type: {artifact_type}"
+            return MCPArtifactPublishResponse(
+                success=False,
+                correlation_id=None,
+                published_at=None,
+                error_message=f"Unknown artifact_type: {artifact_type}",
             )
         except Exception as ex:
             logger.exception(f"MCPServerComponent: Error publishing artifact: {ex!s}")
-            return ArtifactPublishErrorResponse(
-                reason=f"Error publishing artifact: {ex!s}"
+            return MCPArtifactPublishResponse(
+                success=False,
+                correlation_id=None,
+                published_at=None,
+                error_message=f"Error publishing artifact: {ex!s}",
             )
 
 
@@ -630,14 +991,88 @@ def register_default_list_available_agents_route(
         path,
         tags=tags,
         operation_id=operation_id,
-        summary="List all available agents along with their descriptions.",
+        summary="List all available agents with their capabilities and subscriptions",
+        description=(
+            "Returns metadata about all agents in the system, including what artifact types "
+            "they consume, what they produce, and their descriptions. Essential for understanding "
+            "the agent ecosystem and planning workflows."
+        ),
         response_model=AgentListResponse,
     )
     async def list_available_agents() -> AgentListResponse:
-        """Lists all available agents that can be used.
+        """List all available agents with their input/output types and subscriptions.
 
-        Returns:
-            AgentListResponse, a list of all available agents.
+        **About Agents in Flock:**
+        Agents are autonomous AI components that:
+        - Subscribe to specific artifact types they can process (inputs)
+        - Execute LLM-based logic to transform data
+        - Publish output artifacts of specific types (outputs)
+        - Can have multiple subscriptions (consume multiple types)
+        - Can produce multiple output types
+        - Execute automatically when matching artifacts appear
+
+        **What This Tool Does:**
+        Returns comprehensive metadata about all agents available in the system, including:
+        - Agent name (unique identifier)
+        - Description (what the agent does)
+        - Subscriptions (what artifact types trigger this agent)
+        - Output types (what artifact types this agent produces)
+        - Subscription mode (single vs batch processing)
+
+        **Why This Matters:**
+        Understanding the agent ecosystem helps you:
+        - Know what artifact types will trigger workflows
+        - Predict what outputs you'll get from publishing certain types
+        - Plan multi-step workflows by chaining agent capabilities
+        - Discover what the system can do without reading source code
+
+        **Agent Subscription Modes:**
+        - "single": Agent processes one artifact at a time
+        - "batch": Agent can process multiple artifacts together
+        - "join": Agent waits for multiple related artifacts before executing
+
+        **Example Response Structure:**
+        ```json
+        {
+            "agents": [
+                {
+                    "name": "pizza_master",
+                    "description": "Transforms pizza ideas into detailed pizza recipes",
+                    "subscriptions": [
+                        {
+                            "types": ["MyDreamPizza"],
+                            "mode": "single"
+                        }
+                    ],
+                    "outputs": ["Pizza"]
+                },
+                {
+                    "name": "reviewer",
+                    "description": "Reviews and rates pizzas",
+                    "subscriptions": [
+                        {
+                            "types": ["Pizza"],
+                            "mode": "single"
+                        }
+                    ],
+                    "outputs": ["Review"]
+                }
+            ]
+        }
+        ```
+
+        **How to Use This Information:**
+        1. Find agents that consume the artifact types you want to publish
+        2. Check what outputs they produce
+        3. Trace the chain: Your input → Agent A → Intermediate type → Agent B → Final output
+        4. Use `get_artifact_schema` on the input types to understand required fields
+
+        **Note:**
+        Only agents exposed through the MCP server configuration are returned.
+        Internal system agents may be hidden for security or simplicity.
+
+        **Returns:**
+            AgentListResponse with array of agent metadata objects
         """
         logger.info("MCPServerComponent: Client requested a list of available agents.")
         return AgentListResponse(
@@ -674,22 +1109,129 @@ def register_default_invokation_route(
         path,
         tags=tags,
         operation_id=operation_id,
-        summary="Invoke a specific agent directly by its given name.",
-        response_model=AgentRunResponse | AgentInvokationError,  # noqa: F821
+        summary="Directly invoke a specific agent bypassing the blackboard workflow system",
+        description=(
+            "Executes a single agent synchronously with provided inputs, returning results immediately. "
+            "Unlike publish_artifact, this bypasses subscription matching and workflow cascades. "
+            "Use for direct request-response patterns or testing individual agents."
+        ),
+        response_model=MCPAgentInvokationResponse,
     )
     async def invoke_agent(
         invokation: AgentInvokation,
-    ) -> AgentRunResponse | AgentInvokationError:
-        """Directly invoke a specific agent.
-        This bypasses the blackboard-system and complex workflows.
-        This executes the agent immediately without checking
-        subscriptions or predicates.
-        Useful for directly using an Agent to complete a task
-        in a synchronous request-response pattern.
+    ) -> MCPAgentInvokationResponse:
+        """Directly invoke a specific agent synchronously, bypassing the blackboard system.
 
-        Args:
-            name: name of the agent (each Agent has a unique name)
-            body: AgentRunRequest, containing the data the agent needs to do its job.
+        **Direct Invocation vs. Blackboard Publishing:**
+
+        This tool provides a DIFFERENT execution model than `publish_artifact`:
+
+        **publish_artifact (Recommended for workflows):**
+        - ✅ Asynchronous, non-blocking
+        - ✅ Triggers ALL matching agents automatically
+        - ✅ Creates cascading workflows
+        - ✅ Parallel agent execution
+        - ✅ Persistent correlation tracking
+        - ❌ Requires polling for results
+
+        **invoke_agent (Use for direct calls):**
+        - ✅ Synchronous, immediate response
+        - ✅ Execute one specific agent only
+        - ✅ No subscription matching or predicates checked
+        - ✅ No workflow tracking or cascades
+        - ✅ Simple request-response pattern
+        - ❌ No parallel multi-agent processing
+        - ❌ Downstream agents don't trigger automatically
+
+        **When to Use Direct Invocation:**
+        - Testing individual agent behavior in isolation
+        - Simple request-response patterns (like API endpoints)
+        - You need immediate synchronous results
+        - You want to call a specific agent, not trigger a workflow
+        - Debugging agent logic without workflow complexity
+
+        **When to Use Publish Instead:**
+        - You want multiple agents to process the same data
+        - You need cascading multi-step workflows
+        - Asynchronous processing is acceptable
+        - You want the full power of the blackboard pattern
+
+        **How Direct Invocation Works:**
+        1. You specify the exact agent name
+        2. You provide input artifacts (must match agent's expected types)
+        3. Agent executes immediately with those inputs
+        4. Results are returned synchronously
+        5. No other agents are triggered
+        6. No workflow tracking or correlation_id
+
+        **Important Notes:**
+        - Agent subscription predicates are NOT evaluated (agent runs regardless of filters)
+        - Visibility rules are NOT enforced (agent sees provided inputs directly)
+        - No cascading to downstream agents (outputs are returned, not published)
+        - Useful for testing but bypasses Flock's core architectural benefits
+
+        **Args:**
+            invokation: AgentInvokation containing:
+                - name: Exact agent name (from list_available_agents)
+                - inputs: Array of artifacts with:
+                    - type: Artifact type name
+                    - payload: Field values matching schema
+
+        **Returns:**
+            {
+                "success": true,  // or false if failed
+                "artifacts": [  // only present when success=true
+                    {
+                        "id": "uuid",
+                        "type": "OutputTypeName",
+                        "payload": {<output data>},
+                        "produced_by": "agent_name"
+                    },
+                    ...
+                ],
+                "error_message": null  // or string explaining error when success=false
+            }
+
+        **Example Success:**
+        ```json
+        // Request
+        {
+            "name": "pizza_master",
+            "inputs": [
+                {
+                    "type": "MyDreamPizza",
+                    "payload": {"pizza_idea": "Spicy Hawaiian with jalapeños"}
+                }
+            ]
+        }
+
+        // Response
+        {
+            "success": true,
+            "artifacts": [
+                {
+                    "id": "550e8400-...",
+                    "type": "Pizza",
+                    "payload": {
+                        "name": "Spicy Hawaiian Delight",
+                        "ingredients": ["pineapple", "ham", "jalapeños", ...],
+                        ...
+                    },
+                    "produced_by": "pizza_master"
+                }
+            ],
+            "error_message": null
+        }
+        ```
+
+        **Example Error:**
+        ```json
+        {
+            "success": false,
+            "artifacts": null,
+            "error_message": "Unknown Agent: No Agent with name 'unknown_agent' registered."
+        }
+        ```
         """
         try:
             logger.info(f"Agent: '{invokation.name}' invoked via MCP.")
@@ -705,7 +1247,8 @@ def register_default_invokation_route(
                             agent=agent,
                             inputs=inputs,
                         )
-                        return AgentInvokationResult(
+                        return MCPAgentInvokationResponse(
+                            success=True,
                             artifacts=[
                                 ArtifactResult(
                                     id=str(artifact.id),
@@ -714,27 +1257,34 @@ def register_default_invokation_route(
                                     produced_by=artifact.produced_by,
                                 )
                                 for artifact in outputs
-                            ]
+                            ],
+                            error_message=None,
                         )
                     except Exception as execex:
                         logger.exception(
                             f"MCPServerComponent: Agent execution for agent {agent.name} failed: {execex!s}"
                         )
-                        return AgentInvokationError(
-                            message=f"Agent Execution failed for agent {agent.name}: {execex!s}"
+                        return MCPAgentInvokationResponse(
+                            success=False,
+                            artifacts=None,
+                            error_message=f"Agent Execution failed for agent {agent.name}: {execex!s}",
                         )
                 except Exception as exc:
                     logger.exception(
                         f"MCPServerComponent: Failed to resolve input type for '{item.type}': {exc!s}"
                     )
-                    return AgentInvokationError(
-                        message=f"Unable to parse inputs for input: '{item.type}' for agent '{invokation.name}'"
+                    return MCPAgentInvokationResponse(
+                        success=False,
+                        artifacts=None,
+                        error_message=f"Unable to parse inputs for input: '{item.type}' for agent '{invokation.name}'",
                     )
         except KeyError as ex:
             logger.exception(
                 f"MCPServerComponent: Failed to get agent '{invokation.name}': {ex!s}"
             )
             # return an error response to the caller.
-            return AgentInvokationError(
-                message=f"Unkown Agent: No Agent with name '{invokation.name}' registered."
+            return MCPAgentInvokationResponse(
+                success=False,
+                artifacts=None,
+                error_message=f"Unkown Agent: No Agent with name '{invokation.name}' registered.",
             )

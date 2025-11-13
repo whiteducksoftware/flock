@@ -352,36 +352,6 @@ class ControlRoutesComponent(ServerComponent):
                 logger.exception(f"Error invoking agent: {ex!s}")
                 raise HTTPException(status_code=500, detail=str(ex))
 
-        @app.get(
-            self._join_path(self.config.prefix, "artifact-types"), tags=self.config.tags,
-            operation_id="default_control_get_artifact_types"
-        )
-        async def get_artifact_types() -> dict[str, Any]:
-            """Get all registered artifact types with their schema.
-
-            Returns:
-                {
-                    "artifact_types": [
-                        {
-                            "name": "TypeName",
-                            "schema": {...}
-                        }
-                    ]
-                }
-            """
-            artifact_types = []
-            for type_name in type_registry._by_name:
-                try:
-                    model_class = type_registry.resolve(type_name=type_name)
-                    # Get Pydantic schema
-                    schema = model_class.model_json_schema()
-                    artifact_types.append({"name": type_name, "schema": schema})
-                except Exception as ex:
-                    logger.warning(f"Could not get schema for type {type_name}: {ex!s}")
-            return {
-                "artifact_types": artifact_types,
-            }
-
         @app.post(
             self._join_path(self.config.prefix, "control/pause"), tags=self.config.tags
         )
