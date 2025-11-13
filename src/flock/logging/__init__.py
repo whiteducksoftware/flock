@@ -7,4 +7,5 @@ Public entry points:
 
 from flock.logging.logging import configure_logging, get_logger
 
+
 __all__ = ["configure_logging", "get_logger"]

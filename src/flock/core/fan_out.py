@@ -17,9 +17,7 @@ class FanOutRange:
         if self.min < 1:
             raise ValueError(f"fan_out min must be >= 1, got {self.min}")
         if self.max < self.min:
-            raise ValueError(
-                f"fan_out max ({self.max}) must be >= min ({self.min})"
-            )
+            raise ValueError(f"fan_out max ({self.max}) must be >= min ({self.min})")
 
     def is_fixed(self) -> bool:
         """Return True if this range represents a fixed count."""
@@ -70,4 +68,3 @@ def normalize_fan_out(spec: FanOutSpec | None) -> FanOutRange | None:
 
 
 __all__ = ["FanOutRange", "FanOutSpec", "normalize_fan_out"]
-

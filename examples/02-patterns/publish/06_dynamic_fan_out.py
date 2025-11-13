@@ -13,11 +13,10 @@ Semantics:
 
 import asyncio
 
-from dspy.adapters.baml_adapter import BAMLAdapter
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.engines.dspy_engine import DSPyEngine
+from flock.engines import BAMLAdapter, DSPyEngine
 from flock.registry import flock_type
 
 
@@ -137,4 +136,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

@@ -9,10 +9,11 @@ from __future__ import annotations
 from dspy.adapters import ChatAdapter, JSONAdapter, TwoStepAdapter, XMLAdapter
 from dspy.adapters.baml_adapter import BAMLAdapter
 
+
 __all__ = [
+    "BAMLAdapter",
     "ChatAdapter",
-    "XMLAdapter",
     "JSONAdapter",
     "TwoStepAdapter",
-    "BAMLAdapter",
+    "XMLAdapter",
 ]

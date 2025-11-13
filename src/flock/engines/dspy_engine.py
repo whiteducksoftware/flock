@@ -5,15 +5,12 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Iterable, Mapping, Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from flock.components.agent import EngineComponent
 from flock.core.artifacts import Artifact
-
-if TYPE_CHECKING:
-    from dspy.adapters import Adapter
 from flock.engines.dspy.artifact_materializer import DSPyArtifactMaterializer
 from flock.engines.dspy.signature_builder import DSPySignatureBuilder
 from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor

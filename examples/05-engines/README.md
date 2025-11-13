@@ -41,8 +41,7 @@ uv run python examples/05-engines/01_adapter_comparison.py
 
 **How It Works:**
 ```python
-from dspy.adapters import ChatAdapter, JSONAdapter
-from flock.engines import DSPyEngine
+from flock.engines import DSPyEngine, ChatAdapter, JSONAdapter
 
 # ChatAdapter (default)
 chat_agent = (
@@ -91,7 +90,7 @@ uv run python examples/05-engines/02_json_adapter_mcp_tools.py
 
 **How It Works:**
 ```python
-from dspy.adapters import JSONAdapter
+from flock.engines import DSPyEngine, JSONAdapter
 
 agent = (
     flock.agent("researcher")

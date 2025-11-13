@@ -120,9 +120,7 @@ class DSPyArtifactMaterializer:
         errors: list[str] = []
         for output in outputs or []:
             model_cls = output.spec.model
-            data = self.select_output_payload(
-                payload, model_cls, output.spec.type_name
-            )
+            data = self.select_output_payload(payload, model_cls, output.spec.type_name)
 
             # FAN-OUT (dynamic or fixed via FanOutRange):
             # If output.fan_out is set, data should be a list and we enforce min/max
@@ -147,23 +145,22 @@ class DSPyArtifactMaterializer:
                             f"Fan-out expected exactly {expected} "
                             f"{output.spec.type_name} instances, got {list_len}"
                         )
-                else:
-                    # Dynamic range: validate against min/max on RAW engine output
-                    if list_len < fan_out_range.min:
-                        errors.append(
-                            f"Fan-out generated {list_len} "
-                            f"{output.spec.type_name} instances, "
-                            f"but minimum is {fan_out_range.min}"
-                        )
-                        # Continue anyway without padding
-                    elif list_len > fan_out_range.max:
-                        errors.append(
-                            f"Fan-out generated {list_len} "
-                            f"{output.spec.type_name} instances, "
-                            f"but maximum is {fan_out_range.max}. "
-                            f"Truncating to {fan_out_range.max}."
-                        )
-                        data = data[: fan_out_range.max]
+                # Dynamic range: validate against min/max on RAW engine output
+                elif list_len < fan_out_range.min:
+                    errors.append(
+                        f"Fan-out generated {list_len} "
+                        f"{output.spec.type_name} instances, "
+                        f"but minimum is {fan_out_range.min}"
+                    )
+                    # Continue anyway without padding
+                elif list_len > fan_out_range.max:
+                    errors.append(
+                        f"Fan-out generated {list_len} "
+                        f"{output.spec.type_name} instances, "
+                        f"but maximum is {fan_out_range.max}. "
+                        f"Truncating to {fan_out_range.max}."
+                    )
+                    data = data[: fan_out_range.max]
 
                 # Create one artifact for each item in the (possibly truncated) list
                 for item_data in data:
@@ -208,9 +205,7 @@ class DSPyArtifactMaterializer:
                 try:
                     instance = model_cls(**data)
                 except Exception as exc:  # noqa: BLE001 - collect validation errors for logs
-                    errors.append(
-                        f"{output.spec.type_name} validation error: {exc!s}"
-                    )
+                    errors.append(f"{output.spec.type_name} validation error: {exc!s}")
                     continue
 
                 # Use the pre-generated ID if provided (for streaming), otherwise let Artifact auto-generate

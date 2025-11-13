@@ -581,7 +581,7 @@ class SQLiteBlackboardStore(BlackboardStore):
         with tracer.start_as_current_span("sqlite_store.get_by_type"):
             conn = await self._get_connection()
             canonical = type_registry.resolve_name(artifact_type.__name__)
-            
+
             # Build query with optional correlation_id filter
             if correlation_id is not None:
                 query = """
@@ -599,7 +599,7 @@ class SQLiteBlackboardStore(BlackboardStore):
                     ORDER BY created_at ASC, rowid ASC
                 """
                 params = (canonical,)
-            
+
             cursor = await conn.execute(query, params)
             rows = await cursor.fetchall()
             await cursor.close()

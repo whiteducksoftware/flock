@@ -11,13 +11,12 @@ import asyncio
 import os
 
 from pydantic import BaseModel
-from dspy.adapters import ChatAdapter, JSONAdapter
+
 from flock import Flock
-from flock.engines.dspy_engine import DSPyEngine
+from flock.engines import BAMLAdapter, DSPyEngine
 from flock.mcp import StdioServerParameters
 from flock.mcp.types.types import StreamableHttpServerParameters
 from flock.registry import flock_tool, flock_type
-from dspy.adapters.baml_adapter import BAMLAdapter
 
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes

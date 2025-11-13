@@ -12,7 +12,7 @@ that prevents identity spoofing and READ capability bypass.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from flock.logging.logging import get_logger
 

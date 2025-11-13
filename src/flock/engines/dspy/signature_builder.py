@@ -293,10 +293,7 @@ class DSPySignatureBuilder:
                         f"quality requirements, and diversity needs."
                     )
                 else:
-                    desc = (
-                        f"Generate exactly {output_decl.count} "
-                        f"{type_name} instances"
-                    )
+                    desc = f"Generate exactly {output_decl.count} {type_name} instances"
                 if output_decl.group_description:
                     desc = f"{desc}. {output_decl.group_description}"
 
