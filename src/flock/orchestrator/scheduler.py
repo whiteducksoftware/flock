@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from asyncio import Task
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from flock.components.orchestrator import ScheduleDecision
 
@@ -40,6 +41,7 @@ class AgentScheduler:
         self._tasks: set[Task[Any]] = set()
         self._processed: set[tuple[str, str]] = set()
         self._logger = orchestrator._logger
+        self._correlation_tasks: dict[UUID, set[Task[Any]]] = {}
 
     async def schedule_artifact(self, artifact: Artifact) -> None:
         """Schedule agents for an artifact using component hooks.
@@ -115,6 +117,8 @@ class AgentScheduler:
     ) -> Task[Any]:
         """Schedule agent task and return the task handle.
 
+        Track by correlation ID.
+
         Args:
             agent: Agent to execute
             artifacts: Input artifacts
@@ -127,6 +131,22 @@ class AgentScheduler:
             self._orchestrator._run_agent_task(agent, artifacts, is_batch=is_batch)
         )
         self._tasks.add(task)
+
+        # Implement tracking of tasks by correlationID
+        if artifacts and artifacts[0].correlation_id:
+            correlation_id = artifacts[0].correlation_id
+            if correlation_id not in self._correlation_tasks:
+                self._correlation_tasks[correlation_id] = set()
+            self._correlation_tasks[correlation_id].add(task)
+
+        # Cleanup task from correlation tracking when done
+        def cleanup_correlation(t: Task[Any]) -> None:
+            if correlation_id in self._correlation_tasks:
+                self._correlation_tasks[correlation_id].discard(t)
+                if not self._correlation_tasks[correlation_id]:
+                    del self._correlation_tasks[correlation_id]
+
+        task.add_done_callback(cleanup_correlation)
         task.add_done_callback(self._tasks.discard)
         return task
 
