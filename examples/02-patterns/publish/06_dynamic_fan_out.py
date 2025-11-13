@@ -13,9 +13,8 @@ Semantics:
 
 import asyncio
 
-from pydantic import BaseModel, Field
-
 from dspy.adapters.baml_adapter import BAMLAdapter
+from pydantic import BaseModel, Field
 
 from flock import Flock
 from flock.engines.dspy_engine import DSPyEngine
