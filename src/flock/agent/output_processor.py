@@ -111,10 +111,7 @@ class OutputProcessor:
                         f"Check your engine implementation to ensure it generates the correct number of outputs."
                     )
             # Dynamic range: validate against min/max but do not raise
-            elif (
-                actual_count < fan_out_range.min
-                or actual_count > fan_out_range.max
-            ):
+            elif actual_count < fan_out_range.min or actual_count > fan_out_range.max:
                 self._logger.warning(
                     "Dynamic fan-out range hint not met in agent '%s': "
                     "range=(%s, %s), actual=%s for type '%s'",
