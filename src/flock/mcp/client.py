@@ -366,6 +366,7 @@ class FlockMCPClient(BaseModel, ABC):
         self,
         agent_id: str,
         run_id: str,
+        additional_whitelist: list[str] | None = None,
     ) -> list[FlockMCPTool]:
         """Gets a list of available tools from the server."""
 
@@ -388,12 +389,12 @@ class FlockMCPClient(BaseModel, ABC):
             for tool in response.tools:
                 # Skip tools that are not whitelisted
                 # IF a whitelist is present
-                if (
-                    tool_whitelist is not None
-                    and isinstance(tool_whitelist, list)
-                    and len(tool_whitelist) > 0
-                    and tool.name not in tool_whitelist
-                ):
+                merged_list = []
+                if tool_whitelist is not None and len(tool_whitelist) > 0:
+                    merged_list.extend(tool_whitelist)
+                if additional_whitelist is not None and len(additional_whitelist) > 0:
+                    merged_list.extend(tool_whitelist)
+                if len(merged_list) > 0 and tool.name not in merged_list:
                     continue
                 converted_tool = FlockMCPTool.from_mcp_tool(
                     tool,

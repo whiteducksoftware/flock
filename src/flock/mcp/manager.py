@@ -46,7 +46,6 @@ class FlockMCPClientManager:
 
         # Get client for specific agent and run
         client = await manager.get_client("filesystem", "agent_1", "run_123")
-
         # Get all tools for agent
         tools = await manager.get_tools_for_agent(
             "agent_1", "run_123", {"filesystem"}
@@ -174,6 +173,7 @@ class FlockMCPClientManager:
         run_id: str,
         server_names: set[str],
         server_mounts: dict[str, list[str]] | None = None,
+        server_whitelists: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         """Get all tools from specified servers for an agent.
 
@@ -185,6 +185,7 @@ class FlockMCPClientManager:
             run_id: Current run identifier
             server_names: Set of MCP server names to fetch tools from
             server_mounts: Optional dict mapping server names to mount points
+            server_whitelists: Optional dict mapping server names to whitelists individual to agents
 
         Returns:
             Dictionary mapping namespaced tool names to tool definitions
@@ -200,12 +201,17 @@ class FlockMCPClientManager:
         for server_name in server_names:
             try:
                 # Get mount points specific to this server
-                mount_points = server_mounts.get(server_name)
+                mount_points = server_mounts.get(server_name, None)
 
                 client = await self.get_client(
                     server_name, agent_id, run_id, mount_points=mount_points
                 )
-                server_tools = await client.get_tools(agent_id, run_id)
+                server_agent_specific_whitelist = server_whitelists.get(
+                    server_name, None
+                )
+                server_tools = await client.get_tools(
+                    agent_id, run_id, server_agent_specific_whitelist
+                )
 
                 # Apply namespacing: AD003
                 for tool in server_tools:

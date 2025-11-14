@@ -6,13 +6,13 @@ Phase 4: Extracted from agent.py to eliminate C-rated complexity in with_mcps() 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+from flock.core.agent import MCPServerConfig
 from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
-    from flock.agent import MCPServerConfig
     from flock.core import Flock
     from flock.utils.runtime import Context
 
@@ -43,7 +43,7 @@ class MCPIntegration:
         # Agent MCP state
         self.mcp_server_names: set[str] = set()
         self.mcp_server_mounts: dict[str, list[str]] = {}
-        self.tool_whitelist: list[str] | None = None
+        self.server_whitelists: dict[str, list[str]] | None = None
 
     async def get_mcp_tools(self, ctx: Context) -> list[Callable]:
         """Lazy-load MCP tools from assigned servers.
@@ -77,26 +77,8 @@ class MCPIntegration:
                 run_id=ctx.task_id,
                 server_names=self.mcp_server_names,
                 server_mounts=self.mcp_server_mounts,  # Pass server-specific mounts
+                server_whitelists=self.server_whitelists,  # Pass server-specific tool_whitelists
             )
-
-            # Whitelisting logic
-            tool_whitelist = self.tool_whitelist
-            if (
-                tool_whitelist is not None
-                and isinstance(tool_whitelist, list)
-                and len(tool_whitelist) > 0
-            ):
-                filtered_tools: dict[str, Any] = {}
-                for tool_key, tool_entry in tools_dict.items():
-                    if isinstance(tool_entry, dict):
-                        original_name = tool_entry.get("original_name", None)
-                        if (
-                            original_name is not None
-                            and original_name in tool_whitelist
-                        ):
-                            filtered_tools[tool_key] = tool_entry
-
-                tools_dict = filtered_tools
 
             # Convert to DSPy tool callables
             dspy_tools = []
@@ -163,12 +145,29 @@ class MCPIntegration:
         # Parse input into server_names and mounts
         server_set: set[str] = set()
         server_mounts: dict[str, list[str]] = {}
-        whitelist = None
+        server_whitelists = {}
 
         if isinstance(servers, dict):
             # Dict format: {"server": {"roots": ["/path1"], "tool_whitelist": ["tool1"]}}
             for server_name, server_config in servers.items():
                 server_set.add(server_name)
+
+                if isinstance(server_config, MCPServerConfig):
+                    # MCPServerConfigObject with optional roots and tool_whitelist
+                    mounts = server_config.roots or None
+                    if (
+                        mounts is not None
+                        and isinstance(mounts, list)
+                        and len(mounts) > 0
+                    ):
+                        server_mounts[server_name] = list(mounts)
+                    whitelist = server_config.tool_whitelist
+                    if (
+                        whitelist is not None
+                        and isinstance(whitelist, list)
+                        and len(whitelist) > 0
+                    ):
+                        server_whitelists[server_name] = whitelist
 
                 if isinstance(server_config, dict):
                     # MCPServerConfig dict with optional roots and tool_whitelist
@@ -179,14 +178,14 @@ class MCPIntegration:
                         and len(mounts) > 0
                     ):
                         server_mounts[server_name] = list(mounts)
-
-                    config_whitelist = server_config.get("tool_whitelist", None)
+                    whitelist = server_config.get("tool_whitelist", None)
                     if (
-                        config_whitelist is not None
-                        and isinstance(config_whitelist, list)
-                        and len(config_whitelist) > 0
+                        whitelist is not None
+                        and isinstance(whitelist, list)
+                        and len(whitelist) > 0
                     ):
-                        whitelist = config_whitelist
+                        server_whitelists[server_name] = whitelist
+
         else:
             # Assume it's an iterable of strings
             server_set = set(servers)
@@ -205,7 +204,7 @@ class MCPIntegration:
         # Store in integration
         self.mcp_server_names = server_set
         self.mcp_server_mounts = server_mounts
-        self.tool_whitelist = whitelist
+        self.server_whitelists = whitelist
 
 
 __all__ = ["MCPIntegration"]

@@ -209,11 +209,11 @@ class Agent(metaclass=AutoTracedMeta):
     @property
     def tool_whitelist(self) -> list[str] | None:
         """Tool whitelist for MCP servers."""
-        return self._mcp_integration.tool_whitelist
+        return self._mcp_integration.server_whitelists
 
     @tool_whitelist.setter
     def tool_whitelist(self, value: list[str] | None) -> None:
-        self._mcp_integration.tool_whitelist = value
+        self._mcp_integration.server_whitelists = value
 
     @property
     def identity(self) -> AgentIdentity:
