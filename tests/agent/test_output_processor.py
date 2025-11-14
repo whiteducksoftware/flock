@@ -358,7 +358,7 @@ async def test_make_outputs_for_group_fixed_fan_out_range_validate(
 async def test_make_outputs_for_group_dynamic_fan_out_logs_warning(
     mocker, processor, mock_context, mock_output_group
 ):
-    """Dynamic FanOutRange outside range should log warning but not raise."""
+    """Dynamic FanOutRange above max should log warning and enforce cap."""
     output_decl = mock_output_group.outputs[0]
     output_decl.fan_out = FanOutRange(min=1, max=2)
 
@@ -380,6 +380,6 @@ async def test_make_outputs_for_group_dynamic_fan_out_logs_warning(
         mock_context, result, mock_output_group
     )
 
-    # All artifacts still pass through apply; we just warn
-    assert len(outputs) == 3
+    # Only max (2) artifacts should be published
+    assert len(outputs) == 2
     assert warning_spy.call_count == 1

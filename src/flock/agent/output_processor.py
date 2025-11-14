@@ -110,17 +110,23 @@ class OutputProcessor:
                         f"but engine produced {actual_count}. "
                         f"Check your engine implementation to ensure it generates the correct number of outputs."
                     )
-            # Dynamic range: validate against min/max but do not raise
-            elif actual_count < fan_out_range.min or actual_count > fan_out_range.max:
-                self._logger.warning(
-                    "Dynamic fan-out range hint not met in agent '%s': "
-                    "range=(%s, %s), actual=%s for type '%s'",
-                    self._agent_name,
-                    fan_out_range.min,
-                    fan_out_range.max,
-                    actual_count,
-                    output_decl.spec.type_name,
-                )
+            else:
+                # Dynamic range: validate against min/max but do not raise
+                if actual_count < fan_out_range.min or actual_count > fan_out_range.max:
+                    self._logger.warning(
+                        "Dynamic fan-out range hint not met in agent '%s': "
+                        "range=(%s, %s), actual=%s for type '%s'",
+                        self._agent_name,
+                        fan_out_range.min,
+                        fan_out_range.max,
+                        actual_count,
+                        output_decl.spec.type_name,
+                    )
+
+                # Enforce the declared max bound at the OutputProcessor layer
+                # so all engines (not only DSPy) respect the cap.
+                if actual_count > fan_out_range.max:
+                    matching_artifacts = matching_artifacts[: fan_out_range.max]
 
             # 3. Apply WHERE filtering (Phase 5)
             # Filtering reduces the number of published artifacts (this is intentional)
