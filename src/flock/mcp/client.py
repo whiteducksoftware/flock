@@ -384,17 +384,46 @@ class FlockMCPClient(BaseModel, ABC):
         async def _get_tools_internal() -> list[FlockMCPTool]:
             response: ListToolsResult = await self.session.list_tools()
             flock_tools = []
-            tool_whitelist = self.config.feature_config.tool_whitelist
-            merged_list = []
-            if tool_whitelist is not None and len(tool_whitelist) > 0:
-                merged_list.extend(tool_whitelist)
-            if additional_whitelist is not None and len(additional_whitelist) > 0:
-                merged_list.extend(additional_whitelist)
+
+            # Get global whitelist from configuration
+            global_whitelist = self.config.feature_config.tool_whitelist
+
+            # Determine effective whitelist using intersection logic
+            effective_whitelist: set[str] | None = None
+
+            # Case 1: Both global and agent whitelists exist -> intersection
+            if global_whitelist and additional_whitelist:
+                effective_whitelist = set(global_whitelist) & set(additional_whitelist)
+                logger.debug(
+                    f"Server '{self.config.name}': Applying intersection of global ({len(global_whitelist)}) "
+                    f"and agent ({len(additional_whitelist)}) whitelist"
+                )
+
+            # Case 2: Only global whitelist exists -> use global
+            elif global_whitelist:
+                effective_whitelist = set(global_whitelist)
+                logger.debug(
+                    f"Server '{self.config.name}': Applying global whitelist ({len(global_whitelist)})"
+                )
+
+            # Case 3: Only agent whitelist exists -> use agent
+            elif additional_whitelist:
+                effective_whitelist = set(additional_whitelist)
+                logger.debug(
+                    f"Server '{self.config.name}': Applying agent whitelist ({len(additional_whitelist)})"
+                )
+
+            # Case 4: No whitelists -> all tools available
+            else:
+                effective_whitelist = None
+                logger.debug(f"Server: '{self.config.name}': No Whitelist configured")
 
             for tool in response.tools:
-                # Skip tools that are not whitelisted
-                # IF a whitelist is present
-                if len(merged_list) > 0 and tool.name not in merged_list:
+                # Skip tools not in effective whitelist (if whitelist exists)
+                if (
+                    effective_whitelist is not None
+                    and tool.name not in effective_whitelist
+                ):
                     continue
                 converted_tool = FlockMCPTool.from_mcp_tool(
                     tool,
