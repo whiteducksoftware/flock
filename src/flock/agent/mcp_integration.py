@@ -204,7 +204,7 @@ class MCPIntegration:
         # Store in integration
         self.mcp_server_names = server_set
         self.mcp_server_mounts = server_mounts
-        self.server_whitelists = whitelist
+        self.server_whitelists = server_whitelists
 
 
 __all__ = ["MCPIntegration"]
