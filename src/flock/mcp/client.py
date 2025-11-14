@@ -389,7 +389,7 @@ class FlockMCPClient(BaseModel, ABC):
             if tool_whitelist is not None and len(tool_whitelist) > 0:
                 merged_list.extend(tool_whitelist)
             if additional_whitelist is not None and len(additional_whitelist) > 0:
-                merged_list.extend(tool_whitelist)
+                merged_list.extend(additional_whitelist)
 
             for tool in response.tools:
                 # Skip tools that are not whitelisted
