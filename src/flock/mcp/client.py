@@ -385,15 +385,15 @@ class FlockMCPClient(BaseModel, ABC):
             response: ListToolsResult = await self.session.list_tools()
             flock_tools = []
             tool_whitelist = self.config.feature_config.tool_whitelist
+            merged_list = []
+            if tool_whitelist is not None and len(tool_whitelist) > 0:
+                merged_list.extend(tool_whitelist)
+            if additional_whitelist is not None and len(additional_whitelist) > 0:
+                merged_list.extend(tool_whitelist)
 
             for tool in response.tools:
                 # Skip tools that are not whitelisted
                 # IF a whitelist is present
-                merged_list = []
-                if tool_whitelist is not None and len(tool_whitelist) > 0:
-                    merged_list.extend(tool_whitelist)
-                if additional_whitelist is not None and len(additional_whitelist) > 0:
-                    merged_list.extend(tool_whitelist)
                 if len(merged_list) > 0 and tool.name not in merged_list:
                     continue
                 converted_tool = FlockMCPTool.from_mcp_tool(
