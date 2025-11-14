@@ -388,12 +388,12 @@ class FlockMCPClient(BaseModel, ABC):
             # Get global whitelist from configuration
             global_whitelist = self.config.feature_config.tool_whitelist
 
-            # Determine effective whitelist using intersection logic
+            # Determine effective whitelist using union logic
             effective_whitelist: set[str] | None = None
 
-            # Case 1: Both global and agent whitelists exist -> intersection
+            # Case 1: Both global and agent whitelists exist -> union
             if global_whitelist and additional_whitelist:
-                effective_whitelist = set(global_whitelist) & set(additional_whitelist)
+                effective_whitelist = set(global_whitelist) | set(additional_whitelist)
                 logger.debug(
                     f"Server '{self.config.name}': Applying intersection of global ({len(global_whitelist)}) "
                     f"and agent ({len(additional_whitelist)}) whitelist"
