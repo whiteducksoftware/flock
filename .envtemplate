@@ -1,6 +1,28 @@
-AZURE_API_KEY=xxx
-AZURE_API_BASE=https://xxx-foundry.cognitiveservices.azure.com/
-AZURE_API_VERSION="2024-12-01-preview"
+# ============================================================================
+# Model Configuration
+# ============================================================================
+# Flock supports all litellm-compatible models, including OpenAI and Azure OpenAI.
+# Documentation: https://docs.litellm.ai/docs/providers
+# Common models:
+
+# AZURE - "azure/{model_name}"
+
+; AZURE_API_KEY=xxx
+; AZURE_API_BASE=https://xxx-foundry.cognitiveservices.azure.com/
+; AZURE_API_VERSION="2024-12-01-preview"
+; DEFAULT_MODEL="azure/gtp-4.1"
+
+# OPENAI - "openai/{model_name}"
+
+; OPENAI_API_KEY=xxx
+; OPENAI_API_BASE=https://api.openai.com/v1/
+; DEFAULT_MODEL="openai/gpt-5"
+
+# OPENROUTER - "openrouter/{model_name}"
+
+; OPENROUTER_API_KEY=
+; OPENROUTER_API_BASE=
+; DEFAULT_MODEL="openrouter/polaris-alpha"
 
 # ============================================================================
 # OpenTelemetry Tracing Configuration

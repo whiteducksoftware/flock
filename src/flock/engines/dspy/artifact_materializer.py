@@ -15,6 +15,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from flock.core.artifacts import Artifact
+from flock.core.fan_out import FanOutRange
 from flock.logging.logging import get_logger
 
 
@@ -121,8 +122,63 @@ class DSPyArtifactMaterializer:
             model_cls = output.spec.model
             data = self.select_output_payload(payload, model_cls, output.spec.type_name)
 
-            # FAN-OUT: If count > 1, data should be a list and we create multiple artifacts
-            if output.count > 1:
+            # FAN-OUT (dynamic or fixed via FanOutRange):
+            # If output.fan_out is set, data should be a list and we enforce min/max
+            fan_out_range = getattr(output, "fan_out", None)
+            if not isinstance(fan_out_range, FanOutRange):
+                fan_out_range = None
+            if fan_out_range is not None:
+                if not isinstance(data, list):
+                    errors.append(
+                        f"Fan-out expected list for {output.spec.type_name} "
+                        f"(fan_out={fan_out_range!r}), got {type(data).__name__}"
+                    )
+                    continue
+
+                list_len = len(data)
+
+                # Fixed fan-out: expect exact count
+                if fan_out_range.is_fixed():
+                    expected = fan_out_range.fixed_count()
+                    if list_len != expected:
+                        errors.append(
+                            f"Fan-out expected exactly {expected} "
+                            f"{output.spec.type_name} instances, got {list_len}"
+                        )
+                # Dynamic range: validate against min/max on RAW engine output
+                elif list_len < fan_out_range.min:
+                    errors.append(
+                        f"Fan-out generated {list_len} "
+                        f"{output.spec.type_name} instances, "
+                        f"but minimum is {fan_out_range.min}"
+                    )
+                    # Continue anyway without padding
+                elif list_len > fan_out_range.max:
+                    errors.append(
+                        f"Fan-out generated {list_len} "
+                        f"{output.spec.type_name} instances, "
+                        f"but maximum is {fan_out_range.max}. "
+                        f"Truncating to {fan_out_range.max}."
+                    )
+                    data = data[: fan_out_range.max]
+
+                # Create one artifact for each item in the (possibly truncated) list
+                for item_data in data:
+                    try:
+                        instance = model_cls(**item_data)
+                    except Exception as exc:  # noqa: BLE001 - collect validation errors for logs
+                        errors.append(f"{output.spec.type_name}: {exc!s}")
+                        continue
+
+                    # Fan-out artifacts auto-generate their IDs (can't reuse pre_generated_id)
+                    artifact_kwargs = {
+                        "type": output.spec.type_name,
+                        "payload": instance.model_dump(),
+                        "produced_by": produced_by,
+                    }
+                    artifacts.append(Artifact(**artifact_kwargs))
+            elif output.count > 1:
+                # Legacy fixed fan-out: count > 1 without FanOutRange
                 if not isinstance(data, list):
                     errors.append(
                         f"Fan-out expected list for {output.spec.type_name} (count={output.count}), "
@@ -138,7 +194,6 @@ class DSPyArtifactMaterializer:
                         errors.append(f"{output.spec.type_name}: {exc!s}")
                         continue
 
-                    # Fan-out artifacts auto-generate their IDs (can't reuse pre_generated_id)
                     artifact_kwargs = {
                         "type": output.spec.type_name,
                         "payload": instance.model_dump(),
@@ -150,7 +205,7 @@ class DSPyArtifactMaterializer:
                 try:
                     instance = model_cls(**data)
                 except Exception as exc:  # noqa: BLE001 - collect validation errors for logs
-                    errors.append(str(exc))
+                    errors.append(f"{output.spec.type_name} validation error: {exc!s}")
                     continue
 
                 # Use the pre-generated ID if provided (for streaming), otherwise let Artifact auto-generate

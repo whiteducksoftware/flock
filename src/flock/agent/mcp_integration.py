@@ -5,7 +5,6 @@ Phase 4: Extracted from agent.py to eliminate C-rated complexity in with_mcps() 
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
@@ -39,7 +38,7 @@ class MCPIntegration:
         """
         self._agent_name = agent_name
         self._orchestrator = orchestrator
-        self._logger = logging.getLogger(__name__)
+        self._logger = logger
 
         # Agent MCP state
         self.mcp_server_names: set[str] = set()

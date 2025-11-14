@@ -10,7 +10,6 @@ more control over their execution context.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from flock.logging.logging import get_logger
@@ -43,7 +42,7 @@ class ContextResolver:
             agent_name: Name of the agent (for logging)
         """
         self._agent_name = agent_name
-        self._logger = logging.getLogger(__name__)
+        self._logger = logger
 
     def get_provider(
         self, agent: Agent, default_provider: Any | None = None

@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from flock.core.artifacts import Artifact
+from flock.core.fan_out import FanOutRange
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
 from flock.utils.runtime import EvalInputs
@@ -276,12 +277,23 @@ class DSPySignatureBuilder:
             field_name = self._type_to_field_name(output_schema)
 
             # Handle fan-out: pluralize field name and use list[Type]
-            if output_decl.count > 1:
+            fan_out_range = getattr(output_decl, "fan_out", None)
+            if not isinstance(fan_out_range, FanOutRange):
+                fan_out_range = None
+            if output_decl.count > 1 or fan_out_range is not None:
                 field_name = self._pluralize(field_name)
                 output_type = list[output_schema]
 
-                # Create description with count hint
-                desc = f"Generate exactly {output_decl.count} {type_name} instances"
+                # Create description with count or range hint
+                if fan_out_range is not None and not fan_out_range.is_fixed():
+                    desc = (
+                        f"Generate between {fan_out_range.min} and "
+                        f"{fan_out_range.max} {type_name} instances. "
+                        f"Choose the optimal count based on input complexity, "
+                        f"quality requirements, and diversity needs."
+                    )
+                else:
+                    desc = f"Generate exactly {output_decl.count} {type_name} instances"
                 if output_decl.group_description:
                     desc = f"{desc}. {output_decl.group_description}"
 
@@ -431,7 +443,10 @@ class DSPySignatureBuilder:
             field_name = self._type_to_field_name(output_schema)
 
             # Handle fan-out: field name is pluralized
-            if output_decl.count > 1:
+            fan_out_range = getattr(output_decl, "fan_out", None)
+            if not isinstance(fan_out_range, FanOutRange):
+                fan_out_range = None
+            if output_decl.count > 1 or fan_out_range is not None:
                 field_name = self._pluralize(field_name)
 
             # Extract value from Prediction

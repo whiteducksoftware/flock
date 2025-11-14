@@ -29,13 +29,13 @@ from flock.utils.runtime import EvalInputs, EvalResult
 
 # Test artifact types
 @flock_type(name="TestInput")
-class TestInput(BaseModel):
+class SampleInput(BaseModel):
     prompt: str = Field(description="Input prompt")
     context: str | None = Field(default=None, description="Optional context")
 
 
 @flock_type(name="TestOutput")
-class TestOutput(BaseModel):
+class SampleOutput(BaseModel):
     response: str = Field(description="Output response")
     metadata: dict | None = Field(default=None, description="Optional metadata")
 
@@ -91,7 +91,7 @@ class MockPrediction:
     def __init__(self, output=None):
         self.output = output or {"response": "mocked response"}
         # Add attributes that might be accessed during materialization
-        self.TestOutput = {"response": "mocked response", "metadata": None}
+        self.SampleOutput = {"response": "mocked response", "metadata": None}
         self.response = "mocked response"
 
 
@@ -238,7 +238,7 @@ class TestDSPyEngineBasics:
         assert engine.instructions is None
         assert engine.temperature == 1.0
         assert engine.max_tokens == 32000
-        assert engine.max_tool_calls == 10
+        assert engine.max_tool_calls == 100
         assert engine.max_retries == 0
         assert engine.no_output is False
         assert engine.stream_vertical_overflow == "crop_above"
@@ -335,13 +335,13 @@ class TestDSPyEngineBasics:
     def test_resolve_input_model_success(self, mocker):
         """Test successful input model resolution."""
         mock_type_registry = mocker.MagicMock()
-        mock_type_registry.resolve.return_value = TestInput
+        mock_type_registry.resolve.return_value = SampleInput
         mocker.patch("flock.engines.dspy_engine.type_registry", mock_type_registry)
 
         artifact = Artifact(type="TestInput", payload={}, produced_by="test")
         engine = DSPyEngine()
         result = engine._resolve_input_model(artifact)
-        assert result is TestInput
+        assert result is SampleInput
 
     def test_resolve_input_model_failure(self, mocker):
         """Test input model resolution failure."""
@@ -357,14 +357,14 @@ class TestDSPyEngineBasics:
     def test_resolve_output_model_with_outputs(self):
         """Test output model resolution with agent outputs."""
         mock_output = Mock()
-        mock_output.spec.model = TestOutput
+        mock_output.spec.model = SampleOutput
 
         mock_agent = Mock()
         mock_agent.outputs = [mock_output]
 
         engine = DSPyEngine()
         result = engine._resolve_output_model(mock_agent)
-        assert result is TestOutput
+        assert result is SampleOutput
 
     def test_resolve_output_model_without_outputs(self):
         """Test output model resolution without agent outputs."""
@@ -379,14 +379,14 @@ class TestDSPyEngineBasics:
         """Test input payload validation with schema."""
         payload = {"prompt": "test prompt", "context": "test context"}
         engine = DSPyEngine()
-        result = engine._validate_input_payload(TestInput, payload)
+        result = engine._validate_input_payload(SampleInput, payload)
         assert result == payload
 
     def test_validate_input_payload_with_invalid_payload(self):
         """Test input payload validation with invalid payload."""
         payload = {"invalid_field": "value"}
         engine = DSPyEngine()
-        result = engine._validate_input_payload(TestInput, payload)
+        result = engine._validate_input_payload(SampleInput, payload)
         assert result == payload  # Should return as-is on validation error
 
     def test_validate_input_payload_without_schema(self):
@@ -399,12 +399,12 @@ class TestDSPyEngineBasics:
     def test_validate_input_payload_with_none_payload(self):
         """Test input payload validation with None payload."""
         engine = DSPyEngine()
-        result = engine._validate_input_payload(TestInput, None)
+        result = engine._validate_input_payload(SampleInput, None)
         assert result == {}
 
     def test_normalize_output_payload_with_base_model(self):
         """Test output payload normalization with BaseModel."""
-        output = TestOutput(response="test response", metadata={"key": "value"})
+        output = SampleOutput(response="test response", metadata={"key": "value"})
         engine = DSPyEngine()
         result = engine._artifact_materializer.normalize_output_payload(output)
         assert result == {"response": "test response", "metadata": {"key": "value"}}
@@ -523,7 +523,7 @@ class TestDSPyEngineArtifactMaterialization:
         payload = {"response": "test response", "metadata": {"key": "value"}}
 
         mock_output = Mock()
-        mock_output.spec.model = TestOutput
+        mock_output.spec.model = SampleOutput
         mock_output.spec.type_name = "TestOutput"
         mock_output.count = 1  # Single output (not fan-out)
 
@@ -543,7 +543,7 @@ class TestDSPyEngineArtifactMaterialization:
         payload = {"invalid_field": "value"}  # Missing required 'response' field
 
         mock_output = Mock()
-        mock_output.spec.model = TestOutput
+        mock_output.spec.model = SampleOutput
         mock_output.spec.type_name = "TestOutput"
         mock_output.count = 1  # Single output (not fan-out)
 
@@ -554,6 +554,8 @@ class TestDSPyEngineArtifactMaterialization:
 
         assert len(artifacts) == 0
         assert len(errors) == 1
+        # Error should mention both type name and missing field
+        assert errors[0].startswith("TestOutput validation error:")
         assert "response" in errors[0]
 
     def test_materialize_artifacts_without_outputs(self):
@@ -566,30 +568,105 @@ class TestDSPyEngineArtifactMaterialization:
         assert len(artifacts) == 0
         assert len(errors) == 0
 
+    def test_materialize_artifacts_ignores_non_fan_out_range(self):
+        """Non-FanOutRange fan_out values should not trigger fan-out logic."""
+        payload = {"response": "test response", "metadata": {"key": "value"}}
+
+        mock_output = Mock()
+        mock_output.spec.model = SampleOutput
+        mock_output.spec.type_name = "TestOutput"
+        mock_output.count = 1
+        # Simulate legacy or mocked fan_out values that are not FanOutRange
+        mock_output.fan_out = 10
+
+        engine = DSPyEngine()
+        artifacts, errors = engine._artifact_materializer.materialize_artifacts(
+            payload, [mock_output], "test_agent"
+        )
+
+        assert len(artifacts) == 1
+        assert len(errors) == 0
+        assert artifacts[0].type == "TestOutput"
+        assert artifacts[0].payload["response"] == "test response"
+
+    def test_materialize_artifacts_fixed_fan_out_mismatch_adds_error(self):
+        """Fixed FanOutRange with wrong count should report error and still materialize."""
+        from flock.core.fan_out import FanOutRange
+
+        payload = {
+            "TestOutput": [
+                {"response": "one", "metadata": None},
+            ]
+        }
+
+        mock_output = Mock()
+        mock_output.spec.model = SampleOutput
+        mock_output.spec.type_name = "TestOutput"
+        mock_output.count = 1
+        mock_output.fan_out = FanOutRange(min=2, max=2)
+
+        engine = DSPyEngine()
+        artifacts, errors = engine._artifact_materializer.materialize_artifacts(
+            payload, [mock_output], "test_agent"
+        )
+
+        # We still materialize what we got, but record the mismatch
+        assert len(artifacts) == 1
+        assert artifacts[0].payload["response"] == "one"
+        assert any("Fan-out expected exactly 2 TestOutput instances" in e for e in errors)
+
+    def test_materialize_artifacts_dynamic_fan_out_truncates_and_warns(self):
+        """Dynamic FanOutRange above max should truncate list and record warning."""
+        from flock.core.fan_out import FanOutRange
+
+        payload = {
+            "TestOutput": [
+                {"response": "r1", "metadata": None},
+                {"response": "r2", "metadata": None},
+                {"response": "r3", "metadata": None},
+            ]
+        }
+
+        mock_output = Mock()
+        mock_output.spec.model = SampleOutput
+        mock_output.spec.type_name = "TestOutput"
+        mock_output.count = 1
+        mock_output.fan_out = FanOutRange(min=1, max=2)
+
+        engine = DSPyEngine()
+        artifacts, errors = engine._artifact_materializer.materialize_artifacts(
+            payload, [mock_output], "test_agent"
+        )
+
+        assert len(artifacts) == 2
+        responses = [a.payload["response"] for a in artifacts]
+        assert responses == ["r1", "r2"]
+        assert any("Truncating to 2." in e for e in errors)
+
     def test_select_output_payload_with_type_name_match(self):
         """Test output payload selection with type name match."""
         payload = {"TestOutput": {"response": "test"}}
         engine = DSPyEngine()
         result = engine._artifact_materializer.select_output_payload(
-            payload, TestOutput, "TestOutput"
+            payload, SampleOutput, "TestOutput"
         )
         assert result == {"response": "test"}
 
     def test_select_output_payload_with_class_name_match(self):
         """Test output payload selection with class name match."""
-        payload = {"TestOutput": {"response": "test"}}
+        payload = {"SampleOutput": {"response": "test"}}
         engine = DSPyEngine()
         result = engine._artifact_materializer.select_output_payload(
-            payload, TestOutput, "DifferentType"
+            payload, SampleOutput, "DifferentType"
         )
         assert result == {"response": "test"}
 
     def test_select_output_payload_with_class_name_lowercase_match(self):
         """Test output payload selection with lowercase class name match."""
-        payload = {"testoutput": {"response": "test"}}
+        payload = {"sampleoutput": {"response": "test"}}
         engine = DSPyEngine()
         result = engine._artifact_materializer.select_output_payload(
-            payload, TestOutput, "DifferentType"
+            payload, SampleOutput, "DifferentType"
         )
         assert result == {"response": "test"}
 
@@ -598,7 +675,7 @@ class TestDSPyEngineArtifactMaterialization:
         payload = {"other_field": {"data": "value"}}
         engine = DSPyEngine()
         result = engine._artifact_materializer.select_output_payload(
-            payload, TestOutput, "TestOutput"
+            payload, SampleOutput, "TestOutput"
         )
         assert result == payload
 
@@ -608,7 +685,7 @@ class TestDSPyEngineArtifactMaterialization:
         payload = {"unexpected_field": "value"}
         engine = DSPyEngine()
         result = engine._artifact_materializer.select_output_payload(
-            payload, TestOutput, "TestOutput"
+            payload, SampleOutput, "TestOutput"
         )
         assert result == payload
 
@@ -950,10 +1027,10 @@ class TestDSPyEngineIntegration:
         assert isinstance(result, EvalResult)
         mock_execute.assert_awaited_once()
         payload = mock_execute.await_args.kwargs["payload"]
-        # Phase 7: Semantic field naming - "TestInput" becomes "test_inputs" (pluralized)
-        assert isinstance(payload.get("test_inputs"), list)
-        assert payload["test_inputs"][0]["prompt"] == "one"
-        assert payload["test_inputs"][1]["prompt"] == "two"
+        # Phase 7: Semantic field naming - "SampleInput" becomes "sample_inputs" (pluralized)
+        assert isinstance(payload.get("sample_inputs"), list)
+        assert payload["sample_inputs"][0]["prompt"] == "one"
+        assert payload["sample_inputs"][1]["prompt"] == "two"
         assert payload.get("context", []) == []
 
     @pytest.mark.asyncio

@@ -86,6 +86,59 @@ print(f"Generated {len(ideas)} ideas")  # Output: Generated 10 ideas
 
 ---
 
+## Dynamic Fan-Out (Ranges)
+
+Sometimes a fixed `fan_out` count is wasteful for simple inputs and insufficient for complex ones. Dynamic fan-out lets the engine decide how many artifacts to generate within a **range**, based on input complexity and quality requirements.
+
+```python
+from flock.core import FanOutRange
+
+idea_generator = (
+    flock.agent("generator")
+    .consumes(ProductBrief)
+    .publishes(
+        ProductIdea,
+        fan_out=(5, 20),  # Engine decides between 5 and 20 ideas
+        where=lambda idea: idea.score >= 8.0,
+    )
+)
+```
+
+### Semantics
+
+- `fan_out` accepts:
+  - `int` → fixed count (existing behavior, e.g. `fan_out=10`).
+  - `tuple[int, int]` → dynamic range (`(min, max)`).
+  - `FanOutRange(min, max)` → explicit form.
+- **Range applies to the raw engine output list**:
+  - If engine returns fewer than `min` items:
+    - A warning is recorded, but all items are kept.
+  - If engine returns more than `max` items:
+    - A warning is recorded and the list is truncated to `max`.
+- `where` and `validate` are applied **after** the range check:
+  - The final published count may be less than `min` if filtering/validation removes items.
+
+### Why It’s Useful
+
+- **Cost-aware**: Simple inputs can produce fewer artifacts; complex ones can produce more.
+- **Quality-first**: Combine with `where` and `validate` to keep only high-quality outputs without paying for a large fixed `fan_out` every time.
+- **Backwards-compatible**: All existing `fan_out=int` code continues to work.
+
+```python
+# Example: Adaptive bug report generation
+bug_finder = (
+    flock.agent("bug_finder")
+    .consumes(CodeReview)
+    .publishes(
+        BugReport,
+        fan_out=(1, 15),  # Small files → 1–3, large → 5–15 (engine decides)
+        validate=lambda b: b.severity in ["Critical", "High", "Medium", "Low"],
+    )
+)
+```
+
+---
+
 ## Multi-Output Fan-Out
 
 **The most powerful fan-out pattern:** Generate multiple artifacts of **different types** in a single execution.

@@ -9,9 +9,10 @@ reducing orchestrator complexity and centralizing async task management.
 from __future__ import annotations
 
 import asyncio
-import logging
 from asyncio import Task
 from typing import TYPE_CHECKING, Any
+
+from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
@@ -54,7 +55,7 @@ class LifecycleManager:
         # Callback for batch timeout flushing (set by orchestrator)
         self._batch_timeout_callback: Any | None = None
 
-        self._logger = logging.getLogger(__name__)
+        self._logger = get_logger(__name__)
 
     async def start_correlation_cleanup(self) -> None:
         """Start background correlation cleanup loop if not already running.

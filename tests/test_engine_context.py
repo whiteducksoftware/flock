@@ -53,7 +53,7 @@ class MockAgent:
         )
 
 
-class TestEngineComponent(EngineComponent):
+class SampleEngineComponent(EngineComponent):
     """Concrete engine component for testing."""
 
     async def evaluate(self, agent, ctx, inputs, output_group):
@@ -97,7 +97,7 @@ class TestEngineUsesProvider:
         ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
         # Create engine and read context
-        engine = TestEngineComponent()
+        engine = SampleEngineComponent()
         context = engine.get_conversation_context(ctx)
 
         # SECURITY Phase 8: Engine sees only pre-filtered artifacts
@@ -122,7 +122,7 @@ class TestEngineUsesProvider:
 
         ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
-        engine = TestEngineComponent()
+        engine = SampleEngineComponent()
         context = engine.get_conversation_context(ctx)
 
         # Untrusted agent sees NOTHING (orchestrator filtered it all out)
@@ -151,7 +151,7 @@ class TestEngineUsesProvider:
             artifacts=pre_filtered_artifacts, correlation_id=correlation_a
         )
 
-        engine = TestEngineComponent()
+        engine = SampleEngineComponent()
         context = engine.get_conversation_context(ctx)
 
         # Should only see artifacts from workflow A (orchestrator filtered others)
@@ -186,7 +186,7 @@ class TestEngineUsesProvider:
         ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
         # Create engine that excludes "Log" type (engine-level filtering)
-        engine = TestEngineComponent(context_exclude_types={"Log"})
+        engine = SampleEngineComponent(context_exclude_types={"Log"})
         context = engine.get_conversation_context(ctx)
 
         # Should only see Task (Log excluded by engine)
@@ -216,7 +216,7 @@ class TestEngineUsesProvider:
         ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
         # Create engine with max_artifacts=2 (should get last 2)
-        engine = TestEngineComponent(context_max_artifacts=2)
+        engine = SampleEngineComponent(context_max_artifacts=2)
         context = engine.get_conversation_context(ctx)
 
         # Should only return last 2 artifacts
@@ -246,7 +246,7 @@ class TestEngineUsesProvider:
 
         ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
-        engine = TestEngineComponent()
+        engine = SampleEngineComponent()
         context = engine.get_conversation_context(ctx)
 
         # Should only see artifact that passed custom provider's filter
@@ -271,7 +271,7 @@ class TestEngineUsesProvider:
 
         ctx = MockContext(artifacts=pre_filtered_artifacts, correlation_id=correlation)
 
-        engine = TestEngineComponent()
+        engine = SampleEngineComponent()
         context = engine.get_conversation_context(ctx)
 
         # Verify format

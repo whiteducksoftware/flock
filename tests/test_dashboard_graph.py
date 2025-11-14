@@ -29,7 +29,7 @@ async def _setup_artifacts(orchestrator) -> None:
     orchestrator.register_agent(producer)
     orchestrator.register_agent(consumer)
 
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
 
     idea = Artifact(
         type="Idea",
@@ -291,7 +291,7 @@ async def test_graph_assembler_inactive_agent_node(orchestrator):
         orchestrator=orchestrator,
         task_id="inactive-run",
         state={"artifacts_produced": [], "metrics": {}},
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
     )
 
     input_artifact = Artifact(

@@ -8,13 +8,15 @@ tools like web search and file operations into your agents.
 """
 
 import asyncio
+import os
 
 from pydantic import BaseModel
 
 from flock import Flock
+from flock.engines import BAMLAdapter, DSPyEngine
 from flock.mcp import StdioServerParameters
+from flock.mcp.types.types import StreamableHttpServerParameters
 from flock.registry import flock_tool, flock_type
-
 
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
@@ -75,7 +77,20 @@ except Exception as e:
 
 try:
     flock.add_mcp(
-        name="read-website",
+        name="zai_search_web",
+        enable_tools_feature=True,
+        connection_params=StreamableHttpServerParameters(
+            url="https://api.z.ai/api/mcp/web_search_prime/mcp",
+            headers={"Authorization": "Bearer " + os.getenv("ZAI_KEY", "")},
+        ),
+    )
+    print("✅ Added ZAI GLM search MCP")
+except Exception as e:
+    print(f"⚠️  Could not add search MCP (is uvx installed?): {e}")
+
+try:
+    flock.add_mcp(
+        name="read_website",
         enable_tools_feature=True,
         connection_params=StdioServerParameters(
             command="npx",
@@ -91,11 +106,19 @@ except Exception as e:
     .description(
         "Researches information on the web and writes a beautifully "
         "formatted markdown report with sources and key insights."
+        "Does at least 6 web searches 6 read_website to have done extensive research."
     )
     .consumes(Task)
-    .with_mcps(["search_web", "read-website"])
+    .with_mcps(["zai_search_web", "read_website"])
     .with_tools([write_report, get_current_date])
     .publishes(Report)
+    .with_engines(
+            DSPyEngine(
+                adapter=BAMLAdapter(),  # Better structured output parsing
+                max_tokens=64000,
+                max_tool_calls=50,
+            )
+        )
 )
 
 

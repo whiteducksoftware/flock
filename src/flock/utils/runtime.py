@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -298,7 +297,7 @@ class Context(BaseModel):
         description="Agent identity (informational) - engines cannot use this to query data",
     )
 
-    correlation_id: UUID | None = None
+    correlation_id: str | None = None
     task_id: str
     state: dict[str, Any] = Field(default_factory=dict)
     is_batch: bool = Field(

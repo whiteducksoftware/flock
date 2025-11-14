@@ -113,7 +113,7 @@ def test_normalize_value_variants(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_websocket_sink_emits_events_in_order() -> None:
     executor = _make_executor()
 
-    correlation_id = uuid4()
+    correlation_id = str(uuid4())
     ctx = SimpleNamespace(correlation_id=correlation_id, task_id="task-1")
     agent = SimpleNamespace(name="agent-1")
     artifact_id = uuid4()

@@ -276,6 +276,29 @@ aggregator = flock.agent("aggregator").consumes(Order, Order, Order).publishes(B
 validator = flock.agent("validator").consumes(Image, Image, Metadata).publishes(ValidationResult)
 ```
 
+### Fan-Out & Dynamic Fan-Out
+
+Flock supports **fan-out publishing** so a single agent execution can generate multiple artifacts:
+
+- `fan_out=10` → fixed count (10 artifacts of a type).
+- `fan_out=(min, max)` → **dynamic fan-out** where the engine decides how many artifacts to generate within a range, based on input complexity and quality filters.
+
+```python
+from flock.core import FanOutRange
+
+idea_generator = (
+    flock.agent("idea_generator")
+    .consumes(ProductBrief)
+    .publishes(
+        ProductIdea,
+        fan_out=(5, 20),              # engine decides 5–20 ideas
+        where=lambda i: i.score >= 8,  # filter AFTER range checks
+    )
+)
+```
+
+Dynamic fan-out is fully backward compatible with existing `fan_out=int` usage and is described in detail in the **Fan-Out Publishing** guide and `examples/02-patterns/publish/06_dynamic_fan_out.py`.
+
 ### 🧠 Semantic Subscriptions (New in 0.5!)
 
 **Match artifacts by MEANING, not keywords:**

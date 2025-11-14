@@ -29,7 +29,7 @@ class TestContextSecurityPhase1:
             board=None,  # This line will fail after implementation
             orchestrator=None,
             task_id="test-task",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
         )
 
         # After security fix, this should raise AttributeError
@@ -48,7 +48,7 @@ class TestContextSecurityPhase1:
             board=None,
             orchestrator=None,  # This line will fail after implementation
             task_id="test-task",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
         )
 
         # After security fix, this should raise AttributeError
@@ -64,7 +64,7 @@ class TestContextSecurityPhase1:
         - state: Agent-local state (isolated, no infrastructure access)
         - is_batch: Batch processing flag (read-only)
         """
-        correlation = uuid4()
+        correlation = str(uuid4())
         ctx = Context(
             task_id="test-task",
             correlation_id=correlation,
@@ -94,7 +94,7 @@ class TestContextSecurityPhase1:
         """
         ctx = Context(
             task_id="malicious-agent",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
         )
 
         # This old vulnerable pattern MUST fail
@@ -115,7 +115,7 @@ class TestContextSecurityPhase1:
         """
         ctx = Context(
             task_id="malicious-agent",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
         )
 
         # This old vulnerable pattern MUST fail
@@ -137,7 +137,7 @@ class TestContextSecurityPhase1:
         """
         ctx = Context(
             task_id="malicious-agent",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
         )
 
         # This old vulnerable pattern MUST fail
@@ -154,7 +154,7 @@ class TestContextSecurityPhase1:
         # This should work after security fix (no board/orchestrator required)
         ctx = Context(
             task_id="secure-agent",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             state={"secure": True},
         )
 
@@ -186,7 +186,7 @@ class TestContextSecurityPhase7IdentitySpoofing:
 
         ctx = Context(
             task_id="test-task",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             agent_identity=AgentIdentity(name="user", labels=set()),
         )
 
@@ -206,7 +206,7 @@ class TestContextSecurityPhase7IdentitySpoofing:
 
         ctx = Context(
             task_id="original-task",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
         )
 
         # All these mutations MUST fail
@@ -214,7 +214,7 @@ class TestContextSecurityPhase7IdentitySpoofing:
             ctx.task_id = "malicious-task"
 
         with pytest.raises(ValidationError, match="frozen"):
-            ctx.correlation_id = uuid4()
+            ctx.correlation_id = str(uuid4())
 
         with pytest.raises(ValidationError, match="frozen"):
             ctx.artifacts = [{"type": "Fake", "payload": {}}]
@@ -232,7 +232,7 @@ class TestContextSecurityPhase7IdentitySpoofing:
         """
         ctx = Context(
             task_id="test-task",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             artifacts=[],  # Pre-filtered by orchestrator
         )
 
@@ -264,7 +264,7 @@ class TestContextSecurityPhase7IdentitySpoofing:
 
         ctx = Context(
             task_id="test-task",
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             artifacts=pre_filtered_artifacts,  # Pre-filtered by orchestrator!
         )
 

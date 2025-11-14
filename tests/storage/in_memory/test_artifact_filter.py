@@ -14,14 +14,14 @@ from flock.storage.in_memory.artifact_filter import ArtifactFilter
 
 
 @flock_type(name="TestFilterTypeA")
-class TestFilterTypeA(BaseModel):
+class SampleFilterTypeA(BaseModel):
     """Test type A for filter tests."""
 
     data: str
 
 
 @flock_type(name="TestFilterTypeB")
-class TestFilterTypeB(BaseModel):
+class SampleFilterTypeB(BaseModel):
     """Test type B for filter tests."""
 
     value: int
@@ -35,7 +35,7 @@ def base_artifact():
         produced_by="agent1",
         payload={"data": "test"},
         tags={"alpha", "beta"},
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         visibility=PublicVisibility(),
     )
 

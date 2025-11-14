@@ -11,12 +11,12 @@ from flock.registry import flock_type
 
 
 @flock_type
-class TestInput(BaseModel):
+class SampleInput(BaseModel):
     value: str
 
 
 @flock_type
-class TestOutput(BaseModel):
+class SampleOutput(BaseModel):
     result: str
 
 

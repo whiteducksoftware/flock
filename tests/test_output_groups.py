@@ -21,13 +21,13 @@ from flock.registry import flock_type
 
 # Test artifact types
 @flock_type(name="TestReport")
-class TestReport(BaseModel):
+class SampleReport(BaseModel):
     title: str = Field(description="Report title")
     score: int = Field(description="Report score", ge=0, le=100)
 
 
 @flock_type(name="TestTask")
-class TestTask(BaseModel):
+class SampleTask(BaseModel):
     name: str = Field(description="Task name")
     priority: int = Field(description="Task priority")
 
@@ -40,7 +40,7 @@ class TestTask(BaseModel):
 def test_output_group_creation_with_single_output():
     """Test creating OutputGroup with a single AgentOutput."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility())
 
     # Act
@@ -55,8 +55,8 @@ def test_output_group_creation_with_single_output():
 def test_output_group_creation_with_multiple_outputs():
     """Test creating OutputGroup with multiple AgentOutput objects."""
     # Arrange
-    spec1 = ArtifactSpec.from_model(TestReport)
-    spec2 = ArtifactSpec.from_model(TestTask)
+    spec1 = ArtifactSpec.from_model(SampleReport)
+    spec2 = ArtifactSpec.from_model(SampleTask)
     output1 = AgentOutput(spec=spec1, default_visibility=PublicVisibility())
     output2 = AgentOutput(spec=spec2, default_visibility=PublicVisibility())
 
@@ -79,7 +79,7 @@ def test_output_group_is_single_call_returns_true():
     in one engine call.
     """
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility())
     group = OutputGroup(outputs=[output], shared_visibility=PublicVisibility())
 
@@ -95,7 +95,7 @@ def test_output_group_is_single_call_returns_true():
 def test_agent_output_with_default_values():
     """Test creating AgentOutput uses correct default values for new fields."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     # Act
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility())
@@ -110,7 +110,7 @@ def test_agent_output_with_default_values():
 def test_agent_output_with_all_new_fields():
     """Test creating AgentOutput with all new fields specified."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     def filter_fn(obj: BaseModel) -> bool:
         return obj.score >= 50  # type: ignore
@@ -138,7 +138,7 @@ def test_agent_output_with_all_new_fields():
 def test_agent_output_is_many_returns_false_when_count_is_one():
     """Test that is_many() returns False when count == 1."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=1)
 
     # Act & Assert
@@ -148,7 +148,7 @@ def test_agent_output_is_many_returns_false_when_count_is_one():
 def test_agent_output_is_many_returns_true_when_count_greater_than_one():
     """Test that is_many() returns True when count > 1."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=3)
 
     # Act & Assert
@@ -158,7 +158,7 @@ def test_agent_output_is_many_returns_true_when_count_greater_than_one():
 def test_agent_output_is_many_returns_true_for_large_counts():
     """Test that is_many() works correctly for large fan-out counts."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=100)
 
     # Act & Assert
@@ -173,7 +173,7 @@ def test_agent_output_is_many_returns_true_for_large_counts():
 def test_agent_output_allows_count_of_one():
     """Test that count=1 is valid."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     # Act - Should not raise
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=1)
@@ -185,7 +185,7 @@ def test_agent_output_allows_count_of_one():
 def test_agent_output_allows_count_greater_than_one():
     """Test that count > 1 is valid."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     # Act - Should not raise
     output = AgentOutput(spec=spec, default_visibility=PublicVisibility(), count=10)
@@ -197,7 +197,7 @@ def test_agent_output_allows_count_greater_than_one():
 def test_agent_output_rejects_count_of_zero():
     """Test that count=0 raises ValueError."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     # Act & Assert
     with pytest.raises(ValueError) as exc_info:
@@ -214,7 +214,7 @@ def test_agent_output_rejects_count_of_zero():
 def test_agent_output_rejects_negative_count():
     """Test that negative count raises ValueError."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     # Act & Assert
     with pytest.raises(ValueError) as exc_info:
@@ -235,7 +235,7 @@ def test_agent_output_rejects_negative_count():
 def test_agent_output_accepts_valid_filter_predicate():
     """Test that valid filter predicate (callable accepting BaseModel) is accepted."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     def valid_filter(obj: BaseModel) -> bool:
         return True
@@ -248,7 +248,7 @@ def test_agent_output_accepts_valid_filter_predicate():
     # Assert
     assert output.filter_predicate == valid_filter
     # Verify it can be called with a BaseModel
-    test_obj = TestReport(title="Test", score=50)
+    test_obj = SampleReport(title="Test", score=50)
     assert callable(output.filter_predicate)
     assert output.filter_predicate(test_obj) is True
 
@@ -256,7 +256,7 @@ def test_agent_output_accepts_valid_filter_predicate():
 def test_agent_output_filter_predicate_can_be_none():
     """Test that filter_predicate is optional (can be None)."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     # Act - Should not raise
     output = AgentOutput(
@@ -270,7 +270,7 @@ def test_agent_output_filter_predicate_can_be_none():
 def test_agent_output_filter_predicate_works_with_real_filtering():
     """Test that filter predicate can perform actual filtering logic."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     def high_score_filter(obj: BaseModel) -> bool:
         if hasattr(obj, "score"):
@@ -284,8 +284,8 @@ def test_agent_output_filter_predicate_works_with_real_filtering():
     )
 
     # Act
-    high_report = TestReport(title="High", score=90)
-    low_report = TestReport(title="Low", score=40)
+    high_report = SampleReport(title="High", score=90)
+    low_report = SampleReport(title="Low", score=40)
 
     # Assert
     assert output.filter_predicate(high_report) is True
@@ -300,7 +300,7 @@ def test_agent_output_filter_predicate_works_with_real_filtering():
 def test_agent_output_accepts_simple_validate_callable():
     """Test that validate_predicate accepts a simple callable."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     def validate_fn(obj: BaseModel) -> bool:
         return True
@@ -318,7 +318,7 @@ def test_agent_output_accepts_simple_validate_callable():
 def test_agent_output_accepts_validate_as_list_of_tuples():
     """Test that validate_predicate accepts list of (callable, error_msg) tuples."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     def check_title(obj: BaseModel) -> bool:
         return hasattr(obj, "title") and obj.title != ""  # type: ignore
@@ -347,7 +347,7 @@ def test_agent_output_accepts_validate_as_list_of_tuples():
 def test_agent_output_validate_predicate_can_be_none():
     """Test that validate_predicate is optional (can be None)."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     # Act - Should not raise
     output = AgentOutput(
@@ -361,7 +361,7 @@ def test_agent_output_validate_predicate_can_be_none():
 def test_agent_output_validate_tuple_format_is_correct():
     """Test that each validation tuple has correct format: (callable, str)."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     def validator(obj: BaseModel) -> bool:
         return True
@@ -384,7 +384,7 @@ def test_agent_output_validate_tuple_format_is_correct():
 def test_agent_output_validate_list_works_with_real_validation():
     """Test that validation list can perform actual validation logic."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     def check_title_length(obj: BaseModel) -> bool:
         if hasattr(obj, "title"):
@@ -406,10 +406,10 @@ def test_agent_output_validate_list_works_with_real_validation():
     )
 
     # Act
-    valid_report = TestReport(title="Good Report", score=85)
-    invalid_title_report = TestReport(title="AB", score=50)
+    valid_report = SampleReport(title="Good Report", score=85)
+    invalid_title_report = SampleReport(title="AB", score=50)
     # Use model_construct to bypass Pydantic validation for testing custom validators
-    invalid_score_report = TestReport.model_construct(title="Good", score=150)
+    invalid_score_report = SampleReport.model_construct(title="Good", score=150)
 
     # Assert - Test each validator
     title_validator, title_msg = output.validate_predicate[0]
@@ -432,7 +432,7 @@ def test_agent_output_validate_list_works_with_real_validation():
 def test_agent_output_with_all_fields_integration():
     """Integration test: AgentOutput with all new fields working together."""
     # Arrange
-    spec = ArtifactSpec.from_model(TestReport)
+    spec = ArtifactSpec.from_model(SampleReport)
 
     def filter_high_scores(obj: BaseModel) -> bool:
         return hasattr(obj, "score") and obj.score >= 80  # type: ignore
@@ -467,8 +467,8 @@ def test_agent_output_with_all_fields_integration():
     assert output.group_description == "High-quality reports with detailed validation"
 
     # Test filter works
-    high_score_report = TestReport(title="Excellent Report", score=95)
-    low_score_report = TestReport(title="Average Report", score=60)
+    high_score_report = SampleReport(title="Excellent Report", score=95)
+    low_score_report = SampleReport(title="Average Report", score=60)
     assert output.filter_predicate(high_score_report) is True
     assert output.filter_predicate(low_score_report) is False
 
@@ -482,8 +482,8 @@ def test_agent_output_with_all_fields_integration():
 def test_output_group_with_multiple_enhanced_outputs():
     """Integration test: OutputGroup containing multiple enhanced AgentOutput objects."""
     # Arrange
-    report_spec = ArtifactSpec.from_model(TestReport)
-    task_spec = ArtifactSpec.from_model(TestTask)
+    report_spec = ArtifactSpec.from_model(SampleReport)
+    task_spec = ArtifactSpec.from_model(SampleTask)
 
     def filter_reports(obj: BaseModel) -> bool:
         return hasattr(obj, "score") and obj.score >= 70  # type: ignore
@@ -531,8 +531,8 @@ def test_output_group_preserves_output_ordering():
     """Test that OutputGroup preserves the order of outputs."""
     # Arrange
     specs = [
-        ArtifactSpec.from_model(TestReport),
-        ArtifactSpec.from_model(TestTask),
+        ArtifactSpec.from_model(SampleReport),
+        ArtifactSpec.from_model(SampleTask),
     ]
 
     outputs = [

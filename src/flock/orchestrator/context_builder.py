@@ -11,9 +11,10 @@ that prevents identity spoofing and READ capability bypass.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
+
+from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
@@ -21,6 +22,9 @@ if TYPE_CHECKING:
     from flock.core.artifacts import Artifact
     from flock.core.store import BlackboardStore
     from flock.utils.runtime import Context
+
+
+logger = get_logger(__name__)
 
 
 class ContextBuilder:
@@ -54,14 +58,14 @@ class ContextBuilder:
         """
         self._store = store
         self._default_context_provider = default_context_provider
-        self._logger = logging.getLogger(__name__)
+        self._logger = logger
 
     async def build_execution_context(
         self,
         *,
         agent: Agent,
         artifacts: list[Artifact],
-        correlation_id: UUID | None = None,
+        correlation_id: str | None = None,
         is_batch: bool = False,
     ) -> Context:
         """Build Context with pre-filtered artifacts (Phase 8 security fix).
@@ -115,7 +119,7 @@ class ContextBuilder:
         resolved_correlation_id = correlation_id or (
             artifacts[0].correlation_id
             if artifacts and artifacts[0].correlation_id
-            else uuid4()
+            else str(uuid4())
         )
 
         # Step 1: Resolve provider (agent > global > default)

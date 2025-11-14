@@ -8,10 +8,11 @@ This patch replaces it with a non-blocking fire-and-forget approach.
 """
 
 import asyncio
-import logging
+
+from flock.logging.logging import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def patched_sync_send_to_stream(stream, message):

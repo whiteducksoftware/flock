@@ -1,12 +1,16 @@
 import asyncio
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import PrivateAttr
 
 from flock.components.agent import EngineComponent
 from flock.core.artifacts import Artifact
+from flock.core import Flock
+from flock.core.visibility import PrivateVisibility, PublicVisibility
 from flock.examples import Idea, Movie, Tagline, create_demo_orchestrator
-from flock.registry import type_registry
+from flock.models.system_artifacts import WorkflowError
+from flock.registry import flock_type, type_registry
 from flock.utils.runtime import EvalInputs, EvalResult
 
 
@@ -26,6 +30,50 @@ async def test_movie_pipeline_publishes_tagline():
     artifacts = await orchestrator.store.list()
     types = {artifact.type for artifact in artifacts}
     assert type_registry.name_for(Tagline) in types
+
+
+@pytest.mark.asyncio
+async def test_get_correlation_status_uses_string_ids():
+    """get_correlation_status should work with arbitrary string correlation_ids."""
+    orchestrator = Flock()
+    corr_id = "workflow-123"
+
+    # Scheduler may or may not expose _correlation_tasks; ensure it does for this test
+    if not hasattr(orchestrator._scheduler, "_correlation_tasks"):
+        orchestrator._scheduler._correlation_tasks = {}  # type: ignore[attr-defined]
+    orchestrator._scheduler._correlation_tasks[corr_id] = ["task-1"]  # type: ignore[attr-defined]
+
+    # Publish an artifact with matching correlation_id so store/query path is exercised
+    error_artifact = Artifact(
+        type=type_registry.name_for(WorkflowError),
+        payload={"message": "failure"},
+        produced_by="agent",
+        correlation_id=corr_id,
+        created_at=datetime.now(UTC),
+        visibility=PublicVisibility(),
+    )
+    await orchestrator.store.publish(error_artifact)
+
+    status = await orchestrator.get_correlation_status(corr_id)
+
+    assert status["has_pending_work"] is True
+    assert status["artifact_count"] >= 1
+    assert status["error_count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_get_correlation_status_without_scheduler_tasks():
+    """get_correlation_status should tolerate schedulers without _correlation_tasks."""
+    orchestrator = Flock()
+    corr_id = "workflow-no-tasks"
+
+    if hasattr(orchestrator._scheduler, "_correlation_tasks"):
+        delattr(orchestrator._scheduler, "_correlation_tasks")  # type: ignore[attr-defined]
+
+    status = await orchestrator.get_correlation_status(corr_id)
+
+    # No tasks and no groups, so no pending work
+    assert status["has_pending_work"] is False
 
 
 class SpyEngine(EngineComponent):
@@ -57,13 +105,7 @@ async def test_visibility_only_for_blocks_eavesdropper():
     assert recordings == []
 
 
-# Additional critical path tests for 100% coverage
-
 from pydantic import BaseModel, Field
-
-from flock.core import Flock
-from flock.core.visibility import PrivateVisibility, PublicVisibility
-from flock.registry import flock_type
 
 
 @flock_type(name="OrchestratorMovie")
@@ -651,14 +693,15 @@ async def test_context_is_batch_flag_propagation():
 # T070: get_correlation_status Tests
 @pytest.mark.asyncio
 async def test_get_correlation_status_invalid_uuid_raises_error():
-    """Test get_correlation_status raises ValueError for invalid UUID format."""
+    """Test get_correlation_status accepts any string (no longer validates UUID format)."""
     # Arrange
     orchestrator = Flock()
     invalid_correlation_id = "not-a-valid-uuid"
 
-    # Act & Assert
-    with pytest.raises(ValueError, match="Invalid correlation_id format"):
-        await orchestrator.get_correlation_status(invalid_correlation_id)
+    # Act & Assert - correlation_id can now be any string, so this should not raise
+    result = await orchestrator.get_correlation_status(invalid_correlation_id)
+    assert result is not None
+    assert result["correlation_id"] == invalid_correlation_id
 
 
 # T071: publish_many Tests

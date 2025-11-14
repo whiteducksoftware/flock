@@ -294,6 +294,84 @@ def _choose_program(self, dspy_mod, signature, tools):
 - `dspy.ChainOfThought` - Adds reasoning field automatically
 - `dspy.ReAct` - Adds tool use + reasoning loop
 
+### DSPy Adapters in Flock
+
+DSPy uses **adapters** to control how it talks to the underlying LLM: how prompts are formatted, how outputs are parsed, and how tools/function-calls are invoked. Flock exposes the most common adapters via the `DSPyEngine` namespace so you don’t need to import directly from `dspy.adapters`.
+
+```python
+from flock.engines import (
+    DSPyEngine,
+    ChatAdapter,
+    JSONAdapter,
+    XMLAdapter,
+    TwoStepAdapter,
+    BAMLAdapter,
+)
+```
+
+You can pass any adapter instance to the engine:
+
+```python
+engine = DSPyEngine(
+    model="openai/gpt-4.1",
+    adapter=JSONAdapter(),  # or ChatAdapter(), XMLAdapter(), ...
+)
+```
+
+#### When to Use Which Adapter
+
+- `ChatAdapter` (default)
+  - Text-first protocol with DSPy’s `[[ ## field_name ## ]]` markers.
+  - Good general-purpose choice; works with almost all chat models.
+  - Lets LLMs “free-form” their reasoning and then structure outputs.
+
+- `JSONAdapter`
+  - Forces outputs into a strict JSON structure derived from your Pydantic models.
+  - Uses OpenAI’s **Structured Outputs / JSON mode** when available.
+  - Excellent for agents where **reliable structured output** and **tool calling** matter more than free-form reasoning traces.
+  - In GPT “reasoning” models, forcing a strict JSON schema removes the need for long natural-language deliberation; they tend to skip explicit reasoning chains and focus on producing the required structure, which usually makes them **faster and cheaper in an agent pipeline**.
+
+- `BAMLAdapter`
+  - Builds a compact, BAML-style schema from nested Pydantic models.
+  - Great for complex or deeply nested outputs where you want the model to see a human-readable schema (comments + types) instead of raw JSON schema.
+  - Like `JSONAdapter`, it effectively **forces structured output**, which encourages reasoning models to go straight to structure instead of verbose chain-of-thought, again improving latency in multi-agent workflows.
+
+- `XMLAdapter`
+  - Formats inputs/outputs as XML instead of JSON.
+  - Useful if you have existing prompts or tooling tuned around XML, or if you find a specific model family behaves more reliably with XML tags.
+
+- `TwoStepAdapter`
+  - Runs a **two-phase** protocol: first ask the model to think/plan, then to emit a final structured answer.
+  - Good when you still want some model-side reasoning but need tighter control over the final structure.
+  - Typical usage:
+
+    ```python
+    import dspy
+    from flock.engines import DSPyEngine, TwoStepAdapter
+
+    engine = DSPyEngine(
+        model="azure/gpt-4.1",
+        adapter=TwoStepAdapter(dspy.LM("azure/gpt-4.1")),
+    )
+    ```
+
+#### JSON/BAML Adapters vs Reasoning Models
+
+Flock’s default recommendation for **agent-style** workloads is:
+
+- Use a **reasoning-capable model** (e.g., GPT “Reasoning” variants) when you care about robustness and correctness.
+- Combine it with `JSONAdapter` or `BAMLAdapter` when you:
+  - Need strict contract-valid artifacts (Pydantic schemas must be honored).
+  - Want to **minimize latency** and token usage in long-running workflows.
+
+Because these adapters force the model into a strict output schema (JSON or BAML-style), reasoning models typically:
+
+- Spend less time “thinking out loud”.
+- Produce fewer long natural-language explanations.
+- Focus primarily on producing valid structured output.
+
+That makes them behave more like **high-precision structured-output engines** and less like chatbots, which is usually what you want inside Flock agents.
+
 ### Phase 3: Execution
 
 ```python
@@ -1047,6 +1125,99 @@ logger.info(f"Payload: {data}")
 
 ---
 
+## DSPy Adapter Configuration
+
+**DSPy adapters** control how prompts are formatted and responses are parsed. Flock's `DSPyEngine` supports configuring adapters for better reliability and features.
+
+### Available Adapters
+
+- **ChatAdapter** (default): Text-based parsing with `[[ ## field_name ## ]]` markers
+- **JSONAdapter**: JSON-based parsing with structured outputs API support
+- **XMLAdapter**: XML-based parsing
+- **TwoStepAdapter**: Two-step generation process
+
+### Using JSONAdapter
+
+JSONAdapter provides several advantages:
+
+- ✅ **Better Parsing Reliability**: Uses OpenAI's structured outputs API when supported
+- ✅ **Native Function Calling**: Enabled by default for better MCP tool integration
+- ✅ **More Robust**: Handles malformed JSON better than ChatAdapter
+
+```python
+from dspy.adapters import JSONAdapter
+from flock.engines import DSPyEngine
+
+agent = (
+    flock.agent("analyst")
+    .consumes(Data)
+    .publishes(Report)
+    .with_engines(
+        DSPyEngine(
+            model="openai/gpt-4o",
+            adapter=JSONAdapter()  # Better structured output parsing
+        )
+    )
+)
+```
+
+### Using ChatAdapter (Default)
+
+ChatAdapter is the default adapter and works with any LLM:
+
+```python
+from dspy.adapters import ChatAdapter
+
+agent = (
+    flock.agent("analyst")
+    .consumes(Data)
+    .publishes(Report)
+    .with_engines(
+        DSPyEngine(
+            model="openai/gpt-4o",
+            adapter=ChatAdapter()  # Explicit default
+        )
+    )
+)
+```
+
+### Adapter with MCP Tools
+
+JSONAdapter's native function calling works seamlessly with MCP tools:
+
+```python
+from dspy.adapters import JSONAdapter
+
+agent = (
+    flock.agent("researcher")
+    .consumes(Query)
+    .publishes(Report)
+    .with_mcps(["filesystem", "github"])
+    .with_engines(
+        DSPyEngine(
+            model="openai/gpt-4o",
+            adapter=JSONAdapter()  # Native function calling enabled
+        )
+    )
+)
+```
+
+### When to Use Which Adapter
+
+| Scenario | Recommended Adapter | Why |
+|----------|-------------------|-----|
+| Structured outputs needed | JSONAdapter | Better parsing reliability |
+| MCP tools integration | JSONAdapter | Native function calling enabled |
+| Any LLM compatibility | ChatAdapter | Works with all models |
+| Simple use cases | ChatAdapter (default) | No configuration needed |
+
+### Examples
+
+- **[Adapter Comparison](../../examples/05-engines/01_adapter_comparison.py)** - Compare ChatAdapter vs JSONAdapter
+- **[JSONAdapter with MCP Tools](../../examples/05-engines/02_json_adapter_mcp_tools.py)** - Native function calling example
+
+---
+
 ## Next Steps
 
 - **[Agent Development](agents.md)** - Build agents using DSPyEngine
@@ -1072,5 +1243,5 @@ logger.info(f"Payload: {data}")
 
 ---
 
-*Last updated: 2025-10-15*
-*Updated with semantic field naming: 2025-10-15*
+*Last updated: 2025-01-15*
+*Updated with adapter configuration support: 2025-01-15*

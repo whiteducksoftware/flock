@@ -320,7 +320,7 @@ class TestContext:
 
     def test_context_creation(self):
         """Test Context creation with Phase 8 security fix (pre-filtered artifacts only)."""
-        correlation_id = uuid4()
+        correlation_id = str(uuid4())
         pre_filtered_artifacts = [
             Artifact(
                 id=uuid4(),

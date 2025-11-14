@@ -124,7 +124,7 @@ class DSPyEngine(EngineComponent):
     instructions: str | None = None
     temperature: float = 1.0
     max_tokens: int = 32000
-    max_tool_calls: int = 10
+    max_tool_calls: int = 100
     max_retries: int = 0
     stream: bool = Field(
         default_factory=lambda: _default_stream_value(),
@@ -153,6 +153,14 @@ class DSPyEngine(EngineComponent):
     enable_cache: bool = Field(
         default=False,
         description="Enable caching of DSPy program results",
+    )
+    adapter: Any | None = Field(
+        default=None,
+        description=(
+            "DSPy adapter to use for prompt formatting and response parsing. "
+            "Defaults to ChatAdapter if not specified. "
+            "Use JSONAdapter for better structured output reliability and native function calling."
+        ),
     )
 
     def model_post_init(self, __context: Any) -> None:
@@ -302,7 +310,12 @@ class DSPyEngine(EngineComponent):
             f"Total tools for agent {agent.name}: {len(combined_tools)} (native: {len(native_tools)}, mcp: {len(mcp_tools)})"
         )
 
-        with dspy_mod.context(lm=lm):
+        # Determine adapter to use (defaults to ChatAdapter for backward compatibility)
+        from dspy.adapters import ChatAdapter
+
+        adapter_to_use = self.adapter or ChatAdapter()
+
+        with dspy_mod.context(lm=lm, adapter=adapter_to_use):
             program = self._choose_program(dspy_mod, signature, combined_tools)
 
             # Detect if there's already an active Rich Live context

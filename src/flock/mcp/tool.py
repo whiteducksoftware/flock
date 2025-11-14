@@ -1,6 +1,5 @@
 """Represents a MCP Tool in a format which is compatible with Flock's ecosystem."""
 
-import warnings
 from typing import Any, Self, TypeVar
 
 from dspy import Tool as DSPyTool

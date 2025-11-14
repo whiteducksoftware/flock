@@ -248,7 +248,7 @@ async def test_store_query_and_summary(store):
             payload={"data": "alpha-1"},
             produced_by="agent1",
             tags={"alpha", "beta"},
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             created_at=base_time,
         ),
         Artifact(
@@ -257,7 +257,7 @@ async def test_store_query_and_summary(store):
             payload={"data": "alpha-2"},
             produced_by="agent1",
             tags={"alpha"},
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             created_at=base_time + timedelta(minutes=1),
         ),
         Artifact(
@@ -266,7 +266,7 @@ async def test_store_query_and_summary(store):
             payload={"data": "beta"},
             produced_by="agent2",
             tags={"beta"},
-            correlation_id=uuid4(),
+            correlation_id=str(uuid4()),
             created_at=base_time + timedelta(minutes=2),
         ),
     ]
@@ -324,7 +324,7 @@ async def test_query_artifacts_embed_meta_returns_consumptions(store):
         payload={"value": "embedded"},
         produced_by="agent_source",
         tags={"history"},
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         created_at=now,
     )
     await store.publish(artifact)
@@ -365,7 +365,7 @@ async def test_agent_history_summary_counts(store):
         payload={"value": "summary"},
         produced_by="agent_producer",
         tags={"summary"},
-        correlation_id=uuid4(),
+        correlation_id=str(uuid4()),
         created_at=now,
     )
     await store.publish(artifact)
@@ -392,3 +392,72 @@ async def test_agent_history_summary_counts(store):
     )
     assert consumer_summary["consumed"]["total"] == 1
     assert consumer_summary["consumed"]["by_type"][artifact.type] == 1
+
+
+@pytest.mark.asyncio
+async def test_in_memory_get_by_type_simple():
+    """InMemoryBlackboardStore.get_by_type returns typed models without correlation filter."""
+    store = InMemoryBlackboardStore()
+
+    # Use local types to avoid interference with global registry mutations
+    @flock_type(name="StoreTypeA")
+    class StoreTypeA(BaseModel):
+        data: str
+
+    @flock_type(name="StoreTypeB")
+    class StoreTypeB(BaseModel):
+        data: str
+
+    a1 = Artifact(
+        type=type_registry.name_for(StoreTypeA),
+        payload={"data": "alpha"},
+        produced_by="agent1",
+    )
+    b1 = Artifact(
+        type=type_registry.name_for(StoreTypeB),
+        payload={"data": "beta"},
+        produced_by="agent2",
+    )
+
+    await store.publish(a1)
+    await store.publish(b1)
+
+    results = await store.get_by_type(StoreTypeA)
+    assert len(results) == 1
+    assert isinstance(results[0], StoreTypeA)
+    assert results[0].data == "alpha"
+
+
+@pytest.mark.asyncio
+async def test_in_memory_get_by_type_with_correlation_filter():
+    """InMemoryBlackboardStore.get_by_type filters by correlation_id when provided."""
+    store = InMemoryBlackboardStore()
+    corr_keep = str(uuid4())
+    corr_other = str(uuid4())
+
+    @flock_type(name="StoreTypeAForCorrelation")
+    class StoreTypeAForCorrelation(BaseModel):
+        data: str
+
+    matching = Artifact(
+        type=type_registry.name_for(StoreTypeAForCorrelation),
+        payload={"data": "keep-me"},
+        produced_by="agent1",
+        correlation_id=corr_keep,
+    )
+    other = Artifact(
+        type=type_registry.name_for(StoreTypeAForCorrelation),
+        payload={"data": "skip-me"},
+        produced_by="agent1",
+        correlation_id=corr_other,
+    )
+
+    await store.publish(matching)
+    await store.publish(other)
+
+    results = await store.get_by_type(
+        StoreTypeAForCorrelation, correlation_id=corr_keep
+    )
+    assert len(results) == 1
+    assert isinstance(results[0], StoreTypeAForCorrelation)
+    assert results[0].data == "keep-me"
