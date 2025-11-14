@@ -204,12 +204,21 @@ npm run preview
 The dashboard can be configured via environment variables:
 
 ```bash
-# .env file
-VITE_WS_URL=ws://localhost:8344/ws
-VITE_API_URL=http://localhost:8344/api
+# .env file (optional)
+
+# WebSocket endpoint for real-time updates
+# - If omitted, the dashboard derives ws(s)://<current-host>/ws automatically
+# - Recommended to use a relative path so it works with tunnels (e.g. Codespaces)
+VITE_WS_URL=/ws
+
+# REST API base URL for control + graph endpoints
+# - If omitted, defaults to /api on the current host
+VITE_API_BASE_URL=/api
 ```
 
-If not specified, defaults to `localhost:8344`.
+If not specified, both WebSocket and REST calls default to the current dashboard host
+(`/ws` and `/api` respectively), which is safe for tunneled environments such as
+GitHub Codespaces.
 
 ## Design System
 
@@ -668,11 +677,11 @@ npm run type-check
 
 **"WebSocket connection failed"**
 - Backend is not running or not accessible
-- Check `VITE_WS_URL` environment variable
+- Check `VITE_WS_URL` environment variable (for most setups `/ws` is sufficient)
 
 **"Failed to fetch artifact types"**
 - REST API endpoint not available
-- Check `VITE_API_URL` environment variable
+- Check `VITE_API_BASE_URL` environment variable (defaults to `/api`)
 
 **"QuotaExceededError"**
 - Browser storage full
