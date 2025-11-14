@@ -8,12 +8,12 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
-from flock.core.agent import MCPServerConfig
 from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
     from flock.core import Flock
+    from flock.core.agent import MCPServerConfig
     from flock.utils.runtime import Context
 
 
@@ -152,7 +152,7 @@ class MCPIntegration:
             for server_name, server_config in servers.items():
                 server_set.add(server_name)
 
-                if isinstance(server_config, MCPServerConfig):
+                if isinstance(server_config, "MCPServerConfig"):
                     # MCPServerConfigObject with optional roots and tool_whitelist
                     mounts = server_config.roots or None
                     if (

@@ -269,7 +269,7 @@ class FlockMCPClientManager:
         async with self._lock:
             logger.info("Shutting down all MCP connections")
 
-            for _key, clients in self._pool.items():
+            for clients in self._pool.values():
                 for server_name, client in clients.items():
                     try:
                         await client.disconnect()
