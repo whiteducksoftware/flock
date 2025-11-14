@@ -7,7 +7,7 @@ import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
@@ -18,6 +18,7 @@ from flock.agent.component_lifecycle import ComponentLifecycle
 from flock.agent.mcp_integration import MCPIntegration
 
 # Phase 4: Import extracted modules
+from flock.agent.mcp_server_config import MCPServerConfig
 from flock.agent.output_processor import OutputProcessor
 from flock.core.artifacts import Artifact, ArtifactSpec
 from flock.core.fan_out import FanOutRange, FanOutSpec, normalize_fan_out
@@ -37,40 +38,6 @@ if TYPE_CHECKING:  # pragma: no cover - type hints only
 
     from flock.components.agent import AgentComponent, EngineComponent
     from flock.core import Flock
-
-
-class MCPServerConfig(TypedDict, total=False):
-    """Configuration for MCP server assignment to an agent.
-
-    All fields are optional. If omitted, no restrictions apply.
-
-    Attributes:
-        roots: Filesystem paths this server can access.
-               Empty list or omitted = no mount restrictions.
-        tool_whitelist: Tool names the agent can use from this server.
-                       Empty list or omitted = all tools available.
-
-    Examples:
-        >>> # No restrictions
-        >>> config: MCPServerConfig = {}
-
-        >>> # Mount restrictions only
-        >>> config: MCPServerConfig = {"roots": ["/workspace/data"]}
-
-        >>> # Tool whitelist only
-        >>> config: MCPServerConfig = {
-        ...     "tool_whitelist": ["read_file", "write_file"]
-        ... }
-
-        >>> # Both restrictions
-        >>> config: MCPServerConfig = {
-        ...     "roots": ["/workspace/data"],
-        ...     "tool_whitelist": ["read_file"],
-        ... }
-    """
-
-    roots: list[str]
-    tool_whitelist: list[str]
 
 
 @dataclass
@@ -207,12 +174,12 @@ class Agent(metaclass=AutoTracedMeta):
         self._mcp_integration.mcp_server_mounts = value
 
     @property
-    def tool_whitelist(self) -> list[str] | None:
+    def tool_whitelist(self) -> dict[str, list[str | MCPServerConfig]] | None:
         """Tool whitelist for MCP servers."""
         return self._mcp_integration.server_whitelists
 
     @tool_whitelist.setter
-    def tool_whitelist(self, value: list[str] | None) -> None:
+    def tool_whitelist(self, value: dict[str | MCPServerConfig] | None) -> None:
         self._mcp_integration.server_whitelists = value
 
     @property

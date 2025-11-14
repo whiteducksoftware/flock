@@ -8,12 +8,12 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
+from flock.agent.mcp_server_config import MCPServerConfig
 from flock.logging.logging import get_logger
 
 
 if TYPE_CHECKING:
     from flock.core import Flock
-    from flock.core.agent import MCPServerConfig
     from flock.utils.runtime import Context
 
 
@@ -151,23 +151,6 @@ class MCPIntegration:
             # Dict format: {"server": {"roots": ["/path1"], "tool_whitelist": ["tool1"]}}
             for server_name, server_config in servers.items():
                 server_set.add(server_name)
-
-                if isinstance(server_config, "MCPServerConfig"):
-                    # MCPServerConfigObject with optional roots and tool_whitelist
-                    mounts = server_config.roots or None
-                    if (
-                        mounts is not None
-                        and isinstance(mounts, list)
-                        and len(mounts) > 0
-                    ):
-                        server_mounts[server_name] = list(mounts)
-                    whitelist = server_config.tool_whitelist
-                    if (
-                        whitelist is not None
-                        and isinstance(whitelist, list)
-                        and len(whitelist) > 0
-                    ):
-                        server_whitelists[server_name] = whitelist
 
                 if isinstance(server_config, dict):
                     # MCPServerConfig dict with optional roots and tool_whitelist

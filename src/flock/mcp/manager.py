@@ -206,9 +206,11 @@ class FlockMCPClientManager:
                 client = await self.get_client(
                     server_name, agent_id, run_id, mount_points=mount_points
                 )
-                server_agent_specific_whitelist = server_whitelists.get(
-                    server_name, None
-                )
+                server_agent_specific_whitelist = None
+                if server_whitelists is not None:
+                    server_agent_specific_whitelist = server_whitelists.get(
+                        server_name, None
+                    )
                 server_tools = await client.get_tools(
                     agent_id, run_id, server_agent_specific_whitelist
                 )
