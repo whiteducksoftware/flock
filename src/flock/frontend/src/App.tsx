@@ -16,9 +16,44 @@ registerModules();
 
 const App: React.FC = () => {
   // Enable global keyboard shortcuts
-  useKeyboardShortcuts();
+    useKeyboardShortcuts();
 
   useEffect(() => {
+    const resolveWebSocketUrl = (): string => {
+      const explicit = import.meta.env.VITE_WS_URL;
+
+      // 1) If explicitly configured, respect it (backwards compatible)
+      if (explicit && explicit.trim().length > 0) {
+        const trimmed = explicit.trim();
+
+        // Support both absolute ws(s):// URLs and relative paths like "/ws"
+        if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
+          return trimmed;
+        }
+
+        // Treat everything else as a path and anchor it to the current host
+        if (typeof window !== 'undefined') {
+          const { protocol, host } = window.location;
+          const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+          const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+          return `${wsProtocol}//${host}${path}`;
+        }
+
+        // Fallback for non-browser environments (tests, SSR)
+        return 'ws://localhost:8344/ws';
+      }
+
+      // 2) No explicit config: derive from current location (Codespaces / tunnels safe)
+      if (typeof window !== 'undefined') {
+        const { protocol, host } = window.location;
+        const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${wsProtocol}//${host}/ws`;
+      }
+
+      // 3) Ultimate fallback for non-browser environments
+      return 'ws://localhost:8344/ws';
+    };
+
     const startMark = 'app-initial-render-start';
     performance.mark(startMark);
 
@@ -105,7 +140,7 @@ const App: React.FC = () => {
       }
     };
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8344/ws';
+    const wsUrl = resolveWebSocketUrl();
     const wsClient = initializeWebSocket(wsUrl);
     let cancelled = false;
 
