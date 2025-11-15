@@ -59,6 +59,14 @@ const PublishControl: React.FC = () => {
           const prop = artifactType.schema.properties[key];
           if (prop.type === 'boolean') {
             initialData[key] = false;
+          } else if (prop.type === 'array') {
+            // Represent arrays (e.g. list[str] / list[int]) as a newline-separated string in the UI.
+            // If the schema has a default (e.g. default_factory=list), show it to the user.
+            if (Array.isArray(prop.default)) {
+              initialData[key] = prop.default.join('\n');
+            } else {
+              initialData[key] = '';
+            }
           } else if (prop.type === 'number' || prop.type === 'integer') {
             initialData[key] = prop.default ?? '';
           } else {
@@ -89,13 +97,31 @@ const PublishControl: React.FC = () => {
       return false;
     }
 
+    // JSON Schema may include a "required" array listing required fields.
+    // Fall back to empty array if not present.
+    const requiredFields: string[] = Array.isArray((artifactType.schema as any).required)
+      ? (artifactType.schema as any).required
+      : [];
+
     // Validate each field based on schema
     if (artifactType.schema.properties) {
       Object.entries(artifactType.schema.properties).forEach(([key, prop]: [string, any]) => {
         const value = formData[key];
 
-        // Check required fields (you might need to check schema.required array)
-        if (value === '' || value === null || value === undefined) {
+        const isExplicitlyRequired = requiredFields.includes(key);
+        const hasDefault = prop.default !== undefined;
+
+        // Required heuristic:
+        // - If schema.required lists the field, it's required.
+        // - If field has an explicit default, treat as optional.
+        // - Arrays default to optional unless explicitly required.
+        // - Scalar fields with no default are treated as required.
+        const isRequired =
+          isExplicitlyRequired ||
+          (!hasDefault && prop.type !== 'array');
+
+        // Check required fields based on JSON Schema "required"
+        if (isRequired && (value === '' || value === null || value === undefined)) {
           newErrors[key] = `${key} is required`;
           return;
         }
@@ -104,6 +130,24 @@ const PublishControl: React.FC = () => {
         if (prop.type === 'number' || prop.type === 'integer') {
           if (isNaN(Number(value))) {
             newErrors[key] = `${key} must be a number`;
+          }
+        } else if (prop.type === 'array') {
+          // For arrays we expect a newline-separated string in the UI.
+          if (typeof value !== 'string') {
+            newErrors[key] = `${key} must be a list (one item per line)`;
+            return;
+          }
+
+          // Optional extra validation for numeric arrays
+          if (prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
+            const parts = value
+              .split('\n')
+              .map((v: string) => v.trim())
+              .filter((v: string) => v.length > 0);
+            const invalid = parts.some((v: string) => Number.isNaN(Number(v)));
+            if (invalid) {
+              newErrors[key] = `${key} must be a list of numbers (one per line)`;
+            }
           }
         }
       });
@@ -139,6 +183,39 @@ const PublishControl: React.FC = () => {
             processedData[key] = Number(value);
           } else if (prop.type === 'boolean') {
             processedData[key] = Boolean(value);
+          } else if (prop.type === 'array') {
+            // Convert newline-separated string into arrays for list-like fields
+            if (prop.items && prop.items.type === 'string') {
+              if (typeof value === 'string') {
+                const parts = value
+                  .split('\n')
+                  .map((v: string) => v.trim())
+                  .filter((v: string) => v.length > 0);
+                processedData[key] = parts;
+              } else if (Array.isArray(value)) {
+                processedData[key] = value;
+              } else {
+                processedData[key] = [];
+              }
+            } else if (prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
+              if (typeof value === 'string') {
+                const parts = value
+                  .split('\n')
+                  .map((v: string) => v.trim())
+                  .filter((v: string) => v.length > 0);
+                const numbers = parts
+                  .map((v: string) => Number(v))
+                  .filter((v: number) => !Number.isNaN(v));
+                processedData[key] = numbers;
+              } else if (Array.isArray(value)) {
+                processedData[key] = value.map((v: any) => Number(v));
+              } else {
+                processedData[key] = [];
+              }
+            } else {
+              // For other array item types, pass through as-is for now
+              processedData[key] = value;
+            }
           } else {
             processedData[key] = value;
           }
@@ -150,7 +227,8 @@ const PublishControl: React.FC = () => {
       // Auto-set filter to correlation ID if checkbox is checked
       if (autoSetFilter && response.correlation_id) {
         useFilterStore.setState({ correlationId: response.correlation_id });
-        setSuccessMessage(`Successfully published artifact. Filter set to: ${response.correlation_id}`);
+        // Show a concise message focused on the filter for this mode
+        setSuccessMessage(`Filter set to: ${response.correlation_id}`);
       } else {
         setSuccessMessage(`Successfully published artifact. Correlation ID: ${response.correlation_id}`);
       }
@@ -209,6 +287,60 @@ const PublishControl: React.FC = () => {
               )}
             </label>
           </div>
+          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+        </div>
+      );
+    }
+
+    // Arrays of strings: use a textarea where each line is one item.
+    if (prop.type === 'array' && prop.items && prop.items.type === 'string') {
+      return (
+        <div key={key} className="publish-control__field">
+          <label htmlFor={`field-${key}`} className="publish-control__label">
+            {prop.title || key}
+            {prop.description && (
+              <span className="publish-control__field-hint"> — {prop.description}</span>
+            )}
+            <span className="publish-control__field-hint">
+              {' '}
+              — One item per line
+            </span>
+          </label>
+          <textarea
+            id={`field-${key}`}
+            value={value}
+            onChange={(e) => handleChange(e.target.value)}
+            disabled={loading}
+            rows={3}
+            className={`publish-control__textarea ${hasError ? 'publish-control__textarea--error' : ''}`}
+          />
+          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+        </div>
+      );
+    }
+
+    // Arrays of numbers/integers: textarea, one number per line.
+    if (prop.type === 'array' && prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
+      return (
+        <div key={key} className="publish-control__field">
+          <label htmlFor={`field-${key}`} className="publish-control__label">
+            {prop.title || key}
+            {prop.description && (
+              <span className="publish-control__field-hint"> — {prop.description}</span>
+            )}
+            <span className="publish-control__field-hint">
+              {' '}
+              — One number per line
+            </span>
+          </label>
+          <textarea
+            id={`field-${key}`}
+            value={value}
+            onChange={(e) => handleChange(e.target.value)}
+            disabled={loading}
+            rows={3}
+            className={`publish-control__textarea ${hasError ? 'publish-control__textarea--error' : ''}`}
+          />
           {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
         </div>
       );
