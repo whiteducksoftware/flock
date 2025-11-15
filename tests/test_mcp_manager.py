@@ -245,7 +245,13 @@ class TestFlockMCPClientManager:
         mock_tool.description = "Test tool"
         mock_client.get_tools.return_value = [mock_tool]
 
-        tools = await manager.get_tools_for_agent("agent_1", "run_1", {"test_server"})
+        tools = await manager.get_tools_for_agent(
+            agent_id="agent_1",
+            run_id="run_1",
+            server_names={"test_server"},
+            server_mounts=None,
+            server_whitelists=None,
+        )
 
         # Verify tool namespacing
         assert "test_server__test_tool" in tools
@@ -309,7 +315,11 @@ class TestFlockMCPClientManager:
         mocker.patch.object(manager, "get_client", side_effect=mock_get_client)
 
         tools = await manager.get_tools_for_agent(
-            "agent_1", "run_1", {"test_server", "test_server2"}
+            agent_id="agent_1",
+            run_id="run_1",
+            server_names={"test_server", "test_server2"},
+            server_mounts=None,
+            server_whitelists=None,
         )
 
         # Verify both tools are namespaced correctly

@@ -80,7 +80,7 @@ def test_with_mcps_tool_whitelist(orchestrator):
     }
 
     # Check tool whitelist
-    assert agent.agent.tool_whitelist == ["read_file", "write_file"]
+    assert agent.agent.tool_whitelist == {"filesystem": ["read_file", "write_file"]}
 
 
 def test_empty_mounts_in_dict(orchestrator):
@@ -131,6 +131,7 @@ async def test_get_mcp_tools_passes_server_mounts(orchestrator):
                 "filesystem": ["/workspace/src"],
                 "github": ["/workspace/.git"],
             },
+            server_whitelists={},
         )
 
 

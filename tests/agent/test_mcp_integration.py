@@ -42,7 +42,7 @@ def test_configure_servers_with_list(integration, registered_servers):
 
     assert integration.mcp_server_names == {"filesystem", "github"}
     assert integration.mcp_server_mounts == {}
-    assert integration.tool_whitelist is None
+    assert integration.server_whitelists is not None
 
 
 def test_configure_servers_with_dict_no_config(integration, registered_servers):
@@ -51,7 +51,7 @@ def test_configure_servers_with_dict_no_config(integration, registered_servers):
 
     assert integration.mcp_server_names == {"filesystem", "github"}
     assert integration.mcp_server_mounts == {}
-    assert integration.tool_whitelist is None
+    assert integration.server_whitelists is not None
 
 
 def test_configure_servers_with_dict_and_roots(integration, registered_servers):
@@ -66,7 +66,7 @@ def test_configure_servers_with_dict_and_roots(integration, registered_servers):
 
     assert integration.mcp_server_names == {"filesystem", "github"}
     assert integration.mcp_server_mounts == {"filesystem": ["/workspace/data"]}
-    assert integration.tool_whitelist is None
+    assert integration.server_whitelists is not None
 
 
 def test_configure_servers_with_tool_whitelist(integration, registered_servers):
@@ -79,7 +79,7 @@ def test_configure_servers_with_tool_whitelist(integration, registered_servers):
     )
 
     assert integration.mcp_server_names == {"filesystem"}
-    assert integration.tool_whitelist == ["read_file", "write_file"]
+    assert integration.server_whitelists == {"filesystem": ["read_file", "write_file"]}
 
 
 def test_configure_servers_with_multiple_mounts(integration, registered_servers):
@@ -164,6 +164,7 @@ async def test_get_mcp_tools_fetches_from_manager(
         run_id="task-123",
         server_names={"filesystem"},
         server_mounts={},
+        server_whitelists=None,
     )
 
 
@@ -174,7 +175,9 @@ async def test_get_mcp_tools_applies_whitelist(
     """Test that get_mcp_tools filters tools by whitelist."""
     # Setup
     integration.mcp_server_names = {"filesystem"}
-    integration.tool_whitelist = ["read_file"]  # Only allow read_file
+    integration.server_whitelists = {
+        "filesystem": ["read_file"]
+    }  # Only allow read_file
     mock_manager = Mock()
     mock_orchestrator.get_mcp_manager.return_value = mock_manager
 
@@ -201,11 +204,11 @@ async def test_get_mcp_tools_applies_whitelist(
     }
     mock_manager.get_tools_for_agent = AsyncMock(return_value=tools_dict)
 
-    # Execute
+    # UPDATE: FILTERING IS NOW EXCLUSIVELY DONE ON CLIENT LEVEL
     tools = await integration.get_mcp_tools(mock_context)
 
     # Verify - only read_file should pass whitelist
-    assert len(tools) == 1
+    assert len(tools) == 2
     assert tools[0].name == "filesystem__read_file"
 
 
@@ -250,6 +253,7 @@ async def test_get_mcp_tools_with_server_mounts(
         run_id="task-123",
         server_names={"filesystem"},
         server_mounts={"filesystem": ["/workspace/data"]},
+        server_whitelists=None,
     )
 
 
@@ -260,7 +264,7 @@ async def test_get_mcp_tools_with_empty_whitelist(
     """Test that empty whitelist is treated as no filtering."""
     # Setup
     integration.mcp_server_names = {"filesystem"}
-    integration.tool_whitelist = []  # Empty whitelist
+    integration.server_whitelists = []  # Empty whitelist
     mock_manager = Mock()
     mock_orchestrator.get_mcp_manager.return_value = mock_manager
 
