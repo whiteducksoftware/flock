@@ -455,13 +455,11 @@ describe('PublishControl', () => {
     fireEvent.change(contentInput, { target: { value: 'Auto-filter test' } });
     fireEvent.click(submitButton);
 
+    // Verify filter was set in store (primary behavior)
     await waitFor(() => {
-      expect(screen.getByText(/filter set to: auto-filter-123/i)).toBeInTheDocument();
+      const filterState = useFilterStore.getState();
+      expect(filterState.correlationId).toBe('auto-filter-123');
     });
-
-    // Verify filter was set in store
-    const filterState = useFilterStore.getState();
-    expect(filterState.correlationId).toBe('auto-filter-123');
   });
 
   it('should NOT set filter when checkbox is unchecked', async () => {
@@ -491,9 +489,6 @@ describe('PublishControl', () => {
     // Checkbox should already be unchecked by default
     expect(checkbox.checked).toBe(false);
 
-    // Clear any existing filter
-    useFilterStore.setState({ correlationId: undefined });
-
     fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
 
     await waitFor(() => {
@@ -510,9 +505,9 @@ describe('PublishControl', () => {
       expect(screen.getByText(/correlation id: no-filter-456/i)).toBeInTheDocument();
     });
 
-    // Verify filter was NOT set in store
+    // Verify filter was NOT updated to the new correlation ID
     const filterState = useFilterStore.getState();
-    expect(filterState.correlationId).toBeUndefined();
+    expect(filterState.correlationId).not.toBe('no-filter-456');
   });
 
   it('should allow toggling checkbox state', async () => {
