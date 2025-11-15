@@ -110,10 +110,22 @@ const PublishControl: React.FC = () => {
             newErrors[key] = `${key} must be a number`;
           }
         } else if (prop.type === 'array') {
-          // For arrays represented as newline-separated strings, we accept any non-empty string.
-          // Detailed validation (e.g. at least one item) can be added later if needed.
+          // For arrays we expect a newline-separated string in the UI.
           if (typeof value !== 'string') {
             newErrors[key] = `${key} must be a list (one item per line)`;
+            return;
+          }
+
+          // Optional extra validation for numeric arrays
+          if (prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
+            const parts = value
+              .split('\n')
+              .map((v: string) => v.trim())
+              .filter((v: string) => v.length > 0);
+            const invalid = parts.some((v: string) => Number.isNaN(Number(v)));
+            if (invalid) {
+              newErrors[key] = `${key} must be a list of numbers (one per line)`;
+            }
           }
         }
       });
@@ -150,21 +162,36 @@ const PublishControl: React.FC = () => {
           } else if (prop.type === 'boolean') {
             processedData[key] = Boolean(value);
           } else if (prop.type === 'array') {
-            // Convert newline-separated string into an array for list-like fields
+            // Convert newline-separated string into arrays for list-like fields
             if (prop.items && prop.items.type === 'string') {
               if (typeof value === 'string') {
                 const parts = value
                   .split('\n')
-                  .map((v) => v.trim())
-                  .filter((v) => v.length > 0);
+                  .map((v: string) => v.trim())
+                  .filter((v: string) => v.length > 0);
                 processedData[key] = parts;
               } else if (Array.isArray(value)) {
                 processedData[key] = value;
               } else {
                 processedData[key] = [];
               }
+            } else if (prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
+              if (typeof value === 'string') {
+                const parts = value
+                  .split('\n')
+                  .map((v: string) => v.trim())
+                  .filter((v: string) => v.length > 0);
+                const numbers = parts
+                  .map((v: string) => Number(v))
+                  .filter((v: number) => !Number.isNaN(v));
+                processedData[key] = numbers;
+              } else if (Array.isArray(value)) {
+                processedData[key] = value.map((v: any) => Number(v));
+              } else {
+                processedData[key] = [];
+              }
             } else {
-              // For non-string arrays, pass through as-is for now
+              // For other array item types, pass through as-is for now
               processedData[key] = value;
             }
           } else {
@@ -254,6 +281,33 @@ const PublishControl: React.FC = () => {
             <span className="publish-control__field-hint">
               {' '}
               — One item per line
+            </span>
+          </label>
+          <textarea
+            id={`field-${key}`}
+            value={value}
+            onChange={(e) => handleChange(e.target.value)}
+            disabled={loading}
+            rows={3}
+            className={`publish-control__textarea ${hasError ? 'publish-control__textarea--error' : ''}`}
+          />
+          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+        </div>
+      );
+    }
+
+    // Arrays of numbers/integers: textarea, one number per line.
+    if (prop.type === 'array' && prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
+      return (
+        <div key={key} className="publish-control__field">
+          <label htmlFor={`field-${key}`} className="publish-control__label">
+            {prop.title || key}
+            {prop.description && (
+              <span className="publish-control__field-hint"> — {prop.description}</span>
+            )}
+            <span className="publish-control__field-hint">
+              {' '}
+              — One number per line
             </span>
           </label>
           <textarea
