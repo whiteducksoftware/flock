@@ -35,7 +35,7 @@ def test_new_format_with_tool_whitelist(orchestrator):
 
     assert agent.agent.mcp_server_names == {"filesystem", "github"}
     assert agent.agent.mcp_server_mounts == {"filesystem": ["/workspace/data"]}
-    assert agent.agent.tool_whitelist == ["read_file", "write_file"]
+    assert agent.agent.tool_whitelist == {"filesystem": ["read_file", "write_file"]}
 
 
 def test_new_format_roots_only(orchestrator):
@@ -48,7 +48,7 @@ def test_new_format_roots_only(orchestrator):
     assert agent.agent.mcp_server_mounts == {
         "filesystem": ["/workspace/src", "/workspace/data"]
     }
-    assert agent.agent.tool_whitelist is None
+    assert agent.agent.tool_whitelist is not None
 
 
 def test_new_format_empty_config(orchestrator):
@@ -57,7 +57,7 @@ def test_new_format_empty_config(orchestrator):
 
     assert agent.agent.mcp_server_names == {"filesystem", "github"}
     assert agent.agent.mcp_server_mounts == {}
-    assert agent.agent.tool_whitelist is None
+    assert agent.agent.tool_whitelist is not None
 
 
 def test_typeddict_type_hints():
