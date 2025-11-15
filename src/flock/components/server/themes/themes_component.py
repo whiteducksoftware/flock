@@ -39,7 +39,9 @@ class ThemesComponent(ServerComponent):
         if self.themes_dir is None:
             self.themes_dir = Path(__file__).parent.parent.parent.parent / "themes"
             logger.debug(f"THEMES DIR IS: {self.themes_dir}")
-            logger.debug(f"ThemesComponent serving theme files from: {self.themes_dir!s}")
+            logger.debug(
+                f"ThemesComponent serving theme files from: {self.themes_dir!s}"
+            )
 
     def register_routes(self, app, orchestrator):
         """Register theme routes."""
