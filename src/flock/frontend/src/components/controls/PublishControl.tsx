@@ -108,7 +108,17 @@ const PublishControl: React.FC = () => {
       Object.entries(artifactType.schema.properties).forEach(([key, prop]: [string, any]) => {
         const value = formData[key];
 
-        const isRequired = requiredFields.includes(key);
+        const isExplicitlyRequired = requiredFields.includes(key);
+        const hasDefault = prop.default !== undefined;
+
+        // Required heuristic:
+        // - If schema.required lists the field, it's required.
+        // - If field has an explicit default, treat as optional.
+        // - Arrays default to optional unless explicitly required.
+        // - Scalar fields with no default are treated as required.
+        const isRequired =
+          isExplicitlyRequired ||
+          (!hasDefault && prop.type !== 'array');
 
         // Check required fields based on JSON Schema "required"
         if (isRequired && (value === '' || value === null || value === undefined)) {
@@ -217,7 +227,8 @@ const PublishControl: React.FC = () => {
       // Auto-set filter to correlation ID if checkbox is checked
       if (autoSetFilter && response.correlation_id) {
         useFilterStore.setState({ correlationId: response.correlation_id });
-        setSuccessMessage(`Successfully published artifact. Filter set to: ${response.correlation_id}`);
+        // Show a concise message focused on the filter for this mode
+        setSuccessMessage(`Filter set to: ${response.correlation_id}`);
       } else {
         setSuccessMessage(`Successfully published artifact. Correlation ID: ${response.correlation_id}`);
       }
