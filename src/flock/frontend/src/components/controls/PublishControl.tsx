@@ -60,9 +60,13 @@ const PublishControl: React.FC = () => {
           if (prop.type === 'boolean') {
             initialData[key] = false;
           } else if (prop.type === 'array') {
-            // Represent arrays (e.g. list[str]) as a newline-separated string in the UI
-            // We'll split this into a real array just before publishing.
-            initialData[key] = '';
+            // Represent arrays (e.g. list[str] / list[int]) as a newline-separated string in the UI.
+            // If the schema has a default (e.g. default_factory=list), show it to the user.
+            if (Array.isArray(prop.default)) {
+              initialData[key] = prop.default.join('\n');
+            } else {
+              initialData[key] = '';
+            }
           } else if (prop.type === 'number' || prop.type === 'integer') {
             initialData[key] = prop.default ?? '';
           } else {
@@ -93,13 +97,21 @@ const PublishControl: React.FC = () => {
       return false;
     }
 
+    // JSON Schema may include a "required" array listing required fields.
+    // Fall back to empty array if not present.
+    const requiredFields: string[] = Array.isArray((artifactType.schema as any).required)
+      ? (artifactType.schema as any).required
+      : [];
+
     // Validate each field based on schema
     if (artifactType.schema.properties) {
       Object.entries(artifactType.schema.properties).forEach(([key, prop]: [string, any]) => {
         const value = formData[key];
 
-        // Check required fields (you might need to check schema.required array)
-        if (value === '' || value === null || value === undefined) {
+        const isRequired = requiredFields.includes(key);
+
+        // Check required fields based on JSON Schema "required"
+        if (isRequired && (value === '' || value === null || value === undefined)) {
           newErrors[key] = `${key} is required`;
           return;
         }
