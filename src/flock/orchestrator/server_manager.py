@@ -445,9 +445,9 @@ class ServerManager:
 
         themes_endpoints = ThemesComponent(
             name="themes_internal",
-            themes_dir=Path(__file__).parent.parent / "themes",
+            themes_dir=None,  # Automatically determine the directory
             config=ThemesComponentConfig(
-                enabled=True, prefix="", tags=["Themes", "Public API"]
+                enabled=True, prefix="/api/", tags=["Themes", "Public API"]
             ),
         )
 
