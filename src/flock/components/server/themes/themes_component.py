@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 class ThemesComponentConfig(ServerComponentConfig):
     """Configuration class for ThemesService."""
 
-    prefix: str = Field(default="/plugin/", description="Optional Prefix.")
+    prefix: str = Field(default="/api/plugin/", description="Optional Prefix.")
     tags: list[str] = Field(
         default=["Theme files"], description="Tags for the OpenAPI documentation."
     )
@@ -36,11 +36,9 @@ class ThemesComponent(ServerComponent):
     def configure(self, app, orchestrator):
         """Configure the Server Component."""
         logger.debug("Configuring ThemesComponent.")
-        if not self.themes_dir:
-            self.themes_dir = Path(__file__).parent.parent.parent.parent / "themes"
-            logger.debug(
-                f"ThemesComponent serving theme files from: {self.themes_dir!s}"
-            )
+        self.themes_dir = Path(__file__).parent.parent.parent.parent / "themes"
+        logger.debug(f"THEMES DIR IS: {self.themes_dir}")
+        logger.debug(f"ThemesComponent serving theme files from: {self.themes_dir!s}")
 
     def register_routes(self, app, orchestrator):
         """Register theme routes."""
