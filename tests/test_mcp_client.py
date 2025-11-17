@@ -591,6 +591,38 @@ class TestConnectionManagement:
         mock_logger.warning.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_perform_initial_handshake_without_logging_capability(
+        self, mcp_client, mocker
+    ):
+        """Test initial handshake when server has no logging capability."""
+        session = AsyncMock(spec=ClientSession)
+        session.initialize = AsyncMock(
+            return_value=InitializeResult(
+                protocolVersion="2024-11-05",
+                serverInfo=Implementation(name="test_server", version="1.0.0"),
+                capabilities=ServerCapabilities(),  # logging capability is None
+            )
+        )
+        session.send_roots_list_changed = AsyncMock()
+        session.set_logging_level = AsyncMock()
+
+        mcp_client.client_session = session
+
+        mock_logger = mocker.patch("flock.mcp.client.logger")
+
+        await mcp_client._perform_initial_handshake()
+
+        session.initialize.assert_called_once()
+        session.set_logging_level.assert_not_called()
+        # Ensure the debug log about missing logging capability was emitted
+        mock_logger.debug.assert_called()
+        assert any(
+            "does not advertise logging capability"
+            in str(call.args[0])
+            for call in mock_logger.debug.call_args_list
+        )
+
+    @pytest.mark.asyncio
     async def test_ensure_connected_no_session(self, mcp_client):
         """Test _ensure_connected when no session exists."""
         mcp_client._connect = AsyncMock()
