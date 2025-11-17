@@ -685,14 +685,20 @@ class FlockMCPClient(BaseModel, ABC):
             )
             await self.client_session.send_roots_list_changed()
 
-        # 3) Tell the server, what logging level we would like to use
-        try:
-            await self.client_session.set_logging_level(
-                level=self.config.connection_config.server_logging_level
-            )
-        except McpError as e:
-            logger.warning(
-                f"Trying to set logging level for server '{self.config.name}' resulted in Exception: {e}"
+        # 3) Tell the server, what logging level we would like to use (if supported)
+        logging_capability = init.capabilities.logging
+        if logging_capability:
+            try:
+                await self.client_session.set_logging_level(
+                    level=self.config.connection_config.server_logging_level
+                )
+            except McpError as e:
+                logger.warning(
+                    f"Trying to set logging level for server '{self.config.name}' resulted in Exception: {e}"
+                )
+        else:
+            logger.debug(
+                f"Server '{self.config.name}' does not advertise logging capability; skipping set_logging_level request"
             )
 
     async def _ensure_connected(self) -> None:
