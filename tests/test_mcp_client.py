@@ -15,7 +15,13 @@ from mcp import (
     McpError,
     ServerCapabilities,
 )
-from mcp.types import CallToolResult, Implementation, TextContent, Tool
+from mcp.types import (
+    CallToolResult,
+    Implementation,
+    LoggingCapability,
+    TextContent,
+    Tool,
+)
 
 from flock.mcp.client import FlockMCPClient
 from flock.mcp.config import (
@@ -104,7 +110,7 @@ def mock_client_session():
         return_value=InitializeResult(
             protocolVersion="2024-11-05",
             serverInfo=Implementation(name="test_server", version="1.0.0"),
-            capabilities=ServerCapabilities(),
+            capabilities=ServerCapabilities(logging=LoggingCapability()),
         )
     )
     session.list_tools = AsyncMock(
