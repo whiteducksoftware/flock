@@ -244,6 +244,86 @@ class CorrelationStatusResponse(BaseModel):
 
 
 # ============================================================================
+# Sync Publish Models (Spec 001)
+# ============================================================================
+
+
+class SyncPublishFilters(BaseModel):
+    """Filters for sync publish response artifacts."""
+
+    type_names: list[str] | None = Field(
+        default=None, description="Filter artifacts by type names"
+    )
+    produced_by: list[str] | None = Field(
+        default=None, description="Filter artifacts by producer agent names"
+    )
+
+
+class SyncPublishRequest(BaseModel):
+    """Request body for POST /api/v1/artifacts/sync."""
+
+    type: str = Field(description="Artifact type name")
+    payload: dict[str, Any] = Field(
+        default_factory=dict, description="Artifact payload data"
+    )
+    timeout: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=300.0,
+        description="Maximum time to wait for workflow completion (seconds)",
+    )
+    filters: SyncPublishFilters | None = Field(
+        default=None, description="Optional filters for response artifacts"
+    )
+
+
+class SyncPublishResponse(BaseModel):
+    """Response for POST /api/v1/artifacts/sync."""
+
+    correlation_id: str = Field(description="Correlation ID for this workflow")
+    artifacts: list[ArtifactBase] = Field(
+        description="Artifacts produced during workflow execution"
+    )
+    completed: bool = Field(
+        description="True if workflow completed, False if timeout reached"
+    )
+    duration_ms: int = Field(description="Time taken in milliseconds")
+
+
+# ============================================================================
+# Error Response Models (Spec 001)
+# ============================================================================
+
+
+class ErrorDetail(BaseModel):
+    """Detailed error information for a specific field or issue."""
+
+    field: str | None = Field(
+        default=None, description="Field path that caused the error (if applicable)"
+    )
+    message: str = Field(description="Human-readable error message")
+    code: str | None = Field(
+        default=None, description="Machine-readable error code for this detail"
+    )
+
+
+class ErrorResponse(BaseModel):
+    """Standardized error response for API errors."""
+
+    code: str = Field(description="Machine-readable error code")
+    message: str = Field(description="Human-readable error message")
+    correlation_id: str | None = Field(
+        default=None, description="Correlation ID if available"
+    )
+    retryable: bool = Field(
+        default=False, description="Whether the request can be retried"
+    )
+    details: list[ErrorDetail] | None = Field(
+        default=None, description="Additional error details"
+    )
+
+
+# ============================================================================
 # Health & Metrics Models
 # ============================================================================
 
@@ -255,30 +335,28 @@ class HealthResponse(BaseModel):
 
 
 __all__ = [
-    # Agent models
     "Agent",
-    "AgentSubscription",
+    "AgentHistorySummary",
     "AgentListResponse",
-    # Artifact models
+    "AgentRunRequest",
+    "AgentRunResponse",
+    "AgentSubscription",
     "ArtifactBase",
-    "ArtifactWithConsumptions",
     "ArtifactListResponse",
     "ArtifactPublishRequest",
     "ArtifactPublishResponse",
     "ArtifactSummaryResponse",
-    "PaginationInfo",
-    "ConsumptionRecord",
-    # Agent run models
-    "AgentRunRequest",
-    "AgentRunResponse",
-    "ProducedArtifact",
-    # Schema discovery
-    "ArtifactTypesResponse",
     "ArtifactTypeSchema",
-    # History
-    "AgentHistorySummary",
-    # Correlation status
+    "ArtifactTypesResponse",
+    "ArtifactWithConsumptions",
+    "ConsumptionRecord",
     "CorrelationStatusResponse",
-    # Health
+    "ErrorDetail",
+    "ErrorResponse",
     "HealthResponse",
+    "PaginationInfo",
+    "ProducedArtifact",
+    "SyncPublishFilters",
+    "SyncPublishRequest",
+    "SyncPublishResponse",
 ]

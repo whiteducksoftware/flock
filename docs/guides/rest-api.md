@@ -23,7 +23,7 @@ The API documentation is available at `http://localhost:8344/docs` with interact
 
 ### Artifacts
 
-#### Publish Artifact
+#### Publish Artifact (Async)
 ```http
 POST /api/v1/artifacts
 Content-Type: application/json
@@ -44,7 +44,60 @@ Content-Type: application/json
 }
 ```
 
-**Use case:** Publish artifacts programmatically to trigger agent workflows.
+**Use case:** Publish artifacts and return immediately. Use with polling or WebSocket for results.
+
+---
+
+#### Publish Artifact (Sync)
+```http
+POST /api/v1/artifacts/sync
+Content-Type: application/json
+
+{
+  "type": "YourArtifactType",
+  "payload": {
+    "field1": "value1",
+    "field2": "value2"
+  },
+  "timeout": 30.0,
+  "filters": {
+    "type_names": ["OutputType1", "OutputType2"],
+    "produced_by": ["agent_name"]
+  }
+}
+```
+
+**Request Parameters:**
+- `type` (required) - Artifact type name
+- `payload` (optional) - Artifact payload data
+- `timeout` (optional, 1-300s, default: 30s) - Max time to wait for workflow completion
+- `filters` (optional) - Filter returned artifacts by type or producer
+
+**Response:**
+```json
+{
+  "correlation_id": "550e8400-e29b-41d4-a716-446655440000",
+  "artifacts": [
+    {
+      "id": "artifact-uuid",
+      "type": "OutputType",
+      "payload": {...},
+      "produced_by": "agent_name",
+      "created_at": "2025-01-15T10:30:00Z"
+    }
+  ],
+  "completed": true,
+  "duration_ms": 1523
+}
+```
+
+**Response Fields:**
+- `correlation_id` - UUID linking all artifacts in this workflow
+- `artifacts` - All artifacts produced (optionally filtered)
+- `completed` - `true` if workflow finished, `false` if timeout reached
+- `duration_ms` - Total execution time in milliseconds
+
+**Use case:** Synchronous workflows where you need immediate results. Blocks until all agents finish or timeout.
 
 ---
 
@@ -311,6 +364,33 @@ blackboard_executions_total 42
 
 ### Multi-Step Workflow Tracking
 
+**Option A: Sync Endpoint (Recommended for simple workflows)**
+
+Use the sync endpoint for blocking workflows under 5 minutes:
+
+```python
+async with httpx.AsyncClient() as client:
+    response = await client.post(
+        "http://localhost:8344/api/v1/artifacts/sync",
+        json={
+            "type": "CodeSubmission",
+            "payload": {"code": "...", "language": "python"},
+            "timeout": 60.0,
+            "filters": {"type_names": ["BugAnalysis"]}
+        },
+        headers={"X-Idempotency-Key": str(uuid.uuid4())}
+    )
+    result = response.json()
+
+    if result["completed"]:
+        bugs = result["artifacts"]
+    else:
+        # Timeout - partial results available
+        print(f"Timeout after {result['duration_ms']}ms")
+```
+
+**Option B: Async with Polling (For long-running workflows)**
+
 1. Publish initial artifact with `correlation_id`
 2. Poll `/api/v1/correlations/{correlation_id}/status` every 2-5 seconds
 3. When `state` is `"completed"`, query results with `/api/v1/artifacts?correlation_id={correlation_id}`
@@ -421,6 +501,70 @@ openapi-generator-cli generate \
   -g python \
   -o ./flock-client
 ```
+
+---
+
+## Idempotency
+
+Flock supports idempotent requests using the `X-Idempotency-Key` header. This prevents duplicate processing when retrying failed requests.
+
+### Using Idempotency Keys
+
+```http
+POST /api/v1/artifacts/sync
+Content-Type: application/json
+X-Idempotency-Key: unique-request-id-12345
+
+{
+  "type": "OrderRequest",
+  "payload": {"product_id": "ABC123", "quantity": 1}
+}
+```
+
+### Behavior
+
+1. **First request**: Processes normally, caches response for 24 hours
+2. **Duplicate request** (same key): Returns cached response immediately
+3. **Different key**: Processes as new request
+
+### Best Practices
+
+```python
+import uuid
+import httpx
+
+async def publish_with_retry(artifact_type: str, payload: dict, max_retries: int = 3):
+    """Publish artifact with idempotency key for safe retries."""
+    idempotency_key = str(uuid.uuid4())  # Generate once per logical request
+
+    async with httpx.AsyncClient() as client:
+        for attempt in range(max_retries):
+            try:
+                response = await client.post(
+                    "http://localhost:8344/api/v1/artifacts/sync",
+                    json={"type": artifact_type, "payload": payload},
+                    headers={"X-Idempotency-Key": idempotency_key},
+                    timeout=60.0
+                )
+                return response.json()
+            except httpx.RequestError:
+                if attempt == max_retries - 1:
+                    raise
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+```
+
+### When to Use
+
+- ✅ **Payment processing** - Prevent duplicate charges
+- ✅ **Order submission** - Prevent duplicate orders
+- ✅ **Network retries** - Safe to retry on timeout/failure
+- ✅ **Webhook callbacks** - Handle duplicate deliveries
+
+### Notes
+
+- Keys are scoped to the endpoint (same key on different endpoints = different requests)
+- Cache TTL is 24 hours (responses expire after that)
+- Only successful responses are cached (errors are not cached)
 
 ---
 
