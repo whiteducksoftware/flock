@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class RunCondition(Protocol):
     """Protocol for run conditions used in activation."""
 
-    async def evaluate(self, orchestrator: "Flock") -> bool:
+    async def evaluate(self, orchestrator: Flock) -> bool:
         """Evaluate condition against orchestrator state."""
         ...
 

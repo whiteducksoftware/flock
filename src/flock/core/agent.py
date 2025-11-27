@@ -525,7 +525,7 @@ class AgentBuilder:
         batch: dict | BatchSpec | None = None,
         mode: str = "both",
         priority: int = 0,
-        activation: "RunCondition | None" = None,
+        activation: RunCondition | None = None,
     ) -> AgentBuilder:
         """Declare which artifact types this agent processes.
 

@@ -678,7 +678,7 @@ class Flock(metaclass=AutoTracedMeta):
 
     async def run_until(
         self,
-        condition: "RunCondition",
+        condition: RunCondition,
         *,
         timeout: float | None = None,
     ) -> bool:
@@ -716,7 +716,6 @@ class Flock(metaclass=AutoTracedMeta):
             - run_until_idle(): Simpler method for waiting until idle
             - Until: Builder class for creating conditions
         """
-        from flock.core.conditions import RunCondition
 
         # Initialize components if needed
         if not self._components_initialized:
