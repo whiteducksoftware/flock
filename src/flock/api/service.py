@@ -7,12 +7,17 @@ from flock.api.idempotency import (
     make_cached_response,
 )
 from flock.api.models import (
+    ArtifactPublishRequest,
     SyncPublishRequest,
     SyncPublishResponse,
 )
+from flock.api.webhooks import (
+    WebhookContext,
+    clear_webhook_context,
+    set_webhook_context,
+)
 from flock.components.server.artifacts.models import (
     ArtifactListResponse,
-    ArtifactPublishRequest,
     ArtifactPublishResponse,
     ArtifactSummaryResponse,
 )
@@ -155,10 +160,24 @@ class BlackboardHTTPService:
             body: ArtifactPublishRequest,
             idempotency_key: str | None = Depends(check_idempotency),
         ) -> ArtifactPublishResponse:
+            # Set webhook context if webhook is configured
+            if body.webhook:
+                correlation_id = str(uuid4())
+                ctx = WebhookContext(
+                    url=str(body.webhook.url),
+                    secret=body.webhook.secret,
+                    correlation_id=correlation_id,
+                )
+                set_webhook_context(ctx)
+
             try:
                 await orchestrator.publish({"type": body.type, **body.payload})
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
+            finally:
+                # Always clear webhook context after request
+                if body.webhook:
+                    clear_webhook_context()
 
             response = ArtifactPublishResponse(status="accepted")
 
@@ -201,24 +220,38 @@ class BlackboardHTTPService:
             correlation_id = str(uuid4())
             completed = True
 
-            # Publish artifact with correlation_id
-            try:
-                await orchestrator.publish({
-                    "type": body.type,
-                    "correlation_id": correlation_id,
-                    **body.payload,
-                })
-            except Exception as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-            # Wait for workflow completion with timeout
-            try:
-                await asyncio.wait_for(
-                    orchestrator.run_until_idle(),
-                    timeout=body.timeout,
+            # Set webhook context if webhook is configured
+            if body.webhook:
+                ctx = WebhookContext(
+                    url=str(body.webhook.url),
+                    secret=body.webhook.secret,
+                    correlation_id=correlation_id,
                 )
-            except TimeoutError:
-                completed = False
+                set_webhook_context(ctx)
+
+            try:
+                # Publish artifact with correlation_id
+                try:
+                    await orchestrator.publish({
+                        "type": body.type,
+                        "correlation_id": correlation_id,
+                        **body.payload,
+                    })
+                except Exception as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+                # Wait for workflow completion with timeout
+                try:
+                    await asyncio.wait_for(
+                        orchestrator.run_until_idle(),
+                        timeout=body.timeout,
+                    )
+                except TimeoutError:
+                    completed = False
+            finally:
+                # Always clear webhook context after request
+                if body.webhook:
+                    clear_webhook_context()
 
             # Query all artifacts by correlation_id
             filters = FilterConfig(correlation_id=correlation_id)

@@ -47,29 +47,29 @@
 
 **Goal:** Define webhook-related Pydantic models and configuration.
 
-- [ ] **T1.1 Prime Context**
-    - [ ] T1.1.1 Read existing request models `[ref: src/flock/api/models.py]`
-    - [ ] T1.1.2 Read existing event models `[ref: src/flock/components/server/models/events.py]`
-    - [ ] T1.1.3 Read SDD model definitions `[ref: solution-design.md; Section 1-2]`
+- [x] **T1.1 Prime Context**
+    - [x] T1.1.1 Read existing request models `[ref: src/flock/api/models.py]`
+    - [x] T1.1.2 Read existing event models `[ref: src/flock/components/server/models/events.py]`
+    - [x] T1.1.3 Read SDD model definitions `[ref: solution-design.md; Section 1-2]`
 
-- [ ] **T1.2 Write Tests** `[activity: test-engineering]`
-    - [ ] T1.2.1 Test `WebhookConfig` URL validation (valid URL required)
-    - [ ] T1.2.2 Test `WebhookConfig` secret is optional
-    - [ ] T1.2.3 Test `WebhookPayload` serialization
-    - [ ] T1.2.4 Test `WebhookArtifact` serialization
+- [x] **T1.2 Write Tests** `[activity: test-engineering]`
+    - [x] T1.2.1 Test `WebhookConfig` URL validation (valid URL required)
+    - [x] T1.2.2 Test `WebhookConfig` secret is optional
+    - [x] T1.2.3 Test `WebhookPayload` serialization
+    - [x] T1.2.4 Test `WebhookArtifact` serialization
     - **File:** `tests/api/test_webhook_models.py`
 
-- [ ] **T1.3 Implement** `[activity: api-development]`
-    - [ ] T1.3.1 Add `WebhookConfig` model (url: HttpUrl, secret: str | None)
-    - [ ] T1.3.2 Add `WebhookArtifact` model (id, type, produced_by, payload, created_at, tags)
-    - [ ] T1.3.3 Add `WebhookPayload` model (event_type, correlation_id, sequence, artifact, timestamp)
-    - [ ] T1.3.4 Extend `ArtifactPublishRequest` with optional `webhook: WebhookConfig`
-    - [ ] T1.3.5 Export all new models in `__all__`
+- [x] **T1.3 Implement** `[activity: api-development]`
+    - [x] T1.3.1 Add `WebhookConfig` model (url: HttpUrl, secret: str | None)
+    - [x] T1.3.2 Add `WebhookArtifact` model (id, type, produced_by, payload, created_at, tags)
+    - [x] T1.3.3 Add `WebhookPayload` model (event_type, correlation_id, sequence, artifact, timestamp)
+    - [x] T1.3.4 Extend `ArtifactPublishRequest` with optional `webhook: WebhookConfig`
+    - [x] T1.3.5 Export all new models in `__all__`
     - **File:** `src/flock/api/models.py`
 
-- [ ] **T1.4 Validate**
-    - [ ] T1.4.1 Run `uv run pytest tests/api/test_webhook_models.py -v`
-    - [ ] T1.4.2 Type check models
+- [x] **T1.4 Validate**
+    - [x] T1.4.1 Run `uv run pytest tests/api/test_webhook_models.py -v`
+    - [x] T1.4.2 Type check models
 
 ---
 
@@ -77,35 +77,35 @@
 
 **Goal:** Implement core webhook delivery logic with signing and retry.
 
-- [ ] **T2.1 Prime Context**
-    - [ ] T2.1.1 Read SDD delivery service design `[ref: solution-design.md; Section 3]`
-    - [ ] T2.1.2 Check if httpx is already a dependency `[ref: pyproject.toml]`
+- [x] **T2.1 Prime Context**
+    - [x] T2.1.1 Read SDD delivery service design `[ref: solution-design.md; Section 3]`
+    - [x] T2.1.2 Check if httpx is already a dependency `[ref: pyproject.toml]`
 
-- [ ] **T2.2 Write Tests** `[activity: test-engineering]`
-    - [ ] T2.2.1 Test `sign_payload()` produces correct HMAC-SHA256
-    - [ ] T2.2.2 Test `sign_payload()` with empty secret raises or handles gracefully
-    - [ ] T2.2.3 Test `deliver()` success returns True
-    - [ ] T2.2.4 Test `deliver()` retries on 500 error (mock httpx)
-    - [ ] T2.2.5 Test `deliver()` retries on network error
-    - [ ] T2.2.6 Test `deliver()` returns False after max retries exhausted
-    - [ ] T2.2.7 Test `deliver()` includes X-Flock-Signature header when secret provided
-    - [ ] T2.2.8 Test `deliver()` omits signature when no secret
-    - [ ] T2.2.9 Test retry backoff timing (1s, 2s, 4s)
+- [x] **T2.2 Write Tests** `[activity: test-engineering]`
+    - [x] T2.2.1 Test `sign_payload()` produces correct HMAC-SHA256
+    - [x] T2.2.2 Test `sign_payload()` with empty secret raises or handles gracefully
+    - [x] T2.2.3 Test `deliver()` success returns True
+    - [x] T2.2.4 Test `deliver()` retries on 500 error (mock httpx)
+    - [x] T2.2.5 Test `deliver()` retries on network error
+    - [x] T2.2.6 Test `deliver()` returns False after max retries exhausted
+    - [x] T2.2.7 Test `deliver()` includes X-Flock-Signature header when secret provided
+    - [x] T2.2.8 Test `deliver()` omits signature when no secret
+    - [x] T2.2.9 Test retry backoff timing (1s, 2s, 4s)
     - **File:** `tests/api/test_webhook_delivery.py`
 
-- [ ] **T2.3 Implement** `[activity: api-development]`
-    - [ ] T2.3.1 Create `src/flock/api/webhooks.py`
-    - [ ] T2.3.2 Implement `sign_payload(payload: bytes, secret: str) -> str`
-    - [ ] T2.3.3 Implement `WebhookDeliveryService.__init__(max_retries, base_delay)`
-    - [ ] T2.3.4 Create httpx.AsyncClient with timeout
-    - [ ] T2.3.5 Implement `deliver(url, payload, secret)` with retry loop
-    - [ ] T2.3.6 Add exponential backoff (base_delay * 2^attempt)
-    - [ ] T2.3.7 Add logging for delivery attempts and failures
+- [x] **T2.3 Implement** `[activity: api-development]`
+    - [x] T2.3.1 Create `src/flock/api/webhooks.py`
+    - [x] T2.3.2 Implement `sign_payload(payload: bytes, secret: str) -> str`
+    - [x] T2.3.3 Implement `WebhookDeliveryService.__init__(max_retries, base_delay)`
+    - [x] T2.3.4 Create httpx.AsyncClient with timeout
+    - [x] T2.3.5 Implement `deliver(url, payload, secret)` with retry loop
+    - [x] T2.3.6 Add exponential backoff (base_delay * 2^attempt)
+    - [x] T2.3.7 Add logging for delivery attempts and failures
     - **File:** `src/flock/api/webhooks.py`
 
-- [ ] **T2.4 Validate**
-    - [ ] T2.4.1 Run `uv run pytest tests/api/test_webhook_delivery.py -v`
-    - [ ] T2.4.2 Type check `uv run mypy src/flock/api/webhooks.py`
+- [x] **T2.4 Validate**
+    - [x] T2.4.1 Run `uv run pytest tests/api/test_webhook_delivery.py -v`
+    - [x] T2.4.2 Type check `uv run mypy src/flock/api/webhooks.py`
 
 ---
 
@@ -113,28 +113,28 @@
 
 **Goal:** Implement request-scoped context for webhook configuration.
 
-- [ ] **T3.1 Prime Context**
-    - [ ] T3.1.1 Read SDD context design `[ref: solution-design.md; Section 4]`
-    - [ ] T3.1.2 Review Python ContextVar usage patterns
+- [x] **T3.1 Prime Context**
+    - [x] T3.1.1 Read SDD context design `[ref: solution-design.md; Section 4]`
+    - [x] T3.1.2 Review Python ContextVar usage patterns
 
-- [ ] **T3.2 Write Tests** `[activity: test-engineering]`
-    - [ ] T3.2.1 Test `WebhookContext` creation with url and correlation_id
-    - [ ] T3.2.2 Test `next_sequence()` increments correctly
-    - [ ] T3.2.3 Test ContextVar isolation between async tasks
-    - [ ] T3.2.4 Test `get_webhook_context()` returns None when not set
+- [x] **T3.2 Write Tests** `[activity: test-engineering]`
+    - [x] T3.2.1 Test `WebhookContext` creation with url and correlation_id
+    - [x] T3.2.2 Test `next_sequence()` increments correctly
+    - [x] T3.2.3 Test ContextVar isolation between async tasks
+    - [x] T3.2.4 Test `get_webhook_context()` returns None when not set
     - **File:** `tests/api/test_webhook_context.py`
 
-- [ ] **T3.3 Implement** `[activity: api-development]`
-    - [ ] T3.3.1 Define `WebhookContext` dataclass (url, secret, correlation_id, sequence)
-    - [ ] T3.3.2 Implement `next_sequence()` method
-    - [ ] T3.3.3 Create module-level ContextVar `_webhook_context`
-    - [ ] T3.3.4 Add `set_webhook_context(ctx)` helper
-    - [ ] T3.3.5 Add `get_webhook_context()` helper
-    - [ ] T3.3.6 Add `clear_webhook_context()` helper
+- [x] **T3.3 Implement** `[activity: api-development]`
+    - [x] T3.3.1 Define `WebhookContext` dataclass (url, secret, correlation_id, sequence)
+    - [x] T3.3.2 Implement `next_sequence()` method
+    - [x] T3.3.3 Create module-level ContextVar `_webhook_context`
+    - [x] T3.3.4 Add `set_webhook_context(ctx)` helper
+    - [x] T3.3.5 Add `get_webhook_context()` helper
+    - [x] T3.3.6 Add `clear_webhook_context()` helper
     - **File:** `src/flock/api/webhooks.py` (add to same file)
 
-- [ ] **T3.4 Validate**
-    - [ ] T3.4.1 Run `uv run pytest tests/api/test_webhook_context.py -v`
+- [x] **T3.4 Validate**
+    - [x] T3.4.1 Run `uv run pytest tests/api/test_webhook_context.py -v`
 
 ---
 
@@ -142,43 +142,43 @@
 
 **Goal:** Hook webhook delivery into artifact publication events.
 
-- [ ] **T4.1 Prime Context**
-    - [ ] T4.1.1 Read orchestrator component base `[ref: src/flock/components/orchestrator/base.py]`
-    - [ ] T4.1.2 Read existing component patterns `[ref: src/flock/components/orchestrator/deduplication.py]`
-    - [ ] T4.1.3 Identify hook point for "after artifact published"
+- [x] **T4.1 Prime Context**
+    - [x] T4.1.1 Read orchestrator component base `[ref: src/flock/components/orchestrator/base.py]`
+    - [x] T4.1.2 Read existing component patterns `[ref: src/flock/components/orchestrator/deduplication.py]`
+    - [x] T4.1.3 Identify hook point for "after artifact published"
 
-- [ ] **T4.2 Investigate Hook Point** `[activity: architecture]`
-    - [ ] T4.2.1 Determine if `on_after_publish` hook exists or needs creation
-    - [ ] T4.2.2 If hook doesn't exist, check `on_after_agent` or similar
-    - [ ] T4.2.3 Document chosen integration approach
-    - **Note:** May need to add new hook or use existing event emission
+- [x] **T4.2 Investigate Hook Point** `[activity: architecture]`
+    - [x] T4.2.1 Determine if `on_after_publish` hook exists or needs creation
+    - [x] T4.2.2 If hook doesn't exist, check `on_after_agent` or similar
+    - [x] T4.2.3 Document chosen integration approach
+    - **Note:** Found `on_artifact_published` hook - perfect fit!
 
-- [ ] **T4.3 Write Tests** `[activity: test-engineering]`
-    - [ ] T4.3.1 Test component fires webhook when context is set
-    - [ ] T4.3.2 Test component does nothing when context is None
-    - [ ] T4.3.3 Test payload includes correct correlation_id and sequence
-    - [ ] T4.3.4 Test delivery is fire-and-forget (doesn't block)
+- [x] **T4.3 Write Tests** `[activity: test-engineering]`
+    - [x] T4.3.1 Test component fires webhook when context is set
+    - [x] T4.3.2 Test component does nothing when context is None
+    - [x] T4.3.3 Test payload includes correct correlation_id and sequence
+    - [x] T4.3.4 Test delivery is fire-and-forget (doesn't block)
     - **File:** `tests/components/test_webhook_component.py`
 
-- [ ] **T4.4 Implement Component** `[activity: api-development]`
-    - [ ] T4.4.1 Create `src/flock/components/orchestrator/webhook.py`
-    - [ ] T4.4.2 Define `WebhookDeliveryComponent(OrchestratorComponent)`
-    - [ ] T4.4.3 Set appropriate priority (run late, e.g., 200)
-    - [ ] T4.4.4 Implement hook method that:
+- [x] **T4.4 Implement Component** `[activity: api-development]`
+    - [x] T4.4.1 Create `src/flock/components/orchestrator/webhook.py`
+    - [x] T4.4.2 Define `WebhookDeliveryComponent(OrchestratorComponent)`
+    - [x] T4.4.3 Set appropriate priority (run late, e.g., 200)
+    - [x] T4.4.4 Implement hook method that:
         - Gets WebhookContext from ContextVar
         - Returns early if None
         - Builds WebhookPayload
         - Fires asyncio.create_task for delivery
-    - [ ] T4.4.5 Inject WebhookDeliveryService dependency
+    - [x] T4.4.5 Inject WebhookDeliveryService dependency
     - **File:** `src/flock/components/orchestrator/webhook.py`
 
-- [ ] **T4.5 Register Component**
-    - [ ] T4.5.1 Add to component exports in `__init__.py`
-    - [ ] T4.5.2 Determine if auto-registered or opt-in
+- [x] **T4.5 Register Component**
+    - [x] T4.5.1 Add to component exports in `__init__.py`
+    - [x] T4.5.2 Determine if auto-registered or opt-in (opt-in for now)
     - **File:** `src/flock/components/orchestrator/__init__.py`
 
-- [ ] **T4.6 Validate**
-    - [ ] T4.6.1 Run `uv run pytest tests/components/test_webhook_component.py -v`
+- [x] **T4.6 Validate**
+    - [x] T4.6.1 Run `uv run pytest tests/components/test_webhook_component.py -v`
 
 ---
 
@@ -186,30 +186,30 @@
 
 **Goal:** Wire webhook configuration into publish endpoints.
 
-- [ ] **T5.1 Prime Context**
-    - [ ] T5.1.1 Read existing publish endpoint `[ref: src/flock/api/service.py; lines: 126-138]`
-    - [ ] T5.1.2 Read sync publish endpoint (from spec 001 when implemented)
+- [x] **T5.1 Prime Context**
+    - [x] T5.1.1 Read existing publish endpoint `[ref: src/flock/api/service.py; lines: 126-138]`
+    - [x] T5.1.2 Read sync publish endpoint (from spec 001 when implemented)
 
-- [ ] **T5.2 Write Tests** `[activity: test-engineering]`
-    - [ ] T5.2.1 Test `/artifacts` with webhook_url triggers delivery
-    - [ ] T5.2.2 Test `/artifacts` without webhook_url works as before
-    - [ ] T5.2.3 Test `/artifacts/sync` with webhook_url triggers delivery for all artifacts
-    - [ ] T5.2.4 Test webhook receives correct correlation_id
-    - [ ] T5.2.5 Test webhook receives artifacts in sequence order
+- [x] **T5.2 Write Tests** `[activity: test-engineering]`
+    - [x] T5.2.1 Test `/artifacts` with webhook_url triggers delivery
+    - [x] T5.2.2 Test `/artifacts` without webhook_url works as before
+    - [x] T5.2.3 Test `/artifacts/sync` with webhook_url triggers delivery for all artifacts
+    - [x] T5.2.4 Test webhook receives correct correlation_id
+    - [x] T5.2.5 Test webhook receives artifacts in sequence order
     - **File:** `tests/api/test_webhook_integration.py`
 
-- [ ] **T5.3 Implement** `[activity: api-development]`
-    - [ ] T5.3.1 Update `publish_artifact` to accept `WebhookConfig`
-    - [ ] T5.3.2 Extract webhook config from request body
-    - [ ] T5.3.3 Set WebhookContext before publish
-    - [ ] T5.3.4 Clear WebhookContext after response
-    - [ ] T5.3.5 Update `publish_sync` similarly (if implemented)
-    - [ ] T5.3.6 Ensure WebhookDeliveryComponent is registered
+- [x] **T5.3 Implement** `[activity: api-development]`
+    - [x] T5.3.1 Update `publish_artifact` to accept `WebhookConfig`
+    - [x] T5.3.2 Extract webhook config from request body
+    - [x] T5.3.3 Set WebhookContext before publish
+    - [x] T5.3.4 Clear WebhookContext after response
+    - [x] T5.3.5 Update `publish_sync` similarly (if implemented)
+    - [x] T5.3.6 Ensure WebhookDeliveryComponent is registered
     - **File:** `src/flock/api/service.py`
 
-- [ ] **T5.4 Validate**
-    - [ ] T5.4.1 Run `uv run pytest tests/api/test_webhook_integration.py -v`
-    - [ ] T5.4.2 Run full test suite
+- [x] **T5.4 Validate**
+    - [x] T5.4.1 Run `uv run pytest tests/api/test_webhook_integration.py -v`
+    - [x] T5.4.2 Run full test suite
 
 ---
 
@@ -217,37 +217,37 @@
 
 **Goal:** Ensure complete webhook flow works end-to-end.
 
-- [ ] **T6.1 E2E Tests** `[activity: test-engineering]`
-    - [ ] T6.1.1 Test full flow: publish artifact → agent processes → webhooks delivered
-    - [ ] T6.1.2 Test webhook signature verification (create test receiver)
-    - [ ] T6.1.3 Test retry behavior with failing endpoint
-    - [ ] T6.1.4 Test webhook doesn't block even if endpoint is slow
+- [x] **T6.1 E2E Tests** `[activity: test-engineering]`
+    - [x] T6.1.1 Test full flow: publish artifact → agent processes → webhooks delivered
+    - [x] T6.1.2 Test webhook signature verification (create test receiver)
+    - [x] T6.1.3 Test retry behavior with failing endpoint
+    - [x] T6.1.4 Test webhook doesn't block even if endpoint is slow
     - **File:** `tests/api/test_webhook_e2e.py`
 
-- [ ] **T6.2 Acceptance Criteria Verification** `[ref: product-requirements.md]`
-    - [ ] T6.2.1 Webhook URL specified per request works
-    - [ ] T6.2.2 POST notifications sent for each artifact produced
-    - [ ] T6.2.3 Works with both async and sync endpoints
-    - [ ] T6.2.4 Payload includes required fields (id, type, correlation_id, etc.)
-    - [ ] T6.2.5 Sequence number tracks order within workflow
-    - [ ] T6.2.6 X-Flock-Signature header present with secret
-    - [ ] T6.2.7 Retries up to 3 times with backoff
-    - [ ] T6.2.8 Delivery failures don't fail workflow
+- [x] **T6.2 Acceptance Criteria Verification** `[ref: product-requirements.md]`
+    - [x] T6.2.1 Webhook URL specified per request works
+    - [x] T6.2.2 POST notifications sent for each artifact produced
+    - [x] T6.2.3 Works with both async and sync endpoints
+    - [x] T6.2.4 Payload includes required fields (id, type, correlation_id, etc.)
+    - [x] T6.2.5 Sequence number tracks order within workflow
+    - [x] T6.2.6 X-Flock-Signature header present with secret
+    - [x] T6.2.7 Retries up to 3 times with backoff
+    - [x] T6.2.8 Delivery failures don't fail workflow
 
-- [ ] **T6.3 Quality Gates**
-    - [ ] T6.3.1 All tests passing: `uv run pytest tests/ -v`
-    - [ ] T6.3.2 Type check passing: `uv run mypy src/flock`
-    - [ ] T6.3.3 Lint passing: `uv run ruff check src/flock`
-    - [ ] T6.3.4 Format check: `uv run ruff format --check src/flock`
+- [x] **T6.3 Quality Gates**
+    - [x] T6.3.1 All tests passing: `uv run pytest tests/ -v`
+    - [x] T6.3.2 Type check passing: `uv run mypy src/flock`
+    - [x] T6.3.3 Lint passing: `uv run ruff check src/flock`
+    - [x] T6.3.4 Format check: `uv run ruff format --check src/flock`
 
-- [ ] **T6.4 Documentation**
-    - [ ] T6.4.1 Add docstrings to webhook components
-    - [ ] T6.4.2 Update CHANGELOG.md
+- [x] **T6.4 Documentation**
+    - [x] T6.4.1 Add docstrings to webhook components
+    - [x] T6.4.2 Update CHANGELOG.md
 
-- [ ] **T6.5 Final Verification**
-    - [ ] T6.5.1 Manual test with httpbin.org or similar
-    - [ ] T6.5.2 Verify backward compatibility
-    - [ ] T6.5.3 Review PR-ready state
+- [x] **T6.5 Final Verification**
+    - [x] T6.5.1 Manual test with httpbin.org or similar
+    - [x] T6.5.2 Verify backward compatibility
+    - [x] T6.5.3 Review PR-ready state
 
 ---
 
