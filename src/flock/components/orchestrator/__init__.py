@@ -1,5 +1,6 @@
 """Orchestrator component library - Base classes and built-in components."""
 
+from flock.components.orchestrator.activation import ActivationComponent
 from flock.components.orchestrator.base import (
     CollectionResult,
     OrchestratorComponent,
@@ -13,6 +14,7 @@ from flock.components.orchestrator.webhook import WebhookDeliveryComponent
 
 
 __all__ = [
+    "ActivationComponent",
     "BuiltinCollectionComponent",
     "CircuitBreakerComponent",
     "CollectionResult",

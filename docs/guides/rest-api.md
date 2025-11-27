@@ -601,8 +601,29 @@ The current API has **no authentication**. For production:
 
 ---
 
+## Webhook Notifications
+
+For real-time push notifications when artifacts are published (instead of polling), see the **[Webhook Notifications Guide](webhooks.md)**.
+
+Webhooks complement the REST API by pushing updates to your systems:
+
+```python
+from flock.components.orchestrator import WebhookDeliveryComponent
+
+# Add webhook component for real-time notifications
+flock.add_component(WebhookDeliveryComponent(
+    webhook_url="https://your-server.com/webhook",
+    webhook_secret="your-hmac-secret",  # Optional HMAC signing
+))
+```
+
+Each published artifact triggers a POST request with the artifact data, enabling integration with Slack, Discord, custom dashboards, and more.
+
+---
+
 ## Next Steps
 
+- [Webhook Notifications](webhooks.md) - Real-time HTTP callbacks
 - [Dashboard Guide](dashboard.md) - Visual monitoring
 - [Tracing Guide](tracing/index.md) - Distributed tracing
 - [Persistent Blackboard](persistent-blackboard.md) - Durable storage

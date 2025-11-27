@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from flock.components import ServerComponent
+    from flock.core.conditions import RunCondition
 
 from flock.components.orchestrator import (
     CollectionResult,
@@ -674,6 +675,111 @@ class Flock(metaclass=AutoTracedMeta):
             # Use asyncio.to_thread to avoid blocking the event loop
             # since input() is a blocking I/O operation
             await asyncio.to_thread(input, "Press any key to continue....")
+
+    async def run_until(
+        self,
+        condition: "RunCondition",
+        *,
+        timeout: float | None = None,
+    ) -> bool:
+        """Run until condition is satisfied or timeout.
+
+        Evaluates the condition between scheduler steps. Returns as soon
+        as the condition becomes True, or False if timeout is exceeded.
+
+        Args:
+            condition: RunCondition to evaluate between scheduler steps.
+                       Use the Until helper to build conditions:
+                       - Until.idle() - wait for no pending work
+                       - Until.artifact_count(Model).at_least(n) - wait for count
+                       - Until.exists(Model) - wait for artifact to exist
+                       - Until.workflow_error(cid) - wait for error
+            timeout: Maximum time to wait in seconds. None means no timeout.
+
+        Returns:
+            True if condition was satisfied, False if timeout exceeded.
+
+        Examples:
+            >>> # Wait for 5 user stories or error
+            >>> condition = (
+            ...     Until.artifact_count(UserStory, correlation_id=cid).at_least(5)
+            ...     | Until.workflow_error(cid)
+            ... )
+            >>> success = await flock.run_until(condition, timeout=60)
+            >>> if not success:
+            ...     print("Timeout reached before condition met")
+
+            >>> # Wait until idle (equivalent to run_until_idle())
+            >>> await flock.run_until(Until.idle())
+
+        See Also:
+            - run_until_idle(): Simpler method for waiting until idle
+            - Until: Builder class for creating conditions
+        """
+        from flock.core.conditions import RunCondition
+
+        # Initialize components if needed
+        if not self._components_initialized:
+            await self._run_initialize()
+
+        start_time = datetime.now(UTC)
+
+        while True:
+            # Check condition first
+            if await condition.evaluate(self):
+                return True
+
+            # Check timeout
+            if timeout is not None:
+                elapsed = (datetime.now(UTC) - start_time).total_seconds()
+                if elapsed >= timeout:
+                    self._logger.warning(
+                        f"run_until() timeout reached after {elapsed:.2f}s"
+                    )
+                    return False
+
+            # Check for pending scheduler tasks
+            if self._scheduler.pending_tasks:
+                await asyncio.sleep(0.01)
+                pending = {
+                    task for task in self._scheduler.pending_tasks if not task.done()
+                }
+                self._scheduler._tasks = pending
+                continue  # Work pending, loop again
+
+            # Check for pending batches/correlations (passive work)
+            pending_batches = self._lifecycle_manager.has_pending_batches
+            pending_correlations = self._lifecycle_manager.has_pending_correlations
+
+            if pending_batches:
+                await self._lifecycle_manager.start_batch_timeout_checker()
+                expired_batches = self._batch_engine.check_timeouts()
+                if expired_batches:
+                    await asyncio.sleep(0.15)
+                    continue
+
+            if pending_correlations:
+                await self._lifecycle_manager.start_correlation_cleanup()
+
+            # Check for active timers
+            has_active_timers = self._has_active_timers()
+            if has_active_timers:
+                await asyncio.sleep(0.1)
+                continue
+
+            # No pending work - do one final condition check before returning
+            if await condition.evaluate(self):
+                return True
+
+            # System is idle and condition not met - return based on idle
+            # If we have no timeout, we return True (condition might never be met)
+            # If we have timeout, we keep waiting until timeout
+            if timeout is None:
+                # No timeout and idle - condition won't become true without new work
+                return False
+
+            # With timeout, keep waiting for new work
+            await asyncio.sleep(0.1)
 
     async def direct_invoke(
         self, agent: Agent, inputs: Sequence[BaseModel | Mapping[str, Any] | Artifact]
