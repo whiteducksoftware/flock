@@ -1,8 +1,23 @@
 from __future__ import annotations
 
+from flock.api.idempotency import (
+    IdempotencyCacheHitError,
+    cache_response,
+    check_idempotency,
+    make_cached_response,
+)
+from flock.api.models import (
+    ArtifactPublishRequest,
+    SyncPublishRequest,
+    SyncPublishResponse,
+)
+from flock.api.webhooks import (
+    WebhookContext,
+    clear_webhook_context,
+    set_webhook_context,
+)
 from flock.components.server.artifacts.models import (
     ArtifactListResponse,
-    ArtifactPublishRequest,
     ArtifactPublishResponse,
     ArtifactSummaryResponse,
 )
@@ -20,11 +35,13 @@ from flock.components.server.models.models import (
 
 """HTTP control plane for the blackboard orchestrator."""
 
+import asyncio
+import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from flock.core.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
@@ -53,7 +70,18 @@ class BlackboardHTTPService:
                 },
             ],
         )
+        self._register_exception_handlers()
         self._register_routes()
+
+    def _register_exception_handlers(self) -> None:
+        """Register custom exception handlers."""
+
+        @self.app.exception_handler(IdempotencyCacheHitError)
+        async def idempotency_cache_hit_handler(
+            request: Request, exc: IdempotencyCacheHitError
+        ):
+            """Return cached response on idempotency cache hit."""
+            return make_cached_response(exc.cached_response)
 
     def _register_routes(self) -> None:
         app = self.app
@@ -130,12 +158,155 @@ class BlackboardHTTPService:
         )
         async def publish_artifact(
             body: ArtifactPublishRequest,
+            idempotency_key: str | None = Depends(check_idempotency),
         ) -> ArtifactPublishResponse:
+            # Generate correlation_id for tracking (always, for consistency)
+            correlation_id = str(uuid4())
+
+            # Set webhook context if webhook is configured
+            if body.webhook:
+                ctx = WebhookContext(
+                    url=str(body.webhook.url),
+                    secret=body.webhook.secret,
+                    correlation_id=correlation_id,
+                )
+                set_webhook_context(ctx)
+
             try:
-                await orchestrator.publish({"type": body.type, **body.payload})
+                # Pass correlation_id to ensure webhook context matches artifact
+                # Note: correlation_id comes AFTER payload spread to prevent override
+                await orchestrator.publish({
+                    "type": body.type,
+                    **body.payload,
+                    "correlation_id": correlation_id,
+                })
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
-            return ArtifactPublishResponse(status="accepted")
+            finally:
+                # Always clear webhook context after request
+                if body.webhook:
+                    clear_webhook_context()
+
+            response = ArtifactPublishResponse(status="accepted")
+
+            # Cache response if idempotency key provided
+            if idempotency_key:
+                body_bytes = response.model_dump_json().encode()
+                from fastapi.responses import Response
+
+                await cache_response(
+                    idempotency_key,
+                    Response(
+                        status_code=200, headers={"content-type": "application/json"}
+                    ),
+                    body_bytes,
+                )
+
+            return response
+
+        @app.post(
+            "/api/v1/artifacts/sync",
+            response_model=SyncPublishResponse,
+            tags=["Public API"],
+        )
+        async def publish_sync(
+            body: SyncPublishRequest,
+            idempotency_key: str | None = Depends(check_idempotency),
+        ) -> SyncPublishResponse:
+            """Publish artifact and wait for workflow to complete.
+
+            Blocks until all downstream agents finish processing or timeout is reached.
+            Returns all artifacts produced during the workflow cascade.
+
+            Args:
+                body: Publish request with type, payload, optional timeout and filters
+
+            Returns:
+                SyncPublishResponse with correlation_id, artifacts, completed flag, duration
+            """
+            start_time = time.monotonic()
+            correlation_id = str(uuid4())
+            completed = True
+
+            # Set webhook context if webhook is configured
+            if body.webhook:
+                ctx = WebhookContext(
+                    url=str(body.webhook.url),
+                    secret=body.webhook.secret,
+                    correlation_id=correlation_id,
+                )
+                set_webhook_context(ctx)
+
+            try:
+                # Publish artifact with correlation_id
+                # Note: correlation_id comes AFTER payload spread to prevent
+                # malicious payloads from overriding our generated correlation_id
+                try:
+                    await orchestrator.publish({
+                        "type": body.type,
+                        **body.payload,
+                        "correlation_id": correlation_id,
+                    })
+                except Exception as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+                # Wait for workflow completion with timeout
+                try:
+                    await asyncio.wait_for(
+                        orchestrator.run_until_idle(),
+                        timeout=body.timeout,
+                    )
+                except TimeoutError:
+                    completed = False
+            finally:
+                # Always clear webhook context after request
+                if body.webhook:
+                    clear_webhook_context()
+
+            # Query all artifacts by correlation_id
+            filters = FilterConfig(correlation_id=correlation_id)
+
+            # Apply optional type/producer filters
+            if body.filters:
+                if body.filters.type_names:
+                    filters = FilterConfig(
+                        correlation_id=correlation_id,
+                        type_names=set(body.filters.type_names),
+                        produced_by=set(body.filters.produced_by)
+                        if body.filters.produced_by
+                        else None,
+                    )
+                elif body.filters.produced_by:
+                    filters = FilterConfig(
+                        correlation_id=correlation_id,
+                        produced_by=set(body.filters.produced_by),
+                    )
+
+            artifacts, _ = await orchestrator.store.query_artifacts(filters, limit=1000)
+
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+
+            response = SyncPublishResponse(
+                correlation_id=correlation_id,
+                artifacts=[_serialize_artifact(a) for a in artifacts],  # type: ignore[misc]
+                completed=completed,
+                duration_ms=duration_ms,
+            )
+
+            # Cache response if idempotency key provided
+            if idempotency_key:
+                body_bytes = response.model_dump_json().encode()
+                from fastapi.responses import Response
+
+                await cache_response(
+                    idempotency_key,
+                    Response(
+                        status_code=200, headers={"content-type": "application/json"}
+                    ),
+                    body_bytes,
+                )
+
+            return response
 
         @app.get(
             "/api/v1/artifacts",

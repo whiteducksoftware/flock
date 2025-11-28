@@ -138,6 +138,10 @@ For deep dives into specific topics, see:
 **Publishing Patterns:**
 - **[Fan-Out Publishing](docs/guides/fan-out.md)** - Generate multiple outputs with filtering/validation ⭐ **NEW in 0.5**
 
+**Workflow Control:**
+- **[Workflow Control with Conditions](docs/guides/workflow-control.md)** - Stop workflows at specific milestones with Until DSL ⭐ **NEW**
+- **[Webhook Notifications](docs/guides/webhooks.md)** - Real-time HTTP notifications when artifacts are published ⭐ **NEW**
+
 **Development & Operations:**
 - **[Development Workflow](docs/guides/testing.md)** - Testing, quality, versioning, pre-commit
 - **[Frontend/Dashboard](docs/guides/dashboard.md)** - Dashboard usage and development
@@ -1971,6 +1975,41 @@ async with flock.traced_run("workflow_name"):
 
 # Clear traces
 Flock.clear_traces()
+```
+
+**Workflow control with conditions:**
+```python
+from flock.core.conditions import Until
+
+# Stop when you have what you need (not wait for everything)
+await flock.run_until(
+    Until.artifact_count(Result).at_least(5),
+    timeout=60
+)
+
+# Composite conditions (stop on results OR error)
+stop_condition = (
+    Until.artifact_count(Result, correlation_id=cid).at_least(5)
+    | Until.workflow_error(cid)
+)
+await flock.run_until(stop_condition, timeout=120)
+
+# Stop when high-confidence result found
+await flock.run_until(
+    Until.any_field(Hypothesis, field="confidence", predicate=lambda v: v >= 0.9)
+)
+```
+
+**Webhook notifications:**
+```python
+from flock.components.orchestrator import WebhookDeliveryComponent
+
+# Send HTTP notifications when artifacts are published
+flock.add_component(WebhookDeliveryComponent(
+    webhook_url="https://your-server.com/webhook",
+    webhook_secret="optional-hmac-secret",  # For signature verification
+    max_retries=3,
+))
 ```
 
 **Start dashboard:**

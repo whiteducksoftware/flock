@@ -17,7 +17,6 @@ from flock.core.subscription import JoinSpec
 from flock.registry import flock_type
 
 
-
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
@@ -145,7 +144,10 @@ async def main_cli():
 
     if reports:
         for i, report in enumerate(reports, 1):
-            print(f"\n🏥 Report #{i} - Patient {report.patient_id}")
+            # Note: This example uses SIMULATED patient data for demonstration purposes.
+            # In production, patient data must be handled according to HIPAA/privacy requirements.
+            # Using anonymized identifier (not derived from actual patient data)
+            print(f"\n🏥 Report #{i} - Patient [REDACTED-{i:03d}]")
             print(f"   Diagnosis: {report.diagnosis}")
             print(f"   Confidence: {report.confidence}")
             print(f"   Treatment: {report.treatment_plan}")

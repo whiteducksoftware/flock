@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel
 
@@ -13,7 +13,17 @@ from flock.registry import type_registry
 
 
 if TYPE_CHECKING:
+    from flock.core import Flock
     from flock.core.artifacts import Artifact
+
+
+# Use Protocol for forward reference to avoid circular import
+class RunCondition(Protocol):
+    """Protocol for run conditions used in activation."""
+
+    async def evaluate(self, orchestrator: Flock) -> bool:
+        """Evaluate condition against orchestrator state."""
+        ...
 
 
 Predicate = Callable[[BaseModel], bool]
@@ -183,6 +193,7 @@ class Subscription:
         batch: BatchSpec | None = None,
         mode: str = "both",
         priority: int = 0,
+        activation: RunCondition | None = None,
     ) -> None:
         if not types:
             raise ValueError("Subscription must declare at least one type.")
@@ -213,6 +224,7 @@ class Subscription:
         self.batch = batch
         self.mode = mode
         self.priority = priority
+        self.activation = activation
 
     def _parse_semantic_match_parameter(
         self, semantic_match: str | list[str | dict[str, Any]] | dict[str, Any] | None
@@ -250,13 +262,11 @@ class Subscription:
                     )
             return predicates
 
-        if isinstance(semantic_match, dict):
-            query = semantic_match.get("query", "")
-            threshold = semantic_match.get("threshold", 0.4)  # Match dataclass default
-            field = semantic_match.get("field", None)
-            return [TextPredicate(query=query, threshold=threshold, field=field)]
-
-        return []
+        # Must be dict at this point based on type annotation
+        query = semantic_match.get("query", "")
+        threshold = semantic_match.get("threshold", 0.4)  # Match dataclass default
+        field = semantic_match.get("field", None)
+        return [TextPredicate(query=query, threshold=threshold, field=field)]
 
     def accepts_direct(self) -> bool:
         return self.mode in {"direct", "both"}

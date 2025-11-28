@@ -53,17 +53,37 @@ async def get_theme(theme_name: str) -> dict[str, Any]:
         HTTPException: If theme not found or failed to load
     """
     try:
-        # Sanitize theme name to prevent path traversal
-        theme_name = theme_name.replace("/", "").replace("\\", "").replace("..", "")
+        # Sanitize theme name: only allow alphanumeric, hyphen, underscore
+        # This prevents path traversal attacks
+        import re
 
-        theme_path = THEMES_DIR / f"{theme_name}.toml"
+        if not re.match(r"^[a-zA-Z0-9_-]+$", theme_name):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid theme name '{theme_name}'. "
+                "Only alphanumeric characters, hyphens, and underscores allowed.",
+            )
 
-        if not theme_path.exists():
+        # Get list of valid theme files (safe enumeration, not user-controlled path)
+        themes_dir_resolved = THEMES_DIR.resolve()
+        valid_themes = {f.stem: f for f in themes_dir_resolved.glob("*.toml")}
+
+        # Lookup theme from validated names only (no path construction from user input)
+        if theme_name not in valid_themes:
             raise HTTPException(
                 status_code=404, detail=f"Theme '{theme_name}' not found"
             )
 
-        # Load TOML theme
+        theme_path = valid_themes[theme_name]
+
+        # Defense in depth: verify resolved path is still within THEMES_DIR
+        # (should always pass since we looked up from glob, but extra safety)
+        if not theme_path.is_relative_to(themes_dir_resolved):
+            raise HTTPException(
+                status_code=400, detail=f"Invalid theme name '{theme_name}'"
+            )
+
+        # Load TOML theme (path exists since it came from glob)
         theme_data = toml.load(theme_path)
 
         return {"name": theme_name, "data": theme_data}

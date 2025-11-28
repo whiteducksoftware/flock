@@ -5,6 +5,11 @@ on:
       - main  # or master
       - docs/*  # or docs/*
 
+# Explicit permissions for security best practices
+permissions:
+  contents: write
+  pages: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

@@ -106,7 +106,7 @@ except Exception as e:
     .description(
         "Researches information on the web and writes a beautifully "
         "formatted markdown report with sources and key insights."
-        "Does at least 6 web searches 6 read_website to have done extensive research."
+        "Does at least 2 web searches 2 read_website to have done extensive research."
     )
     .consumes(Task)
     .with_mcps(["zai_search_web", "read_website"])
@@ -115,7 +115,7 @@ except Exception as e:
     .with_engines(
             DSPyEngine(
                 adapter=BAMLAdapter(),  # Better structured output parsing
-                max_tokens=64000,
+                max_tokens=32000,
                 max_tool_calls=50,
             )
         )

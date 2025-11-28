@@ -38,6 +38,7 @@ if TYPE_CHECKING:  # pragma: no cover - type hints only
 
     from flock.components.agent import AgentComponent, EngineComponent
     from flock.core import Flock
+    from flock.core.conditions import RunCondition
 
 
 @dataclass
@@ -524,6 +525,7 @@ class AgentBuilder:
         batch: dict | BatchSpec | None = None,
         mode: str = "both",
         priority: int = 0,
+        activation: RunCondition | None = None,
     ) -> AgentBuilder:
         """Declare which artifact types this agent processes.
 
@@ -550,6 +552,9 @@ class AgentBuilder:
             batch: Batch specification for processing multiple artifacts together
             mode: Processing mode - "both", "direct", or "events"
             priority: Execution priority (higher = executes first)
+            activation: Optional RunCondition that must be satisfied before agent
+                activates. Use When.correlation() to build activation conditions.
+                The condition is evaluated within the correlation context.
 
         Returns:
             self for method chaining
@@ -584,6 +589,13 @@ class AgentBuilder:
 
             >>> # Batch processing
             >>> agent.consumes(Email, batch={"size": 10, "timeout": 5.0})
+
+            >>> # Activation condition (defer until 5 stories exist)
+            >>> from flock.core.conditions import When
+            >>> agent.consumes(
+            ...     UserStory,
+            ...     activation=When.correlation(UserStory).count_at_least(5),
+            ... )
         """
         predicates: Sequence[Callable[[BaseModel], bool]] | None
         if where is None:
@@ -632,6 +644,7 @@ class AgentBuilder:
             batch=batch_spec,
             mode=mode,
             priority=priority,
+            activation=activation,
         )
         self._agent.subscriptions.append(subscription)
         return self

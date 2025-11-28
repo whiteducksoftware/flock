@@ -8,7 +8,7 @@ All models maintain 100% backwards compatibility with existing wire format.
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 
 
 # ============================================================================
@@ -119,6 +119,9 @@ class ArtifactPublishRequest(BaseModel):
     type: str = Field(description="Artifact type name")
     payload: dict[str, Any] = Field(
         default_factory=dict, description="Artifact payload data"
+    )
+    webhook: "WebhookConfig | None" = Field(
+        default=None, description="Optional webhook for delivery notifications"
     )
 
 
@@ -244,6 +247,126 @@ class CorrelationStatusResponse(BaseModel):
 
 
 # ============================================================================
+# Sync Publish Models (Spec 001)
+# ============================================================================
+
+
+class SyncPublishFilters(BaseModel):
+    """Filters for sync publish response artifacts."""
+
+    type_names: list[str] | None = Field(
+        default=None, description="Filter artifacts by type names"
+    )
+    produced_by: list[str] | None = Field(
+        default=None, description="Filter artifacts by producer agent names"
+    )
+
+
+class SyncPublishRequest(BaseModel):
+    """Request body for POST /api/v1/artifacts/sync."""
+
+    type: str = Field(description="Artifact type name")
+    payload: dict[str, Any] = Field(
+        default_factory=dict, description="Artifact payload data"
+    )
+    timeout: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=300.0,
+        description="Maximum time to wait for workflow completion (seconds)",
+    )
+    filters: SyncPublishFilters | None = Field(
+        default=None, description="Optional filters for response artifacts"
+    )
+    webhook: "WebhookConfig | None" = Field(
+        default=None, description="Optional webhook for delivery notifications"
+    )
+
+
+class SyncPublishResponse(BaseModel):
+    """Response for POST /api/v1/artifacts/sync."""
+
+    correlation_id: str = Field(description="Correlation ID for this workflow")
+    artifacts: list[ArtifactBase] = Field(
+        description="Artifacts produced during workflow execution"
+    )
+    completed: bool = Field(
+        description="True if workflow completed, False if timeout reached"
+    )
+    duration_ms: int = Field(description="Time taken in milliseconds")
+
+
+# ============================================================================
+# Error Response Models (Spec 001)
+# ============================================================================
+
+
+class ErrorDetail(BaseModel):
+    """Detailed error information for a specific field or issue."""
+
+    field: str | None = Field(
+        default=None, description="Field path that caused the error (if applicable)"
+    )
+    message: str = Field(description="Human-readable error message")
+    code: str | None = Field(
+        default=None, description="Machine-readable error code for this detail"
+    )
+
+
+class ErrorResponse(BaseModel):
+    """Standardized error response for API errors."""
+
+    code: str = Field(description="Machine-readable error code")
+    message: str = Field(description="Human-readable error message")
+    correlation_id: str | None = Field(
+        default=None, description="Correlation ID if available"
+    )
+    retryable: bool = Field(
+        default=False, description="Whether the request can be retried"
+    )
+    details: list[ErrorDetail] | None = Field(
+        default=None, description="Additional error details"
+    )
+
+
+# ============================================================================
+# Webhook Models (Spec 002)
+# ============================================================================
+
+
+class WebhookConfig(BaseModel):
+    """Webhook configuration for a publish request."""
+
+    url: HttpUrl = Field(description="Webhook URL to receive notifications")
+    secret: str | None = Field(
+        default=None, description="Optional secret for HMAC-SHA256 signing"
+    )
+
+
+class WebhookArtifact(BaseModel):
+    """Artifact data in webhook payload."""
+
+    id: str = Field(description="Artifact ID (UUID)")
+    type: str = Field(description="Artifact type name")
+    produced_by: str = Field(description="Name of agent that produced this")
+    payload: dict[str, Any] = Field(description="Artifact payload data")
+    created_at: str = Field(description="Timestamp when created (ISO 8601)")
+    tags: list[str] = Field(default_factory=list, description="List of tags")
+
+
+class WebhookPayload(BaseModel):
+    """Payload sent to webhook endpoints."""
+
+    event_type: Literal["artifact.created"] = Field(
+        default="artifact.created", description="Type of event"
+    )
+    correlation_id: str = Field(description="Correlation ID for workflow tracking")
+    sequence: int = Field(description="Order within this workflow (starts at 1)")
+    artifact: WebhookArtifact = Field(description="The artifact that was created")
+    timestamp: str = Field(description="Event timestamp (ISO 8601)")
+
+
+# ============================================================================
 # Health & Metrics Models
 # ============================================================================
 
@@ -255,30 +378,31 @@ class HealthResponse(BaseModel):
 
 
 __all__ = [
-    # Agent models
     "Agent",
-    "AgentSubscription",
+    "AgentHistorySummary",
     "AgentListResponse",
-    # Artifact models
+    "AgentRunRequest",
+    "AgentRunResponse",
+    "AgentSubscription",
     "ArtifactBase",
-    "ArtifactWithConsumptions",
     "ArtifactListResponse",
     "ArtifactPublishRequest",
     "ArtifactPublishResponse",
     "ArtifactSummaryResponse",
-    "PaginationInfo",
-    "ConsumptionRecord",
-    # Agent run models
-    "AgentRunRequest",
-    "AgentRunResponse",
-    "ProducedArtifact",
-    # Schema discovery
-    "ArtifactTypesResponse",
     "ArtifactTypeSchema",
-    # History
-    "AgentHistorySummary",
-    # Correlation status
+    "ArtifactTypesResponse",
+    "ArtifactWithConsumptions",
+    "ConsumptionRecord",
     "CorrelationStatusResponse",
-    # Health
+    "ErrorDetail",
+    "ErrorResponse",
     "HealthResponse",
+    "PaginationInfo",
+    "ProducedArtifact",
+    "SyncPublishFilters",
+    "SyncPublishRequest",
+    "SyncPublishResponse",
+    "WebhookArtifact",
+    "WebhookConfig",
+    "WebhookPayload",
 ]
