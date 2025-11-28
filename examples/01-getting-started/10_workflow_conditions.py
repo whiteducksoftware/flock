@@ -67,6 +67,10 @@ async def main():
     ).consumes(ResearchQuestion).publishes(Hypothesis, fan_out=5)
 
     # Report writer - summarizes when we have good hypotheses
+    # NOTE: This agent triggers once PER hypothesis due to fan_out above.
+    # In a real workflow, you'd use activation conditions to wait for enough hypotheses:
+    #   .consumes(Hypothesis, activation=When.correlation(Hypothesis).count_at_least(5))
+    # For this demo, we focus on Until conditions (termination), not activation.
     flock.agent("report_writer").description(
         "Writes a final report summarizing the best hypothesis found."
     ).consumes(Hypothesis).publishes(FinalReport)
@@ -138,13 +142,14 @@ async def main():
 
     if success:
         # Find the high-confidence hypothesis
+        # Note: get_by_type returns Pydantic model instances, not Artifact wrappers
         artifacts = await flock.store.get_by_type(
             Hypothesis, correlation_id=correlation_id_2
         )
         for a in artifacts:
-            if a.payload.get("confidence", 0) >= 0.9:
-                print(f"Found high-confidence hypothesis: {a.payload['content'][:60]}...")
-                print(f"Confidence: {a.payload['confidence']:.2f}")
+            if a.confidence >= 0.9:
+                print(f"Found high-confidence hypothesis: {a.content[:60]}...")
+                print(f"Confidence: {a.confidence:.2f}")
                 break
     else:
         print("No high-confidence hypothesis found within timeout.")
@@ -190,7 +195,8 @@ async def main():
         print(f"Condition met! Total hypotheses: {len(artifacts)}")
 
         # Check which sub-condition was satisfied
-        has_high_conf = any(a.payload.get("confidence", 0) >= 0.9 for a in artifacts)
+        # Note: artifacts are Pydantic models, access fields directly
+        has_high_conf = any(a.confidence >= 0.9 for a in artifacts)
         if has_high_conf:
             print("  Reason: High-confidence hypothesis found")
         else:
