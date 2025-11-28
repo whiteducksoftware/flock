@@ -424,6 +424,11 @@ class FieldPredicateCondition:
     Queries artifacts and checks if any artifact's payload field
     satisfies the given predicate function.
 
+    Note:
+        For performance, this condition checks up to 100 artifacts.
+        If your workflow produces more than 100 artifacts of the same type,
+        consider using more specific filters or a different condition strategy.
+
     Examples:
         >>> # Check for high-confidence hypothesis
         >>> condition = FieldPredicateCondition(
