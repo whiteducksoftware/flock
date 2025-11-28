@@ -366,15 +366,13 @@ class TestWebhookContextIsolation:
         # Each request should see its own URL (not the other's)
         # Note: Pydantic HttpUrl normalizes URLs (may add trailing slash)
         # Convert to strings for comparison
-        url_strings = [str(url) for url in contexts_captured]
+        url_strings = sorted([str(url) for url in contexts_captured])
         # Verify we captured both distinct webhook URLs (test isolation check)
-        # Using set to ensure we got 2 unique URLs, not the same one twice
-        unique_hosts = {
-            url.split("/")[2] for url in url_strings
-        }  # Extract host from URL
-        assert len(unique_hosts) == 2, f"Expected 2 unique hosts, got {unique_hosts}"
-        assert "webhook1.example.com" in unique_hosts
-        assert "webhook2.example.com" in unique_hosts
+        # Check exact expected URLs (Pydantic may normalize with trailing slash)
+        expected_url1 = "https://webhook1.example.com/"
+        expected_url2 = "https://webhook2.example.com/"
+        assert url_strings[0] == expected_url1, f"Expected {expected_url1}, got {url_strings[0]}"
+        assert url_strings[1] == expected_url2, f"Expected {expected_url2}, got {url_strings[1]}"
 
 
 class TestWebhookValidation:

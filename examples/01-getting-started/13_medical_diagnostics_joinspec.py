@@ -146,11 +146,8 @@ async def main_cli():
         for i, report in enumerate(reports, 1):
             # Note: This example uses SIMULATED patient data for demonstration purposes.
             # In production, patient data must be handled according to HIPAA/privacy requirements.
-            # Using masked patient ID for demo output (not logging actual sensitive data)
-            masked_id = (
-                f"***{report.patient_id[-3:]}" if len(report.patient_id) > 3 else "***"
-            )
-            print(f"\n🏥 Report #{i} - Patient {masked_id}")
+            # Using anonymized identifier (not derived from actual patient data)
+            print(f"\n🏥 Report #{i} - Patient [REDACTED-{i:03d}]")
             print(f"   Diagnosis: {report.diagnosis}")
             print(f"   Confidence: {report.confidence}")
             print(f"   Treatment: {report.treatment_plan}")
