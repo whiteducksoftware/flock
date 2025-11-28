@@ -145,8 +145,10 @@ async def main_cli():
 
     if reports:
         for i, report in enumerate(reports, 1):
-            print(f"\n🏥 Report #{i} - Patient {report.patient_id}")
-            print(f"   Diagnosis: {report.diagnosis}")
+            # Note: This example uses SIMULATED patient data for demonstration purposes.
+            # In production, patient data must be handled according to HIPAA/privacy requirements.
+            print(f"\n🏥 Report #{i} - Patient {report.patient_id}")  # nosec B608
+            print(f"   Diagnosis: {report.diagnosis}")  # nosec B608
             print(f"   Confidence: {report.confidence}")
             print(f"   Treatment: {report.treatment_plan}")
             print(f"   Follow-up: {'Yes' if report.follow_up_needed else 'No'}")

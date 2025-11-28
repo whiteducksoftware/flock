@@ -12,10 +12,9 @@ Examples:
     >>> result = await condition.evaluate(orchestrator)
 
     >>> # Composite conditions
-    >>> stop_condition = (
-    ...     Until.artifact_count(UserStory, correlation_id=cid).at_least(5)
-    ...     | Until.workflow_error(cid)
-    ... )
+    >>> stop_condition = Until.artifact_count(
+    ...     UserStory, correlation_id=cid
+    ... ).at_least(5) | Until.workflow_error(cid)
     >>> await flock.run_until(stop_condition, timeout=60)
 """
 
@@ -281,9 +280,7 @@ class ArtifactCountCondition:
 
     Examples:
         >>> # At least 5 user stories
-        >>> condition = ArtifactCountCondition(
-        ...     model=UserStory, min_count=5
-        ... )
+        >>> condition = ArtifactCountCondition(model=UserStory, min_count=5)
 
         >>> # Using builder methods
         >>> condition = ArtifactCountCondition(model=UserStory).at_least(5)
@@ -535,10 +532,9 @@ class Until:
         >>> await flock.run_until(Until.idle())
 
         >>> # Wait for 5 user stories or error
-        >>> condition = (
-        ...     Until.artifact_count(UserStory, correlation_id=cid).at_least(5)
-        ...     | Until.workflow_error(cid)
-        ... )
+        >>> condition = Until.artifact_count(
+        ...     UserStory, correlation_id=cid
+        ... ).at_least(5) | Until.workflow_error(cid)
         >>> await flock.run_until(condition, timeout=60)
 
         >>> # Wait for high-confidence hypothesis
@@ -644,9 +640,7 @@ class Until:
         Examples:
             >>> Until.none(Error, correlation_id=cid)  # No errors exist
         """
-        return NotCondition(
-            ExistsCondition(model=model, correlation_id=correlation_id)
-        )
+        return NotCondition(ExistsCondition(model=model, correlation_id=correlation_id))
 
     @staticmethod
     def any_field(

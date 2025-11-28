@@ -365,8 +365,16 @@ class TestWebhookContextIsolation:
         assert len(contexts_captured) == 2
         # Each request should see its own URL (not the other's)
         # Note: Pydantic HttpUrl normalizes URLs (may add trailing slash)
-        assert any("webhook1.example.com" in url for url in contexts_captured)
-        assert any("webhook2.example.com" in url for url in contexts_captured)
+        # Convert to strings and check for exact host match to avoid substring issues
+        url_strings = [str(url) for url in contexts_captured]
+        assert any(
+            "webhook1.example.com" in url and url.startswith("https://webhook1.")
+            for url in url_strings
+        )
+        assert any(
+            "webhook2.example.com" in url and url.startswith("https://webhook2.")
+            for url in url_strings
+        )
 
 
 class TestWebhookValidation:

@@ -1,28 +1,33 @@
 """
-Example 09: Webhook Notifications with httpbin
+Example 09: Webhook Notifications with Flock REST API
 
 This example demonstrates Flock's webhook notification system.
-When artifacts are published, Flock can send real-time HTTP POST
-notifications to external endpoints.
+When artifacts are published via the REST API with a webhook configuration,
+Flock sends real-time HTTP POST notifications to your endpoint.
 
-We use httpbin.org (or a local httpbin instance) to test webhooks.
+We use httpbin.org to test webhooks - it echoes back what it receives.
 
-Setup:
-    # Option 1: Use httpbin.org (public, inspect at https://httpbin.org/#/Anything)
-    WEBHOOK_URL = "https://httpbin.org/anything"
-
-    # Option 2: Run local httpbin for faster testing
-    docker run -p 80:80 kennethreitz/httpbin
-    WEBHOOK_URL = "http://localhost/anything"
-
-What this example shows:
-    1. Basic webhook configuration
-    2. Webhook payload structure
-    3. How artifacts trigger webhooks
-    4. HMAC signature verification (optional)
+Key Concepts:
+    1. Webhooks are configured PER-REQUEST via the REST API
+    2. The WebhookDeliveryComponent reads from request context (not constructor)
+    3. Each artifact published triggers a webhook to your configured URL
+    4. HMAC signatures provide request authenticity verification
 
 Run:
+    # Start the Flock server first
     uv run python examples/01-getting-started/09_webhook_notifications.py
+
+    # Then in another terminal, publish with webhook:
+    curl -X POST http://localhost:8000/api/v1/artifacts/sync \\
+        -H "Content-Type: application/json" \\
+        -d '{
+            "type": "BugReport",
+            "payload": {"title": "Test bug", "description": "Test", "severity": "high"},
+            "webhook": {
+                "url": "https://httpbin.org/anything",
+                "secret": "your-hmac-secret"
+            }
+        }'
 """
 
 import asyncio
@@ -30,21 +35,18 @@ import asyncio
 from pydantic import BaseModel
 
 from flock import Flock
+from flock.api.service import BlackboardHTTPService
 from flock.components.orchestrator import WebhookDeliveryComponent
 from flock.core import flock_type
 
 
 # ============================================================================
-# CONFIGURATION - Update this URL to point to your httpbin instance
+# CONFIGURATION
 # ============================================================================
 
-# Use httpbin.org for testing (responses visible at URL)
-# Or run local: docker run -p 80:80 kennethreitz/httpbin
-WEBHOOK_URL = "https://httpbin.org/anything"
-
-# Optional: Set a secret for HMAC signature verification
-# When set, each webhook will include X-Flock-Signature header
-WEBHOOK_SECRET = None  # Set to "your-secret" to enable HMAC
+# Server settings
+HOST = "localhost"
+PORT = 8000
 
 # ============================================================================
 
@@ -68,56 +70,67 @@ class BugAnalysis(BaseModel):
 
 
 async def main():
-    """Run the webhook notification example."""
+    """Run the webhook notification example server."""
     print("=" * 60)
     print("Flock Webhook Notifications Example")
     print("=" * 60)
-    print(f"\nWebhook URL: {WEBHOOK_URL}")
-    print(f"HMAC Signing: {'Enabled' if WEBHOOK_SECRET else 'Disabled'}")
     print()
 
     # Create Flock instance
     flock = Flock("openai/gpt-4.1")
 
-    # Add webhook component
-    # This will POST to WEBHOOK_URL whenever an artifact is published
-    webhook_component = WebhookDeliveryComponent(
-        webhook_url=WEBHOOK_URL,
-        webhook_secret=WEBHOOK_SECRET,  # Optional HMAC signing
-        max_retries=2,  # Retry failed deliveries
-        timeout=10.0,  # 10 second timeout
-    )
-    flock.add_component(webhook_component)
+    # Add the WebhookDeliveryComponent
+    # This component reads webhook config from request context (set by REST endpoints)
+    # It does NOT take webhook_url as a constructor parameter
+    flock.add_component(WebhookDeliveryComponent())
 
     # Define a simple bug analyzer agent
     flock.agent("bug_analyzer").description(
         "Analyzes bug reports and categorizes them"
     ).consumes(BugReport).publishes(BugAnalysis)
 
-    print("Starting workflow...")
-    print("-" * 60)
+    # Create HTTP service
+    service = BlackboardHTTPService(flock)
 
-    # Publish a bug report - this will:
-    # 1. Trigger webhook for BugReport (input artifact)
-    # 2. Run bug_analyzer agent
-    # 3. Trigger webhook for BugAnalysis (output artifact)
-    await flock.publish(
-        BugReport(
-            title="Login button not working",
-            description="Users report the login button is unresponsive on mobile",
-            severity="high",
-        )
-    )
-
-    # Run until all agents complete
-    await flock.run_until_idle()
-
-    print("-" * 60)
-    print("\nWorkflow complete!")
-    print("\nWebhooks were sent to:", WEBHOOK_URL)
-    print("\nPayload structure sent to your endpoint:")
-    print(
-        """
+    print("Starting Flock HTTP server...")
+    print(f"Server running at: http://{HOST}:{PORT}")
+    print()
+    print("=" * 60)
+    print("HOW TO USE WEBHOOKS")
+    print("=" * 60)
+    print()
+    print("1. Async publish with webhook notification:")
+    print()
+    print(f'   curl -X POST http://{HOST}:{PORT}/api/v1/artifacts \\')
+    print('       -H "Content-Type: application/json" \\')
+    print("       -d '{")
+    print('           "type": "BugReport",')
+    print('           "payload": {')
+    print('               "title": "Login broken",')
+    print('               "description": "Cannot login on mobile",')
+    print('               "severity": "high"')
+    print("           },")
+    print('           "webhook": {')
+    print('               "url": "https://httpbin.org/anything",')
+    print('               "secret": "optional-hmac-secret"')
+    print("           }")
+    print("       }'")
+    print()
+    print("2. Sync publish (waits for completion) with webhook:")
+    print()
+    print(f'   curl -X POST http://{HOST}:{PORT}/api/v1/artifacts/sync \\')
+    print('       -H "Content-Type: application/json" \\')
+    print("       -d '{")
+    print('           "type": "BugReport",')
+    print('           "payload": {"title": "Test", "description": "Test bug"},')
+    print('           "webhook": {"url": "https://httpbin.org/anything"},')
+    print('           "timeout": 30')
+    print("       }'")
+    print()
+    print("=" * 60)
+    print("WEBHOOK PAYLOAD STRUCTURE")
+    print("=" * 60)
+    print("""
 {
   "event": "artifact.published",
   "timestamp": "2025-01-15T10:30:00.123456Z",
@@ -130,31 +143,23 @@ async def main():
       "recommendation": "..."
     },
     "produced_by": "bug_analyzer",
-    "correlation_id": "workflow-123",
-    "created_at": "2025-01-15T10:30:00.000000Z"
+    "correlation_id": "workflow-123"
   }
 }
-"""
-    )
+""")
+    print("HMAC Signature: X-Flock-Signature: sha256=<hex-digest>")
+    print()
+    print("=" * 60)
+    print("Press Ctrl+C to stop the server")
+    print("=" * 60)
+    print()
 
-    if WEBHOOK_SECRET:
-        print("HMAC Signature Header: X-Flock-Signature")
-        print("Format: sha256=<hex-digest>")
-        print("\nVerify signature with:")
-        print(
-            """
-import hmac
-import hashlib
+    # Run the server
+    import uvicorn
 
-def verify(body: bytes, signature: str, secret: str) -> bool:
-    expected = hmac.new(
-        secret.encode(), body, hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(f"sha256={expected}", signature)
-"""
-        )
-
-    print("\nFor more details, see: docs/guides/webhooks.md")
+    await uvicorn.Server(
+        uvicorn.Config(service.app, host=HOST, port=PORT, log_level="info")
+    ).serve()
 
 
 if __name__ == "__main__":

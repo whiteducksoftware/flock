@@ -156,20 +156,61 @@ class ActivationComponent(OrchestratorComponent):
     ):
         """Bind correlation context to a condition.
 
-        Currently returns the condition as-is. Future enhancement could
-        create a context-aware wrapper that passes correlation_id to
-        condition evaluation.
+        Creates a copy of the condition with the artifact's correlation_id
+        bound, so that queries are scoped to the current workflow rather
+        than searching the entire store.
+
+        For composite conditions (And, Or, Not), recursively binds to
+        all child conditions.
 
         Args:
             condition: RunCondition to potentially wrap
             correlation_id: Correlation ID from artifact
 
         Returns:
-            Condition (possibly wrapped with correlation context)
+            Condition with correlation_id bound (if applicable)
         """
-        # For now, conditions use their own correlation_id if set,
-        # or query all artifacts. Future enhancement could bind
-        # the artifact's correlation_id to scope queries.
+        from dataclasses import replace
+
+        from flock.core.conditions import (
+            AndCondition,
+            ArtifactCountCondition,
+            ExistsCondition,
+            FieldPredicateCondition,
+            NotCondition,
+            OrCondition,
+        )
+
+        if correlation_id is None:
+            return condition
+
+        # Handle composite conditions recursively
+        if isinstance(condition, AndCondition):
+            return AndCondition(
+                left=self._bind_correlation_context(condition.left, correlation_id),
+                right=self._bind_correlation_context(condition.right, correlation_id),
+            )
+        if isinstance(condition, OrCondition):
+            return OrCondition(
+                left=self._bind_correlation_context(condition.left, correlation_id),
+                right=self._bind_correlation_context(condition.right, correlation_id),
+            )
+        if isinstance(condition, NotCondition):
+            return NotCondition(
+                condition=self._bind_correlation_context(
+                    condition.condition, correlation_id
+                ),
+            )
+
+        # Bind correlation_id to conditions that support it
+        # Only bind if the condition doesn't already have a correlation_id set
+        if isinstance(
+            condition,
+            (ArtifactCountCondition, ExistsCondition, FieldPredicateCondition),
+        ):
+            if condition.correlation_id is None:
+                return replace(condition, correlation_id=correlation_id)
+
         return condition
 
 

@@ -231,11 +231,13 @@ class BlackboardHTTPService:
 
             try:
                 # Publish artifact with correlation_id
+                # Note: correlation_id comes AFTER payload spread to prevent
+                # malicious payloads from overriding our generated correlation_id
                 try:
                     await orchestrator.publish({
                         "type": body.type,
-                        "correlation_id": correlation_id,
                         **body.payload,
+                        "correlation_id": correlation_id,
                     })
                 except Exception as exc:
                     raise HTTPException(status_code=400, detail=str(exc)) from exc

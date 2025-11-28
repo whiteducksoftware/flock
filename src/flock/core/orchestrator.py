@@ -701,10 +701,9 @@ class Flock(metaclass=AutoTracedMeta):
 
         Examples:
             >>> # Wait for 5 user stories or error
-            >>> condition = (
-            ...     Until.artifact_count(UserStory, correlation_id=cid).at_least(5)
-            ...     | Until.workflow_error(cid)
-            ... )
+            >>> condition = Until.artifact_count(
+            ...     UserStory, correlation_id=cid
+            ... ).at_least(5) | Until.workflow_error(cid)
             >>> success = await flock.run_until(condition, timeout=60)
             >>> if not success:
             ...     print("Timeout reached before condition met")

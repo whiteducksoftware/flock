@@ -53,10 +53,24 @@ async def get_theme(theme_name: str) -> dict[str, Any]:
         HTTPException: If theme not found or failed to load
     """
     try:
-        # Sanitize theme name to prevent path traversal
-        theme_name = theme_name.replace("/", "").replace("\\", "").replace("..", "")
+        # Sanitize theme name: only allow alphanumeric, hyphen, underscore
+        # This prevents path traversal attacks
+        import re
 
-        theme_path = THEMES_DIR / f"{theme_name}.toml"
+        if not re.match(r"^[a-zA-Z0-9_-]+$", theme_name):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid theme name '{theme_name}'. "
+                "Only alphanumeric characters, hyphens, and underscores allowed.",
+            )
+
+        theme_path = (THEMES_DIR / f"{theme_name}.toml").resolve()
+
+        # Verify the resolved path is still within THEMES_DIR (defense in depth)
+        if not str(theme_path).startswith(str(THEMES_DIR.resolve())):
+            raise HTTPException(
+                status_code=400, detail=f"Invalid theme name '{theme_name}'"
+            )
 
         if not theme_path.exists():
             raise HTTPException(
