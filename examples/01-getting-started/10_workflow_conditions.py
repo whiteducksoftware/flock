@@ -69,6 +69,7 @@ async def main():
     # Report writer - summarizes when we have good hypotheses
     # NOTE: This agent triggers once PER hypothesis due to fan_out above.
     # In a real workflow, you'd use activation conditions to wait for enough hypotheses:
+    #   from flock.core.conditions import When
     #   .consumes(Hypothesis, activation=When.correlation(Hypothesis).count_at_least(5))
     # For this demo, we focus on Until conditions (termination), not activation.
     flock.agent("report_writer").description(
