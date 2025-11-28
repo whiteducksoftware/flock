@@ -160,9 +160,11 @@ class BlackboardHTTPService:
             body: ArtifactPublishRequest,
             idempotency_key: str | None = Depends(check_idempotency),
         ) -> ArtifactPublishResponse:
+            # Generate correlation_id for tracking (always, for consistency)
+            correlation_id = str(uuid4())
+
             # Set webhook context if webhook is configured
             if body.webhook:
-                correlation_id = str(uuid4())
                 ctx = WebhookContext(
                     url=str(body.webhook.url),
                     secret=body.webhook.secret,
@@ -171,7 +173,13 @@ class BlackboardHTTPService:
                 set_webhook_context(ctx)
 
             try:
-                await orchestrator.publish({"type": body.type, **body.payload})
+                # Pass correlation_id to ensure webhook context matches artifact
+                # Note: correlation_id comes AFTER payload spread to prevent override
+                await orchestrator.publish({
+                    "type": body.type,
+                    **body.payload,
+                    "correlation_id": correlation_id,
+                })
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             finally:

@@ -107,6 +107,43 @@ class TestAsyncPublishWithWebhook:
         assert captured_context.secret == "my-secret"
 
     @pytest.mark.asyncio
+    async def test_publish_correlation_id_matches_webhook_context(
+        self, service, mock_orchestrator
+    ):
+        """Async publish should pass same correlation_id to artifact and webhook context."""
+        from flock.api.webhooks import get_webhook_context
+
+        captured_artifact = None
+        captured_context = None
+
+        async def capture_both(artifact_dict):
+            nonlocal captured_artifact, captured_context
+            captured_artifact = artifact_dict
+            captured_context = get_webhook_context()
+
+        mock_orchestrator.publish = capture_both
+
+        transport = ASGITransport(app=service.app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/v1/artifacts",
+                json={
+                    "type": "WebhookTestInput",
+                    "payload": {"value": "test"},
+                    "webhook": {
+                        "url": "https://example.com/webhook",
+                    },
+                },
+            )
+
+        assert response.status_code == 200
+        # Both artifact and webhook context should have matching correlation_id
+        assert captured_context is not None
+        assert captured_artifact is not None
+        assert "correlation_id" in captured_artifact
+        assert captured_artifact["correlation_id"] == captured_context.correlation_id
+
+    @pytest.mark.asyncio
     async def test_publish_without_webhook_no_context(self, service, mock_orchestrator):
         """When no webhook is provided, context should be None."""
         from flock.api.webhooks import get_webhook_context
@@ -371,8 +408,12 @@ class TestWebhookContextIsolation:
         # Check exact expected URLs (Pydantic may normalize with trailing slash)
         expected_url1 = "https://webhook1.example.com/"
         expected_url2 = "https://webhook2.example.com/"
-        assert url_strings[0] == expected_url1, f"Expected {expected_url1}, got {url_strings[0]}"
-        assert url_strings[1] == expected_url2, f"Expected {expected_url2}, got {url_strings[1]}"
+        assert url_strings[0] == expected_url1, (
+            f"Expected {expected_url1}, got {url_strings[0]}"
+        )
+        assert url_strings[1] == expected_url2, (
+            f"Expected {expected_url2}, got {url_strings[1]}"
+        )
 
 
 class TestWebhookValidation:

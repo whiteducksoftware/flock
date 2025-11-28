@@ -6,11 +6,10 @@ Phase 5: T5.5 - Tests for ActivationComponent
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
@@ -63,7 +62,7 @@ class MockCondition:
     result: bool = True
     call_count: int = 0
 
-    async def evaluate(self, orchestrator: "Flock") -> bool:
+    async def evaluate(self, orchestrator: Flock) -> bool:
         """Return configured result and track call count."""
         self.call_count += 1
         return self.result
@@ -80,9 +79,7 @@ def mock_orchestrator():
     orchestrator = Mock()
     orchestrator.store = Mock()
     orchestrator.store.query_artifacts = AsyncMock(return_value=([], 0))
-    orchestrator.get_correlation_status = AsyncMock(
-        return_value={"error_count": 0}
-    )
+    orchestrator.get_correlation_status = AsyncMock(return_value={"error_count": 0})
     orchestrator._scheduler = Mock()
     orchestrator._scheduler.pending_tasks = set()
     return orchestrator
@@ -108,7 +105,6 @@ def mock_artifact():
 @pytest.fixture
 def mock_agent():
     """Create a mock agent for tests."""
-    from flock.core.subscription import Subscription
 
     agent = Mock()
     agent.name = "test-agent"
@@ -119,7 +115,6 @@ def mock_agent():
 @pytest.fixture
 def mock_subscription_with_activation():
     """Create a mock subscription with activation condition."""
-    from flock.core.subscription import Subscription
 
     condition = MockCondition(result=True)
     sub = Mock()
@@ -298,9 +293,7 @@ class TestActivationComponentMultipleArtifacts:
     """Tests for handling multiple artifacts."""
 
     @pytest.mark.asyncio
-    async def test_filters_some_artifacts(
-        self, mock_orchestrator, mock_agent
-    ):
+    async def test_filters_some_artifacts(self, mock_orchestrator, mock_agent):
         """Component can filter some artifacts while keeping others."""
         from flock.components.orchestrator.activation import ActivationComponent
         from flock.core.artifacts import Artifact
@@ -430,10 +423,9 @@ class TestActivationComponentWithRealConditions:
         from flock.core.subscription import Subscription
 
         # Create composite condition: 5 user stories OR 3 hypotheses
-        condition = (
-            When.correlation(ActivationTestUserStory).count_at_least(5)
-            | When.correlation(ActivationTestHypothesis).count_at_least(3)
-        )
+        condition = When.correlation(ActivationTestUserStory).count_at_least(
+            5
+        ) | When.correlation(ActivationTestHypothesis).count_at_least(3)
 
         sub = Subscription(
             agent_name="test-agent",
@@ -460,6 +452,118 @@ class TestActivationComponentWithRealConditions:
         )
 
         # OR condition: second part should pass (3 >= 3)
+        assert len(result) == 1
+
+
+class TestActivationComponentEdgeCases:
+    """Tests for edge cases and error handling."""
+
+    @pytest.mark.asyncio
+    async def test_empty_artifacts_list(self, mock_orchestrator, mock_agent):
+        """Component handles empty artifacts list."""
+        from flock.components.orchestrator.activation import ActivationComponent
+
+        component = ActivationComponent()
+        result = await component.on_before_agent_schedule(
+            mock_orchestrator, mock_agent, []
+        )
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_no_matching_subscription(self, mock_orchestrator, mock_agent):
+        """Component includes artifacts when no subscription matches."""
+        from flock.components.orchestrator.activation import ActivationComponent
+        from flock.core.artifacts import Artifact
+
+        # Create artifact of a type not in any subscription
+        artifact = Artifact(
+            id=uuid4(),
+            type="UnmatchedType",
+            payload={"data": "test"},
+            produced_by="test-producer",
+            created_at=datetime.now(UTC),
+            tags=set(),
+            version=1,
+            correlation_id="workflow-123",
+        )
+
+        # Agent has no subscriptions
+        mock_agent.subscriptions = []
+
+        component = ActivationComponent()
+        result = await component.on_before_agent_schedule(
+            mock_orchestrator, mock_agent, [artifact]
+        )
+
+        # Should include artifact by default (no matching subscription)
+        assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_condition_evaluation_error(
+        self, mock_orchestrator, mock_agent, mock_artifact
+    ):
+        """Component handles errors during condition evaluation gracefully."""
+        from flock.components.orchestrator.activation import ActivationComponent
+        from flock.core.subscription import Subscription
+
+        # Create condition that raises an exception
+        @dataclass
+        class FailingCondition:
+            async def evaluate(self, orchestrator):
+                raise ValueError("Condition evaluation failed!")
+
+        sub = Subscription(
+            agent_name="test-agent",
+            types=[ActivationTestUserStory],
+            activation=FailingCondition(),
+        )
+        mock_agent.subscriptions = [sub]
+
+        component = ActivationComponent()
+        result = await component.on_before_agent_schedule(
+            mock_orchestrator, mock_agent, [mock_artifact]
+        )
+
+        # Should include artifact by default on error
+        assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_artifact_without_correlation_id(self, mock_orchestrator, mock_agent):
+        """Component handles artifacts without correlation_id."""
+        from flock.components.orchestrator.activation import ActivationComponent
+        from flock.core.artifacts import Artifact
+        from flock.core.conditions import When
+        from flock.core.subscription import Subscription
+
+        # Create artifact without correlation_id
+        artifact = Artifact(
+            id=uuid4(),
+            type="ActivationTestUserStory",
+            payload={"title": "Test", "points": 1},
+            produced_by="test-producer",
+            created_at=datetime.now(UTC),
+            tags=set(),
+            version=1,
+            correlation_id=None,  # No correlation ID
+        )
+
+        condition = When.correlation(ActivationTestUserStory).count_at_least(1)
+        mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 5))
+
+        sub = Subscription(
+            agent_name="test-agent",
+            types=[ActivationTestUserStory],
+            activation=condition,
+        )
+        mock_agent.subscriptions = [sub]
+
+        component = ActivationComponent()
+        result = await component.on_before_agent_schedule(
+            mock_orchestrator, mock_agent, [artifact]
+        )
+
+        # Should work even without correlation_id
         assert len(result) == 1
 
 
