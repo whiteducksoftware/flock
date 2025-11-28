@@ -20,8 +20,7 @@ import uuid
 
 from pydantic import BaseModel
 
-from flock import Flock
-from flock.core import flock_type
+from flock import Flock, flock_type
 from flock.core.conditions import Until
 
 
@@ -58,7 +57,7 @@ async def main():
     print("=" * 70)
 
     # Create Flock instance
-    flock = Flock("openai/gpt-4.1")
+    flock = Flock()
 
     # Define research agents
     # Hypothesis generator - produces multiple hypotheses
