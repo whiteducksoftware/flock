@@ -6,7 +6,7 @@ Phase 5: REST Endpoint Integration
 
 import asyncio
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
@@ -365,16 +365,16 @@ class TestWebhookContextIsolation:
         assert len(contexts_captured) == 2
         # Each request should see its own URL (not the other's)
         # Note: Pydantic HttpUrl normalizes URLs (may add trailing slash)
-        # Convert to strings and check for exact host match to avoid substring issues
+        # Convert to strings for comparison
         url_strings = [str(url) for url in contexts_captured]
-        assert any(
-            "webhook1.example.com" in url and url.startswith("https://webhook1.")
-            for url in url_strings
-        )
-        assert any(
-            "webhook2.example.com" in url and url.startswith("https://webhook2.")
-            for url in url_strings
-        )
+        # Verify we captured both distinct webhook URLs (test isolation check)
+        # Using set to ensure we got 2 unique URLs, not the same one twice
+        unique_hosts = {
+            url.split("/")[2] for url in url_strings
+        }  # Extract host from URL
+        assert len(unique_hosts) == 2, f"Expected 2 unique hosts, got {unique_hosts}"
+        assert "webhook1.example.com" in unique_hosts
+        assert "webhook2.example.com" in unique_hosts
 
 
 class TestWebhookValidation:

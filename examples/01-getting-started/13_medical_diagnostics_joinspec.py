@@ -17,7 +17,6 @@ from flock.core.subscription import JoinSpec
 from flock.registry import flock_type
 
 
-
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
@@ -147,8 +146,12 @@ async def main_cli():
         for i, report in enumerate(reports, 1):
             # Note: This example uses SIMULATED patient data for demonstration purposes.
             # In production, patient data must be handled according to HIPAA/privacy requirements.
-            print(f"\n🏥 Report #{i} - Patient {report.patient_id}")  # nosec B608
-            print(f"   Diagnosis: {report.diagnosis}")  # nosec B608
+            # Using masked patient ID for demo output (not logging actual sensitive data)
+            masked_id = (
+                f"***{report.patient_id[-3:]}" if len(report.patient_id) > 3 else "***"
+            )
+            print(f"\n🏥 Report #{i} - Patient {masked_id}")
+            print(f"   Diagnosis: {report.diagnosis}")
             print(f"   Confidence: {report.confidence}")
             print(f"   Treatment: {report.treatment_plan}")
             print(f"   Follow-up: {'Yes' if report.follow_up_needed else 'No'}")

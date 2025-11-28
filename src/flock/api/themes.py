@@ -64,10 +64,14 @@ async def get_theme(theme_name: str) -> dict[str, Any]:
                 "Only alphanumeric characters, hyphens, and underscores allowed.",
             )
 
-        theme_path = (THEMES_DIR / f"{theme_name}.toml").resolve()
+        # Build filename from validated characters only (no path separators possible)
+        # The regex above guarantees theme_name contains only [a-zA-Z0-9_-]
+        safe_filename = f"{theme_name}.toml"
+        themes_dir_resolved = THEMES_DIR.resolve()
+        theme_path = (themes_dir_resolved / safe_filename).resolve()
 
-        # Verify the resolved path is still within THEMES_DIR (defense in depth)
-        if not str(theme_path).startswith(str(THEMES_DIR.resolve())):
+        # Defense in depth: verify resolved path is still within THEMES_DIR
+        if not theme_path.is_relative_to(themes_dir_resolved):
             raise HTTPException(
                 status_code=400, detail=f"Invalid theme name '{theme_name}'"
             )
