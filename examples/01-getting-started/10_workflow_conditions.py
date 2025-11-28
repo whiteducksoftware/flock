@@ -41,15 +41,6 @@ class Hypothesis(BaseModel):
     reasoning: str
 
 
-@flock_type
-class FinalReport(BaseModel):
-    """Final research report."""
-
-    summary: str
-    best_hypothesis: str
-    confidence: float
-
-
 async def main():
     """Demonstrate workflow control with conditions."""
     print("=" * 70)
@@ -66,15 +57,13 @@ async def main():
         "For each question, generate multiple hypotheses with varying confidence levels."
     ).consumes(ResearchQuestion).publishes(Hypothesis, fan_out=5)
 
-    # Report writer - summarizes when we have good hypotheses
-    # NOTE: This agent triggers once PER hypothesis due to fan_out above.
-    # In a real workflow, you'd use activation conditions to wait for enough hypotheses:
-    #   from flock.core.conditions import When
-    #   .consumes(Hypothesis, activation=When.correlation(Hypothesis).count_at_least(5))
-    # For this demo, we focus on Until conditions (termination), not activation.
-    flock.agent("report_writer").description(
-        "Writes a final report summarizing the best hypothesis found."
-    ).consumes(Hypothesis).publishes(FinalReport)
+    # NOTE: For multi-agent workflows with fan_out, you might add a report_writer:
+    #   flock.agent("report_writer").consumes(
+    #       Hypothesis,
+    #       batch=BatchSpec(size=5),  # Collect all 5 before processing
+    #   ).publishes(FinalReport)
+    # This demo focuses on Until conditions (termination control), not batching.
+    # See examples/02-patterns for batch and join patterns.
 
     # Generate a correlation ID to track this workflow
     correlation_id = str(uuid.uuid4())
