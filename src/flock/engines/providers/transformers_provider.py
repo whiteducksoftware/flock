@@ -285,6 +285,7 @@ class TransformersProvider(CustomLLM):
         thread.start()
         
         # Yield tokens as they come
+        # TextIteratorStreamer blocks until next token or generation complete
         for token_text in streamer:
             if token_text:
                 yield GenericStreamingChunk(
@@ -306,7 +307,9 @@ class TransformersProvider(CustomLLM):
             index=0,
         )
         
-        thread.join()
+        # Thread should be done since streamer iteration completed, 
+        # but use timeout as safety measure to avoid hanging
+        thread.join(timeout=5.0)
 
     async def acompletion(
         self,
@@ -407,8 +410,8 @@ class TransformersProvider(CustomLLM):
         # Use a queue to communicate between threads
         token_queue: queue.Queue[str | None] = queue.Queue()
 
-        def generate_and_queue():
-            """Run generation and put tokens in queue."""
+        def generate_with_streaming():
+            """Run generation and stream tokens to queue."""
             try:
                 generation_kwargs = {
                     **inputs,
@@ -418,25 +421,27 @@ class TransformersProvider(CustomLLM):
                     "pad_token_id": tokenizer.pad_token_id,
                     "streamer": streamer,
                 }
-                with torch.no_grad():
-                    hf_model.generate(**generation_kwargs)
+                # Start generation in a separate thread
+                gen_thread = threading.Thread(
+                    target=lambda: hf_model.generate(**generation_kwargs)
+                )
+                gen_thread.start()
+                
+                # Read from streamer and put to queue
+                # This blocks until generation is complete
+                for token_text in streamer:
+                    if token_text:
+                        token_queue.put(token_text)
+                
+                # Wait for generation thread with timeout
+                gen_thread.join(timeout=5.0)
             except Exception as e:
                 logger.error(f"Generation error: {e}")
             finally:
                 token_queue.put(None)  # Signal completion
 
-        def stream_to_queue():
-            """Read from streamer and put in queue."""
-            for token_text in streamer:
-                if token_text:
-                    token_queue.put(token_text)
-
-        # Start generation thread
-        gen_thread = threading.Thread(target=generate_and_queue)
-        gen_thread.start()
-
-        # Start streaming thread
-        stream_thread = threading.Thread(target=stream_to_queue)
+        # Start the streaming thread
+        stream_thread = threading.Thread(target=generate_with_streaming)
         stream_thread.start()
 
         # Yield tokens asynchronously
@@ -464,9 +469,8 @@ class TransformersProvider(CustomLLM):
             index=0,
         )
 
-        # Wait for threads
-        gen_thread.join()
-        stream_thread.join()
+        # Wait for streaming thread with timeout to avoid hanging
+        stream_thread.join(timeout=5.0)
 
 
 def register_transformers_provider() -> None:
