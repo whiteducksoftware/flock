@@ -196,3 +196,46 @@ class TestNoOutputIntegration:
         assert len(output_utils) == 1
         assert output_utils[0].no_output is True  # Custom utility inherits setting
         assert output_utils[0].config.no_output is True  # Config also updated
+
+    def test_custom_engine_inherits_model_from_orchestrator(self):
+        """Custom engines without model should inherit model from orchestrator."""
+        flock = Flock("transformers/test-model")
+        
+        # Create custom engine WITHOUT specifying model
+        custom_engine = DSPyEngine(no_output=True)  # model=None
+        
+        agent_builder = (
+            flock.agent("model_inherit_test")
+            .consumes(SimpleInput)
+            .publishes(SimpleOutput)
+            .with_engines(custom_engine)
+        )
+        agent = agent_builder._agent
+        
+        # Before resolving, engine has no model
+        assert custom_engine.model is None
+        
+        # After resolving, engine should inherit orchestrator's model
+        engines = agent._resolve_engines()
+        assert len(engines) == 1
+        assert engines[0].model == "transformers/test-model"
+
+    def test_custom_engine_keeps_explicit_model(self):
+        """Custom engines with explicit model should keep their model."""
+        flock = Flock("transformers/orchestrator-model")
+        
+        # Create custom engine WITH explicit model
+        custom_engine = DSPyEngine(model="openai/gpt-4.1")
+        
+        agent_builder = (
+            flock.agent("explicit_model_test")
+            .consumes(SimpleInput)
+            .publishes(SimpleOutput)
+            .with_engines(custom_engine)
+        )
+        agent = agent_builder._agent
+        
+        # Engine should keep its explicit model, not inherit from orchestrator
+        engines = agent._resolve_engines()
+        assert len(engines) == 1
+        assert engines[0].model == "openai/gpt-4.1"  # Keeps explicit model

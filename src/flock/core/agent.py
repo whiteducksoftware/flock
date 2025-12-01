@@ -439,9 +439,12 @@ class Agent(metaclass=AutoTracedMeta):
 
     def _resolve_engines(self) -> list[EngineComponent]:
         if self.engines:
-            # Propagate no_output to user-provided engines
+            # Propagate no_output and model to user-provided engines
             for engine in self.engines:
                 engine.no_output = self.no_output
+                # Propagate model from orchestrator if engine doesn't have one set
+                if hasattr(engine, "model") and engine.model is None:
+                    engine.model = self._orchestrator.model
             return self.engines
         try:
             from flock.engines import DSPyEngine
