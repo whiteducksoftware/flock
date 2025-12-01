@@ -50,6 +50,9 @@ from flock import (
     
     # Filtering
     FilterConfig,
+    
+    # Logging
+    get_logger, configure_logging,
 )
 ```
 
@@ -312,6 +315,32 @@ flock = Flock("openai/gpt-4.1", context_provider=provider)
 
 ---
 
+### Logging
+
+| Import | Description | Learn More |
+|--------|-------------|------------|
+| `get_logger` | Get a Flock logger instance for your module | [Distributed Tracing](tracing/index.md) |
+| `configure_logging` | Configure logging level and formatting | [Configuration](../reference/configuration.md) |
+
+```python
+from flock import get_logger, configure_logging
+import logging
+
+# Configure logging level
+configure_logging(level=logging.DEBUG)
+
+# Get a logger for your module
+logger = get_logger(__name__)
+
+logger.info("Starting workflow")
+logger.debug("Processing artifact", extra={"artifact_id": "123"})
+logger.warning("Retrying operation")
+```
+
+[:octicons-arrow-right-24: Distributed Tracing](tracing/index.md){ .md-button }
+
+---
+
 ## Migration from Deep Imports
 
 If you're using deep imports, here's how to migrate:
@@ -384,5 +413,8 @@ __all__ = [
     "ScheduleSpec",
     # Store
     "FilterConfig",
+    # Logging
+    "configure_logging",
+    "get_logger",
 ]
 ```

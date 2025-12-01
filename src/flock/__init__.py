@@ -96,6 +96,11 @@ from flock.core.subscription import BatchSpec, JoinSpec, ScheduleSpec
 # =============================================================================
 from flock.core.store import FilterConfig
 
+# =============================================================================
+# Logging - Logger and configuration
+# =============================================================================
+from flock.logging.logging import configure_logging, get_logger
+
 
 def _register_optional_providers() -> None:
     """Auto-register optional LiteLLM providers when dependencies are available."""
@@ -158,4 +163,7 @@ __all__ = [
     "ScheduleSpec",
     # Store
     "FilterConfig",
+    # Logging
+    "configure_logging",
+    "get_logger",
 ]
