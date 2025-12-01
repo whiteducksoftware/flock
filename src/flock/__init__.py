@@ -4,9 +4,10 @@ This module exposes the most commonly used classes and utilities at the top leve
 for convenient imports:
 
     from flock import Flock, flock_type, DSPyEngine, BAMLAdapter
-    from flock import AgentComponent, EngineComponent, Context, EvalInputs, EvalResult
+    from flock import AgentComponent, EngineComponent, ServerComponent
+    from flock import Context, EvalInputs, EvalResult
     from flock import Artifact, PublicVisibility, PrivateVisibility
-    from flock import Until, BatchSpec, JoinSpec
+    from flock import Until, When, BatchSpec, JoinSpec
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ from flock.engines import (
 )
 
 # =============================================================================
-# Components - Base classes for extending agents and orchestrators
+# Components - Base classes for extending agents, orchestrators, and server
 # =============================================================================
 from flock.components.agent import (
     AgentComponent,
@@ -51,6 +52,10 @@ from flock.components.agent import (
 from flock.components.orchestrator import (
     OrchestratorComponent,
     OrchestratorComponentConfig,
+)
+from flock.components.server import (
+    ServerComponent,
+    ServerComponentConfig,
 )
 
 # =============================================================================
@@ -79,7 +84,7 @@ from flock.core.visibility import (
 # =============================================================================
 # Conditions - Workflow control DSL
 # =============================================================================
-from flock.core.conditions import Until
+from flock.core.conditions import Until, When
 
 # =============================================================================
 # Subscriptions - Advanced subscription patterns
@@ -128,6 +133,8 @@ __all__ = [
     "EngineComponent",
     "OrchestratorComponent",
     "OrchestratorComponentConfig",
+    "ServerComponent",
+    "ServerComponentConfig",
     # Runtime
     "Context",
     "EvalInputs",
@@ -144,6 +151,7 @@ __all__ = [
     "Visibility",
     # Conditions
     "Until",
+    "When",
     # Subscriptions
     "BatchSpec",
     "JoinSpec",
