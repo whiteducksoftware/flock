@@ -13,16 +13,14 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 from litellm import CustomLLM
 from litellm.types.utils import GenericStreamingChunk, ModelResponse
 
 from flock.logging.logging import get_logger
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -32,19 +30,19 @@ _model_cache: dict[str, tuple[Any, Any]] = {}
 
 def _get_model_and_tokenizer(model_id: str) -> tuple[Any, Any]:
     """Load and cache model and tokenizer.
-    
+
     Args:
         model_id: Hugging Face model identifier (e.g., "unsloth/Qwen3-4B-Instruct-2507-bnb-4bit")
-        
+
     Returns:
         Tuple of (model, tokenizer)
     """
     if model_id in _model_cache:
         logger.debug(f"Using cached model: {model_id}")
         return _model_cache[model_id]
-    
+
     logger.info(f"Loading transformers model: {model_id}")
-    
+
     try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -53,12 +51,13 @@ def _get_model_and_tokenizer(model_id: str) -> tuple[Any, Any]:
             "transformers and torch are required for local model support. "
             "Install with: pip install transformers torch"
         ) from e
-    
+
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-    
+
     # Try device_map="auto" if accelerate is available, otherwise use default device
     try:
         import accelerate  # noqa: F401
+
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             torch_dtype=torch.float32,
@@ -72,20 +71,20 @@ def _get_model_and_tokenizer(model_id: str) -> tuple[Any, Any]:
             torch_dtype=torch.float32,
         )
         model = model.to(device)
-    
+
     # Ensure pad token is set
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    
+
     _model_cache[model_id] = (model, tokenizer)
     logger.info(f"Model loaded successfully: {model_id}")
-    
+
     return model, tokenizer
 
 
 def _messages_to_prompt(tokenizer: Any, messages: list[dict[str, str]]) -> str:
     """Convert OpenAI-style messages to a prompt string.
-    
+
     Uses the tokenizer's chat template if available, otherwise falls back
     to a simple format.
     """
@@ -99,7 +98,7 @@ def _messages_to_prompt(tokenizer: Any, messages: list[dict[str, str]]) -> str:
             )
         except Exception:
             pass  # Fall back to manual formatting
-    
+
     # Simple fallback format
     parts = []
     for msg in messages:
@@ -117,10 +116,10 @@ def _messages_to_prompt(tokenizer: Any, messages: list[dict[str, str]]) -> str:
 
 class TransformersProvider(CustomLLM):
     """LiteLLM custom provider for local Hugging Face Transformers models.
-    
+
     Inherits from CustomLLM to integrate with LiteLLM's provider system.
     """
-    
+
     def completion(
         self,
         model: str,
@@ -141,39 +140,39 @@ class TransformersProvider(CustomLLM):
         client: Any = None,
     ) -> ModelResponse:
         """Generate completion using local transformers model.
-        
+
         Args:
             model: Model string in format "transformers/org/model-name"
             messages: OpenAI-style messages list
             model_response: LiteLLM ModelResponse to populate
             optional_params: Additional generation parameters
-            
+
         Returns:
             Populated ModelResponse
         """
         import torch
         from litellm.types.utils import Choices, Message, Usage
-        
+
         # Extract model_id from "transformers/org/model-name" format
         if model.startswith("transformers/"):
-            model_id = model[len("transformers/"):]
+            model_id = model[len("transformers/") :]
         else:
             model_id = model
-        
+
         # Load model and tokenizer
         hf_model, tokenizer = _get_model_and_tokenizer(model_id)
-        
+
         # Convert messages to prompt
         prompt = _messages_to_prompt(tokenizer, messages)
-        
+
         # Tokenize input
         inputs = tokenizer(prompt, return_tensors="pt", padding=True)
         inputs = {k: v.to(hf_model.device) for k, v in inputs.items()}
-        
+
         # Get generation parameters
         max_tokens = optional_params.get("max_tokens", 1024)
         temperature = optional_params.get("temperature", 0.7)
-        
+
         # Generate
         start_time = time.time()
         with torch.no_grad():
@@ -184,16 +183,16 @@ class TransformersProvider(CustomLLM):
                 do_sample=temperature > 0,
                 pad_token_id=tokenizer.pad_token_id,
             )
-        
+
         # Decode response (only the new tokens)
         input_length = inputs["input_ids"].shape[1]
         generated_tokens = outputs[0][input_length:]
         response_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-        
+
         # Calculate usage
         completion_tokens = len(generated_tokens)
         prompt_tokens = input_length
-        
+
         # Populate response
         model_response.choices = [
             Choices(
@@ -208,13 +207,13 @@ class TransformersProvider(CustomLLM):
             completion_tokens=completion_tokens,
             total_tokens=prompt_tokens + completion_tokens,
         )
-        
+
         logger.debug(
             f"Generated {completion_tokens} tokens in {time.time() - start_time:.2f}s"
         )
-        
+
         return model_response
-    
+
     def streaming(
         self,
         model: str,
@@ -235,41 +234,40 @@ class TransformersProvider(CustomLLM):
         client: Any = None,
     ) -> Iterator[GenericStreamingChunk]:
         """Stream completion using local transformers model.
-        
+
         Uses TextIteratorStreamer for token-by-token streaming.
         """
         import threading
 
-        import torch
         from transformers import TextIteratorStreamer
-        
+
         # Extract model_id
         if model.startswith("transformers/"):
-            model_id = model[len("transformers/"):]
+            model_id = model[len("transformers/") :]
         else:
             model_id = model
-        
+
         # Load model and tokenizer
         hf_model, tokenizer = _get_model_and_tokenizer(model_id)
-        
+
         # Convert messages to prompt
         prompt = _messages_to_prompt(tokenizer, messages)
-        
+
         # Tokenize input
         inputs = tokenizer(prompt, return_tensors="pt", padding=True)
         inputs = {k: v.to(hf_model.device) for k, v in inputs.items()}
-        
+
         # Get generation parameters
         max_tokens = optional_params.get("max_tokens", 1024)
         temperature = optional_params.get("temperature", 0.7)
-        
+
         # Create streamer
         streamer = TextIteratorStreamer(
             tokenizer,
             skip_prompt=True,
             skip_special_tokens=True,
         )
-        
+
         # Generation kwargs
         generation_kwargs = {
             **inputs,
@@ -279,11 +277,11 @@ class TransformersProvider(CustomLLM):
             "pad_token_id": tokenizer.pad_token_id,
             "streamer": streamer,
         }
-        
+
         # Run generation in background thread
         thread = threading.Thread(target=hf_model.generate, kwargs=generation_kwargs)
         thread.start()
-        
+
         # Yield tokens as they come
         # TextIteratorStreamer blocks until next token or generation complete
         for token_text in streamer:
@@ -296,7 +294,7 @@ class TransformersProvider(CustomLLM):
                     usage=None,
                     index=0,
                 )
-        
+
         # Final chunk
         yield GenericStreamingChunk(
             text="",
@@ -306,8 +304,8 @@ class TransformersProvider(CustomLLM):
             usage=None,
             index=0,
         )
-        
-        # Thread should be done since streamer iteration completed, 
+
+        # Thread should be done since streamer iteration completed,
         # but use timeout as safety measure to avoid hanging
         thread.join(timeout=5.0)
 
@@ -377,12 +375,11 @@ class TransformersProvider(CustomLLM):
         import queue
         import threading
 
-        import torch
         from transformers import TextIteratorStreamer
 
         # Extract model_id
         if model.startswith("transformers/"):
-            model_id = model[len("transformers/"):]
+            model_id = model[len("transformers/") :]
         else:
             model_id = model
 
@@ -426,13 +423,13 @@ class TransformersProvider(CustomLLM):
                     target=lambda: hf_model.generate(**generation_kwargs)
                 )
                 gen_thread.start()
-                
+
                 # Read from streamer and put to queue
                 # This blocks until generation is complete
                 for token_text in streamer:
                     if token_text:
                         token_queue.put(token_text)
-                
+
                 # Wait for generation thread with timeout
                 gen_thread.join(timeout=5.0)
             except Exception as e:
@@ -475,31 +472,33 @@ class TransformersProvider(CustomLLM):
 
 def register_transformers_provider() -> None:
     """Register the transformers provider with LiteLLM.
-    
+
     Call this once at startup to enable the "transformers/" model prefix.
     """
     try:
         import litellm
     except ImportError:
-        logger.warning("litellm not available, skipping transformers provider registration")
+        logger.warning(
+            "litellm not available, skipping transformers provider registration"
+        )
         return
-    
+
     provider = TransformersProvider()
-    
+
     # Register with LiteLLM's custom provider map
     litellm.custom_provider_map = getattr(litellm, "custom_provider_map", [])
-    
+
     # Check if already registered
     for entry in litellm.custom_provider_map:
         if entry.get("provider") == "transformers":
             logger.debug("Transformers provider already registered")
             return
-    
+
     litellm.custom_provider_map.append({
         "provider": "transformers",
         "custom_handler": provider,
     })
-    
+
     logger.info("Registered transformers provider with LiteLLM")
 
 

@@ -27,7 +27,7 @@ class Question(BaseModel):
 
     text: str = Field(description="The question to answer")
 
-
+@flock_type
 class Answer(BaseModel):
     """An answer to a question."""
 

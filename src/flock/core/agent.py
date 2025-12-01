@@ -122,7 +122,9 @@ class Agent(metaclass=AutoTracedMeta):
         None  # WebSocket broadcast wrapper (dashboard mode)
     )
 
-    def __init__(self, name: str, *, orchestrator: Flock, no_output: bool = False) -> None:
+    def __init__(
+        self, name: str, *, orchestrator: Flock, no_output: bool = False
+    ) -> None:
         self.name = name
         self.description: str | None = None
         self._orchestrator = orchestrator

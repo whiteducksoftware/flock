@@ -17,7 +17,7 @@ class VarList(BaseModel):
     description: str = Field(description="A description of the variable to create a list of values for with potential constraints ond rules")
     values: list[str] = Field(default_factory=list, min_length=10)
 
-flock = Flock(no_output=True)
+flock = Flock("transformers/unsloth/Qwen3-4B-Instruct-2507-bnb-4bit")
 
 z = flock.agent("z").consumes(Prompt).publishes(VarList)
 
