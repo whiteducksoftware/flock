@@ -42,6 +42,7 @@ class OrchestratorInitializer:
         max_agent_iterations: int,
         logger: Any,
         model: str | None,
+        no_output: bool = False,
     ) -> dict[str, Any]:
         """Initialize all orchestrator components and state.
 
@@ -51,6 +52,7 @@ class OrchestratorInitializer:
             max_agent_iterations: Circuit breaker limit
             logger: Logger instance
             model: Default LLM model
+            no_output: Suppress all terminal output (banners, result tables, streaming)
 
         Returns:
             Dictionary of initialized components and state
@@ -69,11 +71,13 @@ class OrchestratorInitializer:
             >>> orchestrator._scheduler = components["scheduler"]
         """
         # Initialize console (with error handling for encoding issues)
-        try:
-            init_console(clear_screen=True, show_banner=True, model=model)
-        except (UnicodeEncodeError, UnicodeDecodeError):
-            # Skip banner on Windows consoles with encoding issues (e.g., tests, CI)
-            pass
+        # Skip banner entirely when no_output=True
+        if not no_output:
+            try:
+                init_console(clear_screen=True, show_banner=True, model=model)
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                # Skip banner on Windows consoles with encoding issues (e.g., tests, CI)
+                pass
 
         # Basic state
         resolved_store = store or InMemoryBlackboardStore()

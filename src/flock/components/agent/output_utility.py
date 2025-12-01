@@ -144,6 +144,11 @@ class OutputUtilityComponent(AgentComponent):
         """Format and display the output."""
         logger.debug("Formatting and displaying output")
 
+        # Skip all output display when no_output is enabled
+        if self.config.no_output:
+            logger.debug("Skipping output display (no_output=True)")
+            return result
+
         streaming_live_handled = False
         output_queued = False
         streamed_artifact_id = None
