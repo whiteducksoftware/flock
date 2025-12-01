@@ -439,6 +439,9 @@ class Agent(metaclass=AutoTracedMeta):
 
     def _resolve_engines(self) -> list[EngineComponent]:
         if self.engines:
+            # Propagate no_output to user-provided engines
+            for engine in self.engines:
+                engine.no_output = self.no_output
             return self.engines
         try:
             from flock.engines import DSPyEngine
@@ -456,6 +459,12 @@ class Agent(metaclass=AutoTracedMeta):
 
     def _resolve_utilities(self) -> list[AgentComponent]:
         if self.utilities:
+            # Propagate no_output to user-provided utilities
+            for utility in self.utilities:
+                utility.no_output = self.no_output
+                # Also propagate to config if it has no_output field
+                if hasattr(utility.config, "no_output"):
+                    utility.config.no_output = self.no_output
             return self.utilities
         try:
             from flock.components.agent import (

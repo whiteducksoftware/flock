@@ -148,8 +148,8 @@ class TestNoOutputIntegration:
         assert len(output_utils) > 0
         assert output_utils[0].config.no_output is True
 
-    def test_custom_engine_not_affected(self):
-        """Custom engines should not be affected by agent's no_output."""
+    def test_custom_engine_inherits_no_output(self):
+        """Custom engines should inherit no_output from orchestrator."""
         flock = Flock("openai/gpt-4.1", no_output=True)
         
         # Create custom engine without no_output
@@ -166,13 +166,13 @@ class TestNoOutputIntegration:
         # Agent should have no_output=True
         assert agent.no_output is True
         
-        # But custom engine should keep its own setting
+        # Custom engine should inherit no_output from agent
         engines = agent._resolve_engines()
         assert len(engines) == 1
-        assert engines[0].no_output is False  # Custom engine keeps its setting
+        assert engines[0].no_output is True  # Custom engine inherits setting
 
-    def test_custom_utilities_not_affected(self):
-        """Custom utilities should not be affected by agent's no_output."""
+    def test_custom_utilities_inherit_no_output(self):
+        """Custom utilities should inherit no_output from orchestrator."""
         flock = Flock("openai/gpt-4.1", no_output=True)
         
         # Create custom utility without no_output
@@ -190,8 +190,9 @@ class TestNoOutputIntegration:
         # Agent should have no_output=True
         assert agent.no_output is True
         
-        # But custom utility should keep its own setting
+        # Custom utility should inherit no_output from agent
         utilities = agent._resolve_utilities()
         output_utils = [u for u in utilities if isinstance(u, OutputUtilityComponent)]
         assert len(output_utils) == 1
-        assert output_utils[0].config.no_output is False  # Custom utility keeps its setting
+        assert output_utils[0].no_output is True  # Custom utility inherits setting
+        assert output_utils[0].config.no_output is True  # Config also updated
