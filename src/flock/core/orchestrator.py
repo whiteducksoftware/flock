@@ -98,6 +98,7 @@ class Flock(metaclass=AutoTracedMeta):
         store: BlackboardStore | None = None,
         max_agent_iterations: int = 1000,
         context_provider: Any = None,
+        no_output: bool = False,
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
@@ -108,15 +109,19 @@ class Flock(metaclass=AutoTracedMeta):
             store: Custom blackboard storage backend
             max_agent_iterations: Circuit breaker limit
             context_provider: Global context provider for all agents
+            no_output: Suppress all terminal output (banners, result tables, streaming).
+                Logging is preserved. Useful when running Flock as a service.
 
         Examples:
             >>> flock = Flock("openai/gpt-4.1")
             >>> flock = Flock("openai/gpt-4o", store=CustomStore())
+            >>> flock = Flock("openai/gpt-4.1", no_output=True)  # Silent mode
         """
         # Patch litellm imports and setup logger
         self._patch_litellm_proxy_imports()
         self._logger = get_logger(__name__)
         self.model = model or os.getenv("DEFAULT_MODEL")
+        self.no_output = no_output
 
         # Phase 3: Initialize all components using OrchestratorInitializer
         components = OrchestratorInitializer.initialize_components(
@@ -125,6 +130,7 @@ class Flock(metaclass=AutoTracedMeta):
             max_agent_iterations=max_agent_iterations,
             logger=self._logger,
             model=model,
+            no_output=no_output,
         )
 
         # Assign basic state

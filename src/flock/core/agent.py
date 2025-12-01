@@ -122,7 +122,9 @@ class Agent(metaclass=AutoTracedMeta):
         None  # WebSocket broadcast wrapper (dashboard mode)
     )
 
-    def __init__(self, name: str, *, orchestrator: Flock) -> None:
+    def __init__(
+        self, name: str, *, orchestrator: Flock, no_output: bool = False
+    ) -> None:
         self.name = name
         self.description: str | None = None
         self._orchestrator = orchestrator
@@ -144,6 +146,8 @@ class Agent(metaclass=AutoTracedMeta):
         self.context_provider: Any = None
         # Phase 6: Timer-based scheduling
         self.schedule_spec: ScheduleSpec | None = None
+        # Output suppression (inherited from orchestrator)
+        self.no_output: bool = no_output
 
         # Phase 4: Initialize extracted modules
         self._output_processor = OutputProcessor(name)
@@ -445,6 +449,7 @@ class Agent(metaclass=AutoTracedMeta):
             model=self._orchestrator.model
             or os.getenv("DEFAULT_MODEL", "openai/gpt-4.1"),
             instructions=self.description,
+            no_output=self.no_output,  # Propagate output suppression
         )
         self.engines = [default_engine]
         return self.engines
@@ -455,11 +460,14 @@ class Agent(metaclass=AutoTracedMeta):
         try:
             from flock.components.agent import (
                 OutputUtilityComponent,
+                OutputUtilityConfig,
             )
         except Exception:  # pragma: no cover - optional dependency issues
             return []
 
-        default_component = OutputUtilityComponent()
+        # Propagate output suppression to the utility component
+        config = OutputUtilityConfig(no_output=self.no_output)
+        default_component = OutputUtilityComponent(config=config)
         self._add_utilities([default_component])
         return self.utilities
 
@@ -481,7 +489,9 @@ class AgentBuilder:
 
     def __init__(self, orchestrator: Flock, name: str) -> None:
         self._orchestrator = orchestrator
-        self._agent = Agent(name, orchestrator=orchestrator)
+        # Propagate no_output from orchestrator to agent
+        no_output = getattr(orchestrator, "no_output", False)
+        self._agent = Agent(name, orchestrator=orchestrator, no_output=no_output)
         self._agent.model = orchestrator.model
         orchestrator.register_agent(self._agent)
 
