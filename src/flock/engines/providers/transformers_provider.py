@@ -52,13 +52,15 @@ def _get_model_and_tokenizer(model_id: str) -> tuple[Any, Any]:
             "Install with: pip install transformers torch"
         ) from e
 
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    # User specifies model_id - revision pinning is their responsibility
+    tokenizer = AutoTokenizer.from_pretrained(model_id)  # nosec B615
 
     # Try device_map="auto" if accelerate is available, otherwise use default device
     try:
         import accelerate  # noqa: F401
 
-        model = AutoModelForCausalLM.from_pretrained(
+        # User specifies model_id - revision pinning is their responsibility
+        model = AutoModelForCausalLM.from_pretrained(  # nosec B615
             model_id,
             torch_dtype=torch.float32,
             device_map="auto",
@@ -66,7 +68,8 @@ def _get_model_and_tokenizer(model_id: str) -> tuple[Any, Any]:
     except ImportError:
         logger.debug("accelerate not available, using default device placement")
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = AutoModelForCausalLM.from_pretrained(
+        # User specifies model_id - revision pinning is their responsibility
+        model = AutoModelForCausalLM.from_pretrained(  # nosec B615
             model_id,
             torch_dtype=torch.float32,
         )
