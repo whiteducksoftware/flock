@@ -479,7 +479,10 @@ class Agent(metaclass=AutoTracedMeta):
 
         # Propagate output suppression to the utility component
         config = OutputUtilityConfig(no_output=self.no_output)
-        default_component = OutputUtilityComponent(config=config)
+        default_component = OutputUtilityComponent(
+            config=config,
+            no_output=self.no_output,  # Also set on component for consistency
+        )
         self._add_utilities([default_component])
         return self.utilities
 
