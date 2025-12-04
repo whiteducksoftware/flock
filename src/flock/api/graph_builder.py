@@ -480,7 +480,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         start_counter: int,
     ) -> list[GraphEdge]:
         """Build pending edges for JoinSpec correlation groups."""
-        from flock.dashboard.routes.helpers import _get_correlation_groups
+        from flock.components.server.control.helpers import _get_correlation_groups
 
         edges: list[GraphEdge] = []
         correlation_groups = _get_correlation_groups(
@@ -555,7 +555,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         start_counter: int,
     ) -> list[GraphEdge]:
         """Build pending edges for BatchSpec accumulation."""
-        from flock.dashboard.routes.helpers import _get_batch_state
+        from flock.components.server.control.helpers import _get_batch_state
 
         edges: list[GraphEdge] = []
         batch_state = _get_batch_state(
@@ -835,7 +835,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             }
 
             # Phase 1.2.1: Get waiting state from CorrelationEngine
-            from flock.dashboard.routes.helpers import _get_correlation_groups
+            from flock.components.server.control.helpers import _get_correlation_groups
 
             correlation_groups = _get_correlation_groups(
                 self._orchestrator._correlation_engine, agent.name, idx
@@ -868,7 +868,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 )
 
             # Phase 1.2.1: Get waiting state from BatchEngine
-            from flock.dashboard.routes.helpers import _get_batch_state
+            from flock.components.server.control.helpers import _get_batch_state
 
             batch_state = _get_batch_state(
                 self._orchestrator._batch_engine, agent.name, idx, batch_spec
