@@ -24,6 +24,14 @@ Comprehensive guides for building production-ready multi-agent systems with Floc
 
     [:octicons-arrow-right-24: Blackboard Guide](blackboard.md)
 
+-   **📦 Top-Level Imports**
+
+    ---
+
+    Convenient imports for DSPyEngine, adapters, components, and more from the root namespace.
+
+    [:octicons-arrow-right-24: Imports Guide](imports.md)
+
 -   **🔒 Visibility Controls**
 
     ---
@@ -55,6 +63,38 @@ Comprehensive guides for building production-ready multi-agent systems with Floc
     Extend Flock's HTTP API with custom middleware, authentication, and routes.
 
     [:octicons-arrow-right-24: Server Components Guide](server-components.md)
+
+-   **🤫 Silent Mode**
+
+    ---
+
+    Suppress terminal output when running Flock as a service or in production.
+
+    [:octicons-arrow-right-24: Silent Mode Guide](silent-mode.md)
+
+</div>
+
+---
+
+## 🖥️ Local Models & Engines
+
+<div class="grid cards" markdown>
+
+-   **🔧 DSPy Engine Deep Dive**
+
+    ---
+
+    Understanding how DSPy signatures work and how the DSPyEngine generates contract-valid artifacts.
+
+    [:octicons-arrow-right-24: DSPy Engine Guide](dspy-engine.md)
+
+-   **🏠 Local Models (Transformers)**
+
+    ---
+
+    Run Flock agents entirely locally using Hugging Face models — no API keys required.
+
+    [:octicons-arrow-right-24: Local Models Guide](local-models.md)
 
 </div>
 

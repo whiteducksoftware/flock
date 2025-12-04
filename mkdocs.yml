@@ -203,30 +203,47 @@ nav:
     - Multi-Agent Workflow: tutorials/multi-agent-workflow.md
     - Conditional Routing: tutorials/conditional-routing.md
     - Semantic Routing: tutorials/semantic-routing.md
+    - Scheduled Agents: tutorials/scheduled-agents.md
     - Advanced Patterns: tutorials/advanced-patterns.md
     - Custom Engines: tutorials/custom-engines.md
     - Custom Agent Components: tutorials/custom-agent-components.md
+    - Connect with Ollama: tutorials/connect_with_ollama.md
 
   - 📚 User Guides:
     - Overview: guides/index.md
-    - Agents: guides/agents.md
-    - Agent Components: guides/components.md
-    - Orchestrator Components: guides/orchestrator-components.md
-    - Server Components: guides/server-components.md
-    - Blackboard: guides/blackboard.md
-    - Visibility Controls: guides/visibility.md
-    - Dashboard: guides/dashboard.md
-    - REST API: guides/rest-api.md
-    - Patterns: guides/patterns.md
-    - Semantic Subscriptions: guides/semantic-subscriptions.md
-    - Predicates: guides/predicates.md
-    - Join Operations: guides/join-operations.md
-    - Batch Processing: guides/batch-processing.md
-    - Fan-Out Publishing: guides/fan-out.md
-    - Context Providers: guides/context-providers.md
-    - Persistent Blackboard: guides/persistent-blackboard.md
-    - Use Cases: guides/use-cases.md
-    - Testing Strategies: guides/testing.md
+    - Core:
+      - Agents: guides/agents.md
+      - Blackboard: guides/blackboard.md
+      - Top-Level Imports: guides/imports.md
+      - Silent Mode (no_output): guides/silent-mode.md
+    - Components:
+      - Agent Components: guides/components.md
+      - Orchestrator Components: guides/orchestrator-components.md
+      - Server Components: guides/server-components.md
+    - Engines:
+      - DSPy Engine Deep Dive: guides/dspy-engine.md
+      - Local Models (Transformers): guides/local-models.md
+    - Subscriptions:
+      - Semantic Subscriptions: guides/semantic-subscriptions.md
+      - Predicates: guides/predicates.md
+      - Join Operations: guides/join-operations.md
+      - Batch Processing: guides/batch-processing.md
+      - Timer Scheduling: guides/scheduling.md
+    - Publishing:
+      - Fan-Out Publishing: guides/fan-out.md
+      - Visibility Controls: guides/visibility.md
+      - Webhook Notifications: guides/webhooks.md
+    - Advanced:
+      - Workflow Control: guides/workflow-control.md
+      - Context Providers: guides/context-providers.md
+      - Persistent Blackboard: guides/persistent-blackboard.md
+      - MCP Roots: guides/mcp-roots.md
+    - Operations:
+      - Dashboard: guides/dashboard.md
+      - REST API: guides/rest-api.md
+      - Testing Strategies: guides/testing.md
+      - Patterns: guides/patterns.md
+      - Use Cases: guides/use-cases.md
     - Distributed Tracing:
       - Overview: guides/tracing/index.md
       - Quick Start: guides/tracing/tracing-quickstart.md
@@ -244,9 +261,11 @@ nav:
   - 💡 Examples:
     - Overview: examples/index.md
     - GitHub Examples: https://github.com/whiteducksoftware/flock/tree/main/examples
-    - 01 — The Declarative Way: https://github.com/whiteducksoftware/flock/tree/main/examples/01-the-declarative-way
-    - 02 — The Blackboard: https://github.com/whiteducksoftware/flock/tree/main/examples/02-the-blackboard
-    - Dashboard: https://github.com/whiteducksoftware/flock/tree/main/examples/03-the-dashboard
+    - 01 — Getting Started: https://github.com/whiteducksoftware/flock/tree/main/examples/01-getting-started
+    - 02 — Patterns: https://github.com/whiteducksoftware/flock/tree/main/examples/02-patterns
+    - 04 — Misc: https://github.com/whiteducksoftware/flock/tree/main/examples/04-misc
+    - 05 — Engines: https://github.com/whiteducksoftware/flock/tree/main/examples/05-engines
+    - 09 — Scheduling: https://github.com/whiteducksoftware/flock/tree/main/examples/09-scheduling
 
   - ℹ️ About:
     - Roadmap: about/roadmap.md

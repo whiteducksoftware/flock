@@ -58,6 +58,10 @@ class AgentComponent(BaseModel, metaclass=TracedModelMeta):
         default=0,
         description="Execution priority (lower numbers run earlier; default preserves add order).",
     )
+    no_output: bool = Field(
+        default=False,
+        description="Suppress terminal output (for running as a service)",
+    )
 
     async def on_initialize(
         self, agent: Agent, ctx: Context

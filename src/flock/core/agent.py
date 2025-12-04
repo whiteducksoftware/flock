@@ -439,6 +439,12 @@ class Agent(metaclass=AutoTracedMeta):
 
     def _resolve_engines(self) -> list[EngineComponent]:
         if self.engines:
+            # Propagate no_output and model to user-provided engines
+            for engine in self.engines:
+                engine.no_output = self.no_output
+                # Propagate model from orchestrator if engine doesn't have one set
+                if hasattr(engine, "model") and engine.model is None:
+                    engine.model = self._orchestrator.model
             return self.engines
         try:
             from flock.engines import DSPyEngine
@@ -456,6 +462,12 @@ class Agent(metaclass=AutoTracedMeta):
 
     def _resolve_utilities(self) -> list[AgentComponent]:
         if self.utilities:
+            # Propagate no_output to user-provided utilities
+            for utility in self.utilities:
+                utility.no_output = self.no_output
+                # Also propagate to config if it has no_output field
+                if hasattr(utility.config, "no_output"):
+                    utility.config.no_output = self.no_output
             return self.utilities
         try:
             from flock.components.agent import (
@@ -467,7 +479,10 @@ class Agent(metaclass=AutoTracedMeta):
 
         # Propagate output suppression to the utility component
         config = OutputUtilityConfig(no_output=self.no_output)
-        default_component = OutputUtilityComponent(config=config)
+        default_component = OutputUtilityComponent(
+            config=config,
+            no_output=self.no_output,  # Also set on component for consistency
+        )
         self._add_utilities([default_component])
         return self.utilities
 
