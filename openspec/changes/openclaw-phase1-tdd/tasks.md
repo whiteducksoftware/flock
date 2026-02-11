@@ -24,8 +24,8 @@
 
 ## 4. End-to-End Integration in Flock Pipeline (TDD first)
 
-- [ ] 4.1 (flock-repo-cv4.8) Add failing integration test in `tests/integration/openclaw/test_openclaw_pipeline.py`: `openclaw_agent(...).consumes(...).publishes(...)` produces validated artifact.
-- [ ] 4.2 (flock-repo-cv4.8) Add failing integration test in `tests/integration/openclaw/test_openclaw_pipeline.py` for mixed pipeline (OpenClaw + standard agent).
+- [x] 4.1 (flock-repo-cv4.8) Add failing integration test in `tests/integration/openclaw/test_openclaw_pipeline.py`: `openclaw_agent(...).consumes(...).publishes(...)` produces validated artifact.
+- [x] 4.2 (flock-repo-cv4.8) Add failing integration test in `tests/integration/openclaw/test_openclaw_pipeline.py` for mixed pipeline (OpenClaw + standard agent).
 - [ ] 4.3 (flock-repo-cv4.9) Implement orchestrator/export wiring to satisfy integration behavior across `src/flock/core/orchestrator.py`, `src/flock/__init__.py`, and `src/flock/core/__init__.py`.
 - [ ] 4.4 (flock-repo-cv4.9) Add trace metadata propagation assertions (correlation/label fields) in `tests/integration/openclaw/test_openclaw_pipeline.py`.
 
