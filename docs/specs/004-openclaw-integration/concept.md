@@ -515,8 +515,8 @@ No changes needed to:
 
 - [ ] **Generic lease/claim/lock component** — Reusable workflow primitive for long-running external workers (not just OpenClaw — any async backend: MCP servers, custom HTTP agents, human-in-the-loop). Includes: claim acquisition, heartbeat/keepalive, timeout reclaim, receipt artifacts on completion.
 - [ ] **OTLP export convenience layer** — Flock already has `TracingComponent` + OTel spans. Add a batteries-included config for forwarding spans to external collectors (e.g., a future ClawTrace instance). Mostly wiring + sensible defaults.
-- [ ] **Trust metadata consumption** — Flock agents can read trust/capability metadata from ClawGuard (skill signatures, permission manifests) to inform routing decisions. Flock doesn't *own* trust policy — it *consumes* it.
-- [ ] **Verification workflow primitives** — Generic state machine components for escrow-like patterns (claim → work → verify → settle). Useful as Flock building blocks that products like ClawMarket can compose on top of.
+- [ ] **Trust metadata consumption (advisory only)** — Flock agents can read trust/capability metadata from ClawGuard (skill signatures, permission manifests) as **advisory routing input** — e.g., prefer signed skills, skip untrusted gateways. Flock never enforces trust policy; it only uses metadata to inform decisions.
+- [ ] **Verification workflow primitives (generic)** — Generic state machine components for multi-step handoff patterns (claim → work → verify → settle). These are **abstract workflow primitives**, not payment/market logic. Products like ClawMarket compose domain-specific semantics on top.
 
 #### What Stays Outside Flock Core
 These are **products built on Flock**, not Flock features:
