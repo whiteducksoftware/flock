@@ -21,10 +21,15 @@
 </p>
 
 ---
+
+
 <p align="center">
   <h1>Flock</h1>
-  <b>Declarative Blackboard Multi-Agent Orchestration</b>
 </p>
+<p align="center">
+  <b>Declarative Blackboard Multi-Agent Orchestration</b>
+</p
+
 
 > **Stop engineering prompts. Start declaring contracts.**
 
