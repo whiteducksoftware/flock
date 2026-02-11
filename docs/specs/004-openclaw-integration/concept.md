@@ -487,12 +487,12 @@ No changes needed to:
 ## Implementation Plan
 
 ### Phase 1 — Core (MVP)
-- [ ] `OpenClawConfig` with gateway registration and env discovery
-- [ ] `OpenClawEngine` with spawn mode
-- [ ] `.openclaw_agent()` builder method on Flock
-- [ ] Task prompt builder (artifact serialization + schema + description/instruction)
-- [ ] JSON response parser with repair pass
-- [ ] Basic error handling (timeout, parse failure, gateway down)
+- [x] `OpenClawConfig` with gateway registration and env discovery
+- [x] `OpenClawEngine` with spawn mode
+- [x] `.openclaw_agent()` builder method on Flock
+- [x] Task prompt builder (artifact serialization + schema + description/instruction)
+- [x] JSON response parser with repair pass
+- [x] Basic error handling (timeout, parse failure, gateway down)
 - [ ] Integration test with real OpenClaw gateway
 
 ### Phase 2 — Production Hardening

@@ -40,7 +40,9 @@ class OpenClawEngine(EngineComponent):
         if self.gateway.token:
             headers["Authorization"] = f"Bearer {self.gateway.token}"
 
-        base_payload = self._build_spawn_payload(ctx=ctx, inputs=inputs, output_group=output_group)
+        base_payload = self._build_spawn_payload(
+            ctx=ctx, inputs=inputs, output_group=output_group
+        )
 
         attempts = max(1, self.retries + 1)
         parse_error: ValueError | None = None
@@ -150,12 +152,16 @@ class OpenClawEngine(EngineComponent):
             raise RuntimeError("OpenClaw gateway returned non-JSON response") from exc
 
         if not isinstance(payload_json, dict):
-            raise RuntimeError("OpenClaw gateway response must be a JSON object")
+            raise RuntimeError(  # noqa: TRY004 - Phase 1 maps gateway parse failures to RuntimeError.
+                "OpenClaw gateway response must be a JSON object"
+            )
 
         # Handle API-level auth signaling even with 200 (defensive).
         if payload_json.get("ok") is False:
             err = str(payload_json.get("error", "")).lower()
-            message = str(payload_json.get("message", "OpenClaw gateway rejected request"))
+            message = str(
+                payload_json.get("message", "OpenClaw gateway rejected request")
+            )
             if "auth" in err or "token" in err or "unauth" in err or "forbidden" in err:
                 raise ValueError(f"OpenClaw auth/token failure: {message}")
 
@@ -177,7 +183,9 @@ class OpenClawEngine(EngineComponent):
                 raise ValueError("result is not valid JSON") from exc
 
             if not isinstance(parsed, dict):
-                raise ValueError("result JSON must be an object")
+                raise ValueError(  # noqa: TRY004 - Phase 1 treats malformed payload shape as parse ValueError.
+                    "result JSON must be an object"
+                )
             return parsed
 
         raise ValueError("result must be a JSON string or object")

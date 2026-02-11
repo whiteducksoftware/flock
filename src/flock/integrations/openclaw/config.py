@@ -21,7 +21,9 @@ class OpenClawDefaults(BaseModel):
         description="Execution mode (Phase 1: spawn-only).",
     )
     timeout: int = Field(default=120, ge=1, description="Request timeout in seconds.")
-    retries: int = Field(default=1, ge=0, description="Retry count for transient failures.")
+    retries: int = Field(
+        default=1, ge=0, description="Retry count for transient failures."
+    )
     response_mode: Literal["json_schema"] = Field(
         default="json_schema",
         description="How output contract is communicated to the OpenClaw agent.",
@@ -56,7 +58,7 @@ class OpenClawConfig(BaseModel):
     defaults: OpenClawDefaults = Field(default_factory=OpenClawDefaults)
 
     @classmethod
-    def from_env(cls) -> "OpenClawConfig":
+    def from_env(cls) -> OpenClawConfig:
         """Load OpenClaw gateway config from OPENCLAW_<ALIAS>_* variables.
 
         Expected pair per alias:
@@ -93,7 +95,9 @@ class OpenClawConfig(BaseModel):
             )
 
         if not gateways:
-            raise ValueError("No OpenClaw gateways discovered from environment variables")
+            raise ValueError(
+                "No OpenClaw gateways discovered from environment variables"
+            )
 
         return cls(gateways=gateways)
 

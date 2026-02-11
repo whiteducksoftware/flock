@@ -34,18 +34,18 @@ def _openclaw_config_classes():
     import flock as flock_pkg
     import flock.core as core_pkg
 
-    assert hasattr(
-        flock_pkg, "OpenClawConfig"
-    ), "Expected flock.OpenClawConfig export for integration setup"
-    assert hasattr(
-        flock_pkg, "GatewayConfig"
-    ), "Expected flock.GatewayConfig export for integration setup"
-    assert hasattr(
-        core_pkg, "OpenClawConfig"
-    ), "Expected flock.core.OpenClawConfig export for integration setup"
-    assert hasattr(
-        core_pkg, "GatewayConfig"
-    ), "Expected flock.core.GatewayConfig export for integration setup"
+    assert hasattr(flock_pkg, "OpenClawConfig"), (
+        "Expected flock.OpenClawConfig export for integration setup"
+    )
+    assert hasattr(flock_pkg, "GatewayConfig"), (
+        "Expected flock.GatewayConfig export for integration setup"
+    )
+    assert hasattr(core_pkg, "OpenClawConfig"), (
+        "Expected flock.core.OpenClawConfig export for integration setup"
+    )
+    assert hasattr(core_pkg, "GatewayConfig"), (
+        "Expected flock.core.GatewayConfig export for integration setup"
+    )
 
     return flock_pkg.OpenClawConfig, flock_pkg.GatewayConfig
 

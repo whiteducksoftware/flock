@@ -31,11 +31,11 @@
 
 ## 5. Hardening + Validation
 
-- [ ] 5.1 (flock-repo-cv4.10) Run target suites:
+- [x] 5.1 (flock-repo-cv4.10) Run target suites:
   - `tests/test_agent_builder.py`
   - `tests/test_engines.py`
   - new OpenClaw test files
   - selected integration tests
-- [ ] 5.2 (flock-repo-cv4.10) Run lint/format on touched files.
-- [ ] 5.3 (flock-repo-cv4.10) Update docs/spec references for implemented Phase 1 details.
+- [x] 5.2 (flock-repo-cv4.10) Run lint/format on touched files.
+- [x] 5.3 (flock-repo-cv4.10) Update docs/spec references for implemented Phase 1 details.
 - [ ] 5.4 (flock-repo-cv4.10) Final review pass with Claude before implementation merge progression.

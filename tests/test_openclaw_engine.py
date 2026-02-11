@@ -36,10 +36,10 @@ def _config() -> OpenClawConfig:
     )
 
 
-async def _invoke_once(*, timeout: int = 120, retries: int = 1):
+async def _invoke_once(*, timeout_seconds: int = 120, retries: int = 1):
     flock = Flock(openclaw=_config())
     builder = (
-        flock.openclaw_agent("codie", timeout=timeout, retries=retries)
+        flock.openclaw_agent("codie", timeout=timeout_seconds, retries=retries)
         .consumes(OpenClawEngineInput)
         .publishes(OpenClawEngineOutput)
     )
@@ -71,7 +71,7 @@ async def test_spawn_request_contains_expected_contract_fields() -> None:
         side_effect=_handler
     )
 
-    outputs = await _invoke_once(timeout=120, retries=1)
+    outputs = await _invoke_once(timeout_seconds=120, retries=1)
 
     assert route.called
     payload = seen["payload"]

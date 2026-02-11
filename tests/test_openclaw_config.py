@@ -56,15 +56,18 @@ def test_openclaw_config_accepts_dict_gateway_config() -> None:
     assert config.gateways["codie"].token_env == "OPENCLAW_CODIE_TOKEN"
 
 
-@pytest.mark.parametrize("invalid_mode", ["session", "foo", ""])  # spawn-only in Phase 1
-
+@pytest.mark.parametrize(
+    "invalid_mode", ["session", "foo", ""]
+)  # spawn-only in Phase 1
 def test_openclaw_defaults_rejects_invalid_mode(invalid_mode: str) -> None:
     """Phase 1 should reject non-spawn mode at config level."""
     with pytest.raises(ValidationError):
         OpenClawDefaults(mode=invalid_mode)
 
 
-def test_openclaw_config_from_env_discovers_aliases(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_openclaw_config_from_env_discovers_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """from_env should discover OPENCLAW_<ALIAS>_URL and token pairs."""
     monkeypatch.setenv("OPENCLAW_CODIE_URL", "http://localhost:19789")
     monkeypatch.setenv("OPENCLAW_CODIE_TOKEN", "token-codie")
@@ -80,7 +83,9 @@ def test_openclaw_config_from_env_discovers_aliases(monkeypatch: pytest.MonkeyPa
     assert config.gateways["claude"].token == "token-claude"
 
 
-def test_openclaw_config_from_env_fails_on_missing_token(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_openclaw_config_from_env_fails_on_missing_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """from_env should fail fast when URL exists but TOKEN is missing."""
     monkeypatch.setenv("OPENCLAW_CODIE_URL", "http://localhost:19789")
     monkeypatch.delenv("OPENCLAW_CODIE_TOKEN", raising=False)
@@ -89,7 +94,9 @@ def test_openclaw_config_from_env_fails_on_missing_token(monkeypatch: pytest.Mon
         OpenClawConfig.from_env()
 
 
-def test_openclaw_config_from_env_fails_when_no_gateways(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_openclaw_config_from_env_fails_when_no_gateways(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """from_env should fail explicitly when no OpenClaw env variables are configured."""
     monkeypatch.delenv("OPENCLAW_CODIE_URL", raising=False)
     monkeypatch.delenv("OPENCLAW_CODIE_TOKEN", raising=False)
