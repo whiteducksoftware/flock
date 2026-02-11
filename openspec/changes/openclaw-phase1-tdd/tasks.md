@@ -15,10 +15,10 @@
 
 ## 3. Test Harness for OpenClaw Engine Transport (TDD first)
 
-- [ ] 3.1 (flock-repo-cv4.6) Add failing unit tests for spawn request payload formation in `tests/test_openclaw_engine.py`.
-- [ ] 3.2 (flock-repo-cv4.6) Add failing unit tests for response parsing (valid JSON path) in `tests/test_openclaw_engine.py`.
-- [ ] 3.3 (flock-repo-cv4.6) Add failing unit tests for malformed JSON + single repair attempt in `tests/test_openclaw_engine.py`.
-- [ ] 3.4 (flock-repo-cv4.6) Add failing unit tests for timeout/auth/transport failure mapping in `tests/test_openclaw_engine.py`.
+- [x] 3.1 (flock-repo-cv4.6) Add failing unit tests for spawn request payload formation in `tests/test_openclaw_engine.py`.
+- [x] 3.2 (flock-repo-cv4.6) Add failing unit tests for response parsing (valid JSON path) in `tests/test_openclaw_engine.py`.
+- [x] 3.3 (flock-repo-cv4.6) Add failing unit tests for malformed JSON + single repair attempt in `tests/test_openclaw_engine.py`.
+- [x] 3.4 (flock-repo-cv4.6) Add failing unit tests for timeout/auth/transport failure mapping in `tests/test_openclaw_engine.py`.
 - [ ] 3.5 (flock-repo-cv4.7) Implement `OpenClawEngine` transport + parser + error mapping to satisfy 3.1–3.4 in `src/flock/integrations/openclaw/engine.py`.
 - [ ] 3.6 (flock-repo-cv4.7) Add/validate retry policy tests (retriable vs fail-fast conditions) in `tests/test_openclaw_engine.py`.
 
