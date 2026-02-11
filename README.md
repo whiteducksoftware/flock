@@ -24,7 +24,7 @@
 
 
 <p align="center">
-  <h1>Flock</h1>
+  # Flock
 </p>
 <p align="center">
   <b>Declarative Blackboard Multi-Agent Orchestration</b>
