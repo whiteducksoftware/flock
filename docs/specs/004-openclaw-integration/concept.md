@@ -175,36 +175,19 @@ POST {gateway_url}/api/sessions/send
 
 The task prompt is structured so any OpenClaw agent can process it without special setup:
 
-```
-You are acting as a Flock pipeline agent.
-
-## Your Role
-Senior code reviewer with security focus
-
-## Instructions
-Focus on SQL injection vectors and auth bypass patterns
-
-## Input (CodeDiff)
-```json
-{"file": "auth.py", "changes": "..."}
-```
-
-## Expected Output
-Return valid JSON matching this schema:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
-    "findings": {"type": "array", "items": {"type": "string"}},
-    ...
-  }
-}
-```
-
-Return ONLY the JSON object. No markdown fences, no explanation.
-```
+> You are acting as a Flock pipeline agent.
+>
+> **Your Role:** Senior code reviewer with security focus
+>
+> **Instructions:** Focus on SQL injection vectors and auth bypass patterns
+>
+> **Input (CodeDiff):**
+> `{"file": "auth.py", "changes": "..."}`
+>
+> **Expected Output:** Return valid JSON matching this schema:
+> `{"type": "object", "properties": {"severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]}, "findings": {"type": "array", "items": {"type": "string"}}, ...}}`
+>
+> Return ONLY the JSON object. No markdown fences, no explanation.
 
 The OpenClaw agent can use any tools at its disposal — web search, file reads, code execution — to produce the output. It's not constrained to a single LLM call.
 
@@ -345,35 +328,26 @@ Content-Type: application/json
 
 ### Task Prompt Format
 
-The task prompt is the actual string sent in `task` / `message` fields:
+The task prompt is the actual string sent in `task` / `message` fields. Template variables are shown in `{braces}`:
 
-```
-You are acting as a Flock pipeline agent.
-{if description}
+    You are acting as a Flock pipeline agent.
 
-## Your Role
-{description}
-{endif}
-{if instruction}
+    ## Your Role
+    {description}
 
-## Instructions
-{instruction}
-{endif}
+    ## Instructions
+    {instruction}
 
-## Input ({input_type_name})
-```json
-{input_artifact_json}
-```
+    ## Input ({input_type_name})
+    {input_artifact_json}
 
-## Expected Output ({output_type_name})
-Return a single valid JSON object matching this schema:
+    ## Expected Output ({output_type_name})
+    Return a single valid JSON object matching this schema:
+    {output_json_schema}
 
-```json
-{output_json_schema}
-```
+    Return ONLY the JSON object. No markdown fences, no explanation, no preamble.
 
-Return ONLY the JSON object. No markdown fences, no explanation, no preamble.
-```
+The `description` and `instruction` sections are omitted if not set on the agent. The JSON values are pretty-printed for readability.
 
 ### Metadata Propagation
 
