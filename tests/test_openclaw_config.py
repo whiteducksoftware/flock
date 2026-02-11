@@ -105,3 +105,25 @@ def test_openclaw_config_from_env_fails_when_no_gateways(
 
     with pytest.raises(ValueError, match="No OpenClaw gateways"):
         OpenClawConfig.from_env()
+
+
+def test_gateway_config_resolves_token_from_env_automatically(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GatewayConfig should auto-resolve token from token_env if token is not set."""
+    monkeypatch.setenv("MY_TOKEN", "secret-123")
+
+    gw = GatewayConfig(url="http://localhost:19789", token_env="MY_TOKEN")
+
+    assert gw.token == "secret-123"
+
+
+def test_gateway_config_explicit_token_overrides_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit token should take precedence over token_env resolution."""
+    monkeypatch.setenv("MY_TOKEN", "from-env")
+
+    gw = GatewayConfig(url="http://localhost:19789", token_env="MY_TOKEN", token="explicit")
+
+    assert gw.token == "explicit"

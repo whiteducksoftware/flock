@@ -31,7 +31,11 @@ class OpenClawDefaults(BaseModel):
 
 
 class GatewayConfig(BaseModel):
-    """Gateway definition for a named OpenClaw alias."""
+    """Gateway definition for a named OpenClaw alias.
+
+    If ``token_env`` is set and ``token`` is not provided, the token is
+    automatically resolved from the environment variable at construction time.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -44,6 +48,13 @@ class GatewayConfig(BaseModel):
         default=None,
         description="Resolved token value (typically from environment).",
     )
+
+    def model_post_init(self, __context: object) -> None:
+        """Resolve token from environment if token_env is set but token is not."""
+        if self.token is None and self.token_env is not None:
+            resolved = os.getenv(self.token_env)
+            if resolved:
+                self.token = resolved
 
 
 class OpenClawConfig(BaseModel):
