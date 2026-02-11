@@ -291,6 +291,7 @@ class Flock(metaclass=AutoTracedMeta):
                 response_mode=response_mode or defaults.response_mode,
             )
         )
+        builder.labels("openclaw")
         return builder
 
     def register_agent(self, agent: Agent) -> None:

@@ -56,6 +56,7 @@ def test_openclaw_agent_builder_is_chainable_and_registers_agent() -> None:
     assert agent.name == "codie"
     assert len(agent.output_groups) == 1
     assert agent.output_groups[0].outputs[0].spec.type_name == "OpenClawBuilderOutput"
+    assert "openclaw" in agent.labels
 
 
 def test_openclaw_agent_unknown_alias_raises_value_error() -> None:

@@ -262,6 +262,67 @@ async def test_graph_assembler_marks_openclaw_agents_for_frontend_badges():
 
 
 @pytest.mark.asyncio
+async def test_graph_assembler_marks_inactive_openclaw_agents_for_frontend_badges():
+    from pydantic import BaseModel
+
+    class InboundIdea(BaseModel):
+        topic: str
+
+    class OutboundPlan(BaseModel):
+        plan: str
+
+    orchestrator = Flock(
+        openclaw=OpenClawConfig(
+            gateways={
+                "remote": GatewayConfig(
+                    url="https://example.openclaw.invalid",
+                    token="test-token",
+                )
+            }
+        )
+    )
+
+    builder = (
+        orchestrator.openclaw_agent("remote", name="remote_historical")
+        .consumes(InboundIdea)
+        .publishes(OutboundPlan)
+    )
+
+    collector = DashboardEventCollector(store=orchestrator.store)
+    await collector.load_persistent_snapshots()
+
+    ctx = Context(
+        board=orchestrator.store,
+        orchestrator=orchestrator,
+        task_id="openclaw-inactive-run",
+        state={"artifacts_produced": [], "metrics": {}},
+        correlation_id=str(uuid4()),
+    )
+
+    input_artifact = Artifact(
+        type="InboundIdea",
+        payload={"topic": "pizza"},
+        produced_by="external",
+        visibility=PublicVisibility(),
+        correlation_id=ctx.correlation_id,
+    )
+
+    await collector.on_pre_consume(builder.agent, ctx, [input_artifact])
+    await collector.on_terminate(builder.agent, ctx)
+
+    orchestrator._agents.pop("remote_historical", None)
+
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+    snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
+
+    node = next((n for n in snapshot.nodes if n.id == "remote_historical"), None)
+    assert node is not None
+    assert node.data["status"] == "inactive"
+    assert node.data["isOpenClawAgent"] is True
+    assert node.data["engineKind"] == "openclaw"
+
+
+@pytest.mark.asyncio
 async def test_dashboard_graph_endpoint(monkeypatch, orchestrator):
     monkeypatch.setenv("DASHBOARD_GRAPH_V2", "true")
 

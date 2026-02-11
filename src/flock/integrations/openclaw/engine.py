@@ -41,7 +41,10 @@ class OpenClawEngine(EngineComponent):
             headers["Authorization"] = f"Bearer {self.gateway.token}"
 
         base_payload = self._build_spawn_payload(
-            ctx=ctx, inputs=inputs, output_group=output_group
+            agent=agent,
+            ctx=ctx,
+            inputs=inputs,
+            output_group=output_group,
         )
 
         attempts = max(1, self.retries + 1)
@@ -88,16 +91,36 @@ class OpenClawEngine(EngineComponent):
         # Defensive fallback; loop should always return or raise.
         raise RuntimeError("OpenClaw evaluation failed unexpectedly.")
 
-    def _build_spawn_payload(self, *, ctx, inputs, output_group) -> dict[str, Any]:
+    def _build_spawn_payload(self, *, agent, ctx, inputs, output_group) -> dict[str, Any]:
         output_decl = output_group.outputs[0]
-        input_payload = dict(inputs.artifacts[0].payload)
         output_schema = output_decl.spec.model.model_json_schema()
 
-        task = (
-            "Return ONLY valid JSON matching the schema.\n"
-            f"Schema: {json.dumps(output_schema, ensure_ascii=False)}\n"
-            f"Input: {json.dumps(input_payload, ensure_ascii=False)}"
-        )
+        input_payloads: list[dict[str, Any]] = []
+        for artifact in inputs.artifacts:
+            payload = artifact.payload
+            if isinstance(payload, dict):
+                input_payloads.append(dict(payload))
+            else:
+                input_payloads.append({"value": payload})
+
+        description = str(getattr(agent, "description", "") or "").strip()
+
+        task_lines = ["Return ONLY valid JSON matching the schema."]
+        if description:
+            task_lines.append(f"Agent description: {description}")
+
+        task_lines.append(f"Schema: {json.dumps(output_schema, ensure_ascii=False)}")
+
+        if len(input_payloads) == 1:
+            task_lines.append(
+                f"Input: {json.dumps(input_payloads[0], ensure_ascii=False)}"
+            )
+        else:
+            task_lines.append(
+                f"Inputs: {json.dumps(input_payloads, ensure_ascii=False)}"
+            )
+
+        task = "\n".join(task_lines)
 
         correlation = (ctx.correlation_id or uuid4().hex).replace("-", "")
         label = f"flock-{self.alias}-{correlation[:12]}"

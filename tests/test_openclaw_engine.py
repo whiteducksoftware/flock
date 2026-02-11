@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -372,6 +373,62 @@ async def test_spawn_without_token_does_not_send_authorization_header() -> None:
 
     assert outputs[0].payload["result"] == "ok"
     assert seen["authorization"] is None
+
+
+def test_build_spawn_payload_includes_agent_description_when_present() -> None:
+    """Spawn task should include agent description context for OpenClaw."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_spawn_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-test"),
+        inputs=SimpleNamespace(
+            artifacts=[SimpleNamespace(payload={"prompt": "make pizza"})],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    assert "Agent description: Plans meals" in payload["task"]
+
+
+def test_build_spawn_payload_serializes_all_input_artifacts() -> None:
+    """Join/batch input sets should preserve all artifact payloads in the task."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_spawn_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-test"),
+        inputs=SimpleNamespace(
+            artifacts=[
+                SimpleNamespace(payload={"prompt": "first"}),
+                SimpleNamespace(payload={"prompt": "second"}),
+            ],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    task = payload["task"]
+    assert "Inputs: " in task
+    serialized_inputs = task.split("Inputs: ", 1)[1]
+    assert json.loads(serialized_inputs) == [
+        {"prompt": "first"},
+        {"prompt": "second"},
+    ]
 
 
 @pytest.mark.asyncio
