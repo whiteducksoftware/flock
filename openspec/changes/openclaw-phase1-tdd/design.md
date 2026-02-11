@@ -66,6 +66,15 @@ Constraints:
 - **Decision:** For each implementation slice, write/land failing tests first, then implement.
 - **Rationale:** User explicitly requested test-driven rollout; current repo culture already supports TDD-style files.
 
+### Decision 6 — Exception mapping uses existing Flock error idioms in Phase 1
+- **Decision:** Reuse existing exception idioms rather than introducing a new OpenClaw exception hierarchy in Phase 1.
+  - Configuration/alias/env validation errors → `ValueError`
+  - Remote execution/transport/timeout/parse failures → `RuntimeError`
+  - Type registry and artifact type issues continue to use existing `RegistryError`
+- **Rationale:** Keeps behavior consistent with current engine/config tests and avoids premature error-class proliferation.
+- **Alternatives considered:**
+  - New `OpenClaw*Error` classes in Phase 1: rejected (extra API surface before behavior stabilizes).
+
 ## Risks / Trade-offs
 
 - **[Risk] Error taxonomy mismatch with existing exceptions** → **Mitigation:** Define explicit mapping table in tests first and assert exact error class/messages.
@@ -89,7 +98,5 @@ Rollback strategy (if Phase 1 fails quality gates):
 
 ## Open Questions
 
-1. Should `openclaw_agent()` be directly on `Flock` in Phase 1 or behind optional integration import? (Current direction: directly on `Flock` for DX.)
-2. Which exact exception classes should be introduced/reused for OpenClaw error mapping?
-3. Do we store OpenClaw trace metadata only in logs/span attrs, or also in artifact metadata in Phase 1?
-4. Should Phase 1 include optional idempotency headers immediately, or defer to Phase 2 once retry behavior stabilizes?
+1. Do we store OpenClaw trace metadata only in logs/span attrs, or also in artifact metadata in Phase 1?
+2. Should Phase 1 include optional idempotency headers immediately, or defer to Phase 2 once retry behavior stabilizes?

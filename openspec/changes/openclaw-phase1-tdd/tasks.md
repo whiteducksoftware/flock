@@ -7,27 +7,27 @@
 
 ## 2. Test Harness for OpenClaw Config + Builder (TDD first)
 
-- [ ] 2.1 (flock-repo-cv4.2) Add failing tests for `OpenClawConfig` object defaults and validation.
-- [ ] 2.2 (flock-repo-cv4.2) Add failing tests for `OpenClawConfig.from_env()` discovery and missing field failures.
-- [ ] 2.3 (flock-repo-cv4.4) Add failing tests for `flock.openclaw_agent(alias)` happy path and unknown alias failure.
-- [ ] 2.4 (flock-repo-cv4.3, flock-repo-cv4.5) Implement config + builder code to make 2.1–2.3 pass.
-- [ ] 2.5 (flock-repo-cv4.5) Run focused suite and update assertions/messages for deterministic errors.
+- [x] 2.1 (flock-repo-cv4.2) Add failing tests for `OpenClawConfig` defaults/validation in `tests/test_openclaw_config.py`.
+- [x] 2.2 (flock-repo-cv4.2) Add failing tests for `OpenClawConfig.from_env()` discovery and missing field failures in `tests/test_openclaw_config.py`.
+- [ ] 2.3 (flock-repo-cv4.4) Add failing tests for `flock.openclaw_agent(alias)` happy path and unknown alias failure in `tests/test_openclaw_builder.py`.
+- [ ] 2.4 (flock-repo-cv4.3, flock-repo-cv4.5) Implement config + builder code to make 2.1–2.3 pass in `src/flock/integrations/openclaw/*.py` + `src/flock/core/orchestrator.py`.
+- [ ] 2.5 (flock-repo-cv4.5) Run focused suite (`tests/test_openclaw_config.py`, `tests/test_openclaw_builder.py`) and update assertions/messages for deterministic errors.
 
 ## 3. Test Harness for OpenClaw Engine Transport (TDD first)
 
-- [ ] 3.1 (flock-repo-cv4.6) Add failing unit tests for spawn request payload formation.
-- [ ] 3.2 (flock-repo-cv4.6) Add failing unit tests for response parsing (valid JSON path).
-- [ ] 3.3 (flock-repo-cv4.6) Add failing unit tests for malformed JSON + single repair attempt.
-- [ ] 3.4 (flock-repo-cv4.6) Add failing unit tests for timeout/auth/transport failure mapping.
-- [ ] 3.5 (flock-repo-cv4.7) Implement `OpenClawEngine` transport + parser + error mapping to satisfy 3.1–3.4.
-- [ ] 3.6 (flock-repo-cv4.7) Add/validate retry policy tests (retriable vs fail-fast conditions).
+- [ ] 3.1 (flock-repo-cv4.6) Add failing unit tests for spawn request payload formation in `tests/test_openclaw_engine.py`.
+- [ ] 3.2 (flock-repo-cv4.6) Add failing unit tests for response parsing (valid JSON path) in `tests/test_openclaw_engine.py`.
+- [ ] 3.3 (flock-repo-cv4.6) Add failing unit tests for malformed JSON + single repair attempt in `tests/test_openclaw_engine.py`.
+- [ ] 3.4 (flock-repo-cv4.6) Add failing unit tests for timeout/auth/transport failure mapping in `tests/test_openclaw_engine.py`.
+- [ ] 3.5 (flock-repo-cv4.7) Implement `OpenClawEngine` transport + parser + error mapping to satisfy 3.1–3.4 in `src/flock/integrations/openclaw/engine.py`.
+- [ ] 3.6 (flock-repo-cv4.7) Add/validate retry policy tests (retriable vs fail-fast conditions) in `tests/test_openclaw_engine.py`.
 
 ## 4. End-to-End Integration in Flock Pipeline (TDD first)
 
-- [ ] 4.1 (flock-repo-cv4.8) Add failing integration test: `openclaw_agent(...).consumes(...).publishes(...)` produces validated artifact.
-- [ ] 4.2 (flock-repo-cv4.8) Add failing integration test for mixed pipeline (OpenClaw + standard agent).
-- [ ] 4.3 (flock-repo-cv4.9) Implement orchestrator/export wiring to satisfy integration behavior.
-- [ ] 4.4 (flock-repo-cv4.9) Add trace metadata propagation assertions (correlation/label fields).
+- [ ] 4.1 (flock-repo-cv4.8) Add failing integration test in `tests/integration/openclaw/test_openclaw_pipeline.py`: `openclaw_agent(...).consumes(...).publishes(...)` produces validated artifact.
+- [ ] 4.2 (flock-repo-cv4.8) Add failing integration test in `tests/integration/openclaw/test_openclaw_pipeline.py` for mixed pipeline (OpenClaw + standard agent).
+- [ ] 4.3 (flock-repo-cv4.9) Implement orchestrator/export wiring to satisfy integration behavior across `src/flock/core/orchestrator.py`, `src/flock/__init__.py`, and `src/flock/core/__init__.py`.
+- [ ] 4.4 (flock-repo-cv4.9) Add trace metadata propagation assertions (correlation/label fields) in `tests/integration/openclaw/test_openclaw_pipeline.py`.
 
 ## 5. Hardening + Validation
 
