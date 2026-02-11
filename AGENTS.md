@@ -2017,6 +2017,24 @@ flock.add_component(WebhookDeliveryComponent(
 await orchestrator.serve(dashboard=True)
 ```
 
+**OpenClaw integration (external agent with tools/skills):**
+```python
+from flock import Flock, OpenClawConfig, GatewayConfig
+
+# Configure gateway
+flock = Flock(openclaw=OpenClawConfig(
+    gateways={"codie": GatewayConfig(url="http://localhost:19789", token_env="OPENCLAW_CODIE_TOKEN")}
+))
+
+# One-line swap: agent() → openclaw_agent()
+implementer = flock.openclaw_agent("codie").consumes(Spec).publishes(Code)
+
+# Or auto-discover from env vars (OPENCLAW_<ALIAS>_URL + OPENCLAW_<ALIAS>_TOKEN)
+flock = Flock(openclaw=OpenClawConfig.from_env())
+```
+
+📖 **Full guide:** [docs/guides/openclaw.md](docs/guides/openclaw.md) | **Examples:** `examples/11-openclaw/`
+
 ---
 
 ## 📞 Getting Help

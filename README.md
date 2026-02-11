@@ -500,6 +500,46 @@ async def health_check(ctx: AgentContext) -> HealthStatus:
 
 **📖 [Timer Scheduling Guide →](https://whiteducksoftware.github.io/flock/guides/scheduling/)**
 
+### 🐾 OpenClaw Integration (New!)
+
+**Use external AI agents with tools, skills, and multi-step reasoning:**
+
+```python
+from flock import Flock, OpenClawConfig, GatewayConfig
+
+# Configure OpenClaw gateway
+flock = Flock(
+    openclaw=OpenClawConfig(
+        gateways={
+            "codie": GatewayConfig(
+                url="http://localhost:19789",
+                token_env="OPENCLAW_CODIE_TOKEN",
+            )
+        }
+    )
+)
+
+# One-line swap: agent() → openclaw_agent()
+# Same fluent API, but backed by an OpenClaw agent with full toolkit access
+implementer = (
+    flock.openclaw_agent("codie")
+    .description("Implements features using tools, search, and reasoning")
+    .consumes(FeatureSpec)
+    .publishes(Implementation)
+)
+
+# Mix freely with standard LLM agents
+reviewer = flock.agent("reviewer").consumes(Implementation).publishes(Review)
+```
+
+- ✅ **Same DX** - `.consumes().publishes()` just works
+- ✅ **Full toolkit** - OpenClaw agents use tools, skills, web search, file access
+- ✅ **Mix freely** - OpenClaw + native agents in the same pipeline
+- ✅ **Env config** - `OpenClawConfig.from_env()` discovers gateways automatically
+- ✅ **All features work** - Blackboard, visibility, fan-out, conditions, tracing — unchanged
+
+**📖 [OpenClaw Integration Guide →](https://whiteducksoftware.github.io/flock/guides/openclaw/)**
+
 ### 🔒 Zero-Trust Visibility Controls
 
 **Built-in security (not bolt-on):**
