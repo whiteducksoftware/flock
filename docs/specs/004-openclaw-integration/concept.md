@@ -283,6 +283,222 @@ Flock ↔ OpenClaw recursion must be prevented. If an OpenClaw agent itself uses
 
 ---
 
+## Wire Contract — Exact JSON Envelopes
+
+### Spawn Request
+
+```http
+POST {gateway_url}/api/sessions/spawn
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+    "task": "<rendered task prompt - see Task Prompt Format below>",
+    "agentId": null,
+    "label": "flock-{agent_name}-{correlation_id}",
+    "runTimeoutSeconds": 120,
+    "cleanup": "delete"
+}
+```
+
+### Spawn Response
+
+```json
+{
+    "ok": true,
+    "sessionKey": "iso-abc123",
+    "result": "<raw text response from OpenClaw agent>"
+}
+```
+
+On failure:
+```json
+{
+    "ok": false,
+    "error": "timeout | agent_error | gateway_unavailable",
+    "message": "Human-readable error detail"
+}
+```
+
+### Session Send Request
+
+```http
+POST {gateway_url}/api/sessions/send
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+    "label": "flock-{label}",
+    "message": "<rendered task prompt>",
+    "timeoutSeconds": 120
+}
+```
+
+### Session Send Response
+
+```json
+{
+    "ok": true,
+    "reply": "<raw text response from OpenClaw agent>"
+}
+```
+
+### Task Prompt Format
+
+The task prompt is the actual string sent in `task` / `message` fields:
+
+```
+You are acting as a Flock pipeline agent.
+{if description}
+
+## Your Role
+{description}
+{endif}
+{if instruction}
+
+## Instructions
+{instruction}
+{endif}
+
+## Input ({input_type_name})
+```json
+{input_artifact_json}
+```
+
+## Expected Output ({output_type_name})
+Return a single valid JSON object matching this schema:
+
+```json
+{output_json_schema}
+```
+
+Return ONLY the JSON object. No markdown fences, no explanation, no preamble.
+```
+
+### Metadata Propagation
+
+These Flock-side values are passed through for tracing and correlation:
+
+| Field | Where | Purpose |
+|---|---|---|
+| `correlation_id` | Embedded in `label`: `flock-{name}-{correlation_id}` | Cross-system trace correlation |
+| `trace_id` | HTTP header: `X-Flock-Trace-Id` | OpenTelemetry trace linking |
+| `agent_name` | Embedded in `label` | Identify which Flock agent spawned this |
+| `retry_attempt` | HTTP header: `X-Flock-Retry: {n}` | Distinguish retries in traces |
+
+---
+
+## Error Taxonomy
+
+| Error | Source | Retry? | Flock Mapping |
+|---|---|---|---|
+| Gateway unreachable | Network | Yes (with backoff) | `ExecutionError(retriable=True)` |
+| Auth failure (401/403) | Gateway | No | `ConfigurationError` |
+| Session timeout | OpenClaw | Yes (once, configurable) | `ExecutionError(retriable=True)` |
+| Invalid JSON response | Agent output | Yes (once, with repair prompt) | `ExecutionError(retriable=True)` |
+| Schema validation failure | Pydantic | No (after repair attempt) | `ValidationError` |
+| Agent internal error | OpenClaw agent | Yes (once) | `ExecutionError(retriable=True)` |
+| Recursion depth exceeded | Loop detection | No | `SafetyError` |
+
+### Retry Policy
+
+```python
+RetryPolicy(
+    max_retries=1,              # default: 1 retry
+    backoff_base_ms=1000,       # exponential backoff base
+    backoff_max_ms=10000,       # cap
+    retry_on_invalid_json=True, # send repair prompt on bad JSON
+    retry_on_timeout=True,      # retry timed-out spawns
+    retry_on_network=True,      # retry gateway connection failures
+)
+```
+
+JSON repair retry sends a follow-up prompt:
+```
+Your previous response was not valid JSON. The parse error was:
+{error_message}
+
+Please return ONLY a valid JSON object matching the schema. No markdown, no explanation.
+```
+
+---
+
+## Session Mode — Ordering & Safety
+
+### FIFO Guarantee
+Session-mode messages to the same label are sent **strictly sequentially** (one at a time, await response before sending next). This is enforced by a per-label async lock in the engine.
+
+```python
+class OpenClawEngine:
+    _session_locks: dict[str, asyncio.Lock]  # per-label locks
+    
+    async def _send_to_session(self, label, task):
+        async with self._session_locks[label]:
+            return await self._http_send(label, task)
+```
+
+### Interleaving Prevention
+- Each Flock agent with `mode="session"` gets its own label (default: `flock-{agent_name}`)
+- Different agents sharing the same OpenClaw gateway use different labels
+- No two Flock agents should share a session label unless explicitly configured
+
+### Session Lifecycle
+- **Created:** On first message to a label (OpenClaw auto-creates)
+- **Reused:** Subsequent invocations reuse the same session
+- **Cleanup:** Optional via `session_ttl` config — engine sends cleanup after idle period
+
+---
+
+## Cancellation
+
+If a Flock workflow is cancelled (e.g., `Until` condition met while OpenClaw is still working):
+
+1. Engine receives cancellation signal via `asyncio.CancelledError`
+2. For spawn mode: best-effort — session will complete but result is discarded
+3. For session mode: no cancellation sent (session persists for future use)
+4. Cleanup of orphaned spawn sessions via periodic garbage collection (Phase 2)
+
+---
+
+## Benchmark Targets
+
+For Phase 1 validation, measure against native DSPy engine on 3 workloads:
+
+| Workload | Native Engine | OpenClaw Engine | Acceptable Overhead |
+|---|---|---|---|
+| Simple transform (Pizza) | ~2s | ~4-6s | < 3x (spawn overhead) |
+| Complex structured (Movie) | ~5s | ~8-12s | < 2.5x |
+| Fan-out ×5 (parallel) | ~5s | ~8-12s | < 2.5x (parallel spawns) |
+
+Overhead comes from: HTTP round-trip + session spawn + agent boot. Session mode should approach native latency after first message.
+
+---
+
+## Migration Guide
+
+For existing Flock users adding OpenClaw agents to an existing pipeline:
+
+```python
+# Before: Pure LLM agent
+pizza_master = flock.agent("pizza_master").consumes(MyPizzaIdea).publishes(Pizza)
+
+# After: OpenClaw agent (2 changes: add config, swap method)
+flock = Flock(openclaw=OpenClawConfig.from_env())  # 1. Add config
+pizza_master = flock.openclaw_agent("codie").consumes(MyPizzaIdea).publishes(Pizza)  # 2. Swap
+
+# Everything else stays the same — downstream agents, visibility, conditions, dashboard
+```
+
+No changes needed to:
+- Artifact type definitions
+- Downstream agents
+- Visibility rules
+- Workflow conditions
+- Dashboard configuration
+- Tracing setup
+
+---
+
 ## Implementation Plan
 
 ### Phase 1 — Core (MVP)
