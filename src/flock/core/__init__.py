@@ -13,6 +13,7 @@ from flock.core.agent import (
 from flock.core.fan_out import FanOutRange, FanOutSpec, normalize_fan_out
 from flock.core.orchestrator import BoardHandle, Flock, start_orchestrator
 from flock.core.visibility import AgentIdentity
+from flock.integrations.openclaw import GatewayConfig, OpenClawConfig, OpenClawDefaults
 
 
 __all__ = [

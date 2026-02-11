@@ -101,6 +101,11 @@ from flock.core.store import FilterConfig
 # =============================================================================
 from flock.logging.logging import configure_logging, get_logger
 
+# =============================================================================
+# Integrations - OpenClaw
+# =============================================================================
+from flock.integrations.openclaw import GatewayConfig, OpenClawConfig, OpenClawDefaults
+
 
 def _register_optional_providers() -> None:
     """Auto-register optional LiteLLM providers when dependencies are available."""
@@ -166,4 +171,8 @@ __all__ = [
     # Logging
     "configure_logging",
     "get_logger",
+    # Integrations - OpenClaw
+    "GatewayConfig",
+    "OpenClawConfig",
+    "OpenClawDefaults",
 ]
