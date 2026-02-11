@@ -180,3 +180,53 @@ async def test_transport_failure_maps_to_runtime_error() -> None:
         match="connection refused|connect error|gateway connection",
     ):
         await _invoke_once()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_timeout_is_retriable_and_can_recover() -> None:
+    """Timeouts should be retried up to retry budget."""
+    calls = 0
+
+    def _handler(request: httpx.Request):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise httpx.TimeoutException("gateway timeout")
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "sessionKey": "iso-recovered",
+                "result": '{"result":"recovered"}',
+            },
+        )
+
+    respx.post("http://localhost:19789/api/sessions/spawn").mock(side_effect=_handler)
+
+    outputs = await _invoke_once(retries=1)
+
+    assert calls == 2
+    assert outputs[0].payload["result"] == "recovered"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_auth_failure_is_fail_fast_not_retried() -> None:
+    """Auth failures should not consume retry budget."""
+    calls = 0
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            401,
+            json={"ok": False, "error": "auth_error", "message": "Invalid token"},
+        )
+
+    respx.post("http://localhost:19789/api/sessions/spawn").mock(side_effect=_handler)
+
+    with pytest.raises(ValueError, match="auth|token|401|Invalid"):
+        await _invoke_once(retries=3)
+
+    assert calls == 1
