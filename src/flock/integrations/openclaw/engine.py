@@ -91,7 +91,9 @@ class OpenClawEngine(EngineComponent):
         # Defensive fallback; loop should always return or raise.
         raise RuntimeError("OpenClaw evaluation failed unexpectedly.")
 
-    def _build_spawn_payload(self, *, agent, ctx, inputs, output_group) -> dict[str, Any]:
+    def _build_spawn_payload(
+        self, *, agent, ctx, inputs, output_group
+    ) -> dict[str, Any]:
         output_decl = output_group.outputs[0]
         output_schema = output_decl.spec.model.model_json_schema()
 
