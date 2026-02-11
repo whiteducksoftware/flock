@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from flock import Flock
 from flock.integrations.openclaw import GatewayConfig, OpenClawConfig
+from flock.integrations.openclaw.engine import OpenClawEngine
 from flock.registry import flock_type
 
 
@@ -24,23 +25,31 @@ class OpenClawEngineOutput(BaseModel):
     result: str = Field(description="Engine result payload")
 
 
-def _config() -> OpenClawConfig:
+def _config(*, token: str | None = "token-codie") -> OpenClawConfig:
     return OpenClawConfig(
         gateways={
             "codie": GatewayConfig(
                 url="http://localhost:19789",
-                token="token-codie",
+                token=token,
                 token_env="OPENCLAW_CODIE_TOKEN",
             )
         }
     )
 
 
-async def _invoke_once(*, timeout_seconds: int = 120, retries: int = 1):
+async def _invoke_once(
+    *,
+    timeout_seconds: int = 120,
+    retries: int = 1,
+    mode: str = "spawn",
+    config: OpenClawConfig | None = None,
+):
     # Keep transport tests independent from terminal rendering/theme state.
-    flock = Flock(openclaw=_config(), no_output=True)
+    flock = Flock(openclaw=config or _config(), no_output=True)
     builder = (
-        flock.openclaw_agent("codie", timeout=timeout_seconds, retries=retries)
+        flock.openclaw_agent(
+            "codie", timeout=timeout_seconds, retries=retries, mode=mode
+        )
         .consumes(OpenClawEngineInput)
         .publishes(OpenClawEngineOutput)
     )
@@ -209,6 +218,160 @@ async def test_timeout_is_retriable_and_can_recover() -> None:
 
     assert calls == 2
     assert outputs[0].payload["result"] == "recovered"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_mode_other_than_spawn_fails_fast() -> None:
+    """Unsupported modes should fail before transport."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+    builder.agent.engines[0].mode = "session"  # Bypass model literal validation to test runtime guard.
+
+    with pytest.raises(ValueError, match="Unsupported OpenClaw mode"):
+        await flock.invoke(
+            builder.agent,
+            OpenClawEngineInput(prompt="make pizza"),
+            publish_outputs=False,
+        )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_missing_result_after_repair_budget_raises_parse_runtime_error() -> None:
+    """If result field is still missing after retries, raise parse RuntimeError."""
+    respx.post("http://localhost:19789/api/sessions/spawn").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "sessionKey": "iso-no-result",
+            },
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="response parse error|missing 'result'"):
+        await _invoke_once(retries=0)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_non_auth_ok_false_maps_to_runtime_error() -> None:
+    """Gateway-level non-auth rejection should raise RuntimeError (not parse retry)."""
+    respx.post("http://localhost:19789/api/sessions/spawn").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "ok": False,
+                "error": "agent_error",
+                "message": "Upstream failed",
+            },
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="Upstream failed|rejected"):
+        await _invoke_once(retries=0)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_http_500_maps_to_runtime_error_with_gateway_message() -> None:
+    """HTTP >= 400 should map to RuntimeError with extracted message."""
+    respx.post("http://localhost:19789/api/sessions/spawn").mock(
+        return_value=httpx.Response(
+            500,
+            json={
+                "message": "Gateway unavailable",
+            },
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="500|Gateway unavailable"):
+        await _invoke_once(retries=0)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_non_json_gateway_response_maps_to_runtime_error() -> None:
+    """Non-JSON gateway responses should fail with RuntimeError."""
+    respx.post("http://localhost:19789/api/sessions/spawn").mock(
+        return_value=httpx.Response(
+            200,
+            text="not-json",
+            headers={"content-type": "text/plain"},
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="non-JSON response"):
+        await _invoke_once(retries=0)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_non_object_gateway_json_response_maps_to_runtime_error() -> None:
+    """Gateway must return a JSON object, not arrays or primitives."""
+    respx.post("http://localhost:19789/api/sessions/spawn").mock(
+        return_value=httpx.Response(200, json=["bad", "shape"])
+    )
+
+    with pytest.raises(RuntimeError, match="must be a JSON object"):
+        await _invoke_once(retries=0)
+
+
+def test_parse_result_payload_validates_missing_and_invalid_shapes() -> None:
+    """Parser should validate missing result, non-object JSON, and non-string/object types."""
+    engine = OpenClawEngine(alias="codie", gateway=_config().get_gateway("codie"))
+
+    with pytest.raises(ValueError, match="missing 'result'"):
+        engine._parse_result_payload({})
+
+    assert engine._parse_result_payload({"result": {"result": "ok"}}) == {
+        "result": "ok"
+    }
+
+    with pytest.raises(ValueError, match="result JSON must be an object"):
+        engine._parse_result_payload({"result": '["x"]'})
+
+    with pytest.raises(ValueError, match="result must be a JSON string or object"):
+        engine._parse_result_payload({"result": 123})
+
+
+def test_extract_error_message_fallbacks_for_text_and_unknown_payloads() -> None:
+    """Error extraction should handle non-JSON text and unknown JSON shapes."""
+    engine = OpenClawEngine(alias="codie", gateway=_config().get_gateway("codie"))
+
+    assert engine._extract_error_message(httpx.Response(500, text="plain failure")) == "plain failure"
+    assert engine._extract_error_message(httpx.Response(500, text="")) == "no error body"
+    assert engine._extract_error_message(httpx.Response(500, json={"foo": "bar"})) == "unknown error"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_spawn_without_token_does_not_send_authorization_header() -> None:
+    """Tokenless gateway config should omit Authorization header."""
+    seen: dict[str, object] = {}
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        seen["authorization"] = request.headers.get("authorization")
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "sessionKey": "iso-no-token",
+                "result": '{"result":"ok"}',
+            },
+        )
+
+    respx.post("http://localhost:19789/api/sessions/spawn").mock(side_effect=_handler)
+
+    outputs = await _invoke_once(config=_config(token=None))
+
+    assert outputs[0].payload["result"] == "ok"
+    assert seen["authorization"] is None
 
 
 @pytest.mark.asyncio

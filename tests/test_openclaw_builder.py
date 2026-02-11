@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, Field
 
+import flock.core as flock_core
 from flock import Flock
 from flock.integrations.openclaw import GatewayConfig, OpenClawConfig
 from flock.registry import flock_type
@@ -63,6 +64,12 @@ def test_openclaw_agent_unknown_alias_raises_value_error() -> None:
 
     with pytest.raises(ValueError, match="Unknown OpenClaw gateway alias: unknown"):
         flock.openclaw_agent("unknown")
+
+
+def test_core_dunder_all_includes_openclaw_exports() -> None:
+    """OpenClaw types re-exported from flock.core should be in __all__."""
+    for symbol in ("GatewayConfig", "OpenClawConfig", "OpenClawDefaults"):
+        assert symbol in flock_core.__all__
 
 
 def test_openclaw_agent_supports_per_agent_timeout_override() -> None:

@@ -164,6 +164,7 @@ class OpenClawEngine(EngineComponent):
             )
             if "auth" in err or "token" in err or "unauth" in err or "forbidden" in err:
                 raise ValueError(f"OpenClaw auth/token failure: {message}")
+            raise RuntimeError(f"OpenClaw gateway rejected request: {message}")
 
         return payload_json
 
