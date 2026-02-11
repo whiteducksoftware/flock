@@ -34,6 +34,7 @@ from flock.mcp import (
     FlockMCPConfiguration,
     ServerParameters,
 )
+from flock.integrations.openclaw import OpenClawConfig, OpenClawEngine
 from flock.orchestrator import (
     AgentScheduler,
     ArtifactManager,
@@ -99,6 +100,7 @@ class Flock(metaclass=AutoTracedMeta):
         max_agent_iterations: int = 1000,
         context_provider: Any = None,
         no_output: bool = False,
+        openclaw: OpenClawConfig | None = None,
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
@@ -111,6 +113,7 @@ class Flock(metaclass=AutoTracedMeta):
             context_provider: Global context provider for all agents
             no_output: Suppress all terminal output (banners, result tables, streaming).
                 Logging is preserved. Useful when running Flock as a service.
+            openclaw: Optional OpenClaw integration configuration.
 
         Examples:
             >>> flock = Flock("openai/gpt-4.1")
@@ -122,6 +125,7 @@ class Flock(metaclass=AutoTracedMeta):
         self._logger = get_logger(__name__)
         self.model = model or os.getenv("DEFAULT_MODEL")
         self.no_output = no_output
+        self.openclaw = openclaw
 
         # Phase 3: Initialize all components using OrchestratorInitializer
         components = OrchestratorInitializer.initialize_components(
@@ -241,6 +245,53 @@ class Flock(metaclass=AutoTracedMeta):
         if name in self._agents:
             raise ValueError(f"Agent '{name}' already registered.")
         return AgentBuilder(self, name)
+
+    def openclaw_agent(
+        self,
+        alias: str,
+        *,
+        name: str | None = None,
+        mode: str | None = None,
+        timeout: int | None = None,
+        retries: int | None = None,
+        response_mode: str | None = None,
+    ) -> AgentBuilder:
+        """Create an agent preconfigured with an OpenClaw engine.
+
+        Args:
+            alias: OpenClaw gateway alias configured in ``OpenClawConfig``.
+            name: Optional agent name override. Defaults to alias.
+            mode: Optional runtime mode override (Phase 1: spawn-only).
+            timeout: Optional timeout override in seconds.
+            retries: Optional retry count override.
+            response_mode: Optional response mode override.
+
+        Returns:
+            AgentBuilder for fluent configuration.
+
+        Raises:
+            ValueError: If OpenClaw config is missing or alias is unknown.
+        """
+        if self.openclaw is None:
+            raise ValueError(
+                "OpenClaw config not set on this Flock instance. Pass openclaw=OpenClawConfig(...)."
+            )
+
+        gateway = self.openclaw.get_gateway(alias)
+        defaults = self.openclaw.defaults
+
+        builder = self.agent(name or alias)
+        builder.with_engines(
+            OpenClawEngine(
+                alias=alias,
+                gateway=gateway,
+                mode=mode or defaults.mode,
+                timeout=defaults.timeout if timeout is None else timeout,
+                retries=defaults.retries if retries is None else retries,
+                response_mode=response_mode or defaults.response_mode,
+            )
+        )
+        return builder
 
     def register_agent(self, agent: Agent) -> None:
         if agent.name in self._agents:
