@@ -3,7 +3,7 @@
 - [x] 1.1 (flock-repo-cv4.1) Perform deep test landscape discovery (collect suites, identify relevant patterns, run representative baseline tests).
 - [x] 1.2 (flock-repo-cv4.1) Initialize OpenSpec in `flock-repo`.
 - [x] 1.3 (flock-repo-cv4.1) Initialize Beads in `flock-repo`.
-- [ ] 1.4 (flock-repo-cv4.1) Commit planning/bootstrap artifacts on `feat/openclaw`.
+- [x] 1.4 (flock-repo-cv4.1) Commit planning/bootstrap artifacts on `feat/openclaw`.
 
 ## 2. Test Harness for OpenClaw Config + Builder (TDD first)
 
