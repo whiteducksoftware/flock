@@ -21,8 +21,10 @@
 </p>
 
 ---
-
-# Flock 0.5: Declarative Blackboard Multi-Agent Orchestration
+<p align="center">
+  <h1>Flock</h1>
+  <b>Declarative Blackboard Multi-Agent Orchestration</b>
+</p>
 
 > **Stop engineering prompts. Start declaring contracts.**
 
