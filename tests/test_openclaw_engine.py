@@ -37,7 +37,8 @@ def _config() -> OpenClawConfig:
 
 
 async def _invoke_once(*, timeout_seconds: int = 120, retries: int = 1):
-    flock = Flock(openclaw=_config())
+    # Keep transport tests independent from terminal rendering/theme state.
+    flock = Flock(openclaw=_config(), no_output=True)
     builder = (
         flock.openclaw_agent("codie", timeout=timeout_seconds, retries=retries)
         .consumes(OpenClawEngineInput)
