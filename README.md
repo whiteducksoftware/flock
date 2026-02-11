@@ -14,6 +14,14 @@
 
 ---
 
+<p align="center">
+  <b>🦞 Flock now supports <a href="https://github.com/openclaw/openclaw">OpenClaw</a> agents!</b> Use external AI agents with tools, skills, and multi-step reasoning in your Flock pipelines.<br>
+  <a href="https://github.com/openclaw/openclaw"><img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/openclaw-logo-text.png" alt="OpenClaw" width="250"></a><br>
+  <a href="#-openclaw-integration-new">Learn more →</a>
+</p>
+
+---
+
 # Flock 0.5: Declarative Blackboard Multi-Agent Orchestration
 
 > **Stop engineering prompts. Start declaring contracts.**
@@ -500,7 +508,7 @@ async def health_check(ctx: AgentContext) -> HealthStatus:
 
 **📖 [Timer Scheduling Guide →](https://whiteducksoftware.github.io/flock/guides/scheduling/)**
 
-### 🐾 OpenClaw Integration (New!)
+### 🦞 OpenClaw Integration (New!)
 
 **Use external AI agents with tools, skills, and multi-step reasoning:**
 

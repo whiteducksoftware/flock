@@ -80,7 +80,7 @@ Comprehensive guides for building production-ready multi-agent systems with Floc
 
 <div class="grid cards" markdown>
 
--   **🐾 OpenClaw Integration**
+-   **🦞 OpenClaw Integration**
 
     ---
 
