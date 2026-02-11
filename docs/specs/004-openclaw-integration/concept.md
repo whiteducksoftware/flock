@@ -1,6 +1,17 @@
 # Flock × OpenClaw Integration — Concept Document
 
-**Authors:** Claude + Codie | **Date:** 2026-02-11 | **Status:** Proposal for review
+**Authors:** Claude + Codie | **Date:** 2026-02-11 | **Status:** Approved for Phase 1
+
+---
+
+## Locked Decisions (Phase 1)
+
+These are resolved — no further discussion needed during implementation:
+
+1. **`openclaw_agent()` lives on the Flock class directly** — core API, not an extension. DX over decoupling.
+2. **V1 supports single output type only** — no multi-type return envelope. Multi-type fan-out is Phase 3.
+3. **Spawn cleanup default = `delete`** — isolated sessions are deleted after result is collected. Configurable override available.
+4. **OpenClaw agents show in dashboard with a badge** — they're normal agent nodes with a small OpenClaw icon/indicator to distinguish from LLM agents.
 
 ---
 
