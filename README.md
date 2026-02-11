@@ -23,7 +23,7 @@
 ---
 
 
-# Flock - Declarative Blackboard Agent Orchestration
+# 🐤 Flock - Declarative Blackboard Agent Orchestration 🐧
 
 
 
