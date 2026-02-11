@@ -9,7 +9,7 @@
 
 - [x] 2.1 (flock-repo-cv4.2) Add failing tests for `OpenClawConfig` defaults/validation in `tests/test_openclaw_config.py`.
 - [x] 2.2 (flock-repo-cv4.2) Add failing tests for `OpenClawConfig.from_env()` discovery and missing field failures in `tests/test_openclaw_config.py`.
-- [ ] 2.3 (flock-repo-cv4.4) Add failing tests for `flock.openclaw_agent(alias)` happy path and unknown alias failure in `tests/test_openclaw_builder.py`.
+- [x] 2.3 (flock-repo-cv4.4) Add failing tests for `flock.openclaw_agent(alias)` happy path and unknown alias failure in `tests/test_openclaw_builder.py`.
 - [ ] 2.4 (flock-repo-cv4.3, flock-repo-cv4.5) Implement config + builder code to make 2.1–2.3 pass in `src/flock/integrations/openclaw/*.py` + `src/flock/core/orchestrator.py`.
 - [ ] 2.5 (flock-repo-cv4.5) Run focused suite (`tests/test_openclaw_config.py`, `tests/test_openclaw_builder.py`) and update assertions/messages for deterministic errors.
 
