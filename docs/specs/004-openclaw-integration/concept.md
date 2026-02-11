@@ -510,6 +510,20 @@ No changes needed to:
 - [ ] Agent capability discovery (query OpenClaw for available tools/skills)
 - [ ] Cost tracking aggregation
 
+### Phase 4 — Ecosystem Integration
+*Building on the Clawd ecosystem analysis (Feb 2026) — features that belong in Flock core or as thin layers on top.*
+
+- [ ] **Generic lease/claim/lock component** — Reusable workflow primitive for long-running external workers (not just OpenClaw — any async backend: MCP servers, custom HTTP agents, human-in-the-loop). Includes: claim acquisition, heartbeat/keepalive, timeout reclaim, receipt artifacts on completion.
+- [ ] **OTLP export convenience layer** — Flock already has `TracingComponent` + OTel spans. Add a batteries-included config for forwarding spans to external collectors (e.g., a future ClawTrace instance). Mostly wiring + sensible defaults.
+- [ ] **Trust metadata consumption** — Flock agents can read trust/capability metadata from ClawGuard (skill signatures, permission manifests) to inform routing decisions. Flock doesn't *own* trust policy — it *consumes* it.
+- [ ] **Verification workflow primitives** — Generic state machine components for escrow-like patterns (claim → work → verify → settle). Useful as Flock building blocks that products like ClawMarket can compose on top of.
+
+#### What Stays Outside Flock Core
+These are **products built on Flock**, not Flock features:
+- **ClawTrace** — Trace ingestion, timeline UI, privacy layers, VCR replay, incident-to-eval pipeline. Built as a separate app consuming Flock OTLP + OpenClaw emitter events.
+- **ClawGuard** — Skill signing, revocation, runtime policy gating. OpenClaw/ClawHub concern; Flock only reads trust metadata.
+- **ClawMarket** — Agent task marketplace with escrow, bidding, settlement. Application layer using Flock's verification workflow primitives as backend.
+
 ---
 
 ## Test Strategy
