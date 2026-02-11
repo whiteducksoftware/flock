@@ -238,6 +238,8 @@ nav:
       - Context Providers: guides/context-providers.md
       - Persistent Blackboard: guides/persistent-blackboard.md
       - MCP Roots: guides/mcp-roots.md
+    - Integrations:
+      - OpenClaw: guides/openclaw.md
     - Operations:
       - Dashboard: guides/dashboard.md
       - REST API: guides/rest-api.md

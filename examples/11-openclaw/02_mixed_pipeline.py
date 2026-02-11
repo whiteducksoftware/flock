@@ -21,7 +21,7 @@ import asyncio
 
 from pydantic import BaseModel, Field
 
-from flock import Flock, OpenClawConfig, GatewayConfig
+from flock import Flock, GatewayConfig, OpenClawConfig
 from flock.registry import flock_type
 
 
