@@ -39,6 +39,26 @@ describe('AgentNode', () => {
     expect(screen.getByText('test-agent')).toBeInTheDocument();
   });
 
+  it('should render OpenClaw badge for OpenClaw agents', () => {
+    const data: AgentNodeData = {
+      name: 'remote-writer',
+      status: 'idle',
+      subscriptions: ['Idea'],
+      sentCount: 0,
+      recvCount: 0,
+      isOpenClawAgent: true,
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+
+    expect(screen.getByLabelText('OpenClaw agent')).toBeInTheDocument();
+    expect(screen.getByText('🦞 OpenClaw')).toBeInTheDocument();
+  });
+
   it('should render subscriptions', () => {
     const data: AgentNodeData = {
       name: 'test-agent',

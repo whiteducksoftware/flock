@@ -6,6 +6,7 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
+from flock import GatewayConfig, OpenClawConfig
 from flock.api.base_service import BaseHTTPService
 from flock.api.collector import DashboardEventCollector
 from flock.api.graph_builder import GraphAssembler
@@ -15,7 +16,7 @@ from flock.components.server.control.control_routes_component import (
     ControlRoutesComponentConfig,
 )
 from flock.components.server.models.graph import GraphRequest
-from flock.core import Agent
+from flock.core import Agent, Flock
 from flock.core.artifacts import Artifact
 from flock.core.store import ConsumptionRecord
 from flock.core.visibility import PublicVisibility
@@ -90,7 +91,7 @@ async def test_graph_assembler_agent_and_blackboard(orchestrator):
 async def test_graph_assembler_includes_schedule_data(orchestrator):
     """Test GraphAssembler includes scheduleSpec and timerState for scheduled agents."""
     from datetime import timedelta
-    from flock.core.subscription import ScheduleSpec
+
     from pydantic import BaseModel
 
     class TestOutput(BaseModel):
@@ -149,8 +150,8 @@ async def test_graph_assembler_includes_schedule_data(orchestrator):
 @pytest.mark.asyncio
 async def test_graph_assembler_serializes_schedule_spec(orchestrator):
     """Test GraphAssembler correctly serializes different schedule types."""
-    from datetime import timedelta, time, datetime, UTC
-    from flock.core.subscription import ScheduleSpec
+    from datetime import UTC, datetime, time, timedelta
+
     from pydantic import BaseModel
 
     class TestOutput(BaseModel):
@@ -218,6 +219,46 @@ async def test_graph_assembler_serializes_schedule_spec(orchestrator):
     assert cron_node.data["scheduleSpec"]["cron"] == "0 * * * *"
 
     await orchestrator.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_graph_assembler_marks_openclaw_agents_for_frontend_badges():
+    from pydantic import BaseModel
+
+    class InboundIdea(BaseModel):
+        topic: str
+
+    class OutboundPlan(BaseModel):
+        plan: str
+
+    orchestrator = Flock(
+        openclaw=OpenClawConfig(
+            gateways={
+                "remote": GatewayConfig(
+                    url="https://example.openclaw.invalid",
+                    token="test-token",
+                )
+            }
+        )
+    )
+    orchestrator.is_dashboard = True
+
+    (
+        orchestrator.openclaw_agent("remote", name="remote_planner")
+        .consumes(InboundIdea)
+        .publishes(OutboundPlan)
+    )
+
+    collector = DashboardEventCollector(store=orchestrator.store)
+    await collector.load_persistent_snapshots()
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+
+    snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
+
+    node = next((n for n in snapshot.nodes if n.id == "remote_planner"), None)
+    assert node is not None
+    assert node.data["isOpenClawAgent"] is True
+    assert node.data["engineKind"] == "openclaw"
 
 
 @pytest.mark.asyncio

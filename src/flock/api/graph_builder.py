@@ -234,6 +234,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                             "is_stopped": timer_state.is_stopped,
                         }
 
+            is_openclaw_agent = self._is_openclaw_agent(agent)
+
             node_data = {
                 "name": agent.name,
                 "status": agent_status.get(agent.name, "idle"),
@@ -249,6 +251,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "lastSeen": snapshot.last_seen.isoformat() if snapshot else None,
                 "signature": snapshot.signature if snapshot else None,
                 "logicOperations": logic_operations,  # Phase 1.2
+                "engineKind": "openclaw" if is_openclaw_agent else "native",
+                "isOpenClawAgent": is_openclaw_agent,
             }
 
             # Add schedule data if present
@@ -276,6 +280,12 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             produced = produced_metrics.get(name)
             consumed = consumed_metrics.get(name)
 
+            labels = list(snapshot.labels)
+            is_openclaw_agent = any(
+                isinstance(label, str) and "openclaw" in label.lower()
+                for label in labels
+            )
+
             node_data = {
                 "name": name,
                 "status": "inactive",
@@ -286,13 +296,15 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "sentByType": produced.by_type if produced else {},
                 "receivedByType": consumed.by_type if consumed else {},
                 "streamingTokens": [],
-                "labels": list(snapshot.labels),
+                "labels": labels,
                 "firstSeen": snapshot.first_seen.isoformat(),
                 "lastSeen": snapshot.last_seen.isoformat(),
                 "signature": snapshot.signature,
                 "logicOperations": list(
                     snapshot.logic_operations
                 ),  # Phase 1.2: From snapshot
+                "engineKind": "openclaw" if is_openclaw_agent else "unknown",
+                "isOpenClawAgent": is_openclaw_agent,
             }
 
             nodes.append(
@@ -326,6 +338,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "firstSeen": None,
                 "lastSeen": None,
                 "signature": None,
+                "engineKind": "unknown",
+                "isOpenClawAgent": False,
             }
 
             nodes.append(
@@ -340,6 +354,20 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             existing_names.add(name)
 
         return nodes
+
+    @staticmethod
+    def _is_openclaw_agent(agent: object) -> bool:
+        """Return True when an agent has at least one OpenClaw engine configured."""
+        engines = getattr(agent, "engines", []) or []
+        for engine in engines:
+            engine_cls = engine.__class__
+            if engine_cls.__name__ == "OpenClawEngine":
+                return True
+            if getattr(engine_cls, "__module__", "").startswith(
+                "flock.integrations.openclaw"
+            ):
+                return True
+        return False
 
     def _build_message_nodes(
         self,
