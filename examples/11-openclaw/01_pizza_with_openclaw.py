@@ -51,9 +51,9 @@ class Pizza(BaseModel):
 flock = Flock(
     openclaw=OpenClawConfig(
         gateways={
-            "claude": GatewayConfig(
-                url="http://127.0.0.1:18789",
-                token="ef67a64900438da7949312e5f9b17cd8b19395adfda79943",  # env var name, not token value
+            "codex": GatewayConfig(
+                url="http://127.0.0.1:19789",
+                token_env="OPENCLAW_CODEX_TOKEN",  # env var name, not token value
             )
         }
     )
@@ -69,7 +69,7 @@ flock = Flock(
 # Instead of flock.agent("pizza_master"), we use flock.openclaw_agent("codex")
 # Everything else stays the same — consumes, publishes, blackboard semantics.
 pizza_master = (
-    flock.openclaw_agent("claude")
+    flock.openclaw_agent("codex")
     .description("Creates detailed pizza recipes from ideas")
     .consumes(MyPizzaIdea)
     .publishes(Pizza)

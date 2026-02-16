@@ -314,3 +314,4 @@ See [`examples/11-openclaw/`](../../examples/11-openclaw/) for working examples:
 | `01_pizza_with_openclaw.py` | Simplest integration — one agent, one artifact |
 | `02_mixed_pipeline.py` | OpenClaw + native agents in one workflow |
 | `03_env_config.py` | Environment-based discovery + multi-gateway |
+| `04_streaming_on_off.py` | Dedicated streaming mode demo (headless OFF vs dashboard ON) |

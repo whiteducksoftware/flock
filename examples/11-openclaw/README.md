@@ -27,6 +27,7 @@ export OPENCLAW_CLAUDE_TOKEN=your-token
 | 01 | [Pizza with OpenClaw](01_pizza_with_openclaw.py) | Simplest integration — one OpenClaw agent, one artifact |
 | 02 | [Mixed Pipeline](02_mixed_pipeline.py) | OpenClaw + native LLM agents in the same workflow |
 | 03 | [Env Config](03_env_config.py) | Auto-discovery from environment + multi-gateway setup |
+| 04 | [Streaming ON/OFF](04_streaming_on_off.py) | Dedicated example: headless (non-streaming) vs dashboard (streaming auto-on) |
 
 ## Key Concepts
 
