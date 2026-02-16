@@ -6,12 +6,12 @@ agents with standard LLM agents in the same workflow. The blackboard doesn't car
 where the compute comes from — it's all just typed artifacts.
 
 Pipeline:
-    Spec → [OpenClaw: Codie writes code] → Implementation → [LLM: reviews it] → Review
+    Spec → [OpenClaw: Codex writes code] → Implementation → [LLM: reviews it] → Review
 
 🔧 SETUP:
     1) Enable gateway.http.endpoints.responses.enabled=true in OpenClaw config
-    2) export OPENCLAW_CODIE_URL=http://localhost:19789
-    3) export OPENCLAW_CODIE_TOKEN=your-token
+    2) export OPENCLAW_CODEX_URL=http://localhost:19789
+    3) export OPENCLAW_CODEX_TOKEN=your-token
     4) export DEFAULT_MODEL=openai/gpt-4.1  (for the native reviewer agent)
 
 Run:
@@ -54,9 +54,9 @@ class CodeReview(BaseModel):
 flock = Flock(
     openclaw=OpenClawConfig(
         gateways={
-            "codie": GatewayConfig(
+            "codex": GatewayConfig(
                 url="http://localhost:19789",
-                token_env="OPENCLAW_CODIE_TOKEN",
+                token_env="OPENCLAW_CODEX_TOKEN",
             )
         }
     )
@@ -66,9 +66,9 @@ flock = Flock(
 # ============================================================================
 # Mixed pipeline: OpenClaw agent → Native LLM agent
 # ============================================================================
-# Codie (OpenClaw) writes the code — can use tools, search, file access
+# Codex (OpenClaw) writes the code — can use tools, search, file access
 implementer = (
-    flock.openclaw_agent("codie")
+    flock.openclaw_agent("codex")
     .description("Senior developer who implements features from specs")
     .consumes(FeatureSpec)
     .publishes(Implementation)
@@ -102,7 +102,7 @@ async def main():
     print(f"   Language: {spec.language}")
     print(f"   Requirements: {len(spec.requirements)}")
     print()
-    print("🔄 Pipeline: Spec → [OpenClaw: Codie] → Implementation → [LLM: Reviewer] → CodeReview")
+    print("🔄 Pipeline: Spec → [OpenClaw: Codex] → Implementation → [LLM: Reviewer] → CodeReview")
     print()
 
     await flock.publish(spec)

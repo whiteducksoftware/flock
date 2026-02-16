@@ -45,9 +45,9 @@ from flock import Flock, OpenClawConfig, GatewayConfig
 flock = Flock(
     openclaw=OpenClawConfig(
         gateways={
-            "codie": GatewayConfig(
+            "codex": GatewayConfig(
                 url="http://localhost:19789",
-                token_env="OPENCLAW_CODIE_TOKEN",
+                token_env="OPENCLAW_CODEX_TOKEN",
                 agent_id="main",  # optional, defaults to "main"
             )
         }
@@ -58,8 +58,8 @@ flock = Flock(
 Or auto-discover from environment variables:
 
 ```bash
-export OPENCLAW_CODIE_URL=http://localhost:19789
-export OPENCLAW_CODIE_TOKEN=your-token
+export OPENCLAW_CODEX_URL=http://localhost:19789
+export OPENCLAW_CODEX_TOKEN=your-token
 ```
 
 ```python
@@ -84,7 +84,7 @@ class Code(BaseModel):
     explanation: str = Field(description="Why this approach")
 
 implementer = (
-    flock.openclaw_agent("codie")
+    flock.openclaw_agent("codex")
     .description("Implements features from specs")
     .consumes(Spec)
     .publishes(Code)
@@ -111,7 +111,7 @@ Quick check:
 
 ```bash
 curl -sS http://127.0.0.1:19789/v1/responses \
-  -H "Authorization: Bearer $OPENCLAW_CODIE_TOKEN" \
+  -H "Authorization: Bearer $OPENCLAW_CODEX_TOKEN" \
   -H 'Content-Type: application/json' \
   -H 'x-openclaw-agent-id: main' \
   -d '{"model":"openclaw","input":"ping","stream":false}'
@@ -128,7 +128,7 @@ Use this when OpenClaw runs on another machine and you want secure tailnet acces
 ```python
 GatewayConfig(
     url="https://my-gateway.my-tailnet.ts.net",
-    token_env="OPENCLAW_CODIE_TOKEN",
+    token_env="OPENCLAW_CODEX_TOKEN",
 )
 ```
 
@@ -176,7 +176,7 @@ Notes:
 ```python
 # Override timeout and retries for a specific agent
 heavy_agent = (
-    flock.openclaw_agent("codie", timeout=300, retries=2)
+    flock.openclaw_agent("codex", timeout=300, retries=2)
     .consumes(ComplexInput)
     .publishes(ComplexOutput)
 )
@@ -194,8 +194,8 @@ OPENCLAW_<ALIAS>_TOKEN → Auth token
 Multiple gateways are supported:
 
 ```bash
-export OPENCLAW_CODIE_URL=http://localhost:19789
-export OPENCLAW_CODIE_TOKEN=token-codie
+export OPENCLAW_CODEX_URL=http://localhost:19789
+export OPENCLAW_CODEX_TOKEN=token-codex
 export OPENCLAW_CLAUDE_URL=http://localhost:18789
 export OPENCLAW_CLAUDE_TOKEN=token-claude
 ```
@@ -204,7 +204,7 @@ export OPENCLAW_CLAUDE_TOKEN=token-claude
 flock = Flock(openclaw=OpenClawConfig.from_env())
 
 # Both are now available:
-writer = flock.openclaw_agent("codie").consumes(Brief).publishes(Draft)
+writer = flock.openclaw_agent("codex").consumes(Brief).publishes(Draft)
 editor = flock.openclaw_agent("claude").consumes(Draft).publishes(Final)
 ```
 
@@ -214,7 +214,7 @@ OpenClaw agents compose freely with standard LLM agents:
 
 ```python
 # OpenClaw agent writes code
-writer = flock.openclaw_agent("codie").consumes(Spec).publishes(Code)
+writer = flock.openclaw_agent("codex").consumes(Spec).publishes(Code)
 
 # Standard LLM agent reviews it
 reviewer = flock.agent("reviewer").consumes(Code).publishes(Review)

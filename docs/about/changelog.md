@@ -23,7 +23,7 @@ from flock import Flock
 from flock.integrations.openclaw import OpenClawConfig
 
 flock = Flock(openclaw=OpenClawConfig.from_env())
-pizza_master = flock.openclaw_agent("codie").consumes(MyPizzaIdea).publishes(Pizza)
+pizza_master = flock.openclaw_agent("codex").consumes(MyPizzaIdea).publishes(Pizza)
 ```
 
 **Features:**

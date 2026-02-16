@@ -9,8 +9,8 @@ its full toolkit (tools, skills, web search, reasoning) to produce the result.
 
 🔧 SETUP: Configure your OpenClaw gateway before running:
     1) Enable gateway.http.endpoints.responses.enabled=true in OpenClaw config
-    2) export OPENCLAW_CODIE_URL=http://localhost:19789
-    3) export OPENCLAW_CODIE_TOKEN=your-token
+    2) export OPENCLAW_CODEX_URL=http://localhost:19789
+    3) export OPENCLAW_CODEX_TOKEN=your-token
 
 Run:
     uv run python examples/11-openclaw/01_pizza_with_openclaw.py
@@ -47,9 +47,9 @@ class Pizza(BaseModel):
 flock = Flock(
     openclaw=OpenClawConfig(
         gateways={
-            "codie": GatewayConfig(
+            "codex": GatewayConfig(
                 url="http://localhost:19789",
-                token_env="OPENCLAW_CODIE_TOKEN",
+                token_env="OPENCLAW_CODEX_TOKEN",
             )
         }
     )
@@ -62,10 +62,10 @@ flock = Flock(
 # ============================================================================
 # Define agent: Same fluent API, different compute backend
 # ============================================================================
-# Instead of flock.agent("pizza_master"), we use flock.openclaw_agent("codie")
+# Instead of flock.agent("pizza_master"), we use flock.openclaw_agent("codex")
 # Everything else stays the same — consumes, publishes, blackboard semantics.
 pizza_master = (
-    flock.openclaw_agent("codie")
+    flock.openclaw_agent("codex")
     .description("Creates detailed pizza recipes from ideas")
     .consumes(MyPizzaIdea)
     .publishes(Pizza)

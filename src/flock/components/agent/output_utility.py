@@ -138,6 +138,39 @@ class OutputUtilityComponent(AgentComponent):
             r"```(\w+)?\n(.*?)\n```", replace_code_block, text, flags=re.DOTALL
         )
 
+    @staticmethod
+    def _is_openclaw_agent(agent: "Agent") -> bool:
+        """Return True when this agent is backed by an OpenClaw engine."""
+        engines = getattr(agent, "engines", []) or []
+        for engine in engines:
+            engine_cls = engine.__class__
+            if engine_cls.__name__ == "OpenClawEngine":
+                return True
+            if getattr(engine_cls, "__module__", "").startswith(
+                "flock.integrations.openclaw"
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _input_preview(inputs: EvalInputs) -> dict[str, Any] | list[dict[str, Any]] | None:
+        """Build a compact input preview for table rendering."""
+        if not inputs.artifacts:
+            return None
+
+        if len(inputs.artifacts) == 1:
+            return dict(inputs.artifacts[0].payload)
+
+        preview: list[dict[str, Any]] = []
+        for artifact in inputs.artifacts:
+            preview.append(
+                {
+                    "type": artifact.type,
+                    "payload": dict(artifact.payload),
+                }
+            )
+        return preview
+
     async def on_post_evaluate(
         self, agent: "Agent", ctx: Context, inputs: EvalInputs, result: EvalResult
     ) -> dict[str, Any]:
@@ -227,12 +260,29 @@ class OutputUtilityComponent(AgentComponent):
                 max_length=self.config.max_length,
                 render_table=self.config.render_table,
             )
-        model = agent.model if agent.model else ctx.get_variable("model")
-        # Handle None model gracefully
-        model_display = model if model is not None else "default"
-        self._formatter.display_result(
-            result_to_display.artifacts, agent.name + " - " + model_display
-        )
+
+        is_openclaw_agent = self._is_openclaw_agent(agent)
+        if is_openclaw_agent:
+            agent_display = f"{agent.name} 🦞"
+        else:
+            model = getattr(agent, "model", None) or ctx.get_variable("model")
+            model_display = model if model is not None else "default"
+            agent_display = f"{agent.name} - {model_display}"
+
+        display_items: list[Any] = result_to_display.artifacts
+
+        # For OpenClaw-backed agents, include input object in rendered table for parity
+        # with native agent UX.
+        if is_openclaw_agent:
+            input_preview = self._input_preview(inputs)
+            if input_preview is not None:
+                display_items = []
+                for artifact in result_to_display.artifacts:
+                    artifact_dict = artifact.model_dump()
+                    artifact_dict["input"] = input_preview
+                    display_items.append(artifact_dict)
+
+        self._formatter.display_result(display_items, agent_display)
 
         return result  # Return the original, unmodified result
 

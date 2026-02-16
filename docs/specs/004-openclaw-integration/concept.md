@@ -1,6 +1,6 @@
 # Flock × OpenClaw Integration — Concept Document
 
-**Authors:** Claude + Codie | **Date:** 2026-02-11 | **Status:** Approved for Phase 1
+**Authors:** Claude + Codex | **Date:** 2026-02-11 | **Status:** Approved for Phase 1
 
 ---
 
@@ -31,10 +31,10 @@ These are resolved — no further discussion needed during implementation:
 OpenClaw agents become first-class Flock agents. Same fluent API, same blackboard semantics, different compute backend. Instead of calling an LLM directly, the agent delegates to an OpenClaw agent that can use its full toolkit — tools, skills, web search, file access, reasoning — to produce structured output.
 
 ```python
-pizza_master = flock.openclaw_agent("codie").consumes(MyPizzaIdea).publishes(Pizza)
+pizza_master = flock.openclaw_agent("codex").consumes(MyPizzaIdea).publishes(Pizza)
 ```
 
-One line. Same DX. But behind the scenes, Codie (or Claude, or any OpenClaw agent) does the work.
+One line. Same DX. But behind the scenes, Codex (or any OpenClaw agent) does the work.
 
 ---
 
@@ -49,7 +49,7 @@ from flock.integrations.openclaw import OpenClawConfig
 flock = Flock(
     openclaw=OpenClawConfig(
         gateways={
-            "codie": {"url": "http://localhost:19789", "token_env": "OPENCLAW_CODIE_TOKEN"},
+            "codex": {"url": "http://localhost:19789", "token_env": "OPENCLAW_CODEX_TOKEN"},
             "claude": {"url": "http://localhost:18789", "token_env": "OPENCLAW_CLAUDE_TOKEN"},
         },
         defaults={
@@ -66,8 +66,8 @@ flock = Flock(
 
 ```bash
 # .env
-OPENCLAW_CODIE_URL=http://localhost:19789
-OPENCLAW_CODIE_TOKEN=xxx
+OPENCLAW_CODEX_URL=http://localhost:19789
+OPENCLAW_CODEX_TOKEN=xxx
 OPENCLAW_CLAUDE_URL=http://localhost:18789
 OPENCLAW_CLAUDE_TOKEN=xxx
 ```
@@ -81,7 +81,7 @@ flock = Flock(openclaw=OpenClawConfig.from_env())
 ```python
 # Simple — one OpenClaw agent, same fluent API
 pizza_master = (
-    flock.openclaw_agent("codie")
+    flock.openclaw_agent("codex")
     .consumes(MyPizzaIdea)
     .publishes(Pizza)
 )
@@ -118,8 +118,8 @@ summarizer = flock.agent("summarizer").consumes(SecurityReview).publishes(Summar
 ```python
 flock = Flock(openclaw=OpenClawConfig.from_env())
 
-# Codie writes code, Claude reviews, LLM agent summarizes
-writer = flock.openclaw_agent("codie").consumes(Spec).publishes(Implementation)
+# Codex writes code, Claude reviews, LLM agent summarizes
+writer = flock.openclaw_agent("codex").consumes(Spec).publishes(Implementation)
 reviewer = flock.openclaw_agent("claude").consumes(Implementation).publishes(Review)
 summarizer = flock.agent("summarizer").consumes(Review).publishes(Summary)
 
@@ -452,7 +452,7 @@ pizza_master = flock.agent("pizza_master").consumes(MyPizzaIdea).publishes(Pizza
 
 # After: OpenClaw agent (2 changes: add config, swap method)
 flock = Flock(openclaw=OpenClawConfig.from_env())  # 1. Add config
-pizza_master = flock.openclaw_agent("codie").consumes(MyPizzaIdea).publishes(Pizza)  # 2. Swap
+pizza_master = flock.openclaw_agent("codex").consumes(MyPizzaIdea).publishes(Pizza)  # 2. Swap
 
 # Everything else stays the same — downstream agents, visibility, conditions, dashboard
 ```

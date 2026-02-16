@@ -82,8 +82,8 @@ class OpenClawConfig(BaseModel):
           - OPENCLAW_<ALIAS>_TOKEN
 
         Example:
-          OPENCLAW_CODIE_URL=http://localhost:19789
-          OPENCLAW_CODIE_TOKEN=...
+          OPENCLAW_CODEX_URL=http://localhost:19789
+          OPENCLAW_CODEX_TOKEN=...
         """
 
         gateways: dict[str, GatewayConfig] = {}

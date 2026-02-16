@@ -12,8 +12,8 @@ Multiple gateways can be configured simultaneously for multi-agent workflows.
 
 🔧 SETUP:
     1) Enable gateway.http.endpoints.responses.enabled=true on each OpenClaw gateway
-    2) export OPENCLAW_CODIE_URL=http://localhost:19789
-    3) export OPENCLAW_CODIE_TOKEN=your-codie-token
+    2) export OPENCLAW_CODEX_URL=http://localhost:19789
+    3) export OPENCLAW_CODEX_TOKEN=your-codex-token
     4) export OPENCLAW_CLAUDE_URL=http://localhost:18789
     5) export OPENCLAW_CLAUDE_TOKEN=your-claude-token
 
@@ -60,9 +60,9 @@ flock = Flock(openclaw=OpenClawConfig.from_env())
 # ============================================================================
 # Multi-agent workflow: Two different OpenClaw agents collaborate
 # ============================================================================
-# Codie writes the draft
+# Codex writes the draft
 writer = (
-    flock.openclaw_agent("codie")
+    flock.openclaw_agent("codex")
     .description("Technical writer who creates clear, engaging articles")
     .consumes(Brief)
     .publishes(Draft)
@@ -89,7 +89,7 @@ async def main():
     print(f"📝 Brief: {brief.topic}")
     print(f"   Tone: {brief.tone}")
     print()
-    print("🔄 Pipeline: Brief → [Codie writes] → Draft → [Claude edits] → EditedDraft")
+    print("🔄 Pipeline: Brief → [Codex writes] → Draft → [Claude edits] → EditedDraft")
     print()
 
     await flock.publish(brief)

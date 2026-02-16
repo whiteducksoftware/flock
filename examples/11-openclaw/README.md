@@ -12,8 +12,8 @@ These examples demonstrate how to use [OpenClaw](https://github.com/openclaw/ope
 
 ```bash
 # Configure gateway(s) via environment variables
-export OPENCLAW_CODIE_URL=http://localhost:19789
-export OPENCLAW_CODIE_TOKEN=your-token
+export OPENCLAW_CODEX_URL=http://localhost:19789
+export OPENCLAW_CODEX_TOKEN=your-token
 
 # For multi-gateway examples
 export OPENCLAW_CLAUDE_URL=http://localhost:18789
@@ -37,7 +37,7 @@ export OPENCLAW_CLAUDE_TOKEN=your-token
 pizza_master = flock.agent("pizza_master").consumes(Idea).publishes(Pizza)
 
 # After: OpenClaw agent
-pizza_master = flock.openclaw_agent("codie").consumes(Idea).publishes(Pizza)
+pizza_master = flock.openclaw_agent("codex").consumes(Idea).publishes(Pizza)
 ```
 
 **All Flock features work unchanged:** blackboard routing, visibility, fan-out, conditions, tracing, dashboard — OpenClaw is just a different engine.
@@ -45,7 +45,7 @@ pizza_master = flock.openclaw_agent("codie").consumes(Idea).publishes(Pizza)
 **Two config styles:**
 ```python
 # Explicit
-flock = Flock(openclaw=OpenClawConfig(gateways={"codie": GatewayConfig(url=..., token_env=...)}))
+flock = Flock(openclaw=OpenClawConfig(gateways={"codex": GatewayConfig(url=..., token_env=...)}))
 
 # Environment-based (recommended for production)
 flock = Flock(openclaw=OpenClawConfig.from_env())
