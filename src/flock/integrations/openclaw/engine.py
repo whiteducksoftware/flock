@@ -251,8 +251,7 @@ class OpenClawEngine(EngineComponent):
 
         description = str(getattr(agent, "description", "") or "").strip()
 
-        task_lines = ["Return ONLY valid JSON matching the schema."]
-        task_lines.append(f"Schema: {json.dumps(output_schema, ensure_ascii=False)}")
+        task_lines = ["Return ONLY valid JSON matching the provided schema."]
 
         if len(input_payloads) == 1:
             task_lines.append(
@@ -263,15 +262,77 @@ class OpenClawEngine(EngineComponent):
                 f"Inputs: {json.dumps(input_payloads, ensure_ascii=False)}"
             )
 
+        # Build strict JSON schema for structured output enforcement.
+        # This constrains the model at the token level — it cannot produce
+        # invalid JSON when the provider supports json_schema response format.
+        strict_schema = self._make_strict_schema(output_schema)
+
         payload: dict[str, Any] = {
             "model": "openclaw",
             "input": "\n".join(task_lines),
             "stream": False,
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": output_decl.spec.model.__name__,
+                    "schema": strict_schema,
+                    "strict": True,
+                }
+            },
         }
         if description:
             payload["instructions"] = description
 
         return payload
+
+    def _make_strict_schema(self, schema: dict[str, Any]) -> dict[str, Any]:
+        """Transform a JSON schema into OpenAI strict-mode compatible form.
+
+        Strict mode requires:
+        - ``additionalProperties: false`` on every object
+        - All properties listed in ``required``
+        - No unsupported keywords (``$defs`` renamed, etc.)
+        """
+        return self._strict_transform(dict(schema))
+
+    def _strict_transform(self, node: dict[str, Any]) -> dict[str, Any]:
+        """Recursively apply strict-mode constraints to a schema node."""
+        node = dict(node)
+
+        # Recurse into $defs / definitions
+        for defs_key in ("$defs", "definitions"):
+            if defs_key in node and isinstance(node[defs_key], dict):
+                node[defs_key] = {
+                    k: self._strict_transform(v)
+                    for k, v in node[defs_key].items()
+                }
+
+        node_type = node.get("type")
+
+        if node_type == "object":
+            props = node.get("properties", {})
+            # All properties must be required in strict mode
+            node["required"] = list(props.keys())
+            node["additionalProperties"] = False
+            # Recurse into property schemas
+            node["properties"] = {
+                k: self._strict_transform(v) for k, v in props.items()
+            }
+
+        elif node_type == "array":
+            items = node.get("items")
+            if isinstance(items, dict):
+                node["items"] = self._strict_transform(items)
+
+        # Handle anyOf / oneOf / allOf
+        for combo_key in ("anyOf", "oneOf", "allOf"):
+            if combo_key in node and isinstance(node[combo_key], list):
+                node[combo_key] = [
+                    self._strict_transform(v) if isinstance(v, dict) else v
+                    for v in node[combo_key]
+                ]
+
+        return node
 
     def _build_repair_task(self, *, original_task: str, parse_error: str) -> str:
         return (

@@ -106,7 +106,11 @@ async def test_responses_request_contains_expected_contract_fields_and_headers()
     assert payload["model"] == "openclaw"
     assert payload["stream"] is False
     assert isinstance(payload["input"], str)
-    assert "Schema:" in payload["input"]
+    # Schema is now enforced via text.format.json_schema, not inlined in prompt
+    assert "text" in payload
+    assert payload["text"]["format"]["type"] == "json_schema"
+    assert payload["text"]["format"]["strict"] is True
+    assert isinstance(payload["text"]["format"]["schema"], dict)
     assert seen["authorization"] == "Bearer token-codie"
     assert seen["agent_id"] == "main"
     assert outputs[0].payload["result"] == "margherita"
@@ -346,6 +350,24 @@ def test_parse_responses_output_validates_shapes() -> None:
         engine._parse_responses_output({"id": "resp_x", "status": "completed", "output": []})
 
 
+def test_strict_schema_transform_adds_required_and_additional_properties() -> None:
+    """Strict schema transform should add required + additionalProperties: false."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    raw_schema = OpenClawEngineOutput.model_json_schema()
+    strict = engine._make_strict_schema(raw_schema)
+
+    assert strict["additionalProperties"] is False
+    assert strict["required"] == list(raw_schema.get("properties", {}).keys())
+    assert strict["type"] == "object"
+
+
 def test_build_responses_payload_includes_description_as_instructions() -> None:
     """Responses payload should place agent description in instructions."""
     flock = Flock(openclaw=_config(), no_output=True)
@@ -370,7 +392,8 @@ def test_build_responses_payload_includes_description_as_instructions() -> None:
     assert payload["instructions"] == "Plans meals"
     assert payload["model"] == "openclaw"
     assert payload["stream"] is False
-    assert "Schema:" in payload["input"]
+    assert payload["text"]["format"]["type"] == "json_schema"
+    assert payload["text"]["format"]["strict"] is True
 
 
 @pytest.mark.asyncio
