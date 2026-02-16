@@ -16,6 +16,10 @@ Pipeline:
 
 Run:
     uv run python examples/11-openclaw/02_mixed_pipeline.py
+
+Dashboard streaming note:
+    With a Flock dashboard/WebSocket sink active, OpenClaw streaming is enabled automatically.
+    No per-agent streaming config is required in this example.
 """
 
 import asyncio

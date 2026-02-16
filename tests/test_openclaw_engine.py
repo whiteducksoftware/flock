@@ -13,6 +13,11 @@ from pydantic import BaseModel, Field
 from flock import Flock
 from flock.integrations.openclaw import GatewayConfig, OpenClawConfig
 from flock.integrations.openclaw.engine import OpenClawEngine
+from flock.integrations.openclaw.streaming import (
+    OpenClawSSEConsumer,
+    OpenClawStreamingExecutor,
+    OpenClawStreamingResult,
+)
 from flock.registry import flock_type
 
 
@@ -366,3 +371,86 @@ def test_build_responses_payload_includes_description_as_instructions() -> None:
     assert payload["model"] == "openclaw"
     assert payload["stream"] is False
     assert "Schema:" in payload["input"]
+
+
+@pytest.mark.asyncio
+async def test_streaming_executor_is_used_when_dashboard_websocket_is_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flock.core import Agent
+
+    original_broadcast = Agent._websocket_broadcast_global
+
+    async def _broadcast(_event) -> None:
+        return None
+
+    Agent._websocket_broadcast_global = _broadcast
+    captured: dict[str, object] = {}
+
+    async def _fake_execute(self):
+        captured["sinks"] = self.sinks
+        return OpenClawStreamingResult(
+            full_text='{"result":"streamed"}',
+            final_text='{"result":"streamed"}',
+            tokens_emitted=2,
+            usage={"output_tokens": 2},
+        )
+
+    async def _should_not_call_non_streaming(self, **kwargs):
+        raise AssertionError("non-streaming transport should not be called")
+
+    monkeypatch.setattr(OpenClawStreamingExecutor, "execute", _fake_execute)
+    monkeypatch.setattr(
+        OpenClawEngine,
+        "_call_responses_api",
+        _should_not_call_non_streaming,
+    )
+
+    try:
+        outputs = await _invoke_once()
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+
+    assert outputs[0].payload["result"] == "streamed"
+    sinks = captured.get("sinks")
+    assert isinstance(sinks, list)
+    assert len(sinks) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_streaming_path_falls_back_to_non_streaming_when_sse_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flock.core import Agent
+
+    original_broadcast = Agent._websocket_broadcast_global
+
+    async def _broadcast(_event) -> None:
+        return None
+
+    Agent._websocket_broadcast_global = _broadcast
+
+    async def _failing_stream_events(self):
+        raise RuntimeError("sse transport failed")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(OpenClawSSEConsumer, "stream_events", _failing_stream_events)
+
+    seen: dict[str, object] = {}
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        seen["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json=_responses_completed('{"result":"fallback"}'))
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    try:
+        outputs = await _invoke_once(retries=0)
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+
+    assert outputs[0].payload["result"] == "fallback"
+    payload = seen["payload"]
+    assert isinstance(payload, dict)
+    assert payload["stream"] is False

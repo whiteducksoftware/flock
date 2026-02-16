@@ -14,6 +14,10 @@ its full toolkit (tools, skills, web search, reasoning) to produce the result.
 
 Run:
     uv run python examples/11-openclaw/01_pizza_with_openclaw.py
+
+Dashboard streaming note:
+    If you run this flow with a Flock dashboard/WebSocket sink enabled,
+    OpenClaw token streaming is activated automatically (no extra flags needed).
 """
 
 import asyncio
@@ -47,9 +51,9 @@ class Pizza(BaseModel):
 flock = Flock(
     openclaw=OpenClawConfig(
         gateways={
-            "codex": GatewayConfig(
-                url="http://127.0.0.1:19789",
-                token_env="OPENCLAW_CODEX_TOKEN",  # env var name, not token value
+            "claude": GatewayConfig(
+                url="http://127.0.0.1:18789",
+                token="ef67a64900438da7949312e5f9b17cd8b19395adfda79943",  # env var name, not token value
             )
         }
     )
@@ -65,7 +69,7 @@ flock = Flock(
 # Instead of flock.agent("pizza_master"), we use flock.openclaw_agent("codex")
 # Everything else stays the same — consumes, publishes, blackboard semantics.
 pizza_master = (
-    flock.openclaw_agent("codex")
+    flock.openclaw_agent("claude")
     .description("Creates detailed pizza recipes from ideas")
     .consumes(MyPizzaIdea)
     .publishes(Pizza)

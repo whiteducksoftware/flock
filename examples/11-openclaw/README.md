@@ -56,3 +56,12 @@ flock = Flock(openclaw=OpenClawConfig.from_env())
 Alias rule:
 - `OPENCLAW_CODEX_URL` + `OPENCLAW_CODEX_TOKEN` => alias is `"codex"`
 - Use that exact alias in `flock.openclaw_agent("codex")`
+
+## Streaming Note (Dashboard)
+
+When a Flock dashboard/WebSocket sink is active, OpenClaw agents stream output automatically.
+You do not need additional OpenClaw-specific streaming flags in these examples.
+
+- Dashboard/WebSocket active → OpenClaw requests use streaming mode and emit live deltas.
+- Headless run (`publish` + `run_until_idle`) → behavior remains non-streaming.
+- If SSE streaming fails, Flock transparently falls back to non-streaming for the final typed artifact.

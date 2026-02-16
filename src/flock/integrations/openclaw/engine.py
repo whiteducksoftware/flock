@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 from typing import Any, Literal
+from uuid import uuid4
 
 import httpx
 from pydantic import ValidationError
 
 from flock.components.agent import EngineComponent
 from flock.integrations.openclaw.config import GatewayConfig
+from flock.integrations.openclaw.streaming import OpenClawStreamingExecutor
 from flock.utils.runtime import EvalResult
 
 
@@ -48,6 +50,9 @@ class OpenClawEngine(EngineComponent):
             output_group=output_group,
         )
 
+        should_stream = self._should_stream(ctx)
+        pre_generated_artifact_id = uuid4() if should_stream else None
+
         attempts = max(1, self.retries + 1)
         parse_error: Exception | None = None
 
@@ -62,34 +67,173 @@ class OpenClawEngine(EngineComponent):
                 )
 
             try:
-                response_payload = await self._call_responses_api(
-                    endpoint=endpoint,
-                    headers=headers,
-                    payload=payload,
+                if should_stream:
+                    data = await self._execute_streaming_attempt(
+                        agent=agent,
+                        ctx=ctx,
+                        output_group=output_group,
+                        endpoint=endpoint,
+                        headers=headers,
+                        payload=payload,
+                        pre_generated_artifact_id=pre_generated_artifact_id,
+                    )
+                else:
+                    response_payload = await self._call_responses_api(
+                        endpoint=endpoint,
+                        headers=headers,
+                        payload=payload,
+                    )
+                    data = self._parse_responses_output(response_payload)
+
+                output_decl = output_group.outputs[0]
+                metadata: dict[str, Any] = {"correlation_id": ctx.correlation_id}
+                if pre_generated_artifact_id is not None:
+                    metadata["artifact_id"] = pre_generated_artifact_id
+
+                artifact = output_decl.apply(
+                    data,
+                    produced_by=agent.name,
+                    metadata=metadata,
                 )
             except RuntimeError as exc:
                 if attempt < attempts - 1 and self._is_retriable_runtime_error(exc):
                     continue
                 raise
+            except ValueError as exc:
+                # Preserve auth/token failures as ValueError (fail-fast contract).
+                if "auth/token failure" in str(exc).lower():
+                    raise
 
-            try:
-                data = self._parse_responses_output(response_payload)
-                output_decl = output_group.outputs[0]
-                artifact = output_decl.apply(
-                    data,
-                    produced_by=agent.name,
-                    metadata={"correlation_id": ctx.correlation_id},
-                )
-            except (ValueError, ValidationError) as exc:
+                parse_error = exc
+                if attempt < attempts - 1:
+                    continue
+                raise RuntimeError(f"OpenClaw response parse error: {exc}") from exc
+            except ValidationError as exc:
                 parse_error = exc
                 if attempt < attempts - 1:
                     continue
                 raise RuntimeError(f"OpenClaw response parse error: {exc}") from exc
 
+            if should_stream and ctx and not getattr(self, "no_output", False):
+                ctx.state["_flock_stream_live_active"] = True
+
             return EvalResult(artifacts=[artifact], state=dict(inputs.state))
 
         # Defensive fallback; loop should always return or raise.
         raise RuntimeError("OpenClaw evaluation failed unexpectedly.")
+
+    async def _execute_streaming_attempt(
+        self,
+        *,
+        agent,
+        ctx,
+        output_group,
+        endpoint: str,
+        headers: dict[str, str],
+        payload: dict[str, Any],
+        pre_generated_artifact_id,
+    ) -> dict[str, Any]:
+        sinks = self._build_streaming_sinks(
+            agent=agent,
+            ctx=ctx,
+            output_group=output_group,
+            artifact_id=pre_generated_artifact_id,
+        )
+
+        async def _fallback_non_streaming_text() -> str:
+            response_payload = await self._call_responses_api(
+                endpoint=endpoint,
+                headers=headers,
+                payload=payload,
+            )
+            return self._extract_responses_output_text(response_payload)
+
+        executor = OpenClawStreamingExecutor(
+            endpoint=endpoint,
+            headers=headers,
+            payload=payload,
+            sinks=sinks,
+            output_field="output",
+            timeout=self.timeout,
+            fallback_non_streaming_factory=_fallback_non_streaming_text,
+        )
+
+        stream_result = await executor.execute()
+        output_text = stream_result.final_text or stream_result.full_text
+        return self._parse_output_text(output_text)
+
+    def _should_stream(self, ctx) -> bool:
+        if ctx is None:
+            return False
+
+        from flock.core import Agent
+
+        return Agent._websocket_broadcast_global is not None
+
+    def _build_streaming_sinks(self, *, agent, ctx, output_group, artifact_id):
+        from flock.core import Agent
+        from flock.engines.streaming.sinks import WebSocketSink
+
+        ws_broadcast = Agent._websocket_broadcast_global if ctx else None
+        if ws_broadcast is None:
+            return []
+
+        output_type_name = "output"
+        if output_group.outputs:
+            output_type_name = (
+                getattr(output_group.outputs[0].spec, "type_name", None) or "output"
+            )
+
+        def _event_factory(output_type: str, content: str, sequence: int, is_final: bool):
+            return self._build_streaming_event(
+                ctx=ctx,
+                agent=agent,
+                artifact_id=artifact_id,
+                artifact_type=output_type_name,
+                output_type=output_type,
+                content=content,
+                sequence=sequence,
+                is_final=is_final,
+            )
+
+        return [
+            WebSocketSink(
+                ws_broadcast=ws_broadcast,
+                event_factory=_event_factory,
+            )
+        ]
+
+    def _build_streaming_event(
+        self,
+        *,
+        ctx,
+        agent,
+        artifact_id,
+        artifact_type: str,
+        output_type: str,
+        content: str,
+        sequence: int,
+        is_final: bool,
+    ):
+        from flock.components.server.models.events import StreamingOutputEvent
+
+        correlation_id = ""
+        run_id = ""
+        if ctx:
+            correlation_id = str(getattr(ctx, "correlation_id", "") or "")
+            run_id = str(getattr(ctx, "task_id", "") or "")
+
+        return StreamingOutputEvent(
+            correlation_id=correlation_id,
+            agent_name=getattr(agent, "name", ""),
+            run_id=run_id,
+            output_type=output_type,
+            content=content,
+            sequence=sequence,
+            is_final=is_final,
+            artifact_id=str(artifact_id) if artifact_id is not None else "",
+            artifact_type=artifact_type,
+        )
 
     def _build_responses_payload(
         self, *, agent, ctx, inputs, output_group
@@ -201,6 +345,10 @@ class OpenClawEngine(EngineComponent):
         return payload_json
 
     def _parse_responses_output(self, payload: dict[str, Any]) -> dict[str, Any]:
+        text = self._extract_responses_output_text(payload)
+        return self._parse_output_text(text)
+
+    def _extract_responses_output_text(self, payload: dict[str, Any]) -> str:
         output = payload.get("output")
         if not isinstance(output, list) or not output:
             raise ValueError("missing output text in OpenResponses response")
@@ -227,6 +375,9 @@ class OpenClawEngine(EngineComponent):
         if not text:
             raise ValueError("missing output text in OpenResponses response")
 
+        return text
+
+    def _parse_output_text(self, text: str) -> dict[str, Any]:
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError as exc:

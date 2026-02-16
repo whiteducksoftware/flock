@@ -103,6 +103,28 @@ await flock.publish(Spec(feature="Add rate limiting"))
 await flock.run_until_idle()
 ```
 
+## Streaming Behavior (Dashboard / WebSocket Sinks)
+
+OpenClaw streaming is enabled automatically when Flock detects an active dashboard/WebSocket streaming sink.
+
+### When streaming turns on
+
+- If dashboard/WebSocket streaming is active, `OpenClawEngine` sends `"stream": true` to `POST /v1/responses`.
+- SSE token deltas (`response.output_text.delta`) are forwarded to sinks in real time.
+- Final output is still validated against your declared Pydantic output model before artifact publish.
+
+### When streaming stays off
+
+- In headless runs (no active streaming sink), OpenClaw uses non-streaming mode (`"stream": false`) and keeps existing behavior.
+
+### SSE fallback behavior
+
+- If SSE streaming fails mid-flight, the engine automatically falls back to the normal non-streaming request path.
+- If fallback succeeds, the pipeline still publishes a valid typed artifact.
+- Auth/token failures (`401/403`) remain fail-fast and are **not** converted into generic parse errors.
+
+This means you get live dashboard streaming when available, without changing your `openclaw_agent(...)` API usage.
+
 ## Local + Remote (Tailscale) Setup
 
 ### Local machine setup

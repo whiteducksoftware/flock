@@ -19,6 +19,10 @@ Multiple gateways can be configured simultaneously for multi-agent workflows.
 
 Run:
     uv run python examples/11-openclaw/03_env_config.py
+
+Dashboard streaming note:
+    OpenClaw agents stream automatically when a Flock dashboard/WebSocket sink is active.
+    Headless usage remains unchanged.
 """
 
 import asyncio
