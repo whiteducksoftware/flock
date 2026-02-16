@@ -288,7 +288,11 @@ class OpenClawEngine(EngineComponent):
 
         description = str(getattr(agent, "description", "") or "").strip()
 
-        task_lines = ["Return ONLY valid JSON matching the schema."]
+        task_lines = [
+            "Your ENTIRE response must be a single valid JSON object matching the schema below.",
+            "Do not include any text, explanation, markdown fences, or commentary — only the raw JSON object.",
+            "The response will be parsed directly by a JSON schema validator.",
+        ]
         task_lines.append(f"Schema: {json.dumps(output_schema, ensure_ascii=False)}")
 
         if len(input_payloads) == 1:
@@ -479,13 +483,21 @@ class OpenClawEngine(EngineComponent):
         return text
 
     def _parse_output_text(self, text: str) -> dict[str, Any]:
+        # Truncate for error messages — enough to diagnose, not flood logs.
+        preview = text[:500] + ("..." if len(text) > 500 else "")
+
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise ValueError("result is not valid JSON") from exc
+            raise ValueError(
+                f"result is not valid JSON: {exc}. Agent response: {preview}"
+            ) from exc
 
         if not isinstance(parsed, dict):
-            raise ValueError("result JSON must be an object")
+            raise ValueError(
+                f"result JSON must be an object, got {type(parsed).__name__}. "
+                f"Agent response: {preview}"
+            )
 
         return parsed
 
