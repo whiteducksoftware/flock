@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 from typing import Any, Literal
-from uuid import uuid4
 
 import httpx
+from pydantic import ValidationError
 
 from flock.components.agent import EngineComponent
 from flock.integrations.openclaw.config import GatewayConfig
@@ -33,14 +33,15 @@ class OpenClawEngine(EngineComponent):
         if not output_group.outputs:
             return EvalResult.empty(state=dict(inputs.state))
 
-        endpoint = f"{self.gateway.url.rstrip('/')}/api/sessions/spawn"
+        endpoint = f"{self.gateway.url.rstrip('/')}/v1/responses"
         headers = {
             "Content-Type": "application/json",
+            "x-openclaw-agent-id": self.gateway.agent_id,
         }
         if self.gateway.token:
             headers["Authorization"] = f"Bearer {self.gateway.token}"
 
-        base_payload = self._build_spawn_payload(
+        base_payload = self._build_responses_payload(
             agent=agent,
             ctx=ctx,
             inputs=inputs,
@@ -48,21 +49,20 @@ class OpenClawEngine(EngineComponent):
         )
 
         attempts = max(1, self.retries + 1)
-        parse_error: ValueError | None = None
+        parse_error: Exception | None = None
 
         for attempt in range(attempts):
             payload = dict(base_payload)
 
             # Single repair attempt (or bounded by retries): re-ask with strict JSON reminder.
             if attempt > 0 and parse_error is not None:
-                payload["task"] = self._build_repair_task(
-                    original_task=base_payload["task"],
+                payload["input"] = self._build_repair_task(
+                    original_task=str(base_payload["input"]),
                     parse_error=str(parse_error),
                 )
-                payload["label"] = f"{base_payload['label']}-repair-{attempt}"
 
             try:
-                response_payload = await self._spawn_once(
+                response_payload = await self._call_responses_api(
                     endpoint=endpoint,
                     headers=headers,
                     payload=payload,
@@ -73,25 +73,25 @@ class OpenClawEngine(EngineComponent):
                 raise
 
             try:
-                data = self._parse_result_payload(response_payload)
-            except ValueError as exc:
+                data = self._parse_responses_output(response_payload)
+                output_decl = output_group.outputs[0]
+                artifact = output_decl.apply(
+                    data,
+                    produced_by=agent.name,
+                    metadata={"correlation_id": ctx.correlation_id},
+                )
+            except (ValueError, ValidationError) as exc:
                 parse_error = exc
                 if attempt < attempts - 1:
                     continue
                 raise RuntimeError(f"OpenClaw response parse error: {exc}") from exc
 
-            output_decl = output_group.outputs[0]
-            artifact = output_decl.apply(
-                data,
-                produced_by=agent.name,
-                metadata={"correlation_id": ctx.correlation_id},
-            )
             return EvalResult(artifacts=[artifact], state=dict(inputs.state))
 
         # Defensive fallback; loop should always return or raise.
         raise RuntimeError("OpenClaw evaluation failed unexpectedly.")
 
-    def _build_spawn_payload(
+    def _build_responses_payload(
         self, *, agent, ctx, inputs, output_group
     ) -> dict[str, Any]:
         output_decl = output_group.outputs[0]
@@ -108,9 +108,6 @@ class OpenClawEngine(EngineComponent):
         description = str(getattr(agent, "description", "") or "").strip()
 
         task_lines = ["Return ONLY valid JSON matching the schema."]
-        if description:
-            task_lines.append(f"Agent description: {description}")
-
         task_lines.append(f"Schema: {json.dumps(output_schema, ensure_ascii=False)}")
 
         if len(input_payloads) == 1:
@@ -122,17 +119,15 @@ class OpenClawEngine(EngineComponent):
                 f"Inputs: {json.dumps(input_payloads, ensure_ascii=False)}"
             )
 
-        task = "\n".join(task_lines)
-
-        correlation = (ctx.correlation_id or uuid4().hex).replace("-", "")
-        label = f"flock-{self.alias}-{correlation[:12]}"
-
-        return {
-            "task": task,
-            "label": label,
-            "runTimeoutSeconds": self.timeout,
-            "cleanup": "delete",
+        payload: dict[str, Any] = {
+            "model": "openclaw",
+            "input": "\n".join(task_lines),
+            "stream": False,
         }
+        if description:
+            payload["instructions"] = description
+
+        return payload
 
     def _build_repair_task(self, *, original_task: str, parse_error: str) -> str:
         return (
@@ -142,7 +137,7 @@ class OpenClawEngine(EngineComponent):
             "Respond again with ONLY a valid JSON object and no extra text."
         )
 
-    async def _spawn_once(
+    async def _call_responses_api(
         self,
         *,
         endpoint: str,
@@ -165,6 +160,24 @@ class OpenClawEngine(EngineComponent):
                 f"OpenClaw auth/token failure ({response.status_code}): {message}"
             )
 
+        if response.status_code == 400:
+            message = self._extract_error_message(response)
+            raise RuntimeError(
+                f"OpenClaw bad request (400): {message}"
+            )
+
+        if response.status_code == 429:
+            message = self._extract_error_message(response)
+            raise RuntimeError(
+                f"OpenClaw rate limit (429): {message}"
+            )
+
+        if response.status_code >= 500:
+            message = self._extract_error_message(response)
+            raise RuntimeError(
+                f"OpenClaw gateway server error ({response.status_code}): {message}"
+            )
+
         if response.status_code >= 400:
             message = self._extract_error_message(response)
             raise RuntimeError(
@@ -177,44 +190,52 @@ class OpenClawEngine(EngineComponent):
             raise RuntimeError("OpenClaw gateway returned non-JSON response") from exc
 
         if not isinstance(payload_json, dict):
-            raise RuntimeError(  # noqa: TRY004 - Phase 1 maps gateway parse failures to RuntimeError.
+            raise RuntimeError(
                 "OpenClaw gateway response must be a JSON object"
             )
 
-        # Handle API-level auth signaling even with 200 (defensive).
-        if payload_json.get("ok") is False:
-            err = str(payload_json.get("error", "")).lower()
-            message = str(
-                payload_json.get("message", "OpenClaw gateway rejected request")
-            )
-            if "auth" in err or "token" in err or "unauth" in err or "forbidden" in err:
-                raise ValueError(f"OpenClaw auth/token failure: {message}")
-            raise RuntimeError(f"OpenClaw gateway rejected request: {message}")
+        if str(payload_json.get("status", "")).lower() == "failed":
+            message = self._extract_error_message(response)
+            raise RuntimeError(f"OpenClaw response failed: {message}")
 
         return payload_json
 
-    def _parse_result_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        if "result" not in payload:
-            raise ValueError("missing 'result' in spawn response")
+    def _parse_responses_output(self, payload: dict[str, Any]) -> dict[str, Any]:
+        output = payload.get("output")
+        if not isinstance(output, list) or not output:
+            raise ValueError("missing output text in OpenResponses response")
 
-        raw_result = payload["result"]
+        text: str | None = None
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") != "message":
+                continue
+            content = item.get("content")
+            if isinstance(content, list):
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    if part.get("type") in {"output_text", "text"}:
+                        candidate = part.get("text")
+                        if isinstance(candidate, str) and candidate.strip():
+                            text = candidate
+                            break
+            if text is not None:
+                break
 
-        if isinstance(raw_result, dict):
-            return raw_result
+        if not text:
+            raise ValueError("missing output text in OpenResponses response")
 
-        if isinstance(raw_result, str):
-            try:
-                parsed = json.loads(raw_result)
-            except json.JSONDecodeError as exc:
-                raise ValueError("result is not valid JSON") from exc
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError("result is not valid JSON") from exc
 
-            if not isinstance(parsed, dict):
-                raise ValueError(  # noqa: TRY004 - Phase 1 treats malformed payload shape as parse ValueError.
-                    "result JSON must be an object"
-                )
-            return parsed
+        if not isinstance(parsed, dict):
+            raise ValueError("result JSON must be an object")
 
-        raise ValueError("result must be a JSON string or object")
+        return parsed
 
     def _is_retriable_runtime_error(self, exc: RuntimeError) -> bool:
         message = str(exc).lower()
@@ -226,6 +247,10 @@ class OpenClawEngine(EngineComponent):
                 "transport",
                 "connect",
                 "connection",
+                "429",
+                "rate limit",
+                "server error",
+                "response failed",
             )
         )
 
@@ -237,7 +262,13 @@ class OpenClawEngine(EngineComponent):
             return text or "no error body"
 
         if isinstance(payload, dict):
-            for key in ("message", "error", "detail"):
+            error_obj = payload.get("error")
+            if isinstance(error_obj, dict):
+                for key in ("message", "detail", "code"):
+                    value = error_obj.get(key)
+                    if value:
+                        return str(value)
+            for key in ("message", "detail"):
                 value = payload.get(key)
                 if value:
                     return str(value)

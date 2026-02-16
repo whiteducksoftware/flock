@@ -4,6 +4,17 @@
 
 ---
 
+## Phase 1b Transport Update (2026-02-16)
+
+This concept was approved during the original spawn-first Phase 1 design. Implementation has now migrated transport to the OpenResponses HTTP endpoint:
+
+- Use `POST /v1/responses` (not `/api/sessions/spawn`) for Flock↔OpenClaw execution.
+- Require OpenClaw config: `gateway.http.endpoints.responses.enabled: true`.
+- Parse model output from `output[].content[].output_text` JSON.
+- Keep Flock public API stable (`flock.openclaw_agent()` unchanged).
+
+Where this document still mentions spawn/session transport internals, treat those sections as historical context superseded by the OpenSpec change `openclaw-http-transport`.
+
 ## Locked Decisions (Phase 1)
 
 These are resolved — no further discussion needed during implementation:
@@ -156,31 +167,29 @@ class OpenClawEngine(BaseEngine):
 
 ### Communication Protocol
 
-**Spawn mode (default)** — isolated session per invocation:
-```
-POST {gateway_url}/api/sessions/spawn
-{
-    "task": "<task prompt with artifact + schema>",
-    "agentId": "optional-agent-profile",
-    "label": "flock-{agent_name}-{correlation_id}",
-    "runTimeoutSeconds": 120
-}
-```
-- Clean context per invocation — no memory bleed
-- Predictable, parallelizable
-- Best for: stateless transformations, fan-out
+**Current transport (Phase 1b)** — OpenResponses over HTTP:
 
-**Session mode** — persistent conversation:
-```
-POST {gateway_url}/api/sessions/send
+```http
+POST {gateway_url}/v1/responses
+Authorization: Bearer <token>
+Content-Type: application/json
+x-openclaw-agent-id: <agent_id>
+
 {
-    "label": "flock-{label}",
-    "message": "<task prompt>"
+    "model": "openclaw",
+    "input": "<task prompt with artifact(s) + schema>",
+    "instructions": "<optional agent description>",
+    "stream": false
 }
 ```
-- Maintains conversation context across invocations
-- Good for: iterative refinement, context-dependent work
-- Requires explicit label to target the right session
+
+Response parsing contract:
+- Read response text from `output[].content[].output_text`
+- Parse as JSON object
+- Validate against the Pydantic output model
+
+Gateway requirement:
+- `gateway.http.endpoints.responses.enabled: true`
 
 ### What the OpenClaw Agent Receives
 
@@ -279,97 +288,71 @@ Flock ↔ OpenClaw recursion must be prevented. If an OpenClaw agent itself uses
 
 ## Wire Contract — Exact JSON Envelopes
 
-### Spawn Request
+### OpenResponses Request
 
 ```http
-POST {gateway_url}/api/sessions/spawn
+POST {gateway_url}/v1/responses
 Authorization: Bearer {token}
 Content-Type: application/json
+x-openclaw-agent-id: {agent_id}
 
 {
-    "task": "<rendered task prompt - see Task Prompt Format below>",
-    "agentId": null,
-    "label": "flock-{agent_name}-{correlation_id}",
-    "runTimeoutSeconds": 120,
-    "cleanup": "delete"
+    "model": "openclaw",
+    "input": "<rendered task prompt - see Task Prompt Format below>",
+    "instructions": "<optional description>",
+    "stream": false
 }
 ```
 
-### Spawn Response
+### OpenResponses Response
 
 ```json
 {
-    "ok": true,
-    "sessionKey": "iso-abc123",
-    "result": "<raw text response from OpenClaw agent>"
+    "id": "resp_123",
+    "object": "response",
+    "status": "completed",
+    "output": [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+                { "type": "output_text", "text": "{\"field\":\"value\"}" }
+            ]
+        }
+    ]
 }
 ```
 
-On failure:
-```json
-{
-    "ok": false,
-    "error": "timeout | agent_error | gateway_unavailable",
-    "message": "Human-readable error detail"
-}
-```
-
-### Session Send Request
-
-```http
-POST {gateway_url}/api/sessions/send
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-    "label": "flock-{label}",
-    "message": "<rendered task prompt>",
-    "timeoutSeconds": 120
-}
-```
-
-### Session Send Response
+On failure (typical envelope):
 
 ```json
 {
-    "ok": true,
-    "reply": "<raw text response from OpenClaw agent>"
+    "error": {
+        "message": "Human-readable error detail",
+        "type": "invalid_request_error"
+    }
 }
 ```
 
 ### Task Prompt Format
 
-The task prompt is the actual string sent in `task` / `message` fields. Template variables are shown in `{braces}`:
+The task prompt is sent in the OpenResponses `input` field. Template variables are shown in `{braces}`:
 
-    You are acting as a Flock pipeline agent.
+    Return ONLY valid JSON matching the schema.
+    Schema: {output_json_schema}
+    Input: {input_artifact_json}
 
-    ## Your Role
-    {description}
-
-    ## Instructions
-    {instruction}
-
-    ## Input ({input_type_name})
-    {input_artifact_json}
-
-    ## Expected Output ({output_type_name})
-    Return a single valid JSON object matching this schema:
-    {output_json_schema}
-
-    Return ONLY the JSON object. No markdown fences, no explanation, no preamble.
-
-The `description` and `instruction` sections are omitted if not set on the agent. The JSON values are pretty-printed for readability.
+If agent description is set, it is sent in `instructions`.
 
 ### Metadata Propagation
 
-These Flock-side values are passed through for tracing and correlation:
+Current implementation keeps correlation metadata in Flock artifacts and sends OpenClaw routing metadata via request headers:
 
 | Field | Where | Purpose |
 |---|---|---|
-| `correlation_id` | Embedded in `label`: `flock-{name}-{correlation_id}` | Cross-system trace correlation |
-| `trace_id` | HTTP header: `X-Flock-Trace-Id` | OpenTelemetry trace linking |
-| `agent_name` | Embedded in `label` | Identify which Flock agent spawned this |
-| `retry_attempt` | HTTP header: `X-Flock-Retry: {n}` | Distinguish retries in traces |
+| `correlation_id` | Stored in output artifact metadata | Pipeline correlation inside Flock |
+| `agent_id` | HTTP header: `x-openclaw-agent-id` | Select OpenClaw agent profile (default `main`) |
+| `Authorization` | HTTP header bearer token | Gateway authentication |
 
 ---
 

@@ -39,6 +39,7 @@ def test_openclaw_config_accepts_typed_gateway_config() -> None:
     assert "codie" in config.gateways
     assert config.gateways["codie"].url == "http://localhost:19789"
     assert config.gateways["codie"].token_env == "OPENCLAW_CODIE_TOKEN"
+    assert config.gateways["codie"].agent_id == "main"
 
 
 def test_openclaw_config_accepts_dict_gateway_config() -> None:
@@ -48,12 +49,14 @@ def test_openclaw_config_accepts_dict_gateway_config() -> None:
             "codie": {
                 "url": "http://localhost:19789",
                 "token_env": "OPENCLAW_CODIE_TOKEN",
+                "agent_id": "beta",
             }
         }
     )
 
     assert config.gateways["codie"].url == "http://localhost:19789"
     assert config.gateways["codie"].token_env == "OPENCLAW_CODIE_TOKEN"
+    assert config.gateways["codie"].agent_id == "beta"
 
 
 @pytest.mark.parametrize(
@@ -79,8 +82,10 @@ def test_openclaw_config_from_env_discovers_aliases(
     assert set(config.gateways.keys()) == {"codie", "claude"}
     assert config.gateways["codie"].url == "http://localhost:19789"
     assert config.gateways["codie"].token == "token-codie"
+    assert config.gateways["codie"].agent_id == "main"
     assert config.gateways["claude"].url == "http://localhost:18789"
     assert config.gateways["claude"].token == "token-claude"
+    assert config.gateways["claude"].agent_id == "main"
 
 
 def test_openclaw_config_from_env_fails_on_missing_token(
@@ -127,3 +132,10 @@ def test_gateway_config_explicit_token_overrides_env(
     gw = GatewayConfig(url="http://localhost:19789", token_env="MY_TOKEN", token="explicit")
 
     assert gw.token == "explicit"
+
+
+def test_gateway_config_accepts_custom_agent_id() -> None:
+    """GatewayConfig should allow setting a custom agent_id in explicit config."""
+    gw = GatewayConfig(url="http://localhost:19789", token="abc", agent_id="beta")
+
+    assert gw.agent_id == "beta"

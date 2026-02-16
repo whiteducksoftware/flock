@@ -8,8 +8,9 @@ The OpenClaw agent receives the input artifact and output schema, then uses
 its full toolkit (tools, skills, web search, reasoning) to produce the result.
 
 🔧 SETUP: Configure your OpenClaw gateway before running:
-    export OPENCLAW_CODIE_URL=http://localhost:19789
-    export OPENCLAW_CODIE_TOKEN=your-token
+    1) Enable gateway.http.endpoints.responses.enabled=true in OpenClaw config
+    2) export OPENCLAW_CODIE_URL=http://localhost:19789
+    3) export OPENCLAW_CODIE_TOKEN=your-token
 
 Run:
     uv run python examples/11-openclaw/01_pizza_with_openclaw.py

@@ -11,10 +11,11 @@ Convention:
 Multiple gateways can be configured simultaneously for multi-agent workflows.
 
 🔧 SETUP:
-    export OPENCLAW_CODIE_URL=http://localhost:19789
-    export OPENCLAW_CODIE_TOKEN=your-codie-token
-    export OPENCLAW_CLAUDE_URL=http://localhost:18789
-    export OPENCLAW_CLAUDE_TOKEN=your-claude-token
+    1) Enable gateway.http.endpoints.responses.enabled=true on each OpenClaw gateway
+    2) export OPENCLAW_CODIE_URL=http://localhost:19789
+    3) export OPENCLAW_CODIE_TOKEN=your-codie-token
+    4) export OPENCLAW_CLAUDE_URL=http://localhost:18789
+    5) export OPENCLAW_CLAUDE_TOKEN=your-claude-token
 
 Run:
     uv run python examples/11-openclaw/03_env_config.py

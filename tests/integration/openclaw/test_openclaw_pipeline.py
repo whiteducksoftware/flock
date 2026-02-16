@@ -66,13 +66,26 @@ async def test_openclaw_agent_publishes_validated_artifact_to_blackboard() -> No
     """OpenClaw agent output should be validated and persisted via normal pipeline."""
     OpenClawConfig, GatewayConfig = _openclaw_config_classes()
 
-    respx.post("http://localhost:19789/api/sessions/spawn").mock(
+    respx.post("http://localhost:19789/v1/responses").mock(
         return_value=httpx.Response(
             200,
             json={
-                "ok": True,
-                "sessionKey": "iso-int-1",
-                "result": '{"draft":"Implement endpoint adapter"}',
+                "id": "resp-int-1",
+                "object": "response",
+                "status": "completed",
+                "model": "openclaw",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": '{"draft":"Implement endpoint adapter"}',
+                            }
+                        ],
+                    }
+                ],
             },
         )
     )
@@ -110,13 +123,26 @@ async def test_mixed_openclaw_and_native_pipeline_stays_compatible() -> None:
     """OpenClaw and non-OpenClaw agents should compose in one workflow unchanged."""
     OpenClawConfig, GatewayConfig = _openclaw_config_classes()
 
-    respx.post("http://localhost:19789/api/sessions/spawn").mock(
+    respx.post("http://localhost:19789/v1/responses").mock(
         return_value=httpx.Response(
             200,
             json={
-                "ok": True,
-                "sessionKey": "iso-int-2",
-                "result": '{"draft":"Add retry policy docs"}',
+                "id": "resp-int-2",
+                "object": "response",
+                "status": "completed",
+                "model": "openclaw",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": '{"draft":"Add retry policy docs"}',
+                            }
+                        ],
+                    }
+                ],
             },
         )
     )

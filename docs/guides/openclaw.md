@@ -13,6 +13,28 @@ Standard Flock agents are powerful but limited to what a single LLM call can do.
 
 All while preserving Flock's blackboard semantics — subscriptions, visibility, fan-out, conditions, and tracing work unchanged.
 
+## Gateway Prerequisite (Required)
+
+Flock's OpenClaw integration calls the OpenResponses endpoint:
+
+- `POST /v1/responses`
+
+That endpoint is disabled by default on OpenClaw and **must** be enabled:
+
+```json5
+{
+  gateway: {
+    http: {
+      endpoints: {
+        responses: { enabled: true },
+      },
+    },
+  },
+}
+```
+
+Also ensure gateway auth is configured and Flock provides a valid token (or password-based bearer value).
+
 ## Quick Start
 
 ### 1. Configure Gateway
@@ -26,6 +48,7 @@ flock = Flock(
             "codie": GatewayConfig(
                 url="http://localhost:19789",
                 token_env="OPENCLAW_CODIE_TOKEN",
+                agent_id="main",  # optional, defaults to "main"
             )
         }
     )
@@ -75,6 +98,52 @@ await flock.publish(Spec(feature="Add rate limiting"))
 await flock.run_until_idle()
 ```
 
+## Local + Remote (Tailscale) Setup
+
+### Local machine setup
+
+1. Start OpenClaw gateway on your dev machine.
+2. Enable `gateway.http.endpoints.responses.enabled: true`.
+3. Set an auth token/password and export matching env vars for Flock.
+4. Point Flock to local gateway URL (`http://127.0.0.1:19789` or `http://localhost:19789`).
+
+Quick check:
+
+```bash
+curl -sS http://127.0.0.1:19789/v1/responses \
+  -H "Authorization: Bearer $OPENCLAW_CODIE_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H 'x-openclaw-agent-id: main' \
+  -d '{"model":"openclaw","input":"ping","stream":false}'
+```
+
+### Remote machine via Tailscale Serve
+
+Use this when OpenClaw runs on another machine and you want secure tailnet access.
+
+1. On the gateway host, keep OpenClaw bound to loopback.
+2. Enable Tailscale Serve (`tailscale serve ...`) or OpenClaw's `gateway.tailscale.mode: "serve"`.
+3. Use the Serve HTTPS URL from another tailnet device in Flock:
+
+```python
+GatewayConfig(
+    url="https://my-gateway.my-tailnet.ts.net",
+    token_env="OPENCLAW_CODIE_TOKEN",
+)
+```
+
+Notes:
+- Use `https://<magicdns-host>` directly. Do **not** append `:443` unless your Serve output explicitly requires a non-default port.
+- Keep the token in env vars on the client machine that runs Flock.
+- If you use Tailscale identity auth (`allowTailscale`), bearer tokens may still be preferred for reproducible automation.
+
+### Troubleshooting remote setup
+
+- `405 Method Not Allowed` on `/api/sessions/spawn`: client is using old transport; Flock requires `/v1/responses`.
+- `404`/`connection refused` on `/v1/responses`: endpoint not enabled or wrong host URL.
+- `401/403`: token/password mismatch.
+- Works locally but not remotely: verify Tailscale Serve is active and DNS name resolves from the client device.
+
 ## Configuration Reference
 
 ### OpenClawConfig
@@ -88,15 +157,16 @@ await flock.run_until_idle()
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `url` | `str` | Yes | Gateway URL (e.g., `http://localhost:19789`) |
+| `url` | `str` | Yes | Gateway URL (for example `http://localhost:19789` or a Tailscale Serve HTTPS URL) |
 | `token_env` | `str` | No | Environment variable name containing auth token |
 | `token` | `str` | No | Direct token value (prefer `token_env` for security) |
+| `agent_id` | `str` | No | OpenClaw agent id sent via `x-openclaw-agent-id` (default: `"main"`) |
 
 ### OpenClawDefaults
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `mode` | `"spawn"` | `"spawn"` | Execution mode (Phase 1: spawn only) |
+| `mode` | `"spawn"` | `"spawn"` | Execution mode flag (Phase 1 transport uses stateless `/v1/responses`) |
 | `timeout` | `int` | `120` | Request timeout in seconds |
 | `retries` | `int` | `1` | Retry count for transient failures |
 | `response_mode` | `"json_schema"` | `"json_schema"` | How output schema is communicated |
@@ -164,18 +234,20 @@ OpenClaw failures map to standard Python exceptions:
 | Gateway unreachable | `RuntimeError` | Yes |
 | Timeout | `RuntimeError` | Yes |
 | Auth failure (401/403) | `ValueError` | No |
-| Invalid JSON response | `RuntimeError` | Yes (one repair attempt) |
+| 400 invalid request | `RuntimeError` | No |
+| 429 / 5xx / status=`failed` | `RuntimeError` | Yes |
+| Invalid JSON response | `RuntimeError` | Yes (repair attempt) |
 | Schema validation failure | `RuntimeError` | No (after repair) |
 
 ## How It Works
 
 Under the hood, `openclaw_agent()` creates a standard Flock agent with an `OpenClawEngine` — a custom engine that:
 
-1. Serializes the input artifact and output schema into a task prompt
-2. Spawns an isolated session on the OpenClaw gateway
-3. Parses the structured JSON response
-4. Validates against the Pydantic output model
-5. Publishes the validated artifact to the blackboard
+1. Serializes input artifact payload(s) and output schema into a task prompt.
+2. Calls `POST /v1/responses` on the configured gateway.
+3. Extracts `output[].content[].output_text`.
+4. Parses and validates JSON against the Pydantic output model.
+5. Publishes the validated artifact to the blackboard.
 
 All Flock features work unchanged because OpenClaw is just an engine swap — the orchestrator, blackboard, subscriptions, visibility, and tracing layers are unaware of the difference.
 

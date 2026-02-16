@@ -9,9 +9,10 @@ Pipeline:
     Spec → [OpenClaw: Codie writes code] → Implementation → [LLM: reviews it] → Review
 
 🔧 SETUP:
-    export OPENCLAW_CODIE_URL=http://localhost:19789
-    export OPENCLAW_CODIE_TOKEN=your-token
-    export DEFAULT_MODEL=openai/gpt-4.1  (for the native reviewer agent)
+    1) Enable gateway.http.endpoints.responses.enabled=true in OpenClaw config
+    2) export OPENCLAW_CODIE_URL=http://localhost:19789
+    3) export OPENCLAW_CODIE_TOKEN=your-token
+    4) export DEFAULT_MODEL=openai/gpt-4.1  (for the native reviewer agent)
 
 Run:
     uv run python examples/11-openclaw/02_mixed_pipeline.py

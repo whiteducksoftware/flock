@@ -48,6 +48,11 @@ class GatewayConfig(BaseModel):
         default=None,
         description="Resolved token value (typically from environment).",
     )
+    agent_id: str = Field(
+        default="main",
+        min_length=1,
+        description="Target OpenClaw agent id for HTTP API requests.",
+    )
 
     def model_post_init(self, __context: object) -> None:
         """Resolve token from environment if token_env is set but token is not."""

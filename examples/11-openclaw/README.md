@@ -5,6 +5,7 @@ These examples demonstrate how to use [OpenClaw](https://github.com/openclaw/ope
 ## Prerequisites
 
 - A running OpenClaw gateway (e.g., `openclaw gateway start`)
+- `gateway.http.endpoints.responses.enabled: true` on that gateway
 - Gateway URL and auth token
 
 ## Setup
