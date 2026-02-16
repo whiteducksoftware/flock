@@ -48,8 +48,8 @@ flock = Flock(
     openclaw=OpenClawConfig(
         gateways={
             "codex": GatewayConfig(
-                url="http://localhost:19789",
-                token_env="OPENCLAW_CODEX_TOKEN",
+                url="http://127.0.0.1:19789",
+                token_env="OPENCLAW_CODEX_TOKEN",  # env var name, not token value
             )
         }
     )

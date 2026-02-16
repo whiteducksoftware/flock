@@ -47,13 +47,18 @@ flock = Flock(
         gateways={
             "codex": GatewayConfig(
                 url="http://localhost:19789",
-                token_env="OPENCLAW_CODEX_TOKEN",
+                token_env="OPENCLAW_CODEX_TOKEN",  # env var name (not token value)
                 agent_id="main",  # optional, defaults to "main"
             )
         }
     )
 )
 ```
+
+⚠️ Important:
+- `token_env` expects the **environment variable name** (for example `"OPENCLAW_CODEX_TOKEN"`), not the token itself.
+- If you want to pass a token directly, use `token="..."` instead.
+- The alias passed to `flock.openclaw_agent("<alias>")` must match the configured gateway key (for example `"codex"`).
 
 Or auto-discover from environment variables:
 
@@ -142,6 +147,8 @@ Notes:
 - `405 Method Not Allowed` on `/api/sessions/spawn`: client is using old transport; Flock requires `/v1/responses`.
 - `404`/`connection refused` on `/v1/responses`: endpoint not enabled or wrong host URL.
 - `401/403`: token/password mismatch.
+- `401` with seemingly correct token: check `token_env` value — it must be the **env var name** (e.g. `OPENCLAW_CODEX_TOKEN`), not the token string.
+- `Unknown OpenClaw gateway alias: <alias>`: alias passed to `openclaw_agent()` does not match configured/discovered alias.
 - Works locally but not remotely: verify Tailscale Serve is active and DNS name resolves from the client device.
 
 ## Configuration Reference
@@ -170,6 +177,31 @@ Notes:
 | `timeout` | `int` | `120` | Request timeout in seconds |
 | `retries` | `int` | `1` | Retry count for transient failures |
 | `response_mode` | `"json_schema"` | `"json_schema"` | How output schema is communicated |
+
+### `openclaw_agent()` Parameters
+
+Signature:
+
+```python
+flock.openclaw_agent(
+    alias: str,
+    *,
+    name: str | None = None,
+    mode: str | None = None,
+    timeout: int | None = None,
+    retries: int | None = None,
+    response_mode: str | None = None,
+)
+```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `alias` | Yes | Gateway alias. Must match `OpenClawConfig.gateways` key (or `<ALIAS>` discovered by `from_env()`). |
+| `name` | No | Flock agent name override (defaults to alias). |
+| `mode` | No | Runtime mode override. Phase 1 supports `"spawn"` only. |
+| `timeout` | No | Per-agent timeout override in seconds. |
+| `retries` | No | Per-agent retry override for transient failures. |
+| `response_mode` | No | Schema communication mode (currently `"json_schema"`). |
 
 ### Per-Agent Overrides
 

@@ -45,8 +45,14 @@ pizza_master = flock.openclaw_agent("codex").consumes(Idea).publishes(Pizza)
 **Two config styles:**
 ```python
 # Explicit
-flock = Flock(openclaw=OpenClawConfig(gateways={"codex": GatewayConfig(url=..., token_env=...)}))
+flock = Flock(openclaw=OpenClawConfig(gateways={"codex": GatewayConfig(url=..., token_env="OPENCLAW_CODEX_TOKEN")}))
 
 # Environment-based (recommended for production)
 flock = Flock(openclaw=OpenClawConfig.from_env())
 ```
+
+⚠️ `token_env` is the **env var name**, not the token value.
+
+Alias rule:
+- `OPENCLAW_CODEX_URL` + `OPENCLAW_CODEX_TOKEN` => alias is `"codex"`
+- Use that exact alias in `flock.openclaw_agent("codex")`
