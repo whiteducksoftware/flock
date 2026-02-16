@@ -31,6 +31,13 @@ class OpenClawEngineOutput(BaseModel):
     result: str = Field(description="Engine result payload")
 
 
+@pytest.fixture(autouse=True)
+def _reset_openclaw_reliability_counters() -> None:
+    OpenClawEngine._reset_reliability_counters_for_tests()
+    yield
+    OpenClawEngine._reset_reliability_counters_for_tests()
+
+
 def _config(
     *, token: str | None = "token-codie", agent_id: str = "main"
 ) -> OpenClawConfig:
@@ -262,6 +269,15 @@ async def test_unrecognized_text_format_falls_back_without_it() -> None:
     outputs = await _invoke_once(retries=1)
     assert calls == 2
     assert outputs[0].payload["result"] == "fallback ok"
+
+    counters = OpenClawEngine._get_reliability_counters()
+    assert counters["requests_total"] == 1
+    assert counters["attempts_total"] == 2
+    assert counters["attempts_with_text_format"] == 1
+    assert counters["attempts_without_text_format"] == 1
+    assert counters["fallback_unsupported_text_format"] == 1
+    assert counters["responses_success"] == 1
+    assert counters["responses_failure"] == 0
 
 
 @pytest.mark.asyncio

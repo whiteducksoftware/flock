@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Literal
+import logging
+from threading import Lock
+from typing import Any, ClassVar, Literal
 from uuid import uuid4
 
 import httpx
@@ -13,6 +15,9 @@ from flock.components.agent import EngineComponent
 from flock.integrations.openclaw.config import GatewayConfig
 from flock.integrations.openclaw.streaming import OpenClawStreamingExecutor
 from flock.utils.runtime import EvalResult
+
+
+logger = logging.getLogger(__name__)
 
 
 class OpenClawEngine(EngineComponent):
@@ -25,6 +30,56 @@ class OpenClawEngine(EngineComponent):
     retries: int = 1
     response_mode: Literal["json_schema"] = "json_schema"
 
+    _RELIABILITY_LOG_EVERY: ClassVar[int] = 25
+    _reliability_counter_lock: ClassVar[Lock] = Lock()
+    _reliability_counters: ClassVar[dict[str, int]] = {
+        "requests_total": 0,
+        "attempts_total": 0,
+        "attempts_with_text_format": 0,
+        "attempts_without_text_format": 0,
+        "repair_attempts": 0,
+        "runtime_retries": 0,
+        "parse_retries": 0,
+        "parse_failures": 0,
+        "fallback_unsupported_text_format": 0,
+        "responses_success": 0,
+        "responses_failure": 0,
+        "responses_repaired_success": 0,
+        "auth_failures": 0,
+    }
+
+    @classmethod
+    def _bump_counter(cls, key: str, amount: int = 1) -> None:
+        with cls._reliability_counter_lock:
+            cls._reliability_counters[key] = cls._reliability_counters.get(key, 0) + amount
+
+    @classmethod
+    def _get_reliability_counters(cls) -> dict[str, int]:
+        with cls._reliability_counter_lock:
+            return dict(cls._reliability_counters)
+
+    @classmethod
+    def _reset_reliability_counters_for_tests(cls) -> None:
+        with cls._reliability_counter_lock:
+            for key in cls._reliability_counters:
+                cls._reliability_counters[key] = 0
+
+    def _log_reliability_snapshot_if_due(self) -> None:
+        snapshot = self._get_reliability_counters()
+        total = snapshot.get("requests_total", 0)
+        if total <= 0 or total % self._RELIABILITY_LOG_EVERY != 0:
+            return
+
+        logger.info(
+            "OpenClaw reliability counters: requests=%s success=%s failure=%s repaired_success=%s parse_failures=%s unsupported_text_fallback=%s",
+            snapshot.get("requests_total", 0),
+            snapshot.get("responses_success", 0),
+            snapshot.get("responses_failure", 0),
+            snapshot.get("responses_repaired_success", 0),
+            snapshot.get("parse_failures", 0),
+            snapshot.get("fallback_unsupported_text_format", 0),
+        )
+
     async def evaluate(self, agent, ctx, inputs, output_group) -> EvalResult:
         if self.mode != "spawn":
             raise ValueError(f"Unsupported OpenClaw mode: {self.mode}")
@@ -34,6 +89,8 @@ class OpenClawEngine(EngineComponent):
 
         if not output_group.outputs:
             return EvalResult.empty(state=dict(inputs.state))
+
+        self._bump_counter("requests_total")
 
         endpoint = f"{self.gateway.url.rstrip('/')}/v1/responses"
         headers = {
@@ -64,8 +121,15 @@ class OpenClawEngine(EngineComponent):
             if strip_text_format:
                 payload.pop("text", None)
 
+            self._bump_counter("attempts_total")
+            if "text" in payload:
+                self._bump_counter("attempts_with_text_format")
+            else:
+                self._bump_counter("attempts_without_text_format")
+
             # Single repair attempt (or bounded by retries): re-ask with strict JSON reminder.
             if attempt > 0 and parse_error is not None:
+                self._bump_counter("repair_attempts")
                 payload["input"] = self._build_repair_task(
                     original_task=str(base_payload["input"]),
                     parse_error=str(parse_error),
@@ -103,22 +167,33 @@ class OpenClawEngine(EngineComponent):
             except RuntimeError as exc:
                 # Gateway doesn't support text.format — strip it and retry.
                 if self._is_unsupported_text_format_error(exc):
+                    self._bump_counter("fallback_unsupported_text_format")
                     strip_text_format = True
                     if attempt < attempts - 1:
+                        self._bump_counter("runtime_retries")
                         continue
+
                     # Last attempt: retry once more without text.format.
                     payload = dict(base_payload)
                     payload.pop("text", None)
+                    self._bump_counter("attempts_total")
+                    self._bump_counter("attempts_without_text_format")
                     try:
                         if should_stream:
                             data = await self._execute_streaming_attempt(
-                                agent=agent, ctx=ctx, output_group=output_group,
-                                endpoint=endpoint, headers=headers, payload=payload,
+                                agent=agent,
+                                ctx=ctx,
+                                output_group=output_group,
+                                endpoint=endpoint,
+                                headers=headers,
+                                payload=payload,
                                 pre_generated_artifact_id=pre_generated_artifact_id,
                             )
                         else:
                             response_payload = await self._call_responses_api(
-                                endpoint=endpoint, headers=headers, payload=payload,
+                                endpoint=endpoint,
+                                headers=headers,
+                                payload=payload,
                             )
                             data = self._parse_responses_output(response_payload)
 
@@ -127,29 +202,62 @@ class OpenClawEngine(EngineComponent):
                         if pre_generated_artifact_id is not None:
                             metadata["artifact_id"] = pre_generated_artifact_id
                         artifact = output_decl.apply(
-                            data, produced_by=agent.name, metadata=metadata,
+                            data,
+                            produced_by=agent.name,
+                            metadata=metadata,
                         )
+                        self._bump_counter("responses_success")
+                        self._bump_counter("responses_repaired_success")
+                        self._log_reliability_snapshot_if_due()
+
+                        if should_stream and ctx and not getattr(self, "no_output", False):
+                            ctx.state["_flock_stream_live_active"] = True
+
                         return EvalResult(artifacts=[artifact], state=dict(inputs.state))
                     except Exception:
+                        self._bump_counter("responses_failure")
+                        self._log_reliability_snapshot_if_due()
                         raise exc from None
 
                 if attempt < attempts - 1 and self._is_retriable_runtime_error(exc):
+                    self._bump_counter("runtime_retries")
                     continue
+
+                self._bump_counter("responses_failure")
+                self._log_reliability_snapshot_if_due()
                 raise
             except ValueError as exc:
                 # Preserve auth/token failures as ValueError (fail-fast contract).
                 if "auth/token failure" in str(exc).lower():
+                    self._bump_counter("auth_failures")
+                    self._bump_counter("responses_failure")
+                    self._log_reliability_snapshot_if_due()
                     raise
 
+                self._bump_counter("parse_failures")
                 parse_error = exc
                 if attempt < attempts - 1:
+                    self._bump_counter("parse_retries")
                     continue
+
+                self._bump_counter("responses_failure")
+                self._log_reliability_snapshot_if_due()
                 raise RuntimeError(f"OpenClaw response parse error: {exc}") from exc
             except ValidationError as exc:
+                self._bump_counter("parse_failures")
                 parse_error = exc
                 if attempt < attempts - 1:
+                    self._bump_counter("parse_retries")
                     continue
+
+                self._bump_counter("responses_failure")
+                self._log_reliability_snapshot_if_due()
                 raise RuntimeError(f"OpenClaw response parse error: {exc}") from exc
+
+            self._bump_counter("responses_success")
+            if attempt > 0 or parse_error is not None or strip_text_format:
+                self._bump_counter("responses_repaired_success")
+            self._log_reliability_snapshot_if_due()
 
             if should_stream and ctx and not getattr(self, "no_output", False):
                 ctx.state["_flock_stream_live_active"] = True
