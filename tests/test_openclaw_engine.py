@@ -106,8 +106,8 @@ async def test_responses_request_contains_expected_contract_fields_and_headers()
     assert payload["model"] == "openclaw"
     assert payload["stream"] is False
     assert isinstance(payload["input"], str)
-    # Schema is now enforced via text.format.json_schema, not inlined in prompt
-    assert "text" in payload
+    # Schema in prompt text (fallback) + text.format (enforcement)
+    assert "Schema:" in payload["input"]
     assert payload["text"]["format"]["type"] == "json_schema"
     assert payload["text"]["format"]["strict"] is True
     assert isinstance(payload["text"]["format"]["schema"], dict)
@@ -238,6 +238,30 @@ async def test_bad_request_400_is_not_retried() -> None:
         await _invoke_once(retries=3)
 
     assert calls == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_unrecognized_text_format_falls_back_without_it() -> None:
+    """Gateway rejecting text.format should retry without it and succeed."""
+    calls = 0
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        payload = json.loads(request.content.decode("utf-8"))
+        if "text" in payload:
+            return httpx.Response(
+                400,
+                json={"error": {"message": 'Unrecognized key: "text"'}},
+            )
+        return httpx.Response(200, json=_responses_completed('{"result":"fallback ok"}'))
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    outputs = await _invoke_once(retries=1)
+    assert calls == 2
+    assert outputs[0].payload["result"] == "fallback ok"
 
 
 @pytest.mark.asyncio
@@ -392,6 +416,7 @@ def test_build_responses_payload_includes_description_as_instructions() -> None:
     assert payload["instructions"] == "Plans meals"
     assert payload["model"] == "openclaw"
     assert payload["stream"] is False
+    assert "Schema:" in payload["input"]
     assert payload["text"]["format"]["type"] == "json_schema"
     assert payload["text"]["format"]["strict"] is True
 

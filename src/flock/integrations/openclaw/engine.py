@@ -55,9 +55,14 @@ class OpenClawEngine(EngineComponent):
 
         attempts = max(1, self.retries + 1)
         parse_error: Exception | None = None
+        strip_text_format = False
 
         for attempt in range(attempts):
             payload = dict(base_payload)
+
+            # If gateway rejected text.format, strip it for all subsequent attempts.
+            if strip_text_format:
+                payload.pop("text", None)
 
             # Single repair attempt (or bounded by retries): re-ask with strict JSON reminder.
             if attempt > 0 and parse_error is not None:
@@ -96,6 +101,38 @@ class OpenClawEngine(EngineComponent):
                     metadata=metadata,
                 )
             except RuntimeError as exc:
+                # Gateway doesn't support text.format — strip it and retry.
+                if self._is_unsupported_text_format_error(exc):
+                    strip_text_format = True
+                    if attempt < attempts - 1:
+                        continue
+                    # Last attempt: retry once more without text.format.
+                    payload = dict(base_payload)
+                    payload.pop("text", None)
+                    try:
+                        if should_stream:
+                            data = await self._execute_streaming_attempt(
+                                agent=agent, ctx=ctx, output_group=output_group,
+                                endpoint=endpoint, headers=headers, payload=payload,
+                                pre_generated_artifact_id=pre_generated_artifact_id,
+                            )
+                        else:
+                            response_payload = await self._call_responses_api(
+                                endpoint=endpoint, headers=headers, payload=payload,
+                            )
+                            data = self._parse_responses_output(response_payload)
+
+                        output_decl = output_group.outputs[0]
+                        metadata = {"correlation_id": ctx.correlation_id}
+                        if pre_generated_artifact_id is not None:
+                            metadata["artifact_id"] = pre_generated_artifact_id
+                        artifact = output_decl.apply(
+                            data, produced_by=agent.name, metadata=metadata,
+                        )
+                        return EvalResult(artifacts=[artifact], state=dict(inputs.state))
+                    except Exception:
+                        raise exc from None
+
                 if attempt < attempts - 1 and self._is_retriable_runtime_error(exc):
                     continue
                 raise
@@ -251,7 +288,8 @@ class OpenClawEngine(EngineComponent):
 
         description = str(getattr(agent, "description", "") or "").strip()
 
-        task_lines = ["Return ONLY valid JSON matching the provided schema."]
+        task_lines = ["Return ONLY valid JSON matching the schema."]
+        task_lines.append(f"Schema: {json.dumps(output_schema, ensure_ascii=False)}")
 
         if len(input_payloads) == 1:
             task_lines.append(
@@ -265,6 +303,8 @@ class OpenClawEngine(EngineComponent):
         # Build strict JSON schema for structured output enforcement.
         # This constrains the model at the token level — it cannot produce
         # invalid JSON when the provider supports json_schema response format.
+        # If the gateway doesn't support text.format, the schema is still
+        # in the prompt text as fallback (belt + suspenders).
         strict_schema = self._make_strict_schema(output_schema)
 
         payload: dict[str, Any] = {
@@ -448,6 +488,16 @@ class OpenClawEngine(EngineComponent):
             raise ValueError("result JSON must be an object")
 
         return parsed
+
+    @staticmethod
+    def _is_unsupported_text_format_error(exc: RuntimeError) -> bool:
+        """Detect 400 errors caused by gateway not supporting text.format."""
+        message = str(exc).lower()
+        return "400" in message and (
+            "unrecognized key" in message
+            or '"text"' in message
+            or "text.format" in message
+        )
 
     def _is_retriable_runtime_error(self, exc: RuntimeError) -> bool:
         message = str(exc).lower()
