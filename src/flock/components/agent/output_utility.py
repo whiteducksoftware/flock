@@ -279,8 +279,9 @@ class OutputUtilityComponent(AgentComponent):
                 display_items = []
                 for artifact in result_to_display.artifacts:
                     artifact_dict = artifact.model_dump()
-                    artifact_dict["input"] = input_preview
-                    display_items.append(artifact_dict)
+                    # Keep input first in display order for easier side-by-side reading
+                    # (requested UX: input should appear before generated output fields).
+                    display_items.append({"input": input_preview, **artifact_dict})
 
         self._formatter.display_result(display_items, agent_display)
 

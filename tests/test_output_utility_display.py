@@ -100,6 +100,7 @@ async def test_openclaw_display_includes_input_object_preview() -> None:
 
     assert isinstance(display_items, list)
     assert isinstance(display_items[0], dict)
+    assert list(display_items[0].keys())[0] == "input"
     assert display_items[0]["input"] == input_payload
     assert result.artifacts[0].payload == {"size": "12-inch"}
 
