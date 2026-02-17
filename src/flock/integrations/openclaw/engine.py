@@ -16,6 +16,7 @@ import httpx
 from pydantic import Field, ValidationError
 
 from flock.components.agent import EngineComponent
+from flock.core.fan_out import FanOutRange
 from flock.integrations.openclaw.config import GatewayConfig
 from flock.integrations.openclaw.streaming import OpenClawStreamingExecutor
 from flock.utils.runtime import EvalResult
@@ -108,6 +109,8 @@ class OpenClawEngine(EngineComponent):
         if not output_group.outputs:
             return EvalResult.empty(state=dict(inputs.state))
 
+        output_decl = self._resolve_output_decl(output_group)
+
         self._bump_counter("requests_total")
 
         endpoint = f"{self.gateway.url.rstrip('/')}/v1/responses"
@@ -162,6 +165,7 @@ class OpenClawEngine(EngineComponent):
                             agent=agent,
                             ctx=ctx,
                             output_group=output_group,
+                            output_decl=output_decl,
                             endpoint=endpoint,
                             headers=headers,
                             payload=payload,
@@ -174,17 +178,20 @@ class OpenClawEngine(EngineComponent):
                             headers=headers,
                             payload=payload,
                         )
-                        data = self._parse_responses_output(response_payload)
+                        data = self._parse_responses_output(
+                            response_payload,
+                            output_decl=output_decl,
+                        )
 
-                    output_decl = output_group.outputs[0]
                     metadata: dict[str, Any] = {
                         "correlation_id": getattr(ctx, "correlation_id", None)
                     }
                     if pre_generated_artifact_id is not None:
                         metadata["artifact_id"] = pre_generated_artifact_id
 
-                    artifact = output_decl.apply(
+                    artifacts = self._materialize_artifacts(
                         data,
+                        output_decl=output_decl,
                         produced_by=agent.name,
                         metadata=metadata,
                     )
@@ -208,6 +215,7 @@ class OpenClawEngine(EngineComponent):
                                     agent=agent,
                                     ctx=ctx,
                                     output_group=output_group,
+                                    output_decl=output_decl,
                                     endpoint=endpoint,
                                     headers=headers,
                                     payload=payload,
@@ -220,16 +228,19 @@ class OpenClawEngine(EngineComponent):
                                     headers=headers,
                                     payload=payload,
                                 )
-                                data = self._parse_responses_output(response_payload)
+                                data = self._parse_responses_output(
+                                    response_payload,
+                                    output_decl=output_decl,
+                                )
 
-                            output_decl = output_group.outputs[0]
                             metadata = {
                                 "correlation_id": getattr(ctx, "correlation_id", None)
                             }
                             if pre_generated_artifact_id is not None:
                                 metadata["artifact_id"] = pre_generated_artifact_id
-                            artifact = output_decl.apply(
+                            artifacts = self._materialize_artifacts(
                                 data,
+                                output_decl=output_decl,
                                 produced_by=agent.name,
                                 metadata=metadata,
                             )
@@ -240,7 +251,7 @@ class OpenClawEngine(EngineComponent):
                             if should_stream and ctx and not getattr(self, "no_output", False):
                                 ctx.state["_flock_stream_live_active"] = True
 
-                            return EvalResult(artifacts=[artifact], state=dict(inputs.state))
+                            return EvalResult(artifacts=artifacts, state=dict(inputs.state))
                         except Exception:
                             self._bump_counter("responses_failure")
                             self._log_reliability_snapshot_if_due()
@@ -289,7 +300,7 @@ class OpenClawEngine(EngineComponent):
                 if should_stream and ctx and not getattr(self, "no_output", False):
                     ctx.state["_flock_stream_live_active"] = True
 
-                return EvalResult(artifacts=[artifact], state=dict(inputs.state))
+                return EvalResult(artifacts=artifacts, state=dict(inputs.state))
 
             # Defensive fallback; loop should always return or raise.
             raise RuntimeError("OpenClaw evaluation failed unexpectedly.")
@@ -305,12 +316,13 @@ class OpenClawEngine(EngineComponent):
         agent,
         ctx,
         output_group,
+        output_decl,
         endpoint: str,
         headers: dict[str, str],
         payload: dict[str, Any],
         pre_generated_artifact_id,
         is_dashboard_stream: bool,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         live_cm = nullcontext()
         live_ref: dict[str, Any] | None = None
 
@@ -356,7 +368,10 @@ class OpenClawEngine(EngineComponent):
             live_ref["value"] = None
 
         output_text = stream_result.final_text or stream_result.full_text
-        return self._parse_output_text(output_text)
+        return self._parse_output_text(
+            output_text,
+            expects_array=self._expects_array_response(output_decl),
+        )
 
     def _resolve_streaming_mode(self, ctx) -> tuple[bool, bool, bool]:
         """Determine streaming mode and claim CLI stream slot when needed.
@@ -531,8 +546,12 @@ class OpenClawEngine(EngineComponent):
     def _build_responses_payload(
         self, *, agent, ctx, inputs, output_group
     ) -> dict[str, Any]:
-        output_decl = output_group.outputs[0]
+        output_decl = self._resolve_output_decl(output_group)
         output_schema = output_decl.spec.model.model_json_schema()
+        schema_contract = self._build_output_schema_contract(
+            output_schema,
+            output_decl=output_decl,
+        )
 
         input_payloads: list[dict[str, Any]] = []
         for artifact in inputs.artifacts:
@@ -544,12 +563,28 @@ class OpenClawEngine(EngineComponent):
 
         description = str(getattr(agent, "description", "") or "").strip()
 
-        task_lines = [
-            "Your ENTIRE response must be a single valid JSON object matching the schema below.",
-            "Do not include any text, explanation, markdown fences, or commentary — only the raw JSON object.",
-            "The response will be parsed directly by a JSON schema validator.",
-        ]
-        task_lines.append(f"Schema: {json.dumps(output_schema, ensure_ascii=False)}")
+        if self._expects_array_response(output_decl):
+            fan_out_range = self._get_fan_out_range(output_decl)
+            assert fan_out_range is not None
+            if fan_out_range.is_fixed():
+                count_hint = f"exactly {fan_out_range.fixed_count()}"
+            else:
+                count_hint = f"between {fan_out_range.min} and {fan_out_range.max}"
+
+            task_lines = [
+                "Your ENTIRE response must be a single valid JSON array matching the schema below.",
+                "Do not include any text, explanation, markdown fences, or commentary — only the raw JSON array.",
+                "The response will be parsed directly by a JSON schema validator.",
+                f"Return {count_hint} item(s).",
+            ]
+        else:
+            task_lines = [
+                "Your ENTIRE response must be a single valid JSON object matching the schema below.",
+                "Do not include any text, explanation, markdown fences, or commentary — only the raw JSON object.",
+                "The response will be parsed directly by a JSON schema validator.",
+            ]
+
+        task_lines.append(f"Schema: {json.dumps(schema_contract, ensure_ascii=False)}")
 
         if len(input_payloads) == 1:
             task_lines.append(
@@ -565,7 +600,11 @@ class OpenClawEngine(EngineComponent):
         # invalid JSON when the provider supports json_schema response format.
         # If the gateway doesn't support text.format, the schema is still
         # in the prompt text as fallback (belt + suspenders).
-        strict_schema = self._make_strict_schema(output_schema)
+        strict_schema = self._make_strict_schema(schema_contract)
+
+        schema_name = output_decl.spec.model.__name__
+        if self._expects_array_response(output_decl):
+            schema_name = f"{schema_name}List"
 
         payload: dict[str, Any] = {
             "model": "openclaw",
@@ -574,7 +613,7 @@ class OpenClawEngine(EngineComponent):
             "text": {
                 "format": {
                     "type": "json_schema",
-                    "name": output_decl.spec.model.__name__,
+                    "name": schema_name,
                     "schema": strict_schema,
                     "strict": True,
                 }
@@ -634,12 +673,129 @@ class OpenClawEngine(EngineComponent):
 
         return node
 
+    def _resolve_output_decl(self, output_group):
+        if len(output_group.outputs) != 1:
+            raise ValueError(
+                "OpenClaw engine does not support multiple output declarations in a single output group yet. "
+                "Use one publishes(...) output type per OpenClaw group until multi-output envelope support is implemented."
+            )
+        return output_group.outputs[0]
+
+    def _get_fan_out_range(self, output_decl) -> FanOutRange | None:
+        fan_out_range = getattr(output_decl, "fan_out", None)
+        return fan_out_range if isinstance(fan_out_range, FanOutRange) else None
+
+    def _expects_array_response(self, output_decl) -> bool:
+        return self._get_fan_out_range(output_decl) is not None
+
+    def _build_output_schema_contract(
+        self,
+        output_schema: dict[str, Any],
+        *,
+        output_decl,
+    ) -> dict[str, Any]:
+        fan_out_range = self._get_fan_out_range(output_decl)
+        if fan_out_range is None:
+            return output_schema
+
+        schema_contract: dict[str, Any] = {
+            "type": "array",
+            "items": output_schema,
+        }
+        if fan_out_range.is_fixed():
+            fixed = fan_out_range.fixed_count()
+            assert fixed is not None
+            schema_contract["minItems"] = fixed
+            schema_contract["maxItems"] = fixed
+        else:
+            schema_contract["minItems"] = fan_out_range.min
+            schema_contract["maxItems"] = fan_out_range.max
+
+        return schema_contract
+
+    def _enforce_fan_out_contract(
+        self,
+        items: list[dict[str, Any]],
+        *,
+        output_decl,
+        agent_name: str,
+    ) -> list[dict[str, Any]]:
+        fan_out_range = self._get_fan_out_range(output_decl)
+        if fan_out_range is None:
+            return items
+
+        actual_count = len(items)
+        type_name = output_decl.spec.type_name
+
+        if fan_out_range.is_fixed():
+            expected = fan_out_range.fixed_count()
+            assert expected is not None
+            if actual_count != expected:
+                raise RuntimeError(
+                    "OpenClaw fan-out contract violation "
+                    f"in agent '{agent_name}': expected exactly {expected} artifact(s) "
+                    f"of type '{type_name}', got {actual_count}."
+                )
+            return items
+
+        if actual_count < fan_out_range.min:
+            raise RuntimeError(
+                "OpenClaw fan-out contract violation "
+                f"in agent '{agent_name}': expected between {fan_out_range.min} and {fan_out_range.max} "
+                f"artifact(s) of type '{type_name}', got {actual_count}."
+            )
+
+        if actual_count > fan_out_range.max:
+            logger.warning(
+                "OpenClaw dynamic fan-out exceeded max in agent '%s': type='%s', range=(%s,%s), actual=%s; truncating to max.",
+                agent_name,
+                type_name,
+                fan_out_range.min,
+                fan_out_range.max,
+                actual_count,
+            )
+            return items[: fan_out_range.max]
+
+        return items
+
+    def _materialize_artifacts(
+        self,
+        data: dict[str, Any] | list[dict[str, Any]],
+        *,
+        output_decl,
+        produced_by: str,
+        metadata: dict[str, Any],
+    ) -> list:
+        if self._expects_array_response(output_decl):
+            if not isinstance(data, list):
+                raise ValueError(
+                    f"Expected array data for fan-out output, got {type(data).__name__}."
+                )
+            items = self._enforce_fan_out_contract(
+                data,
+                output_decl=output_decl,
+                agent_name=str(produced_by),
+            )
+            return [
+                output_decl.apply(item, produced_by=produced_by, metadata=metadata)
+                for item in items
+            ]
+
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"Expected object data for single output, got {type(data).__name__}."
+            )
+
+        return [
+            output_decl.apply(data, produced_by=produced_by, metadata=metadata)
+        ]
+
     def _build_repair_task(self, *, original_task: str, parse_error: str) -> str:
         return (
             f"{original_task}\n\n"
             "Previous response was not valid JSON for the required schema. "
             f"Error: {parse_error}.\n"
-            "Respond again with ONLY a valid JSON object and no extra text."
+            "Respond again with ONLY valid JSON that matches the schema and no extra text."
         )
 
     async def _call_responses_api(
@@ -705,9 +861,17 @@ class OpenClawEngine(EngineComponent):
 
         return payload_json
 
-    def _parse_responses_output(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _parse_responses_output(
+        self,
+        payload: dict[str, Any],
+        *,
+        output_decl,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         text = self._extract_responses_output_text(payload)
-        return self._parse_output_text(text)
+        return self._parse_output_text(
+            text,
+            expects_array=self._expects_array_response(output_decl),
+        )
 
     def _extract_responses_output_text(self, payload: dict[str, Any]) -> str:
         output = payload.get("output")
@@ -738,7 +902,12 @@ class OpenClawEngine(EngineComponent):
 
         return text
 
-    def _parse_output_text(self, text: str) -> dict[str, Any]:
+    def _parse_output_text(
+        self,
+        text: str,
+        *,
+        expects_array: bool = False,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         # Truncate for error messages — enough to diagnose, not flood logs.
         preview = text[:500] + ("..." if len(text) > 500 else "")
 
@@ -748,6 +917,20 @@ class OpenClawEngine(EngineComponent):
             raise ValueError(
                 f"result is not valid JSON: {exc}. Agent response: {preview}"
             ) from exc
+
+        if expects_array:
+            if not isinstance(parsed, list):
+                raise ValueError(
+                    f"result JSON must be an array, got {type(parsed).__name__}. "
+                    f"Agent response: {preview}"
+                )
+            for idx, item in enumerate(parsed):
+                if not isinstance(item, dict):
+                    raise ValueError(
+                        f"result JSON array items must be objects; item {idx} is {type(item).__name__}. "
+                        f"Agent response: {preview}"
+                    )
+            return parsed
 
         if not isinstance(parsed, dict):
             raise ValueError(
@@ -781,6 +964,7 @@ class OpenClawEngine(EngineComponent):
                 "rate limit",
                 "server error",
                 "response failed",
+                "fan-out contract violation",
             )
         )
 

@@ -288,6 +288,28 @@ fixer = flock.openclaw_agent("claude").consumes(Review).publishes(FixedCode)
 
 The blackboard doesn't care where compute comes from — it's all typed artifacts.
 
+## Fan-Out Semantics (OpenClaw)
+
+OpenClaw agents now support Flock fan-out declarations for **single output types**:
+
+```python
+scout = (
+    flock.openclaw_agent("codex")
+    .consumes(CompetitorBrief)
+    .publishes(CompetitorProfile, fan_out=(3, 8))
+)
+```
+
+Behavior:
+- For fan-out outputs, the engine requests a JSON **array** contract from OpenClaw.
+- It materializes one artifact per returned item.
+- **Fixed fan-out** (`fan_out=3`) requires exact count.
+- **Dynamic fan-out range** (`fan_out=(3, 8)`) requires at least `min`; values above `max` are capped to `max`.
+- In v1, count violations trigger **full-request retry** (no partial-accept stitching).
+
+Current limitation:
+- One OpenClaw output group must contain a **single output type**. Multi-output groups in one `.publishes(A, B)` call are not supported yet in OpenClaw mode.
+
 ## Error Handling
 
 OpenClaw failures map to standard Python exceptions:
@@ -309,8 +331,8 @@ Under the hood, `openclaw_agent()` creates a standard Flock agent with an `OpenC
 1. Serializes input artifact payload(s) and output schema into a task prompt.
 2. Calls `POST /v1/responses` on the configured gateway.
 3. Extracts `output[].content[].output_text`.
-4. Parses and validates JSON against the Pydantic output model.
-5. Publishes the validated artifact to the blackboard.
+4. Parses and validates JSON against the Pydantic output model (object or fan-out array).
+5. Publishes the validated artifact(s) to the blackboard.
 
 All Flock features work unchanged because OpenClaw is just an engine swap — the orchestrator, blackboard, subscriptions, visibility, and tracing layers are unaware of the difference.
 

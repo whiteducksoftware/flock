@@ -31,6 +31,11 @@ class OpenClawEngineOutput(BaseModel):
     result: str = Field(description="Engine result payload")
 
 
+@flock_type(name="OpenClawEngineAuxOutput")
+class OpenClawEngineAuxOutput(BaseModel):
+    note: str = Field(description="Auxiliary output payload")
+
+
 @pytest.fixture(autouse=True)
 def _reset_openclaw_reliability_counters() -> None:
     OpenClawEngine._reset_reliability_counters_for_tests()
@@ -75,6 +80,29 @@ async def _invoke_once(
     return await flock.invoke(
         builder.agent,
         OpenClawEngineInput(prompt="make pizza"),
+        publish_outputs=False,
+    )
+
+
+async def _invoke_fan_out_once(
+    *,
+    fan_out,
+    timeout_seconds: int = 120,
+    retries: int = 1,
+    config: OpenClawConfig | None = None,
+):
+    flock = Flock(openclaw=config or _config(), no_output=True)
+    builder = (
+        flock.openclaw_agent(
+            "codie", timeout=timeout_seconds, retries=retries, mode="spawn"
+        )
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, fan_out=fan_out)
+    )
+
+    return await flock.invoke(
+        builder.agent,
+        OpenClawEngineInput(prompt="map competitors"),
         publish_outputs=False,
     )
 
@@ -380,18 +408,33 @@ async def test_mode_other_than_spawn_fails_fast() -> None:
 
 
 def test_parse_responses_output_validates_shapes() -> None:
-    """Parser should validate output text presence and JSON object shape."""
-    engine = OpenClawEngine(alias="codie", gateway=_config().get_gateway("codie"))
+    """Parser should validate output text presence and JSON shape per output contract."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
 
-    assert engine._parse_responses_output(_responses_completed('{"result":"ok"}')) == {
-        "result": "ok"
-    }
+    engine = builder.agent.engines[0]
+    output_decl = builder.agent.output_groups[0].outputs[0]
+
+    assert engine._parse_responses_output(
+        _responses_completed('{"result":"ok"}'),
+        output_decl=output_decl,
+    ) == {"result": "ok"}
 
     with pytest.raises(ValueError, match="result JSON must be an object"):
-        engine._parse_responses_output(_responses_completed('["x"]'))
+        engine._parse_responses_output(
+            _responses_completed('["x"]'),
+            output_decl=output_decl,
+        )
 
     with pytest.raises(ValueError, match="missing output text|output"):
-        engine._parse_responses_output({"id": "resp_x", "status": "completed", "output": []})
+        engine._parse_responses_output(
+            {"id": "resp_x", "status": "completed", "output": []},
+            output_decl=output_decl,
+        )
 
 
 def test_stream_default_uses_pytest_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -452,6 +495,140 @@ def test_build_responses_payload_includes_description_as_instructions() -> None:
     assert "Schema:" in payload["input"]
     assert payload["text"]["format"]["type"] == "json_schema"
     assert payload["text"]["format"]["strict"] is True
+
+
+def test_build_responses_payload_uses_array_schema_for_fan_out_range() -> None:
+    """Fan-out declarations should produce an array schema request contract."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Discovers competitors")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, fan_out=(3, 8))
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-fanout"),
+        inputs=SimpleNamespace(
+            artifacts=[SimpleNamespace(payload={"prompt": "find competitors"})],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    schema = payload["text"]["format"]["schema"]
+    assert schema["type"] == "array"
+    assert schema["minItems"] == 3
+    assert schema["maxItems"] == 8
+    assert "between 3 and 8" in payload["input"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fan_out_fixed_materializes_multiple_artifacts() -> None:
+    """Fixed fan-out should materialize one artifact per returned item."""
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            json=_responses_completed(
+                '[{"result":"one"},{"result":"two"},{"result":"three"}]'
+            ),
+        )
+    )
+
+    outputs = await _invoke_fan_out_once(fan_out=3, retries=0)
+
+    assert len(outputs) == 3
+    assert [item.payload["result"] for item in outputs] == ["one", "two", "three"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fan_out_fixed_count_mismatch_retries_then_fails() -> None:
+    """Count mismatch should follow retry policy and fail with contract error."""
+    calls = 0
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json=_responses_completed('[{"result":"one"},{"result":"two"}]'),
+        )
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    with pytest.raises(RuntimeError, match="fan-out|count|Expected|expected"):
+        await _invoke_fan_out_once(fan_out=3, retries=1)
+
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fan_out_dynamic_under_min_retries_then_fails() -> None:
+    """Dynamic fan-out below min should retry and then fail explicitly."""
+    calls = 0
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json=_responses_completed('[{"result":"one"},{"result":"two"}]'),
+        )
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    with pytest.raises(RuntimeError, match="fan-out|range|Expected|expected"):
+        await _invoke_fan_out_once(fan_out=(3, 8), retries=1)
+
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fan_out_dynamic_over_max_is_capped() -> None:
+    """Dynamic fan-out over max should cap outputs at declared max bound."""
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            json=_responses_completed(
+                '[{"result":"one"},{"result":"two"},{"result":"three"},{"result":"four"}]'
+            ),
+        )
+    )
+
+    outputs = await _invoke_fan_out_once(fan_out=(2, 3), retries=0)
+
+    assert len(outputs) == 3
+    assert [item.payload["result"] for item in outputs] == ["one", "two", "three"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_openclaw_engine_rejects_multi_output_group_contract() -> None:
+    """OpenClaw engine should fail fast for multi-output groups."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    agent = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput)
+        .agent
+    )
+
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(200, json=_responses_completed('{"result":"ok"}'))
+    )
+
+    with pytest.raises(ValueError, match="multiple output declarations|multi-output|unsupported"):
+        await flock.invoke(
+            agent,
+            OpenClawEngineInput(prompt="multi-output"),
+            publish_outputs=False,
+        )
 
 
 @pytest.mark.asyncio

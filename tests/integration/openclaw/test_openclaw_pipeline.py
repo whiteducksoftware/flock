@@ -204,6 +204,132 @@ async def test_mixed_openclaw_and_native_pipeline_stays_compatible() -> None:
 
 
 @pytest.mark.asyncio
+@respx.mock
+async def test_openclaw_fixed_fan_out_publishes_exact_artifact_count() -> None:
+    """Fixed fan-out should publish exactly N artifacts from one OpenClaw response."""
+    OpenClawConfig, GatewayConfig = _openclaw_config_classes()
+
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "resp-int-fanout-fixed",
+                "object": "response",
+                "status": "completed",
+                "model": "openclaw",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": '[{"draft":"A"},{"draft":"B"},{"draft":"C"}]',
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+    )
+
+    flock = Flock(
+        openclaw=OpenClawConfig(
+            gateways={
+                "codie": GatewayConfig(
+                    url="http://localhost:19789",
+                    token="token-codie",
+                    token_env="OPENCLAW_CODIE_TOKEN",
+                )
+            }
+        )
+    )
+
+    flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
+        OpenClawPipelineDraft,
+        fan_out=3,
+    )
+
+    await flock.publish(OpenClawPipelineInput(feature="fan-out fixed"))
+    await flock.run_until_idle()
+
+    artifacts = await flock.store.list()
+    drafts = [a for a in artifacts if a.type == "OpenClawPipelineDraft"]
+
+    assert len(drafts) == 3
+    assert [d.payload["draft"] for d in drafts] == ["A", "B", "C"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_openclaw_dynamic_fan_out_remains_pipeline_compatible() -> None:
+    """Dynamic fan-out outputs should flow to downstream native agents unchanged."""
+    OpenClawConfig, GatewayConfig = _openclaw_config_classes()
+
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "resp-int-fanout-dynamic",
+                "object": "response",
+                "status": "completed",
+                "model": "openclaw",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    '[{"draft":"One"},{"draft":"Two"},'
+                                    '{"draft":"Three"},{"draft":"Four"}]'
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+    )
+
+    flock = Flock(
+        openclaw=OpenClawConfig(
+            gateways={
+                "codie": GatewayConfig(
+                    url="http://localhost:19789",
+                    token="token-codie",
+                    token_env="OPENCLAW_CODIE_TOKEN",
+                )
+            }
+        )
+    )
+
+    flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
+        OpenClawPipelineDraft,
+        fan_out=(3, 5),
+    )
+
+    (
+        flock.agent("native-reviewer")
+        .consumes(OpenClawPipelineDraft)
+        .publishes(OpenClawPipelineReview)
+        .with_engines(NativeReviewEngine())
+    )
+
+    await flock.publish(OpenClawPipelineInput(feature="fan-out dynamic"))
+    await flock.run_until_idle()
+
+    artifacts = await flock.store.list()
+    drafts = [a for a in artifacts if a.type == "OpenClawPipelineDraft"]
+    reviews = [a for a in artifacts if a.type == "OpenClawPipelineReview"]
+
+    assert len(drafts) == 4
+    assert len(reviews) == 4
+    assert {r.payload["source"] for r in reviews} == {"native-reviewer"}
+
+
+@pytest.mark.asyncio
 async def test_openclaw_streaming_emits_websocket_events_compatible_with_dashboard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
