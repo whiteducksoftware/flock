@@ -1,10 +1,10 @@
-# Delta Spec: Dashboard Publish Schema Defaults
+# dashboard-publish Specification
 
-## MODIFIED Requirements
-
-### Requirement: Artifact Type Schema for Dashboard Publish
+## Purpose
+TBD - created by archiving change publish-array-defaults. Update Purpose after archive.
+## Requirements
+### Requirement: Artifact Type Schema Includes Array Defaults from `default_factory`
 The system SHALL return artifact type schemas that include usable defaults for array fields backed by Pydantic `default_factory`.
-(Previously: schema reflected `model_json_schema()` directly, omitting array defaults from `default_factory`.)
 
 #### Scenario: Array default via default_factory is exposed
 - GIVEN an artifact model with `tags: list[str] = Field(default_factory=lambda: ["a", "b"])`
@@ -22,7 +22,7 @@ The system SHALL return artifact type schemas that include usable defaults for a
 - THEN the endpoint still succeeds
 - AND that property is returned without injected default
 
-### Requirement: Publish UI Prefill Behavior for Arrays
+### Requirement: Publish UI Prefills Arrays from Schema Defaults
 The publish form SHALL prefill array textareas from schema defaults when provided.
 
 #### Scenario: Prefilled multiline array textarea
@@ -34,12 +34,11 @@ The publish form SHALL prefill array textareas from schema defaults when provide
   - `AutoGen`
   (one item per line)
 
-## ADDED Requirements
-
-### Requirement: Consistent Artifact-Type Routes
+### Requirement: Artifact-Type Route Parity
 Both artifact type endpoints SHALL apply the same schema-enrichment behavior.
 
 #### Scenario: Route parity
 - GIVEN routes `/api/artifact-types` and `/api/artifact_types`
 - WHEN requesting artifact schemas from either route
 - THEN array defaults from `default_factory` are present consistently
+

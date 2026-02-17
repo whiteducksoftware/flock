@@ -20,7 +20,7 @@
 
 - [x] 4.1 (flock-repo-jyr.8) `uv run python -m pytest tests/test_dashboard_service.py -k "artifact_types and (hydrates or normalizes or parity)" -v`
 - [x] 4.2 (flock-repo-jyr.9) `cd src/flock/frontend && npm test -- PublishControl.test.tsx`
-- [ ] 4.3 (flock-repo-jyr.10) Optional manual smoke: run dashboard, select artifact with list defaults, verify prefill in UI
+- [x] 4.3 (flock-repo-jyr.10) Optional manual smoke: run dashboard, select artifact with list defaults, verify prefill in UI
 
 ## 5. Docs/changelog
 
