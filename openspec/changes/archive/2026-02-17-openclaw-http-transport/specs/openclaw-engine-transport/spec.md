@@ -1,6 +1,6 @@
 # Delta Spec: OpenClaw Engine Transport
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Gateway Communication Protocol
 The OpenClawEngine MUST communicate with the OpenClaw gateway via the documented `/v1/responses` HTTP endpoint.
@@ -109,8 +109,6 @@ The engine MUST map HTTP error codes to exceptions:
 - THEN it raises `RuntimeError`
 - AND the error IS retried (immediate, same as transient errors)
 
-## ADDED Requirements
-
 ### Requirement: Agent ID Configuration
 `GatewayConfig` MUST support an optional `agent_id` field (default: `"main"`) to control which OpenClaw agent handles requests.
 
@@ -132,10 +130,4 @@ Documentation MUST state that the OpenClaw gateway requires `gateway.http.endpoi
 - WHEN a user reads the setup section
 - THEN it includes the required gateway config snippet
 
-## REMOVED Requirements
-
-### Requirement: Spawn Label Generation
-(Removed: no longer relevant — the responses API does not use labels)
-
-### Requirement: Spawn Cleanup Mode
-(Removed: no longer relevant — session lifecycle is managed by the gateway)
+<!-- removed obsolete REMOVED section for new capability spec -->

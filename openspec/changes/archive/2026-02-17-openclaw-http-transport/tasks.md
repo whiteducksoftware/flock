@@ -37,5 +37,5 @@
 ## 5. Validation (flock-b2u) → blocked by flock-2qt + flock-xrq + flock-c0n
 
 - [x] 5.1 Full test suite passes (`uv run pytest -x`)
-- [ ] 5.2 Manual smoke test against live OpenClaw gateway (local)
-- [ ] 5.3 Manual smoke test against remote gateway (via Tailscale Serve)
+- [x] 5.2 Manual smoke test against live OpenClaw gateway (local)
+- [x] 5.3 Manual smoke test against remote gateway (via Tailscale Serve)

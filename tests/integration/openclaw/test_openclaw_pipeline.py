@@ -10,9 +10,11 @@ import respx
 from pydantic import BaseModel, Field
 
 from flock import Flock
+from flock.api.collector import DashboardEventCollector
 from flock.components.agent import EngineComponent
 from flock.integrations.openclaw.streaming import OpenClawSSEConsumer, SSEFrame
 from flock.registry import flock_type
+from flock.core.store import InMemoryBlackboardStore
 from flock.utils.runtime import EvalResult
 
 
@@ -104,9 +106,13 @@ async def test_openclaw_agent_publishes_validated_artifact_to_blackboard() -> No
             }
         )
     )
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
 
-    flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
-        OpenClawPipelineDraft
+    (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawPipelineInput)
+        .publishes(OpenClawPipelineDraft)
+        .with_utilities(collector)
     )
 
     input_artifact = await flock.publish(OpenClawPipelineInput(feature="adapter layer"))
@@ -118,6 +124,15 @@ async def test_openclaw_agent_publishes_validated_artifact_to_blackboard() -> No
     assert len(drafts) == 1
     assert drafts[0].payload == {"draft": "Implement endpoint adapter"}
     assert drafts[0].correlation_id == input_artifact.correlation_id
+
+    activated_events = [
+        e
+        for e in collector.events
+        if type(e).__name__ == "AgentActivatedEvent" and e.agent_name == "codie"
+    ]
+    assert len(activated_events) == 1
+    assert activated_events[0].correlation_id == input_artifact.correlation_id
+    assert "openclaw" in activated_events[0].labels
 
 
 @pytest.mark.asyncio
