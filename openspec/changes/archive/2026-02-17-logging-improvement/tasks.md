@@ -14,3 +14,7 @@
 
 - [x] 3.1 (flock-repo-bv5) Run targeted logging + orchestrator tests.
 - [ ] 3.2 (flock-repo-549) Claude review + commit/push.
+
+## 4. Fast OpenClaw orchestration example
+
+- [x] 4.1 (flock-repo-3ga.1) Add `examples/11-openclaw/06_fast_orchestration_smoke.py` (headless, stream on/off toggle) covering fan-out uniqueness + datetime-safe context/input shaping with faster runtime than `05_competitive_intelligence.py`.

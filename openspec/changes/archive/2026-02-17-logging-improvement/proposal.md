@@ -21,12 +21,20 @@ When logging itself fails, diagnosis becomes guesswork.
    - Bounded but recoverable error payload capture (preview + full hash/id).
    - Unified end-of-run failure summary to reduce triage guesswork.
 
+3. **Add a fast orchestration smoke example (`06_...`)** in `examples/11-openclaw/`:
+   - headless only,
+   - explicit stream ON/OFF toggle,
+   - exercises the recently fixed behaviors (datetime-safe prompt shaping, fan-out artifact identity uniqueness),
+   - completes much faster than `05_competitive_intelligence.py`.
+
 ## Scope
 
 ### In scope
 - `src/flock/logging/logging.py`
 - `src/flock/core/orchestrator.py`
 - `tests/test_logging_config.py`
+- `examples/11-openclaw/06_fast_orchestration_smoke.py`
+- `examples/11-openclaw/README.md` (example index update)
 - OpenSpec planning artifacts for broader logging improvements.
 
 ### Out of scope

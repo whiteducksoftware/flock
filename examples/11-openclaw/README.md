@@ -28,6 +28,8 @@ export OPENCLAW_CLAUDE_TOKEN=your-token
 | 02 | [Mixed Pipeline](02_mixed_pipeline.py) | OpenClaw + native LLM agents in the same workflow |
 | 03 | [Env Config](03_env_config.py) | Auto-discovery from environment + multi-gateway setup |
 | 04 | [Streaming ON/OFF](04_streaming_on_off.py) | Dedicated example: force headless non-streaming vs dashboard streaming |
+| 05 | [Competitive Intelligence](05_competitive_intelligence.py) | Large end-to-end orchestration pipeline (comprehensive, slower) |
+| 06 | [Fast Orchestration Smoke](06_fast_orchestration_smoke.py) | Compact headless smoke for fan-out IDs + datetime-safe shaping + stream on/off |
 
 ## Key Concepts
 

@@ -394,3 +394,5 @@ See [`examples/11-openclaw/`](../../examples/11-openclaw/) for working examples:
 | `02_mixed_pipeline.py` | OpenClaw + native agents in one workflow |
 | `03_env_config.py` | Environment-based discovery + multi-gateway |
 | `04_streaming_on_off.py` | Dedicated streaming mode demo (headless OFF vs dashboard ON) |
+| `05_competitive_intelligence.py` | Full competitive-intelligence orchestration (comprehensive, slower) |
+| `06_fast_orchestration_smoke.py` | Fast headless smoke: fan-out ID uniqueness + datetime-safe shaping + stream ON/OFF |

@@ -84,7 +84,25 @@ Goal: remove "silent async exception" guesswork.
 
 ---
 
+## Fast example design (06)
+
+Create `examples/11-openclaw/06_fast_orchestration_smoke.py` as a compact, deterministic headless pipeline:
+
+- OpenClaw fan-out scout (`fan_out=2`) from one brief.
+- Native signal enrichment step adds `datetime` fields.
+- OpenClaw batch synthesis consumes enriched artifacts (ensures datetime appears in OpenClaw input/context shaping paths).
+- OpenClaw final report step.
+- CLI flag `--stream on|off` toggles OpenClaw streaming in headless mode for all OpenClaw agents.
+- Runtime assertions:
+  - fan-out publishes 2 artifacts,
+  - artifact IDs are unique,
+  - final report exists,
+  - any `WorkflowError` artifacts are printed for diagnostics.
+
+This keeps orchestration coverage high while avoiding the long-running web-research workload in `05_competitive_intelligence.py`.
+
 ## Validation plan
 
 - Regression tests for `exc_info` + JSON/braces behavior.
 - Targeted orchestrator smoke tests to ensure failure path still publishes `WorkflowError` and does not crash logging.
+- Run `06_fast_orchestration_smoke.py` in both `--stream off` and `--stream on` modes.
