@@ -480,7 +480,8 @@ class OpenClawEngine(EngineComponent):
             initial_panel,
             console=Console(),
             refresh_per_second=12,
-            transient=True,
+            # Keep final CLI render visible after stream completion (DSPy parity).
+            transient=False,
             vertical_overflow=self.stream_vertical_overflow,
         )
 
