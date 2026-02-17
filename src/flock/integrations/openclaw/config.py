@@ -24,7 +24,7 @@ class OpenClawDefaults(BaseModel):
     retries: int = Field(
         default=1, ge=0, description="Retry count for transient failures."
     )
-    response_mode: Literal["json_schema"] = Field(
+    response_mode: Literal["json_schema", "prompt_only"] = Field(
         default="json_schema",
         description="How output contract is communicated to the OpenClaw agent.",
     )

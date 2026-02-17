@@ -255,6 +255,7 @@ class Flock(metaclass=AutoTracedMeta):
         timeout: int | None = None,
         retries: int | None = None,
         response_mode: str | None = None,
+        instructions: str | None = None,
     ) -> AgentBuilder:
         """Create an agent preconfigured with an OpenClaw engine.
 
@@ -265,6 +266,7 @@ class Flock(metaclass=AutoTracedMeta):
             timeout: Optional timeout override in seconds.
             retries: Optional retry count override.
             response_mode: Optional response mode override.
+            instructions: Optional engine-level instruction override.
 
         Returns:
             AgentBuilder for fluent configuration.
@@ -289,6 +291,7 @@ class Flock(metaclass=AutoTracedMeta):
                 timeout=defaults.timeout if timeout is None else timeout,
                 retries=defaults.retries if retries is None else retries,
                 response_mode=response_mode or defaults.response_mode,
+                instructions=instructions,
             )
         )
         builder.labels("openclaw")

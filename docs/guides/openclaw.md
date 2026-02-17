@@ -207,7 +207,7 @@ Notes:
 | `mode` | `"spawn"` | `"spawn"` | Execution mode flag (Phase 1 transport uses stateless `/v1/responses`) |
 | `timeout` | `int` | `120` | Request timeout in seconds |
 | `retries` | `int` | `1` | Retry count for transient failures |
-| `response_mode` | `"json_schema"` | `"json_schema"` | How output schema is communicated |
+| `response_mode` | `"json_schema" \| "prompt_only"` | `"json_schema"` | Output contract mode (`json_schema` = token-level schema enforcement; `prompt_only` = prompt-embedded schema only) |
 
 ### `openclaw_agent()` Parameters
 
@@ -222,6 +222,7 @@ flock.openclaw_agent(
     timeout: int | None = None,
     retries: int | None = None,
     response_mode: str | None = None,
+    instructions: str | None = None,
 )
 ```
 
@@ -232,7 +233,8 @@ flock.openclaw_agent(
 | `mode` | No | Runtime mode override. Phase 1 supports `"spawn"` only. |
 | `timeout` | No | Per-agent timeout override in seconds. |
 | `retries` | No | Per-agent retry override for transient failures. |
-| `response_mode` | No | Schema communication mode (currently `"json_schema"`). |
+| `response_mode` | No | Output contract mode (`"json_schema"` or `"prompt_only"`). |
+| `instructions` | No | Engine-level instruction override (takes precedence over `agent.description`). |
 
 ### Per-Agent Overrides
 
@@ -309,6 +311,18 @@ Behavior:
 
 Current limitation:
 - One OpenClaw output group must contain a **single output type**. Multi-output groups in one `.publishes(A, B)` call are not supported yet in OpenClaw mode.
+
+## Context + Batch Parity Notes
+
+OpenClaw request shaping now mirrors native execution semantics more closely:
+
+- **Context history:** when context is enabled and available (`ctx.artifacts`), OpenClaw payload includes a serialized `Context:` section.
+- **Batch mode:** when `ctx.is_batch=True`, request text includes explicit batch-processing guidance.
+- **Group description:** `publishes(..., description="...")` is injected as output guidance in the OpenClaw task prompt.
+- **Instructions precedence:** engine-level `instructions=` override wins over `agent.description`.
+- **response_mode:**
+  - `json_schema` (default): sends strict `text.format` schema contract
+  - `prompt_only`: omits `text.format` and relies on prompt-embedded schema
 
 ## Error Handling
 

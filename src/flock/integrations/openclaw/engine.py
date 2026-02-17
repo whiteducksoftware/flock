@@ -38,7 +38,8 @@ class OpenClawEngine(EngineComponent):
     mode: Literal["spawn"] = "spawn"
     timeout: int = 120
     retries: int = 1
-    response_mode: Literal["json_schema"] = "json_schema"
+    response_mode: Literal["json_schema", "prompt_only"] = "json_schema"
+    instructions: str | None = None
     stream: bool = Field(
         default_factory=_default_stream_value,
         description="Enable streaming output from OpenClaw. Auto-disables in pytest.",
@@ -561,7 +562,17 @@ class OpenClawEngine(EngineComponent):
             else:
                 input_payloads.append({"value": payload})
 
-        description = str(getattr(agent, "description", "") or "").strip()
+        description = str(
+            self.instructions or getattr(agent, "description", "") or ""
+        ).strip()
+        group_description = str(getattr(output_decl, "group_description", "") or "").strip()
+        context_history = (
+            self.get_conversation_context(ctx)
+            if ctx is not None and hasattr(ctx, "artifacts")
+            else []
+        )
+        include_context = bool(context_history) and self.should_use_context(inputs)
+        batched = bool(getattr(ctx, "is_batch", False)) if ctx else False
 
         if self._expects_array_response(output_decl):
             fan_out_range = self._get_fan_out_range(output_decl)
@@ -584,6 +595,19 @@ class OpenClawEngine(EngineComponent):
                 "The response will be parsed directly by a JSON schema validator.",
             ]
 
+        if batched:
+            task_lines.append(
+                "Batch mode is active: process the provided batch cohesively and honor batch semantics."
+            )
+
+        if group_description:
+            task_lines.append(f"Output guidance: {group_description}")
+
+        if include_context:
+            task_lines.append(
+                f"Context: {json.dumps(self._context_to_prompt_payload(context_history), ensure_ascii=False)}"
+            )
+
         task_lines.append(f"Schema: {json.dumps(schema_contract, ensure_ascii=False)}")
 
         if len(input_payloads) == 1:
@@ -595,30 +619,33 @@ class OpenClawEngine(EngineComponent):
                 f"Inputs: {json.dumps(input_payloads, ensure_ascii=False)}"
             )
 
-        # Build strict JSON schema for structured output enforcement.
-        # This constrains the model at the token level — it cannot produce
-        # invalid JSON when the provider supports json_schema response format.
-        # If the gateway doesn't support text.format, the schema is still
-        # in the prompt text as fallback (belt + suspenders).
-        strict_schema = self._make_strict_schema(schema_contract)
-
-        schema_name = output_decl.spec.model.__name__
-        if self._expects_array_response(output_decl):
-            schema_name = f"{schema_name}List"
-
         payload: dict[str, Any] = {
             "model": "openclaw",
             "input": "\n".join(task_lines),
             "stream": False,
-            "text": {
+        }
+
+        if self.response_mode == "json_schema":
+            # Build strict JSON schema for structured output enforcement.
+            # This constrains the model at the token level — it cannot produce
+            # invalid JSON when the provider supports json_schema response format.
+            # If the gateway doesn't support text.format, the schema is still
+            # in the prompt text as fallback (belt + suspenders).
+            strict_schema = self._make_strict_schema(schema_contract)
+
+            schema_name = output_decl.spec.model.__name__
+            if self._expects_array_response(output_decl):
+                schema_name = f"{schema_name}List"
+
+            payload["text"] = {
                 "format": {
                     "type": "json_schema",
                     "name": schema_name,
                     "schema": strict_schema,
                     "strict": True,
                 }
-            },
-        }
+            }
+
         if description:
             payload["instructions"] = description
 
@@ -672,6 +699,24 @@ class OpenClawEngine(EngineComponent):
                 ]
 
         return node
+
+    def _context_to_prompt_payload(self, context_items) -> list[dict[str, Any]]:
+        serialized: list[dict[str, Any]] = []
+        for item in context_items:
+            payload = getattr(item, "payload", None)
+            if isinstance(payload, dict):
+                payload_value: Any = dict(payload)
+            else:
+                payload_value = payload
+
+            serialized.append(
+                {
+                    "type": str(getattr(item, "type", "")),
+                    "produced_by": str(getattr(item, "produced_by", "")),
+                    "payload": payload_value,
+                }
+            )
+        return serialized
 
     def _resolve_output_decl(self, output_group):
         if len(output_group.outputs) != 1:

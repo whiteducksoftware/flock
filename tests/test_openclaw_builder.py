@@ -87,3 +87,19 @@ def test_openclaw_agent_supports_per_agent_timeout_override() -> None:
     assert len(agent.engines) == 1
     engine = agent.engines[0]
     assert getattr(engine, "timeout", None) == 300
+
+
+def test_openclaw_agent_supports_instructions_override() -> None:
+    """Builder should pass through engine-level instructions override."""
+    flock = Flock(openclaw=_config())
+
+    (
+        flock.openclaw_agent("codie", instructions="Use terse style")
+        .consumes(OpenClawBuilderInput)
+        .publishes(OpenClawBuilderOutput)
+    )
+
+    agent = flock.get_agent("codie")
+    assert len(agent.engines) == 1
+    engine = agent.engines[0]
+    assert getattr(engine, "instructions", None) == "Use terse style"

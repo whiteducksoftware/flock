@@ -497,6 +497,152 @@ def test_build_responses_payload_includes_description_as_instructions() -> None:
     assert payload["text"]["format"]["strict"] is True
 
 
+def test_build_responses_payload_includes_context_history_when_available() -> None:
+    """Context artifacts should be included in OpenClaw request guidance when enabled."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(
+            correlation_id="cid-test",
+            artifacts=[
+                SimpleNamespace(
+                    type="UpstreamArtifact",
+                    payload={"note": "already discovered"},
+                    produced_by="upstream-agent",
+                )
+            ],
+            is_batch=False,
+        ),
+        inputs=SimpleNamespace(
+            artifacts=[
+                SimpleNamespace(
+                    payload={"prompt": "make pizza"},
+                    correlation_id="cid-test",
+                )
+            ],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    assert "Context:" in payload["input"]
+    assert "UpstreamArtifact" in payload["input"]
+
+
+def test_build_responses_payload_marks_batch_mode_in_task_text() -> None:
+    """Batch executions should include explicit batch processing guidance."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-batch", artifacts=[], is_batch=True),
+        inputs=SimpleNamespace(
+            artifacts=[SimpleNamespace(payload={"prompt": "make pizza"})],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    assert "batch" in payload["input"].lower()
+
+
+def test_build_responses_payload_includes_group_description_override() -> None:
+    """publishes(..., description=...) should be reflected in OpenClaw task guidance."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, description="Return concise bullet outputs")
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-desc"),
+        inputs=SimpleNamespace(
+            artifacts=[SimpleNamespace(payload={"prompt": "make pizza"})],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    assert "Return concise bullet outputs" in payload["input"]
+
+
+def test_engine_instructions_override_takes_precedence_over_agent_description() -> None:
+    """Engine-level instructions should override agent.description when provided."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Agent-level description")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = OpenClawEngine(
+        alias="codie",
+        gateway=_config().get_gateway("codie"),
+        instructions="Engine override instructions",
+    )
+
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-override"),
+        inputs=SimpleNamespace(
+            artifacts=[SimpleNamespace(payload={"prompt": "make pizza"})],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    assert payload["instructions"] == "Engine override instructions"
+
+
+def test_response_mode_prompt_only_disables_text_format_contract() -> None:
+    """response_mode should influence payload contract rather than being dead config."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = OpenClawEngine(
+        alias="codie",
+        gateway=_config().get_gateway("codie"),
+        response_mode="prompt_only",
+    )
+
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-response-mode"),
+        inputs=SimpleNamespace(
+            artifacts=[SimpleNamespace(payload={"prompt": "make pizza"})],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    assert "text" not in payload
+
+
 def test_build_responses_payload_uses_array_schema_for_fan_out_range() -> None:
     """Fan-out declarations should produce an array schema request contract."""
     flock = Flock(openclaw=_config(), no_output=True)

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from flock import Flock
 from flock.api.collector import DashboardEventCollector
 from flock.components.agent import EngineComponent
+from flock.core.subscription import BatchSpec
 from flock.integrations.openclaw.streaming import OpenClawSSEConsumer, SSEFrame
 from flock.registry import flock_type
 from flock.core.store import InMemoryBlackboardStore
@@ -201,6 +202,152 @@ async def test_mixed_openclaw_and_native_pipeline_stays_compatible() -> None:
     assert len(reviews) == 1
     assert reviews[0].payload["verdict"].startswith("approved: Add retry policy docs")
     assert reviews[0].payload["source"] == "native-reviewer"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_openclaw_second_agent_request_includes_context_history() -> None:
+    """Downstream OpenClaw agent should receive serialized context guidance."""
+    OpenClawConfig, GatewayConfig = _openclaw_config_classes()
+
+    seen_payloads: list[dict[str, object]] = []
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode("utf-8"))
+        seen_payloads.append(payload)
+
+        if len(seen_payloads) == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "id": "resp-int-context-1",
+                    "object": "response",
+                    "status": "completed",
+                    "model": "openclaw",
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": '{"draft":"context seed"}',
+                                }
+                            ],
+                        }
+                    ],
+                },
+            )
+
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp-int-context-2",
+                "object": "response",
+                "status": "completed",
+                "model": "openclaw",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": '{"verdict":"context-aware review","source":"codie-reviewer"}',
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    flock = Flock(
+        openclaw=OpenClawConfig(
+            gateways={
+                "codie": GatewayConfig(
+                    url="http://localhost:19789",
+                    token="token-codie",
+                    token_env="OPENCLAW_CODIE_TOKEN",
+                )
+            }
+        )
+    )
+
+    flock.openclaw_agent("codie", name="codie-scout").consumes(OpenClawPipelineInput).publishes(
+        OpenClawPipelineDraft
+    )
+    flock.openclaw_agent("codie", name="codie-reviewer").consumes(OpenClawPipelineDraft).publishes(
+        OpenClawPipelineReview
+    )
+
+    await flock.publish(OpenClawPipelineInput(feature="context parity"))
+    await flock.run_until_idle()
+
+    assert len(seen_payloads) == 2
+    assert "Context:" not in str(seen_payloads[0].get("input", ""))
+    assert "Context:" in str(seen_payloads[1].get("input", ""))
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_openclaw_batchspec_request_marks_batch_mode() -> None:
+    """BatchSpec-triggered OpenClaw runs should include batch request guidance."""
+    OpenClawConfig, GatewayConfig = _openclaw_config_classes()
+
+    seen_payloads: list[dict[str, object]] = []
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode("utf-8"))
+        seen_payloads.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp-int-batch-1",
+                "object": "response",
+                "status": "completed",
+                "model": "openclaw",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": '{"draft":"batched result"}',
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    flock = Flock(
+        openclaw=OpenClawConfig(
+            gateways={
+                "codie": GatewayConfig(
+                    url="http://localhost:19789",
+                    token="token-codie",
+                    token_env="OPENCLAW_CODIE_TOKEN",
+                )
+            }
+        )
+    )
+
+    flock.openclaw_agent("codie").consumes(
+        OpenClawPipelineInput,
+        batch=BatchSpec(size=2),
+    ).publishes(OpenClawPipelineDraft)
+
+    await flock.publish(OpenClawPipelineInput(feature="batch item 1"))
+    await flock.publish(OpenClawPipelineInput(feature="batch item 2"))
+    await flock.run_until_idle()
+
+    assert len(seen_payloads) == 1
+    assert "batch mode" in str(seen_payloads[0].get("input", "")).lower()
 
 
 @pytest.mark.asyncio

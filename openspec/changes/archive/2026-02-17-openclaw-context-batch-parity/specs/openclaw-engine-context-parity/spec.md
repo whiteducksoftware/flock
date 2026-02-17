@@ -60,9 +60,7 @@ OpenClaw engine configuration MUST allow explicit `instructions` override that t
 - WHEN integration config is validated
 - THEN dead configuration path is removed from public API
 
-## MODIFIED Requirements
-
-### Requirement: OpenClaw Engine Delegation
+### Requirement: OpenClaw Engine Delegation Preserves Context + Batch Semantics
 OpenClaw engine delegation SHALL preserve orchestration semantics including context-aware and batch-aware execution behavior.
 
 #### Scenario: Context + batch parity with native behavior

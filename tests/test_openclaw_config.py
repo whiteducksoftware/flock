@@ -25,6 +25,13 @@ def test_openclaw_defaults_match_phase1_contract() -> None:
     assert defaults.response_mode == "json_schema"
 
 
+def test_openclaw_defaults_accepts_prompt_only_response_mode() -> None:
+    """response_mode should support prompt_only mode for prompt-embedded schema contract."""
+    defaults = OpenClawDefaults(response_mode="prompt_only")
+
+    assert defaults.response_mode == "prompt_only"
+
+
 def test_openclaw_config_accepts_typed_gateway_config() -> None:
     """Config should support typed gateway definitions."""
     config = OpenClawConfig(
