@@ -11,6 +11,12 @@ search:
 
 # Changelog
 
+## [Unreleased]
+
+### 🐛 Fixes
+
+- Dashboard publish form now receives list defaults for artifact fields backed by Pydantic `default_factory` (array defaults are hydrated in artifact type schema responses), so list textareas prefill correctly.
+
 ## [0.5.400] - 2026-02-11
 
 ### 🎉 New Features

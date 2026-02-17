@@ -1,10 +1,11 @@
 """ServerComponent that serves control routes."""
 
+import json
 from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException
-from pydantic import Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from flock.api.graph_builder import GraphAssembler
 from flock.api.websocket import WebSocketManager
@@ -61,6 +62,66 @@ class ControlRoutesComponent(ServerComponent):
             event_collector: Dashboard event collector
         """
 
+        def _to_json_compatible(value: Any) -> Any:
+            """Convert nested Pydantic values into JSON-compatible Python objects."""
+            if isinstance(value, BaseModel):
+                return value.model_dump(mode="json")
+            if isinstance(value, list):
+                return [_to_json_compatible(item) for item in value]
+            if isinstance(value, dict):
+                return {k: _to_json_compatible(v) for k, v in value.items()}
+            return value
+
+        def _enrich_schema_with_array_defaults(model_class: type[Any], schema: dict[str, Any]) -> dict[str, Any]:
+            """Inject array defaults for fields that use Pydantic default_factory.
+
+            Pydantic v2 omits default_factory values in model_json_schema().
+            The dashboard publish UI expects schema.properties[*].default for prefill,
+            so we hydrate list defaults here for array fields only.
+            """
+            properties = schema.get("properties")
+            if not isinstance(properties, dict):
+                return schema
+
+            model_fields = getattr(model_class, "model_fields", None)
+            if not isinstance(model_fields, dict):
+                return schema
+
+            for field_name, field_info in model_fields.items():
+                prop = properties.get(field_name)
+                if not isinstance(prop, dict):
+                    continue
+                if prop.get("type") != "array":
+                    continue
+                if "default" in prop:
+                    continue
+                if getattr(field_info, "default_factory", None) is None:
+                    continue
+
+                try:
+                    default_value = field_info.get_default(call_default_factory=True)
+                except TypeError:
+                    # Compatibility fallback for environments without call_default_factory.
+                    default_value = field_info.get_default()
+                except Exception:
+                    continue
+
+                # Guard ordering: cheap shape check before serialization work.
+                if not isinstance(default_value, list):
+                    continue
+
+                try:
+                    normalized = _to_json_compatible(default_value)
+                    if not isinstance(normalized, list):
+                        continue
+                    json.dumps(normalized)
+                except Exception:
+                    continue
+
+                prop["default"] = normalized
+
+            return schema
+
         @app.get(
             self._join_path(self.config.prefix, "artifact_types"), tags=self.config.tags
         )
@@ -82,8 +143,10 @@ class ControlRoutesComponent(ServerComponent):
             for type_name in type_registry._by_name:
                 try:
                     model_class = type_registry.resolve(type_name)
-                    # Get pydantic schema
-                    schema = model_class.model_json_schema()
+                    # Get pydantic schema + hydrate array defaults from default_factory
+                    schema = _enrich_schema_with_array_defaults(
+                        model_class, model_class.model_json_schema()
+                    )
                     artifact_types.append({"name": type_name, "schema": schema})
                 except Exception as ex:
                     logger.warning(f"Could not get schema for {type_name}: {ex!s}")
@@ -350,8 +413,10 @@ class ControlRoutesComponent(ServerComponent):
             for type_name in type_registry._by_name:
                 try:
                     model_class = type_registry.resolve(type_name=type_name)
-                    # Get Pydantic schema
-                    schema = model_class.model_json_schema()
+                    # Get Pydantic schema + hydrate array defaults from default_factory
+                    schema = _enrich_schema_with_array_defaults(
+                        model_class, model_class.model_json_schema()
+                    )
                     artifact_types.append({"name": type_name, "schema": schema})
                 except Exception as ex:
                     logger.warning(f"Could not get schema for type {type_name}: {ex!s}")

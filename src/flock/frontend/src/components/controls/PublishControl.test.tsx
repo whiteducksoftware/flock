@@ -61,6 +61,56 @@ describe('PublishControl', () => {
     expect(optionValues).toContain('Tagline');
   });
 
+  it('should prefill array fields from schema defaults', async () => {
+    const arrayDefaultsType = [
+      {
+        name: 'CompetitorBrief',
+        schema: {
+          type: 'object',
+          properties: {
+            key_differentiators: {
+              type: 'array',
+              title: 'Key Differentiators',
+              items: { type: 'string' },
+              default: ['Blackboard architecture', 'Typed artifacts'],
+            },
+            known_competitors: {
+              type: 'array',
+              title: 'Known Competitors',
+              items: { type: 'string' },
+              default: ['CrewAI', 'LangGraph', 'AutoGen'],
+            },
+          },
+        },
+      },
+    ];
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ artifact_types: arrayDefaultsType }),
+    });
+
+    render(<PublishControl />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
+    });
+
+    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
+    fireEvent.change(artifactTypeSelect, { target: { value: 'CompetitorBrief' } });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/key differentiators/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/known competitors/i)).toBeInTheDocument();
+    });
+
+    const differentiators = screen.getByLabelText(/key differentiators/i) as HTMLTextAreaElement;
+    const competitors = screen.getByLabelText(/known competitors/i) as HTMLTextAreaElement;
+
+    expect(differentiators.value).toBe('Blackboard architecture\nTyped artifacts');
+    expect(competitors.value).toBe('CrewAI\nLangGraph\nAutoGen');
+  });
+
   it('should validate required fields before submission', async () => {
     mockFetch
       .mockResolvedValueOnce({
