@@ -76,7 +76,7 @@ from flock.registry import flock_type
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
-USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
+USE_DASHBOARD = True  # Set to True for dashboard mode, False for CLI mode
 # ============================================================================
 
 
@@ -89,17 +89,24 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 class CompetitorBrief(BaseModel):
     """Input: describes your product and market for competitive analysis."""
 
-    product_name: str = Field(description="Your product's name")
-    product_description: str = Field(description="What your product does (1-2 sentences)")
-    target_market: str = Field(description="Who your product is for")
+    product_name: str = Field(default="Flock",description="Your product's name")
+    product_description: str = Field(default="An open-source blackboard-architecture framework for building "
+            "multi-agent AI systems with typed artifacts and declarative pipelines.",description="What your product does (1-2 sentences)")
+    target_market: str = Field(default="AI/ML engineers and teams building production agent systems",description="Who your product is for")
     key_differentiators: list[str] = Field(
+        default_factory=lambda: [
+            "Blackboard architecture with typed artifacts",
+            "Declarative agent pipelines (no imperative glue code)",
+            "Fan-out, JoinSpec, BatchSpec orchestration primitives",
+            "Mixed compute backends (OpenClaw + native LLM)",
+            "Built-in real-time dashboard",
+        ],
         description="What makes your product unique (2-5 points)"
     )
     known_competitors: list[str] = Field(
-        default_factory=list,
+        default_factory=lambda: ["CrewAI", "LangGraph", "AutoGen"],
         description="Competitors you already know about (optional, helps seed the search)",
     )
-
 
 @flock_type
 class CompetitorProfile(BaseModel):
@@ -259,16 +266,7 @@ class ExecutiveReport(BaseModel):
 # STAGE 2: Flock Instance + OpenClaw Configuration
 # ============================================================================
 
-flock = Flock(
-    openclaw=OpenClawConfig(
-        gateways={
-            "codex": GatewayConfig(
-                url="http://127.0.0.1:19789",
-                token_env="OPENCLAW_CODEX_TOKEN",
-            )
-        }
-    )
-)
+flock = Flock(openclaw=OpenClawConfig.from_env())
 
 
 # ============================================================================
@@ -278,7 +276,7 @@ flock = Flock(
 # --- Agent 1: MarketScout (OpenClaw) ---
 # Discovers competitors via web search, produces 3-8 CompetitorProfiles.
 market_scout = (
-    flock.openclaw_agent("codex", name="market_scout")
+    flock.openclaw_agent("codie", name="market_scout")
     .description(
         "Competitive intelligence scout. Given a product brief, use web search "
         "to discover direct and indirect competitors. For each competitor found, "
@@ -294,7 +292,7 @@ market_scout = (
 # --- Agent 2: PricingAnalyst (OpenClaw) ---
 # Visits competitor websites to extract pricing intelligence.
 pricing_analyst = (
-    flock.openclaw_agent("codex", name="pricing_analyst")
+    flock.openclaw_agent("codie", name="pricing_analyst")
     .description(
         "Pricing intelligence specialist. Given a competitor profile, search for "
         "and analyze their pricing page. Determine their pricing model, price range, "
@@ -309,7 +307,7 @@ pricing_analyst = (
 # --- Agent 3: TechAnalyst (OpenClaw) ---
 # Researches competitor tech stack via web search.
 tech_analyst = (
-    flock.openclaw_agent("codex", name="tech_analyst")
+    flock.openclaw_agent("codie", name="tech_analyst")
     .description(
         "Technical intelligence specialist. Given a competitor profile, research their "
         "technology stack. Use web search to find their primary language/framework, "
@@ -405,7 +403,7 @@ strategy_advisor = (
 # --- Agent 8: ReportCompiler (OpenClaw, When activation) ---
 # Activates when BOTH MarketLandscape and StrategicRecommendation exist.
 report_compiler = (
-    flock.openclaw_agent("codex", name="report_compiler")
+    flock.openclaw_agent("codie", name="report_compiler")
     .description(
         "Executive report compiler. Given the market landscape and strategic "
         "recommendations, produce a polished executive report. Include a clear title, "

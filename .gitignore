@@ -17,6 +17,7 @@ dist/
 downloads/
 eggs/
 .eggs/
+.netlify/
 lib/
 lib64/
 parts/
