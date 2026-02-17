@@ -80,6 +80,7 @@ const GraphCanvas: React.FC = () => {
   const autoLayoutDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousNodeIdsRef = useRef<Set<string> | null>(null);
   const previousModeRef = useRef(mode);
+  const latestAutoLayoutModeRef = useRef(autoLayoutMode);
 
   // Persistence hook - loads positions on mount and handles debounced drag saves
   const { saveNodePosition: saveNodePositionDebounced } = usePersistence();
@@ -193,6 +194,7 @@ const GraphCanvas: React.FC = () => {
       layoutType: AutoLayoutMode,
       options?: {
         closeMenus?: boolean;
+        // When true, persist selected layout as the user's preferred auto-layout mode.
         updateStoredMode?: boolean;
       }
     ) => {
@@ -278,6 +280,10 @@ const GraphCanvas: React.FC = () => {
     ]
   );
 
+  useEffect(() => {
+    latestAutoLayoutModeRef.current = autoLayoutMode;
+  }, [autoLayoutMode]);
+
   // Auto-layout on topology-changing redraws (new node additions), debounced to avoid jumpy relayouts
   useEffect(() => {
     if (previousModeRef.current !== mode) {
@@ -295,9 +301,13 @@ const GraphCanvas: React.FC = () => {
     }
 
     scheduleDebouncedAutoLayout(autoLayoutDebounceRef, () => {
-      applyLayout(autoLayoutMode, { closeMenus: false, updateStoredMode: false });
+      applyLayout(latestAutoLayoutModeRef.current, {
+        closeMenus: false,
+        // Auto-layout should not overwrite the user's last explicit mode selection.
+        updateStoredMode: false,
+      });
     });
-  }, [nodes, mode, autoLayoutEnabled, autoLayoutMode, applyLayout]);
+  }, [nodes, mode, autoLayoutEnabled, applyLayout]);
 
   useEffect(() => {
     if (!autoLayoutEnabled) {
