@@ -2,6 +2,12 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 
 export type VisualizationMode = 'agent' | 'blackboard';
+export type AutoLayoutMode =
+  | 'hierarchical-horizontal'
+  | 'hierarchical-vertical'
+  | 'circular'
+  | 'grid'
+  | 'random';
 
 interface DetailWindow {
   nodeId: string;
@@ -32,6 +38,8 @@ interface UIState {
   setLayoutDirection: (direction: 'TB' | 'LR') => void;
   autoLayoutEnabled: boolean;
   setAutoLayoutEnabled: (enabled: boolean) => void;
+  autoLayoutMode: AutoLayoutMode;
+  setAutoLayoutMode: (mode: AutoLayoutMode) => void;
 
   // Preferences
   defaultTab: 'liveOutput' | 'messageHistory' | 'runStatus';
@@ -92,6 +100,8 @@ export const useUIStore = create<UIState>()(
         setLayoutDirection: (direction: 'TB' | 'LR') => set({ layoutDirection: direction }),
         autoLayoutEnabled: true,
         setAutoLayoutEnabled: (enabled: boolean) => set({ autoLayoutEnabled: enabled }),
+        autoLayoutMode: 'hierarchical-horizontal',
+        setAutoLayoutMode: (mode: AutoLayoutMode) => set({ autoLayoutMode: mode }),
 
         defaultTab: 'liveOutput',
         setDefaultTab: (tab: 'liveOutput' | 'messageHistory' | 'runStatus') => set({ defaultTab: tab }),
@@ -104,6 +114,7 @@ export const useUIStore = create<UIState>()(
           defaultTab: state.defaultTab,
           layoutDirection: state.layoutDirection,
           autoLayoutEnabled: state.autoLayoutEnabled,
+          autoLayoutMode: state.autoLayoutMode,
         }) as any,
         merge: (persistedState: any, currentState: any) => {
           // Convert detailWindows array back to Map

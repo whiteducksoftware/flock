@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect, useState } from 'react';
+import { useCallback, useMemo, useEffect, useState, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -20,7 +20,7 @@ import PendingBatchEdge from './PendingBatchEdge';
 import MiniMap from './MiniMap';
 import { useGraphStore } from '../../store/graphStore';
 import { useFilterStore } from '../../store/filterStore';
-import { useUIStore } from '../../store/uiStore';
+import { useUIStore, type AutoLayoutMode } from '../../store/uiStore';
 import { useModuleStore } from '../../store/moduleStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { moduleRegistry } from '../modules/ModuleRegistry';
@@ -32,17 +32,28 @@ import {
 } from '../../services/layout';
 import { usePersistence } from '../../hooks/usePersistence';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  clearDebouncedAutoLayout,
+  getNodeIdSet,
+  hasNewNodeAdditions,
+  scheduleDebouncedAutoLayout,
+} from './autoLayoutTrigger';
 
 const GraphCanvas: React.FC = () => {
   const { fitView, getIntersectingNodes, screenToFlowPosition } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
+  const autoLayoutEnabled = useUIStore((state) => state.autoLayoutEnabled);
+  const setAutoLayoutEnabled = useUIStore((state) => state.setAutoLayoutEnabled);
+  const autoLayoutMode = useUIStore((state) => state.autoLayoutMode);
+  const setAutoLayoutMode = useUIStore((state) => state.setAutoLayoutMode);
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
   const generateAgentViewGraph = useGraphStore((state) => state.generateAgentViewGraph);
   const generateBlackboardViewGraph = useGraphStore((state) => state.generateBlackboardViewGraph);
-  const updateNodePosition = useGraphStore ((state) => state.updateNodePosition);
+  const updateNodePosition = useGraphStore((state) => state.updateNodePosition);
+  const persistNodePosition = useGraphStore((state) => state.saveNodePosition);
   const addModule = useModuleStore((state) => state.addModule);
   // UI Optimization Migration (Phase 4 - Spec 002): Use filterStore.applyFilters (backend-driven)
   const applyFilters = useFilterStore((state) => state.applyFilters);
@@ -66,8 +77,12 @@ const GraphCanvas: React.FC = () => {
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
   const [showLayoutSubmenu, setShowLayoutSubmenu] = useState(false);
 
-  // Persistence hook - loads positions on mount and handles saves
-  const { saveNodePosition } = usePersistence();
+  const autoLayoutDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousNodeIdsRef = useRef<Set<string> | null>(null);
+  const previousModeRef = useRef(mode);
+
+  // Persistence hook - loads positions on mount and handles debounced drag saves
+  const { saveNodePosition: saveNodePositionDebounced } = usePersistence();
 
   // Memoize node types to prevent re-creation
   const nodeTypes = useMemo(
@@ -172,78 +187,129 @@ const GraphCanvas: React.FC = () => {
     return dimensionsByNodeId;
   }, []);
 
-  // Generic layout handler
-  const applyLayout = useCallback((layoutType: string) => {
-    // Get the React Flow pane element to find its actual center
-    const pane = document.querySelector('.react-flow__pane');
-    let viewportCenter = { x: 0, y: 0 };
+  // Generic layout handler (manual + auto-layout)
+  const applyLayout = useCallback(
+    (
+      layoutType: AutoLayoutMode,
+      options?: {
+        closeMenus?: boolean;
+        updateStoredMode?: boolean;
+      }
+    ) => {
+      const { closeMenus = true, updateStoredMode = true } = options || {};
 
-    if (pane) {
-      const rect = pane.getBoundingClientRect();
-      // Convert screen center of the pane to flow coordinates
-      viewportCenter = screenToFlowPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
+      if (updateStoredMode) {
+        setAutoLayoutMode(layoutType);
+      }
+
+      // Get the React Flow pane element to find its actual center
+      const pane = document.querySelector('.react-flow__pane');
+      let viewportCenter = { x: 0, y: 0 };
+
+      if (pane) {
+        const rect = pane.getBoundingClientRect();
+        // Convert screen center of the pane to flow coordinates
+        viewportCenter = screenToFlowPosition({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        });
+      }
+
+      const dimensionsByNodeId = collectRenderedNodeDimensions();
+      const hierarchicalBaseOptions = {
+        center: viewportCenter,
+        nodeSpacing,
+        rankSpacing,
+        dimensionsByNodeId,
+      };
+
+      let result;
+      switch (layoutType) {
+        case 'hierarchical-vertical':
+          result = applyHierarchicalLayout(nodes, edges, {
+            ...hierarchicalBaseOptions,
+            direction: 'TB',
+          });
+          break;
+        case 'hierarchical-horizontal':
+          result = applyHierarchicalLayout(nodes, edges, {
+            ...hierarchicalBaseOptions,
+            direction: 'LR',
+          });
+          break;
+        case 'circular':
+          result = applyCircularLayout(nodes, edges, { center: viewportCenter });
+          break;
+        case 'grid':
+          result = applyGridLayout(nodes, edges, { center: viewportCenter });
+          break;
+        case 'random':
+          result = applyRandomLayout(nodes, edges, { center: viewportCenter });
+          break;
+        default:
+          result = applyHierarchicalLayout(nodes, edges, {
+            ...hierarchicalBaseOptions,
+            direction: layoutDirection,
+          });
+      }
+
+      // Update nodes with new positions and persist to IndexedDB to avoid snap-back on refresh
+      useGraphStore.setState({ nodes: result.nodes });
+      result.nodes.forEach((node) => {
+        persistNodePosition(node.id, node.position);
       });
-    }
 
-    const dimensionsByNodeId = collectRenderedNodeDimensions();
-    const hierarchicalBaseOptions = {
-      center: viewportCenter,
+      if (closeMenus) {
+        setContextMenu(null);
+        setShowModuleSubmenu(false);
+        setShowLayoutSubmenu(false);
+      }
+    },
+    [
+      nodes,
+      edges,
+      persistNodePosition,
+      screenToFlowPosition,
+      collectRenderedNodeDimensions,
+      layoutDirection,
       nodeSpacing,
       rankSpacing,
-      dimensionsByNodeId,
-    };
+      setAutoLayoutMode,
+    ]
+  );
 
-    let result;
-    switch (layoutType) {
-      case 'hierarchical-vertical':
-        result = applyHierarchicalLayout(nodes, edges, {
-          ...hierarchicalBaseOptions,
-          direction: 'TB',
-        });
-        break;
-      case 'hierarchical-horizontal':
-        result = applyHierarchicalLayout(nodes, edges, {
-          ...hierarchicalBaseOptions,
-          direction: 'LR',
-        });
-        break;
-      case 'circular':
-        result = applyCircularLayout(nodes, edges, { center: viewportCenter });
-        break;
-      case 'grid':
-        result = applyGridLayout(nodes, edges, { center: viewportCenter });
-        break;
-      case 'random':
-        result = applyRandomLayout(nodes, edges, { center: viewportCenter });
-        break;
-      default:
-        result = applyHierarchicalLayout(nodes, edges, {
-          ...hierarchicalBaseOptions,
-          direction: layoutDirection,
-        });
+  // Auto-layout on topology-changing redraws (new node additions), debounced to avoid jumpy relayouts
+  useEffect(() => {
+    if (previousModeRef.current !== mode) {
+      previousModeRef.current = mode;
+      previousNodeIdsRef.current = new Set(nodes.map((node) => node.id));
+      return;
     }
 
-    // Update nodes with new positions
-    result.nodes.forEach((node) => {
-      updateNodePosition(node.id, node.position);
-    });
+    const currentNodeIds = getNodeIdSet(nodes);
+    const hasNewNodes = hasNewNodeAdditions(previousNodeIdsRef.current, currentNodeIds);
+    previousNodeIdsRef.current = currentNodeIds;
 
-    useGraphStore.setState({ nodes: result.nodes });
-    setContextMenu(null);
-    setShowModuleSubmenu(false);
-    setShowLayoutSubmenu(false);
-  }, [
-    nodes,
-    edges,
-    updateNodePosition,
-    screenToFlowPosition,
-    collectRenderedNodeDimensions,
-    layoutDirection,
-    nodeSpacing,
-    rankSpacing,
-  ]);
+    if (!autoLayoutEnabled || !hasNewNodes) {
+      return;
+    }
+
+    scheduleDebouncedAutoLayout(autoLayoutDebounceRef, () => {
+      applyLayout(autoLayoutMode, { closeMenus: false, updateStoredMode: false });
+    });
+  }, [nodes, mode, autoLayoutEnabled, autoLayoutMode, applyLayout]);
+
+  useEffect(() => {
+    if (!autoLayoutEnabled) {
+      clearDebouncedAutoLayout(autoLayoutDebounceRef);
+    }
+  }, [autoLayoutEnabled]);
+
+  useEffect(() => {
+    return () => {
+      clearDebouncedAutoLayout(autoLayoutDebounceRef);
+    };
+  }, []);
 
   // Auto-zoom handler
   const handleAutoZoom = useCallback(() => {
@@ -307,9 +373,9 @@ const GraphCanvas: React.FC = () => {
   // Node drag stop handler - persist position with 300ms debounce
   const onNodeDragStop = useCallback(
     (_event: React.MouseEvent | MouseEvent, node: Node) => {
-      saveNodePosition(node.id, node.position);
+      saveNodePositionDebounced(node.id, node.position);
     },
-    [saveNodePosition]
+    [saveNodePositionDebounced]
   );
 
   // Node double-click handler - open detail window
@@ -549,6 +615,42 @@ const GraphCanvas: React.FC = () => {
                   }}
                 >
                   Random
+                </button>
+
+                <div
+                  style={{
+                    borderTop: '1px solid var(--color-border-subtle)',
+                    margin: 'var(--spacing-1) 0',
+                  }}
+                />
+
+                <button
+                  onClick={() => {
+                    setAutoLayoutEnabled(!autoLayoutEnabled);
+                    setContextMenu(null);
+                    setShowLayoutSubmenu(false);
+                    setShowModuleSubmenu(false);
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: 'var(--spacing-2) var(--spacing-4)',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontSize: 'var(--font-size-body-sm)',
+                    color: 'var(--color-text-primary)',
+                    transition: 'var(--transition-colors)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  Auto Layout: {autoLayoutEnabled ? 'On' : 'Off'}
                 </button>
               </div>
             )}

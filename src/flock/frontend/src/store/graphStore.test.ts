@@ -15,6 +15,7 @@ import { fetchGraphSnapshot, mergeNodePositions, overlayWebSocketState } from '.
 import { useFilterStore } from './filterStore';
 import { GraphSnapshot, GraphNode } from '../types/graph';
 import { Node } from '@xyflow/react';
+import { indexedDBService } from '../services/indexeddb';
 
 // Mock dependencies
 vi.mock('../services/graphService', () => ({
@@ -419,6 +420,22 @@ describe('graphStore - NEW Simplified Architecture', () => {
       // Verify merged positions applied
       const state = useGraphStore.getState();
       expect(state.nodes[0]!.position).toEqual({ x: 200, y: 300 });
+    });
+
+    it('should persist saved node positions to IndexedDB in agent view', () => {
+      useGraphStore.setState({ viewMode: 'agent' });
+      const saveSpy = vi.spyOn(indexedDBService, 'saveAgentViewLayout').mockResolvedValue();
+
+      useGraphStore.getState().saveNodePosition('agent1', { x: 420, y: 240 });
+
+      expect(saveSpy).toHaveBeenCalledWith({
+        node_id: 'agent1',
+        x: 420,
+        y: 240,
+        last_updated: expect.any(String),
+      });
+
+      saveSpy.mockRestore();
     });
 
     it('should overlay WebSocket state on merged nodes', async () => {

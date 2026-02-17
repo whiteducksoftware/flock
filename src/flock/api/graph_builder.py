@@ -497,7 +497,34 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     edges.extend(pending_batch_edges)
                     edge_counter += len(pending_batch_edges)
 
+        self._apply_pending_label_offsets(edges)
         return edges
+
+    @staticmethod
+    def _apply_pending_label_offsets(edges: list[GraphEdge]) -> None:
+        """Distribute pending edge label offsets per (type, source, target) group."""
+        grouped_edge_ids: dict[tuple[str, str, str], list[str]] = defaultdict(list)
+        for edge in edges:
+            if edge.type not in ("pending_join", "pending_batch"):
+                continue
+            grouped_edge_ids[(edge.type, edge.source, edge.target)].append(edge.id)
+
+        offsets: dict[str, float] = {}
+        for edge_ids in grouped_edge_ids.values():
+            total = len(edge_ids)
+            if total <= 1:
+                for edge_id in edge_ids:
+                    offsets[edge_id] = 0.0
+                continue
+
+            offset_range = min(40.0, total * 15.0)
+            step = offset_range / (total - 1)
+            for index, edge_id in enumerate(edge_ids):
+                offsets[edge_id] = index * step - offset_range / 2
+
+        for edge in edges:
+            if edge.id in offsets:
+                edge.data["labelOffset"] = offsets[edge.id]
 
     def _build_pending_join_edges(
         self,

@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from flock.api.graph_builder import GraphAssembler
+from flock.components.server.models.graph import GraphEdge
 from flock.core.subscription import ScheduleSpec
 from datetime import timedelta
 
@@ -89,4 +90,74 @@ class TestGraphBuilderCoverage:
         # Should have scheduleSpec but no timerState
         assert "scheduleSpec" in scheduled_node.data
         assert "timerState" not in scheduled_node.data
+
+    def test_apply_pending_label_offsets_distributes_by_type_and_pair(self):
+        """Pending join/batch edges should get distributed non-zero offsets per pair."""
+        edges = [
+            GraphEdge(
+                id="join-1",
+                source="producer-a",
+                target="agent-x",
+                type="pending_join",
+                label="j1",
+                data={"labelOffset": 0.0},
+            ),
+            GraphEdge(
+                id="join-2",
+                source="producer-a",
+                target="agent-x",
+                type="pending_join",
+                label="j2",
+                data={"labelOffset": 0.0},
+            ),
+            GraphEdge(
+                id="join-3",
+                source="producer-a",
+                target="agent-x",
+                type="pending_join",
+                label="j3",
+                data={"labelOffset": 0.0},
+            ),
+            GraphEdge(
+                id="batch-1",
+                source="producer-a",
+                target="agent-x",
+                type="pending_batch",
+                label="b1",
+                data={"labelOffset": 0.0},
+            ),
+            GraphEdge(
+                id="batch-2",
+                source="producer-a",
+                target="agent-x",
+                type="pending_batch",
+                label="b2",
+                data={"labelOffset": 0.0},
+            ),
+            GraphEdge(
+                id="other",
+                source="producer-a",
+                target="agent-x",
+                type="message_flow",
+                label="m",
+                data={"labelOffset": 7.0},
+            ),
+        ]
+
+        GraphAssembler._apply_pending_label_offsets(edges)
+
+        join_offsets = [e.data["labelOffset"] for e in edges if e.id.startswith("join-")]
+        batch_offsets = [e.data["labelOffset"] for e in edges if e.id.startswith("batch-")]
+
+        # Non-identical offsets for grouped pending edges
+        assert len(set(join_offsets)) == 3
+        assert len(set(batch_offsets)) == 2
+
+        # Symmetric around 0 (sum ~ 0)
+        assert sum(join_offsets) == pytest.approx(0.0)
+        assert sum(batch_offsets) == pytest.approx(0.0)
+
+        # Non-pending edge remains untouched
+        other = next(edge for edge in edges if edge.id == "other")
+        assert other.data["labelOffset"] == 7.0
 
