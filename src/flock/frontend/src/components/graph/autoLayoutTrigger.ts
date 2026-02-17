@@ -1,4 +1,4 @@
-import type { Node } from '@xyflow/react';
+import type { Edge, Node } from '@xyflow/react';
 
 export const AUTO_LAYOUT_DEBOUNCE_MS = 500;
 
@@ -8,15 +8,33 @@ export function getNodeIdSet(nodes: Array<Pick<Node, 'id'>>): Set<string> {
   return new Set(nodes.map((node) => node.id));
 }
 
+export function getEdgeIdSet(edges: Array<Pick<Edge, 'id'>>): Set<string> {
+  return new Set(edges.map((edge) => edge.id));
+}
+
+function hasNewIdAdditions(
+  previousIds: Set<string> | null,
+  currentIds: Set<string>
+): boolean {
+  if (!previousIds) {
+    return false;
+  }
+
+  return Array.from(currentIds).some((id) => !previousIds.has(id));
+}
+
 export function hasNewNodeAdditions(
   previousNodeIds: Set<string> | null,
   currentNodeIds: Set<string>
 ): boolean {
-  if (!previousNodeIds) {
-    return false;
-  }
+  return hasNewIdAdditions(previousNodeIds, currentNodeIds);
+}
 
-  return Array.from(currentNodeIds).some((nodeId) => !previousNodeIds.has(nodeId));
+export function hasNewEdgeAdditions(
+  previousEdgeIds: Set<string> | null,
+  currentEdgeIds: Set<string>
+): boolean {
+  return hasNewIdAdditions(previousEdgeIds, currentEdgeIds);
 }
 
 export function clearDebouncedAutoLayout(timerRef: TimeoutRef): void {

@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   AUTO_LAYOUT_DEBOUNCE_MS,
   clearDebouncedAutoLayout,
+  getEdgeIdSet,
   getNodeIdSet,
+  hasNewEdgeAdditions,
   hasNewNodeAdditions,
   scheduleDebouncedAutoLayout,
   type TimeoutRef,
@@ -26,6 +28,25 @@ describe('autoLayoutTrigger', () => {
   it('treats missing previous topology baseline as no trigger', () => {
     const current = getNodeIdSet([{ id: 'a' }] as any);
     expect(hasNewNodeAdditions(null, current)).toBe(false);
+  });
+
+  it('does not detect topology change when edge ids are unchanged', () => {
+    const previous = new Set(['edge-1', 'edge-2']);
+    const current = getEdgeIdSet([{ id: 'edge-2' }, { id: 'edge-1' }] as any);
+
+    expect(hasNewEdgeAdditions(previous, current)).toBe(false);
+  });
+
+  it('detects topology change when new edges are added', () => {
+    const previous = new Set(['edge-1']);
+    const current = getEdgeIdSet([{ id: 'edge-1' }, { id: 'edge-2' }] as any);
+
+    expect(hasNewEdgeAdditions(previous, current)).toBe(true);
+  });
+
+  it('treats missing previous edge baseline as no trigger', () => {
+    const current = getEdgeIdSet([{ id: 'edge-1' }] as any);
+    expect(hasNewEdgeAdditions(null, current)).toBe(false);
   });
 
   it('debounces burst scheduling into a single callback invocation', () => {

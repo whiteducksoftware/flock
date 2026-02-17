@@ -34,7 +34,9 @@ import { usePersistence } from '../../hooks/usePersistence';
 import { v4 as uuidv4 } from 'uuid';
 import {
   clearDebouncedAutoLayout,
+  getEdgeIdSet,
   getNodeIdSet,
+  hasNewEdgeAdditions,
   hasNewNodeAdditions,
   scheduleDebouncedAutoLayout,
 } from './autoLayoutTrigger';
@@ -79,6 +81,7 @@ const GraphCanvas: React.FC = () => {
 
   const autoLayoutDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousNodeIdsRef = useRef<Set<string> | null>(null);
+  const previousEdgeIdsRef = useRef<Set<string> | null>(null);
   const previousModeRef = useRef(mode);
   const latestAutoLayoutModeRef = useRef(autoLayoutMode);
 
@@ -284,19 +287,25 @@ const GraphCanvas: React.FC = () => {
     latestAutoLayoutModeRef.current = autoLayoutMode;
   }, [autoLayoutMode]);
 
-  // Auto-layout on topology-changing redraws (new node additions), debounced to avoid jumpy relayouts
+  // Auto-layout on topology-changing redraws (new nodes or new edges), debounced to avoid jumpy relayouts
   useEffect(() => {
     if (previousModeRef.current !== mode) {
       previousModeRef.current = mode;
-      previousNodeIdsRef.current = new Set(nodes.map((node) => node.id));
+      previousNodeIdsRef.current = getNodeIdSet(nodes);
+      previousEdgeIdsRef.current = getEdgeIdSet(edges);
       return;
     }
 
     const currentNodeIds = getNodeIdSet(nodes);
-    const hasNewNodes = hasNewNodeAdditions(previousNodeIdsRef.current, currentNodeIds);
-    previousNodeIdsRef.current = currentNodeIds;
+    const currentEdgeIds = getEdgeIdSet(edges);
 
-    if (!autoLayoutEnabled || !hasNewNodes) {
+    const hasNewNodes = hasNewNodeAdditions(previousNodeIdsRef.current, currentNodeIds);
+    const hasNewEdges = hasNewEdgeAdditions(previousEdgeIdsRef.current, currentEdgeIds);
+
+    previousNodeIdsRef.current = currentNodeIds;
+    previousEdgeIdsRef.current = currentEdgeIds;
+
+    if (!autoLayoutEnabled || (!hasNewNodes && !hasNewEdges)) {
       return;
     }
 
@@ -307,7 +316,7 @@ const GraphCanvas: React.FC = () => {
         updateStoredMode: false,
       });
     });
-  }, [nodes, mode, autoLayoutEnabled, applyLayout]);
+  }, [nodes, edges, mode, autoLayoutEnabled, applyLayout]);
 
   useEffect(() => {
     if (!autoLayoutEnabled) {
