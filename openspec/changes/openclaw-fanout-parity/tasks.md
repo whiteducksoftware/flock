@@ -11,7 +11,7 @@
 
 - [ ] 2.1 (flock-repo-2vu.5) Implement fan-out cardinality resolver + payload builder array schema.
 - [ ] 2.2 (flock-repo-2vu.6) Implement fan-out list parsing and per-item artifact materialization.
-- [ ] 2.3 (flock-repo-2vu.7) Implement fan-out contract enforcement + retry/error mapping.
+- [ ] 2.3 (flock-repo-2vu.7) Implement fan-out contract enforcement + retry/error mapping (v1: full-request retry on count violations, no partial-accept).
 - [ ] 2.4 (flock-repo-2vu.8) Implement explicit fail-fast for unsupported multi-output groups.
 
 ## 3. Integration Coverage

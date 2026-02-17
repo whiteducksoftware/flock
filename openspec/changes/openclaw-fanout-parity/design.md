@@ -41,6 +41,11 @@ This conflicts with Flock fan-out declarations where one output declaration can 
 - **Decision:** Reuse existing parser/repair policy for malformed responses, extended to list mode.
 - **Rationale:** Consistency with current OpenClaw robustness behavior.
 
+### Decision 5 — v1 count violations use full-request retry (no partial-accept)
+- **Decision:** For fixed/range count violations, retry the full request payload in v1 rather than attempting partial-accept or "fill missing N" stitching.
+- **Rationale:** Keeps retry loop deterministic and avoids complex partial-array reconciliation logic in first implementation.
+- **Future consideration:** Add optional partial-accept/fill strategy in a later phase if needed.
+
 ## Implementation Plan
 
 1. Add output cardinality resolver helper in engine:
