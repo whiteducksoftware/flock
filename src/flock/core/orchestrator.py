@@ -1297,8 +1297,11 @@ class Flock(metaclass=AutoTracedMeta):
 
             # Log error but don't re-raise - workflow continues
             self._logger.error(
-                f"Agent '{agent.name}' failed (task={ctx.task_id}): {exc}",
-                exc_info=True,
+                "Agent '{}' failed (task={}): {}",
+                agent.name,
+                ctx.task_id,
+                exc,
+                exc_info=exc,
             )
             return  # Exit early - no outputs to publish
 

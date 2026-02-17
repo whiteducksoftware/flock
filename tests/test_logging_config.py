@@ -361,6 +361,35 @@ class TestFlockLogger:
         mock_bound.error.assert_called_once_with("test message")
 
     @patch("flock.logging.logging.loguru_logger")
+    def test_flock_logger_error_supports_exc_info_bool_without_format_breakage(self, mock_loguru):
+        """exc_info should be handled via logger.opt(exception=...) and not as format kwargs."""
+        mock_bound = Mock()
+        mock_opt = Mock()
+        mock_bound.opt.return_value = mock_opt
+        mock_loguru.bind.return_value = mock_bound
+
+        logger = FlockLogger("test", LOG_LEVELS["ERROR"])
+        logger.error('json payload: {"a": 1}', exc_info=True)
+
+        mock_bound.opt.assert_called_once_with(exception=True)
+        mock_opt.error.assert_called_once_with('json payload: {"a": 1}')
+
+    @patch("flock.logging.logging.loguru_logger")
+    def test_flock_logger_error_supports_exc_info_exception_instance(self, mock_loguru):
+        """Exception instances in exc_info should preserve traceback association safely."""
+        mock_bound = Mock()
+        mock_opt = Mock()
+        mock_bound.opt.return_value = mock_opt
+        mock_loguru.bind.return_value = mock_bound
+
+        logger = FlockLogger("test", LOG_LEVELS["ERROR"])
+        exc = RuntimeError('parse failed: {"broken": true}')
+        logger.error("failure", exc_info=exc)
+
+        mock_bound.opt.assert_called_once_with(exception=exc)
+        mock_opt.error.assert_called_once_with("failure")
+
+    @patch("flock.logging.logging.loguru_logger")
     def test_flock_logger_exception(self, mock_loguru):
         """Test FlockLogger exception method."""
         mock_bound = Mock()
