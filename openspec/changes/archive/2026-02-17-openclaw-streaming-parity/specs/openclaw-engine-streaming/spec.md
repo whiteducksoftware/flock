@@ -1,6 +1,6 @@
 # Delta Spec: OpenClaw Engine Streaming
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: OpenClaw Streaming Activation
 The OpenClaw engine SHALL stream token output in both dashboard (WebSocket) and CLI (Rich terminal) modes, matching DSPy engine behavior.
@@ -29,8 +29,6 @@ The `stream` field SHALL use a `default_factory` that returns `False` when `PYTE
 - GIVEN tests running with `PYTEST_CURRENT_TEST` set
 - WHEN `stream=True` is explicitly configured
 - THEN streaming remains enabled
-
-## ADDED Requirements
 
 ### Requirement: CLI Rich Streaming
 When streaming is enabled and no dashboard is active, the engine MUST use `RichSink` to display live token output in the terminal, identical to DSPy engine behavior.

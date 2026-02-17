@@ -12,7 +12,9 @@ from pydantic import BaseModel, Field
 from flock import Flock
 from flock.api.collector import DashboardEventCollector
 from flock.components.agent import EngineComponent
+from flock.components.agent.output_utility import OutputUtilityComponent
 from flock.core.subscription import BatchSpec
+from flock.integrations.openclaw.engine import OpenClawEngine
 from flock.integrations.openclaw.streaming import OpenClawSSEConsumer, SSEFrame
 from flock.registry import flock_type
 from flock.core.store import InMemoryBlackboardStore
@@ -549,6 +551,89 @@ async def test_openclaw_streaming_emits_websocket_events_compatible_with_dashboa
     assert len(artifact_ids) == 1
     assert "" not in artifact_ids
     assert all(event.artifact_type == "OpenClawPipelineDraft" for event in captured)
+
+
+@pytest.mark.asyncio
+async def test_openclaw_cli_streaming_sets_live_state_and_releases_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CLI streaming path should set live state and release counter in finally."""
+    OpenClawConfig, GatewayConfig = _openclaw_config_classes()
+
+    from flock.core import Agent
+
+    original_broadcast = Agent._websocket_broadcast_global
+    original_counter = Agent._streaming_counter
+    Agent._websocket_broadcast_global = None
+    Agent._streaming_counter = 0
+
+    seen: dict[str, object] = {}
+
+    async def _fake_streaming_attempt(self, **kwargs):
+        seen["is_dashboard_stream"] = kwargs.get("is_dashboard_stream")
+        seen["counter_during_attempt"] = Agent._streaming_counter
+        seen["ctx"] = kwargs.get("ctx")
+        seen["engine_no_output"] = getattr(self, "no_output", None)
+        return {"draft": "streamed-cli"}
+
+    monkeypatch.setattr(
+        OpenClawEngine,
+        "_execute_streaming_attempt",
+        _fake_streaming_attempt,
+    )
+
+    original_on_post_evaluate = OutputUtilityComponent.on_post_evaluate
+
+    async def _capture_post_evaluate(self, agent, ctx, inputs, result):
+        seen["stream_live_before_output_utility"] = bool(
+            ctx.get_variable("_flock_stream_live_active", False)
+        )
+        return await original_on_post_evaluate(self, agent, ctx, inputs, result)
+
+    monkeypatch.setattr(
+        OutputUtilityComponent,
+        "on_post_evaluate",
+        _capture_post_evaluate,
+    )
+
+    try:
+        flock = Flock(
+            openclaw=OpenClawConfig(
+                gateways={
+                    "codie": GatewayConfig(
+                        url="http://localhost:19789",
+                        token="token-codie",
+                        token_env="OPENCLAW_CODIE_TOKEN",
+                    )
+                }
+            )
+        )
+
+        builder = flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
+            OpenClawPipelineDraft
+        )
+        builder.agent.engines[0].stream = True
+        builder.agent.engines[0].no_output = False
+
+        await flock.publish(OpenClawPipelineInput(feature="cli streaming state contract"))
+        await flock.run_until_idle()
+
+        artifacts = await flock.store.list()
+        drafts = [a for a in artifacts if a.type == "OpenClawPipelineDraft"]
+
+        assert len(drafts) == 1
+        assert drafts[0].payload == {"draft": "streamed-cli"}
+        assert seen["is_dashboard_stream"] is False
+        assert seen["counter_during_attempt"] == 1
+        assert seen["engine_no_output"] is False
+
+        ctx = seen.get("ctx")
+        assert ctx is not None
+        assert seen["stream_live_before_output_utility"] is True
+        assert Agent._streaming_counter == 0
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+        Agent._streaming_counter = original_counter
 
 
 @pytest.mark.asyncio

@@ -822,6 +822,51 @@ async def test_streaming_executor_is_used_when_dashboard_websocket_is_available(
 
 
 @pytest.mark.asyncio
+async def test_stream_false_forces_non_streaming_even_with_dashboard_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flock.core import Agent
+
+    original_broadcast = Agent._websocket_broadcast_global
+
+    async def _broadcast(_event) -> None:
+        return None
+
+    Agent._websocket_broadcast_global = _broadcast
+    seen: dict[str, object] = {}
+
+    async def _should_not_stream(self, **kwargs):
+        raise AssertionError(
+            "streaming attempt should not be used when engine.stream is False"
+        )
+
+    async def _fake_non_streaming(self, **kwargs):
+        seen["payload"] = kwargs.get("payload")
+        return _responses_completed('{"result":"non-stream"}')
+
+    monkeypatch.setattr(
+        OpenClawEngine,
+        "_execute_streaming_attempt",
+        _should_not_stream,
+    )
+    monkeypatch.setattr(
+        OpenClawEngine,
+        "_call_responses_api",
+        _fake_non_streaming,
+    )
+
+    try:
+        outputs = await _invoke_once(stream=False)
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+
+    assert outputs[0].payload["result"] == "non-stream"
+    payload = seen.get("payload")
+    assert isinstance(payload, dict)
+    assert payload["stream"] is False
+
+
+@pytest.mark.asyncio
 @respx.mock
 async def test_streaming_path_falls_back_to_non_streaming_when_sse_fails(
     monkeypatch: pytest.MonkeyPatch,
@@ -900,6 +945,36 @@ async def test_cli_streaming_is_used_when_stream_enabled_without_dashboard(
 
     assert outputs[0].payload["result"] == "streamed-cli"
     assert captured["is_dashboard_stream"] is False
+
+
+@pytest.mark.asyncio
+async def test_cli_streaming_counter_decrements_in_finally_when_streaming_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flock.core import Agent
+
+    original_broadcast = Agent._websocket_broadcast_global
+    original_counter = Agent._streaming_counter
+    Agent._websocket_broadcast_global = None
+    Agent._streaming_counter = 0
+
+    async def _boom_streaming_attempt(self, **kwargs):
+        raise RuntimeError("streaming exploded")
+
+    monkeypatch.setattr(
+        OpenClawEngine,
+        "_execute_streaming_attempt",
+        _boom_streaming_attempt,
+    )
+
+    try:
+        with pytest.raises(RuntimeError, match="streaming exploded"):
+            await _invoke_once(stream=True, retries=0)
+
+        assert Agent._streaming_counter == 0
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+        Agent._streaming_counter = original_counter
 
 
 def test_resolve_streaming_mode_marks_output_queued_when_cli_slot_busy() -> None:
