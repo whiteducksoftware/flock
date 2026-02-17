@@ -800,10 +800,10 @@ async def test_openclaw_streaming_emits_websocket_events_compatible_with_dashboa
 
 
 @pytest.mark.asyncio
-async def test_openclaw_cli_streaming_sets_live_state_and_releases_counter(
+async def test_openclaw_cli_streaming_releases_counter_without_live_state_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """CLI streaming path should set live state and release counter in finally."""
+    """CLI streaming should release counter; static final table is handled by OutputUtility."""
     OpenClawConfig, GatewayConfig = _openclaw_config_classes()
 
     from flock.core import Agent
@@ -875,7 +875,7 @@ async def test_openclaw_cli_streaming_sets_live_state_and_releases_counter(
 
         ctx = seen.get("ctx")
         assert ctx is not None
-        assert seen["stream_live_before_output_utility"] is True
+        assert seen["stream_live_before_output_utility"] is False
         assert Agent._streaming_counter == 0
     finally:
         Agent._websocket_broadcast_global = original_broadcast

@@ -247,7 +247,12 @@ class OpenClawEngine(EngineComponent):
                             self._bump_counter("responses_repaired_success")
                             self._log_reliability_snapshot_if_due()
 
-                            if should_stream and ctx and not getattr(self, "no_output", False):
+                            if (
+                                should_stream
+                                and is_dashboard_stream
+                                and ctx
+                                and not getattr(self, "no_output", False)
+                            ):
                                 ctx.state["_flock_stream_live_active"] = True
 
                             return EvalResult(artifacts=artifacts, state=dict(inputs.state))
@@ -296,7 +301,12 @@ class OpenClawEngine(EngineComponent):
                     self._bump_counter("responses_repaired_success")
                 self._log_reliability_snapshot_if_due()
 
-                if should_stream and ctx and not getattr(self, "no_output", False):
+                if (
+                    should_stream
+                    and is_dashboard_stream
+                    and ctx
+                    and not getattr(self, "no_output", False)
+                ):
                     ctx.state["_flock_stream_live_active"] = True
 
                 return EvalResult(artifacts=artifacts, state=dict(inputs.state))
@@ -480,8 +490,8 @@ class OpenClawEngine(EngineComponent):
             initial_panel,
             console=Console(),
             refresh_per_second=12,
-            # Keep final CLI render visible after stream completion (DSPy parity).
-            transient=False,
+            # CLI stream panel is transient; OutputUtility renders final static table.
+            transient=True,
             vertical_overflow=self.stream_vertical_overflow,
         )
 
