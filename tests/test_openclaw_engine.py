@@ -1519,3 +1519,51 @@ def test_resolve_streaming_mode_marks_output_queued_when_cli_slot_busy() -> None
     assert is_dashboard is False
     assert claimed_slot is False
     assert ctx.state["_flock_output_queued"] is True
+
+
+def test_resolve_output_utility_theme_prefers_output_component_theme() -> None:
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+    engine = builder.agent.engines[0]
+
+    fake_agent = SimpleNamespace(
+        utilities=[
+            SimpleNamespace(
+                name="output",
+                config=SimpleNamespace(theme=SimpleNamespace(value="catppuccin-mocha")),
+            )
+        ]
+    )
+
+    assert engine._resolve_output_utility_theme(fake_agent) == "catppuccin-mocha"
+
+
+def test_build_cli_streaming_sinks_uses_openclaw_lobster_label() -> None:
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+    engine = builder.agent.engines[0]
+
+    # Override no_output so CLI streaming sink can be created in this unit test.
+    engine.no_output = False
+
+    output_group = builder.agent.output_groups[0]
+    ctx = SimpleNamespace(correlation_id="cid-stream", state={})
+
+    sinks, _live_cm, _live_ref = engine._build_cli_streaming_sinks(
+        agent=builder.agent,
+        ctx=ctx,
+        output_group=output_group,
+        artifact_id="artifact-stream-id",
+    )
+
+    assert sinks
+    rich_sink = sinks[0]
+    assert rich_sink.final_display_data[4] == "codie 🦞"

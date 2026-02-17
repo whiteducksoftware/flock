@@ -437,6 +437,19 @@ class OpenClawEngine(EngineComponent):
             )
         ]
 
+    def _resolve_output_utility_theme(self, agent) -> str:
+        """Resolve CLI streaming theme from OutputUtility to match final static table."""
+        for utility in getattr(agent, "utilities", []) or []:
+            if getattr(utility, "name", None) != "output":
+                continue
+            config = getattr(utility, "config", None)
+            if config is None:
+                continue
+            theme = getattr(config, "theme", None)
+            if theme:
+                return str(getattr(theme, "value", theme))
+        return str(self.theme)
+
     def _build_cli_streaming_sinks(self, *, agent, ctx, output_group, artifact_id):
         if getattr(self, "no_output", False):
             return [], nullcontext(), None
@@ -474,12 +487,14 @@ class OpenClawEngine(EngineComponent):
         formatter_helper = DSPyStreamingExecutor(
             status_output_field=self.status_output_field,
             stream_vertical_overflow=self.stream_vertical_overflow,
-            theme=self.theme,
+            theme=self._resolve_output_utility_theme(agent),
             no_output=self.no_output,
         )
         formatter, theme_dict, styles, agent_label = formatter_helper.prepare_stream_formatter(
             agent
         )
+        # Match OpenClaw static table label in streaming panel.
+        agent_label = f"{getattr(agent, 'name', '')} 🦞"
 
         _ensure_live_crop_above()
         initial_panel = formatter.format_result(
