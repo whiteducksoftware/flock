@@ -31,7 +31,7 @@ export OPENCLAW_CLAUDE_TOKEN=your-token
 
 ## Key Concepts
 
-**One-line swap:** Replace `flock.agent("name")` with `flock.openclaw_agent("alias")` — everything else stays the same.
+**One-line swap (most cases):** Replace `flock.agent("name")` with `flock.openclaw_agent("alias")` — everything else stays the same.
 
 ```python
 # Before: Direct LLM
@@ -41,7 +41,38 @@ pizza_master = flock.agent("pizza_master").consumes(Idea).publishes(Pizza)
 pizza_master = flock.openclaw_agent("codex").consumes(Idea).publishes(Pizza)
 ```
 
-**All Flock features work unchanged:** blackboard routing, visibility, fan-out, conditions, tracing, dashboard — OpenClaw is just a different engine.
+**All core Flock features work unchanged:** blackboard routing, visibility, fan-out, conditions, tracing, dashboard — OpenClaw is just a different engine.
+
+### Multi-output groups (envelope contract)
+
+OpenClaw now supports output groups like:
+
+```python
+producer = (
+    flock.openclaw_agent("codex")
+    .consumes(Brief)
+    .publishes(Draft, Summary)
+)
+```
+
+Expected response contract for multi-output groups is one JSON envelope object keyed by slot/type name:
+
+```json
+{
+  "Draft": {"draft": "..."},
+  "Summary": {"summary": "..."}
+}
+```
+
+Rules:
+- Non-fan-out slot -> JSON object
+- Fan-out slot -> JSON array (per-slot cardinality enforced)
+- Unknown slot keys -> contract failure
+- Missing required slots -> contract failure
+
+Current limitation:
+- If slot names collide (e.g., duplicate type names), execution fails fast.
+- Alias-based slot naming is the long-term fix and planned separately.
 
 **Two config styles:**
 ```python

@@ -50,7 +50,7 @@ Example:
 v1 slot naming strategy:
 1. Use declaration type name as slot key.
 2. If keys collide (duplicate type names in group), fail fast with explicit error.
-3. Alias support is deferred to follow-up change if needed.
+3. Alias support is deferred to a follow-up change and is the real long-term fix for collisions (not a cosmetic enhancement). v1 fail-fast behavior is a guardrail until aliasing exists.
 
 ## Contract strictness
 

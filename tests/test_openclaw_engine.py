@@ -417,23 +417,23 @@ def test_parse_responses_output_validates_shapes() -> None:
     )
 
     engine = builder.agent.engines[0]
-    output_decl = builder.agent.output_groups[0].outputs[0]
+    output_group = builder.agent.output_groups[0]
 
     assert engine._parse_responses_output(
         _responses_completed('{"result":"ok"}'),
-        output_decl=output_decl,
+        output_group=output_group,
     ) == {"result": "ok"}
 
     with pytest.raises(ValueError, match="result JSON must be an object"):
         engine._parse_responses_output(
             _responses_completed('["x"]'),
-            output_decl=output_decl,
+            output_group=output_group,
         )
 
     with pytest.raises(ValueError, match="missing output text|output"):
         engine._parse_responses_output(
             {"id": "resp_x", "status": "completed", "output": []},
-            output_decl=output_decl,
+            output_group=output_group,
         )
 
 
@@ -643,6 +643,89 @@ def test_response_mode_prompt_only_disables_text_format_contract() -> None:
     assert "text" not in payload
 
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_single_output_bypasses_multi_output_envelope_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single-output execution should not call multi-output envelope builders."""
+
+    def _explode_slot_map(self, output_group):
+        raise AssertionError("single-output path must not build multi-output slot map")
+
+    def _explode_multi_schema(self, slot_map):
+        raise AssertionError("single-output path must not build multi-output envelope schema")
+
+    monkeypatch.setattr(OpenClawEngine, "_build_multi_output_slot_map", _explode_slot_map)
+    monkeypatch.setattr(
+        OpenClawEngine,
+        "_build_multi_output_schema_contract",
+        _explode_multi_schema,
+    )
+
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(200, json=_responses_completed('{"result":"ok"}'))
+    )
+
+    outputs = await _invoke_once(retries=0)
+
+    assert len(outputs) == 1
+    assert outputs[0].type == "OpenClawEngineOutput"
+    assert outputs[0].payload["result"] == "ok"
+
+
+def test_multi_output_slot_map_is_deterministic_by_declaration_order() -> None:
+    """Slot mapping should preserve output declaration order deterministically."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    slot_map = engine._build_multi_output_slot_map(builder.agent.output_groups[0])
+
+    assert list(slot_map.keys()) == ["OpenClawEngineOutput", "OpenClawEngineAuxOutput"]
+
+
+def test_build_responses_payload_uses_envelope_schema_for_multi_output_group() -> None:
+    """Multi-output groups should build one envelope schema with typed slots."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-multi-output"),
+        inputs=SimpleNamespace(
+            artifacts=[SimpleNamespace(payload={"prompt": "make pizza"})],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    schema = payload["text"]["format"]["schema"]
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is False
+
+    props = schema["properties"]
+    assert "OpenClawEngineOutput" in props
+    assert "OpenClawEngineAuxOutput" in props
+    assert props["OpenClawEngineOutput"]["type"] == "object"
+    assert props["OpenClawEngineAuxOutput"]["type"] == "object"
+    assert set(schema["required"]) == {
+        "OpenClawEngineOutput",
+        "OpenClawEngineAuxOutput",
+    }
+
+
 def test_build_responses_payload_uses_array_schema_for_fan_out_range() -> None:
     """Fan-out declarations should produce an array schema request contract."""
     flock = Flock(openclaw=_config(), no_output=True)
@@ -753,10 +836,308 @@ async def test_fan_out_dynamic_over_max_is_capped() -> None:
     assert [item.payload["result"] for item in outputs] == ["one", "two", "three"]
 
 
+def test_multi_output_group_envelope_slots_use_array_shape_when_fan_out_is_enabled() -> None:
+    """Multi-output slots should become arrays when declarations are fan-out enabled."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput, fan_out=2)
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-multi-fanout-shape"),
+        inputs=SimpleNamespace(
+            artifacts=[SimpleNamespace(payload={"prompt": "make pizza"})],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    schema = payload["text"]["format"]["schema"]
+    output_slot = schema["properties"]["OpenClawEngineOutput"]
+    aux_slot = schema["properties"]["OpenClawEngineAuxOutput"]
+
+    assert output_slot["type"] == "array"
+    assert aux_slot["type"] == "array"
+    assert output_slot["minItems"] == 2
+    assert output_slot["maxItems"] == 2
+    assert aux_slot["minItems"] == 2
+    assert aux_slot["maxItems"] == 2
+
+
+def test_multi_output_group_envelope_slots_use_object_shape_for_non_fan_out() -> None:
+    """Non-fan-out multi-output slots should each be modeled as object slots."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-multi-shape"),
+        inputs=SimpleNamespace(
+            artifacts=[SimpleNamespace(payload={"prompt": "make pizza"})],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    schema = payload["text"]["format"]["schema"]
+    assert schema["properties"]["OpenClawEngineOutput"]["type"] == "object"
+    assert schema["properties"]["OpenClawEngineAuxOutput"]["type"] == "object"
+
+
 @pytest.mark.asyncio
 @respx.mock
-async def test_openclaw_engine_rejects_multi_output_group_contract() -> None:
-    """OpenClaw engine should fail fast for multi-output groups."""
+async def test_multi_output_group_rejects_unknown_envelope_slot() -> None:
+    """Strict multi-output envelope should fail when unknown slot keys are returned."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    agent = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput)
+        .agent
+    )
+
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            json=_responses_completed(
+                '{"OpenClawEngineOutput":{"result":"ok"},'
+                '"OpenClawEngineAuxOutput":{"note":"ok"},'
+                '"UnknownSlot":{"x":"boom"}}'
+            ),
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="unknown slot|undeclared slot|envelope"):
+        await flock.invoke(
+            agent,
+            OpenClawEngineInput(prompt="multi-output unknown slot"),
+            publish_outputs=False,
+        )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_multi_output_group_rejects_missing_required_envelope_slot() -> None:
+    """Strict multi-output envelope should fail when declared slots are missing."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    agent = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput)
+        .agent
+    )
+
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            json=_responses_completed(
+                '{"OpenClawEngineOutput":{"result":"ok"}}'
+            ),
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="missing slot|required slot|envelope"):
+        await flock.invoke(
+            agent,
+            OpenClawEngineInput(prompt="multi-output missing slot"),
+            publish_outputs=False,
+        )
+
+
+def test_multi_output_group_slot_name_collision_fails_fast() -> None:
+    """Duplicate slot keys must fail fast with collision/alias guidance."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineOutput)
+    )
+
+    engine = builder.agent.engines[0]
+
+    with pytest.raises(ValueError, match="slot|collision|duplicate|alias"):
+        engine._build_responses_payload(
+            agent=builder.agent,
+            ctx=SimpleNamespace(correlation_id="cid-slot-collision"),
+            inputs=SimpleNamespace(
+                artifacts=[SimpleNamespace(payload={"prompt": "make pizza"})],
+                state={},
+            ),
+            output_group=builder.agent.output_groups[0],
+        )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_multi_output_malformed_envelope_retries_then_fails() -> None:
+    """Malformed multi-output envelope should trigger retry/repair then fail if still invalid."""
+    calls = 0
+
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json=_responses_completed('{"OpenClawEngineOutput":{"result":"ok"}'),
+        )
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    flock = Flock(openclaw=_config(), no_output=True)
+    agent = (
+        flock.openclaw_agent("codie", retries=1)
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput)
+        .agent
+    )
+
+    with pytest.raises(RuntimeError, match="parse|json|envelope"):
+        await flock.invoke(
+            agent,
+            OpenClawEngineInput(prompt="multi-output malformed envelope"),
+            publish_outputs=False,
+        )
+
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_multi_output_malformed_envelope_repairs_and_succeeds() -> None:
+    """Malformed first attempt should be repairable on retry for multi-output envelope."""
+    calls = 0
+
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                200,
+                json=_responses_completed('{"OpenClawEngineOutput":{"result":"ok"}'),
+            )
+
+        return httpx.Response(
+            200,
+            json=_responses_completed(
+                '{"OpenClawEngineOutput":{"result":"ok"},"OpenClawEngineAuxOutput":{"note":"fixed"}}'
+            ),
+        )
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    flock = Flock(openclaw=_config(), no_output=True)
+    agent = (
+        flock.openclaw_agent("codie", retries=1)
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput)
+        .agent
+    )
+
+    outputs = await flock.invoke(
+        agent,
+        OpenClawEngineInput(prompt="multi-output repair success"),
+        publish_outputs=False,
+    )
+
+    assert calls == 2
+    assert len(outputs) == 2
+    assert {item.type for item in outputs} == {
+        "OpenClawEngineOutput",
+        "OpenClawEngineAuxOutput",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_multi_output_envelope_fixed_fan_out_count_mismatch_retries_then_fails() -> None:
+    """Per-slot fixed fan-out count violations should retry then fail in envelope path."""
+    calls = 0
+
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        # fan_out=2 for both slots, but aux slot returns only 1 item (violation)
+        return httpx.Response(
+            200,
+            json=_responses_completed(
+                '{"OpenClawEngineOutput":[{"result":"a"},{"result":"b"}],'
+                '"OpenClawEngineAuxOutput":[{"note":"only-one"}]}'
+            ),
+        )
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    flock = Flock(openclaw=_config(), no_output=True)
+    agent = (
+        flock.openclaw_agent("codie", retries=1)
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput, fan_out=2)
+        .agent
+    )
+
+    with pytest.raises(RuntimeError, match="fan-out contract violation|expected exactly"):
+        await flock.invoke(
+            agent,
+            OpenClawEngineInput(prompt="multi-output fan-out mismatch"),
+            publish_outputs=False,
+        )
+
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_multi_output_envelope_dynamic_fan_out_over_max_is_capped() -> None:
+    """Per-slot dynamic fan-out should cap over-max arrays in multi-output envelope."""
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            json=_responses_completed(
+                '{"OpenClawEngineOutput":[{"result":"a"},{"result":"b"},{"result":"c"}],'
+                '"OpenClawEngineAuxOutput":[{"note":"x"},{"note":"y"},{"note":"z"}]}'
+            ),
+        )
+    )
+
+    flock = Flock(openclaw=_config(), no_output=True)
+    agent = (
+        flock.openclaw_agent("codie", retries=0)
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, OpenClawEngineAuxOutput, fan_out=(1, 2))
+        .agent
+    )
+
+    outputs = await flock.invoke(
+        agent,
+        OpenClawEngineInput(prompt="multi-output fan-out cap"),
+        publish_outputs=False,
+    )
+
+    assert len(outputs) == 4
+    assert [o.type for o in outputs] == [
+        "OpenClawEngineOutput",
+        "OpenClawEngineOutput",
+        "OpenClawEngineAuxOutput",
+        "OpenClawEngineAuxOutput",
+    ]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_openclaw_engine_rejects_non_envelope_for_multi_output_group() -> None:
+    """Multi-output groups should reject legacy single-object non-envelope payloads."""
     flock = Flock(openclaw=_config(), no_output=True)
     agent = (
         flock.openclaw_agent("codie")
@@ -769,7 +1150,7 @@ async def test_openclaw_engine_rejects_multi_output_group_contract() -> None:
         return_value=httpx.Response(200, json=_responses_completed('{"result":"ok"}'))
     )
 
-    with pytest.raises(ValueError, match="multiple output declarations|multi-output|unsupported"):
+    with pytest.raises(RuntimeError, match="unknown slot|envelope|parse"):
         await flock.invoke(
             agent,
             OpenClawEngineInput(prompt="multi-output"),

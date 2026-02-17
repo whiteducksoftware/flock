@@ -37,6 +37,11 @@ class OpenClawPipelineReview(BaseModel):
     source: str = Field(description="Reviewer source")
 
 
+@flock_type(name="OpenClawPipelineSummary")
+class OpenClawPipelineSummary(BaseModel):
+    summary: str = Field(description="Execution summary")
+
+
 def _openclaw_config_classes():
     """Require OpenClaw config exports from canonical package namespaces."""
     import flock as flock_pkg
@@ -476,6 +481,247 @@ async def test_openclaw_dynamic_fan_out_remains_pipeline_compatible() -> None:
     assert len(drafts) == 4
     assert len(reviews) == 4
     assert {r.payload["source"] for r in reviews} == {"native-reviewer"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_openclaw_multi_output_single_activation_publishes_multiple_types() -> None:
+    """One OpenClaw activation should publish multiple output types from envelope response."""
+    OpenClawConfig, GatewayConfig = _openclaw_config_classes()
+
+    calls = 0
+
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp-int-multi-out-1",
+                "object": "response",
+                "status": "completed",
+                "model": "openclaw",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    '{"OpenClawPipelineDraft":{"draft":"multi draft"},'
+                                    '"OpenClawPipelineSummary":{"summary":"multi summary"}}'
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    flock = Flock(
+        openclaw=OpenClawConfig(
+            gateways={
+                "codie": GatewayConfig(
+                    url="http://localhost:19789",
+                    token="token-codie",
+                    token_env="OPENCLAW_CODIE_TOKEN",
+                )
+            }
+        )
+    )
+
+    flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
+        OpenClawPipelineDraft,
+        OpenClawPipelineSummary,
+    )
+
+    await flock.publish(OpenClawPipelineInput(feature="multi-output integration"))
+    await flock.run_until_idle()
+
+    artifacts = await flock.store.list()
+    drafts = [a for a in artifacts if a.type == "OpenClawPipelineDraft"]
+    summaries = [a for a in artifacts if a.type == "OpenClawPipelineSummary"]
+
+    assert calls == 1
+    assert len(drafts) == 1
+    assert len(summaries) == 1
+    assert drafts[0].payload == {"draft": "multi draft"}
+    assert summaries[0].payload == {"summary": "multi summary"}
+    assert drafts[0].correlation_id == summaries[0].correlation_id
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_multi_output_publish_flows_to_mixed_native_and_openclaw_downstream() -> None:
+    """Multi-output publish should feed both native and OpenClaw downstream consumers."""
+    OpenClawConfig, GatewayConfig = _openclaw_config_classes()
+
+    calls = 0
+
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+
+        if calls == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "id": "resp-int-multi-mixed-1",
+                    "object": "response",
+                    "status": "completed",
+                    "model": "openclaw",
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": (
+                                        '{"OpenClawPipelineDraft":{"draft":"downstream draft"},'
+                                        '"OpenClawPipelineSummary":{"summary":"downstream summary"}}'
+                                    ),
+                                }
+                            ],
+                        }
+                    ],
+                },
+            )
+
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp-int-multi-mixed-2",
+                "object": "response",
+                "status": "completed",
+                "model": "openclaw",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": '{"verdict":"summary approved","source":"codie-summary-reviewer"}',
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
+
+    flock = Flock(
+        openclaw=OpenClawConfig(
+            gateways={
+                "codie": GatewayConfig(
+                    url="http://localhost:19789",
+                    token="token-codie",
+                    token_env="OPENCLAW_CODIE_TOKEN",
+                )
+            }
+        )
+    )
+
+    flock.openclaw_agent("codie", name="codie-multi-producer").consumes(
+        OpenClawPipelineInput
+    ).publishes(
+        OpenClawPipelineDraft,
+        OpenClawPipelineSummary,
+    )
+
+    (
+        flock.agent("native-reviewer")
+        .consumes(OpenClawPipelineDraft)
+        .publishes(OpenClawPipelineReview)
+        .with_engines(NativeReviewEngine())
+    )
+
+    flock.openclaw_agent("codie", name="codie-summary-reviewer").consumes(
+        OpenClawPipelineSummary
+    ).publishes(OpenClawPipelineReview)
+
+    await flock.publish(OpenClawPipelineInput(feature="mixed downstream multi-output"))
+    await flock.run_until_idle()
+
+    artifacts = await flock.store.list()
+    drafts = [a for a in artifacts if a.type == "OpenClawPipelineDraft"]
+    summaries = [a for a in artifacts if a.type == "OpenClawPipelineSummary"]
+    reviews = [a for a in artifacts if a.type == "OpenClawPipelineReview"]
+
+    assert calls == 2
+    assert len(drafts) == 1
+    assert len(summaries) == 1
+    assert len(reviews) == 2
+    assert {r.payload["source"] for r in reviews} == {
+        "native-reviewer",
+        "codie-summary-reviewer",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_multi_output_invalid_envelope_surfaces_contract_failure() -> None:
+    """Invalid multi-output envelope should fail with surfaced contract error."""
+    OpenClawConfig, GatewayConfig = _openclaw_config_classes()
+
+    respx.post("http://localhost:19789/v1/responses").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "resp-int-multi-invalid-1",
+                "object": "response",
+                "status": "completed",
+                "model": "openclaw",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    '{"OpenClawPipelineDraft":{"draft":"ok"},'
+                                    '"UnknownSlot":{"value":"boom"}}'
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+    )
+
+    flock = Flock(
+        openclaw=OpenClawConfig(
+            gateways={
+                "codie": GatewayConfig(
+                    url="http://localhost:19789",
+                    token="token-codie",
+                    token_env="OPENCLAW_CODIE_TOKEN",
+                )
+            }
+        ),
+        no_output=True,
+    )
+
+    agent = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawPipelineInput)
+        .publishes(OpenClawPipelineDraft, OpenClawPipelineSummary)
+        .agent
+    )
+
+    with pytest.raises(RuntimeError, match="unknown slot|envelope|parse"):
+        await flock.invoke(
+            agent,
+            OpenClawPipelineInput(feature="invalid envelope contract"),
+            publish_outputs=False,
+        )
 
 
 @pytest.mark.asyncio

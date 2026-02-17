@@ -110,7 +110,7 @@ class OpenClawEngine(EngineComponent):
         if not output_group.outputs:
             return EvalResult.empty(state=dict(inputs.state))
 
-        output_decl = self._resolve_output_decl(output_group)
+        self._resolve_output_decls(output_group)
 
         self._bump_counter("requests_total")
 
@@ -166,7 +166,6 @@ class OpenClawEngine(EngineComponent):
                             agent=agent,
                             ctx=ctx,
                             output_group=output_group,
-                            output_decl=output_decl,
                             endpoint=endpoint,
                             headers=headers,
                             payload=payload,
@@ -181,7 +180,7 @@ class OpenClawEngine(EngineComponent):
                         )
                         data = self._parse_responses_output(
                             response_payload,
-                            output_decl=output_decl,
+                            output_group=output_group,
                         )
 
                     metadata: dict[str, Any] = {
@@ -190,9 +189,9 @@ class OpenClawEngine(EngineComponent):
                     if pre_generated_artifact_id is not None:
                         metadata["artifact_id"] = pre_generated_artifact_id
 
-                    artifacts = self._materialize_artifacts(
+                    artifacts = self._materialize_artifacts_for_output_group(
                         data,
-                        output_decl=output_decl,
+                        output_group=output_group,
                         produced_by=agent.name,
                         metadata=metadata,
                     )
@@ -216,7 +215,6 @@ class OpenClawEngine(EngineComponent):
                                     agent=agent,
                                     ctx=ctx,
                                     output_group=output_group,
-                                    output_decl=output_decl,
                                     endpoint=endpoint,
                                     headers=headers,
                                     payload=payload,
@@ -231,7 +229,7 @@ class OpenClawEngine(EngineComponent):
                                 )
                                 data = self._parse_responses_output(
                                     response_payload,
-                                    output_decl=output_decl,
+                                    output_group=output_group,
                                 )
 
                             metadata = {
@@ -239,9 +237,9 @@ class OpenClawEngine(EngineComponent):
                             }
                             if pre_generated_artifact_id is not None:
                                 metadata["artifact_id"] = pre_generated_artifact_id
-                            artifacts = self._materialize_artifacts(
+                            artifacts = self._materialize_artifacts_for_output_group(
                                 data,
-                                output_decl=output_decl,
+                                output_group=output_group,
                                 produced_by=agent.name,
                                 metadata=metadata,
                             )
@@ -317,7 +315,6 @@ class OpenClawEngine(EngineComponent):
         agent,
         ctx,
         output_group,
-        output_decl,
         endpoint: str,
         headers: dict[str, str],
         payload: dict[str, Any],
@@ -369,9 +366,9 @@ class OpenClawEngine(EngineComponent):
             live_ref["value"] = None
 
         output_text = stream_result.final_text or stream_result.full_text
-        return self._parse_output_text(
+        return self._parse_output_text_for_output_group(
             output_text,
-            expects_array=self._expects_array_response(output_decl),
+            output_group=output_group,
         )
 
     def _resolve_streaming_mode(self, ctx) -> tuple[bool, bool, bool]:
@@ -547,12 +544,19 @@ class OpenClawEngine(EngineComponent):
     def _build_responses_payload(
         self, *, agent, ctx, inputs, output_group
     ) -> dict[str, Any]:
-        output_decl = self._resolve_output_decl(output_group)
-        output_schema = output_decl.spec.model.model_json_schema()
-        schema_contract = self._build_output_schema_contract(
-            output_schema,
-            output_decl=output_decl,
-        )
+        output_decls = self._resolve_output_decls(output_group)
+        single_output_decl = output_decls[0] if len(output_decls) == 1 else None
+        slot_map: OrderedDict[str, Any] | None = None
+
+        if single_output_decl is not None:
+            output_schema = single_output_decl.spec.model.model_json_schema()
+            schema_contract = self._build_output_schema_contract(
+                output_schema,
+                output_decl=single_output_decl,
+            )
+        else:
+            slot_map = self._build_multi_output_slot_map(output_group)
+            schema_contract = self._build_multi_output_schema_contract(slot_map)
 
         input_payloads: list[dict[str, Any]] = []
         for artifact in inputs.artifacts:
@@ -565,7 +569,15 @@ class OpenClawEngine(EngineComponent):
         description = str(
             self.instructions or getattr(agent, "description", "") or ""
         ).strip()
-        group_description = str(getattr(output_decl, "group_description", "") or "").strip()
+        if single_output_decl is not None:
+            group_description = str(
+                getattr(single_output_decl, "group_description", "") or ""
+            ).strip()
+        else:
+            group_description = str(
+                getattr(output_group, "group_description", "") or ""
+            ).strip()
+
         context_history = (
             self.get_conversation_context(ctx)
             if ctx is not None and hasattr(ctx, "artifacts")
@@ -574,8 +586,28 @@ class OpenClawEngine(EngineComponent):
         include_context = bool(context_history) and self.should_use_context(inputs)
         batched = bool(getattr(ctx, "is_batch", False)) if ctx else False
 
-        if self._expects_array_response(output_decl):
-            fan_out_range = self._get_fan_out_range(output_decl)
+        if slot_map is not None:
+            task_lines = [
+                "Your ENTIRE response must be a single valid JSON object envelope matching the schema below.",
+                "Do not include any text, explanation, markdown fences, or commentary — only the raw JSON object.",
+                "The response will be parsed directly by a JSON schema validator.",
+            ]
+            for slot_name, output_decl in slot_map.items():
+                fan_out_range = self._get_fan_out_range(output_decl)
+                if fan_out_range is None:
+                    slot_hint = "one object"
+                elif fan_out_range.is_fixed():
+                    slot_hint = f"an array with exactly {fan_out_range.fixed_count()} item(s)"
+                else:
+                    slot_hint = (
+                        "an array with between "
+                        f"{fan_out_range.min} and {fan_out_range.max} item(s)"
+                    )
+                task_lines.append(
+                    f"Slot '{slot_name}': return {slot_hint} matching that slot schema."
+                )
+        elif self._expects_array_response(single_output_decl):
+            fan_out_range = self._get_fan_out_range(single_output_decl)
             assert fan_out_range is not None
             if fan_out_range.is_fixed():
                 count_hint = f"exactly {fan_out_range.fixed_count()}"
@@ -633,9 +665,12 @@ class OpenClawEngine(EngineComponent):
             # in the prompt text as fallback (belt + suspenders).
             strict_schema = self._make_strict_schema(schema_contract)
 
-            schema_name = output_decl.spec.model.__name__
-            if self._expects_array_response(output_decl):
-                schema_name = f"{schema_name}List"
+            if single_output_decl is None:
+                schema_name = "OpenClawMultiOutputEnvelope"
+            else:
+                schema_name = single_output_decl.spec.model.__name__
+                if self._expects_array_response(single_output_decl):
+                    schema_name = f"{schema_name}List"
 
             payload["text"] = {
                 "format": {
@@ -718,13 +753,44 @@ class OpenClawEngine(EngineComponent):
             )
         return serialized
 
+    def _resolve_output_decls(self, output_group) -> list:
+        outputs = list(getattr(output_group, "outputs", []) or [])
+        if not outputs:
+            raise ValueError("OpenClaw output group must include at least one output declaration.")
+        return outputs
+
+    def _build_multi_output_slot_map(self, output_group) -> OrderedDict[str, Any]:
+        """Build deterministic slot mapping for multi-output groups.
+
+        Slot key strategy (v1): declaration type name.
+        """
+        slot_map: OrderedDict[str, Any] = OrderedDict()
+        for output_decl in self._resolve_output_decls(output_group):
+            slot_name = str(getattr(output_decl.spec, "type_name", "") or "").strip()
+            if not slot_name:
+                slot_name = str(getattr(output_decl.spec.model, "__name__", "output")).strip()
+
+            if slot_name in slot_map:
+                raise ValueError(
+                    "OpenClaw multi-output slot collision detected for slot "
+                    f"'{slot_name}'. Duplicate/ambiguous slot names require explicit alias support."
+                )
+
+            slot_map[slot_name] = output_decl
+
+        return slot_map
+
     def _resolve_output_decl(self, output_group):
-        if len(output_group.outputs) != 1:
+        outputs = self._resolve_output_decls(output_group)
+        if len(outputs) != 1:
+            # Build slot map first so duplicate-name groups fail with explicit
+            # collision/alias guidance instead of a generic unsupported error.
+            self._build_multi_output_slot_map(output_group)
             raise ValueError(
-                "OpenClaw engine does not support multiple output declarations in a single output group yet. "
-                "Use one publishes(...) output type per OpenClaw group until multi-output envelope support is implemented."
+                "OpenClaw engine multi-output envelope execution path is not enabled yet. "
+                "Use one publishes(...) output type per OpenClaw group until multi-output envelope implementation is complete."
             )
-        return output_group.outputs[0]
+        return outputs[0]
 
     def _get_fan_out_range(self, output_decl) -> FanOutRange | None:
         fan_out_range = getattr(output_decl, "fan_out", None)
@@ -757,6 +823,28 @@ class OpenClawEngine(EngineComponent):
             schema_contract["maxItems"] = fan_out_range.max
 
         return schema_contract
+
+    def _build_multi_output_schema_contract(
+        self,
+        slot_map: OrderedDict[str, Any],
+    ) -> dict[str, Any]:
+        properties: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        required: list[str] = []
+
+        for slot_name, output_decl in slot_map.items():
+            output_schema = output_decl.spec.model.model_json_schema()
+            properties[slot_name] = self._build_output_schema_contract(
+                output_schema,
+                output_decl=output_decl,
+            )
+            required.append(slot_name)
+
+        return {
+            "type": "object",
+            "properties": dict(properties),
+            "required": required,
+            "additionalProperties": False,
+        }
 
     def _enforce_fan_out_contract(
         self,
@@ -802,6 +890,96 @@ class OpenClawEngine(EngineComponent):
             return items[: fan_out_range.max]
 
         return items
+
+    def _materialize_artifacts_for_output_group(
+        self,
+        data: dict[str, Any] | list[dict[str, Any]],
+        *,
+        output_group,
+        produced_by: str,
+        metadata: dict[str, Any],
+    ) -> list:
+        output_decls = self._resolve_output_decls(output_group)
+        if len(output_decls) == 1:
+            return self._materialize_artifacts(
+                data,
+                output_decl=output_decls[0],
+                produced_by=produced_by,
+                metadata=metadata,
+            )
+
+        if not isinstance(data, dict):
+            raise ValueError(
+                "multi-output envelope must be a JSON object, "
+                f"got {type(data).__name__}."
+            )
+
+        slot_map = self._build_multi_output_slot_map(output_group)
+        expected_slots = set(slot_map.keys())
+        actual_slots = set(data.keys())
+
+        unknown_slots = sorted(actual_slots - expected_slots)
+        if unknown_slots:
+            raise ValueError(
+                "multi-output envelope contains unknown slot(s): "
+                f"{', '.join(unknown_slots)}"
+            )
+
+        missing_slots = sorted(expected_slots - actual_slots)
+        if missing_slots:
+            raise ValueError(
+                "multi-output envelope is missing required slot(s): "
+                f"{', '.join(missing_slots)}"
+            )
+
+        artifacts: list = []
+        for slot_name, output_decl in slot_map.items():
+            slot_value = data[slot_name]
+            if self._expects_array_response(output_decl):
+                if not isinstance(slot_value, list):
+                    raise ValueError(
+                        f"multi-output slot '{slot_name}' must be an array, "
+                        f"got {type(slot_value).__name__}."
+                    )
+
+                raw_items: list[dict[str, Any]] = []
+                for item in slot_value:
+                    if not isinstance(item, dict):
+                        raise ValueError(
+                            f"multi-output slot '{slot_name}' array items must be objects."
+                        )
+                    raw_items.append(item)
+
+                items = self._enforce_fan_out_contract(
+                    raw_items,
+                    output_decl=output_decl,
+                    agent_name=str(produced_by),
+                )
+
+                for item in items:
+                    artifacts.append(
+                        output_decl.apply(
+                            item,
+                            produced_by=produced_by,
+                            metadata=metadata,
+                        )
+                    )
+            else:
+                if not isinstance(slot_value, dict):
+                    raise ValueError(
+                        f"multi-output slot '{slot_name}' must be an object, "
+                        f"got {type(slot_value).__name__}."
+                    )
+
+                artifacts.append(
+                    output_decl.apply(
+                        slot_value,
+                        produced_by=produced_by,
+                        metadata=metadata,
+                    )
+                )
+
+        return artifacts
 
     def _materialize_artifacts(
         self,
@@ -910,13 +1088,42 @@ class OpenClawEngine(EngineComponent):
         self,
         payload: dict[str, Any],
         *,
-        output_decl,
+        output_group,
     ) -> dict[str, Any] | list[dict[str, Any]]:
         text = self._extract_responses_output_text(payload)
-        return self._parse_output_text(
+        return self._parse_output_text_for_output_group(
             text,
-            expects_array=self._expects_array_response(output_decl),
+            output_group=output_group,
         )
+
+    def _parse_output_text_for_output_group(
+        self,
+        text: str,
+        *,
+        output_group,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        output_decls = self._resolve_output_decls(output_group)
+        if len(output_decls) == 1:
+            return self._parse_output_text(
+                text,
+                expects_array=self._expects_array_response(output_decls[0]),
+            )
+
+        preview = text[:500] + ("..." if len(text) > 500 else "")
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"multi-output envelope is not valid JSON: {exc}. Agent response: {preview}"
+            ) from exc
+
+        if not isinstance(parsed, dict):
+            raise ValueError(
+                "multi-output envelope JSON must be an object, got "
+                f"{type(parsed).__name__}. Agent response: {preview}"
+            )
+
+        return parsed
 
     def _extract_responses_output_text(self, payload: dict[str, Any]) -> str:
         output = payload.get("output")

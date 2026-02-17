@@ -290,9 +290,11 @@ fixer = flock.openclaw_agent("claude").consumes(Review).publishes(FixedCode)
 
 The blackboard doesn't care where compute comes from — it's all typed artifacts.
 
-## Fan-Out Semantics (OpenClaw)
+## Fan-Out + Multi-Output Semantics (OpenClaw)
 
-OpenClaw agents now support Flock fan-out declarations for **single output types**:
+OpenClaw supports both single-output fan-out and multi-output groups.
+
+### Single output (existing behavior)
 
 ```python
 scout = (
@@ -303,14 +305,43 @@ scout = (
 ```
 
 Behavior:
-- For fan-out outputs, the engine requests a JSON **array** contract from OpenClaw.
+- For fan-out outputs, the engine requests a JSON **array** contract.
 - It materializes one artifact per returned item.
 - **Fixed fan-out** (`fan_out=3`) requires exact count.
 - **Dynamic fan-out range** (`fan_out=(3, 8)`) requires at least `min`; values above `max` are capped to `max`.
-- In v1, count violations trigger **full-request retry** (no partial-accept stitching).
+- Count violations use full-request retry behavior.
 
-Current limitation:
-- One OpenClaw output group must contain a **single output type**. Multi-output groups in one `.publishes(A, B)` call are not supported yet in OpenClaw mode.
+### Multi-output groups (envelope contract)
+
+```python
+producer = (
+    flock.openclaw_agent("codex")
+    .consumes(Brief)
+    .publishes(Draft, Summary)
+)
+```
+
+For multi-output groups, OpenClaw expects one JSON **envelope object** keyed by slot/type name:
+
+```json
+{
+  "Draft": {"draft": "..."},
+  "Summary": {"summary": "..."}
+}
+```
+
+Rules:
+- Slot keys are declaration-driven (type name in v1).
+- Slot shape follows declaration:
+  - non-fan-out slot → object
+  - fan-out slot → array with that slot's cardinality constraints
+- Unknown slots fail.
+- Missing required slots fail.
+- Per-slot schema + fan-out constraints are validated before publishing artifacts.
+
+Current v1 limitation:
+- If multiple declarations resolve to the same slot key (name collision), execution fails fast.
+- Alias-based slot naming is the long-term fix and planned as follow-up.
 
 ## Context + Batch Parity Notes
 
@@ -345,7 +376,9 @@ Under the hood, `openclaw_agent()` creates a standard Flock agent with an `OpenC
 1. Serializes input artifact payload(s) and output schema into a task prompt.
 2. Calls `POST /v1/responses` on the configured gateway.
 3. Extracts `output[].content[].output_text`.
-4. Parses and validates JSON against the Pydantic output model (object or fan-out array).
+4. Parses and validates JSON against declared output contract:
+   - single-output groups: object or fan-out array
+   - multi-output groups: envelope object with per-slot validation
 5. Publishes the validated artifact(s) to the blackboard.
 
 All Flock features work unchanged because OpenClaw is just an engine swap — the orchestrator, blackboard, subscriptions, visibility, and tracing layers are unaware of the difference.
