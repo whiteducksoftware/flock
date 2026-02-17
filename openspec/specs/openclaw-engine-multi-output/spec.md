@@ -1,6 +1,9 @@
-# Delta Spec: OpenClaw Multi-Output Envelope
+# openclaw-engine-multi-output Specification
 
-## ADDED Requirements
+## Purpose
+Define OpenClaw multi-output group behavior using a single-response envelope contract with strict slot validation and deterministic materialization.
+
+## Requirements
 
 ### Requirement: Multi-Output Groups SHALL Use Single-Call Envelope Contract
 For output groups with multiple output declarations, OpenClaw engine MUST request and parse one JSON envelope response in a single `/v1/responses` call.
@@ -46,8 +49,6 @@ If multiple declarations resolve to the same slot key, execution MUST fail fast 
 - GIVEN two output declarations that resolve to the same slot name
 - WHEN engine prepares envelope contract
 - THEN engine fails with actionable configuration/contract error
-
-## MODIFIED Requirements
 
 ### Requirement: Multi-Output-Type Group Contract
 OpenClaw engine execution SHALL support output groups containing multiple output declarations via envelope contract, instead of unconditional fail-fast rejection.

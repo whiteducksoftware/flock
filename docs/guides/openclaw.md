@@ -307,6 +307,7 @@ scout = (
 Behavior:
 - For fan-out outputs, the engine requests a JSON **array** contract.
 - It materializes one artifact per returned item.
+- Fan-out artifacts keep unique identities (no shared artifact-id reuse across items).
 - **Fixed fan-out** (`fan_out=3`) requires exact count.
 - **Dynamic fan-out range** (`fan_out=(3, 8)`) requires at least `min`; values above `max` are capped to `max`.
 - Count violations use full-request retry behavior.
@@ -347,7 +348,7 @@ Current v1 limitation:
 
 OpenClaw request shaping now mirrors native execution semantics more closely:
 
-- **Context history:** when context is enabled and available (`ctx.artifacts`), OpenClaw payload includes a serialized `Context:` section.
+- **Context history:** when context is enabled and available (`ctx.artifacts`), OpenClaw payload includes a serialized `Context:` section using JSON-safe normalization (e.g., datetimes are converted safely, no serialization crash).
 - **Batch mode:** when `ctx.is_batch=True`, request text includes explicit batch-processing guidance.
 - **Group description:** `publishes(..., description="...")` is injected as output guidance in the OpenClaw task prompt.
 - **Instructions precedence:** engine-level `instructions=` override wins over `agent.description`.

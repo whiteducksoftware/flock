@@ -7,10 +7,10 @@ import logging
 import os
 from collections import OrderedDict, defaultdict
 from contextlib import nullcontext
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from threading import Lock
 from typing import Any, ClassVar, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 from pydantic import Field, ValidationError
@@ -562,9 +562,9 @@ class OpenClawEngine(EngineComponent):
         for artifact in inputs.artifacts:
             payload = artifact.payload
             if isinstance(payload, dict):
-                input_payloads.append(dict(payload))
+                input_payloads.append(self._to_json_safe(dict(payload)))
             else:
-                input_payloads.append({"value": payload})
+                input_payloads.append({"value": self._to_json_safe(payload)})
 
         description = str(
             self.instructions or getattr(agent, "description", "") or ""
@@ -735,20 +735,46 @@ class OpenClawEngine(EngineComponent):
 
         return node
 
+    def _to_json_safe(self, value: Any) -> Any:
+        """Normalize arbitrary runtime values into JSON-safe structures.
+
+        This is intended for prompt payload serialization where context/input data may
+        include Python-native objects (e.g., datetime/UUID).
+        """
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+
+        if isinstance(value, (datetime, date, time)):
+            return value.isoformat()
+
+        if isinstance(value, UUID):
+            return str(value)
+
+        if isinstance(value, dict):
+            return {str(k): self._to_json_safe(v) for k, v in value.items()}
+
+        if isinstance(value, (list, tuple, set)):
+            return [self._to_json_safe(v) for v in value]
+
+        model_dump = getattr(value, "model_dump", None)
+        if callable(model_dump):
+            try:
+                return self._to_json_safe(model_dump())
+            except Exception:
+                pass
+
+        return str(value)
+
     def _context_to_prompt_payload(self, context_items) -> list[dict[str, Any]]:
         serialized: list[dict[str, Any]] = []
         for item in context_items:
             payload = getattr(item, "payload", None)
-            if isinstance(payload, dict):
-                payload_value: Any = dict(payload)
-            else:
-                payload_value = payload
 
             serialized.append(
                 {
                     "type": str(getattr(item, "type", "")),
                     "produced_by": str(getattr(item, "produced_by", "")),
-                    "payload": payload_value,
+                    "payload": self._to_json_safe(payload),
                 }
             )
         return serialized
@@ -891,6 +917,14 @@ class OpenClawEngine(EngineComponent):
 
         return items
 
+    @staticmethod
+    def _drop_artifact_id(metadata: dict[str, Any]) -> dict[str, Any]:
+        if "artifact_id" not in metadata:
+            return metadata
+        normalized = dict(metadata)
+        normalized.pop("artifact_id", None)
+        return normalized
+
     def _materialize_artifacts_for_output_group(
         self,
         data: dict[str, Any] | list[dict[str, Any]],
@@ -933,6 +967,7 @@ class OpenClawEngine(EngineComponent):
             )
 
         artifacts: list = []
+        shared_multi_output_metadata = self._drop_artifact_id(metadata)
         for slot_name, output_decl in slot_map.items():
             slot_value = data[slot_name]
             if self._expects_array_response(output_decl):
@@ -961,7 +996,7 @@ class OpenClawEngine(EngineComponent):
                         output_decl.apply(
                             item,
                             produced_by=produced_by,
-                            metadata=metadata,
+                            metadata=shared_multi_output_metadata,
                         )
                     )
             else:
@@ -975,7 +1010,7 @@ class OpenClawEngine(EngineComponent):
                     output_decl.apply(
                         slot_value,
                         produced_by=produced_by,
-                        metadata=metadata,
+                        metadata=shared_multi_output_metadata,
                     )
                 )
 
@@ -999,8 +1034,9 @@ class OpenClawEngine(EngineComponent):
                 output_decl=output_decl,
                 agent_name=str(produced_by),
             )
+            fan_out_metadata = self._drop_artifact_id(metadata)
             return [
-                output_decl.apply(item, produced_by=produced_by, metadata=metadata)
+                output_decl.apply(item, produced_by=produced_by, metadata=fan_out_metadata)
                 for item in items
             ]
 

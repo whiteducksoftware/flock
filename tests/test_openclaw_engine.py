@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -468,6 +470,35 @@ def test_strict_schema_transform_adds_required_and_additional_properties() -> No
     assert strict["type"] == "object"
 
 
+def test_to_json_safe_normalizes_datetime_uuid_and_nested_values() -> None:
+    """JSON-safe helper should normalize non-JSON-native runtime values."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = builder.agent.engines[0]
+
+    normalized = engine._to_json_safe(
+        {
+            "seen_at": datetime.now(UTC),
+            "ids": [uuid4(), uuid4()],
+            "nested": {
+                "window": (datetime.now(UTC), datetime.now(UTC)),
+                "tags": {"a", "b"},
+            },
+        }
+    )
+
+    assert isinstance(normalized["seen_at"], str)
+    assert all(isinstance(i, str) for i in normalized["ids"])
+    assert isinstance(normalized["nested"]["window"], list)
+    assert all(isinstance(i, str) for i in normalized["nested"]["window"])
+    assert isinstance(normalized["nested"]["tags"], list)
+
+
 def test_build_responses_payload_includes_description_as_instructions() -> None:
     """Responses payload should place agent description in instructions."""
     flock = Flock(openclaw=_config(), no_output=True)
@@ -537,6 +568,46 @@ def test_build_responses_payload_includes_context_history_when_available() -> No
     assert "UpstreamArtifact" in payload["input"]
 
 
+def test_build_responses_payload_serializes_datetime_in_context_payload() -> None:
+    """Context payload serialization should tolerate datetime values."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(
+            correlation_id="cid-test-datetime-context",
+            artifacts=[
+                SimpleNamespace(
+                    type="UpstreamArtifact",
+                    payload={"seen_at": datetime.now(UTC)},
+                    produced_by="upstream-agent",
+                )
+            ],
+            is_batch=False,
+        ),
+        inputs=SimpleNamespace(
+            artifacts=[
+                SimpleNamespace(
+                    payload={"prompt": "make pizza"},
+                    correlation_id="cid-test-datetime-context",
+                )
+            ],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    assert "Context:" in payload["input"]
+    assert "seen_at" in payload["input"]
+
+
 def test_build_responses_payload_marks_batch_mode_in_task_text() -> None:
     """Batch executions should include explicit batch processing guidance."""
     flock = Flock(openclaw=_config(), no_output=True)
@@ -559,6 +630,36 @@ def test_build_responses_payload_marks_batch_mode_in_task_text() -> None:
     )
 
     assert "batch" in payload["input"].lower()
+
+
+def test_build_responses_payload_serializes_datetime_in_input_payload() -> None:
+    """Input payload serialization should tolerate datetime values."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .description("Plans meals")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+
+    engine = builder.agent.engines[0]
+    payload = engine._build_responses_payload(
+        agent=builder.agent,
+        ctx=SimpleNamespace(correlation_id="cid-test-datetime-input", artifacts=[], is_batch=False),
+        inputs=SimpleNamespace(
+            artifacts=[
+                SimpleNamespace(
+                    payload={"prompt": "make pizza", "created_at": datetime.now(UTC)},
+                    correlation_id="cid-test-datetime-input",
+                )
+            ],
+            state={},
+        ),
+        output_group=builder.agent.output_groups[0],
+    )
+
+    assert "Input:" in payload["input"]
+    assert "created_at" in payload["input"]
 
 
 def test_build_responses_payload_includes_group_description_override() -> None:
@@ -771,6 +872,37 @@ async def test_fan_out_fixed_materializes_multiple_artifacts() -> None:
 
     assert len(outputs) == 3
     assert [item.payload["result"] for item in outputs] == ["one", "two", "three"]
+
+
+def test_fan_out_materialization_does_not_reuse_single_artifact_id() -> None:
+    """Fan-out artifacts should not all reuse one pre-generated artifact id."""
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput, fan_out=3)
+    )
+
+    engine = builder.agent.engines[0]
+    output_group = builder.agent.output_groups[0]
+
+    artifacts = engine._materialize_artifacts_for_output_group(
+        [
+            {"result": "one"},
+            {"result": "two"},
+            {"result": "three"},
+        ],
+        output_group=output_group,
+        produced_by="codie",
+        metadata={
+            "correlation_id": "cid-fanout-id",
+            # Simulates streaming path metadata with pre-generated id.
+            "artifact_id": uuid4(),
+        },
+    )
+
+    assert len(artifacts) == 3
+    assert len({str(a.id) for a in artifacts}) == 3
 
 
 @pytest.mark.asyncio
