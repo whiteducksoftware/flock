@@ -1,12 +1,13 @@
 """
 OpenClaw Integration: Streaming ON/OFF (Dashboard vs Headless)
 
-This example demonstrates the two runtime modes for OpenClaw responses in Flock:
+This example demonstrates explicit stream control with OpenClaw in Flock:
 
-- Headless mode (streaming OFF): normal `publish()` + `run_until_idle()` run.
-- Dashboard mode (streaming ON): same pipeline, but with dashboard/WebSocket sink active.
+- Headless mode (streaming OFF): force `engine.stream = False`.
+- Dashboard mode (streaming ON): force `engine.stream = True` + start dashboard.
 
-No per-agent streaming flag is needed. Streaming is auto-detected from active sinks.
+Note: runtime default outside pytest is already `stream=True`.
+This example overrides mode explicitly so both paths are easy to compare.
 
 🔧 SETUP:
     1) Enable gateway.http.endpoints.responses.enabled=true in OpenClaw config
@@ -48,19 +49,22 @@ def build_flock() -> Flock:
 async def run(mode: Literal["headless", "dashboard"]) -> None:
     flock = build_flock()
 
-    (
+    builder = (
         flock.openclaw_agent("codex")
         .description("Helpful assistant that returns concise JSON answers")
         .consumes(Prompt)
         .publishes(Result)
     )
 
+    # Explicit toggle for demonstration clarity.
+    builder.agent.engines[0].stream = mode == "dashboard"
+
     if mode == "dashboard":
         await flock.serve(dashboard=True, blocking=False)
-        print("📊 Dashboard mode enabled — OpenClaw streaming turns ON automatically.")
+        print("📊 Dashboard mode enabled — OpenClaw streaming is ON.")
         print("   Open: http://127.0.0.1:8344")
     else:
-        print("🧪 Headless mode — OpenClaw runs in non-streaming request mode.")
+        print("🧪 Headless mode — OpenClaw forced to non-streaming request mode.")
 
     await flock.publish(
         Prompt(
@@ -87,7 +91,7 @@ def parse_args() -> argparse.Namespace:
         "--mode",
         choices=["headless", "dashboard"],
         default="headless",
-        help="headless = non-streaming, dashboard = streaming via WebSocket sink",
+        help="headless = force non-streaming, dashboard = force streaming via WebSocket sink",
     )
     return parser.parse_args()
 

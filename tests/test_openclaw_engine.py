@@ -59,6 +59,7 @@ async def _invoke_once(
     retries: int = 1,
     mode: str = "spawn",
     config: OpenClawConfig | None = None,
+    stream: bool | None = None,
 ):
     flock = Flock(openclaw=config or _config(), no_output=True)
     builder = (
@@ -68,6 +69,9 @@ async def _invoke_once(
         .consumes(OpenClawEngineInput)
         .publishes(OpenClawEngineOutput)
     )
+    if stream is not None:
+        builder.agent.engines[0].stream = stream
+
     return await flock.invoke(
         builder.agent,
         OpenClawEngineInput(prompt="make pizza"),
@@ -390,6 +394,19 @@ def test_parse_responses_output_validates_shapes() -> None:
         engine._parse_responses_output({"id": "resp_x", "status": "completed", "output": []})
 
 
+def test_stream_default_uses_pytest_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default stream should be runtime-true but auto-off when PYTEST_CURRENT_TEST is set."""
+    gateway = _config().get_gateway("codie")
+
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "tests/test_openclaw_engine.py::test")
+    engine_in_pytest = OpenClawEngine(alias="codie", gateway=gateway)
+    assert engine_in_pytest.stream is False
+
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    engine_outside_pytest = OpenClawEngine(alias="codie", gateway=gateway)
+    assert engine_outside_pytest.stream is True
+
+
 def test_strict_schema_transform_adds_required_and_additional_properties() -> None:
     """Strict schema transform should add required + additionalProperties: false."""
     flock = Flock(openclaw=_config(), no_output=True)
@@ -471,7 +488,7 @@ async def test_streaming_executor_is_used_when_dashboard_websocket_is_available(
     )
 
     try:
-        outputs = await _invoke_once()
+        outputs = await _invoke_once(stream=True)
     finally:
         Agent._websocket_broadcast_global = original_broadcast
 
@@ -510,7 +527,7 @@ async def test_streaming_path_falls_back_to_non_streaming_when_sse_fails(
     respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
 
     try:
-        outputs = await _invoke_once(retries=0)
+        outputs = await _invoke_once(retries=0, stream=True)
     finally:
         Agent._websocket_broadcast_global = original_broadcast
 
@@ -518,3 +535,76 @@ async def test_streaming_path_falls_back_to_non_streaming_when_sse_fails(
     payload = seen["payload"]
     assert isinstance(payload, dict)
     assert payload["stream"] is False
+
+
+@pytest.mark.asyncio
+async def test_cli_streaming_is_used_when_stream_enabled_without_dashboard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flock.core import Agent
+
+    original_broadcast = Agent._websocket_broadcast_global
+    original_counter = Agent._streaming_counter
+    Agent._websocket_broadcast_global = None
+    Agent._streaming_counter = 0
+
+    captured: dict[str, object] = {}
+
+    async def _fake_streaming_attempt(self, **kwargs):
+        captured["is_dashboard_stream"] = kwargs.get("is_dashboard_stream")
+        return {"result": "streamed-cli"}
+
+    async def _should_not_call_non_streaming(self, **kwargs):
+        raise AssertionError("non-streaming transport should not be called")
+
+    monkeypatch.setattr(
+        OpenClawEngine,
+        "_execute_streaming_attempt",
+        _fake_streaming_attempt,
+    )
+    monkeypatch.setattr(
+        OpenClawEngine,
+        "_call_responses_api",
+        _should_not_call_non_streaming,
+    )
+
+    try:
+        outputs = await _invoke_once(stream=True)
+        assert Agent._streaming_counter == 0
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+        Agent._streaming_counter = original_counter
+
+    assert outputs[0].payload["result"] == "streamed-cli"
+    assert captured["is_dashboard_stream"] is False
+
+
+def test_resolve_streaming_mode_marks_output_queued_when_cli_slot_busy() -> None:
+    from flock.core import Agent
+
+    flock = Flock(openclaw=_config(), no_output=True)
+    builder = (
+        flock.openclaw_agent("codie")
+        .consumes(OpenClawEngineInput)
+        .publishes(OpenClawEngineOutput)
+    )
+    engine = builder.agent.engines[0]
+    engine.stream = True
+
+    ctx = SimpleNamespace(state={})
+
+    original_broadcast = Agent._websocket_broadcast_global
+    original_counter = Agent._streaming_counter
+    Agent._websocket_broadcast_global = None
+    Agent._streaming_counter = 1
+
+    try:
+        should_stream, is_dashboard, claimed_slot = engine._resolve_streaming_mode(ctx)
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+        Agent._streaming_counter = original_counter
+
+    assert should_stream is False
+    assert is_dashboard is False
+    assert claimed_slot is False
+    assert ctx.state["_flock_output_queued"] is True

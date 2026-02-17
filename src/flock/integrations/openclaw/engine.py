@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+from collections import OrderedDict, defaultdict
+from contextlib import nullcontext
+from datetime import UTC, datetime
 from threading import Lock
 from typing import Any, ClassVar, Literal
 from uuid import uuid4
 
 import httpx
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 
 from flock.components.agent import EngineComponent
 from flock.integrations.openclaw.config import GatewayConfig
@@ -18,6 +22,11 @@ from flock.utils.runtime import EvalResult
 
 
 logger = logging.getLogger(__name__)
+
+
+def _default_stream_value() -> bool:
+    """Match DSPy default: enable streaming except under pytest."""
+    return os.environ.get("PYTEST_CURRENT_TEST") is None
 
 
 class OpenClawEngine(EngineComponent):
@@ -29,6 +38,15 @@ class OpenClawEngine(EngineComponent):
     timeout: int = 120
     retries: int = 1
     response_mode: Literal["json_schema"] = "json_schema"
+    stream: bool = Field(
+        default_factory=_default_stream_value,
+        description="Enable streaming output from OpenClaw. Auto-disables in pytest.",
+    )
+    stream_vertical_overflow: Literal["crop", "ellipsis", "crop_above", "visible"] = (
+        "crop_above"
+    )
+    status_output_field: str = "_status_output"
+    theme: str = "afterglow"
 
     _RELIABILITY_LOG_EVERY: ClassVar[int] = 25
     _reliability_counter_lock: ClassVar[Lock] = Lock()
@@ -107,165 +125,179 @@ class OpenClawEngine(EngineComponent):
             output_group=output_group,
         )
 
-        should_stream = self._should_stream(ctx)
+        should_stream, is_dashboard_stream, claimed_cli_stream_slot = (
+            self._resolve_streaming_mode(ctx)
+        )
         pre_generated_artifact_id = uuid4() if should_stream else None
 
         attempts = max(1, self.retries + 1)
         parse_error: Exception | None = None
         strip_text_format = False
 
-        for attempt in range(attempts):
-            payload = dict(base_payload)
+        try:
+            for attempt in range(attempts):
+                payload = dict(base_payload)
 
-            # If gateway rejected text.format, strip it for all subsequent attempts.
-            if strip_text_format:
-                payload.pop("text", None)
+                # If gateway rejected text.format, strip it for all subsequent attempts.
+                if strip_text_format:
+                    payload.pop("text", None)
 
-            self._bump_counter("attempts_total")
-            if "text" in payload:
-                self._bump_counter("attempts_with_text_format")
-            else:
-                self._bump_counter("attempts_without_text_format")
-
-            # Single repair attempt (or bounded by retries): re-ask with strict JSON reminder.
-            if attempt > 0 and parse_error is not None:
-                self._bump_counter("repair_attempts")
-                payload["input"] = self._build_repair_task(
-                    original_task=str(base_payload["input"]),
-                    parse_error=str(parse_error),
-                )
-
-            try:
-                if should_stream:
-                    data = await self._execute_streaming_attempt(
-                        agent=agent,
-                        ctx=ctx,
-                        output_group=output_group,
-                        endpoint=endpoint,
-                        headers=headers,
-                        payload=payload,
-                        pre_generated_artifact_id=pre_generated_artifact_id,
-                    )
+                self._bump_counter("attempts_total")
+                if "text" in payload:
+                    self._bump_counter("attempts_with_text_format")
                 else:
-                    response_payload = await self._call_responses_api(
-                        endpoint=endpoint,
-                        headers=headers,
-                        payload=payload,
+                    self._bump_counter("attempts_without_text_format")
+
+                # Single repair attempt (or bounded by retries): re-ask with strict JSON reminder.
+                if attempt > 0 and parse_error is not None:
+                    self._bump_counter("repair_attempts")
+                    payload["input"] = self._build_repair_task(
+                        original_task=str(base_payload["input"]),
+                        parse_error=str(parse_error),
                     )
-                    data = self._parse_responses_output(response_payload)
 
-                output_decl = output_group.outputs[0]
-                metadata: dict[str, Any] = {"correlation_id": ctx.correlation_id}
-                if pre_generated_artifact_id is not None:
-                    metadata["artifact_id"] = pre_generated_artifact_id
+                try:
+                    if should_stream:
+                        data = await self._execute_streaming_attempt(
+                            agent=agent,
+                            ctx=ctx,
+                            output_group=output_group,
+                            endpoint=endpoint,
+                            headers=headers,
+                            payload=payload,
+                            pre_generated_artifact_id=pre_generated_artifact_id,
+                            is_dashboard_stream=is_dashboard_stream,
+                        )
+                    else:
+                        response_payload = await self._call_responses_api(
+                            endpoint=endpoint,
+                            headers=headers,
+                            payload=payload,
+                        )
+                        data = self._parse_responses_output(response_payload)
 
-                artifact = output_decl.apply(
-                    data,
-                    produced_by=agent.name,
-                    metadata=metadata,
-                )
-            except RuntimeError as exc:
-                # Gateway doesn't support text.format — strip it and retry.
-                if self._is_unsupported_text_format_error(exc):
-                    self._bump_counter("fallback_unsupported_text_format")
-                    strip_text_format = True
-                    if attempt < attempts - 1:
+                    output_decl = output_group.outputs[0]
+                    metadata: dict[str, Any] = {
+                        "correlation_id": getattr(ctx, "correlation_id", None)
+                    }
+                    if pre_generated_artifact_id is not None:
+                        metadata["artifact_id"] = pre_generated_artifact_id
+
+                    artifact = output_decl.apply(
+                        data,
+                        produced_by=agent.name,
+                        metadata=metadata,
+                    )
+                except RuntimeError as exc:
+                    # Gateway doesn't support text.format — strip it and retry.
+                    if self._is_unsupported_text_format_error(exc):
+                        self._bump_counter("fallback_unsupported_text_format")
+                        strip_text_format = True
+                        if attempt < attempts - 1:
+                            self._bump_counter("runtime_retries")
+                            continue
+
+                        # Last attempt: retry once more without text.format.
+                        payload = dict(base_payload)
+                        payload.pop("text", None)
+                        self._bump_counter("attempts_total")
+                        self._bump_counter("attempts_without_text_format")
+                        try:
+                            if should_stream:
+                                data = await self._execute_streaming_attempt(
+                                    agent=agent,
+                                    ctx=ctx,
+                                    output_group=output_group,
+                                    endpoint=endpoint,
+                                    headers=headers,
+                                    payload=payload,
+                                    pre_generated_artifact_id=pre_generated_artifact_id,
+                                    is_dashboard_stream=is_dashboard_stream,
+                                )
+                            else:
+                                response_payload = await self._call_responses_api(
+                                    endpoint=endpoint,
+                                    headers=headers,
+                                    payload=payload,
+                                )
+                                data = self._parse_responses_output(response_payload)
+
+                            output_decl = output_group.outputs[0]
+                            metadata = {
+                                "correlation_id": getattr(ctx, "correlation_id", None)
+                            }
+                            if pre_generated_artifact_id is not None:
+                                metadata["artifact_id"] = pre_generated_artifact_id
+                            artifact = output_decl.apply(
+                                data,
+                                produced_by=agent.name,
+                                metadata=metadata,
+                            )
+                            self._bump_counter("responses_success")
+                            self._bump_counter("responses_repaired_success")
+                            self._log_reliability_snapshot_if_due()
+
+                            if should_stream and ctx and not getattr(self, "no_output", False):
+                                ctx.state["_flock_stream_live_active"] = True
+
+                            return EvalResult(artifacts=[artifact], state=dict(inputs.state))
+                        except Exception:
+                            self._bump_counter("responses_failure")
+                            self._log_reliability_snapshot_if_due()
+                            raise exc from None
+
+                    if attempt < attempts - 1 and self._is_retriable_runtime_error(exc):
                         self._bump_counter("runtime_retries")
                         continue
 
-                    # Last attempt: retry once more without text.format.
-                    payload = dict(base_payload)
-                    payload.pop("text", None)
-                    self._bump_counter("attempts_total")
-                    self._bump_counter("attempts_without_text_format")
-                    try:
-                        if should_stream:
-                            data = await self._execute_streaming_attempt(
-                                agent=agent,
-                                ctx=ctx,
-                                output_group=output_group,
-                                endpoint=endpoint,
-                                headers=headers,
-                                payload=payload,
-                                pre_generated_artifact_id=pre_generated_artifact_id,
-                            )
-                        else:
-                            response_payload = await self._call_responses_api(
-                                endpoint=endpoint,
-                                headers=headers,
-                                payload=payload,
-                            )
-                            data = self._parse_responses_output(response_payload)
-
-                        output_decl = output_group.outputs[0]
-                        metadata = {"correlation_id": ctx.correlation_id}
-                        if pre_generated_artifact_id is not None:
-                            metadata["artifact_id"] = pre_generated_artifact_id
-                        artifact = output_decl.apply(
-                            data,
-                            produced_by=agent.name,
-                            metadata=metadata,
-                        )
-                        self._bump_counter("responses_success")
-                        self._bump_counter("responses_repaired_success")
-                        self._log_reliability_snapshot_if_due()
-
-                        if should_stream and ctx and not getattr(self, "no_output", False):
-                            ctx.state["_flock_stream_live_active"] = True
-
-                        return EvalResult(artifacts=[artifact], state=dict(inputs.state))
-                    except Exception:
-                        self._bump_counter("responses_failure")
-                        self._log_reliability_snapshot_if_due()
-                        raise exc from None
-
-                if attempt < attempts - 1 and self._is_retriable_runtime_error(exc):
-                    self._bump_counter("runtime_retries")
-                    continue
-
-                self._bump_counter("responses_failure")
-                self._log_reliability_snapshot_if_due()
-                raise
-            except ValueError as exc:
-                # Preserve auth/token failures as ValueError (fail-fast contract).
-                if "auth/token failure" in str(exc).lower():
-                    self._bump_counter("auth_failures")
                     self._bump_counter("responses_failure")
                     self._log_reliability_snapshot_if_due()
                     raise
+                except ValueError as exc:
+                    # Preserve auth/token failures as ValueError (fail-fast contract).
+                    if "auth/token failure" in str(exc).lower():
+                        self._bump_counter("auth_failures")
+                        self._bump_counter("responses_failure")
+                        self._log_reliability_snapshot_if_due()
+                        raise
 
-                self._bump_counter("parse_failures")
-                parse_error = exc
-                if attempt < attempts - 1:
-                    self._bump_counter("parse_retries")
-                    continue
+                    self._bump_counter("parse_failures")
+                    parse_error = exc
+                    if attempt < attempts - 1:
+                        self._bump_counter("parse_retries")
+                        continue
 
-                self._bump_counter("responses_failure")
+                    self._bump_counter("responses_failure")
+                    self._log_reliability_snapshot_if_due()
+                    raise RuntimeError(f"OpenClaw response parse error: {exc}") from exc
+                except ValidationError as exc:
+                    self._bump_counter("parse_failures")
+                    parse_error = exc
+                    if attempt < attempts - 1:
+                        self._bump_counter("parse_retries")
+                        continue
+
+                    self._bump_counter("responses_failure")
+                    self._log_reliability_snapshot_if_due()
+                    raise RuntimeError(f"OpenClaw response parse error: {exc}") from exc
+
+                self._bump_counter("responses_success")
+                if attempt > 0 or parse_error is not None or strip_text_format:
+                    self._bump_counter("responses_repaired_success")
                 self._log_reliability_snapshot_if_due()
-                raise RuntimeError(f"OpenClaw response parse error: {exc}") from exc
-            except ValidationError as exc:
-                self._bump_counter("parse_failures")
-                parse_error = exc
-                if attempt < attempts - 1:
-                    self._bump_counter("parse_retries")
-                    continue
 
-                self._bump_counter("responses_failure")
-                self._log_reliability_snapshot_if_due()
-                raise RuntimeError(f"OpenClaw response parse error: {exc}") from exc
+                if should_stream and ctx and not getattr(self, "no_output", False):
+                    ctx.state["_flock_stream_live_active"] = True
 
-            self._bump_counter("responses_success")
-            if attempt > 0 or parse_error is not None or strip_text_format:
-                self._bump_counter("responses_repaired_success")
-            self._log_reliability_snapshot_if_due()
+                return EvalResult(artifacts=[artifact], state=dict(inputs.state))
 
-            if should_stream and ctx and not getattr(self, "no_output", False):
-                ctx.state["_flock_stream_live_active"] = True
+            # Defensive fallback; loop should always return or raise.
+            raise RuntimeError("OpenClaw evaluation failed unexpectedly.")
+        finally:
+            if claimed_cli_stream_slot:
+                from flock.core import Agent
 
-            return EvalResult(artifacts=[artifact], state=dict(inputs.state))
-
-        # Defensive fallback; loop should always return or raise.
-        raise RuntimeError("OpenClaw evaluation failed unexpectedly.")
+                Agent._streaming_counter = max(0, Agent._streaming_counter - 1)
 
     async def _execute_streaming_attempt(
         self,
@@ -277,13 +309,25 @@ class OpenClawEngine(EngineComponent):
         headers: dict[str, str],
         payload: dict[str, Any],
         pre_generated_artifact_id,
+        is_dashboard_stream: bool,
     ) -> dict[str, Any]:
-        sinks = self._build_streaming_sinks(
-            agent=agent,
-            ctx=ctx,
-            output_group=output_group,
-            artifact_id=pre_generated_artifact_id,
-        )
+        live_cm = nullcontext()
+        live_ref: dict[str, Any] | None = None
+
+        if is_dashboard_stream:
+            sinks = self._build_dashboard_streaming_sinks(
+                agent=agent,
+                ctx=ctx,
+                output_group=output_group,
+                artifact_id=pre_generated_artifact_id,
+            )
+        else:
+            sinks, live_cm, live_ref = self._build_cli_streaming_sinks(
+                agent=agent,
+                ctx=ctx,
+                output_group=output_group,
+                artifact_id=pre_generated_artifact_id,
+            )
 
         async def _fallback_non_streaming_text() -> str:
             response_payload = await self._call_responses_api(
@@ -303,19 +347,41 @@ class OpenClawEngine(EngineComponent):
             fallback_non_streaming_factory=_fallback_non_streaming_text,
         )
 
-        stream_result = await executor.execute()
+        with live_cm as live:
+            if live_ref is not None:
+                live_ref["value"] = live
+            stream_result = await executor.execute()
+
+        if live_ref is not None:
+            live_ref["value"] = None
+
         output_text = stream_result.final_text or stream_result.full_text
         return self._parse_output_text(output_text)
 
-    def _should_stream(self, ctx) -> bool:
-        if ctx is None:
-            return False
+    def _resolve_streaming_mode(self, ctx) -> tuple[bool, bool, bool]:
+        """Determine streaming mode and claim CLI stream slot when needed.
+
+        Returns:
+            (should_stream, is_dashboard_stream, claimed_cli_stream_slot)
+        """
+        if ctx is None or not self.stream:
+            return False, False, False
 
         from flock.core import Agent
 
-        return Agent._websocket_broadcast_global is not None
+        is_dashboard_stream = Agent._websocket_broadcast_global is not None
+        if is_dashboard_stream:
+            return True, True, False
 
-    def _build_streaming_sinks(self, *, agent, ctx, output_group, artifact_id):
+        active_streams = Agent._streaming_counter
+        if active_streams > 0:
+            ctx.state["_flock_output_queued"] = True
+            return False, False, False
+
+        Agent._streaming_counter = active_streams + 1
+        return True, False, True
+
+    def _build_dashboard_streaming_sinks(self, *, agent, ctx, output_group, artifact_id):
         from flock.core import Agent
         from flock.engines.streaming.sinks import WebSocketSink
 
@@ -347,6 +413,88 @@ class OpenClawEngine(EngineComponent):
                 event_factory=_event_factory,
             )
         ]
+
+    def _build_cli_streaming_sinks(self, *, agent, ctx, output_group, artifact_id):
+        if getattr(self, "no_output", False):
+            return [], nullcontext(), None
+
+        from rich.console import Console
+        from rich.live import Live
+
+        from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor
+        from flock.engines.dspy_engine import _ensure_live_crop_above
+        from flock.engines.streaming.sinks import RichSink
+
+        output_type_name = "output"
+        if output_group.outputs:
+            output_type_name = (
+                getattr(output_group.outputs[0].spec, "type_name", None) or "output"
+            )
+
+        display_data: OrderedDict[str, Any] = OrderedDict()
+        display_data["id"] = str(artifact_id)
+        display_data["type"] = output_type_name
+        display_data["payload"] = OrderedDict({"output": ""})
+        display_data["produced_by"] = getattr(agent, "name", "")
+        display_data["correlation_id"] = (
+            str(getattr(ctx, "correlation_id", "") or "") if ctx else None
+        )
+        display_data["partition_key"] = None
+        display_data["tags"] = "set()"
+        display_data["visibility"] = OrderedDict([("kind", "Public")])
+        display_data["created_at"] = "streaming..."
+        display_data["version"] = 1
+        display_data["status"] = self.status_output_field
+
+        stream_buffers: defaultdict[str, list[str]] = defaultdict(list)
+
+        formatter_helper = DSPyStreamingExecutor(
+            status_output_field=self.status_output_field,
+            stream_vertical_overflow=self.stream_vertical_overflow,
+            theme=self.theme,
+            no_output=self.no_output,
+        )
+        formatter, theme_dict, styles, agent_label = formatter_helper.prepare_stream_formatter(
+            agent
+        )
+
+        _ensure_live_crop_above()
+        initial_panel = formatter.format_result(
+            display_data, agent_label, theme_dict, styles
+        )
+
+        live_cm = Live(
+            initial_panel,
+            console=Console(),
+            refresh_per_second=12,
+            transient=True,
+            vertical_overflow=self.stream_vertical_overflow,
+        )
+
+        live_ref: dict[str, Any] = {"value": None}
+
+        def refresh_panel() -> None:
+            live = live_ref.get("value")
+            if live is None:
+                return
+            live.update(
+                formatter.format_result(display_data, agent_label, theme_dict, styles)
+            )
+
+        rich_sink = RichSink(
+            display_data=display_data,
+            stream_buffers=stream_buffers,
+            status_field=self.status_output_field,
+            signature_order=["output"],
+            formatter=formatter,
+            theme_dict=theme_dict,
+            styles=styles,
+            agent_label=agent_label,
+            refresh_panel=refresh_panel,
+            timestamp_factory=lambda: datetime.now(UTC).isoformat(),
+        )
+
+        return [rich_sink], live_cm, live_ref
 
     def _build_streaming_event(
         self,

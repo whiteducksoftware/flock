@@ -230,9 +230,10 @@ async def test_openclaw_streaming_emits_websocket_events_compatible_with_dashboa
             no_output=True,
         )
 
-        flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
+        builder = flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
             OpenClawPipelineDraft
         )
+        builder.agent.engines[0].stream = True
 
         await flock.publish(OpenClawPipelineInput(feature="streaming compatibility"))
         await flock.run_until_idle()
@@ -329,9 +330,10 @@ async def test_openclaw_streaming_sse_failure_falls_back_and_returns_valid_resul
             no_output=True,
         )
 
-        flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
+        builder = flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
             OpenClawPipelineDraft
         )
+        builder.agent.engines[0].stream = True
 
         await flock.publish(OpenClawPipelineInput(feature="stream fallback integration"))
         await flock.run_until_idle()

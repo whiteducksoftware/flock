@@ -27,7 +27,7 @@ export OPENCLAW_CLAUDE_TOKEN=your-token
 | 01 | [Pizza with OpenClaw](01_pizza_with_openclaw.py) | Simplest integration — one OpenClaw agent, one artifact |
 | 02 | [Mixed Pipeline](02_mixed_pipeline.py) | OpenClaw + native LLM agents in the same workflow |
 | 03 | [Env Config](03_env_config.py) | Auto-discovery from environment + multi-gateway setup |
-| 04 | [Streaming ON/OFF](04_streaming_on_off.py) | Dedicated example: headless (non-streaming) vs dashboard (streaming auto-on) |
+| 04 | [Streaming ON/OFF](04_streaming_on_off.py) | Dedicated example: force headless non-streaming vs dashboard streaming |
 
 ## Key Concepts
 
@@ -58,11 +58,14 @@ Alias rule:
 - `OPENCLAW_CODEX_URL` + `OPENCLAW_CODEX_TOKEN` => alias is `"codex"`
 - Use that exact alias in `flock.openclaw_agent("codex")`
 
-## Streaming Note (Dashboard)
+## Streaming Note (DSPy parity)
 
-When a Flock dashboard/WebSocket sink is active, OpenClaw agents stream output automatically.
-You do not need additional OpenClaw-specific streaming flags in these examples.
+OpenClaw follows DSPy streaming defaults:
 
-- Dashboard/WebSocket active → OpenClaw requests use streaming mode and emit live deltas.
-- Headless run (`publish` + `run_until_idle`) → behavior remains non-streaming.
+- Runtime default is `stream=True`.
+- Under pytest, streaming auto-disables via `PYTEST_CURRENT_TEST`.
+- Dashboard/WebSocket active → streaming emits live deltas to dashboard sinks.
+- CLI/headless runtime (no dashboard) → streaming uses Rich terminal sink by default.
 - If SSE streaming fails, Flock transparently falls back to non-streaming for the final typed artifact.
+
+`04_streaming_on_off.py` intentionally forces `engine.stream=False` in headless mode so you can compare both paths.
