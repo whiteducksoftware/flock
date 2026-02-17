@@ -502,12 +502,24 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
     @staticmethod
     def _apply_pending_label_offsets(edges: list[GraphEdge]) -> None:
-        """Distribute pending edge label offsets per (type, source, target) group."""
+        """Distribute pending edge label offsets by edge type + target (+ subscription index).
+
+        Grouping by target (instead of source+target) keeps labels separated when several
+        upstream producers feed the same pending join/batch operation.
+        """
         grouped_edge_ids: dict[tuple[str, str, str], list[str]] = defaultdict(list)
         for edge in edges:
             if edge.type not in ("pending_join", "pending_batch"):
                 continue
-            grouped_edge_ids[(edge.type, edge.source, edge.target)].append(edge.id)
+
+            subscription_index = "none"
+            if isinstance(edge.data, dict):
+                raw_subscription_index = edge.data.get("subscriptionIndex")
+                if raw_subscription_index is not None:
+                    subscription_index = str(raw_subscription_index)
+
+            group_key = (edge.type, edge.target, subscription_index)
+            grouped_edge_ids[group_key].append(edge.id)
 
         offsets: dict[str, float] = {}
         for edge_ids in grouped_edge_ids.values():
@@ -517,7 +529,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     offsets[edge_id] = 0.0
                 continue
 
-            offset_range = min(40.0, total * 15.0)
+            # Keep labels meaningfully separated even for small groups while avoiding
+            # extreme spread for larger bursts.
+            offset_range = min(120.0, max(60.0, total * 25.0))
             step = offset_range / (total - 1)
             for index, edge_id in enumerate(edge_ids):
                 offsets[edge_id] = index * step - offset_range / 2

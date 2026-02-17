@@ -92,7 +92,7 @@ class TestGraphBuilderCoverage:
         assert "timerState" not in scheduled_node.data
 
     def test_apply_pending_label_offsets_distributes_by_type_and_pair(self):
-        """Pending join/batch edges should get distributed non-zero offsets per pair."""
+        """Pending join/batch edges should get distributed non-zero offsets by group."""
         edges = [
             GraphEdge(
                 id="join-1",
@@ -160,4 +160,33 @@ class TestGraphBuilderCoverage:
         # Non-pending edge remains untouched
         other = next(edge for edge in edges if edge.id == "other")
         assert other.data["labelOffset"] == 7.0
+
+    def test_apply_pending_label_offsets_groups_by_target_for_multi_producer_pending_edges(self):
+        """Pending edges from different producers to same target should still de-overlap."""
+        edges = [
+            GraphEdge(
+                id="join-a",
+                source="producer-a",
+                target="agent-x",
+                type="pending_join",
+                label="ja",
+                data={"labelOffset": 0.0, "subscriptionIndex": 0},
+            ),
+            GraphEdge(
+                id="join-b",
+                source="producer-b",
+                target="agent-x",
+                type="pending_join",
+                label="jb",
+                data={"labelOffset": 0.0, "subscriptionIndex": 0},
+            ),
+        ]
+
+        GraphAssembler._apply_pending_label_offsets(edges)
+
+        offsets = [edge.data["labelOffset"] for edge in edges]
+        assert len(set(offsets)) == 2
+        assert sum(offsets) == pytest.approx(0.0)
+        # Keep a practical minimum separation for readability in dense graphs
+        assert abs(offsets[0] - offsets[1]) >= 40.0
 
