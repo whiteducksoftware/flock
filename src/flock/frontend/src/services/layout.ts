@@ -16,6 +16,9 @@ export interface LayoutOptions {
   nodeSpacing?: number;
   rankSpacing?: number;
   center?: { x: number; y: number };  // Optional center point for layout
+  dimensionsByNodeId?: Record<string, { width: number; height: number }>;
+  minClearance?: number;
+  deOverlapPasses?: number;
 }
 
 export interface LayoutResult {
@@ -30,15 +33,264 @@ const DEFAULT_NODE_WIDTH = 200;
 const DEFAULT_NODE_HEIGHT = 80;
 const MESSAGE_NODE_WIDTH = 150;
 const MESSAGE_NODE_HEIGHT = 60;
+const DEFAULT_MIN_CLEARANCE = 24;
+const DEFAULT_DEOVERLAP_PASSES = 8;
+const EPSILON = 0.01;
+
+interface NodeDimensions {
+  width: number;
+  height: number;
+}
 
 /**
- * Get node dimensions based on node type
+ * Get default dimensions based on node type.
  */
-function getNodeDimensions(node: Node): { width: number; height: number } {
+function getDefaultNodeDimensions(node: Node): NodeDimensions {
   if (node.type === 'message') {
     return { width: MESSAGE_NODE_WIDTH, height: MESSAGE_NODE_HEIGHT };
   }
   return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT };
+}
+
+function parseNumericSize(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+function resolveDimension(
+  value: number | undefined,
+  fallback: number
+): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : fallback;
+}
+
+/**
+ * Get node dimensions with precedence:
+ * 1) dimensionsByNodeId override
+ * 2) measured/runtime node dimensions
+ * 3) type defaults
+ */
+function getNodeDimensions(
+  node: Node,
+  options: LayoutOptions = {}
+): NodeDimensions {
+  const defaults = getDefaultNodeDimensions(node);
+
+  const fromMap = options.dimensionsByNodeId?.[node.id];
+  if (fromMap) {
+    return {
+      width: resolveDimension(fromMap.width, defaults.width),
+      height: resolveDimension(fromMap.height, defaults.height),
+    };
+  }
+
+  const measured = (node as Node & { measured?: { width?: number; height?: number } }).measured;
+  const style = (node.style ?? {}) as Record<string, unknown>;
+
+  const width =
+    parseNumericSize(measured?.width) ??
+    parseNumericSize(node.width) ??
+    parseNumericSize(style.width) ??
+    defaults.width;
+
+  const height =
+    parseNumericSize(measured?.height) ??
+    parseNumericSize(node.height) ??
+    parseNumericSize(style.height) ??
+    defaults.height;
+
+  return {
+    width: resolveDimension(width, defaults.width),
+    height: resolveDimension(height, defaults.height),
+  };
+}
+
+function getNodeCenter(
+  position: { x: number; y: number },
+  dimensions: NodeDimensions
+): { x: number; y: number } {
+  return {
+    x: position.x + dimensions.width / 2,
+    y: position.y + dimensions.height / 2,
+  };
+}
+
+function chooseSeparationAxis(
+  overlapX: number,
+  overlapY: number,
+  direction: LayoutOptions['direction']
+): 'x' | 'y' {
+  const preferCrossRank = direction === 'TB' || direction === 'BT' ? 'x' : 'y';
+  const otherAxis = preferCrossRank === 'x' ? 'y' : 'x';
+  const preferValue = preferCrossRank === 'x' ? overlapX : overlapY;
+  const otherValue = otherAxis === 'x' ? overlapX : overlapY;
+
+  // Strongly prefer cross-rank moves, but allow escape via the other axis
+  // if cross-rank displacement would be disproportionately large.
+  if (preferValue <= otherValue * 1.4) {
+    return preferCrossRank;
+  }
+
+  return otherAxis;
+}
+
+function resolveNodeOverlaps(
+  nodes: Node[],
+  options: LayoutOptions = {}
+): Node[] {
+  if (nodes.length < 2) {
+    return nodes;
+  }
+
+  const direction = options.direction ?? 'TB';
+  const minClearance = options.minClearance ?? DEFAULT_MIN_CLEARANCE;
+  const maxPasses = options.deOverlapPasses ?? DEFAULT_DEOVERLAP_PASSES;
+
+  const dimensions = new Map<string, NodeDimensions>();
+  nodes.forEach((node) => {
+    dimensions.set(node.id, getNodeDimensions(node, options));
+  });
+
+  const working = nodes.map((node) => ({
+    ...node,
+    position: { x: node.position.x, y: node.position.y },
+  }));
+
+  const originalCentroid = working.reduce(
+    (acc, node) => {
+      const dims = dimensions.get(node.id)!;
+      const center = getNodeCenter(node.position, dims);
+      acc.x += center.x;
+      acc.y += center.y;
+      return acc;
+    },
+    { x: 0, y: 0 }
+  );
+  originalCentroid.x /= working.length;
+  originalCentroid.y /= working.length;
+
+  for (let pass = 0; pass < maxPasses; pass++) {
+    let collisionCount = 0;
+    const displacement = new Map<string, { x: number; y: number; count: number }>();
+
+    for (let i = 0; i < working.length; i++) {
+      for (let j = i + 1; j < working.length; j++) {
+        const nodeA = working[i];
+        const nodeB = working[j];
+        if (!nodeA || !nodeB) {
+          continue;
+        }
+
+        const dimsA = dimensions.get(nodeA.id);
+        const dimsB = dimensions.get(nodeB.id);
+        if (!dimsA || !dimsB) {
+          continue;
+        }
+
+        const centerA = getNodeCenter(nodeA.position, dimsA);
+        const centerB = getNodeCenter(nodeB.position, dimsB);
+
+        const dx = centerB.x - centerA.x;
+        const dy = centerB.y - centerA.y;
+
+        const requiredX = (dimsA.width + dimsB.width) / 2 + minClearance;
+        const requiredY = (dimsA.height + dimsB.height) / 2 + minClearance;
+
+        const overlapX = requiredX - Math.abs(dx);
+        const overlapY = requiredY - Math.abs(dy);
+
+        if (overlapX <= EPSILON || overlapY <= EPSILON) {
+          continue;
+        }
+
+        collisionCount += 1;
+
+        const axis = chooseSeparationAxis(overlapX, overlapY, direction);
+        const moveAmount = (axis === 'x' ? overlapX : overlapY) / 2 + 0.5;
+
+        const axisDelta = axis === 'x' ? dx : dy;
+        const deterministicDirection =
+          Math.abs(axisDelta) > EPSILON
+            ? (axisDelta < 0 ? -1 : 1)
+            : (nodeA.id < nodeB.id ? -1 : 1);
+
+        const moveA = axis === 'x'
+          ? { x: -deterministicDirection * moveAmount, y: 0 }
+          : { x: 0, y: -deterministicDirection * moveAmount };
+        const moveB = axis === 'x'
+          ? { x: deterministicDirection * moveAmount, y: 0 }
+          : { x: 0, y: deterministicDirection * moveAmount };
+
+        const currentA = displacement.get(nodeA.id) ?? { x: 0, y: 0, count: 0 };
+        const currentB = displacement.get(nodeB.id) ?? { x: 0, y: 0, count: 0 };
+
+        displacement.set(nodeA.id, {
+          x: currentA.x + moveA.x,
+          y: currentA.y + moveA.y,
+          count: currentA.count + 1,
+        });
+        displacement.set(nodeB.id, {
+          x: currentB.x + moveB.x,
+          y: currentB.y + moveB.y,
+          count: currentB.count + 1,
+        });
+      }
+    }
+
+    if (collisionCount === 0) {
+      break;
+    }
+
+    working.forEach((node) => {
+      const delta = displacement.get(node.id);
+      if (!delta || delta.count === 0) {
+        return;
+      }
+
+      node.position = {
+        x: node.position.x + delta.x / delta.count,
+        y: node.position.y + delta.y / delta.count,
+      };
+    });
+
+    // Keep the layout centered around the original centroid to avoid drift.
+    const currentCentroid = working.reduce(
+      (acc, node) => {
+        const dims = dimensions.get(node.id)!;
+        const center = getNodeCenter(node.position, dims);
+        acc.x += center.x;
+        acc.y += center.y;
+        return acc;
+      },
+      { x: 0, y: 0 }
+    );
+    currentCentroid.x /= working.length;
+    currentCentroid.y /= working.length;
+
+    const shiftX = originalCentroid.x - currentCentroid.x;
+    const shiftY = originalCentroid.y - currentCentroid.y;
+
+    if (Math.abs(shiftX) > EPSILON || Math.abs(shiftY) > EPSILON) {
+      working.forEach((node) => {
+        node.position = {
+          x: node.position.x + shiftX,
+          y: node.position.y + shiftY,
+        };
+      });
+    }
+  }
+
+  return working;
 }
 
 /**
@@ -64,18 +316,17 @@ export function applyHierarchicalLayout(
     return { nodes: [], edges, width: 0, height: 0 };
   }
 
-  // Calculate dynamic spacing based on actual node sizes
-  // This ensures 200px minimum clearance regardless of node dimensions
+  // Calculate spacing and graph bounds from resolved node dimensions.
   let maxWidth = 0;
   let maxHeight = 0;
 
   nodes.forEach((node) => {
-    const { width, height } = getNodeDimensions(node);
+    const { width, height } = getNodeDimensions(node, options);
     maxWidth = Math.max(maxWidth, width);
     maxHeight = Math.max(maxHeight, height);
   });
 
-  // Spacing = half of max node size + 200px minimum clearance
+  // Keep sensible defaults if settings are not provided.
   const nodeSpacing = options.nodeSpacing ?? (maxWidth / 2 + 200);
   const rankSpacing = options.rankSpacing ?? (maxHeight / 2 + 200);
 
@@ -96,7 +347,7 @@ export function applyHierarchicalLayout(
 
   // Add nodes to the graph with their dimensions
   nodes.forEach((node) => {
-    const { width, height } = getNodeDimensions(node);
+    const { width, height } = getNodeDimensions(node, options);
     graph.setNode(node.id, { width, height });
   });
 
@@ -122,7 +373,7 @@ export function applyHierarchicalLayout(
     const nodeWithPosition = graph.node(node.id);
 
     // Dagre positions nodes at their center, we need top-left corner
-    const { width, height } = getNodeDimensions(node);
+    const { width, height } = getNodeDimensions(node, options);
 
     return {
       ...node,
@@ -133,8 +384,13 @@ export function applyHierarchicalLayout(
     };
   });
 
+  const deOverlappedNodes = resolveNodeOverlaps(layoutedNodes, {
+    ...options,
+    direction,
+  });
+
   return {
-    nodes: layoutedNodes,
+    nodes: deOverlappedNodes,
     edges,
     width: graphWidth,
     height: graphHeight,

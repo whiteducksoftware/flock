@@ -58,6 +58,9 @@ const GraphCanvas: React.FC = () => {
   const edgeType = useSettingsStore((state) => state.graph.edgeType);
   const edgeStrokeWidth = useSettingsStore((state) => state.graph.edgeStrokeWidth);
   const edgeAnimation = useSettingsStore((state) => state.graph.edgeAnimation);
+  const layoutDirection = useSettingsStore((state) => state.advanced.layoutDirection);
+  const nodeSpacing = useSettingsStore((state) => state.advanced.nodeSpacing);
+  const rankSpacing = useSettingsStore((state) => state.advanced.rankSpacing);
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
@@ -149,6 +152,26 @@ const GraphCanvas: React.FC = () => {
     [edges]
   );
 
+  const collectRenderedNodeDimensions = useCallback(() => {
+    const dimensionsByNodeId: Record<string, { width: number; height: number }> = {};
+    const renderedNodes = document.querySelectorAll<HTMLElement>('.react-flow__node[data-id]');
+
+    renderedNodes.forEach((element) => {
+      const nodeId = element.getAttribute('data-id');
+      if (!nodeId) {
+        return;
+      }
+
+      const width = element.offsetWidth;
+      const height = element.offsetHeight;
+      if (width > 0 && height > 0) {
+        dimensionsByNodeId[nodeId] = { width, height };
+      }
+    });
+
+    return dimensionsByNodeId;
+  }, []);
+
   // Generic layout handler
   const applyLayout = useCallback((layoutType: string) => {
     // Get the React Flow pane element to find its actual center
@@ -164,13 +187,27 @@ const GraphCanvas: React.FC = () => {
       });
     }
 
+    const dimensionsByNodeId = collectRenderedNodeDimensions();
+    const hierarchicalBaseOptions = {
+      center: viewportCenter,
+      nodeSpacing,
+      rankSpacing,
+      dimensionsByNodeId,
+    };
+
     let result;
     switch (layoutType) {
       case 'hierarchical-vertical':
-        result = applyHierarchicalLayout(nodes, edges, { direction: 'TB', center: viewportCenter });
+        result = applyHierarchicalLayout(nodes, edges, {
+          ...hierarchicalBaseOptions,
+          direction: 'TB',
+        });
         break;
       case 'hierarchical-horizontal':
-        result = applyHierarchicalLayout(nodes, edges, { direction: 'LR', center: viewportCenter });
+        result = applyHierarchicalLayout(nodes, edges, {
+          ...hierarchicalBaseOptions,
+          direction: 'LR',
+        });
         break;
       case 'circular':
         result = applyCircularLayout(nodes, edges, { center: viewportCenter });
@@ -182,7 +219,10 @@ const GraphCanvas: React.FC = () => {
         result = applyRandomLayout(nodes, edges, { center: viewportCenter });
         break;
       default:
-        result = applyHierarchicalLayout(nodes, edges, { direction: 'TB', center: viewportCenter });
+        result = applyHierarchicalLayout(nodes, edges, {
+          ...hierarchicalBaseOptions,
+          direction: layoutDirection,
+        });
     }
 
     // Update nodes with new positions
@@ -194,7 +234,16 @@ const GraphCanvas: React.FC = () => {
     setContextMenu(null);
     setShowModuleSubmenu(false);
     setShowLayoutSubmenu(false);
-  }, [nodes, edges, updateNodePosition, screenToFlowPosition]);
+  }, [
+    nodes,
+    edges,
+    updateNodePosition,
+    screenToFlowPosition,
+    collectRenderedNodeDimensions,
+    layoutDirection,
+    nodeSpacing,
+    rankSpacing,
+  ]);
 
   // Auto-zoom handler
   const handleAutoZoom = useCallback(() => {
