@@ -43,10 +43,7 @@ def test_parse_sse_lines_joins_multiline_data_fields() -> None:
 
     assert len(frames) == 1
     assert frames[0].event == "response.output_text.delta"
-    assert (
-        frames[0].data
-        == '{"delta":"Line 1"}\n{"delta":"Line 2"}'
-    )
+    assert frames[0].data == '{"delta":"Line 1"}\n{"delta":"Line 2"}'
 
 
 def test_parse_sse_lines_preserves_done_sentinel() -> None:

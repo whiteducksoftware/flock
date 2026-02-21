@@ -129,7 +129,10 @@ class ArrayModelDefaultsArtifact(BaseModel):
     """Artifact with list[BaseModel] default_factory for normalization test."""
 
     items: list[NestedListItem] = Field(
-        default_factory=lambda: [NestedListItem(label="one"), NestedListItem(label="two")]
+        default_factory=lambda: [
+            NestedListItem(label="one"),
+            NestedListItem(label="two"),
+        ]
     )
 
 
@@ -503,14 +506,18 @@ async def test_artifact_type_route_parity_for_array_default_hydration(
     dash_default = dashed.json()["artifact_types"][0]["schema"]["properties"][
         "key_differentiators"
     ]["default"]
-    underscore_default = underscored.json()["artifact_types"][0]["schema"]["properties"][
-        "key_differentiators"
-    ]["default"]
+    underscore_default = underscored.json()["artifact_types"][0]["schema"][
+        "properties"
+    ]["key_differentiators"]["default"]
 
-    assert dash_default == underscore_default == [
-        "Blackboard architecture",
-        "Typed artifacts",
-    ]
+    assert (
+        dash_default
+        == underscore_default
+        == [
+            "Blackboard architecture",
+            "Typed artifacts",
+        ]
+    )
 
 
 # Test /api/agents endpoint (lines 199-210 in service.py)

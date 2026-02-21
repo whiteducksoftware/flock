@@ -85,9 +85,9 @@ async def main():
     )
 
     # Wait until we have at least 3 hypotheses
-    condition = Until.artifact_count(Hypothesis, correlation_id=correlation_id).at_least(
-        3
-    )
+    condition = Until.artifact_count(
+        Hypothesis, correlation_id=correlation_id
+    ).at_least(3)
 
     print("\nRunning workflow with condition: 'at least 3 hypotheses'...")
     success = await flock.run_until(condition, timeout=60.0)
@@ -127,7 +127,9 @@ async def main():
         correlation_id=correlation_id_2,
     )
 
-    print("\nRunning workflow with condition: 'any hypothesis with confidence >= 0.9'...")
+    print(
+        "\nRunning workflow with condition: 'any hypothesis with confidence >= 0.9'..."
+    )
     success = await flock.run_until(high_confidence, timeout=60.0)
 
     if success:
@@ -164,14 +166,13 @@ async def main():
     # Stop when EITHER:
     # - We have 5 hypotheses, OR
     # - Any hypothesis has confidence >= 0.9
-    composite_condition = (
-        Until.artifact_count(Hypothesis, correlation_id=correlation_id_3).at_least(5)
-        | Until.any_field(
-            Hypothesis,
-            field="confidence",
-            predicate=lambda v: v is not None and v >= 0.9,
-            correlation_id=correlation_id_3,
-        )
+    composite_condition = Until.artifact_count(
+        Hypothesis, correlation_id=correlation_id_3
+    ).at_least(5) | Until.any_field(
+        Hypothesis,
+        field="confidence",
+        predicate=lambda v: v is not None and v >= 0.9,
+        correlation_id=correlation_id_3,
     )
 
     print("\nRunning workflow with composite condition...")

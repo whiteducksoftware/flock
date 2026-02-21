@@ -282,12 +282,12 @@ async def test_openclaw_second_agent_request_includes_context_history() -> None:
         )
     )
 
-    flock.openclaw_agent("codie", name="codie-scout").consumes(OpenClawPipelineInput).publishes(
+    flock.openclaw_agent("codie", name="codie-scout").consumes(
+        OpenClawPipelineInput
+    ).publishes(OpenClawPipelineDraft)
+    flock.openclaw_agent("codie", name="codie-reviewer").consumes(
         OpenClawPipelineDraft
-    )
-    flock.openclaw_agent("codie", name="codie-reviewer").consumes(OpenClawPipelineDraft).publishes(
-        OpenClawPipelineReview
-    )
+    ).publishes(OpenClawPipelineReview)
 
     await flock.publish(OpenClawPipelineInput(feature="context parity"))
     await flock.run_until_idle()
@@ -485,7 +485,9 @@ async def test_openclaw_dynamic_fan_out_remains_pipeline_compatible() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_openclaw_multi_output_single_activation_publishes_multiple_types() -> None:
+async def test_openclaw_multi_output_single_activation_publishes_multiple_types() -> (
+    None
+):
     """One OpenClaw activation should publish multiple output types from envelope response."""
     OpenClawConfig, GatewayConfig = _openclaw_config_classes()
 
@@ -555,7 +557,9 @@ async def test_openclaw_multi_output_single_activation_publishes_multiple_types(
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_multi_output_publish_flows_to_mixed_native_and_openclaw_downstream() -> None:
+async def test_multi_output_publish_flows_to_mixed_native_and_openclaw_downstream() -> (
+    None
+):
     """Multi-output publish should feed both native and OpenClaw downstream consumers."""
     OpenClawConfig, GatewayConfig = _openclaw_config_classes()
 
@@ -745,7 +749,9 @@ async def test_openclaw_streaming_emits_websocket_events_compatible_with_dashboa
     async def _mock_stream_events(self):
         yield SSEFrame(event="response.created", data="{}")
         yield SSEFrame(event="response.in_progress", data="{}")
-        yield SSEFrame(event="response.output_text.delta", data='{"delta":"{\\"draft\\":\\"stre"}')
+        yield SSEFrame(
+            event="response.output_text.delta", data='{"delta":"{\\"draft\\":\\"stre"}'
+        )
         yield SSEFrame(event="response.output_text.delta", data='{"delta":"amed\\"}"}')
         yield SSEFrame(event="response.completed", data='{"usage":{"output_tokens":2}}')
         yield SSEFrame(event="done", data="[DONE]")
@@ -766,8 +772,10 @@ async def test_openclaw_streaming_emits_websocket_events_compatible_with_dashboa
             no_output=True,
         )
 
-        builder = flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
-            OpenClawPipelineDraft
+        builder = (
+            flock.openclaw_agent("codie")
+            .consumes(OpenClawPipelineInput)
+            .publishes(OpenClawPipelineDraft)
         )
         builder.agent.engines[0].stream = True
 
@@ -855,13 +863,17 @@ async def test_openclaw_cli_streaming_releases_counter_without_live_state_flag(
             )
         )
 
-        builder = flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
-            OpenClawPipelineDraft
+        builder = (
+            flock.openclaw_agent("codie")
+            .consumes(OpenClawPipelineInput)
+            .publishes(OpenClawPipelineDraft)
         )
         builder.agent.engines[0].stream = True
         builder.agent.engines[0].no_output = False
 
-        await flock.publish(OpenClawPipelineInput(feature="cli streaming state contract"))
+        await flock.publish(
+            OpenClawPipelineInput(feature="cli streaming state contract")
+        )
         await flock.run_until_idle()
 
         artifacts = await flock.store.list()
@@ -949,12 +961,16 @@ async def test_openclaw_streaming_sse_failure_falls_back_and_returns_valid_resul
             no_output=True,
         )
 
-        builder = flock.openclaw_agent("codie").consumes(OpenClawPipelineInput).publishes(
-            OpenClawPipelineDraft
+        builder = (
+            flock.openclaw_agent("codie")
+            .consumes(OpenClawPipelineInput)
+            .publishes(OpenClawPipelineDraft)
         )
         builder.agent.engines[0].stream = True
 
-        await flock.publish(OpenClawPipelineInput(feature="stream fallback integration"))
+        await flock.publish(
+            OpenClawPipelineInput(feature="stream fallback integration")
+        )
         await flock.run_until_idle()
     finally:
         Agent._websocket_broadcast_global = original_broadcast

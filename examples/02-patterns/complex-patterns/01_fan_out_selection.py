@@ -268,7 +268,9 @@ async def main_cli():
         high_conf_count = 0
         for i, h in enumerate(hypotheses, 1):
             marker = "✅" if h.confidence >= 0.85 else "  "
-            print(f"   {marker} {i}. confidence={h.confidence:.2f}: {h.content[:50]}...")
+            print(
+                f"   {marker} {i}. confidence={h.confidence:.2f}: {h.content[:50]}..."
+            )
             if h.confidence >= 0.85:
                 high_conf_count += 1
         print()
@@ -294,7 +296,9 @@ async def main_cli():
         recommended_count = 0
         for i, h in enumerate(hypotheses, 1):
             marker = "⭐" if h.is_recommended else "  "
-            print(f"   {marker} {i}. confidence={h.confidence:.2f}: {h.content[:50]}...")
+            print(
+                f"   {marker} {i}. confidence={h.confidence:.2f}: {h.content[:50]}..."
+            )
             if h.is_recommended:
                 recommended_count += 1
         print()

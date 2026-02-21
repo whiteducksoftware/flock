@@ -90,7 +90,15 @@ class MockDSPyModule(SimpleNamespace):
 
 class StubSignatureBuilder:
     def prepare_signature_for_output_group(
-        self, dspy_mod, *, agent, inputs, output_group, has_context, batched, engine_instructions
+        self,
+        dspy_mod,
+        *,
+        agent,
+        inputs,
+        output_group,
+        has_context,
+        batched,
+        engine_instructions,
     ):
         return object()
 
@@ -108,7 +116,9 @@ class StubSignatureBuilder:
 
 
 class StubArtifactMaterializer:
-    def materialize_artifacts(self, payload, outputs, produced_by, pre_generated_id=None):
+    def materialize_artifacts(
+        self, payload, outputs, produced_by, pre_generated_id=None
+    ):
         issue_payload = payload.get("issue", {})
         artifact = Artifact(
             id=pre_generated_id,

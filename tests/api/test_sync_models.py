@@ -204,7 +204,9 @@ class TestErrorResponse:
             retryable=False,
             details=[
                 ErrorDetail(field="timeout", message="Must be between 1 and 300"),
-                ErrorDetail(field="type", message="Type not registered", code="TYPE_NOT_FOUND"),
+                ErrorDetail(
+                    field="type", message="Type not registered", code="TYPE_NOT_FOUND"
+                ),
             ],
         )
 

@@ -389,6 +389,7 @@ class TestTimerLoop:
 
         # Initialize timer state
         from flock.components.orchestrator.scheduling.timer import TimerState
+
         component._timer_states["test_agent"] = TimerState()
 
         # Act
@@ -421,6 +422,7 @@ class TestTimerLoop:
 
         # Initialize timer state
         from flock.components.orchestrator.scheduling.timer import TimerState
+
         component._timer_states["test_agent"] = TimerState()
 
         # Act
@@ -447,6 +449,7 @@ class TestTimerLoop:
 
         # Initialize timer state
         from flock.components.orchestrator.scheduling.timer import TimerState
+
         component._timer_states["one_time_agent"] = TimerState()
 
         # Act
@@ -675,7 +678,7 @@ class TestWaitForNextFire:
 
     def test_cron_next_fire_range_list_step(self):
         """Cron next-fire supports ranges, steps, and weekdays.
-        
+
         Tests cron expressions with ranges (9-17), steps (/2), and weekday constraints (1-5).
         Verifies that hour/minute constraints are correctly applied.
         """
@@ -687,14 +690,16 @@ class TestWaitForNextFire:
         # Set to Sunday at 8:00 AM
         now = datetime(2025, 11, 2, 8, 0, 0, tzinfo=UTC)  # Sunday Nov 2, 2025 at 8 AM
         assert now.weekday() == 6, "Test setup: now should be Sunday"
-        
+
         next_fire = component._next_cron_fire(now, expr)
         # Verify it's in the future
         assert next_fire > now, f"Next fire {next_fire} should be after now {now}"
         # Zero minute
         assert next_fire.minute == 0, f"Expected minute 0, got {next_fire.minute}"
         # Hour in 9,11,13,15,17 (step 2 from range 9-17)
-        assert next_fire.hour in {9, 11, 13, 15, 17}, f"Expected hour in {{9,11,13,15,17}}, got {next_fire.hour}"
+        assert next_fire.hour in {9, 11, 13, 15, 17}, (
+            f"Expected hour in {{9,11,13,15,17}}, got {next_fire.hour}"
+        )
         # Verify it advances time correctly (should be at least 1 hour later since we're at 8 AM)
         assert next_fire.hour >= 9, f"Expected hour >= 9, got {next_fire.hour}"
 

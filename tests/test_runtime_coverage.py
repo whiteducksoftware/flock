@@ -25,7 +25,7 @@ class TestRuntimeCoverage:
             trigger_type="timer",
             state={"__timer__": {"iter": "invalid"}},  # Should cause int() to fail
         )
-        
+
         # Should return None on exception
         result = ctx.timer_iteration
         assert result is None
@@ -41,7 +41,7 @@ class TestRuntimeCoverage:
             trigger_type="timer",
             state={"__timer__": {"fire": "invalid-datetime-string"}},
         )
-        
+
         # Should return None on exception
         result = ctx.fire_time
         assert result is None
@@ -54,7 +54,7 @@ class TestRuntimeCoverage:
             iteration=0,
             schedule_spec={},
         )
-        
+
         # Create artifact from tick
         tick_artifact = Artifact(
             id=uuid4(),
@@ -62,10 +62,10 @@ class TestRuntimeCoverage:
             payload=tick.model_dump(),
             produced_by="timer_component",
         )
-        
+
         # Manually set payload with string fire_time (simulating edge case)
         tick_artifact.payload["fire_time"] = "2025-01-01T00:00:00+00:00"
-        
+
         ctx = Context(
             artifacts=[tick_artifact],
             task_id="test_task",
@@ -73,7 +73,7 @@ class TestRuntimeCoverage:
             agent=MagicMock(),
             trigger_type="timer",
         )
-        
+
         result = ctx.fire_time
         assert result is not None
         assert isinstance(result, datetime)
@@ -89,7 +89,6 @@ class TestRuntimeCoverage:
             trigger_type="timer",
             state={"__timer__": {"fire": None}},
         )
-        
+
         result = ctx.fire_time
         assert result is None
-

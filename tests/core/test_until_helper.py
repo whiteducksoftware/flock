@@ -46,9 +46,7 @@ def mock_orchestrator():
     orchestrator = Mock()
     orchestrator.store = Mock()
     orchestrator.store.query_artifacts = AsyncMock(return_value=([], 0))
-    orchestrator.get_correlation_status = AsyncMock(
-        return_value={"error_count": 0}
-    )
+    orchestrator.get_correlation_status = AsyncMock(return_value={"error_count": 0})
     orchestrator._scheduler = Mock()
     orchestrator._scheduler.pending_tasks = set()
     return orchestrator
@@ -127,9 +125,7 @@ class TestUntilArtifactCount:
         """Until.artifact_count with produced_by passes filter."""
         from flock.core.conditions import Until
 
-        condition = Until.artifact_count(
-            UntilTestUserStory, produced_by="story-writer"
-        )
+        condition = Until.artifact_count(UntilTestUserStory, produced_by="story-writer")
 
         assert condition.produced_by == "story-writer"
 
@@ -186,9 +182,7 @@ class TestUntilExists:
         """Until.exists with correlation_id passes filter."""
         from flock.core.conditions import Until
 
-        condition = Until.exists(
-            UntilTestUserStory, correlation_id="workflow-abc"
-        )
+        condition = Until.exists(UntilTestUserStory, correlation_id="workflow-abc")
 
         assert condition.correlation_id == "workflow-abc"
 
@@ -196,9 +190,7 @@ class TestUntilExists:
         """Until.exists with tags passes filter."""
         from flock.core.conditions import Until
 
-        condition = Until.exists(
-            UntilTestUserStory, tags={"verified"}
-        )
+        condition = Until.exists(UntilTestUserStory, tags={"verified"})
 
         assert condition.tags == {"verified"}
 
@@ -232,9 +224,7 @@ class TestUntilNone:
         """Until.none with correlation_id passes filter."""
         from flock.core.conditions import ExistsCondition, Until
 
-        condition = Until.none(
-            UntilTestUserStory, correlation_id="workflow-xyz"
-        )
+        condition = Until.none(UntilTestUserStory, correlation_id="workflow-xyz")
 
         inner = condition.condition
         assert isinstance(inner, ExistsCondition)
@@ -361,10 +351,9 @@ class TestUntilComposition:
         """Test: Until.artifact_count().at_least(5) | Until.workflow_error()."""
         from flock.core.conditions import OrCondition, Until
 
-        condition = (
-            Until.artifact_count(UntilTestUserStory).at_least(5)
-            | Until.workflow_error("workflow-123")
-        )
+        condition = Until.artifact_count(UntilTestUserStory).at_least(
+            5
+        ) | Until.workflow_error("workflow-123")
 
         assert isinstance(condition, OrCondition)
 
@@ -382,10 +371,7 @@ class TestUntilComposition:
         """Test: Until.artifact_count().at_least(5) & Until.idle()."""
         from flock.core.conditions import AndCondition, Until
 
-        condition = (
-            Until.artifact_count(UntilTestUserStory).at_least(5)
-            & Until.idle()
-        )
+        condition = Until.artifact_count(UntilTestUserStory).at_least(5) & Until.idle()
 
         assert isinstance(condition, AndCondition)
 

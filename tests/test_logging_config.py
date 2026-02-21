@@ -361,7 +361,9 @@ class TestFlockLogger:
         mock_bound.error.assert_called_once_with("test message")
 
     @patch("flock.logging.logging.loguru_logger")
-    def test_flock_logger_error_supports_exc_info_bool_without_format_breakage(self, mock_loguru):
+    def test_flock_logger_error_supports_exc_info_bool_without_format_breakage(
+        self, mock_loguru
+    ):
         """exc_info should be handled via logger.opt(exception=...) and not as format kwargs."""
         mock_bound = Mock()
         mock_opt = Mock()

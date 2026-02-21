@@ -7,7 +7,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from flock.components.agent.output_utility import OutputUtilityComponent, OutputUtilityConfig
+from flock.components.agent.output_utility import (
+    OutputUtilityComponent,
+    OutputUtilityConfig,
+)
 from flock.core.artifacts import Artifact
 from flock.integrations.openclaw import GatewayConfig, OpenClawEngine
 from flock.utils.runtime import Context, EvalInputs, EvalResult

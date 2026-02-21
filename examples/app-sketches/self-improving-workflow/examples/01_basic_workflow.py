@@ -3,7 +3,7 @@ Basic Self-Improving Workflow Example
 
 Demonstrates a simple 3-phase workflow:
 - Phase 1: Analysis
-- Phase 2: Implementation  
+- Phase 2: Implementation
 - Phase 3: Validation
 
 Agents can discover new work and spawn branches dynamically.
@@ -18,6 +18,7 @@ from typing import Literal, Optional, List
 # Define artifacts
 class WorkDiscovery(BaseModel):
     """Work that needs to be done."""
+
     description: str
     phase: Literal["analysis", "implementation", "validation"]
     priority: Literal["low", "medium", "high", "critical"] = "medium"
@@ -29,6 +30,7 @@ class WorkDiscovery(BaseModel):
 
 class AnalysisResult(BaseModel):
     """Result from analysis phase."""
+
     plan: str
     approved: bool
     next_phase_work: List[WorkDiscovery] = []
@@ -36,6 +38,7 @@ class AnalysisResult(BaseModel):
 
 class Implementation(BaseModel):
     """Result from implementation phase."""
+
     code_summary: str
     files_created: List[str]
     discovered_issues: List[WorkDiscovery] = []
@@ -43,6 +46,7 @@ class Implementation(BaseModel):
 
 class ValidationResult(BaseModel):
     """Result from validation phase."""
+
     passed: bool
     issues: List[str]
     optimizations_discovered: List[WorkDiscovery] = []
@@ -52,7 +56,7 @@ async def main():
     """Run basic self-improving workflow."""
     # Create flock
     flock = Flock("openai/gpt-4.1")
-    
+
     # Phase 1: Analysis agent
     analyzer = (
         flock.agent("analyzer")
@@ -60,7 +64,7 @@ async def main():
         .consumes(WorkDiscovery, where=lambda w: w.phase == "analysis")
         .publishes(AnalysisResult)
     )
-    
+
     # Phase 2: Implementation agent
     implementer = (
         flock.agent("implementer")
@@ -68,7 +72,7 @@ async def main():
         .consumes(AnalysisResult, where=lambda a: a.approved)
         .publishes(Implementation)
     )
-    
+
     # Phase 3: Validation agent (can discover new work!)
     validator = (
         flock.agent("validator")
@@ -76,23 +80,25 @@ async def main():
         .consumes(Implementation)
         .publishes(ValidationResult, WorkDiscovery)  # Fan-out!
     )
-    
+
     # Start workflow with initial discovery
     print("🚀 Starting Self-Improving Workflow...")
     print("📋 Initial work: Build authentication system")
-    
-    await flock.publish(WorkDiscovery(
-        description="Build authentication system with OAuth and JWT",
-        phase="analysis",
-        priority="high",
-        done_definition="Analysis complete with implementation plan for OAuth and JWT",
-        discovered_by="user",
-        tags=["auth", "security"]
-    ))
-    
+
+    await flock.publish(
+        WorkDiscovery(
+            description="Build authentication system with OAuth and JWT",
+            phase="analysis",
+            priority="high",
+            done_definition="Analysis complete with implementation plan for OAuth and JWT",
+            discovered_by="user",
+            tags=["auth", "security"],
+        )
+    )
+
     # Run workflow
     await flock.run_until_idle()
-    
+
     print("\n✅ Workflow complete!")
     print("🔍 Check the blackboard for:")
     print("  - Analysis results")
@@ -103,6 +109,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-

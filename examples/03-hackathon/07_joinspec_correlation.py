@@ -38,9 +38,11 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # They share a common identifier (like order_id, patient_id, etc.)
 # ============================================================================
 
+
 @flock_type
 class Order(BaseModel):
     """An e-commerce order."""
+
     order_id: str = Field(description="Unique order identifier")
     customer_id: str
     items: list[dict[str, str]] = Field(description="Ordered items")
@@ -50,6 +52,7 @@ class Order(BaseModel):
 @flock_type
 class Payment(BaseModel):
     """Payment information for an order."""
+
     order_id: str = Field(description="Order this payment is for")
     payment_method: str
     amount: float
@@ -60,6 +63,7 @@ class Payment(BaseModel):
 @flock_type
 class ShippingInfo(BaseModel):
     """Shipping details for an order."""
+
     order_id: str = Field(description="Order this shipping is for")
     address: str
     carrier: str
@@ -70,6 +74,7 @@ class ShippingInfo(BaseModel):
 @flock_type
 class OrderConfirmation(BaseModel):
     """Complete order confirmation with all details."""
+
     order_id: str
     customer_id: str
     items: list[dict[str, str]]
@@ -132,94 +137,111 @@ order_processor = (
 # STEP 4: Run with Correlated Artifacts
 # ============================================================================
 
+
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
     print("=" * 70)
     print("🔗 JOINSPEC EXAMPLE - Order Processing with Correlation")
     print("=" * 70)
     print()
-    
+
     # Order 1: All pieces arrive together
     print("📦 Order #001: Publishing all pieces together...")
-    await flock.publish(Order(
-        order_id="ORD-001",
-        customer_id="CUST-123",
-        items=[{"name": "Laptop", "quantity": "1"}],
-        total_amount=999.99
-    ))
-    await flock.publish(Payment(
-        order_id="ORD-001",
-        payment_method="credit_card",
-        amount=999.99,
-        transaction_id="TXN-001",
-        status="completed"
-    ))
-    await flock.publish(ShippingInfo(
-        order_id="ORD-001",
-        address="123 Main St, City, State 12345",
-        carrier="FedEx",
-        tracking_number="FX123456789",
-        estimated_delivery="2025-01-15"
-    ))
-    
+    await flock.publish(
+        Order(
+            order_id="ORD-001",
+            customer_id="CUST-123",
+            items=[{"name": "Laptop", "quantity": "1"}],
+            total_amount=999.99,
+        )
+    )
+    await flock.publish(
+        Payment(
+            order_id="ORD-001",
+            payment_method="credit_card",
+            amount=999.99,
+            transaction_id="TXN-001",
+            status="completed",
+        )
+    )
+    await flock.publish(
+        ShippingInfo(
+            order_id="ORD-001",
+            address="123 Main St, City, State 12345",
+            carrier="FedEx",
+            tracking_number="FX123456789",
+            estimated_delivery="2025-01-15",
+        )
+    )
+
     # Order 2: Pieces arrive in different order
     print("\n📦 Order #002: Publishing pieces in different order...")
-    await flock.publish(ShippingInfo(
-        order_id="ORD-002",
-        address="456 Oak Ave, City, State 67890",
-        carrier="UPS",
-        tracking_number="UPS987654321",
-        estimated_delivery="2025-01-16"
-    ))
-    await flock.publish(Order(
-        order_id="ORD-002",
-        customer_id="CUST-456",
-        items=[{"name": "Mouse", "quantity": "2"}],
-        total_amount=49.98
-    ))
-    await flock.publish(Payment(
-        order_id="ORD-002",
-        payment_method="paypal",
-        amount=49.98,
-        transaction_id="TXN-002",
-        status="completed"
-    ))
-    
+    await flock.publish(
+        ShippingInfo(
+            order_id="ORD-002",
+            address="456 Oak Ave, City, State 67890",
+            carrier="UPS",
+            tracking_number="UPS987654321",
+            estimated_delivery="2025-01-16",
+        )
+    )
+    await flock.publish(
+        Order(
+            order_id="ORD-002",
+            customer_id="CUST-456",
+            items=[{"name": "Mouse", "quantity": "2"}],
+            total_amount=49.98,
+        )
+    )
+    await flock.publish(
+        Payment(
+            order_id="ORD-002",
+            payment_method="paypal",
+            amount=49.98,
+            transaction_id="TXN-002",
+            status="completed",
+        )
+    )
+
     # Order 3: Missing payment (won't process!)
     print("\n📦 Order #003: Publishing order and shipping (payment missing)...")
-    await flock.publish(Order(
-        order_id="ORD-003",
-        customer_id="CUST-789",
-        items=[{"name": "Keyboard", "quantity": "1"}],
-        total_amount=79.99
-    ))
-    await flock.publish(ShippingInfo(
-        order_id="ORD-003",
-        address="789 Pine Rd, City, State 11111",
-        carrier="USPS",
-        tracking_number="USPS111222333",
-        estimated_delivery="2025-01-17"
-    ))
+    await flock.publish(
+        Order(
+            order_id="ORD-003",
+            customer_id="CUST-789",
+            items=[{"name": "Keyboard", "quantity": "1"}],
+            total_amount=79.99,
+        )
+    )
+    await flock.publish(
+        ShippingInfo(
+            order_id="ORD-003",
+            address="789 Pine Rd, City, State 11111",
+            carrier="USPS",
+            tracking_number="USPS111222333",
+            estimated_delivery="2025-01-17",
+        )
+    )
     # Payment is missing - order won't be processed!
-    
+
     print("\n⏳ Processing orders with JoinSpec correlation...")
     print()
-    
+
     # Run until completion
     await flock.run_until_idle()
-    
+
     # Check results
     confirmations = await flock.store.get_by_type(OrderConfirmation)
-    
+
     print("=" * 70)
     print("📊 CORRELATION RESULTS")
     print("=" * 70)
-    
+
     print(f"\n✅ Orders Processed: {len(confirmations)}")
     print(f"   (Expected: 2 - Order #001 and #002)")
     print(f"   (Order #003 missing payment, so not processed)")
     print()
-    
+
     for conf in confirmations:
         print(f"📦 Order {conf.order_id}:")
         print(f"   Customer: {conf.customer_id}")
@@ -228,7 +250,7 @@ async def main_cli():
         print(f"   Total: ${conf.total_amount:.2f}")
         print(f"   Message: {conf.confirmation_message[:60]}...")
         print()
-    
+
     print("=" * 70)
     print("💡 Key Insights:")
     print("   - Order #001: All pieces arrived → Processed ✅")
@@ -261,7 +283,7 @@ if __name__ == "__main__":
 # ============================================================================
 # 🎓 NOW IT'S YOUR TURN!
 # ============================================================================
-# 
+#
 # EXPERIMENT 1: Different Correlation Keys
 # -----------------------------------------
 # Correlate by customer_id instead of order_id:

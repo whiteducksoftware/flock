@@ -115,7 +115,9 @@ class TestMessagesToPrompt:
         from flock.engines.providers.transformers_provider import _messages_to_prompt
 
         mock_tokenizer = MagicMock()
-        mock_tokenizer.apply_chat_template.return_value = "<|im_start|>user\nHello<|im_end|>"
+        mock_tokenizer.apply_chat_template.return_value = (
+            "<|im_start|>user\nHello<|im_end|>"
+        )
 
         messages = [{"role": "user", "content": "Hello"}]
 

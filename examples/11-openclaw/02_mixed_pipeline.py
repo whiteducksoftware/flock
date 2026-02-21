@@ -34,7 +34,9 @@ from flock.registry import flock_type
 class FeatureSpec(BaseModel):
     feature: str = Field(description="Feature to implement")
     language: str = Field(default="Python", description="Programming language")
-    requirements: list[str] = Field(description="Key requirements for the implementation")
+    requirements: list[str] = Field(
+        description="Key requirements for the implementation"
+    )
 
 
 @flock_type
@@ -81,7 +83,9 @@ implementer = (
 # Standard LLM agent reviews — pure structured output, no tools needed
 reviewer = (
     flock.agent("reviewer")
-    .description("Code reviewer who evaluates implementations for quality and correctness")
+    .description(
+        "Code reviewer who evaluates implementations for quality and correctness"
+    )
     .consumes(Implementation)
     .publishes(CodeReview)
 )
@@ -106,7 +110,9 @@ async def main():
     print(f"   Language: {spec.language}")
     print(f"   Requirements: {len(spec.requirements)}")
     print()
-    print("🔄 Pipeline: Spec → [OpenClaw: Codex] → Implementation → [LLM: Reviewer] → CodeReview")
+    print(
+        "🔄 Pipeline: Spec → [OpenClaw: Codex] → Implementation → [LLM: Reviewer] → CodeReview"
+    )
     print()
 
     await flock.publish(spec)
@@ -115,13 +121,17 @@ async def main():
     reviews = await flock.store.get_by_type(CodeReview)
     if reviews:
         review = reviews[0]
-        print(f"📝 Review: {'✅ Approved' if review.approved else '❌ Changes Requested'}")
+        print(
+            f"📝 Review: {'✅ Approved' if review.approved else '❌ Changes Requested'}"
+        )
         print(f"   Score: {review.score}/10")
         print(f"   Feedback: {len(review.feedback)} items")
         for item in review.feedback[:3]:
             print(f"     - {item}")
 
-    print("\n✅ Mixed pipeline complete — OpenClaw and native agents worked together seamlessly.")
+    print(
+        "\n✅ Mixed pipeline complete — OpenClaw and native agents worked together seamlessly."
+    )
 
 
 if __name__ == "__main__":

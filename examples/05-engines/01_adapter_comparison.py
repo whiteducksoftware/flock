@@ -105,7 +105,9 @@ async def main_cli():
         .publishes(AnalysisResult)
         .with_engines(
             DSPyEngine(
-                adapter=TwoStepAdapter(dspy.LM("azure/gpt-4.1")),  # Better structured output parsing
+                adapter=TwoStepAdapter(
+                    dspy.LM("azure/gpt-4.1")
+                ),  # Better structured output parsing
             )
         )
     )
@@ -120,7 +122,9 @@ async def main_cli():
     await flock.run_until_idle()
 
     # Get results
-    chat_results = await flock.store.get_by_type(AnalysisResult, correlation_id="chat_test")
+    chat_results = await flock.store.get_by_type(
+        AnalysisResult, correlation_id="chat_test"
+    )
     if chat_results:
         result = chat_results[0]
         print(f"   ✅ Sentiment: {result.sentiment}")
@@ -134,7 +138,9 @@ async def main_cli():
         await flock.run_until_idle()
 
     # Get results
-    json_results = await flock.store.get_by_type(AnalysisResult, correlation_id="json_test")
+    json_results = await flock.store.get_by_type(
+        AnalysisResult, correlation_id="json_test"
+    )
     if json_results:
         result = json_results[0]
         print(f"   ✅ Sentiment: {result.sentiment}")
@@ -144,7 +150,9 @@ async def main_cli():
     print("\n✅ Both adapters completed!")
     print("\n💡 Key Differences:")
     print("   - ChatAdapter: Text-based parsing with [[ ## field_name ## ]] markers")
-    print("   - JSONAdapter: Uses OpenAI's structured outputs API for more reliable parsing")
+    print(
+        "   - JSONAdapter: Uses OpenAI's structured outputs API for more reliable parsing"
+    )
     print("   - JSONAdapter: Enables native function calling by default")
 
 

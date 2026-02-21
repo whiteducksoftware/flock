@@ -53,7 +53,7 @@ def _config(
             "codie": GatewayConfig(
                 url="http://localhost:19789",
                 token=token,
-                token_env="OPENCLAW_CODIE_TOKEN",
+                token_env="OPENCLAW_CODIE_TOKEN" if token is not None else None,
                 agent_id=agent_id,
             )
         }
@@ -127,7 +127,9 @@ def _responses_completed(text: str) -> dict[str, object]:
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_responses_request_contains_expected_contract_fields_and_headers() -> None:
+async def test_responses_request_contains_expected_contract_fields_and_headers() -> (
+    None
+):
     """Engine should call /v1/responses with OpenResponses contract."""
     seen: dict[str, object] = {}
 
@@ -296,7 +298,9 @@ async def test_unrecognized_text_format_falls_back_without_it() -> None:
                 400,
                 json={"error": {"message": 'Unrecognized key: "text"'}},
             )
-        return httpx.Response(200, json=_responses_completed('{"result":"fallback ok"}'))
+        return httpx.Response(
+            200, json=_responses_completed('{"result":"fallback ok"}')
+        )
 
     respx.post("http://localhost:19789/v1/responses").mock(side_effect=_handler)
 
@@ -399,7 +403,9 @@ async def test_mode_other_than_spawn_fails_fast() -> None:
         .consumes(OpenClawEngineInput)
         .publishes(OpenClawEngineOutput)
     )
-    builder.agent.engines[0].mode = "session"  # Bypass model literal validation to test runtime guard.
+    builder.agent.engines[
+        0
+    ].mode = "session"  # Bypass model literal validation to test runtime guard.
 
     with pytest.raises(ValueError, match="Unsupported OpenClaw mode"):
         await flock.invoke(
@@ -481,16 +487,14 @@ def test_to_json_safe_normalizes_datetime_uuid_and_nested_values() -> None:
 
     engine = builder.agent.engines[0]
 
-    normalized = engine._to_json_safe(
-        {
-            "seen_at": datetime.now(UTC),
-            "ids": [uuid4(), uuid4()],
-            "nested": {
-                "window": (datetime.now(UTC), datetime.now(UTC)),
-                "tags": {"a", "b"},
-            },
-        }
-    )
+    normalized = engine._to_json_safe({
+        "seen_at": datetime.now(UTC),
+        "ids": [uuid4(), uuid4()],
+        "nested": {
+            "window": (datetime.now(UTC), datetime.now(UTC)),
+            "tags": {"a", "b"},
+        },
+    })
 
     assert isinstance(normalized["seen_at"], str)
     assert all(isinstance(i, str) for i in normalized["ids"])
@@ -645,7 +649,9 @@ def test_build_responses_payload_serializes_datetime_in_input_payload() -> None:
     engine = builder.agent.engines[0]
     payload = engine._build_responses_payload(
         agent=builder.agent,
-        ctx=SimpleNamespace(correlation_id="cid-test-datetime-input", artifacts=[], is_batch=False),
+        ctx=SimpleNamespace(
+            correlation_id="cid-test-datetime-input", artifacts=[], is_batch=False
+        ),
         inputs=SimpleNamespace(
             artifacts=[
                 SimpleNamespace(
@@ -755,9 +761,13 @@ async def test_single_output_bypasses_multi_output_envelope_path(
         raise AssertionError("single-output path must not build multi-output slot map")
 
     def _explode_multi_schema(self, slot_map):
-        raise AssertionError("single-output path must not build multi-output envelope schema")
+        raise AssertionError(
+            "single-output path must not build multi-output envelope schema"
+        )
 
-    monkeypatch.setattr(OpenClawEngine, "_build_multi_output_slot_map", _explode_slot_map)
+    monkeypatch.setattr(
+        OpenClawEngine, "_build_multi_output_slot_map", _explode_slot_map
+    )
     monkeypatch.setattr(
         OpenClawEngine,
         "_build_multi_output_schema_contract",
@@ -968,7 +978,9 @@ async def test_fan_out_dynamic_over_max_is_capped() -> None:
     assert [item.payload["result"] for item in outputs] == ["one", "two", "three"]
 
 
-def test_multi_output_group_envelope_slots_use_array_shape_when_fan_out_is_enabled() -> None:
+def test_multi_output_group_envelope_slots_use_array_shape_when_fan_out_is_enabled() -> (
+    None
+):
     """Multi-output slots should become arrays when declarations are fan-out enabled."""
     flock = Flock(openclaw=_config(), no_output=True)
     builder = (
@@ -1073,9 +1085,7 @@ async def test_multi_output_group_rejects_missing_required_envelope_slot() -> No
     respx.post("http://localhost:19789/v1/responses").mock(
         return_value=httpx.Response(
             200,
-            json=_responses_completed(
-                '{"OpenClawEngineOutput":{"result":"ok"}}'
-            ),
+            json=_responses_completed('{"OpenClawEngineOutput":{"result":"ok"}}'),
         )
     )
 
@@ -1193,7 +1203,9 @@ async def test_multi_output_malformed_envelope_repairs_and_succeeds() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_multi_output_envelope_fixed_fan_out_count_mismatch_retries_then_fails() -> None:
+async def test_multi_output_envelope_fixed_fan_out_count_mismatch_retries_then_fails() -> (
+    None
+):
     """Per-slot fixed fan-out count violations should retry then fail in envelope path."""
     calls = 0
 
@@ -1219,7 +1231,9 @@ async def test_multi_output_envelope_fixed_fan_out_count_mismatch_retries_then_f
         .agent
     )
 
-    with pytest.raises(RuntimeError, match="fan-out contract violation|expected exactly"):
+    with pytest.raises(
+        RuntimeError, match="fan-out contract violation|expected exactly"
+    ):
         await flock.invoke(
             agent,
             OpenClawEngineInput(prompt="multi-output fan-out mismatch"),

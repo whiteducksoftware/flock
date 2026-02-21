@@ -240,4 +240,3 @@ class TestDSPyEngineAdapter:
         # Engine should still be usable
         assert engine.model == "gpt-4"
         assert engine.stream is not None  # Has default value
-

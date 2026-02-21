@@ -67,7 +67,7 @@ from datetime import timedelta
 
 from pydantic import BaseModel, Field
 
-from flock import Flock, GatewayConfig, OpenClawConfig
+from flock import Flock, OpenClawConfig
 from flock.core.conditions import When
 from flock.core.subscription import BatchSpec, JoinSpec
 from flock.registry import flock_type
@@ -76,7 +76,7 @@ from flock.registry import flock_type
 # ============================================================================
 # 🎛️  CONFIGURATION: Switch between CLI and Dashboard modes
 # ============================================================================
-USE_DASHBOARD = True  # Set to True for dashboard mode, False for CLI mode
+USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # ============================================================================
 
 
@@ -89,10 +89,16 @@ USE_DASHBOARD = True  # Set to True for dashboard mode, False for CLI mode
 class CompetitorBrief(BaseModel):
     """Input: describes your product and market for competitive analysis."""
 
-    product_name: str = Field(default="Flock",description="Your product's name")
-    product_description: str = Field(default="An open-source blackboard-architecture framework for building "
-            "multi-agent AI systems with typed artifacts and declarative pipelines.",description="What your product does (1-2 sentences)")
-    target_market: str = Field(default="AI/ML engineers and teams building production agent systems",description="Who your product is for")
+    product_name: str = Field(default="Flock", description="Your product's name")
+    product_description: str = Field(
+        default="An open-source blackboard-architecture framework for building "
+        "multi-agent AI systems with typed artifacts and declarative pipelines.",
+        description="What your product does (1-2 sentences)",
+    )
+    target_market: str = Field(
+        default="AI/ML engineers and teams building production agent systems",
+        description="Who your product is for",
+    )
     key_differentiators: list[str] = Field(
         default_factory=lambda: [
             "Blackboard architecture with typed artifacts",
@@ -101,12 +107,13 @@ class CompetitorBrief(BaseModel):
             "Mixed compute backends (OpenClaw + native LLM)",
             "Built-in real-time dashboard",
         ],
-        description="What makes your product unique (2-5 points)"
+        description="What makes your product unique (2-5 points)",
     )
     known_competitors: list[str] = Field(
         default_factory=lambda: ["CrewAI", "LangGraph", "AutoGen"],
         description="Competitors you already know about (optional, helps seed the search)",
     )
+
 
 @flock_type
 class CompetitorProfile(BaseModel):
@@ -131,8 +138,12 @@ class PricingData(BaseModel):
     )
     price_range: str = Field(description="Price range or tiers (e.g. '$10-$99/mo')")
     free_tier: bool = Field(description="Whether a free tier exists")
-    enterprise_pricing: bool = Field(description="Whether custom enterprise pricing exists")
-    pricing_notes: str = Field(description="Key observations about the pricing strategy")
+    enterprise_pricing: bool = Field(
+        description="Whether custom enterprise pricing exists"
+    )
+    pricing_notes: str = Field(
+        description="Key observations about the pricing strategy"
+    )
 
 
 @flock_type
@@ -142,7 +153,9 @@ class TechStack(BaseModel):
     competitor_name: str = Field(description="Which competitor this analysis is for")
     primary_language: str = Field(description="Main programming language or framework")
     infrastructure: str = Field(description="Cloud provider, hosting approach")
-    key_integrations: list[str] = Field(description="Notable integrations and partnerships")
+    key_integrations: list[str] = Field(
+        description="Notable integrations and partnerships"
+    )
     api_available: bool = Field(description="Whether a public API is available")
     tech_differentiators: list[str] = Field(
         description="Technical features that stand out"
@@ -176,9 +189,7 @@ class CompetitorDossier(BaseModel):
     executive_summary: str = Field(
         description="2-3 sentence summary of this competitor's position"
     )
-    threat_level: str = Field(
-        description="Threat level: low, moderate, high, critical"
-    )
+    threat_level: str = Field(description="Threat level: low, moderate, high, critical")
     pricing_summary: str = Field(description="Key pricing findings")
     tech_summary: str = Field(description="Key technical findings")
     sentiment_summary: str = Field(description="Key sentiment findings")
@@ -197,7 +208,9 @@ class MarketLandscape(BaseModel):
     market_summary: str = Field(
         description="Executive summary of the competitive landscape (3-5 sentences)"
     )
-    total_competitors_analyzed: int = Field(description="Number of competitors analyzed")
+    total_competitors_analyzed: int = Field(
+        description="Number of competitors analyzed"
+    )
     market_segments: list[str] = Field(
         description="Distinct market segments identified"
     )
@@ -240,23 +253,21 @@ class StrategicRecommendation(BaseModel):
 class ExecutiveReport(BaseModel):
     """Final deliverable: comprehensive competitive intelligence report."""
 
-    report_title: str = Field(description="Title of the competitive intelligence report")
+    report_title: str = Field(
+        description="Title of the competitive intelligence report"
+    )
     date_generated: str = Field(description="Date the report was generated")
     executive_summary: str = Field(
         description="High-level executive summary (3-5 sentences)"
     )
-    market_overview: str = Field(
-        description="Overview of the competitive landscape"
-    )
+    market_overview: str = Field(description="Overview of the competitive landscape")
     competitor_profiles: list[str] = Field(
         description="One-paragraph summary per competitor"
     )
     strategic_recommendations: list[str] = Field(
         description="Top 5-7 strategic recommendations"
     )
-    action_items: list[str] = Field(
-        description="Immediate action items for the team"
-    )
+    action_items: list[str] = Field(description="Immediate action items for the team")
     appendix_notes: str = Field(
         description="Methodology notes and data freshness caveats"
     )
@@ -276,7 +287,7 @@ flock = Flock(openclaw=OpenClawConfig.from_env())
 # --- Agent 1: MarketScout (OpenClaw) ---
 # Discovers competitors via web search, produces 3-8 CompetitorProfiles.
 market_scout = (
-    flock.openclaw_agent("codie", name="market_scout")
+    flock.openclaw_agent("codex", name="market_scout")
     .description(
         "Competitive intelligence scout. Given a product brief, use web search "
         "to discover direct and indirect competitors. For each competitor found, "
@@ -292,7 +303,7 @@ market_scout = (
 # --- Agent 2: PricingAnalyst (OpenClaw) ---
 # Visits competitor websites to extract pricing intelligence.
 pricing_analyst = (
-    flock.openclaw_agent("codie", name="pricing_analyst")
+    flock.openclaw_agent("codex", name="pricing_analyst")
     .description(
         "Pricing intelligence specialist. Given a competitor profile, search for "
         "and analyze their pricing page. Determine their pricing model, price range, "
@@ -307,7 +318,7 @@ pricing_analyst = (
 # --- Agent 3: TechAnalyst (OpenClaw) ---
 # Researches competitor tech stack via web search.
 tech_analyst = (
-    flock.openclaw_agent("codie", name="tech_analyst")
+    flock.openclaw_agent("codex", name="tech_analyst")
     .description(
         "Technical intelligence specialist. Given a competitor profile, research their "
         "technology stack. Use web search to find their primary language/framework, "
@@ -403,7 +414,7 @@ strategy_advisor = (
 # --- Agent 8: ReportCompiler (OpenClaw, When activation) ---
 # Activates when BOTH MarketLandscape and StrategicRecommendation exist.
 report_compiler = (
-    flock.openclaw_agent("codie", name="report_compiler")
+    flock.openclaw_agent("codex", name="report_compiler")
     .description(
         "Executive report compiler. Given the market landscape and strategic "
         "recommendations, produce a polished executive report. Include a clear title, "
@@ -503,20 +514,26 @@ async def main_cli():
     print("=" * 70)
 
     # Competitor Profiles
-    profiles = await flock.store.get_by_type(CompetitorProfile, correlation_id=correlation_id)
+    profiles = await flock.store.get_by_type(
+        CompetitorProfile, correlation_id=correlation_id
+    )
     print(f"\n🔍 Competitors Discovered: {len(profiles)}")
     for p in profiles:
         print(f"   • {p.competitor_name} — {p.one_liner[:60]}...")
 
     # Dossiers
-    dossiers = await flock.store.get_by_type(CompetitorDossier, correlation_id=correlation_id)
+    dossiers = await flock.store.get_by_type(
+        CompetitorDossier, correlation_id=correlation_id
+    )
     print(f"\n📁 Dossiers Compiled: {len(dossiers)}")
     for d in dossiers:
         print(f"   • {d.competitor_name} — Threat: {d.threat_level}")
         print(f"     {d.executive_summary[:80]}...")
 
     # Market Landscape
-    landscapes = await flock.store.get_by_type(MarketLandscape, correlation_id=correlation_id)
+    landscapes = await flock.store.get_by_type(
+        MarketLandscape, correlation_id=correlation_id
+    )
     if landscapes:
         ml = landscapes[0]
         print(f"\n🗺️  Market Landscape:")
@@ -545,7 +562,9 @@ async def main_cli():
             print(f"     → {tactic}")
 
     # Executive Report
-    reports = await flock.store.get_by_type(ExecutiveReport, correlation_id=correlation_id)
+    reports = await flock.store.get_by_type(
+        ExecutiveReport, correlation_id=correlation_id
+    )
     if reports:
         er = reports[0]
         print(f"\n📄 Executive Report: {er.report_title}")
@@ -597,7 +616,9 @@ async def main_dashboard():
     print("   • Parallel analyzers: 3 agents fire per competitor simultaneously")
     print("   • JoinSpec correlation: Dossiers appear after all 3 analyses complete")
     print("   • BatchSpec accumulation: MarketLandscape appears after dossiers batch")
-    print("   • When activations: StrategyAdvisor and ReportCompiler trigger in sequence")
+    print(
+        "   • When activations: StrategyAdvisor and ReportCompiler trigger in sequence"
+    )
     print()
     await flock.serve(dashboard=True)
 

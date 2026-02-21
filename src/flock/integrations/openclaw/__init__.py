@@ -7,6 +7,7 @@ from flock.integrations.openclaw.config import (
 )
 from flock.integrations.openclaw.engine import OpenClawEngine
 from flock.integrations.openclaw.streaming import (
+    OpenClawResponseFailedError,
     OpenClawSSEConsumer,
     OpenClawSSEDispatcher,
     OpenClawStreamingExecutor,
@@ -22,11 +23,12 @@ __all__ = [
     "OpenClawConfig",
     "OpenClawDefaults",
     "OpenClawEngine",
-    "SSEFrame",
-    "parse_sse_lines",
-    "map_sse_event_type",
-    "OpenClawSSEDispatcher",
-    "OpenClawStreamingResult",
-    "OpenClawStreamingExecutor",
+    "OpenClawResponseFailedError",
     "OpenClawSSEConsumer",
+    "OpenClawSSEDispatcher",
+    "OpenClawStreamingExecutor",
+    "OpenClawStreamingResult",
+    "SSEFrame",
+    "map_sse_event_type",
+    "parse_sse_lines",
 ]

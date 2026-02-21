@@ -72,7 +72,9 @@ class ControlRoutesComponent(ServerComponent):
                 return {k: _to_json_compatible(v) for k, v in value.items()}
             return value
 
-        def _enrich_schema_with_array_defaults(model_class: type[Any], schema: dict[str, Any]) -> dict[str, Any]:
+        def _enrich_schema_with_array_defaults(
+            model_class: type[Any], schema: dict[str, Any]
+        ) -> dict[str, Any]:
             """Inject array defaults for fields that use Pydantic default_factory.
 
             Pydantic v2 omits default_factory values in model_json_schema().

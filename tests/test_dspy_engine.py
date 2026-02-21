@@ -613,7 +613,9 @@ class TestDSPyEngineArtifactMaterialization:
         # We still materialize what we got, but record the mismatch
         assert len(artifacts) == 1
         assert artifacts[0].payload["response"] == "one"
-        assert any("Fan-out expected exactly 2 TestOutput instances" in e for e in errors)
+        assert any(
+            "Fan-out expected exactly 2 TestOutput instances" in e for e in errors
+        )
 
     def test_materialize_artifacts_dynamic_fan_out_truncates_and_warns(self):
         """Dynamic FanOutRange above max should truncate list and record warning."""

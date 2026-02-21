@@ -36,9 +36,11 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # Common filterable fields: scores, status, priority, categories, etc.
 # ============================================================================
 
+
 @flock_type
 class CodeReview(BaseModel):
     """A code review with quality metrics."""
+
     file_path: str
     reviewer: str
     score: int = Field(ge=1, le=10, description="Quality score from 1-10")
@@ -50,6 +52,7 @@ class CodeReview(BaseModel):
 @flock_type
 class ApprovedReview(BaseModel):
     """High-quality review that passed quality gates."""
+
     file_path: str
     reviewer: str
     score: int
@@ -59,6 +62,7 @@ class ApprovedReview(BaseModel):
 @flock_type
 class RevisionRequest(BaseModel):
     """Review that needs improvement."""
+
     file_path: str
     reviewer: str
     score: int
@@ -76,7 +80,7 @@ flock = Flock()
 # STEP 3: Define Agents with Conditional Consumption
 # ============================================================================
 # The `where` parameter lets you filter artifacts before agents process them.
-# 
+#
 # Syntax: .consumes(Type, where=lambda artifact: condition)
 #
 # The lambda receives the artifact as a Pydantic model instance.
@@ -91,7 +95,7 @@ approver_agent = (
     )
     .consumes(
         CodeReview,
-        where=lambda review: review.score >= 8  # Conditional filter!
+        where=lambda review: review.score >= 8,  # Conditional filter!
     )
     .publishes(ApprovedReview)
 )
@@ -104,7 +108,7 @@ revision_agent = (
     )
     .consumes(
         CodeReview,
-        where=lambda review: review.score < 6  # Different condition!
+        where=lambda review: review.score < 6,  # Different condition!
     )
     .publishes(RevisionRequest)
 )
@@ -123,13 +127,14 @@ summary_agent = (
 # STEP 4: Run with Multiple Artifacts
 # ============================================================================
 
+
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
     print("=" * 70)
     print("🔍 CONDITIONAL CONSUMPTION EXAMPLE - Code Review Filtering")
     print("=" * 70)
     print()
-    
+
     # Create multiple reviews with different scores
     reviews = [
         CodeReview(
@@ -138,7 +143,7 @@ async def main_cli():
             score=9,
             comments=["Excellent code quality", "Well documented"],
             language="Python",
-            complexity="moderate"
+            complexity="moderate",
         ),
         CodeReview(
             file_path="src/db.py",
@@ -146,7 +151,7 @@ async def main_cli():
             score=4,
             comments=["Needs better error handling", "Missing tests"],
             language="Python",
-            complexity="complex"
+            complexity="complex",
         ),
         CodeReview(
             file_path="src/api.py",
@@ -154,7 +159,7 @@ async def main_cli():
             score=7,
             comments=["Good structure", "Minor improvements needed"],
             language="Python",
-            complexity="simple"
+            complexity="simple",
         ),
         CodeReview(
             file_path="src/utils.py",
@@ -162,41 +167,41 @@ async def main_cli():
             score=10,
             comments=["Perfect implementation", "Great documentation"],
             language="Python",
-            complexity="moderate"
+            complexity="moderate",
         ),
     ]
-    
+
     print("📝 Publishing Code Reviews:")
     for review in reviews:
         print(f"   {review.file_path}: Score {review.score}/10 ({review.reviewer})")
     print()
     print("⏳ Processing reviews with conditional filters...")
     print()
-    
+
     # Publish all reviews
     await flock.publish_many(reviews)
-    
+
     # Run until all agents finish
     await flock.run_until_idle()
-    
+
     # Check results
     approvals = await flock.store.get_by_type(ApprovedReview)
     revisions = await flock.store.get_by_type(RevisionRequest)
-    
+
     print("=" * 70)
     print("📊 FILTERING RESULTS")
     print("=" * 70)
-    
+
     print(f"\n✅ Approved Reviews (score >= 8): {len(approvals)}")
     for approval in approvals:
         print(f"   • {approval.file_path} (Score: {approval.score})")
         print(f"     Note: {approval.approval_note[:60]}...")
-    
+
     print(f"\n❌ Revision Requests (score < 6): {len(revisions)}")
     for revision in revisions:
         print(f"   • {revision.file_path} (Score: {revision.score})")
         print(f"     Required: {', '.join(revision.required_changes[:2])}")
-    
+
     print()
     print("=" * 70)
     print("💡 Key Insights:")
@@ -229,7 +234,7 @@ if __name__ == "__main__":
 # ============================================================================
 # 🎓 NOW IT'S YOUR TURN!
 # ============================================================================
-# 
+#
 # EXPERIMENT 1: Multiple Conditions
 # ----------------------------------
 # Create an agent that filters by MULTIPLE conditions:
@@ -323,4 +328,3 @@ if __name__ == "__main__":
 # Hint: Each agent publishes a "passed" artifact that the next agent consumes!
 #
 # ============================================================================
-

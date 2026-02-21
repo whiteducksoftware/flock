@@ -617,8 +617,7 @@ class TestConnectionManagement:
         # Ensure the debug log about missing logging capability was emitted
         mock_logger.debug.assert_called()
         assert any(
-            "does not advertise logging capability"
-            in str(call.args[0])
+            "does not advertise logging capability" in str(call.args[0])
             for call in mock_logger.debug.call_args_list
         )
 

@@ -36,8 +36,8 @@ class OpenClawEngine(EngineComponent):
     alias: str
     gateway: GatewayConfig
     mode: Literal["spawn"] = "spawn"
-    timeout: int = 120
-    retries: int = 1
+    timeout: int = Field(default=120, ge=1)
+    retries: int = Field(default=1, ge=0)
     response_mode: Literal["json_schema", "prompt_only"] = "json_schema"
     instructions: str | None = None
     stream: bool = Field(
@@ -71,7 +71,9 @@ class OpenClawEngine(EngineComponent):
     @classmethod
     def _bump_counter(cls, key: str, amount: int = 1) -> None:
         with cls._reliability_counter_lock:
-            cls._reliability_counters[key] = cls._reliability_counters.get(key, 0) + amount
+            cls._reliability_counters[key] = (
+                cls._reliability_counters.get(key, 0) + amount
+            )
 
     @classmethod
     def _get_reliability_counters(cls) -> dict[str, int]:
@@ -255,7 +257,9 @@ class OpenClawEngine(EngineComponent):
                             ):
                                 ctx.state["_flock_stream_live_active"] = True
 
-                            return EvalResult(artifacts=artifacts, state=dict(inputs.state))
+                            return EvalResult(
+                                artifacts=artifacts, state=dict(inputs.state)
+                            )
                         except Exception:
                             self._bump_counter("responses_failure")
                             self._log_reliability_snapshot_if_due()
@@ -404,7 +408,9 @@ class OpenClawEngine(EngineComponent):
         Agent._streaming_counter = active_streams + 1
         return True, False, True
 
-    def _build_dashboard_streaming_sinks(self, *, agent, ctx, output_group, artifact_id):
+    def _build_dashboard_streaming_sinks(
+        self, *, agent, ctx, output_group, artifact_id
+    ):
         from flock.core import Agent
         from flock.engines.streaming.sinks import WebSocketSink
 
@@ -418,7 +424,9 @@ class OpenClawEngine(EngineComponent):
                 getattr(output_group.outputs[0].spec, "type_name", None) or "output"
             )
 
-        def _event_factory(output_type: str, content: str, sequence: int, is_final: bool):
+        def _event_factory(
+            output_type: str, content: str, sequence: int, is_final: bool
+        ):
             return self._build_streaming_event(
                 ctx=ctx,
                 agent=agent,
@@ -490,8 +498,8 @@ class OpenClawEngine(EngineComponent):
             theme=self._resolve_output_utility_theme(agent),
             no_output=self.no_output,
         )
-        formatter, theme_dict, styles, agent_label = formatter_helper.prepare_stream_formatter(
-            agent
+        formatter, theme_dict, styles, agent_label = (
+            formatter_helper.prepare_stream_formatter(agent)
         )
         # Match OpenClaw static table label in streaming panel.
         agent_label = f"{getattr(agent, 'name', '')} 🦞"
@@ -623,7 +631,9 @@ class OpenClawEngine(EngineComponent):
                 if fan_out_range is None:
                     slot_hint = "one object"
                 elif fan_out_range.is_fixed():
-                    slot_hint = f"an array with exactly {fan_out_range.fixed_count()} item(s)"
+                    slot_hint = (
+                        f"an array with exactly {fan_out_range.fixed_count()} item(s)"
+                    )
                 else:
                     slot_hint = (
                         "an array with between "
@@ -730,14 +740,13 @@ class OpenClawEngine(EngineComponent):
         for defs_key in ("$defs", "definitions"):
             if defs_key in node and isinstance(node[defs_key], dict):
                 node[defs_key] = {
-                    k: self._strict_transform(v)
-                    for k, v in node[defs_key].items()
+                    k: self._strict_transform(v) for k, v in node[defs_key].items()
                 }
 
         node_type = node.get("type")
 
-        if node_type == "object":
-            props = node.get("properties", {})
+        if node_type == "object" and "properties" in node:
+            props = node["properties"]
             # All properties must be required in strict mode
             node["required"] = list(props.keys())
             node["additionalProperties"] = False
@@ -796,19 +805,19 @@ class OpenClawEngine(EngineComponent):
         for item in context_items:
             payload = getattr(item, "payload", None)
 
-            serialized.append(
-                {
-                    "type": str(getattr(item, "type", "")),
-                    "produced_by": str(getattr(item, "produced_by", "")),
-                    "payload": self._to_json_safe(payload),
-                }
-            )
+            serialized.append({
+                "type": str(getattr(item, "type", "")),
+                "produced_by": str(getattr(item, "produced_by", "")),
+                "payload": self._to_json_safe(payload),
+            })
         return serialized
 
     def _resolve_output_decls(self, output_group) -> list:
         outputs = list(getattr(output_group, "outputs", []) or [])
         if not outputs:
-            raise ValueError("OpenClaw output group must include at least one output declaration.")
+            raise ValueError(
+                "OpenClaw output group must include at least one output declaration."
+            )
         return outputs
 
     def _build_multi_output_slot_map(self, output_group) -> OrderedDict[str, Any]:
@@ -820,7 +829,9 @@ class OpenClawEngine(EngineComponent):
         for output_decl in self._resolve_output_decls(output_group):
             slot_name = str(getattr(output_decl.spec, "type_name", "") or "").strip()
             if not slot_name:
-                slot_name = str(getattr(output_decl.spec.model, "__name__", "output")).strip()
+                slot_name = str(
+                    getattr(output_decl.spec.model, "__name__", "output")
+                ).strip()
 
             if slot_name in slot_map:
                 raise ValueError(
@@ -1062,7 +1073,9 @@ class OpenClawEngine(EngineComponent):
             )
             fan_out_metadata = self._drop_artifact_id(metadata)
             return [
-                output_decl.apply(item, produced_by=produced_by, metadata=fan_out_metadata)
+                output_decl.apply(
+                    item, produced_by=produced_by, metadata=fan_out_metadata
+                )
                 for item in items
             ]
 
@@ -1071,9 +1084,7 @@ class OpenClawEngine(EngineComponent):
                 f"Expected object data for single output, got {type(data).__name__}."
             )
 
-        return [
-            output_decl.apply(data, produced_by=produced_by, metadata=metadata)
-        ]
+        return [output_decl.apply(data, produced_by=produced_by, metadata=metadata)]
 
     def _build_repair_task(self, *, original_task: str, parse_error: str) -> str:
         return (
@@ -1108,15 +1119,11 @@ class OpenClawEngine(EngineComponent):
 
         if response.status_code == 400:
             message = self._extract_error_message(response)
-            raise RuntimeError(
-                f"OpenClaw bad request (400): {message}"
-            )
+            raise RuntimeError(f"OpenClaw bad request (400): {message}")
 
         if response.status_code == 429:
             message = self._extract_error_message(response)
-            raise RuntimeError(
-                f"OpenClaw rate limit (429): {message}"
-            )
+            raise RuntimeError(f"OpenClaw rate limit (429): {message}")
 
         if response.status_code >= 500:
             message = self._extract_error_message(response)
@@ -1136,9 +1143,7 @@ class OpenClawEngine(EngineComponent):
             raise RuntimeError("OpenClaw gateway returned non-JSON response") from exc
 
         if not isinstance(payload_json, dict):
-            raise RuntimeError(
-                "OpenClaw gateway response must be a JSON object"
-            )
+            raise RuntimeError("OpenClaw gateway response must be a JSON object")
 
         if str(payload_json.get("status", "")).lower() == "failed":
             message = self._extract_error_message(response)
@@ -1258,10 +1263,18 @@ class OpenClawEngine(EngineComponent):
     def _is_unsupported_text_format_error(exc: RuntimeError) -> bool:
         """Detect 400 errors caused by gateway not supporting text.format."""
         message = str(exc).lower()
-        return "400" in message and (
-            "unrecognized key" in message
-            or '"text"' in message
-            or "text.format" in message
+        if "400" not in message:
+            return False
+        return any(
+            marker in message
+            for marker in (
+                "unrecognized key",
+                "text.format",
+                '"text"',
+                "'text'",
+                "unknown parameter",
+                "unexpected field",
+            )
         )
 
     def _is_retriable_runtime_error(self, exc: RuntimeError) -> bool:

@@ -37,20 +37,23 @@ USE_DASHBOARD = True  # Set to True for dashboard mode, False for CLI mode
 # that agents can read from and write to the blackboard.
 # ============================================================================
 
+
 @flock_type
 class RecipeRequest(BaseModel):
     """A request for a recipe - what the user wants to cook."""
+
     dish_name: str = Field(description="Name of the dish to create a recipe for")
     cuisine_type: str = Field(default="international", description="Type of cuisine")
     dietary_restrictions: list[str] = Field(
         default_factory=list,
-        description="Dietary restrictions (e.g., 'vegetarian', 'gluten-free')"
+        description="Dietary restrictions (e.g., 'vegetarian', 'gluten-free')",
     )
 
 
 @flock_type
 class Recipe(BaseModel):
     """A complete recipe with ingredients and instructions."""
+
     dish_name: str
     cuisine_type: str
     ingredients: list[str] = Field(description="List of ingredients with quantities")
@@ -91,7 +94,7 @@ chef_agent = (
         "Always provides accurate ingredient quantities and clear step-by-step instructions."
     )
     .consumes(RecipeRequest)  # This agent reacts to RecipeRequest artifacts
-    .publishes(Recipe)        # This agent produces Recipe artifacts
+    .publishes(Recipe)  # This agent produces Recipe artifacts
 )
 
 
@@ -104,20 +107,21 @@ chef_agent = (
 # 3. Retrieve results from the blackboard (flock.store.get_by_type())
 # ============================================================================
 
+
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
     print("=" * 70)
     print("🍳 BASIC AGENT EXAMPLE - Recipe Generator")
     print("=" * 70)
     print()
-    
+
     # Create a recipe request
     request = RecipeRequest(
         dish_name="Spicy Thai Green Curry",
         cuisine_type="Thai",
-        dietary_restrictions=["vegetarian"]
+        dietary_restrictions=["vegetarian"],
     )
-    
+
     print(f"📝 Recipe Request:")
     print(f"   Dish: {request.dish_name}")
     print(f"   Cuisine: {request.cuisine_type}")
@@ -125,24 +129,26 @@ async def main_cli():
     print()
     print("⏳ Publishing request and waiting for chef agent...")
     print()
-    
+
     # Publish the request to the blackboard
     # This will trigger any agents subscribed to RecipeRequest
     await flock.publish(request)
-    
+
     # Run until all agents finish processing
     await flock.run_until_idle()
-    
+
     # Retrieve the generated recipe
     recipes = await flock.store.get_by_type(Recipe)
-    
+
     if recipes:
         recipe = recipes[0]
         print("✅ Recipe Generated!")
         print("=" * 70)
         print(f"🍽️  {recipe.dish_name} ({recipe.cuisine_type})")
         print(f"   Difficulty: {recipe.difficulty}")
-        print(f"   Prep: {recipe.prep_time_minutes} min | Cook: {recipe.cook_time_minutes} min")
+        print(
+            f"   Prep: {recipe.prep_time_minutes} min | Cook: {recipe.cook_time_minutes} min"
+        )
         print()
         print("📋 Ingredients:")
         for ingredient in recipe.ingredients:
@@ -153,7 +159,7 @@ async def main_cli():
             print(f"   {i}. {instruction}")
     else:
         print("❌ No recipe generated. Check agent configuration.")
-    
+
     print()
     print("=" * 70)
 
@@ -181,7 +187,7 @@ if __name__ == "__main__":
 # ============================================================================
 # 🎓 NOW IT'S YOUR TURN!
 # ============================================================================
-# 
+#
 # EXPERIMENT 1: Try Different Recipes
 # -----------------------------------
 # Modify the RecipeRequest in main_cli() to try different dishes:
@@ -252,4 +258,3 @@ if __name__ == "__main__":
 # What did you learn about agent declaration?
 #
 # ============================================================================
-

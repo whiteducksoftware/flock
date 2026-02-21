@@ -153,7 +153,9 @@ class OutputUtilityComponent(AgentComponent):
         return False
 
     @staticmethod
-    def _input_preview(inputs: EvalInputs) -> dict[str, Any] | list[dict[str, Any]] | None:
+    def _input_preview(
+        inputs: EvalInputs,
+    ) -> dict[str, Any] | list[dict[str, Any]] | None:
         """Build a compact input preview for table rendering."""
         if not inputs.artifacts:
             return None
@@ -163,12 +165,10 @@ class OutputUtilityComponent(AgentComponent):
 
         preview: list[dict[str, Any]] = []
         for artifact in inputs.artifacts:
-            preview.append(
-                {
-                    "type": artifact.type,
-                    "payload": dict(artifact.payload),
-                }
-            )
+            preview.append({
+                "type": artifact.type,
+                "payload": dict(artifact.payload),
+            })
         return preview
 
     async def on_post_evaluate(

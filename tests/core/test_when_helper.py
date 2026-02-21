@@ -60,9 +60,7 @@ def mock_orchestrator():
     orchestrator = Mock()
     orchestrator.store = Mock()
     orchestrator.store.query_artifacts = AsyncMock(return_value=([], 0))
-    orchestrator.get_correlation_status = AsyncMock(
-        return_value={"error_count": 0}
-    )
+    orchestrator.get_correlation_status = AsyncMock(return_value={"error_count": 0})
     orchestrator._scheduler = Mock()
     orchestrator._scheduler.pending_tasks = set()
     return orchestrator
@@ -308,10 +306,9 @@ class TestWhenComposition:
         """When conditions can be combined with OR."""
         from flock.core.conditions import OrCondition, When
 
-        condition = (
-            When.correlation(WhenTestUserStory).count_at_least(5)
-            | When.correlation(WhenTestHypothesis).count_at_least(3)
-        )
+        condition = When.correlation(WhenTestUserStory).count_at_least(
+            5
+        ) | When.correlation(WhenTestHypothesis).count_at_least(3)
 
         assert isinstance(condition, OrCondition)
 
@@ -325,10 +322,9 @@ class TestWhenComposition:
         """When conditions can be combined with AND."""
         from flock.core.conditions import AndCondition, When
 
-        condition = (
-            When.correlation(WhenTestUserStory).count_at_least(5)
-            & When.correlation(WhenTestHypothesis).count_at_least(3)
-        )
+        condition = When.correlation(WhenTestUserStory).count_at_least(
+            5
+        ) & When.correlation(WhenTestHypothesis).count_at_least(3)
 
         assert isinstance(condition, AndCondition)
 

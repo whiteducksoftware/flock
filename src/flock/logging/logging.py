@@ -383,7 +383,13 @@ class FlockLogger:
             )
         return message
 
-    def _emit(self, level: Literal["debug", "info", "warning", "error", "exception", "success"], message: str, *args, **kwargs) -> None:
+    def _emit(
+        self,
+        level: Literal["debug", "info", "warning", "error", "exception", "success"],
+        message: str,
+        *args,
+        **kwargs,
+    ) -> None:
         """Emit a log record while safely supporting stdlib-style ``exc_info``.
 
         Loguru treats ``**kwargs`` as format kwargs; passing ``exc_info`` through

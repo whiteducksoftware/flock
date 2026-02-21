@@ -105,10 +105,7 @@ async def test_graph_assembler_includes_schedule_data(orchestrator):
     )
 
     # Create normal agent
-    normal_agent = (
-        orchestrator.agent("normal_agent")
-        .publishes(TestOutput)
-    )
+    normal_agent = orchestrator.agent("normal_agent").publishes(TestOutput)
 
     # Initialize orchestrator to start timer component
     await orchestrator._run_initialize()
@@ -120,7 +117,9 @@ async def test_graph_assembler_includes_schedule_data(orchestrator):
     snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
 
     # Find scheduled agent node
-    scheduled_node = next((n for n in snapshot.nodes if n.id == "scheduled_agent"), None)
+    scheduled_node = next(
+        (n for n in snapshot.nodes if n.id == "scheduled_agent"), None
+    )
     assert scheduled_node is not None
 
     # Verify schedule data is included

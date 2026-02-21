@@ -45,7 +45,9 @@ flock = Flock()
 # Demo: schedule reminder for 30 seconds from now
 DEMO_MODE = True
 reminder_time = (
-    datetime.now() + timedelta(seconds=30) if DEMO_MODE else datetime(2025, 11, 1, 8, 55)
+    datetime.now() + timedelta(seconds=30)
+    if DEMO_MODE
+    else datetime(2025, 11, 1, 8, 55)
 )
 
 print(f"\n[Setup] Current time:  {datetime.now().strftime('%H:%M:%S')}")
@@ -61,6 +63,7 @@ meeting_publisher = (
     .schedule(every=timedelta(seconds=1), max_repeats=1)
     .publishes(MeetingSchedule)
 )
+
 
 # Reminder fires once at the scheduled datetime
 def print_reminder(rem: Reminder) -> None:
@@ -107,4 +110,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

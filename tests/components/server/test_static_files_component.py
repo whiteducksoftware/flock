@@ -112,7 +112,7 @@ class TestStaticFilesServerComponent:
         """Test that registering routes with nonexistent directory raises error."""
         import tempfile
         import os
-        
+
         # Create a path that definitely doesn't exist on any OS
         with tempfile.TemporaryDirectory() as temp_dir:
             nonexistent_path = os.path.join(temp_dir, "definitely_does_not_exist_12345")

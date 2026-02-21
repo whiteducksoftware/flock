@@ -24,7 +24,7 @@ import asyncio
 
 from pydantic import BaseModel, Field
 
-from flock import Flock, GatewayConfig, OpenClawConfig
+from flock import Flock, OpenClawConfig
 from flock.registry import flock_type
 
 
@@ -48,19 +48,19 @@ class Pizza(BaseModel):
 # Setup: Configure OpenClaw gateway
 # ============================================================================
 # Option 1: Explicit configuration
-flock = Flock(
-    openclaw=OpenClawConfig(
-        gateways={
-            "codex": GatewayConfig(
-                url="http://127.0.0.1:19789",
-                token_env="OPENCLAW_CODEX_TOKEN",  # env var name, not token value
-            )
-        }
-    )
-)
+# flock = Flock(
+#     openclaw=OpenClawConfig(
+#         gateways={
+#             "codex": GatewayConfig(
+#                 url="http://127.0.0.1:19789",
+#                 token_env="OPENCLAW_CODEX_TOKEN",  # env var name, not token value
+#             )
+#         }
+#     )
+# )
 
 # Option 2: Auto-discover from environment (uncomment to use):
-# flock = Flock(openclaw=OpenClawConfig.from_env())
+flock = Flock(openclaw=OpenClawConfig.from_env())
 
 
 # ============================================================================
@@ -80,7 +80,9 @@ pizza_master = (
 # Run: Publish and let the OpenClaw agent do its thing
 # ============================================================================
 async def main():
-    pizza_idea = MyPizzaIdea(pizza_idea="A spicy Hawaiian with jalapeños and smoked pineapple")
+    pizza_idea = MyPizzaIdea(
+        pizza_idea="A spicy Hawaiian with jalapeños and smoked pineapple"
+    )
 
     print(f"🍕 Sending pizza idea to OpenClaw agent: {pizza_idea.pizza_idea}\n")
 

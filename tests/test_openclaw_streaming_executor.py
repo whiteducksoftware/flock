@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from flock.integrations.openclaw.streaming import OpenClawStreamingExecutor, SSEFrame
+from flock.integrations.openclaw.streaming import (
+    OpenClawResponseFailedError,
+    OpenClawStreamingExecutor,
+    SSEFrame,
+)
 
 
 class _CaptureSink:
@@ -62,7 +66,9 @@ async def test_executor_dispatches_mocked_sse_frames_to_sinks() -> None:
 
 
 @pytest.mark.asyncio
-async def test_executor_accumulates_delta_text_when_completed_has_no_output_text() -> None:
+async def test_executor_accumulates_delta_text_when_completed_has_no_output_text() -> (
+    None
+):
     sink = _CaptureSink()
 
     async def _mock_stream_events():
@@ -183,3 +189,38 @@ async def test_executor_propagates_sse_error_when_no_fallback_is_configured() ->
         await executor.execute()
 
     assert sink.finals == []
+
+
+@pytest.mark.asyncio
+async def test_executor_does_not_fallback_on_response_failed() -> None:
+    """response.failed should raise immediately, not trigger streaming fallback."""
+    sink = _CaptureSink()
+    fallback_calls = 0
+
+    async def _stream_with_response_failed():
+        yield SSEFrame(event="response.created", data="{}")
+        yield SSEFrame(
+            event="response.failed",
+            data='{"error":{"message":"model overloaded"}}',
+        )
+
+    async def _fallback_non_streaming() -> str:
+        nonlocal fallback_calls
+        fallback_calls += 1
+        return '{"result":"should not reach"}'
+
+    executor = OpenClawStreamingExecutor(
+        endpoint="http://localhost:19789/v1/responses",
+        headers={"Authorization": "Bearer token"},
+        payload={"model": "openclaw", "input": "ping"},
+        sinks=[sink],
+        output_field="output",
+        timeout=30,
+        stream_events_factory=_stream_with_response_failed,
+        fallback_non_streaming_factory=_fallback_non_streaming,
+    )
+
+    with pytest.raises(OpenClawResponseFailedError, match="model overloaded"):
+        await executor.execute()
+
+    assert fallback_calls == 0

@@ -15,6 +15,10 @@ from typing import Any, Awaitable, Callable, Literal, Protocol
 import httpx
 
 
+class OpenClawResponseFailedError(RuntimeError):
+    """Raised when the OpenClaw API reports response.failed during streaming."""
+
+
 class SinkProtocol(Protocol):
     async def on_status(self, text: str) -> None: ...
 
@@ -191,7 +195,7 @@ class OpenClawSSEDispatcher:
         if event == "response.failed":
             payload = self._parse_json(frame.data)
             message = self._extract_error_message(payload)
-            raise RuntimeError(f"OpenClaw response failed: {message}")
+            raise OpenClawResponseFailedError(f"OpenClaw response failed: {message}")
 
         # Other OpenResponses events are currently informational/no-op for sinks.
 
@@ -335,6 +339,10 @@ class OpenClawStreamingExecutor:
                 usage=dispatcher.usage,
                 final_text=dispatcher.final_text,
             )
+        except OpenClawResponseFailedError:
+            # API-level failures (response.failed) should not be
+            # swallowed by the streaming fallback — re-raise immediately.
+            raise
         except Exception:
             if self.fallback_non_streaming_factory is None:
                 raise
@@ -475,11 +483,12 @@ class OpenClawSSEConsumer:
 
 
 __all__ = [
-    "SSEFrame",
-    "parse_sse_lines",
-    "map_sse_event_type",
-    "OpenClawSSEDispatcher",
-    "OpenClawStreamingResult",
-    "OpenClawStreamingExecutor",
+    "OpenClawResponseFailedError",
     "OpenClawSSEConsumer",
+    "OpenClawSSEDispatcher",
+    "OpenClawStreamingExecutor",
+    "OpenClawStreamingResult",
+    "SSEFrame",
+    "map_sse_event_type",
+    "parse_sse_lines",
 ]

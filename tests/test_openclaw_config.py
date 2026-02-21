@@ -136,7 +136,9 @@ def test_gateway_config_explicit_token_overrides_env(
     """Explicit token should take precedence over token_env resolution."""
     monkeypatch.setenv("MY_TOKEN", "from-env")
 
-    gw = GatewayConfig(url="http://localhost:19789", token_env="MY_TOKEN", token="explicit")
+    gw = GatewayConfig(
+        url="http://localhost:19789", token_env="MY_TOKEN", token="explicit"
+    )
 
     assert gw.token == "explicit"
 
