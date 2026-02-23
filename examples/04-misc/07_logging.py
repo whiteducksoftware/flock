@@ -11,7 +11,7 @@ configure_logging(
     external_level="ERROR",
     specific_levels={
         "flock.engines.dspy_engine": "DEBUG",  # Enable detailed streaming logs
-    }
+    },
 )
 
 

@@ -34,9 +34,11 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # STEP 1: Define Types
 # ============================================================================
 
+
 @flock_type
 class SystemMetrics(BaseModel):
     """System health metrics collected periodically."""
+
     timestamp: datetime = Field(default_factory=datetime.now)
     cpu_percent: float = Field(ge=0, le=100, description="CPU usage percentage")
     memory_percent: float = Field(ge=0, le=100, description="Memory usage percentage")
@@ -47,6 +49,7 @@ class SystemMetrics(BaseModel):
 @flock_type
 class HealthAlert(BaseModel):
     """Alert generated when system health is poor."""
+
     timestamp: datetime
     severity: str = Field(description="Alert severity: warning or critical")
     metric: str = Field(description="Which metric triggered the alert")
@@ -105,6 +108,7 @@ alert_monitor = (
 # STEP 4: Run and Observe Scheduled Execution
 # ============================================================================
 
+
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
     print("=" * 70)
@@ -118,41 +122,45 @@ async def main_cli():
     print("⏳ Running for 2 minutes to demonstrate scheduled execution...")
     print("   (Press Ctrl+C to stop early)")
     print()
-    
+
     # Run with timeout - timers run indefinitely
     # For demo, we'll run for 2 minutes
     try:
         await flock.run_until_idle(timeout=120)  # 2 minutes
     except KeyboardInterrupt:
         print("\n⏹️  Stopped by user")
-    
+
     # Retrieve collected metrics and alerts
     metrics = await flock.store.get_by_type(SystemMetrics)
     alerts = await flock.store.get_by_type(HealthAlert)
-    
+
     print()
     print("=" * 70)
     print("📊 COLLECTED DATA")
     print("=" * 70)
-    
+
     print(f"\n📈 System Metrics Collected: {len(metrics)}")
     if metrics:
         print("\n   Recent Metrics:")
         for metric in metrics[-5:]:  # Show last 5
-            print(f"   • {metric.timestamp.strftime('%H:%M:%S')}: "
-                  f"CPU={metric.cpu_percent:.1f}% "
-                  f"Memory={metric.memory_percent:.1f}% "
-                  f"Disk={metric.disk_percent:.1f}% "
-                  f"Status={metric.status}")
-    
+            print(
+                f"   • {metric.timestamp.strftime('%H:%M:%S')}: "
+                f"CPU={metric.cpu_percent:.1f}% "
+                f"Memory={metric.memory_percent:.1f}% "
+                f"Disk={metric.disk_percent:.1f}% "
+                f"Status={metric.status}"
+            )
+
     print(f"\n🚨 Health Alerts Generated: {len(alerts)}")
     if alerts:
         print("\n   Alerts:")
         for alert in alerts[-5:]:  # Show last 5
-            print(f"   • [{alert.severity.upper()}] {alert.metric}: "
-                  f"{alert.value:.1f}% (threshold: {alert.threshold}%)")
+            print(
+                f"   • [{alert.severity.upper()}] {alert.metric}: "
+                f"{alert.value:.1f}% (threshold: {alert.threshold}%)"
+            )
             print(f"     {alert.message}")
-    
+
     print()
     print("=" * 70)
     print("💡 Key Insights:")
@@ -187,7 +195,7 @@ if __name__ == "__main__":
 # ============================================================================
 # 🎓 NOW IT'S YOUR TURN!
 # ============================================================================
-# 
+#
 # EXPERIMENT 1: Different Schedule Intervals
 # -------------------------------------------
 # Try different intervals:
@@ -300,4 +308,3 @@ if __name__ == "__main__":
 # How do you prevent duplicate alerts?
 #
 # ============================================================================
-

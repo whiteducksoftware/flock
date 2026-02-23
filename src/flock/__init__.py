@@ -26,20 +26,6 @@ except ImportError:
 # Core - Orchestrator and registration
 # =============================================================================
 from flock.cli import main
-from flock.core import Flock, start_orchestrator
-from flock.registry import flock_tool, flock_type
-
-# =============================================================================
-# Engines - DSPy engine and adapters
-# =============================================================================
-from flock.engines import (
-    BAMLAdapter,
-    ChatAdapter,
-    DSPyEngine,
-    JSONAdapter,
-    TwoStepAdapter,
-    XMLAdapter,
-)
 
 # =============================================================================
 # Components - Base classes for extending agents, orchestrators, and server
@@ -57,16 +43,27 @@ from flock.components.server import (
     ServerComponent,
     ServerComponentConfig,
 )
-
-# =============================================================================
-# Runtime - Context and evaluation types for custom engines/components
-# =============================================================================
-from flock.utils.runtime import Context, EvalInputs, EvalResult
+from flock.core import Flock, start_orchestrator
 
 # =============================================================================
 # Artifacts - Core data types
 # =============================================================================
 from flock.core.artifacts import Artifact
+
+# =============================================================================
+# Conditions - Workflow control DSL
+# =============================================================================
+from flock.core.conditions import Until, When
+
+# =============================================================================
+# Store - Filtering and storage
+# =============================================================================
+from flock.core.store import FilterConfig
+
+# =============================================================================
+# Subscriptions - Advanced subscription patterns
+# =============================================================================
+from flock.core.subscription import BatchSpec, JoinSpec, ScheduleSpec
 
 # =============================================================================
 # Visibility - Access control for artifacts
@@ -82,24 +79,32 @@ from flock.core.visibility import (
 )
 
 # =============================================================================
-# Conditions - Workflow control DSL
+# Engines - DSPy engine and adapters
 # =============================================================================
-from flock.core.conditions import Until, When
+from flock.engines import (
+    BAMLAdapter,
+    ChatAdapter,
+    DSPyEngine,
+    JSONAdapter,
+    TwoStepAdapter,
+    XMLAdapter,
+)
 
 # =============================================================================
-# Subscriptions - Advanced subscription patterns
+# Integrations - OpenClaw
 # =============================================================================
-from flock.core.subscription import BatchSpec, JoinSpec, ScheduleSpec
-
-# =============================================================================
-# Store - Filtering and storage
-# =============================================================================
-from flock.core.store import FilterConfig
+from flock.integrations.openclaw import GatewayConfig, OpenClawConfig, OpenClawDefaults
 
 # =============================================================================
 # Logging - Logger and configuration
 # =============================================================================
 from flock.logging.logging import configure_logging, get_logger
+from flock.registry import flock_tool, flock_type
+
+# =============================================================================
+# Runtime - Context and evaluation types for custom engines/components
+# =============================================================================
+from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 
 def _register_optional_providers() -> None:
@@ -119,51 +124,55 @@ _register_optional_providers()
 
 
 __all__ = [
-    # Core
-    "Flock",
-    "flock_tool",
-    "flock_type",
-    "main",
-    "start_orchestrator",
-    # Engines
-    "BAMLAdapter",
-    "ChatAdapter",
-    "DSPyEngine",
-    "JSONAdapter",
-    "TwoStepAdapter",
-    "XMLAdapter",
+    # Visibility
+    "AfterVisibility",
     # Components
     "AgentComponent",
     "AgentComponentConfig",
-    "EngineComponent",
-    "OrchestratorComponent",
-    "OrchestratorComponentConfig",
-    "ServerComponent",
-    "ServerComponentConfig",
-    # Runtime
-    "Context",
-    "EvalInputs",
-    "EvalResult",
+    "AgentIdentity",
     # Artifacts
     "Artifact",
-    # Visibility
-    "AfterVisibility",
-    "AgentIdentity",
-    "LabelledVisibility",
-    "PrivateVisibility",
-    "PublicVisibility",
-    "TenantVisibility",
-    "Visibility",
-    # Conditions
-    "Until",
-    "When",
+    # Engines
+    "BAMLAdapter",
     # Subscriptions
     "BatchSpec",
-    "JoinSpec",
-    "ScheduleSpec",
+    "ChatAdapter",
+    # Runtime
+    "Context",
+    "DSPyEngine",
+    "EngineComponent",
+    "EvalInputs",
+    "EvalResult",
     # Store
     "FilterConfig",
+    # Core
+    "Flock",
+    # Integrations - OpenClaw
+    "GatewayConfig",
+    "JSONAdapter",
+    "JoinSpec",
+    "LabelledVisibility",
+    "OpenClawConfig",
+    "OpenClawDefaults",
+    "OrchestratorComponent",
+    "OrchestratorComponentConfig",
+    "PrivateVisibility",
+    "PublicVisibility",
+    "ScheduleSpec",
+    "ServerComponent",
+    "ServerComponentConfig",
+    "TenantVisibility",
+    "TwoStepAdapter",
+    # Conditions
+    "Until",
+    "Visibility",
+    "When",
+    "XMLAdapter",
     # Logging
     "configure_logging",
+    "flock_tool",
+    "flock_type",
     "get_logger",
+    "main",
+    "start_orchestrator",
 ]

@@ -248,7 +248,9 @@ async def test_real_timer_metadata_in_context():
     seen = []
 
     class MetaEngine(EngineComponent):
-        async def evaluate(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx: Context, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             seen.append({
                 "trigger": ctx.trigger_type,
                 "iter": ctx.timer_iteration,
@@ -285,7 +287,9 @@ async def test_one_time_datetime_without_max_repeats_executes_once():
     executions = []
 
     class OnceEngine(EngineComponent):
-        async def evaluate(self, agent, ctx: Context, inputs: EvalInputs, output_group) -> EvalResult:
+        async def evaluate(
+            self, agent, ctx: Context, inputs: EvalInputs, output_group
+        ) -> EvalResult:
             executions.append(datetime.now(UTC))
             return EvalResult.from_object(
                 StatusReport(message="one-time", count=1), agent=agent

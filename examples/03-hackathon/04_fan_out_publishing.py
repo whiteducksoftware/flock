@@ -33,9 +33,11 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # STEP 1: Define Types
 # ============================================================================
 
+
 @flock_type
 class ProductBrief(BaseModel):
     """A brief description of a product to market."""
+
     product_name: str = Field(description="Name of the product")
     target_market: str = Field(description="Who is this product for?")
     key_features: list[str] = Field(description="Main features of the product")
@@ -44,6 +46,7 @@ class ProductBrief(BaseModel):
 @flock_type
 class MarketingSlogan(BaseModel):
     """A catchy marketing slogan for the product."""
+
     slogan: str = Field(description="The marketing slogan")
     tone: str = Field(description="Tone: professional, playful, serious, inspiring")
     target_emotion: str = Field(description="What emotion should this evoke?")
@@ -81,7 +84,7 @@ slogan_generator = (
     .consumes(ProductBrief)
     .publishes(
         MarketingSlogan,
-        fan_out=5  # Generate 5 slogans per execution!
+        fan_out=5,  # Generate 5 slogans per execution!
     )
 )
 
@@ -90,20 +93,25 @@ slogan_generator = (
 # STEP 4: Run and See Multiple Outputs
 # ============================================================================
 
+
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
     print("=" * 70)
     print("🚀 FAN-OUT PUBLISHING EXAMPLE - Marketing Slogan Generator")
     print("=" * 70)
     print()
-    
+
     # Create a product brief
     brief = ProductBrief(
         product_name="EcoClean Water Filter",
         target_market="Environmentally conscious homeowners",
-        key_features=["Removes 99% contaminants", "Zero plastic waste", "Easy installation"]
+        key_features=[
+            "Removes 99% contaminants",
+            "Zero plastic waste",
+            "Easy installation",
+        ],
     )
-    
+
     print(f"📦 Product Brief:")
     print(f"   Product: {brief.product_name}")
     print(f"   Target: {brief.target_market}")
@@ -112,26 +120,28 @@ async def main_cli():
     print("⏳ Generating 5 marketing slogans (fan_out=5)...")
     print("   (This happens in ONE LLM call, not five!)")
     print()
-    
+
     # Publish the brief
     await flock.publish(brief)
-    
+
     # Run until completion
     await flock.run_until_idle()
-    
+
     # Retrieve all generated slogans
     slogans = await flock.store.get_by_type(MarketingSlogan)
-    
+
     print("=" * 70)
     print(f"✅ Generated {len(slogans)} Marketing Slogans")
     print("=" * 70)
     print()
-    
+
     for i, slogan in enumerate(slogans, 1):
         print(f"{i}. {slogan.slogan}")
-        print(f"   Tone: {slogan.tone} | Emotion: {slogan.target_emotion} | Length: {slogan.length} chars")
+        print(
+            f"   Tone: {slogan.tone} | Emotion: {slogan.target_emotion} | Length: {slogan.length} chars"
+        )
         print()
-    
+
     print("=" * 70)
     print("💡 Key Benefits of Fan-Out:")
     print("   ✅ Cost: 1 LLM call instead of 5")
@@ -163,7 +173,7 @@ if __name__ == "__main__":
 # ============================================================================
 # 🎓 NOW IT'S YOUR TURN!
 # ============================================================================
-# 
+#
 # EXPERIMENT 1: Change Fan-Out Count
 # -----------------------------------
 # Try different fan_out values:
@@ -282,4 +292,3 @@ if __name__ == "__main__":
 # Calculate the cost savings vs sequential generation!
 #
 # ============================================================================
-

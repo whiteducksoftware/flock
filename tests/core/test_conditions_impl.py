@@ -150,9 +150,7 @@ class TestArtifactCountCondition:
         # Mock store returns 3 artifacts
         mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 3))
 
-        condition = ArtifactCountCondition(
-            model=CondTestUserStory, min_count=5
-        )
+        condition = ArtifactCountCondition(model=CondTestUserStory, min_count=5)
         result = await condition.evaluate(mock_orchestrator)
 
         assert result is False
@@ -164,9 +162,7 @@ class TestArtifactCountCondition:
 
         mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 5))
 
-        condition = ArtifactCountCondition(
-            model=CondTestUserStory, min_count=5
-        )
+        condition = ArtifactCountCondition(model=CondTestUserStory, min_count=5)
         result = await condition.evaluate(mock_orchestrator)
 
         assert result is True
@@ -178,9 +174,7 @@ class TestArtifactCountCondition:
 
         mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 7))
 
-        condition = ArtifactCountCondition(
-            model=CondTestUserStory, min_count=5
-        )
+        condition = ArtifactCountCondition(model=CondTestUserStory, min_count=5)
         result = await condition.evaluate(mock_orchestrator)
 
         assert result is True
@@ -192,9 +186,7 @@ class TestArtifactCountCondition:
 
         mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 3))
 
-        condition = ArtifactCountCondition(
-            model=CondTestUserStory, max_count=3
-        )
+        condition = ArtifactCountCondition(model=CondTestUserStory, max_count=3)
         result = await condition.evaluate(mock_orchestrator)
 
         assert result is True
@@ -206,9 +198,7 @@ class TestArtifactCountCondition:
 
         mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 4))
 
-        condition = ArtifactCountCondition(
-            model=CondTestUserStory, max_count=3
-        )
+        condition = ArtifactCountCondition(model=CondTestUserStory, max_count=3)
         result = await condition.evaluate(mock_orchestrator)
 
         assert result is False
@@ -220,9 +210,7 @@ class TestArtifactCountCondition:
 
         mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 2))
 
-        condition = ArtifactCountCondition(
-            model=CondTestUserStory, max_count=3
-        )
+        condition = ArtifactCountCondition(model=CondTestUserStory, max_count=3)
         result = await condition.evaluate(mock_orchestrator)
 
         assert result is True
@@ -234,9 +222,7 @@ class TestArtifactCountCondition:
 
         mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 5))
 
-        condition = ArtifactCountCondition(
-            model=CondTestUserStory, exact_count=5
-        )
+        condition = ArtifactCountCondition(model=CondTestUserStory, exact_count=5)
         result = await condition.evaluate(mock_orchestrator)
 
         assert result is True
@@ -248,9 +234,7 @@ class TestArtifactCountCondition:
 
         mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 4))
 
-        condition = ArtifactCountCondition(
-            model=CondTestUserStory, exact_count=5
-        )
+        condition = ArtifactCountCondition(model=CondTestUserStory, exact_count=5)
         result = await condition.evaluate(mock_orchestrator)
 
         assert result is False
@@ -412,9 +396,7 @@ class TestExistsCondition:
 
         mock_orchestrator.store.query_artifacts = AsyncMock(return_value=([], 1))
 
-        condition = ExistsCondition(
-            model=CondTestUserStory, tags={"verified"}
-        )
+        condition = ExistsCondition(model=CondTestUserStory, tags={"verified"})
         await condition.evaluate(mock_orchestrator)
 
         call_args = mock_orchestrator.store.query_artifacts.call_args
@@ -452,9 +434,7 @@ class TestFieldPredicateCondition:
             _make_artifact("CondTestReview", {"score": 75, "approved": False}),
             _make_artifact("CondTestReview", {"score": 95, "approved": True}),
         ]
-        mock_orchestrator.store.query_artifacts = AsyncMock(
-            return_value=(artifacts, 2)
-        )
+        mock_orchestrator.store.query_artifacts = AsyncMock(return_value=(artifacts, 2))
 
         # Predicate: score >= 90
         condition = FieldPredicateCondition(
@@ -475,9 +455,7 @@ class TestFieldPredicateCondition:
             _make_artifact("CondTestReview", {"score": 75, "approved": False}),
             _make_artifact("CondTestReview", {"score": 80, "approved": False}),
         ]
-        mock_orchestrator.store.query_artifacts = AsyncMock(
-            return_value=(artifacts, 2)
-        )
+        mock_orchestrator.store.query_artifacts = AsyncMock(return_value=(artifacts, 2))
 
         # Predicate: score >= 90
         condition = FieldPredicateCondition(
@@ -497,9 +475,7 @@ class TestFieldPredicateCondition:
         artifacts = [
             _make_artifact("CondTestReview", {"score": None, "approved": False}),
         ]
-        mock_orchestrator.store.query_artifacts = AsyncMock(
-            return_value=(artifacts, 1)
-        )
+        mock_orchestrator.store.query_artifacts = AsyncMock(return_value=(artifacts, 1))
 
         # Predicate checks for non-None high score
         condition = FieldPredicateCondition(
@@ -520,9 +496,7 @@ class TestFieldPredicateCondition:
         artifacts = [
             _make_artifact("CondTestReview", {"approved": True}),
         ]
-        mock_orchestrator.store.query_artifacts = AsyncMock(
-            return_value=(artifacts, 1)
-        )
+        mock_orchestrator.store.query_artifacts = AsyncMock(return_value=(artifacts, 1))
 
         condition = FieldPredicateCondition(
             model=CondTestReview,
@@ -560,9 +534,7 @@ class TestFieldPredicateCondition:
         artifacts = [
             _make_artifact("CondTestReview", {"score": 85, "approved": True}),
         ]
-        mock_orchestrator.store.query_artifacts = AsyncMock(
-            return_value=(artifacts, 1)
-        )
+        mock_orchestrator.store.query_artifacts = AsyncMock(return_value=(artifacts, 1))
 
         condition = FieldPredicateCondition(
             model=CondTestReview,

@@ -234,6 +234,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                             "is_stopped": timer_state.is_stopped,
                         }
 
+            is_openclaw_agent = self._is_openclaw_agent(agent)
+
             node_data = {
                 "name": agent.name,
                 "status": agent_status.get(agent.name, "idle"),
@@ -249,6 +251,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "lastSeen": snapshot.last_seen.isoformat() if snapshot else None,
                 "signature": snapshot.signature if snapshot else None,
                 "logicOperations": logic_operations,  # Phase 1.2
+                "engineKind": "openclaw" if is_openclaw_agent else "native",
+                "isOpenClawAgent": is_openclaw_agent,
             }
 
             # Add schedule data if present
@@ -276,6 +280,12 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             produced = produced_metrics.get(name)
             consumed = consumed_metrics.get(name)
 
+            labels = list(snapshot.labels)
+            is_openclaw_agent = any(
+                isinstance(label, str) and "openclaw" in label.lower()
+                for label in labels
+            )
+
             node_data = {
                 "name": name,
                 "status": "inactive",
@@ -286,13 +296,15 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "sentByType": produced.by_type if produced else {},
                 "receivedByType": consumed.by_type if consumed else {},
                 "streamingTokens": [],
-                "labels": list(snapshot.labels),
+                "labels": labels,
                 "firstSeen": snapshot.first_seen.isoformat(),
                 "lastSeen": snapshot.last_seen.isoformat(),
                 "signature": snapshot.signature,
                 "logicOperations": list(
                     snapshot.logic_operations
                 ),  # Phase 1.2: From snapshot
+                "engineKind": "openclaw" if is_openclaw_agent else "unknown",
+                "isOpenClawAgent": is_openclaw_agent,
             }
 
             nodes.append(
@@ -326,6 +338,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "firstSeen": None,
                 "lastSeen": None,
                 "signature": None,
+                "engineKind": "unknown",
+                "isOpenClawAgent": False,
             }
 
             nodes.append(
@@ -340,6 +354,20 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             existing_names.add(name)
 
         return nodes
+
+    @staticmethod
+    def _is_openclaw_agent(agent: object) -> bool:
+        """Return True when an agent has at least one OpenClaw engine configured."""
+        engines = getattr(agent, "engines", []) or []
+        for engine in engines:
+            engine_cls = engine.__class__
+            if engine_cls.__name__ == "OpenClawEngine":
+                return True
+            if getattr(engine_cls, "__module__", "").startswith(
+                "flock.integrations.openclaw"
+            ):
+                return True
+        return False
 
     def _build_message_nodes(
         self,
@@ -469,7 +497,48 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     edges.extend(pending_batch_edges)
                     edge_counter += len(pending_batch_edges)
 
+        self._apply_pending_label_offsets(edges)
         return edges
+
+    @staticmethod
+    def _apply_pending_label_offsets(edges: list[GraphEdge]) -> None:
+        """Distribute pending edge label offsets by edge type + target (+ subscription index).
+
+        Grouping by target (instead of source+target) keeps labels separated when several
+        upstream producers feed the same pending join/batch operation.
+        """
+        grouped_edge_ids: dict[tuple[str, str, str], list[str]] = defaultdict(list)
+        for edge in edges:
+            if edge.type not in ("pending_join", "pending_batch"):
+                continue
+
+            subscription_index = "none"
+            if isinstance(edge.data, dict):
+                raw_subscription_index = edge.data.get("subscriptionIndex")
+                if raw_subscription_index is not None:
+                    subscription_index = str(raw_subscription_index)
+
+            group_key = (edge.type, edge.target, subscription_index)
+            grouped_edge_ids[group_key].append(edge.id)
+
+        offsets: dict[str, float] = {}
+        for edge_ids in grouped_edge_ids.values():
+            total = len(edge_ids)
+            if total <= 1:
+                for edge_id in edge_ids:
+                    offsets[edge_id] = 0.0
+                continue
+
+            # Keep labels meaningfully separated even for small groups while avoiding
+            # extreme spread for larger bursts.
+            offset_range = min(120.0, max(60.0, total * 25.0))
+            step = offset_range / (total - 1)
+            for index, edge_id in enumerate(edge_ids):
+                offsets[edge_id] = index * step - offset_range / 2
+
+        for edge in edges:
+            if edge.id in offsets:
+                edge.data["labelOffset"] = offsets[edge.id]
 
     def _build_pending_join_edges(
         self,

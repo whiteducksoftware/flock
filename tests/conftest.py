@@ -73,6 +73,18 @@ def mock_llm(mocker):
     mock_predict.reset_mock()
 
 
+@pytest.fixture(autouse=True)
+def reset_streaming_globals():
+    """Prevent cross-test leakage of global streaming coordination state."""
+    from flock.core import Agent
+
+    Agent._websocket_broadcast_global = None
+    Agent._streaming_counter = 0
+    yield
+    Agent._websocket_broadcast_global = None
+    Agent._streaming_counter = 0
+
+
 @pytest.fixture
 def fixed_time(mocker):
     """Fix current time for deterministic tests."""
@@ -112,6 +124,8 @@ def pytest_collection_modifyitems(config, items):
     """
     # Tests that must run first (in order) to avoid contamination
     priority_modules = [
+        "test_openclaw_engine.py",  # OpenClaw engine tests - sensitive to Agent._websocket_broadcast_global pollution
+        "test_openclaw_streaming_executor.py",
         "test_unified_tracing.py",  # Tracing tests must run first - sensitive to trace state contamination
         "test_utilities.py",
         "test_cli.py",

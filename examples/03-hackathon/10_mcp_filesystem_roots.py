@@ -62,9 +62,7 @@ class FileAnalysisReport(BaseModel):
     file_path: str
     file_size_bytes: int
     line_count: int
-    content_summary: str = Field(
-        description="Short summary of what the file is about"
-    )
+    content_summary: str = Field(description="Short summary of what the file is about")
     key_findings: list[str] = Field(
         description="Important observations, TODOs, or interesting sections"
     )
@@ -142,21 +140,19 @@ filesystem_explorer = (
         "Always stay within the allowed root directories and whitelisted tools."
     )
     .consumes(FileSearchRequest)
-    .with_mcps(
-        {
-            "filesystem": {
-                "tool_whitelist": [
-                    "read_text_file",
-                    "read_multiple_files",
-                    "list_directory",
-                    "list_directory_with_sizes",
-                    "search_files",
-                    "get_file_info",
-                    "list_allowed_directories",
-                ]
-            }
+    .with_mcps({
+        "filesystem": {
+            "tool_whitelist": [
+                "read_text_file",
+                "read_multiple_files",
+                "list_directory",
+                "list_directory_with_sizes",
+                "search_files",
+                "get_file_info",
+                "list_allowed_directories",
+            ]
         }
-    )
+    })
     .publishes(FileAnalysisReport)
 )
 

@@ -215,7 +215,7 @@ class TestTracingComponent:
     def test_configure_with_nonexistent_db_path(self, app, orchestrator):
         """Test configure with non-existent db_path."""
         from pathlib import Path
-        
+
         # Use OS-agnostic path that works on all platforms
         nonexistent_path = "nonexistent/traces.duckdb"
         config = TracingComponentConfig(db_path=nonexistent_path)
@@ -228,7 +228,7 @@ class TestTracingComponent:
     def test_configure_string_db_path_conversion(self, app, orchestrator):
         """Test that string db_path is converted to Path object."""
         from pathlib import Path
-        
+
         # Use OS-agnostic path that works on all platforms
         test_path = "test/path/traces.duckdb"
         config = TracingComponentConfig(db_path=test_path)

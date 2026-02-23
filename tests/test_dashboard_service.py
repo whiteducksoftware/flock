@@ -105,6 +105,37 @@ class InvalidTestArtifact(BaseModel):
     validated_field: int = Field(description="Must be positive", gt=0)
 
 
+class NestedListItem(BaseModel):
+    """Nested item for list default_factory serialization tests."""
+
+    label: str
+
+
+@flock_type(name="ArrayDefaultsArtifact")
+class ArrayDefaultsArtifact(BaseModel):
+    """Artifact with list defaults sourced via default_factory."""
+
+    product_name: str = Field(default="Flock")
+    key_differentiators: list[str] = Field(
+        default_factory=lambda: [
+            "Blackboard architecture",
+            "Typed artifacts",
+        ]
+    )
+
+
+@flock_type(name="ArrayModelDefaultsArtifact")
+class ArrayModelDefaultsArtifact(BaseModel):
+    """Artifact with list[BaseModel] default_factory for normalization test."""
+
+    items: list[NestedListItem] = Field(
+        default_factory=lambda: [
+            NestedListItem(label="one"),
+            NestedListItem(label="two"),
+        ]
+    )
+
+
 @pytest.fixture
 def mock_artifact():
     """Create a mock artifact for testing."""
@@ -402,6 +433,91 @@ async def test_get_artifact_types_empty_registry(async_client, mocker):
     data = response.json()
     assert "artifact_types" in data
     assert len(data["artifact_types"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_get_artifact_types_hydrates_array_defaults_from_default_factory(
+    async_client, mocker
+):
+    """Array fields with default_factory should expose schema defaults for publish UI."""
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
+    mock_type_registry._by_name = ["ArrayDefaultsArtifact"]
+    mock_type_registry.resolve.return_value = ArrayDefaultsArtifact
+
+    response = await async_client.get("/api/artifact-types")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["artifact_types"]) == 1
+
+    schema = data["artifact_types"][0]["schema"]
+    props = schema["properties"]
+
+    # Existing scalar default remains intact.
+    assert props["product_name"]["default"] == "Flock"
+    # New behavior: array defaults hydrated from default_factory.
+    assert props["key_differentiators"]["default"] == [
+        "Blackboard architecture",
+        "Typed artifacts",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_artifact_types_normalizes_nested_model_list_defaults(
+    async_client, mocker
+):
+    """list[BaseModel] defaults should be JSON-compatible after hydration."""
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
+    mock_type_registry._by_name = ["ArrayModelDefaultsArtifact"]
+    mock_type_registry.resolve.return_value = ArrayModelDefaultsArtifact
+
+    response = await async_client.get("/api/artifact-types")
+
+    assert response.status_code == 200
+    data = response.json()
+    schema = data["artifact_types"][0]["schema"]
+    assert schema["properties"]["items"]["default"] == [
+        {"label": "one"},
+        {"label": "two"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_artifact_type_route_parity_for_array_default_hydration(
+    async_client, mocker
+):
+    """Both /api/artifact-types and /api/artifact_types should apply same enrichment."""
+    mock_type_registry = mocker.patch(
+        "flock.components.server.control.control_routes_component.type_registry"
+    )
+    mock_type_registry._by_name = ["ArrayDefaultsArtifact"]
+    mock_type_registry.resolve.return_value = ArrayDefaultsArtifact
+
+    dashed = await async_client.get("/api/artifact-types")
+    underscored = await async_client.get("/api/artifact_types")
+
+    assert dashed.status_code == 200
+    assert underscored.status_code == 200
+
+    dash_default = dashed.json()["artifact_types"][0]["schema"]["properties"][
+        "key_differentiators"
+    ]["default"]
+    underscore_default = underscored.json()["artifact_types"][0]["schema"][
+        "properties"
+    ]["key_differentiators"]["default"]
+
+    assert (
+        dash_default
+        == underscore_default
+        == [
+            "Blackboard architecture",
+            "Typed artifacts",
+        ]
+    )
 
 
 # Test /api/agents endpoint (lines 199-210 in service.py)

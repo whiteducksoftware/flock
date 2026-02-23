@@ -492,8 +492,10 @@ class ThemedAgentResultFormatter:
             style=styles["panel_style"],
         )
 
-    def display_result(self, result: list[BaseModel], agent_name: str) -> None:
-        """Print an agent's result using Rich formatting."""
+    def display_result(
+        self, result: list[BaseModel | dict[str, Any]], agent_name: str
+    ) -> None:
+        """Print agent results using Rich formatting."""
         theme = self.theme
         themes_dir = pathlib.Path(__file__).parent.parent.parent / "themes"
         all_themes = list(themes_dir.glob("*.toml"))
@@ -515,10 +517,15 @@ class ThemedAgentResultFormatter:
 
         console = Console()
         for item in result:
-            # basemodel to dict
-            item = item.model_dump()
+            if isinstance(item, BaseModel):
+                item_dict = item.model_dump()
+            elif isinstance(item, dict):
+                item_dict = dict(item)
+            else:
+                item_dict = {"value": str(item)}
+
             panel = self.format_result(
-                result=item,
+                result=item_dict,
                 agent_name=agent_name,
                 theme=theme_dict,
                 styles=styles,

@@ -180,7 +180,9 @@ class CategoryMetricsComponent(AgentComponent):
             category = str(data.get("category", agent.name.replace("_analyst", "")))
         else:
             confidence = float(getattr(data, "confidence", 0.7))
-            category = str(getattr(data, "category", agent.name.replace("_analyst", "")))
+            category = str(
+                getattr(data, "category", agent.name.replace("_analyst", ""))
+            )
 
         self.analyses_seen += 1
         if confidence < 0.6:
@@ -262,12 +264,10 @@ for category in categories:
             "Return 3–7 key_takeaways, a short impact_assessment, and a confidence "
             "score between 0.0 and 1.0 representing how sure you are."
         )
-        .with_mcps(
-            {
-                "search_web": {"tool_whitelist": ["search"]},
-                "web_reader": {"tool_whitelist": ["read_website", "read_url", "read"]},
-            }
-        )
+        .with_mcps({
+            "search_web": {"tool_whitelist": ["search"]},
+            "web_reader": {"tool_whitelist": ["read_website", "read_url", "read"]},
+        })
         .with_utilities(CategoryMetricsComponent())
         .consumes(Trigger)
         .publishes(NewsAnalysis)
@@ -362,7 +362,9 @@ async def main_dashboard() -> None:
     print("   Visit http://localhost:8344 to:")
     print("   - Publish Trigger artifacts")
     print("   - Watch category analysts and the editor run")
-    print("   - Inspect metrics/logs from CategoryMetricsComponent and DigestStatsComponent")
+    print(
+        "   - Inspect metrics/logs from CategoryMetricsComponent and DigestStatsComponent"
+    )
     print()
     await flock.serve(dashboard=True)
 
@@ -447,4 +449,3 @@ if __name__ == "__main__":
 #   - Agent components for metrics and quality gates
 #
 # ============================================================================
-

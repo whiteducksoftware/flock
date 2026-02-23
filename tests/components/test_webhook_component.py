@@ -53,7 +53,11 @@ class TestWebhookDeliveryComponent:
         self, mock_orchestrator, mock_delivery_service
     ):
         """Component should fire webhook when WebhookContext is set."""
-        from flock.api.webhooks import WebhookContext, set_webhook_context, clear_webhook_context
+        from flock.api.webhooks import (
+            WebhookContext,
+            set_webhook_context,
+            clear_webhook_context,
+        )
         from flock.components.orchestrator.webhook import WebhookDeliveryComponent
 
         component = WebhookDeliveryComponent(delivery_service=mock_delivery_service)
@@ -123,7 +127,11 @@ class TestWebhookDeliveryComponent:
         self, mock_orchestrator, mock_delivery_service
     ):
         """Payload should include correct correlation_id and sequence number."""
-        from flock.api.webhooks import WebhookContext, set_webhook_context, clear_webhook_context
+        from flock.api.webhooks import (
+            WebhookContext,
+            set_webhook_context,
+            clear_webhook_context,
+        )
         from flock.components.orchestrator.webhook import WebhookDeliveryComponent
 
         component = WebhookDeliveryComponent(delivery_service=mock_delivery_service)
@@ -162,11 +170,13 @@ class TestWebhookDeliveryComponent:
             clear_webhook_context()
 
     @pytest.mark.asyncio
-    async def test_delivery_is_fire_and_forget(
-        self, mock_orchestrator
-    ):
+    async def test_delivery_is_fire_and_forget(self, mock_orchestrator):
         """Webhook delivery should not block the hook execution."""
-        from flock.api.webhooks import WebhookContext, set_webhook_context, clear_webhook_context
+        from flock.api.webhooks import (
+            WebhookContext,
+            set_webhook_context,
+            clear_webhook_context,
+        )
         from flock.components.orchestrator.webhook import WebhookDeliveryComponent
 
         # Create a slow delivery service
@@ -190,6 +200,7 @@ class TestWebhookDeliveryComponent:
 
         try:
             import time
+
             start = time.monotonic()
 
             # Call the hook
@@ -209,7 +220,11 @@ class TestWebhookDeliveryComponent:
         self, mock_orchestrator, mock_delivery_service
     ):
         """WebhookPayload should contain correct artifact data."""
-        from flock.api.webhooks import WebhookContext, set_webhook_context, clear_webhook_context
+        from flock.api.webhooks import (
+            WebhookContext,
+            set_webhook_context,
+            clear_webhook_context,
+        )
         from flock.components.orchestrator.webhook import WebhookDeliveryComponent
 
         component = WebhookDeliveryComponent(delivery_service=mock_delivery_service)

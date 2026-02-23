@@ -35,9 +35,11 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # STEP 1: Define Types
 # ============================================================================
 
+
 @flock_type
 class TextInput(BaseModel):
     """Input text to analyze."""
+
     text: str = Field(description="Text to analyze")
     language: str = Field(default="en", description="Language code")
 
@@ -45,6 +47,7 @@ class TextInput(BaseModel):
 @flock_type
 class SentimentAnalysis(BaseModel):
     """Sentiment analysis results."""
+
     text: str
     sentiment: str = Field(description="Sentiment: positive, negative, or neutral")
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score")
@@ -65,24 +68,45 @@ class SentimentAnalysis(BaseModel):
 # - You need high performance
 # ============================================================================
 
+
 class SimpleSentimentEngine(EngineComponent):
     """A simple rule-based sentiment analyzer.
-    
+
     This engine uses keyword matching instead of LLM calls.
     Perfect for when you need fast, deterministic sentiment analysis.
     """
-    
+
     # Define sentiment keywords
     POSITIVE_WORDS = {
-        "good", "great", "excellent", "amazing", "wonderful", "fantastic",
-        "love", "happy", "pleased", "satisfied", "perfect", "best"
+        "good",
+        "great",
+        "excellent",
+        "amazing",
+        "wonderful",
+        "fantastic",
+        "love",
+        "happy",
+        "pleased",
+        "satisfied",
+        "perfect",
+        "best",
     }
-    
+
     NEGATIVE_WORDS = {
-        "bad", "terrible", "awful", "horrible", "hate", "disappointed",
-        "worst", "poor", "fail", "broken", "useless", "waste"
+        "bad",
+        "terrible",
+        "awful",
+        "horrible",
+        "hate",
+        "disappointed",
+        "worst",
+        "poor",
+        "fail",
+        "broken",
+        "useless",
+        "waste",
     }
-    
+
     async def evaluate(
         self, agent, ctx, inputs: EvalInputs, output_group
     ) -> EvalResult:
@@ -91,13 +115,13 @@ class SimpleSentimentEngine(EngineComponent):
         text_input = inputs.first_as(TextInput)
         if not text_input:
             return EvalResult.empty()
-        
+
         # Analyze sentiment using keyword matching
         words = set(word.lower().strip(".,!?") for word in text_input.text.split())
-        
+
         positive_count = len(words & self.POSITIVE_WORDS)
         negative_count = len(words & self.NEGATIVE_WORDS)
-        
+
         # Determine sentiment
         if positive_count > negative_count:
             sentiment = "positive"
@@ -111,16 +135,16 @@ class SimpleSentimentEngine(EngineComponent):
             sentiment = "neutral"
             confidence = 0.5
             keywords = []
-        
+
         # Create output artifact
         result = SentimentAnalysis(
             text=text_input.text,
             sentiment=sentiment,
             confidence=confidence,
             keywords=keywords[:5],  # Top 5 keywords
-            word_count=len(text_input.text.split())
+            word_count=len(text_input.text.split()),
         )
-        
+
         return EvalResult.from_object(result, agent=agent)
 
 
@@ -137,16 +161,19 @@ class SimpleSentimentEngine(EngineComponent):
 # - You want to modify outputs after processing
 # ============================================================================
 
+
 class SentimentLogger(AgentComponent):
     """Logs sentiment analysis results for monitoring.
-    
+
     This component hooks into the agent lifecycle to log results.
     It doesn't change processing logic, just adds observability.
     """
-    
+
     log_count: int = Field(default=0, description="Number of analyses logged")
-    
-    async def on_post_evaluate(self, agent, ctx, inputs: EvalInputs, result: EvalResult):
+
+    async def on_post_evaluate(
+        self, agent, ctx, inputs: EvalInputs, result: EvalResult
+    ):
         """Called after agent processes input."""
         if result.has_output:
             # Extract sentiment from result
@@ -154,11 +181,13 @@ class SentimentLogger(AgentComponent):
             if isinstance(output_data, dict) and "sentiment" in output_data:
                 sentiment = output_data["sentiment"]
                 confidence = output_data.get("confidence", 0.0)
-                
+
                 self.log_count += 1
-                print(f"   📊 [Logger] Analysis #{self.log_count}: "
-                      f"{sentiment} (confidence: {confidence:.2f})")
-        
+                print(
+                    f"   📊 [Logger] Analysis #{self.log_count}: "
+                    f"{sentiment} (confidence: {confidence:.2f})"
+                )
+
         return result
 
 
@@ -175,7 +204,7 @@ sentiment_analyzer = (
     .consumes(TextInput)
     .publishes(SentimentAnalysis)
     .with_engines(SimpleSentimentEngine())  # Use custom engine
-    .with_utilities(SentimentLogger())        # Add logging component
+    .with_utilities(SentimentLogger())  # Add logging component
 )
 
 
@@ -183,21 +212,24 @@ sentiment_analyzer = (
 # STEP 5: Run and Observe Custom Processing
 # ============================================================================
 
+
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
     print("=" * 70)
     print("⚙️  CUSTOM ENGINES EXAMPLE - Rule-Based Sentiment Analysis")
     print("=" * 70)
     print()
-    
+
     # Test with various texts
     texts = [
         TextInput(text="This product is amazing! I love it so much.", language="en"),
         TextInput(text="Terrible service, worst experience ever.", language="en"),
         TextInput(text="The weather is okay today, nothing special.", language="en"),
-        TextInput(text="Fantastic quality and excellent customer support!", language="en"),
+        TextInput(
+            text="Fantastic quality and excellent customer support!", language="en"
+        ),
     ]
-    
+
     print("📝 Analyzing Texts:")
     for i, text_input in enumerate(texts, 1):
         print(f"   {i}. {text_input.text}")
@@ -205,36 +237,36 @@ async def main_cli():
     print("⏳ Processing with custom sentiment engine...")
     print("   (No LLM calls - using rule-based logic!)")
     print()
-    
+
     # Publish all texts
     await flock.publish_many(texts)
-    
+
     # Run until completion
     await flock.run_until_idle()
-    
+
     # Retrieve results
     analyses = await flock.store.get_by_type(SentimentAnalysis)
-    
+
     print("=" * 70)
     print("📊 SENTIMENT ANALYSIS RESULTS")
     print("=" * 70)
     print()
-    
+
     for analysis in analyses:
-        sentiment_emoji = {
-            "positive": "😊",
-            "negative": "😞",
-            "neutral": "😐"
-        }.get(analysis.sentiment, "❓")
-        
-        print(f"{sentiment_emoji} {analysis.sentiment.upper()} "
-              f"(confidence: {analysis.confidence:.2f})")
+        sentiment_emoji = {"positive": "😊", "negative": "😞", "neutral": "😐"}.get(
+            analysis.sentiment, "❓"
+        )
+
+        print(
+            f"{sentiment_emoji} {analysis.sentiment.upper()} "
+            f"(confidence: {analysis.confidence:.2f})"
+        )
         print(f"   Text: {analysis.text[:60]}...")
         if analysis.keywords:
             print(f"   Keywords: {', '.join(analysis.keywords)}")
         print(f"   Word count: {analysis.word_count}")
         print()
-    
+
     print("=" * 70)
     print("💡 Key Insights:")
     print("   - Custom engine processes without LLM calls")
@@ -266,7 +298,7 @@ if __name__ == "__main__":
 # ============================================================================
 # 🎓 NOW IT'S YOUR TURN!
 # ============================================================================
-# 
+#
 # EXPERIMENT 1: Improve the Sentiment Engine
 # -------------------------------------------
 # Enhance SimpleSentimentEngine:
@@ -341,11 +373,11 @@ if __name__ == "__main__":
 #       async def evaluate(self, agent, ctx, inputs, output_group):
 #           # First, try rule-based approach
 #           rule_result = self._rule_based_analysis(inputs)
-#           
+#
 #           # If confidence low, use LLM
 #           if rule_result.confidence < 0.6:
 #               return await self._llm_analysis(agent, ctx, inputs)
-#           
+#
 #           return rule_result
 #
 # When would this be useful?
@@ -372,7 +404,7 @@ if __name__ == "__main__":
 # CHALLENGE: Build a Complete Custom System
 # -------------------------------------------
 # Design a domain-specific system with:
-#   1. Custom engine for domain logic (e.g., code quality analyzer, 
+#   1. Custom engine for domain logic (e.g., code quality analyzer,
 #      image classifier, data validator)
 #   2. Component for input validation
 #   3. Component for output filtering
@@ -387,4 +419,3 @@ if __name__ == "__main__":
 # What domain interests you? Build it!
 #
 # ============================================================================
-

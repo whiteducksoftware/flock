@@ -73,9 +73,7 @@ def mock_orchestrator():
     orchestrator = Mock()
     orchestrator.store = Mock()
     orchestrator.store.query_artifacts = AsyncMock(return_value=([], 0))
-    orchestrator.get_correlation_status = AsyncMock(
-        return_value={"error_count": 0}
-    )
+    orchestrator.get_correlation_status = AsyncMock(return_value={"error_count": 0})
     orchestrator._scheduler = Mock()
     orchestrator._scheduler.pending_tasks = set()
     orchestrator._components_initialized = True

@@ -26,25 +26,30 @@ from flock.registry import flock_type
 USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # ============================================================================
 
+
 # ============================================================================
 # TYPE REGISTRATION: Define artifact types
 # ============================================================================
 @flock_type
 class LogEntry(BaseModel):
     """A log message with severity level"""
+
     level: str = Field(description="Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
     message: str = Field(description="Log message content")
     timestamp: datetime = Field(description="When the log was created")
     source: str = Field(description="Source system/component")
 
+
 @flock_type
 class ErrorReport(BaseModel):
     """Analysis report for ERROR-level logs"""
+
     error_count: int = Field(description="Number of errors found")
     error_messages: list[str] = Field(description="List of error messages")
     analysis: str = Field(description="Analysis of error patterns")
     report_time: datetime = Field(description="When report was generated")
     iteration: int = Field(description="Timer iteration number")
+
 
 # ============================================================================
 # AGENT SETUP: Create scheduled agents using proper Flock API
@@ -82,13 +87,14 @@ error_analyzer = (
     .publishes(ErrorReport)
 )
 
+
 # ============================================================================
 # RUN: Execute the orchestrator
 # ============================================================================
 async def main_cli():
     """
     CLI mode: Run for a limited time to demonstrate the pattern
-    
+
     The demo will run for 6 minutes to show:
     - Log collector firing every 30 seconds (~12 times)
     - Error analyzer firing every 2 minutes (~3 times)
@@ -116,10 +122,10 @@ async def main_cli():
 async def main_dashboard():
     """
     Dashboard mode: Serve with interactive web interface
-    
+
     The dashboard will show:
     - Log collector triggering every 30 seconds
-    - Error analyzer triggering every 2 minutes  
+    - Error analyzer triggering every 2 minutes
     - LogEntry artifacts being published
     - ErrorReport artifacts being generated
     - Real-time filtering of ERROR logs

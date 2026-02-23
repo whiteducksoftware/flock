@@ -15,6 +15,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   const sentCount = nodeData.sentCount;
   const recvCount = nodeData.recvCount;
   const subscriptions = nodeData.subscriptions || [];
+  const labels = nodeData.labels || [];
   const outputTypes = nodeData.outputTypes || [];
   const receivedByType = nodeData.receivedByType || {};
   const sentByType = nodeData.sentByType || {};
@@ -38,6 +39,10 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
       displaySentByType[type] = 0;
     }
   });
+
+  const isOpenClawAgent = Boolean(nodeData.isOpenClawAgent)
+    || nodeData.engineKind === 'openclaw'
+    || labels.some((label: unknown) => typeof label === 'string' && label.toLowerCase().includes('openclaw'));
 
   // Track which types just changed for flash animation
   const [flashingKeys, setFlashingKeys] = useState<Set<string>>(new Set());
@@ -162,6 +167,29 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
             color: 'var(--color-text-primary)',
             lineHeight: 1.4,
           }}>{name}</span>
+          {isOpenClawAgent && (
+            <span
+              aria-label="OpenClaw agent"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: compactNodeView ? '1px 6px' : '2px 8px',
+                borderRadius: '999px',
+                background: 'rgba(249, 115, 22, 0.14)',
+                border: '1px solid rgba(249, 115, 22, 0.35)',
+                color: 'rgb(251, 146, 60)',
+                fontSize: compactNodeView ? '10px' : '11px',
+                fontWeight: 700,
+                lineHeight: 1.2,
+                letterSpacing: '0.02em',
+                whiteSpace: 'nowrap',
+              }}
+              title="OpenClaw agent"
+            >
+              🦞 OpenClaw
+            </span>
+          )}
           {scheduleSpec && (
             <span
               style={{

@@ -35,9 +35,11 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # STEP 1: Define Types
 # ============================================================================
 
+
 @flock_type
 class CustomerInquiry(BaseModel):
     """A customer inquiry that needs routing to the right team."""
+
     message: str = Field(description="The customer's question or issue")
     customer_id: str = Field(description="Customer identifier")
 
@@ -45,6 +47,7 @@ class CustomerInquiry(BaseModel):
 @flock_type
 class TechnicalResponse(BaseModel):
     """Response from technical support team."""
+
     customer_id: str
     response: str = Field(description="Technical support response")
     troubleshooting_steps: list[str]
@@ -53,6 +56,7 @@ class TechnicalResponse(BaseModel):
 @flock_type
 class BillingResponse(BaseModel):
     """Response from billing team."""
+
     customer_id: str
     response: str = Field(description="Billing support response")
     refund_issued: bool = False
@@ -61,6 +65,7 @@ class BillingResponse(BaseModel):
 @flock_type
 class SecurityResponse(BaseModel):
     """Response from security team."""
+
     customer_id: str
     response: str = Field(description="Security team response")
     threat_level: str
@@ -94,8 +99,7 @@ tech_support = (
     flock.agent("tech_support")
     .description("Handles technical problems and troubleshooting.")
     .consumes(
-        CustomerInquiry,
-        semantic_match="technical issue error bug problem device login"
+        CustomerInquiry, semantic_match="technical issue error bug problem device login"
     )
     .publishes(TechnicalResponse)
 )
@@ -106,7 +110,7 @@ billing_support = (
     .description("Handles payment, billing, and refund requests.")
     .consumes(
         CustomerInquiry,
-        semantic_match="payment charge refund billing subscription cost money"
+        semantic_match="payment charge refund billing subscription cost money",
     )
     .publishes(BillingResponse)
 )
@@ -117,7 +121,7 @@ security_team = (
     .description("Handles security vulnerabilities and threats.")
     .consumes(
         CustomerInquiry,
-        semantic_match="security vulnerability exploit breach attack unauthorized access"
+        semantic_match="security vulnerability exploit breach attack unauthorized access",
     )
     .publishes(SecurityResponse)
 )
@@ -135,37 +139,35 @@ general_support = (
 # STEP 4: Run with Various Inquiries
 # ============================================================================
 
+
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
     print("=" * 70)
     print("🧠 SEMANTIC SUBSCRIPTIONS EXAMPLE - Intelligent Ticket Routing")
     print("=" * 70)
     print()
-    
+
     # Create inquiries that test semantic matching
     inquiries = [
         CustomerInquiry(
             customer_id="C001",
-            message="I found a SQL injection vulnerability in the login form"
+            message="I found a SQL injection vulnerability in the login form",
         ),
         CustomerInquiry(
             customer_id="C002",
-            message="I was charged twice for my monthly subscription"
+            message="I was charged twice for my monthly subscription",
         ),
         CustomerInquiry(
-            customer_id="C003",
-            message="The app crashes when I try to export my data"
+            customer_id="C003", message="The app crashes when I try to export my data"
         ),
         CustomerInquiry(
-            customer_id="C004",
-            message="How do I change my profile picture?"
+            customer_id="C004", message="How do I change my profile picture?"
         ),
         CustomerInquiry(
-            customer_id="C005",
-            message="Someone accessed my account without permission"
+            customer_id="C005", message="Someone accessed my account without permission"
         ),
     ]
-    
+
     print("📝 Customer Inquiries:")
     for inquiry in inquiries:
         print(f"   [{inquiry.customer_id}] {inquiry.message[:60]}...")
@@ -173,37 +175,37 @@ async def main_cli():
     print("⏳ Routing inquiries using semantic matching...")
     print("   (Matching by MEANING, not keywords!)")
     print()
-    
+
     # Publish all inquiries
     await flock.publish_many(inquiries)
-    
+
     # Run until completion
     await flock.run_until_idle()
-    
+
     # Check routing results
     tech_responses = await flock.store.get_by_type(TechnicalResponse)
     billing_responses = await flock.store.get_by_type(BillingResponse)
     security_responses = await flock.store.get_by_type(SecurityResponse)
-    
+
     print("=" * 70)
     print("📊 SEMANTIC ROUTING RESULTS")
     print("=" * 70)
-    
+
     print(f"\n🔧 Technical Support: {len(tech_responses)} inquiries")
     for response in tech_responses:
         print(f"   • Customer {response.customer_id}")
         print(f"     Steps: {len(response.troubleshooting_steps)}")
-    
+
     print(f"\n💳 Billing Support: {len(billing_responses)} inquiries")
     for response in billing_responses:
         print(f"   • Customer {response.customer_id}")
         print(f"     Refund: {'Yes' if response.refund_issued else 'No'}")
-    
+
     print(f"\n🔒 Security Team: {len(security_responses)} inquiries")
     for response in security_responses:
         print(f"   • Customer {response.customer_id}")
         print(f"     Threat Level: {response.threat_level}")
-    
+
     print()
     print("=" * 70)
     print("💡 Key Insights:")
@@ -237,7 +239,7 @@ if __name__ == "__main__":
 # ============================================================================
 # 🎓 NOW IT'S YOUR TURN!
 # ============================================================================
-# 
+#
 # EXPERIMENT 1: Adjust Semantic Threshold
 # ----------------------------------------
 # Make matching stricter or looser:
@@ -353,4 +355,3 @@ if __name__ == "__main__":
 # How do you prevent double-processing? Use tags or visibility?
 #
 # ============================================================================
-

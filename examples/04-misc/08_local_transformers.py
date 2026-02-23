@@ -27,6 +27,7 @@ class Question(BaseModel):
 
     text: str = Field(description="The question to answer")
 
+
 @flock_type
 class Answer(BaseModel):
     """An answer to a question."""
@@ -39,9 +40,7 @@ class Answer(BaseModel):
 
 # Use a local quantized model - downloads automatically on first run
 # This 4-bit quantized model runs well on consumer GPUs
-flock = Flock(
-    "transformers/unsloth/Qwen3-4B-Instruct-2507-bnb-4bit"
-)
+flock = Flock("transformers/unsloth/Qwen3-4B-Instruct-2507-bnb-4bit")
 
 qa_agent = (
     flock.agent("qa_expert")

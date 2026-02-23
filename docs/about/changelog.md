@@ -11,6 +11,43 @@ search:
 
 # Changelog
 
+## [Unreleased]
+
+### 🐛 Fixes
+
+- Dashboard publish form now receives list defaults for artifact fields backed by Pydantic `default_factory` (array defaults are hydrated in artifact type schema responses), so list textareas prefill correctly.
+
+## [0.5.400] - 2026-02-11
+
+### 🎉 New Features
+
+#### 🦞 OpenClaw Integration (Phase 1)
+**First-class OpenClaw agent support — use OpenClaw agents as Flock pipeline agents with the same fluent API:**
+
+```python
+from flock import Flock
+from flock.integrations.openclaw import OpenClawConfig
+
+flock = Flock(openclaw=OpenClawConfig.from_env())
+pizza_master = flock.openclaw_agent("codex").consumes(MyPizzaIdea).publishes(Pizza)
+```
+
+**Features:**
+- **`flock.openclaw_agent()`** — Fluent builder for OpenClaw-backed agents
+- **Spawn mode** — Isolated session per invocation, clean context, parallelizable
+- **Env-based config** — `OPENCLAW_<ALIAS>_URL` + `OPENCLAW_<ALIAS>_TOKEN` auto-discovery
+- **JSON repair** — Automatic extraction and retry for malformed agent output
+- **Dashboard badge** — 🦞 OpenClaw agents show an orange lobster badge in the graph UI
+- **Zero breaking changes** — All existing Flock semantics (blackboard, visibility, fan-out, conditions) work unchanged
+
+**New files:**
+- `src/flock/integrations/openclaw/` — Config, engine, and package exports
+- `examples/11-openclaw/` — Three example scripts + README
+- `docs/guides/openclaw.md` — Comprehensive integration guide
+- `docs/specs/004-openclaw-integration/concept.md` — Full design spec (Phases 1–4)
+
+---
+
 ## [0.5.30] - 2025-11-07
 
 ### 🎉 New Features

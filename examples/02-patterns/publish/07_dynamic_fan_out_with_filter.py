@@ -5,10 +5,13 @@ This example demonstrates the dynamic fan-out feature:
 - min/max apply to the RAW engine output list
 - where/validate are applied AFTER range checks
 """
+
 import asyncio
 from pydantic import BaseModel, Field
 from flock import Flock
 from flock.registry import flock_type
+
+
 @flock_type
 class BlogBrief(BaseModel):
     topic: str = Field(description="Topic to write about")
@@ -17,6 +20,8 @@ class BlogBrief(BaseModel):
         description="rough complexity: simple, normal, complex",
         default="normal",
     )
+
+
 @flock_type
 class BlogIdea(BaseModel):
     title: str
@@ -26,6 +31,8 @@ class BlogIdea(BaseModel):
         ge=0,
         le=10,
     )
+
+
 flock = Flock()
 idea_agent = (
     flock.agent("dynamic_blog_ideas")
@@ -41,6 +48,8 @@ idea_agent = (
         where=lambda i: i.score >= 7.5,  # Only keep high-quality ideas
     )
 )
+
+
 async def main():
     simple_brief = BlogBrief(
         topic="Writing good commit messages",
@@ -65,5 +74,7 @@ async def main():
     for a in ideas:
         idea = BlogIdea(**a.payload)
         print(f"- {idea.title} (score={idea.score})")
+
+
 if __name__ == "__main__":
     asyncio.run(main())

@@ -36,9 +36,11 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # Think of it like an assembly line: each station adds value to the product.
 # ============================================================================
 
+
 @flock_type
 class BlogTopic(BaseModel):
     """Initial blog topic idea."""
+
     topic: str = Field(description="The blog topic to write about")
     target_audience: str = Field(description="Who is this blog for?")
 
@@ -46,6 +48,7 @@ class BlogTopic(BaseModel):
 @flock_type
 class BlogOutline(BaseModel):
     """Structured outline for a blog post."""
+
     title: str = Field(description="Catchy blog post title")
     introduction: str = Field(description="Engaging introduction paragraph")
     main_sections: list[dict[str, str]] = Field(
@@ -57,6 +60,7 @@ class BlogOutline(BaseModel):
 @flock_type
 class BlogPost(BaseModel):
     """Complete blog post with full content."""
+
     title: str
     introduction: str
     sections: list[dict[str, str]] = Field(
@@ -70,6 +74,7 @@ class BlogPost(BaseModel):
 @flock_type
 class BlogSEO(BaseModel):
     """SEO optimization for the blog post."""
+
     meta_title: str = Field(description="SEO-optimized meta title (50-60 chars)")
     meta_description: str = Field(description="SEO meta description (150-160 chars)")
     keywords: list[str] = Field(description="Relevant SEO keywords")
@@ -87,7 +92,7 @@ flock = Flock()
 # STEP 3: Define the Agent Chain
 # ============================================================================
 # The magic of Flock: agents automatically connect through the blackboard!
-# 
+#
 # Flow: BlogTopic → BlogOutline → BlogPost → BlogSEO
 #
 # How it works:
@@ -139,19 +144,20 @@ seo_agent = (
 # STEP 4: Run the Chain
 # ============================================================================
 
+
 async def main_cli():
     """CLI mode: Run agents and display results in terminal"""
     print("=" * 70)
     print("📝 MULTI-AGENT CHAIN EXAMPLE - Blog Writing Pipeline")
     print("=" * 70)
     print()
-    
+
     # Create the initial topic
     topic = BlogTopic(
         topic="Getting Started with Flock: A Beginner's Guide",
-        target_audience="Developers new to AI agent frameworks"
+        target_audience="Developers new to AI agent frameworks",
     )
-    
+
     print(f"💡 Blog Topic:")
     print(f"   Topic: {topic.topic}")
     print(f"   Audience: {topic.target_audience}")
@@ -159,22 +165,22 @@ async def main_cli():
     print("⏳ Publishing topic and watching the chain execute...")
     print("   (outline_agent → writer_agent → seo_agent)")
     print()
-    
+
     # Publish the topic - this triggers the entire chain!
     await flock.publish(topic)
-    
+
     # Run until all agents finish
     await flock.run_until_idle()
-    
+
     # Retrieve results from each stage
     outlines = await flock.store.get_by_type(BlogOutline)
     posts = await flock.store.get_by_type(BlogPost)
     seo_data = await flock.store.get_by_type(BlogSEO)
-    
+
     print("=" * 70)
     print("📊 PIPELINE RESULTS")
     print("=" * 70)
-    
+
     if outlines:
         outline = outlines[0]
         print("\n📋 STAGE 1: Outline Generated")
@@ -182,7 +188,7 @@ async def main_cli():
         print(f"   Sections: {len(outline.main_sections)}")
         for i, section in enumerate(outline.main_sections[:3], 1):  # Show first 3
             print(f"      {i}. {section.get('heading', 'N/A')}")
-    
+
     if posts:
         post = posts[0]
         print("\n✍️  STAGE 2: Blog Post Written")
@@ -190,14 +196,14 @@ async def main_cli():
         print(f"   Word Count: {post.word_count:,}")
         print(f"   Reading Time: {post.reading_time_minutes} minutes")
         print(f"   Sections: {len(post.sections)}")
-    
+
     if seo_data:
         seo = seo_data[0]
         print("\n🔍 STAGE 3: SEO Optimized")
         print(f"   Meta Title: {seo.meta_title}")
         print(f"   Keywords: {', '.join(seo.keywords[:5])}...")
         print(f"   Readability: {seo.readability_score}")
-    
+
     print()
     print("=" * 70)
     print("✅ Complete pipeline executed successfully!")
@@ -231,7 +237,7 @@ if __name__ == "__main__":
 # ============================================================================
 # 🎓 NOW IT'S YOUR TURN!
 # ============================================================================
-# 
+#
 # EXPERIMENT 1: Add Another Stage
 # --------------------------------
 # Add a "reviewer_agent" that consumes BlogPost and produces ReviewedPost:
@@ -320,4 +326,3 @@ if __name__ == "__main__":
 # How many agents? What's the longest chain? Where can you parallelize?
 #
 # ============================================================================
-

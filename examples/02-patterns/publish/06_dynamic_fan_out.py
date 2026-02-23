@@ -43,7 +43,7 @@ class UserStory(BaseModel):
     milestone_title: str = Field(description="Title of the parent milestone")
     milestone_id: str = Field(description="ID of the parent milestone")
     description: str = Field(description="Detailed description of the user story")
-    as_a : str = Field(description="Role of the user")
+    as_a: str = Field(description="Role of the user")
     i_want: str = Field(description="What the user wants to achieve")
     so_that: str = Field(description="Reason/benefit for the user")
     acceptance_criterias: list[str] = Field(
@@ -73,10 +73,11 @@ project_planner = (
         fan_out=(3, 10),  # Engine decides 3–10 milestones based on project complexity
     )
     .with_engines(
-            DSPyEngine(
-                adapter=BAMLAdapter(),  # Better structured output parsing
-            )
-    ).max_concurrency(1)
+        DSPyEngine(
+            adapter=BAMLAdapter(),  # Better structured output parsing
+        )
+    )
+    .max_concurrency(1)
 )
 
 
@@ -92,10 +93,11 @@ milestone_planner = (
         fan_out=(2, 10),  # Engine decides 2–10 stories per milestone
     )
     .with_engines(
-            DSPyEngine(
-                adapter=BAMLAdapter(),  # Better structured output parsing
-            )
-    ).max_concurrency(1)
+        DSPyEngine(
+            adapter=BAMLAdapter(),  # Better structured output parsing
+        )
+    )
+    .max_concurrency(1)
 )
 
 

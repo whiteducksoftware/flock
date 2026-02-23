@@ -62,7 +62,9 @@ class TestSyncPublishHappyPath:
         correlation_id = str(uuid4())
         produced_artifacts = [
             _make_artifact("SyncTestInput", {"value": "test"}, "api", correlation_id),
-            _make_artifact("SyncTestOutput", {"result": "processed"}, "processor", correlation_id),
+            _make_artifact(
+                "SyncTestOutput", {"result": "processed"}, "processor", correlation_id
+            ),
         ]
 
         mock_orchestrator.store.query_artifacts = AsyncMock(
@@ -98,9 +100,14 @@ class TestSyncPublishHappyPath:
 
         # Return artifact with matching correlation_id
         def query_with_filter(filters: FilterConfig, **kwargs):
-            return ([_make_artifact("SyncTestInput", {}, "api", filters.correlation_id)], 1)
+            return (
+                [_make_artifact("SyncTestInput", {}, "api", filters.correlation_id)],
+                1,
+            )
 
-        mock_orchestrator.store.query_artifacts = AsyncMock(side_effect=query_with_filter)
+        mock_orchestrator.store.query_artifacts = AsyncMock(
+            side_effect=query_with_filter
+        )
 
         transport = ASGITransport(app=service.app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -209,7 +216,9 @@ class TestSyncPublishFilters:
         correlation_id = str(uuid4())
         all_artifacts = [
             _make_artifact("SyncTestInput", {"value": "test"}, "api", correlation_id),
-            _make_artifact("SyncTestOutput", {"result": "processed"}, "processor", correlation_id),
+            _make_artifact(
+                "SyncTestOutput", {"result": "processed"}, "processor", correlation_id
+            ),
             _make_artifact("SomeOtherType", {}, "other", correlation_id),
         ]
 
@@ -219,7 +228,9 @@ class TestSyncPublishFilters:
                 filtered = [a for a in filtered if a.type in filters.type_names]
             return (filtered, len(filtered))
 
-        mock_orchestrator.store.query_artifacts = AsyncMock(side_effect=filter_artifacts)
+        mock_orchestrator.store.query_artifacts = AsyncMock(
+            side_effect=filter_artifacts
+        )
 
         transport = ASGITransport(app=service.app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -243,8 +254,12 @@ class TestSyncPublishFilters:
         correlation_id = str(uuid4())
         all_artifacts = [
             _make_artifact("SyncTestInput", {"value": "test"}, "api", correlation_id),
-            _make_artifact("SyncTestOutput", {"result": "a"}, "agent_a", correlation_id),
-            _make_artifact("SyncTestOutput", {"result": "b"}, "agent_b", correlation_id),
+            _make_artifact(
+                "SyncTestOutput", {"result": "a"}, "agent_a", correlation_id
+            ),
+            _make_artifact(
+                "SyncTestOutput", {"result": "b"}, "agent_b", correlation_id
+            ),
         ]
 
         async def filter_artifacts(filters: FilterConfig, **kwargs):
@@ -253,7 +268,9 @@ class TestSyncPublishFilters:
                 filtered = [a for a in filtered if a.produced_by in filters.produced_by]
             return (filtered, len(filtered))
 
-        mock_orchestrator.store.query_artifacts = AsyncMock(side_effect=filter_artifacts)
+        mock_orchestrator.store.query_artifacts = AsyncMock(
+            side_effect=filter_artifacts
+        )
 
         transport = ASGITransport(app=service.app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -322,6 +339,7 @@ class TestSyncPublishDurationTracking:
     @pytest.mark.asyncio
     async def test_sync_publish_reports_duration(self, service, mock_orchestrator):
         """Duration should be reported in milliseconds."""
+
         # Simulate some processing time
         async def simulate_work():
             await asyncio.sleep(0.05)  # 50ms

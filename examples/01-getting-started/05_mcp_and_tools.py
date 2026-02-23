@@ -113,12 +113,12 @@ except Exception as e:
     .with_tools([write_report, get_current_date])
     .publishes(Report)
     .with_engines(
-            DSPyEngine(
-                adapter=BAMLAdapter(),  # Better structured output parsing
-                max_tokens=32000,
-                max_tool_calls=50,
-            )
+        DSPyEngine(
+            adapter=BAMLAdapter(),  # Better structured output parsing
+            max_tokens=32000,
+            max_tool_calls=50,
         )
+    )
 )
 
 

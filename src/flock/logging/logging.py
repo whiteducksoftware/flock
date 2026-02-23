@@ -383,6 +383,30 @@ class FlockLogger:
             )
         return message
 
+    def _emit(
+        self,
+        level: Literal["debug", "info", "warning", "error", "exception", "success"],
+        message: str,
+        *args,
+        **kwargs,
+    ) -> None:
+        """Emit a log record while safely supporting stdlib-style ``exc_info``.
+
+        Loguru treats ``**kwargs`` as format kwargs; passing ``exc_info`` through
+        directly can accidentally trigger string formatting on JSON payloads.
+        """
+        exc_info = kwargs.pop("exc_info", None)
+        logger = self._get_logger()
+
+        if exc_info:
+            if isinstance(exc_info, BaseException) or isinstance(exc_info, tuple):
+                logger = logger.opt(exception=exc_info)
+            else:
+                logger = logger.opt(exception=True)
+
+        log_method = getattr(logger, level)
+        log_method(message, *args, **kwargs)
+
     def debug(
         self,
         message: str,
@@ -405,7 +429,7 @@ class FlockLogger:
             max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
         """
         message = self._truncate_message(message, max_length)
-        self._get_logger().debug(message, *args, **kwargs)
+        self._emit("debug", message, *args, **kwargs)
 
     def info(
         self,
@@ -429,7 +453,7 @@ class FlockLogger:
             max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
         """
         message = self._truncate_message(message, max_length)
-        self._get_logger().info(message, *args, **kwargs)
+        self._emit("info", message, *args, **kwargs)
 
     def warning(
         self,
@@ -453,7 +477,7 @@ class FlockLogger:
             max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
         """
         message = self._truncate_message(message, max_length)
-        self._get_logger().warning(message, *args, **kwargs)
+        self._emit("warning", message, *args, **kwargs)
 
     def error(
         self,
@@ -477,7 +501,7 @@ class FlockLogger:
             max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
         """
         message = self._truncate_message(message, max_length)
-        self._get_logger().error(message, *args, **kwargs)
+        self._emit("error", message, *args, **kwargs)
 
     def exception(
         self,
@@ -501,7 +525,7 @@ class FlockLogger:
             max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
         """
         message = self._truncate_message(message, max_length)
-        self._get_logger().exception(message, *args, **kwargs)
+        self._emit("exception", message, *args, **kwargs)
 
     def success(
         self,
@@ -525,7 +549,7 @@ class FlockLogger:
             max_length (int, optional): The maximum length of the message. Defaults to MAX_LENGTH.
         """
         message = self._truncate_message(message, max_length)
-        self._get_logger().success(message, *args, **kwargs)
+        self._emit("success", message, *args, **kwargs)
 
 
 _LOGGER_CACHE: dict[str, FlockLogger] = {}

@@ -118,7 +118,9 @@ try:
     )
     print("✅ Added DuckDuckGo search MCP (search_web)")
 except Exception as e:  # pragma: no cover - environment dependent
-    print(f"⚠️  Could not add search MCP (is uvx + duckduckgo-mcp-server installed?): {e}")
+    print(
+        f"⚠️  Could not add search MCP (is uvx + duckduckgo-mcp-server installed?): {e}"
+    )
 
 try:
     flock.add_mcp(
@@ -166,20 +168,18 @@ web_researcher = (
         "Always respect the max_sources field when choosing how many pages to read."
     )
     .consumes(ResearchTask)
-    .with_mcps(
-        {
-            # Give the agent access to search tools
-            "search_web": {
-                # Tool names are defined by the MCP server; "search" is common.
-                # The agent will see these tools and decide how to call them.
-                "tool_whitelist": ["search"],
-            },
-            # Give the agent access to website reading tools
-            "read_website": {
-                "tool_whitelist": ["read_website", "read_url", "read"],
-            },
-        }
-    )
+    .with_mcps({
+        # Give the agent access to search tools
+        "search_web": {
+            # Tool names are defined by the MCP server; "search" is common.
+            # The agent will see these tools and decide how to call them.
+            "tool_whitelist": ["search"],
+        },
+        # Give the agent access to website reading tools
+        "read_website": {
+            "tool_whitelist": ["read_website", "read_url", "read"],
+        },
+    })
     .publishes(ResearchReport)
 )
 
@@ -352,4 +352,3 @@ if __name__ == "__main__":
 # This is a good way to understand graceful degradation patterns.
 #
 # ============================================================================
-

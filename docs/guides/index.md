@@ -76,6 +76,22 @@ Comprehensive guides for building production-ready multi-agent systems with Floc
 
 ---
 
+## 🔗 Integrations
+
+<div class="grid cards" markdown>
+
+-   **🦞 OpenClaw Integration**
+
+    ---
+
+    Use OpenClaw agents as Flock pipeline participants — tools, skills, multi-step reasoning, different models.
+
+    [:octicons-arrow-right-24: OpenClaw Guide](openclaw.md)
+
+</div>
+
+---
+
 ## 🖥️ Local Models & Engines
 
 <div class="grid cards" markdown>

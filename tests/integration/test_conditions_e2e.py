@@ -62,9 +62,7 @@ def mock_orchestrator():
     orchestrator = Mock()
     orchestrator.store = Mock()
     orchestrator.store.query_artifacts = AsyncMock(return_value=([], 0))
-    orchestrator.get_correlation_status = AsyncMock(
-        return_value={"error_count": 0}
-    )
+    orchestrator.get_correlation_status = AsyncMock(return_value={"error_count": 0})
     orchestrator._scheduler = Mock()
     orchestrator._scheduler.pending_tasks = set()
     orchestrator._components_initialized = True
@@ -196,10 +194,9 @@ class TestRunUntilCompositeCondition:
         mock_orchestrator.store.query_artifacts = mock_query_artifacts
 
         # Create composite condition: 10 user stories OR 5 hypotheses
-        condition = (
-            Until.artifact_count(E2EUserStory).at_least(10)
-            | Until.artifact_count(E2EHypothesis).at_least(5)
-        )
+        condition = Until.artifact_count(E2EUserStory).at_least(
+            10
+        ) | Until.artifact_count(E2EHypothesis).at_least(5)
 
         # Simulate publishing only 3 hypotheses, then 5
         async def publish_hypotheses():
