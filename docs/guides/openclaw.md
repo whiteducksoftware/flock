@@ -197,7 +197,7 @@ Notes:
 |-------|------|----------|-------------|
 | `url` | `str` | Yes | Gateway URL (for example `http://localhost:19789` or a Tailscale Serve HTTPS URL) |
 | `token_env` | `str` | No | Environment variable name containing auth token |
-| `token` | `str` | No | Direct token value (prefer `token_env` for security) |
+| `token` | `SecretStr` | No | Direct token value (masked in repr/logs; prefer `token_env` for security) |
 | `agent_id` | `str` | No | OpenClaw agent id sent via `x-openclaw-agent-id` (default: `"main"`) |
 
 ### OpenClawDefaults
