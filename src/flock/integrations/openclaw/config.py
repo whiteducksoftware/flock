@@ -6,7 +6,7 @@ import os
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
 class OpenClawDefaults(BaseModel):
@@ -44,7 +44,7 @@ class GatewayConfig(BaseModel):
         default=None,
         description="Environment variable name containing gateway auth token.",
     )
-    token: str | None = Field(
+    token: SecretStr | None = Field(
         default=None,
         description="Resolved token value (typically from environment).",
     )
@@ -59,7 +59,7 @@ class GatewayConfig(BaseModel):
         if self.token is None and self.token_env is not None:
             resolved = os.getenv(self.token_env)
             if resolved:
-                self.token = resolved
+                self.token = SecretStr(resolved)
 
 
 class OpenClawConfig(BaseModel):

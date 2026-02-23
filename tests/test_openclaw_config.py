@@ -88,10 +88,10 @@ def test_openclaw_config_from_env_discovers_aliases(
 
     assert set(config.gateways.keys()) == {"codie", "claude"}
     assert config.gateways["codie"].url == "http://localhost:19789"
-    assert config.gateways["codie"].token == "token-codie"
+    assert config.gateways["codie"].token.get_secret_value() == "token-codie"
     assert config.gateways["codie"].agent_id == "main"
     assert config.gateways["claude"].url == "http://localhost:18789"
-    assert config.gateways["claude"].token == "token-claude"
+    assert config.gateways["claude"].token.get_secret_value() == "token-claude"
     assert config.gateways["claude"].agent_id == "main"
 
 
@@ -127,7 +127,7 @@ def test_gateway_config_resolves_token_from_env_automatically(
 
     gw = GatewayConfig(url="http://localhost:19789", token_env="MY_TOKEN")
 
-    assert gw.token == "secret-123"
+    assert gw.token.get_secret_value() == "secret-123"
 
 
 def test_gateway_config_explicit_token_overrides_env(
@@ -140,7 +140,7 @@ def test_gateway_config_explicit_token_overrides_env(
         url="http://localhost:19789", token_env="MY_TOKEN", token="explicit"
     )
 
-    assert gw.token == "explicit"
+    assert gw.token.get_secret_value() == "explicit"
 
 
 def test_gateway_config_accepts_custom_agent_id() -> None:

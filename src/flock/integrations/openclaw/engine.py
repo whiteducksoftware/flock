@@ -121,8 +121,8 @@ class OpenClawEngine(EngineComponent):
             "Content-Type": "application/json",
             "x-openclaw-agent-id": self.gateway.agent_id,
         }
-        if self.gateway.token:
-            headers["Authorization"] = f"Bearer {self.gateway.token}"
+        if self.gateway.token is not None:
+            headers["Authorization"] = f"Bearer {self.gateway.token.get_secret_value()}"
 
         base_payload = self._build_responses_payload(
             agent=agent,
