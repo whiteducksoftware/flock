@@ -51,7 +51,6 @@ class Pizza(BaseModel):
 # ============================================================================
 # "pizza_master" is looking for "MyPizzaIdea" messages on the blackboard
 # and will itself pin "Pizza" messages to the board.
-# This example demonstrates explicit Responses API configuration.
 # ============================================================================
 flock = Flock()
 
