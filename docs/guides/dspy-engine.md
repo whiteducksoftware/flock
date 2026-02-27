@@ -1229,6 +1229,16 @@ agent = (
 - `reasoning_effort`: `"minimal" | "low" | "medium" | "high"` (optional)
 - `use_developer_role`: maps system messages to developer role in Responses mode (default: `True`)
 
+### Streaming Behavior Matrix
+
+| Resolved Mode | Streaming behavior |
+|---|---|
+| `chat` | Native DSPy/LiteLLM chunk streaming |
+| `responses` | Responses SSE delta streaming bridged into DSPy stream channel |
+| `text` | Non-streaming in Flock DSPy engine |
+
+For Responses mode, Flock maps SSE events like `response.output_text.delta` and `response.completed` to the same streaming sink contract used by chat mode. This keeps CLI and dashboard token streaming behavior consistent.
+
 ### Mode Resolution Rules
 
 - `model_type="auto"`:
@@ -1274,6 +1284,8 @@ engine = DSPyEngine(
     model_type="auto",  # resolves to responses + normalized model id
 )
 ```
+
+With `stream=True`, this configuration emits live token updates in both CLI and dashboard modes.
 
 For observability, `EvalResult.state["dspy"]` includes:
 

@@ -75,6 +75,15 @@ def test_normalize_value_variants(monkeypatch: pytest.MonkeyPatch) -> None:
             self.choices = [choice]
             self.signature_field_name = signature_field_name
 
+    class FakeResponsesDelta:
+        def __init__(self, delta: str) -> None:
+            self.type = "response.output_text.delta"
+            self.delta = delta
+
+    class FakeResponsesCompleted:
+        def __init__(self) -> None:
+            self.type = "response.completed"
+
     fake_streaming = SimpleNamespace(
         StreamListener=None,
         StatusMessage=FakeStatus,
@@ -100,6 +109,27 @@ def test_normalize_value_variants(monkeypatch: pytest.MonkeyPatch) -> None:
         FakeModelResponse("model-token", signature_field_name="output"), fake_dspy
     )
     assert (kind, text, field, final) == ("token", "model-token", "output", None)
+
+    kind, text, field, final = executor._normalize_value(
+        FakeResponsesDelta("resp-token"), fake_dspy
+    )
+    assert (kind, text, field, final) == ("token", "resp-token", None, None)
+
+    kind, text, field, final = executor._normalize_value(
+        {"type": "response.output_text.delta", "delta": {"text": "dict-token"}},
+        fake_dspy,
+    )
+    assert (kind, text, field, final) == ("token", "dict-token", None, None)
+
+    kind, text, field, final = executor._normalize_value(
+        FakeResponsesCompleted(), fake_dspy
+    )
+    assert (kind, text, field, final) == (
+        "status",
+        "Responses stream completed",
+        None,
+        None,
+    )
 
     prediction = FakePrediction()
     kind, text, field, final = executor._normalize_value(prediction, fake_dspy)
@@ -146,7 +176,8 @@ async def test_websocket_sink_emits_events_in_order() -> None:
 
     assert [e.sequence for e in events] == [0, 1, 2, 3]
     assert events[0].content == "Processing\n"
-    assert events[1].output_type == "llm_token" and events[1].content == "token-1"
+    assert events[1].output_type == "llm_token"
+    assert events[1].content == "token-1"
     assert events[2].content == "\nAmount of output tokens: 1"
     assert events[2].is_final is True
     assert events[3].content == "--- End of output ---"

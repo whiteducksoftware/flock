@@ -19,6 +19,7 @@ from typing import Any
 
 from flock.components.server.models.events import StreamingOutputEvent
 from flock.engines.streaming.sinks import RichSink, StreamSink, WebSocketSink
+from flock.integrations.openclaw.streaming import map_sse_event_type
 from flock.logging.logging import get_logger
 
 
@@ -158,6 +159,57 @@ class DSPyStreamingExecutor:
             token_text = ""
         signature_field = getattr(value, "signature_field_name", None)
         return "token", str(token_text), signature_field, None
+
+    @staticmethod
+    def _responses_event_type(value: Any) -> str:
+        if isinstance(value, dict):
+            event_type = value.get("type") or value.get("event")
+        else:
+            event_type = getattr(value, "type", None) or getattr(value, "event", None)
+        return str(event_type) if event_type else ""
+
+    @staticmethod
+    def _extract_responses_delta_text(value: Any) -> str:
+        if isinstance(value, dict):
+            delta = value.get("delta")
+        else:
+            delta = getattr(value, "delta", None)
+
+        if isinstance(delta, str):
+            return delta
+        if isinstance(delta, dict):
+            text = delta.get("text")
+            if isinstance(text, str):
+                return text
+
+        if isinstance(value, dict):
+            text = value.get("text")
+        else:
+            text = getattr(value, "text", None)
+        return str(text) if isinstance(text, str) else ""
+
+    def _normalize_responses_stream_event(
+        self,
+        value: Any,
+    ) -> tuple[str, str | None, str | None, Any | None]:
+        event_type = self._responses_event_type(value)
+        if not event_type:
+            return "unknown", None, None, None
+
+        mapped_type = map_sse_event_type(event_type)
+        if mapped_type == "on_token":
+            text = self._extract_responses_delta_text(value)
+            signature_field = getattr(value, "signature_field_name", None)
+            return "token", text, signature_field, None
+        if mapped_type == "on_final":
+            return "status", "Responses stream completed", None, None
+
+        if event_type == "response.created":
+            return "status", "Responses stream started", None, None
+        if event_type == "response.in_progress":
+            return "status", "Responses stream in progress", None, None
+
+        return "unknown", None, None, None
 
     def _initialize_display_data(
         self,
@@ -425,6 +477,12 @@ class DSPyStreamingExecutor:
         if model_stream_cls and isinstance(value, model_stream_cls):
             return self._normalize_model_stream(value)
 
+        response_kind, response_text, response_field, response_prediction = (
+            self._normalize_responses_stream_event(value)
+        )
+        if response_kind != "unknown":
+            return response_kind, response_text, response_field, response_prediction
+
         if prediction_cls and isinstance(value, prediction_cls):
             return "prediction", None, None, value
 
@@ -648,7 +706,8 @@ class DSPyStreamingExecutor:
             formatter = theme_dict = styles = agent_label = None
             live_cm = nullcontext()
 
-        timestamp_factory = lambda: datetime.now(UTC).isoformat()
+        def timestamp_factory() -> str:
+            return datetime.now(UTC).isoformat()
 
         final_result: Any = None
         tokens_emitted = 0

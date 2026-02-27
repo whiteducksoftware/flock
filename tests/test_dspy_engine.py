@@ -1114,6 +1114,60 @@ class TestDSPyEngineIntegration:
         assert captured["model_type"] == "responses"
 
     @pytest.mark.asyncio
+    async def test_responses_streaming_uses_normalized_model_and_streaming_executor(
+        self, mocker
+    ):
+        """Responses streaming should keep resolved model metadata and use streaming executor."""
+        captured: dict[str, object] = {}
+
+        class CapturingLM(MockLM):
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+                super().__init__(**kwargs)
+
+        mock_dspy = MockDSPyModule()
+        mock_dspy.context.return_value = Mock()
+        mock_dspy.LM = CapturingLM
+        mocker.patch.object(DSPyEngine, "_import_dspy", return_value=mock_dspy)
+
+        engine = DSPyEngine(
+            model="azure/responses/gpt-5",
+            model_type="auto",
+            stream=True,
+        )
+
+        mock_execute_streaming = AsyncMock(
+            return_value=(MockPrediction({"response": "streamed"}), None)
+        )
+        mocker.patch.object(
+            engine._streaming_executor, "execute_streaming", mock_execute_streaming
+        )
+
+        agent = Mock()
+        agent.name = "stream_agent"
+        agent.description = "Streaming agent"
+        agent.outputs = []
+        agent.tools = []
+        agent._get_mcp_tools = AsyncMock(return_value=[])
+
+        input_artifact = Artifact(
+            type="TestInput", payload={"prompt": "test prompt"}, produced_by="test"
+        )
+        inputs = EvalInputs(artifacts=[input_artifact], state={})
+        ctx = Mock()
+        ctx.artifacts = []
+        ctx.state = {}
+        output_group = OutputGroup(outputs=[], group_description=None)
+
+        result = await engine.evaluate(agent, ctx, inputs, output_group)
+
+        assert captured["model"] == "azure/gpt-5"
+        assert captured["model_type"] == "responses"
+        mock_execute_streaming.assert_awaited_once()
+        assert result.state["dspy"]["resolved_model"] == "azure/gpt-5"
+        assert result.state["dspy"]["resolved_model_type"] == "responses"
+
+    @pytest.mark.asyncio
     async def test_batch_evaluation_passes_list_payload(self, mocker):
         """Batched evaluation should send list of validated inputs to DSPy."""
         mock_dspy = MockDSPyModule()

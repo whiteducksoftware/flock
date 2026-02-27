@@ -87,6 +87,16 @@ async def fake_stream_generator():
     yield FakeDSPyModule.Prediction(output="Hello world", summary="Brief summary")
 
 
+async def fake_responses_stream_generator():
+    """Mock async generator yielding raw Responses API stream events."""
+    yield SimpleNamespace(type="response.created")
+    yield SimpleNamespace(type="response.output_text.delta", delta="Hello")
+    yield SimpleNamespace(type="response.output_text.delta", delta=" world")
+    yield SimpleNamespace(type="response.in_progress")
+    yield SimpleNamespace(type="response.completed")
+    yield FakeDSPyModule.Prediction(output="Hello world", summary="Responses summary")
+
+
 @pytest.mark.asyncio
 async def test_execute_streaming_websocket_only_end_to_end():
     """Integration test: WebSocket-only streaming (dashboard mode).
@@ -185,6 +195,63 @@ async def test_execute_streaming_websocket_only_end_to_end():
 
     finally:
         # Restore original broadcast
+        Agent._websocket_broadcast_global = original_broadcast
+
+
+@pytest.mark.asyncio
+async def test_execute_streaming_websocket_only_with_responses_events():
+    """Integration test: raw responses events are normalized into token streaming."""
+    executor = DSPyStreamingExecutor(
+        status_output_field="_status",
+        stream_vertical_overflow="crop",
+        theme="afterglow",
+        no_output=True,
+    )
+
+    correlation_id = str(uuid4())
+    ctx = SimpleNamespace(correlation_id=correlation_id, task_id="task-responses")
+    agent = SimpleNamespace(name="responses_agent", outputs=[])
+    artifact_id = uuid4()
+
+    events: list[StreamingOutputEvent] = []
+
+    async def mock_broadcast(event: StreamingOutputEvent) -> None:
+        events.append(event)
+        await asyncio.sleep(0.001)
+
+    from flock.core import Agent
+
+    original_broadcast = Agent._websocket_broadcast_global
+    Agent._websocket_broadcast_global = mock_broadcast
+
+    try:
+
+        def fake_program(**kwargs):
+            return fake_responses_stream_generator()
+
+        result, display_data = await executor.execute_streaming_websocket_only(
+            dspy_mod=FakeDSPyModule,
+            program=fake_program,
+            signature=FakeSignature(),
+            description="Responses test",
+            payload={"description": "Responses test", "input": "test"},
+            agent=agent,
+            ctx=ctx,
+            pre_generated_artifact_id=artifact_id,
+            output_group=None,
+        )
+
+        assert result.output == "Hello world"
+        assert result.summary == "Responses summary"
+        assert display_data is None
+
+        token_events = [e for e in events if e.output_type == "llm_token"]
+        assert [e.content for e in token_events] == ["Hello", " world"]
+
+        terminal_events = [e for e in events if e.is_final]
+        assert "Amount of output tokens: 2" in terminal_events[0].content
+        assert terminal_events[1].content == "--- End of output ---"
+    finally:
         Agent._websocket_broadcast_global = original_broadcast
 
 

@@ -59,6 +59,14 @@ pizza_master = (
     flock.agent("pizza_master")
     .consumes(MyPizzaIdea)
     .publishes(Pizza)
+    .with_engines(
+        DSPyEngine(
+            model="azure/responses/gpt-5.3-codex",
+            model_type="responses",
+            adapter=JSONAdapter(),
+            reasoning_effort="low",
+        )
+    )
 )
 
 
