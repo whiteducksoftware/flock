@@ -76,13 +76,24 @@ class MockLM:
     """Mock DSPy LM class."""
 
     def __init__(
-        self, model, temperature=None, max_tokens=None, cache=None, num_retries=None
+        self,
+        model,
+        model_type=None,
+        temperature=None,
+        max_tokens=None,
+        cache=None,
+        num_retries=None,
+        use_developer_role=None,
+        **kwargs,
     ):
         self.model = model
+        self.model_type = model_type
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.cache = cache
         self.num_retries = num_retries
+        self.use_developer_role = use_developer_role
+        self.kwargs = kwargs
 
 
 class MockPrediction:
@@ -235,9 +246,13 @@ class TestDSPyEngineBasics:
 
         assert engine.name == "dspy"
         assert engine.model is None
+        assert engine.model_type == "auto"
         assert engine.instructions is None
         assert engine.temperature == 1.0
         assert engine.max_tokens == 32000
+        assert engine.lm_kwargs == {}
+        assert engine.reasoning_effort is None
+        assert engine.use_developer_role is True
         assert engine.max_tool_calls == 100
         assert engine.max_retries == 0
         assert engine.no_output is False
@@ -253,9 +268,13 @@ class TestDSPyEngineBasics:
         engine = DSPyEngine(
             name="custom_dspy",
             model="gpt-4",
+            model_type="responses",
             instructions="Custom instructions",
             temperature=0.7,
             max_tokens=1000,
+            lm_kwargs={"api_base": "http://localhost:1234"},
+            reasoning_effort="low",
+            use_developer_role=False,
             max_tool_calls=5,
             max_retries=2,
             stream=True,
@@ -268,9 +287,13 @@ class TestDSPyEngineBasics:
 
         assert engine.name == "custom_dspy"
         assert engine.model == "gpt-4"
+        assert engine.model_type == "responses"
         assert engine.instructions == "Custom instructions"
         assert engine.temperature == 0.7
         assert engine.max_tokens == 1000
+        assert engine.lm_kwargs == {"api_base": "http://localhost:1234"}
+        assert engine.reasoning_effort == "low"
+        assert engine.use_developer_role is False
         assert engine.max_tool_calls == 5
         assert engine.max_retries == 2
         assert engine.stream is True
@@ -309,6 +332,49 @@ class TestDSPyEngineBasics:
             NotImplementedError, match="DSPyEngine requires a configured model"
         ):
             engine._resolve_model_name()
+
+    def test_resolve_model_and_type_auto_chat(self):
+        """Auto mode should default to chat for non-responses model ids."""
+        engine = DSPyEngine(model_type="auto")
+        model, model_type = engine._resolve_model_and_type("openai/gpt-4.1")
+        assert model == "openai/gpt-4.1"
+        assert model_type == "chat"
+
+    def test_resolve_model_and_type_auto_responses_with_azure_normalization(self):
+        """Auto mode should select responses and normalize azure model ids."""
+        engine = DSPyEngine(model_type="auto")
+        model, model_type = engine._resolve_model_and_type("azure/responses/gpt-5")
+        assert model == "azure/gpt-5"
+        assert model_type == "responses"
+
+    def test_resolve_model_and_type_explicit_chat_keeps_model_id(self):
+        """Explicit chat mode should not normalize azure responses model ids."""
+        engine = DSPyEngine(model_type="chat")
+        model, model_type = engine._resolve_model_and_type("azure/responses/gpt-5")
+        assert model == "azure/responses/gpt-5"
+        assert model_type == "chat"
+
+    def test_resolve_model_and_type_explicit_responses_without_prefix(self):
+        """Explicit responses mode should work with canonical azure model id."""
+        engine = DSPyEngine(model_type="responses")
+        model, model_type = engine._resolve_model_and_type("azure/gpt-5")
+        assert model == "azure/gpt-5"
+        assert model_type == "responses"
+
+    def test_rejects_invalid_reasoning_effort_in_lm_kwargs(self):
+        """Invalid lm_kwargs reasoning_effort should fail fast with clear guidance."""
+        with pytest.raises(
+            ValueError, match="Invalid reasoning_effort value 'none'"
+        ):
+            DSPyEngine(lm_kwargs={"reasoning_effort": "none"})
+
+    def test_rejects_conflicting_reasoning_effort_values(self):
+        """Conflicting reasoning_effort values should fail fast."""
+        with pytest.raises(ValueError, match="Conflicting reasoning_effort values"):
+            DSPyEngine(
+                reasoning_effort="low",
+                lm_kwargs={"reasoning_effort": "high"},
+            )
 
     def test_import_dspy_exists(self):
         """Test that DSPy can be imported when installed."""
@@ -979,6 +1045,73 @@ class TestDSPyEngineIntegration:
         # Assert
         assert isinstance(result, EvalResult)
         assert len(result.artifacts) > 0
+
+    @pytest.mark.asyncio
+    async def test_state_contains_resolved_model_metadata(self, mocker):
+        """Evaluation state should include resolved model metadata for observability."""
+        mock_dspy = MockDSPyModule()
+        mock_dspy.context.return_value = Mock()
+        mocker.patch.object(DSPyEngine, "_import_dspy", return_value=mock_dspy)
+
+        engine = DSPyEngine(model="azure/responses/gpt-5", model_type="auto", stream=False)
+
+        agent = Mock()
+        agent.name = "test_agent"
+        agent.description = "Test agent"
+        agent.outputs = []
+        agent.tools = []
+        agent._get_mcp_tools = AsyncMock(return_value=[])
+
+        input_artifact = Artifact(
+            type="TestInput", payload={"prompt": "test prompt"}, produced_by="test"
+        )
+        inputs = EvalInputs(artifacts=[input_artifact], state={})
+        ctx = Mock()
+        ctx.artifacts = []
+
+        output_group = OutputGroup(outputs=[], group_description=None)
+        result = await engine.evaluate(agent, ctx, inputs, output_group)
+
+        assert result.state["dspy"]["model"] == "azure/responses/gpt-5"
+        assert result.state["dspy"]["resolved_model"] == "azure/gpt-5"
+        assert result.state["dspy"]["resolved_model_type"] == "responses"
+
+    @pytest.mark.asyncio
+    async def test_auto_mode_passes_resolved_model_and_type_to_dspy_lm(self, mocker):
+        """Auto mode should instantiate dspy.LM with normalized azure model id."""
+        captured: dict[str, object] = {}
+
+        class CapturingLM(MockLM):
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+                super().__init__(**kwargs)
+
+        mock_dspy = MockDSPyModule()
+        mock_dspy.context.return_value = Mock()
+        mock_dspy.LM = CapturingLM
+        mocker.patch.object(DSPyEngine, "_import_dspy", return_value=mock_dspy)
+
+        engine = DSPyEngine(model="azure/responses/gpt-5", model_type="auto", stream=False)
+
+        agent = Mock()
+        agent.name = "test_agent"
+        agent.description = "Test agent"
+        agent.outputs = []
+        agent.tools = []
+        agent._get_mcp_tools = AsyncMock(return_value=[])
+
+        input_artifact = Artifact(
+            type="TestInput", payload={"prompt": "test prompt"}, produced_by="test"
+        )
+        inputs = EvalInputs(artifacts=[input_artifact], state={})
+        ctx = Mock()
+        ctx.artifacts = []
+        output_group = OutputGroup(outputs=[], group_description=None)
+
+        await engine.evaluate(agent, ctx, inputs, output_group)
+
+        assert captured["model"] == "azure/gpt-5"
+        assert captured["model_type"] == "responses"
 
     @pytest.mark.asyncio
     async def test_batch_evaluation_passes_list_payload(self, mocker):

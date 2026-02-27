@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 
 
 _live_patch_applied = False
+_VALID_REASONING_EFFORTS = {"minimal", "low", "medium", "high"}
 
 
 # T071: Auto-detect test environment for streaming
@@ -121,9 +122,33 @@ class DSPyEngine(EngineComponent):
 
     name: str | None = "dspy"
     model: str | None = None
+    model_type: Literal["auto", "chat", "text", "responses"] = Field(
+        default="auto",
+        description=(
+            "Which LiteLLM API style to use. "
+            "'auto' selects 'responses' when model contains '/responses/' and 'chat' otherwise."
+        ),
+    )
     instructions: str | None = None
     temperature: float = 1.0
     max_tokens: int = 32000
+    lm_kwargs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional keyword arguments forwarded to dspy.LM(...).",
+    )
+    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = Field(
+        default=None,
+        description=(
+            "Optional reasoning effort for reasoning-capable models. "
+            "Valid values: minimal, low, medium, high."
+        ),
+    )
+    use_developer_role: bool = Field(
+        default=True,
+        description=(
+            "Map system messages to the developer role when using Responses API."
+        ),
+    )
     max_tool_calls: int = 100
     max_retries: int = 0
     stream: bool = Field(
@@ -163,9 +188,19 @@ class DSPyEngine(EngineComponent):
         ),
     )
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, __context: Any, /) -> None:
         """Initialize helper instances after Pydantic model initialization."""
         super().model_post_init(__context)
+        # Validate static LM options early so invalid settings fail at construction time.
+        self._validate_reasoning_effort(self.lm_kwargs.get("reasoning_effort"))
+        if (
+            self.reasoning_effort is not None
+            and self.lm_kwargs.get("reasoning_effort") not in (None, self.reasoning_effort)
+        ):
+            raise ValueError(
+                "Conflicting reasoning_effort values: use either DSPyEngine.reasoning_effort "
+                "or lm_kwargs['reasoning_effort'] with the same value."
+            )
         # Initialize delegated helper classes
         self._signature_builder = DSPySignatureBuilder()
         self._streaming_executor = DSPyStreamingExecutor(
@@ -228,28 +263,42 @@ class DSPyEngine(EngineComponent):
             return EvalResult(artifacts=[], state=dict(inputs.state))
 
         model_name = self._resolve_model_name()
+        resolved_model, resolved_model_type = self._resolve_model_and_type(model_name)
+        lm_kwargs = self._build_lm_kwargs()
         dspy_mod = self._import_dspy()
 
-        lm = dspy_mod.LM(
-            model=model_name,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            cache=self.enable_cache,
-            num_retries=self.max_retries,
-        )
+        try:
+            lm = dspy_mod.LM(
+                model=resolved_model,
+                model_type=resolved_model_type,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                cache=self.enable_cache,
+                num_retries=self.max_retries,
+                use_developer_role=self.use_developer_role,
+                **lm_kwargs,
+            )
+        except Exception as exc:
+            self._log_resolution_error(
+                exc=exc,
+                configured_model=model_name,
+                resolved_model=resolved_model,
+                resolved_model_type=resolved_model_type,
+            )
+            raise
 
         primary_artifact = self._select_primary_artifact(inputs.artifacts)
         input_model = self._resolve_input_model(primary_artifact)
         if batched:
-            validated_input = [
+            _ = [
                 self._validate_input_payload(input_model, artifact.payload)
                 for artifact in inputs.artifacts
             ]
         else:
-            validated_input = self._validate_input_payload(
+            _ = self._validate_input_payload(
                 input_model, primary_artifact.payload
             )
-        output_model = self._resolve_output_model(agent)
+        _ = self._resolve_output_model(agent)
 
         # Phase 8: Use pre-filtered conversation context from Context (security fix)
         # Orchestrator evaluates context BEFORE creating Context, so engines just read ctx.artifacts
@@ -315,103 +364,112 @@ class DSPyEngine(EngineComponent):
 
         adapter_to_use = self.adapter or ChatAdapter()
 
-        with dspy_mod.context(lm=lm, adapter=adapter_to_use):
-            program = self._choose_program(dspy_mod, signature, combined_tools)
+        try:
+            with dspy_mod.context(lm=lm, adapter=adapter_to_use):
+                program = self._choose_program(dspy_mod, signature, combined_tools)
 
-            # Detect if there's already an active Rich Live context
-            should_stream = self.stream
-            # Phase 6+7 Security Fix: Use Agent class variables for streaming coordination
-            if ctx:
-                from flock.core import Agent
-
-                # Check if dashboard mode (WebSocket broadcast is set)
-                is_dashboard = Agent._websocket_broadcast_global is not None
-                # if dashboard we always stream, streaming queue only for CLI output
-                if should_stream and not is_dashboard:
-                    # Get current active streams count from Agent class variable (shared across all agents)
-                    active_streams = Agent._streaming_counter
-
-                    if active_streams > 0:
-                        should_stream = False  # Suppress - another agent streaming
-                    else:
-                        Agent._streaming_counter = (
-                            active_streams + 1
-                        )  # Mark as streaming
-
-            try:
-                if should_stream:
-                    # Choose streaming method based on dashboard mode
-                    # Phase 6+7 Security Fix: Check dashboard mode via Agent class variable
+                # Detect if there's already an active Rich Live context
+                should_stream = self.stream
+                # Phase 6+7 Security Fix: Use Agent class variables for streaming coordination
+                if ctx:
                     from flock.core import Agent
 
-                    is_dashboard = (
-                        Agent._websocket_broadcast_global is not None if ctx else False
-                    )
+                    # Check if dashboard mode (WebSocket broadcast is set)
+                    is_dashboard = Agent._websocket_broadcast_global is not None
+                    # if dashboard we always stream, streaming queue only for CLI output
+                    if should_stream and not is_dashboard:
+                        # Get current active streams count from Agent class variable (shared across all agents)
+                        active_streams = Agent._streaming_counter
 
-                    # DEBUG: Log routing decision
-                    logger.info(
-                        f"[STREAMING ROUTER] agent={agent.name}, is_dashboard={is_dashboard}"
-                    )
+                        if active_streams > 0:
+                            should_stream = False  # Suppress - another agent streaming
+                        else:
+                            Agent._streaming_counter = (
+                                active_streams + 1
+                            )  # Mark as streaming
 
-                    if is_dashboard:
-                        # Dashboard mode: WebSocket-only streaming (no Rich overhead)
-                        # This eliminates the Rich Live context that causes deadlocks with MCP tools
-                        logger.info(
-                            f"[STREAMING ROUTER] Routing {agent.name} to WebSocket-only method (dashboard mode)"
+                try:
+                    if should_stream:
+                        # Choose streaming method based on dashboard mode
+                        # Phase 6+7 Security Fix: Check dashboard mode via Agent class variable
+                        from flock.core import Agent
+
+                        is_dashboard = (
+                            Agent._websocket_broadcast_global is not None if ctx else False
                         )
-                        (
-                            raw_result,
-                            _stream_final_display_data,
-                        ) = await self._streaming_executor.execute_streaming_websocket_only(
+
+                        # DEBUG: Log routing decision
+                        logger.info(
+                            f"[STREAMING ROUTER] agent={agent.name}, is_dashboard={is_dashboard}"
+                        )
+
+                        if is_dashboard:
+                            # Dashboard mode: WebSocket-only streaming (no Rich overhead)
+                            # This eliminates the Rich Live context that causes deadlocks with MCP tools
+                            logger.info(
+                                f"[STREAMING ROUTER] Routing {agent.name} to WebSocket-only method (dashboard mode)"
+                            )
+                            (
+                                raw_result,
+                                _stream_final_display_data,
+                            ) = await self._streaming_executor.execute_streaming_websocket_only(
+                                dspy_mod,
+                                program,
+                                signature,
+                                description=sys_desc,
+                                payload=execution_payload,
+                                agent=agent,
+                                ctx=ctx,
+                                pre_generated_artifact_id=pre_generated_artifact_id,
+                                output_group=output_group,
+                            )
+                        else:
+                            # CLI mode: Rich streaming with terminal display
+                            logger.info(
+                                f"[STREAMING ROUTER] Routing {agent.name} to Rich streaming method (CLI mode)"
+                            )
+                            (
+                                raw_result,
+                                _stream_final_display_data,
+                            ) = await self._streaming_executor.execute_streaming(
+                                dspy_mod,
+                                program,
+                                signature,
+                                description=sys_desc,
+                                payload=execution_payload,
+                                agent=agent,
+                                ctx=ctx,
+                                pre_generated_artifact_id=pre_generated_artifact_id,
+                                output_group=output_group,
+                            )
+                        if not self.no_output and ctx:
+                            ctx.state["_flock_stream_live_active"] = True
+                    else:
+                        raw_result = await self._streaming_executor.execute_standard(
                             dspy_mod,
                             program,
-                            signature,
                             description=sys_desc,
                             payload=execution_payload,
-                            agent=agent,
-                            ctx=ctx,
-                            pre_generated_artifact_id=pre_generated_artifact_id,
-                            output_group=output_group,
                         )
-                    else:
-                        # CLI mode: Rich streaming with terminal display
-                        logger.info(
-                            f"[STREAMING ROUTER] Routing {agent.name} to Rich streaming method (CLI mode)"
-                        )
-                        (
-                            raw_result,
-                            _stream_final_display_data,
-                        ) = await self._streaming_executor.execute_streaming(
-                            dspy_mod,
-                            program,
-                            signature,
-                            description=sys_desc,
-                            payload=execution_payload,
-                            agent=agent,
-                            ctx=ctx,
-                            pre_generated_artifact_id=pre_generated_artifact_id,
-                            output_group=output_group,
-                        )
-                    if not self.no_output and ctx:
-                        ctx.state["_flock_stream_live_active"] = True
-                else:
-                    raw_result = await self._streaming_executor.execute_standard(
-                        dspy_mod,
-                        program,
-                        description=sys_desc,
-                        payload=execution_payload,
-                    )
-                    # Phase 6+7 Security Fix: Check streaming state from Agent class variable
-                    from flock.core import Agent
+                        # Phase 6+7 Security Fix: Check streaming state from Agent class variable
+                        from flock.core import Agent
 
-                    if ctx and Agent._streaming_counter > 0:
-                        ctx.state["_flock_output_queued"] = True
-            finally:
-                # Phase 6+7 Security Fix: Decrement counter using Agent class variable
-                if should_stream and ctx:
-                    from flock.core import Agent
+                        if ctx and Agent._streaming_counter > 0:
+                            ctx.state["_flock_output_queued"] = True
+                finally:
+                    # Phase 6+7 Security Fix: Decrement counter using Agent class variable
+                    if should_stream and ctx:
+                        from flock.core import Agent
 
-                    Agent._streaming_counter = max(0, Agent._streaming_counter - 1)
+                        Agent._streaming_counter = max(0, Agent._streaming_counter - 1)
+        except Exception as exc:
+            self._log_resolution_error(
+                exc=exc,
+                configured_model=model_name,
+                resolved_model=resolved_model,
+                resolved_model_type=resolved_model_type,
+            )
+            raise
 
         # Extract semantic fields from Prediction (delegated to SignatureBuilder)
         normalized_output = self._signature_builder.extract_multi_output_payload(
@@ -431,7 +489,14 @@ class DSPyEngine(EngineComponent):
 
         state = dict(inputs.state)
         state.setdefault("dspy", {})
-        state["dspy"].update({"model": model_name, "raw": normalized_output})
+        state["dspy"].update(
+            {
+                "model": model_name,
+                "resolved_model": resolved_model,
+                "resolved_model_type": resolved_model_type,
+                "raw": normalized_output,
+            }
+        )
 
         logs: list[str] = []
         if normalized_output is not None:
@@ -454,6 +519,76 @@ class DSPyEngine(EngineComponent):
                 "DSPyEngine requires a configured model (set DEFAULT_MODEL, or pass model=...)."
             )
         return model
+
+    def _resolve_model_and_type(
+        self,
+        model_name: str,
+    ) -> tuple[str, Literal["chat", "text", "responses"]]:
+        if self.model_type == "auto":
+            resolved_model_type: Literal["chat", "text", "responses"] = (
+                "responses" if "/responses/" in model_name else "chat"
+            )
+        else:
+            resolved_model_type = self.model_type
+
+        resolved_model = model_name
+        if resolved_model_type == "responses" and model_name.startswith("azure/responses/"):
+            resolved_model = f"azure/{model_name.removeprefix('azure/responses/')}"
+
+        return resolved_model, resolved_model_type
+
+    def _build_lm_kwargs(self) -> dict[str, Any]:
+        kwargs = dict(self.lm_kwargs)
+        existing_reasoning_effort = kwargs.get("reasoning_effort")
+        self._validate_reasoning_effort(existing_reasoning_effort)
+
+        if (
+            self.reasoning_effort is not None
+            and existing_reasoning_effort not in (None, self.reasoning_effort)
+        ):
+            raise ValueError(
+                "Conflicting reasoning_effort values: use either DSPyEngine.reasoning_effort "
+                "or lm_kwargs['reasoning_effort'] with the same value."
+            )
+
+        if self.reasoning_effort is not None:
+            kwargs["reasoning_effort"] = self.reasoning_effort
+
+        return kwargs
+
+    def _validate_reasoning_effort(self, reasoning_effort: Any) -> None:
+        if reasoning_effort is None:
+            return
+        if reasoning_effort not in _VALID_REASONING_EFFORTS:
+            valid = "', '".join(sorted(_VALID_REASONING_EFFORTS))
+            raise ValueError(
+                "Invalid reasoning_effort value "
+                f"{reasoning_effort!r}. Expected one of '{valid}'."
+            )
+
+    def _log_resolution_error(
+        self,
+        *,
+        exc: Exception,
+        configured_model: str,
+        resolved_model: str,
+        resolved_model_type: Literal["chat", "text", "responses"],
+    ) -> None:
+        logger.error(
+            "DSPyEngine execution failed: configured_model=%s resolved_model=%s resolved_model_type=%s error=%s",
+            configured_model,
+            resolved_model,
+            resolved_model_type,
+            exc,
+            exc_info=True,
+        )
+        message = str(exc)
+        if "ResponsesAPIResponse" in message or "reasoning.effort" in message:
+            logger.error(
+                "Responses API validation hint: for Azure Responses use model 'azure/<deployment>' "
+                "(not 'azure/responses/<deployment>'), and ensure reasoning effort is one of "
+                "'minimal'|'low'|'medium'|'high'."
+            )
 
     def _import_dspy(self):  # pragma: no cover - import guarded by optional dependency
         try:

@@ -9,9 +9,11 @@ consume and produce, with the orchestrator handling the rest.
 
 import asyncio
 
+from dspy.adapters import JSONAdapter
 from pydantic import BaseModel, Field
 
 from flock import Flock
+from flock.engines.dspy_engine import DSPyEngine
 from flock.registry import flock_type
 
 
@@ -48,11 +50,16 @@ class Pizza(BaseModel):
 # 🎛️  SET UP: Create your agents and define their behavior
 # ============================================================================
 # "pizza_master" is looking for "MyPizzaIdea" messages on the blackboard
-# and will itself pin "Pizza" messages to the board
+# and will itself pin "Pizza" messages to the board.
+# This example demonstrates explicit Responses API configuration.
 # ============================================================================
-flock = Flock()
+flock = Flock("azure/responses/gpt-5.3-codex")
 
-pizza_master = flock.agent("pizza_master").consumes(MyPizzaIdea).publishes(Pizza)
+pizza_master = (
+    flock.agent("pizza_master")
+    .consumes(MyPizzaIdea)
+    .publishes(Pizza)
+)
 
 
 # ============================================================================

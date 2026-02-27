@@ -1218,6 +1218,71 @@ agent = (
 
 ---
 
+## Responses API Support
+
+`DSPyEngine` supports both LiteLLM Chat Completions and Responses API modes.
+
+### New Engine Options
+
+- `model_type`: `"auto" | "chat" | "text" | "responses"` (default: `"auto"`)
+- `lm_kwargs`: extra keyword arguments passed to `dspy.LM(...)`
+- `reasoning_effort`: `"minimal" | "low" | "medium" | "high"` (optional)
+- `use_developer_role`: maps system messages to developer role in Responses mode (default: `True`)
+
+### Mode Resolution Rules
+
+- `model_type="auto"`:
+  - Uses `"responses"` when model id contains `"/responses/"`
+  - Uses `"chat"` otherwise
+- Explicit `model_type` always overrides auto detection.
+
+### Azure Model ID Normalization (Responses Mode)
+
+When resolved mode is `"responses"`, Flock normalizes Azure model IDs:
+
+- Input: `azure/responses/<deployment>`
+- Resolved model passed to DSPy/LiteLLM: `azure/<deployment>`
+
+This keeps existing configs working while matching LiteLLM's Azure Responses API model-id expectations.
+
+### Example: Explicit Responses Mode
+
+```python
+from dspy.adapters import JSONAdapter
+from flock.engines import DSPyEngine
+
+agent = (
+    flock.agent("pizza_master")
+    .consumes(MyPizzaIdea)
+    .publishes(Pizza)
+    .with_engines(
+        DSPyEngine(
+            model="azure/responses/gpt-5.3-codex",
+            model_type="responses",
+            adapter=JSONAdapter(),
+            reasoning_effort="low",
+        )
+    )
+)
+```
+
+### Example: Auto Mode
+
+```python
+engine = DSPyEngine(
+    model="azure/responses/gpt-5.3-codex",
+    model_type="auto",  # resolves to responses + normalized model id
+)
+```
+
+For observability, `EvalResult.state["dspy"]` includes:
+
+- `model` (configured model id)
+- `resolved_model`
+- `resolved_model_type`
+
+---
+
 ## Next Steps
 
 - **[Agent Development](agents.md)** - Build agents using DSPyEngine
