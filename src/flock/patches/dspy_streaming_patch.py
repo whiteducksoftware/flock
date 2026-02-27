@@ -147,12 +147,46 @@ def _chunk_text(text: str, chunk_size: int = 24) -> list[str]:
 
 def _normalize_completed_response(final_response: Any) -> Any:
     try:
-        from litellm.types.llms.openai import ResponsesAPIResponse
+        from litellm.types.llms.openai import ResponseAPIUsage, ResponsesAPIResponse
+
+        def _coerce_usage(usage: Any) -> Any:
+            if isinstance(usage, ResponseAPIUsage):
+                return usage
+            if not isinstance(usage, dict):
+                return usage
+
+            usage_payload = dict(usage)
+            # Some providers return chat-completions usage for responses-mode calls.
+            if "prompt_tokens" in usage_payload and "input_tokens" not in usage_payload:
+                usage_payload["input_tokens"] = usage_payload.get("prompt_tokens")
+            if (
+                "completion_tokens" in usage_payload
+                and "output_tokens" not in usage_payload
+            ):
+                usage_payload["output_tokens"] = usage_payload.get(
+                    "completion_tokens"
+                )
+            if "total_tokens" not in usage_payload:
+                input_tokens = usage_payload.get("input_tokens")
+                output_tokens = usage_payload.get("output_tokens")
+                if isinstance(input_tokens, int) and isinstance(output_tokens, int):
+                    usage_payload["total_tokens"] = input_tokens + output_tokens
+
+            try:
+                return ResponseAPIUsage.model_validate(usage_payload)
+            except Exception:
+                return usage
 
         if isinstance(final_response, ResponsesAPIResponse):
-            return ResponsesAPIResponse.model_validate(final_response.model_dump())
+            usage = _coerce_usage(getattr(final_response, "usage", None))
+            if usage is getattr(final_response, "usage", None):
+                return final_response
+            return final_response.model_copy(update={"usage": usage})
+
         if isinstance(final_response, dict):
-            return ResponsesAPIResponse.model_validate(final_response)
+            response_payload = dict(final_response)
+            response_payload["usage"] = _coerce_usage(response_payload.get("usage"))
+            return ResponsesAPIResponse.model_validate(response_payload)
     except Exception:
         return final_response
     return final_response
@@ -254,9 +288,7 @@ def patched_litellm_responses_completion(
     model_name = str(prepared_request.get("model", ""))
     provider = model_name.split("/", 1)[0] if "/" in model_name else "unknown"
     logger.debug(
-        "Responses stream bridge active: mode=responses provider=%s model=%s",
-        provider,
-        model_name,
+        f"Responses stream bridge active: mode=responses provider={provider} model={model_name}"
     )
 
     response_stream = litellm.responses(
@@ -269,8 +301,7 @@ def patched_litellm_responses_completion(
 
     if not hasattr(response_stream, "__iter__"):
         logger.debug(
-            "Responses stream bridge received non-streaming sync response for model=%s",
-            model_name,
+            f"Responses stream bridge received non-streaming sync response for model={model_name}"
         )
         return response_stream
 
@@ -287,8 +318,7 @@ def patched_litellm_responses_completion(
             token_events += 1
             if not first_delta_logged:
                 logger.debug(
-                    "Responses stream bridge received first delta for model=%s",
-                    model_name,
+                    f"Responses stream bridge received first delta for model={model_name}"
                 )
                 first_delta_logged = True
         elif event_type == "response.completed":
@@ -318,16 +348,11 @@ def patched_litellm_responses_completion(
                 _send_sync_stream_event(stream, synthetic_event)
                 token_events += 1
             logger.debug(
-                "Responses stream bridge emitted synthetic text deltas: model=%s chunks=%s",
-                model_name,
-                token_events,
+                f"Responses stream bridge emitted synthetic text deltas: model={model_name} chunks={token_events}"
             )
 
     logger.debug(
-        "Responses stream bridge completed: model=%s provider=%s token_events=%s",
-        model_name,
-        provider,
-        token_events,
+        f"Responses stream bridge completed: model={model_name} provider={provider} token_events={token_events}"
     )
     return final_response
 
@@ -358,9 +383,7 @@ async def patched_alitellm_responses_completion(
     model_name = str(prepared_request.get("model", ""))
     provider = model_name.split("/", 1)[0] if "/" in model_name else "unknown"
     logger.debug(
-        "Responses stream bridge active: mode=responses provider=%s model=%s",
-        provider,
-        model_name,
+        f"Responses stream bridge active: mode=responses provider={provider} model={model_name}"
     )
 
     response_stream = await litellm.aresponses(
@@ -373,8 +396,7 @@ async def patched_alitellm_responses_completion(
 
     if not hasattr(response_stream, "__aiter__"):
         logger.debug(
-            "Responses stream bridge received non-streaming async response for model=%s",
-            model_name,
+            f"Responses stream bridge received non-streaming async response for model={model_name}"
         )
         return response_stream
 
@@ -391,8 +413,7 @@ async def patched_alitellm_responses_completion(
             token_events += 1
             if not first_delta_logged:
                 logger.debug(
-                    "Responses stream bridge received first delta for model=%s",
-                    model_name,
+                    f"Responses stream bridge received first delta for model={model_name}"
                 )
                 first_delta_logged = True
         elif event_type == "response.completed":
@@ -422,16 +443,11 @@ async def patched_alitellm_responses_completion(
                 await stream.send(synthetic_event)
                 token_events += 1
             logger.debug(
-                "Responses stream bridge emitted synthetic text deltas: model=%s chunks=%s",
-                model_name,
-                token_events,
+                f"Responses stream bridge emitted synthetic text deltas: model={model_name} chunks={token_events}"
             )
 
     logger.debug(
-        "Responses stream bridge completed: model=%s provider=%s token_events=%s",
-        model_name,
-        provider,
-        token_events,
+        f"Responses stream bridge completed: model={model_name} provider={provider} token_events={token_events}"
     )
     return final_response
 

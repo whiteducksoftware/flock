@@ -199,3 +199,44 @@ async def test_responses_async_bridge_emits_synthetic_deltas_when_missing(
         if isinstance(event, dict) and event.get("type") == "response.output_text.delta"
     ]
     assert delta_events
+
+
+def test_normalize_completed_response_coerces_chat_usage_shape() -> None:
+    from flock.patches.dspy_streaming_patch import _normalize_completed_response
+
+    raw = {
+        "id": "resp_123",
+        "created_at": 0,
+        "error": None,
+        "incomplete_details": None,
+        "instructions": None,
+        "metadata": {},
+        "model": "azure/gpt-5",
+        "object": "response",
+        "output": [],
+        "parallel_tool_calls": True,
+        "temperature": 1.0,
+        "tool_choice": "auto",
+        "tools": [],
+        "top_p": 1.0,
+        "max_output_tokens": None,
+        "previous_response_id": None,
+        "reasoning": None,
+        "status": "completed",
+        "text": None,
+        "truncation": "disabled",
+        "usage": {
+            "prompt_tokens": 11,
+            "completion_tokens": 7,
+            "total_tokens": 18,
+        },
+        "user": None,
+        "store": True,
+    }
+
+    normalized = _normalize_completed_response(raw)
+    usage = getattr(normalized, "usage", None)
+    assert usage is not None
+    assert getattr(usage, "input_tokens", None) == 11
+    assert getattr(usage, "output_tokens", None) == 7
+    assert getattr(usage, "total_tokens", None) == 18
