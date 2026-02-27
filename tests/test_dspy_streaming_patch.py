@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import warnings
 from types import SimpleNamespace
 
 import pytest
+from pydantic import BaseModel
 
-from flock.patches.dspy_streaming_patch import patched_alitellm_responses_completion
+from flock.patches.dspy_streaming_patch import (
+    _ORIGINAL_LITELLM_LOGGING_EXTRACTOR_ATTR,
+    patched_alitellm_responses_completion,
+    patched_extract_response_obj_and_hidden_params,
+)
 
 
 class _FakeAsyncSendStream:
@@ -240,3 +246,41 @@ def test_normalize_completed_response_coerces_chat_usage_shape() -> None:
     assert getattr(usage, "input_tokens", None) == 11
     assert getattr(usage, "output_tokens", None) == 7
     assert getattr(usage, "total_tokens", None) == 18
+
+
+def test_logging_extractor_patch_suppresses_serializer_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from litellm.litellm_core_utils import litellm_logging
+
+    class WarningModel(BaseModel):
+        value: int = 1
+
+        def model_dump(self, *args, **kwargs):
+            warnings.warn(
+                "Pydantic serializer warnings:\n  mocked warning",
+                UserWarning,
+                stacklevel=1,
+            )
+            return {"value": self.value}
+
+    monkeypatch.setattr(
+        litellm_logging,
+        _ORIGINAL_LITELLM_LOGGING_EXTRACTOR_ATTR,
+        lambda init_response_obj, original_exception: ({}, None),
+        raising=False,
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        response_obj, hidden_params = patched_extract_response_obj_and_hidden_params(
+            WarningModel(),
+            None,
+        )
+
+    assert response_obj == {"value": 1}
+    assert hidden_params is None
+    assert all(
+        "Pydantic serializer warnings" not in str(warning.message)
+        for warning in caught
+    )

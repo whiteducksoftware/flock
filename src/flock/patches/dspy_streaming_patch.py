@@ -10,6 +10,7 @@ This module applies two focused patches:
 from __future__ import annotations
 
 import asyncio
+import warnings
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -21,6 +22,9 @@ logger = get_logger(__name__)
 _ORIGINAL_SYNC_SEND_ATTR = "_original_sync_send_to_stream"
 _ORIGINAL_RESPONSES_COMPLETION_ATTR = "_flock_original_litellm_responses_completion"
 _ORIGINAL_ARESPONSES_COMPLETION_ATTR = "_flock_original_alitellm_responses_completion"
+_ORIGINAL_LITELLM_LOGGING_EXTRACTOR_ATTR = (
+    "_flock_original_extract_response_obj_and_hidden_params"
+)
 _BACKGROUND_STREAM_TASKS: set[asyncio.Task[Any]] = set()
 
 
@@ -190,6 +194,39 @@ def _normalize_completed_response(final_response: Any) -> Any:
     except Exception:
         return final_response
     return final_response
+
+
+def patched_extract_response_obj_and_hidden_params(
+    init_response_obj: Any,
+    original_exception: Exception | None,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Patch LiteLLM standard logging extraction to suppress serializer warnings."""
+    from litellm.litellm_core_utils import litellm_logging
+    from pydantic import BaseModel
+
+    original_extractor = getattr(
+        litellm_logging, _ORIGINAL_LITELLM_LOGGING_EXTRACTOR_ATTR, None
+    )
+    if not callable(original_extractor):
+        return {}, None
+
+    if not isinstance(init_response_obj, BaseModel):
+        return original_extractor(init_response_obj, original_exception)
+
+    hidden_params = getattr(init_response_obj, "_hidden_params", None)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Pydantic serializer warnings",
+            category=UserWarning,
+        )
+        response_obj = init_response_obj.model_dump()
+
+    if original_exception is not None and hidden_params is None:
+        _, fallback_hidden_params = original_extractor(None, original_exception)
+        hidden_params = fallback_hidden_params
+
+    return response_obj, hidden_params
 
 
 def _set_predict_id(event: Any, caller_predict_id: int | None) -> Any:
@@ -457,6 +494,7 @@ def apply_patch():
     try:
         import dspy.clients.lm as dspy_lm
         import dspy.streaming.messages as dspy_messages
+        from litellm.litellm_core_utils import litellm_logging
 
         if not hasattr(dspy_messages, _ORIGINAL_SYNC_SEND_ATTR):
             setattr(
@@ -482,8 +520,18 @@ def apply_patch():
         dspy_lm.litellm_responses_completion = patched_litellm_responses_completion
         dspy_lm.alitellm_responses_completion = patched_alitellm_responses_completion
 
+        if not hasattr(litellm_logging, _ORIGINAL_LITELLM_LOGGING_EXTRACTOR_ATTR):
+            setattr(
+                litellm_logging,
+                _ORIGINAL_LITELLM_LOGGING_EXTRACTOR_ATTR,
+                litellm_logging._extract_response_obj_and_hidden_params,
+            )
+        litellm_logging._extract_response_obj_and_hidden_params = (
+            patched_extract_response_obj_and_hidden_params
+        )
+
         logger.info(
-            "Applied DSPy streaming patch: non-blocking status + responses stream bridge"
+            "Applied DSPy streaming patch: non-blocking status + responses stream bridge + LiteLLM logging warning suppression"
         )
         return True
     except Exception as e:
@@ -496,6 +544,7 @@ def restore_original():
     try:
         import dspy.clients.lm as dspy_lm
         import dspy.streaming.messages as dspy_messages
+        from litellm.litellm_core_utils import litellm_logging
 
         original_sync_send = getattr(dspy_messages, _ORIGINAL_SYNC_SEND_ATTR, None)
         if original_sync_send is not None:
@@ -510,6 +559,14 @@ def restore_original():
         )
         if original_async_responses is not None:
             dspy_lm.alitellm_responses_completion = original_async_responses
+
+        original_litellm_extractor = getattr(
+            litellm_logging, _ORIGINAL_LITELLM_LOGGING_EXTRACTOR_ATTR, None
+        )
+        if original_litellm_extractor is not None:
+            litellm_logging._extract_response_obj_and_hidden_params = (
+                original_litellm_extractor
+            )
 
         logger.info("Restored original DSPy streaming functions")
         return True
