@@ -145,3 +145,57 @@ async def test_responses_async_bridge_requires_completed_event(
             num_retries=1,
             cache=None,
         )
+
+
+@pytest.mark.asyncio
+async def test_responses_async_bridge_emits_synthetic_deltas_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import dspy.clients.lm as dspy_lm
+    import litellm
+
+    stream = _FakeAsyncSendStream()
+    completed_response = {
+        "model": "azure/gpt-5",
+        "output": [
+            {
+                "type": "message",
+                "content": [{"type": "output_text", "text": "hello synthetic"}],
+            }
+        ],
+        "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
+    }
+
+    async def _mock_aresponses(**kwargs):
+        return _FakeAsyncResponsesIterator(
+            [SimpleNamespace(type="response.completed", response=completed_response)]
+        )
+
+    monkeypatch.setattr(
+        "flock.patches.dspy_streaming_patch._stream_context", lambda: (stream, 99)
+    )
+    monkeypatch.setattr(
+        dspy_lm,
+        "_convert_chat_request_to_responses_request",
+        lambda request: dict(request),
+    )
+    monkeypatch.setattr(
+        dspy_lm,
+        "_add_dspy_identifier_to_headers",
+        lambda headers: headers or {},
+    )
+    monkeypatch.setattr(litellm, "aresponses", _mock_aresponses)
+
+    result = await patched_alitellm_responses_completion(
+        request={"model": "azure/gpt-5", "messages": []},
+        num_retries=1,
+        cache=None,
+    )
+
+    assert result is not None
+    delta_events = [
+        event
+        for event in stream.sent
+        if isinstance(event, dict) and event.get("type") == "response.output_text.delta"
+    ]
+    assert delta_events

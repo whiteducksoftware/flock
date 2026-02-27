@@ -170,46 +170,80 @@ class DSPyStreamingExecutor:
 
     @staticmethod
     def _extract_responses_delta_text(value: Any) -> str:
+        event_type = DSPyStreamingExecutor._responses_event_type(value)
+        extracted = ""
+
         if isinstance(value, dict):
             delta = value.get("delta")
+            text = value.get("text")
+            part = value.get("part")
         else:
             delta = getattr(value, "delta", None)
-
-        if isinstance(delta, str):
-            return delta
-        if isinstance(delta, dict):
-            text = delta.get("text")
-            if isinstance(text, str):
-                return text
-
-        if isinstance(value, dict):
-            text = value.get("text")
-        else:
             text = getattr(value, "text", None)
-        return str(text) if isinstance(text, str) else ""
+            part = getattr(value, "part", None)
+
+        if event_type == "response.output_text.delta":
+            if isinstance(delta, str):
+                extracted = delta
+            elif isinstance(delta, dict):
+                delta_text = delta.get("text")
+                if isinstance(delta_text, str):
+                    extracted = delta_text
+
+        elif event_type == "response.output_text.done":
+            if isinstance(text, str):
+                extracted = text
+
+        elif event_type in {
+            "response.content_part.added",
+            "response.content_part.done",
+        }:
+            if isinstance(part, dict):
+                if part.get("type") == "output_text":
+                    part_text = part.get("text")
+                    if isinstance(part_text, str):
+                        extracted = part_text
+            elif getattr(part, "type", None) == "output_text":
+                part_text = getattr(part, "text", None)
+                if isinstance(part_text, str):
+                    extracted = part_text
+
+        elif isinstance(text, str):
+            extracted = str(text)
+
+        return extracted
 
     def _normalize_responses_stream_event(
         self,
         value: Any,
     ) -> tuple[str, str | None, str | None, Any | None]:
         event_type = self._responses_event_type(value)
+        result: tuple[str, str | None, str | None, Any | None] = (
+            "unknown",
+            None,
+            None,
+            None,
+        )
         if not event_type:
-            return "unknown", None, None, None
+            return result
 
+        signature_field = getattr(value, "signature_field_name", None)
+        text = self._extract_responses_delta_text(value)
         mapped_type = map_sse_event_type(event_type)
-        if mapped_type == "on_token":
-            text = self._extract_responses_delta_text(value)
-            signature_field = getattr(value, "signature_field_name", None)
-            return "token", text, signature_field, None
-        if mapped_type == "on_final":
-            return "status", "Responses stream completed", None, None
+        if mapped_type == "on_token" or event_type in {
+            "response.output_text.done",
+            "response.content_part.added",
+            "response.content_part.done",
+        }:
+            result = ("token", text, signature_field, None)
+        elif mapped_type == "on_final":
+            result = ("status", "Responses stream completed", None, None)
+        elif event_type == "response.created":
+            result = ("status", "Responses stream started", None, None)
+        elif event_type == "response.in_progress":
+            result = ("status", "Responses stream in progress", None, None)
 
-        if event_type == "response.created":
-            return "status", "Responses stream started", None, None
-        if event_type == "response.in_progress":
-            return "status", "Responses stream in progress", None, None
-
-        return "unknown", None, None, None
+        return result
 
     def _initialize_display_data(
         self,

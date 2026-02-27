@@ -63,6 +63,101 @@ def _extract_completed_response(event: Any) -> Any | None:
     return getattr(event, "response", None)
 
 
+def _extract_event_text(event: Any) -> str:
+    event_type = _extract_event_type(event)
+    extracted = ""
+
+    if isinstance(event, dict):
+        delta = event.get("delta")
+        text = event.get("text")
+        part = event.get("part")
+    else:
+        delta = getattr(event, "delta", None)
+        text = getattr(event, "text", None)
+        part = getattr(event, "part", None)
+
+    if event_type == "response.output_text.delta":
+        if isinstance(delta, str):
+            extracted = delta
+        elif isinstance(delta, dict):
+            delta_text = delta.get("text")
+            if isinstance(delta_text, str):
+                extracted = delta_text
+
+    elif event_type == "response.output_text.done":
+        if isinstance(text, str):
+            extracted = text
+
+    elif event_type in {"response.content_part.added", "response.content_part.done"}:
+        if isinstance(part, dict):
+            if part.get("type") == "output_text":
+                part_text = part.get("text")
+                if isinstance(part_text, str):
+                    extracted = part_text
+        elif getattr(part, "type", None) == "output_text":
+            part_text = getattr(part, "text", None)
+            if isinstance(part_text, str):
+                extracted = part_text
+
+    return extracted
+
+
+def _extract_response_output_text(response: Any) -> str:
+    if response is None:
+        return ""
+
+    if isinstance(response, dict):
+        output = response.get("output")
+    else:
+        output = getattr(response, "output", None)
+
+    if not isinstance(output, list):
+        return ""
+
+    chunks: list[str] = []
+    for item in output:
+        if isinstance(item, dict):
+            item_type = item.get("type")
+            content = item.get("content")
+        else:
+            item_type = getattr(item, "type", None)
+            content = getattr(item, "content", None)
+
+        if item_type != "message" or not isinstance(content, list):
+            continue
+
+        for part in content:
+            if isinstance(part, dict):
+                part_type = part.get("type")
+                text = part.get("text")
+            else:
+                part_type = getattr(part, "type", None)
+                text = getattr(part, "text", None)
+            if part_type == "output_text" and isinstance(text, str):
+                chunks.append(text)
+
+    return "".join(chunks)
+
+
+def _chunk_text(text: str, chunk_size: int = 24) -> list[str]:
+    if not text:
+        return []
+    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+def _normalize_completed_response(final_response: Any) -> Any:
+    try:
+        from litellm.types.llms.openai import ResponsesAPIResponse
+
+        if isinstance(final_response, ResponsesAPIResponse):
+            return ResponsesAPIResponse.model_validate(final_response.model_dump())
+        if isinstance(final_response, dict):
+            return ResponsesAPIResponse.model_validate(final_response)
+    except Exception:
+        return final_response
+    return final_response
+
+
 def _set_predict_id(event: Any, caller_predict_id: int | None) -> Any:
     if caller_predict_id is None:
         return event
@@ -180,15 +275,16 @@ def patched_litellm_responses_completion(
         return response_stream
 
     final_response = None
-    delta_events = 0
+    token_events = 0
     first_delta_logged = False
 
     for event in _iter_sync_events(response_stream):
         event = _set_predict_id(event, caller_predict_id)
         event_type = _extract_event_type(event)
+        event_text = _extract_event_text(event)
 
-        if event_type == "response.output_text.delta":
-            delta_events += 1
+        if event_type in {"response.output_text.delta", "response.output_text.done"} and event_text:
+            token_events += 1
             if not first_delta_logged:
                 logger.debug(
                     "Responses stream bridge received first delta for model=%s",
@@ -209,11 +305,29 @@ def patched_litellm_responses_completion(
             f"Responses stream bridge did not receive a response.completed event for model '{model_name}'."
         )
 
+    final_response = _normalize_completed_response(final_response)
+
+    if token_events == 0:
+        fallback_text = _extract_response_output_text(final_response)
+        if fallback_text:
+            for chunk in _chunk_text(fallback_text):
+                synthetic_event = _set_predict_id(
+                    {"type": "response.output_text.delta", "delta": chunk},
+                    caller_predict_id,
+                )
+                _send_sync_stream_event(stream, synthetic_event)
+                token_events += 1
+            logger.debug(
+                "Responses stream bridge emitted synthetic text deltas: model=%s chunks=%s",
+                model_name,
+                token_events,
+            )
+
     logger.debug(
-        "Responses stream bridge completed: model=%s provider=%s delta_events=%s",
+        "Responses stream bridge completed: model=%s provider=%s token_events=%s",
         model_name,
         provider,
-        delta_events,
+        token_events,
     )
     return final_response
 
@@ -265,15 +379,16 @@ async def patched_alitellm_responses_completion(
         return response_stream
 
     final_response = None
-    delta_events = 0
+    token_events = 0
     first_delta_logged = False
 
     async for event in _iter_async_events(response_stream):
         event = _set_predict_id(event, caller_predict_id)
         event_type = _extract_event_type(event)
+        event_text = _extract_event_text(event)
 
-        if event_type == "response.output_text.delta":
-            delta_events += 1
+        if event_type in {"response.output_text.delta", "response.output_text.done"} and event_text:
+            token_events += 1
             if not first_delta_logged:
                 logger.debug(
                     "Responses stream bridge received first delta for model=%s",
@@ -294,11 +409,29 @@ async def patched_alitellm_responses_completion(
             f"Responses stream bridge did not receive a response.completed event for model '{model_name}'."
         )
 
+    final_response = _normalize_completed_response(final_response)
+
+    if token_events == 0:
+        fallback_text = _extract_response_output_text(final_response)
+        if fallback_text:
+            for chunk in _chunk_text(fallback_text):
+                synthetic_event = _set_predict_id(
+                    {"type": "response.output_text.delta", "delta": chunk},
+                    caller_predict_id,
+                )
+                await stream.send(synthetic_event)
+                token_events += 1
+            logger.debug(
+                "Responses stream bridge emitted synthetic text deltas: model=%s chunks=%s",
+                model_name,
+                token_events,
+            )
+
     logger.debug(
-        "Responses stream bridge completed: model=%s provider=%s delta_events=%s",
+        "Responses stream bridge completed: model=%s provider=%s token_events=%s",
         model_name,
         provider,
-        delta_events,
+        token_events,
     )
     return final_response
 

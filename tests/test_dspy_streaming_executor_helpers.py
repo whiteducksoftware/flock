@@ -84,6 +84,11 @@ def test_normalize_value_variants(monkeypatch: pytest.MonkeyPatch) -> None:
         def __init__(self) -> None:
             self.type = "response.completed"
 
+    class FakeResponsesTextDone:
+        def __init__(self, text: str) -> None:
+            self.type = "response.output_text.done"
+            self.text = text
+
     fake_streaming = SimpleNamespace(
         StreamListener=None,
         StatusMessage=FakeStatus,
@@ -130,6 +135,11 @@ def test_normalize_value_variants(monkeypatch: pytest.MonkeyPatch) -> None:
         None,
         None,
     )
+
+    kind, text, field, final = executor._normalize_value(
+        FakeResponsesTextDone("done-token"), fake_dspy
+    )
+    assert (kind, text, field, final) == ("token", "done-token", None, None)
 
     prediction = FakePrediction()
     kind, text, field, final = executor._normalize_value(prediction, fake_dspy)
