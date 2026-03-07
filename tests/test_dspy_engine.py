@@ -8,6 +8,7 @@ Target: 80%+ coverage for dspy_engine.py
 
 from __future__ import annotations
 
+import json
 from collections import OrderedDict
 from datetime import UTC
 from unittest.mock import AsyncMock, Mock
@@ -76,13 +77,20 @@ class MockLM:
     """Mock DSPy LM class."""
 
     def __init__(
-        self, model, temperature=None, max_tokens=None, cache=None, num_retries=None
+        self,
+        model,
+        temperature=None,
+        max_tokens=None,
+        cache=None,
+        num_retries=None,
+        **kwargs,
     ):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.cache = cache
         self.num_retries = num_retries
+        self.extra_kwargs = kwargs
 
 
 class MockPrediction:
@@ -479,6 +487,198 @@ class TestDSPyEngineBasics:
         engine = DSPyEngine()
         result = engine._choose_program(mock_dspy, signature, tools)
         assert isinstance(result, MockPredict)
+
+
+class TestDSPyEngineLmKwargs:
+    """Test lm_kwargs forwarding, validation, and serialization."""
+
+    def test_mock_lm_captures_extra_kwargs(self):
+        """MockLM should accept provider-specific kwargs and expose them for assertions."""
+        lm = MockLM(
+            "gpt-4",
+            temperature=0.4,
+            max_tokens=1024,
+            cache=True,
+            num_retries=2,
+            api_key="secret",
+            api_base="https://example.test",
+        )
+
+        assert lm.model == "gpt-4"
+        assert lm.extra_kwargs == {
+            "api_key": "secret",
+            "api_base": "https://example.test",
+        }
+
+    def test_build_lm_kwargs_returns_cloned_dict(self):
+        """_build_lm_kwargs should clone provider kwargs before LM construction."""
+        engine = DSPyEngine(lm_kwargs={"api_key": "secret"})
+
+        result = engine._build_lm_kwargs()
+
+        assert result == {"api_key": "secret"}
+        assert result is not engine.lm_kwargs
+
+        result["api_key"] = "changed"
+        assert engine.lm_kwargs["api_key"] == "secret"
+
+    @pytest.mark.parametrize(
+        ("lm_kwargs", "expected_keys"),
+        [
+            ({"model": "override"}, ["model"]),
+            (
+                {
+                    "temperature": 0.2,
+                    "max_completion_tokens": 512,
+                },
+                ["max_completion_tokens", "temperature"],
+            ),
+        ],
+    )
+    def test_build_lm_kwargs_rejects_reserved_keys(self, lm_kwargs, expected_keys):
+        """Reserved LM kwargs should be rejected with all colliding keys listed."""
+        engine = DSPyEngine(lm_kwargs=lm_kwargs)
+
+        with pytest.raises(
+            ValueError, match="lm_kwargs contains reserved key"
+        ) as exc_info:
+            engine._build_lm_kwargs()
+
+        error_message = str(exc_info.value)
+        for key in expected_keys:
+            assert key in error_message
+
+    @pytest.mark.asyncio
+    async def test_evaluate_forwards_lm_kwargs_into_lm_construction(self, mocker):
+        """Provider kwargs should be forwarded when constructing the DSPy LM."""
+        mock_dspy = MockDSPyModule()
+        mock_dspy.context.return_value = Mock()
+
+        created_lms = []
+
+        def create_lm(
+            *,
+            model,
+            temperature=None,
+            max_tokens=None,
+            cache=None,
+            num_retries=None,
+            **kwargs,
+        ):
+            lm = MockLM(
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                cache=cache,
+                num_retries=num_retries,
+                **kwargs,
+            )
+            created_lms.append(lm)
+            return lm
+
+        mock_dspy.LM = Mock(side_effect=create_lm)
+        mocker.patch.object(DSPyEngine, "_import_dspy", return_value=mock_dspy)
+
+        def token_provider():
+            return "token"
+
+        engine = DSPyEngine(
+            model="gpt-4",
+            stream=False,
+            temperature=0.4,
+            max_tokens=512,
+            max_retries=3,
+            enable_cache=True,
+            lm_kwargs={
+                "api_key": "secret",
+                "api_base": "https://example.test",
+                "token_provider": token_provider,
+            },
+        )
+
+        agent = Mock()
+        agent.name = "test_agent"
+        agent.description = "Test agent"
+        agent.outputs = []
+        agent.tools = []
+        agent._get_mcp_tools = AsyncMock(return_value=[])
+
+        ctx = Mock()
+        ctx.artifacts = []
+
+        input_artifact = Artifact(
+            type="TestInput", payload={"prompt": "test prompt"}, produced_by="test"
+        )
+        inputs = EvalInputs(artifacts=[input_artifact], state={})
+        output_group = OutputGroup(outputs=[], group_description=None)
+
+        result = await engine.evaluate(agent, ctx, inputs, output_group)
+
+        assert isinstance(result, EvalResult)
+        mock_dspy.LM.assert_called_once()
+        _, lm_call_kwargs = mock_dspy.LM.call_args
+        assert lm_call_kwargs == {
+            "model": "gpt-4",
+            "temperature": 0.4,
+            "max_tokens": 512,
+            "cache": True,
+            "num_retries": 3,
+            "api_key": "secret",
+            "api_base": "https://example.test",
+            "token_provider": token_provider,
+        }
+        assert len(created_lms) == 1
+        assert created_lms[0].extra_kwargs == {
+            "api_key": "secret",
+            "api_base": "https://example.test",
+            "token_provider": token_provider,
+        }
+
+    def test_model_dump_serializes_lm_kwargs_safely(self):
+        """Serialization should sanitize callable and nested non-serializable lm_kwargs."""
+
+        def token_provider():
+            return "token"
+
+        nested_object = object()
+        list_object = object()
+        engine = DSPyEngine(
+            model="gpt-4",
+            lm_kwargs={
+                "token_provider": token_provider,
+                "settings": {
+                    "callback": token_provider,
+                    7: nested_object,
+                    "items": [list_object, {"inner_callback": token_provider}],
+                },
+                "payload_model": SampleInput(prompt="serialize me"),
+            },
+        )
+
+        dumped = engine.model_dump()
+        json_dump = json.loads(engine.model_dump_json())
+
+        for serialized in (dumped["lm_kwargs"], json_dump["lm_kwargs"]):
+            assert serialized["token_provider"] == "<callable:token_provider>"
+            assert serialized["settings"]["callback"] == "<callable:token_provider>"
+            assert serialized["settings"]["7"] == "<non-serializable:object>"
+            assert serialized["settings"]["items"][0] == "<non-serializable:object>"
+            assert (
+                serialized["settings"]["items"][1]["inner_callback"]
+                == "<callable:token_provider>"
+            )
+            assert serialized["payload_model"] == {
+                "prompt": "serialize me",
+                "context": None,
+            }
+
+        assert engine.lm_kwargs["token_provider"] is token_provider
+        assert engine.lm_kwargs["settings"]["callback"] is token_provider
+        assert engine.lm_kwargs["settings"][7] is nested_object
+        assert engine.lm_kwargs["settings"]["items"][0] is list_object
+        assert (
+            engine.lm_kwargs["settings"]["items"][1]["inner_callback"] is token_provider
+        )
 
 
 class TestDSPyEngineSignature:

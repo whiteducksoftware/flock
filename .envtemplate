@@ -5,12 +5,24 @@
 # Documentation: https://docs.litellm.ai/docs/providers
 # Common models:
 
-# AZURE - "azure/{model_name}"
-
+# AZURE OPENAI - API key authentication for "azure/{model_name}"
+# LiteLLM reads AZURE_API_KEY / AZURE_API_BASE / AZURE_API_VERSION for Azure requests.
 ; AZURE_API_KEY=xxx
-; AZURE_API_BASE=https://xxx-foundry.cognitiveservices.azure.com/
+; AZURE_API_BASE=https://your-resource.openai.azure.com/
 ; AZURE_API_VERSION="2024-12-01-preview"
-; DEFAULT_MODEL="azure/gtp-4.1"
+; DEFAULT_MODEL="azure/gpt-4.1"
+
+# AZURE OPENAI - Entra ID / DefaultAzureCredential authentication
+# Leave AZURE_API_KEY unset, keep DEFAULT_MODEL / AZURE_API_BASE / AZURE_API_VERSION,
+# and create a token provider in code:
+#   from flock.engines.auth.azure import get_default_azure_token_provider
+#   DSPyEngine(lm_kwargs={"azure_ad_token_provider": get_default_azure_token_provider()})
+# Install: uv sync --extra azure
+# Optional for user-assigned managed identity:
+; AZURE_CLIENT_ID=00000000-0000-0000-0000-000000000000
+# Optional for service-principal auth:
+; AZURE_TENANT_ID=11111111-1111-1111-1111-111111111111
+; AZURE_CLIENT_SECRET=your-app-secret
 
 # OPENAI - "openai/{model_name}"
 

@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.400"
+version = "0.5.401"
 description = "Flock: A declrative framework for building and orchestrating AI agents."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -34,6 +34,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+azure = [
+    "azure-identity>=1.15.0"
+]
 semantic = [
     "sentence-transformers==5.1.2"
 ]
