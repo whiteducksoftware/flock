@@ -680,6 +680,25 @@ class TestDSPyEngineLmKwargs:
             engine.lm_kwargs["settings"]["items"][1]["inner_callback"] is token_provider
         )
 
+    def test_model_dump_serializes_sets_and_tuples(self):
+        """Sets/frozensets become lists; tuples are serialized as lists."""
+        engine = DSPyEngine(
+            model="gpt-4",
+            lm_kwargs={
+                "tags": {"a", "b"},
+                "frozen_tags": frozenset(["x", "y"]),
+                "coords": (1, 2, 3),
+            },
+        )
+
+        dumped = engine.model_dump()
+        json_dump = json.loads(engine.model_dump_json())
+
+        for serialized in (dumped["lm_kwargs"], json_dump["lm_kwargs"]):
+            assert sorted(serialized["tags"]) == ["a", "b"]
+            assert sorted(serialized["frozen_tags"]) == ["x", "y"]
+            assert serialized["coords"] == [1, 2, 3]
+
 
 class TestDSPyEngineSignature:
     """Test DSPy signature building and execution."""
