@@ -21,7 +21,7 @@ from flock.registry import flock_type
 USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 # ============================================================================
 
-
+# Hallo!
 # ============================================================================
 # 🎛️  TYPE RESGISTRATION: Define what objects the agents should know about
 # ============================================================================
