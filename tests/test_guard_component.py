@@ -545,8 +545,9 @@ class TestAzurePromptShieldGuard:
                 use_managed_identity=True,
             ),
         )
-        with pytest.raises(ImportError, match="azure-identity"):
-            await guard._get_managed_identity_token()
+        with patch.dict("sys.modules", {"azure.identity.aio": None}):
+            with pytest.raises(ImportError, match="azure-identity"):
+                await guard._get_managed_identity_token()
 
     @pytest.mark.asyncio
     async def test_api_key_header(self, guard):
