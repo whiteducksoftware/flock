@@ -117,9 +117,7 @@ class AzurePromptShieldGuard(GuardComponent):
             "attackDetected", False
         )
         doc_analyses = result.get("documentsAnalysis", [])
-        doc_attacks: list[bool] = [
-            d.get("attackDetected", False) for d in doc_analyses
-        ]
+        doc_attacks: list[bool] = [d.get("attackDetected", False) for d in doc_analyses]
 
         if user_attack or any(doc_attacks):
             return GuardVerdict(
