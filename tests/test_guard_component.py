@@ -383,6 +383,46 @@ class TestGuardLifecycleHooks:
         verdict = await guard.scan_output("some text")
         assert verdict.safe is True
 
+    @pytest.mark.asyncio
+    async def test_extract_prompt_text_tuples(self):
+        """Tuples in artifact payloads are extracted like lists."""
+        inputs = EvalInputs(
+            artifacts=[_make_artifact({"items": ("alpha", "beta"), "count": 5})]
+        )
+        text = GuardComponent._extract_prompt_text(inputs)
+        assert "alpha" in text
+        assert "beta" in text
+
+    @pytest.mark.asyncio
+    async def test_extract_context_documents_tuples(self):
+        """Tuples in context documents are extracted correctly."""
+        inputs = EvalInputs(
+            artifacts=[_make_artifact({"items": ("one", "two")})]
+        )
+        docs = GuardComponent._extract_context_documents(inputs)
+        assert len(docs) == 1
+        assert "one" in docs[0]
+
+    @pytest.mark.asyncio
+    async def test_extract_result_text_with_lists(self):
+        """Lists in result payloads are extracted."""
+        result = EvalResult(
+            artifacts=[_make_artifact({"items": ["x", "y"], "nested": ("a",)})]
+        )
+        text = GuardComponent._extract_result_text(result)
+        assert "x" in text
+        assert "y" in text
+        assert "a" in text
+
+    @pytest.mark.asyncio
+    async def test_output_scan_safe_passes_through(self, mock_agent, mock_ctx, inputs, result):
+        """Output scanning with safe verdict returns result unchanged."""
+        guard = _PassthroughGuard(
+            config=GuardComponentConfig(scan_output=True, on_output_flagged="block"),
+        )
+        returned = await guard.on_post_evaluate(mock_agent, mock_ctx, inputs, result)
+        assert returned is result
+
 
 # ===================================================================
 # AzurePromptShieldConfig tests
@@ -519,6 +559,22 @@ class TestAzurePromptShieldGuard:
         ):
             headers = await guard._build_headers()
             assert headers["Ocp-Apim-Subscription-Key"] == "env-key-456"
+
+    @pytest.mark.asyncio
+    async def test_managed_identity_headers(self):
+        """Managed identity auth sets Bearer token header."""
+        guard = AzurePromptShieldGuard(
+            config=AzurePromptShieldConfig(
+                endpoint="https://test.cognitiveservices.azure.com",
+                use_managed_identity=True,
+            ),
+        )
+        with patch.object(
+            guard, "_get_managed_identity_token", new_callable=AsyncMock, return_value="mock-token-xyz"
+        ):
+            headers = await guard._build_headers()
+            assert headers["Authorization"] == "Bearer mock-token-xyz"
+            assert "Ocp-Apim-Subscription-Key" not in headers
 
     @pytest.mark.asyncio
     async def test_document_truncation(self, guard):
