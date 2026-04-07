@@ -4,7 +4,13 @@
 from flock.components.agent import (
     AgentComponent,
     AgentComponentConfig,
+    AzurePromptShieldConfig,
+    AzurePromptShieldGuard,
     EngineComponent,
+    GuardBlockedError,
+    GuardComponent,
+    GuardComponentConfig,
+    GuardVerdict,
     OutputUtilityComponent,
     OutputUtilityConfig,
     TracedModelMeta,
@@ -58,6 +64,8 @@ __all__ = [
     # Agent components
     "AgentComponent",
     "AgentComponentConfig",
+    "AzurePromptShieldConfig",
+    "AzurePromptShieldGuard",
     # Server components
     "AgentsServerComponent",
     "AgentsServerComponentConfig",
@@ -80,6 +88,10 @@ __all__ = [
     "ControlRoutesComponentConfig",
     "DeduplicationComponent",
     "EngineComponent",
+    "GuardBlockedError",
+    "GuardComponent",
+    "GuardComponentConfig",
+    "GuardVerdict",
     "HealthAndMetricsComponent",
     "HealthComponentConfig",
     "HealthResponse",
