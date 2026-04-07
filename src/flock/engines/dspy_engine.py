@@ -7,7 +7,7 @@ import os
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from flock.components.agent import EngineComponent
 from flock.core.artifacts import Artifact
@@ -23,6 +23,14 @@ logger = get_logger(__name__)
 
 
 _live_patch_applied = False
+_RESERVED_LM_KWARGS = frozenset({
+    "model",
+    "temperature",
+    "max_tokens",
+    "max_completion_tokens",
+    "cache",
+    "num_retries",
+})
 
 
 # T071: Auto-detect test environment for streaming
@@ -126,6 +134,13 @@ class DSPyEngine(EngineComponent):
     max_tokens: int = 32000
     max_tool_calls: int = 100
     max_retries: int = 0
+    lm_kwargs: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Additional provider-specific keyword arguments forwarded to dspy.LM. "
+            "Reserved keys managed by DSPyEngine cannot be set here."
+        ),
+    )
     stream: bool = Field(
         default_factory=lambda: _default_stream_value(),
         description="Enable streaming output from the underlying DSPy program. Auto-disables in pytest.",
@@ -175,6 +190,13 @@ class DSPyEngine(EngineComponent):
             no_output=self.no_output,
         )
         self._artifact_materializer = DSPyArtifactMaterializer()
+
+    @field_serializer("lm_kwargs", when_used="always")
+    def _serialize_lm_kwargs(self, value: dict[str, Any], _info: Any) -> dict[str, Any]:
+        """Return a JSON-safe representation of ``lm_kwargs`` for serialization."""
+        return {
+            key: self._serialize_lm_kwarg_value(item) for key, item in value.items()
+        }
 
     async def evaluate(
         self, agent, ctx, inputs: EvalInputs, output_group
@@ -229,6 +251,7 @@ class DSPyEngine(EngineComponent):
 
         model_name = self._resolve_model_name()
         dspy_mod = self._import_dspy()
+        extra_kwargs = self._build_lm_kwargs()
 
         lm = dspy_mod.LM(
             model=model_name,
@@ -236,6 +259,7 @@ class DSPyEngine(EngineComponent):
             max_tokens=self.max_tokens,
             cache=self.enable_cache,
             num_retries=self.max_retries,
+            **extra_kwargs,
         )
 
         primary_artifact = self._select_primary_artifact(inputs.artifacts)
@@ -455,6 +479,19 @@ class DSPyEngine(EngineComponent):
             )
         return model
 
+    def _build_lm_kwargs(self) -> dict[str, Any]:
+        """Validate and clone provider-specific LM kwargs before construction."""
+        collisions = _RESERVED_LM_KWARGS.intersection(self.lm_kwargs)
+        if collisions:
+            reserved_keys = ", ".join(sorted(collisions))
+            raise ValueError(
+                "lm_kwargs contains reserved key(s): "
+                f"{reserved_keys}. These are managed by DSPyEngine directly; "
+                "remove them from lm_kwargs and use the corresponding "
+                "DSPyEngine field instead."
+            )
+        return dict(self.lm_kwargs)
+
     def _import_dspy(self):  # pragma: no cover - import guarded by optional dependency
         try:
             import dspy
@@ -506,6 +543,32 @@ class DSPyEngine(EngineComponent):
         if description:
             return description
         return "Produce a valid output that matches the 'output' schema."  # Return only JSON.
+
+    def _serialize_lm_kwarg_value(self, value: Any) -> Any:
+        """Convert ``lm_kwargs`` values into JSON-safe data for serialization only."""
+        if callable(value):
+            name = getattr(value, "__name__", type(value).__name__)
+            return f"<callable:{name}>"
+        if isinstance(value, BaseModel):
+            value = value.model_dump()
+        if isinstance(value, Mapping):
+            return {
+                key
+                if isinstance(key, str)
+                else str(key): self._serialize_lm_kwarg_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, (set, frozenset)):
+            value = list(value)
+        if isinstance(value, Sequence) and not isinstance(
+            value, str | bytes | bytearray
+        ):
+            return [self._serialize_lm_kwarg_value(item) for item in value]
+        try:
+            json.dumps(value)
+        except (TypeError, ValueError):
+            return f"<non-serializable:{type(value).__name__}>"
+        return value
 
 
 __all__ = ["DSPyEngine"]

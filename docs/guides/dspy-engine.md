@@ -348,12 +348,22 @@ engine = DSPyEngine(
     ```python
     import dspy
     from flock.engines import DSPyEngine, TwoStepAdapter
+    from flock.engines.auth.azure import get_default_azure_token_provider
+
+    token_provider = get_default_azure_token_provider()
 
     engine = DSPyEngine(
         model="azure/gpt-4.1",
-        adapter=TwoStepAdapter(dspy.LM("azure/gpt-4.1")),
+        adapter=TwoStepAdapter(
+            dspy.LM(
+                "azure/gpt-4.1",
+                azure_ad_token_provider=token_provider,
+            )
+        ),
     )
     ```
+
+    If you're using `AZURE_API_KEY`, the adapter-owned `dspy.LM("azure/gpt-4.1")` can continue to rely on the Azure environment variables alone. For Entra ID, pass `azure_ad_token_provider` directly to that adapter-owned LM as shown above.
 
 #### JSON/BAML Adapters vs Reasoning Models
 
@@ -1215,6 +1225,118 @@ agent = (
 
 - **[Adapter Comparison](../../examples/05-engines/01_adapter_comparison.py)** - Compare ChatAdapter vs JSONAdapter
 - **[JSONAdapter with MCP Tools](../../examples/05-engines/02_json_adapter_mcp_tools.py)** - Native function calling example
+
+---
+
+## Provider-specific LM Configuration
+
+### `lm_kwargs` passthrough
+
+`DSPyEngine` creates a `dspy.LM(...)` internally and forwards any extra entries in `lm_kwargs` straight into that constructor. Use this for provider-specific LM arguments that Flock does not model as top-level engine fields.
+
+```python
+from flock.engines import DSPyEngine
+from flock.engines.auth.azure import get_default_azure_token_provider
+
+engine = DSPyEngine(
+    model="azure/gpt-4.1",
+    lm_kwargs={
+        "azure_ad_token_provider": get_default_azure_token_provider(),
+    },
+)
+```
+
+These keys are reserved and must stay out of `lm_kwargs`: `model`, `temperature`, `max_tokens`, `max_completion_tokens`, `cache`, and `num_retries`. Use the dedicated engine field when one exists.
+
+### Azure OpenAI with API keys
+
+The API-key path remains supported. Set the usual Azure environment variables and either let `DSPyEngine` use `DEFAULT_MODEL`, or pass `model="azure/..."` explicitly:
+
+```bash
+DEFAULT_MODEL=azure/gpt-4.1
+AZURE_API_KEY=your_azure_api_key_here
+AZURE_API_BASE=https://your-resource.openai.azure.com/
+AZURE_API_VERSION=2024-12-01-preview
+```
+
+### Azure OpenAI with Entra ID / DefaultAzureCredential
+
+Install the Azure auth dependency:
+
+```bash
+uv sync --extra azure
+```
+
+Then keep the Azure endpoint settings in your environment and attach the token provider through `lm_kwargs`:
+
+```bash
+DEFAULT_MODEL=azure/gpt-4.1
+AZURE_API_BASE=https://your-resource.openai.azure.com/
+AZURE_API_VERSION=2024-12-01-preview
+```
+
+```python
+from flock.engines import DSPyEngine
+from flock.engines.auth.azure import get_default_azure_token_provider
+
+engine = DSPyEngine(
+    lm_kwargs={
+        "azure_ad_token_provider": get_default_azure_token_provider(),
+    }
+)
+```
+
+In this environment-driven setup, `DSPyEngine` resolves `DEFAULT_MODEL`, while LiteLLM's Azure backend uses `AZURE_API_BASE` and `AZURE_API_VERSION` to reach the correct Azure OpenAI deployment. The helper also accepts custom `scopes=` values and forwards additional `DefaultAzureCredential(...)` keyword arguments when you need to customize the credential chain.
+
+### Azure AI Foundry Agents
+
+The default scope covers Azure OpenAI and Foundry model inference. For the Foundry **Agents** API, pass the dedicated scope constant:
+
+```python
+from flock.engines import DSPyEngine
+from flock.engines.auth.azure import (
+    AZURE_AI_FOUNDRY_SCOPE,
+    get_default_azure_token_provider,
+)
+
+engine = DSPyEngine(
+    lm_kwargs={
+        "azure_ad_token_provider": get_default_azure_token_provider(
+            scopes=AZURE_AI_FOUNDRY_SCOPE,
+        ),
+    }
+)
+```
+
+| Azure Service | Scope Constant | Required Role |
+|---|---|---|
+| Azure OpenAI | `AZURE_COGNITIVE_SERVICES_SCOPE` (default) | Cognitive Services OpenAI User |
+| Azure AI Foundry — Models | `AZURE_COGNITIVE_SERVICES_SCOPE` (default) | Cognitive Services OpenAI User |
+| Azure AI Foundry — Agents | `AZURE_AI_FOUNDRY_SCOPE` | Azure AI Developer |
+
+### Adapter-owned `dspy.LM(...)` instances
+
+`lm_kwargs` only configures the LM that `DSPyEngine` creates. If you construct a `dspy.LM(...)` yourself—for example inside `TwoStepAdapter(...)`—configure that LM separately.
+
+```python
+import dspy
+from flock.engines import DSPyEngine, TwoStepAdapter
+from flock.engines.auth.azure import get_default_azure_token_provider
+
+token_provider = get_default_azure_token_provider()
+
+engine = DSPyEngine(
+    model="azure/gpt-4.1",
+    adapter=TwoStepAdapter(
+        dspy.LM(
+            "azure/gpt-4.1",
+            azure_ad_token_provider=token_provider,
+        )
+    ),
+)
+```
+
+If you're using `AZURE_API_KEY`, that adapter-owned LM can keep relying on the Azure environment variables without the explicit token provider. Use the explicit `azure_ad_token_provider` path only when you want Entra ID / `DefaultAzureCredential` auth.
 
 ---
 

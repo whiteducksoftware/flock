@@ -729,6 +729,25 @@ critic.prevent_self_trigger(True)  # Won't trigger itself infinitely
 agent.best_of(5, score=lambda result: result.metrics["confidence"])
 ```
 
+### Azure OpenAI / Entra ID
+
+Flock keeps the standard `AZURE_API_KEY` path, and `DSPyEngine` can also pass provider-specific kwargs straight through to `dspy.LM(...)` with `lm_kwargs`. For Entra ID, install the Azure auth dependency and set `DEFAULT_MODEL=azure/gpt-4.1`, `AZURE_API_BASE`, and `AZURE_API_VERSION`, then wire the token provider in code:
+
+```bash
+uv sync --extra azure
+```
+
+```python
+from flock.engines import DSPyEngine
+from flock.engines.auth.azure import get_default_azure_token_provider
+
+engine = DSPyEngine(
+    lm_kwargs={"azure_ad_token_provider": get_default_azure_token_provider()}
+)
+```
+
+If you construct `dspy.LM(...)` yourself—such as inside `TwoStepAdapter(...)`—pass the token provider to that LM directly instead of through `lm_kwargs`. For Azure AI Foundry **Agents**, pass `AZURE_AI_FOUNDRY_SCOPE` to the helper. See the [DSPy Engine guide](docs/guides/dspy-engine.md) for the full Azure setup.
+
 ---
 
 ## Production Observability

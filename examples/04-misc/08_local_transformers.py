@@ -4,7 +4,7 @@ Demonstrates running Flock agents with local Hugging Face models.
 No API keys required - runs entirely on your hardware!
 
 Usage:
-    uv run python examples/04-misc/06_local_transformers.py
+    uv run python examples/04-misc/08_local_transformers.py
 
 Requirements:
     - transformers (included in flock[semantic])
