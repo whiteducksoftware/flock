@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from flock.components.agent.azure_prompt_shield import (
     AzurePromptShieldConfig,
@@ -393,7 +393,7 @@ class TestAzurePromptShieldConfig:
     def test_defaults(self):
         cfg = AzurePromptShieldConfig()
         assert cfg.endpoint == ""
-        assert cfg.api_key == ""
+        assert cfg.api_key is None
         assert cfg.use_managed_identity is False
         assert cfg.max_document_length == 10_000
         assert cfg.timeout == 10.0
@@ -415,7 +415,7 @@ class TestAzurePromptShieldGuard:
         return AzurePromptShieldGuard(
             config=AzurePromptShieldConfig(
                 endpoint="https://test.cognitiveservices.azure.com",
-                api_key="test-key-123",
+                api_key=SecretStr("test-key-123"),
             ),
         )
 
@@ -467,7 +467,7 @@ class TestAzurePromptShieldGuard:
     @pytest.mark.asyncio
     async def test_missing_endpoint_raises(self):
         guard = AzurePromptShieldGuard(
-            config=AzurePromptShieldConfig(api_key="key"),
+            config=AzurePromptShieldConfig(api_key=SecretStr("key")),
         )
         with patch.dict("os.environ", {}, clear=True):
             with pytest.raises(ValueError, match="endpoint not configured"):
@@ -487,7 +487,7 @@ class TestAzurePromptShieldGuard:
     @pytest.mark.asyncio
     async def test_env_fallback_endpoint(self):
         guard = AzurePromptShieldGuard(
-            config=AzurePromptShieldConfig(api_key="key"),
+            config=AzurePromptShieldConfig(api_key=SecretStr("key")),
         )
         api_response = {
             "userPromptAnalysis": {"attackDetected": False},
@@ -505,7 +505,7 @@ class TestAzurePromptShieldGuard:
 
                 await guard._call_shield_api("test", [])
                 call_url = mock_post.call_args[0][0]
-                assert "env.cognitiveservices.azure.com" in call_url
+                assert call_url == "https://env.cognitiveservices.azure.com/contentsafety/text:shieldPrompt"
 
     @pytest.mark.asyncio
     async def test_env_fallback_api_key(self):

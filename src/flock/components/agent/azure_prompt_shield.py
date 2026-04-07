@@ -20,7 +20,7 @@ import os
 from typing import Any
 
 import httpx
-from pydantic import Field
+from pydantic import Field, SecretStr
 
 from flock.components.agent.guard import (
     GuardComponent,
@@ -52,8 +52,8 @@ class AzurePromptShieldConfig(GuardComponentConfig):
             "Falls back to AZURE_CONTENT_SAFETY_ENDPOINT env var."
         ),
     )
-    api_key: str = Field(
-        default="",
+    api_key: SecretStr | None = Field(
+        default=None,
         description=(
             "API key for Azure Content Safety. "
             "Falls back to AZURE_CONTENT_SAFETY_KEY env var."
@@ -183,8 +183,10 @@ class AzurePromptShieldGuard(GuardComponent):
             token = await self._get_managed_identity_token()
             headers["Authorization"] = f"Bearer {token}"
         else:
-            api_key = self.config.api_key or os.environ.get(
-                "AZURE_CONTENT_SAFETY_KEY", ""
+            api_key = (
+                self.config.api_key.get_secret_value()
+                if self.config.api_key
+                else os.environ.get("AZURE_CONTENT_SAFETY_KEY", "")
             )
             if not api_key:
                 raise ValueError(
@@ -205,7 +207,7 @@ class AzurePromptShieldGuard(GuardComponent):
         except ImportError as exc:
             raise ImportError(
                 "azure-identity is required for Managed Identity auth. "
-                "Install it with: pip install azure-identity"
+                "Install it with: uv sync --extra azure"
             ) from exc
 
         async with DefaultAzureCredential() as credential:

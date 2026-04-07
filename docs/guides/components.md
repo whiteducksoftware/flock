@@ -665,6 +665,116 @@ class MyComponent(AgentComponent):
 
 ---
 
+## Guard Components
+
+Guard components scan agent inputs and outputs for unsafe content before or after evaluation. They use the same lifecycle hooks (`on_pre_evaluate` / `on_post_evaluate`) as other agent components — no new patterns needed.
+
+### How It Works
+
+Subclass `GuardComponent` and implement `scan_input()`. The base class handles lifecycle wiring, text extraction from artifacts, and verdict routing.
+
+```python
+from flock.components.agent import (
+    GuardComponent,
+    GuardComponentConfig,
+    GuardVerdict,
+)
+
+class MyContentGuard(GuardComponent):
+    name: str = "my_guard"
+
+    async def scan_input(self, text, documents=None, **kwargs):
+        if "forbidden" in text:
+            return GuardVerdict(
+                safe=False,
+                reason="Forbidden content detected",
+                provider=self.name,
+            )
+        return GuardVerdict(safe=True, provider=self.name)
+```
+
+### Configurable Actions
+
+`GuardComponentConfig` controls what happens when a scan flags content:
+
+| Action | Behavior |
+|--------|----------|
+| `block` (default for input) | Raises `GuardBlockedError`, stops execution |
+| `warn` (default for output) | Logs a warning, execution continues |
+| `annotate` | Logs at info level, execution continues |
+
+```python
+agent = (
+    flock.agent("safe_agent")
+    .consumes(UserInput)
+    .publishes(Response)
+    .with_utilities(
+        MyContentGuard(
+            priority=-10,  # run before other components
+            config=GuardComponentConfig(
+                on_input_flagged="block",
+                on_output_flagged="warn",
+                scan_context_artifacts=True,
+            ),
+        ),
+    )
+)
+```
+
+### Azure Prompt Shield
+
+Flock ships `AzurePromptShieldGuard` for detecting jailbreak attacks and indirect prompt injection via the Azure AI Content Safety API.
+
+```bash
+uv sync --extra azure
+```
+
+```python
+from flock.components.agent import (
+    AzurePromptShieldGuard,
+    AzurePromptShieldConfig,
+)
+
+guard = AzurePromptShieldGuard(
+    priority=-10,
+    config=AzurePromptShieldConfig(
+        endpoint="https://my-resource.cognitiveservices.azure.com",
+        api_key=SecretStr("your-key"),  # or use AZURE_CONTENT_SAFETY_KEY env var
+        on_input_flagged="block",
+        scan_context_artifacts=True,
+    ),
+)
+```
+
+For Managed Identity (no API key needed):
+
+```python
+guard = AzurePromptShieldGuard(
+    config=AzurePromptShieldConfig(
+        endpoint="https://my-resource.cognitiveservices.azure.com",
+        use_managed_identity=True,
+    ),
+)
+```
+
+### Composing Multiple Guards
+
+Multiple guards compose as separate components. Priority ordering ensures sequential execution, and a block propagates before subsequent guards run.
+
+```python
+agent = (
+    flock.agent("protected_agent")
+    .consumes(Input)
+    .publishes(Output)
+    .with_utilities(
+        AzurePromptShieldGuard(priority=-20, config=shield_config),
+        MyCustomGuard(priority=-10, config=custom_config),
+    )
+)
+```
+
+---
+
 ## Next Steps
 
 - **[Agent Guide](agents.md)** - Learn more about agent configuration
