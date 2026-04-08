@@ -160,9 +160,11 @@ sequenceDiagram
     SD-->>SSE: push to filtered subscribers
     SD-->>EAS: match external subscriptions
     EAS->>EAS: check concurrency (serial queue)
+    EAS->>EAS: guard.scan_input(prompt, [payload])
+    Note over EAS: Block if unsafe (GuardBlockedError)
     EAS->>Auth: generate scoped token
     EAS->>RT: spawn(artifact, token, session_mode)
-    RT->>EA: asyncio.create_subprocess_exec(claude --bare -p ...)
+    RT->>EA: asyncio.create_subprocess_exec(claude --bare ...)
     Note over EA: Agent works (minutes)
     EA->>API: POST /artifacts (Bearer <token>)
     API->>Auth: resolve token → AgentIdentity
@@ -488,10 +490,11 @@ ChangelogEvent ──► StreamDispatcher ──► WebSocket /ws/changelog (fil
 - `SpawnResult`: `pid` (int), `session_id` (str), `process` (asyncio.subprocess.Process).
 - `AgentOutcome`: `success` (bool), `returncode` (int), `stdout` (str), `stderr` (str), `session_id` (str).
 - `ExternalAgentScheduler` (OrchestratorComponent): Subscribes to changelog events via `StreamDispatcher`. Matches events against external agent subscriptions (type match + visibility + predicate). Manages a serial queue per agent name (default concurrency policy). Spawns via registered `ExternalAgentRuntime` adapter. Tracks active processes for shutdown cleanup.
+- **Guard integration:** External agents bypass `EngineComponent.evaluate()`, so `GuardComponent` lifecycle hooks (`on_pre_evaluate`/`on_post_evaluate`) do NOT fire automatically. The `ExternalAgentScheduler` must explicitly run guard scanning at two points: (1) **pre-spawn:** call `guard.scan_input(prompt_text, [artifact_payload_docs])` on the composed prompt before spawning — if the guard returns `safe=False` with `on_input_flagged="block"`, the spawn is aborted and a `GuardBlockedError` is emitted as a changelog event + dashboard event; (2) **post-return:** optionally call `guard.scan_output(result_text)` on the agent's result before publishing it to the blackboard — catches cases where the external agent was manipulated into producing unsafe output. Guards are attached per external agent via the builder API (e.g., `.guard(AzurePromptShieldGuard(config=...))`). The `GuardVerdict` details (provider, reason, attack type) are included in the error event for audit.
 - Session state persistence: `ExternalSessionStore` — maps (agent_name, subscription_type) → session_id. Stored alongside blackboard (SQLite table or in-memory dict).
 - Cascade depth: Tracked server-side per `correlation_id` in `ArtifactManager.persist_and_schedule()` (see Key Technical Decisions). NOT stored as client-provided artifact metadata. Fail-safe at configurable depth (default 10).
 - Subscription extension: Add `session_mode: Literal["new", "resume"] | None` to `Subscription`. `None` = internal agent. Append deferred.
-- Agent extension: Add `agent_kind: Literal["internal", "external"]` to agent model. External agents skip engine evaluation. The `AgentBuilder` fluent API needs extension for external agent registration — directional shape: `flock.agent("reviewer").kind("external").adapter("claude_code").consumes(PRDiff).publishes(ReviewResult).session_mode("resume")`. This surfaces design decisions: does adapter config go on the agent or is it global? Does `.session_mode()` go on the builder or the subscription? Resolve during implementation, but the DX must feel as natural as internal agent registration.
+- Agent extension: Add `agent_kind: Literal["internal", "external"]` to agent model. External agents skip engine evaluation. The `AgentBuilder` fluent API needs extension for external agent registration — directional shape: `flock.agent("reviewer").kind("external").adapter("claude_code").consumes(PRDiff).publishes(ReviewResult).session_mode("resume").guard(AzurePromptShieldGuard(config=AzurePromptShieldConfig(on_input_flagged="block")))`. This surfaces design decisions: does adapter config go on the agent or is it global? Does `.session_mode()` go on the builder or the subscription? Resolve during implementation, but the DX must feel as natural as internal agent registration.
 
 **Technical design:**
 
@@ -516,8 +519,16 @@ ExternalAgentScheduler lifecycle:
         session_id = session_store.get(agent, subscription)
         if not session_id: session_mode = "new"  # fallback
       
+      # guard scan before spawn
+      prompt = compose_prompt(event, agent)
+      if agent.guards:
+        for guard in agent.guards:
+          verdict = await guard.scan_input(prompt, [event.payload_summary])
+          if not verdict.safe and guard.config.on_input_flagged == "block":
+            emit guard_blocked event; continue  # skip this spawn
+      
       token = token_store.create(agent.identity, agent.allowed_types, ttl=...)
-      config = SpawnConfig(prompt=..., env={FLOCK_API_TOKEN: token, FLOCK_API_URL: ...}, session_id=..., session_mode=...)
+      config = SpawnConfig(prompt=prompt, env={FLOCK_API_TOKEN: token, FLOCK_API_URL: ...}, session_id=..., session_mode=...)
       result = await adapter.spawn(config)
       
       # fire-and-forget monitor
@@ -554,13 +565,17 @@ ExternalAgentScheduler lifecycle:
 - Edge case: Agent timeout → terminate called, error event emitted, dashboard updated
 - Error path: Adapter.spawn raises exception → error event emitted, queue continues
 - Error path: Agent process crashes (non-zero exit) → error artifact published
-- Integration: Changelog event → scheduler → spawn → REST publish → new changelog event → downstream
+- Error path: Guard blocks spawn (scan_input returns safe=False, on_input_flagged="block") → spawn aborted, GuardBlockedError event emitted with verdict details, queue continues to next event
+- Happy path: Guard passes (scan_input returns safe=True) → spawn proceeds normally
+- Happy path: Guard in "warn" mode (on_input_flagged="warn") → spawn proceeds, warning logged
+- Integration: Changelog event → scheduler → guard scan → spawn → REST publish → new changelog event → downstream
 
 **Verification:**
 - External agents are triggered by changelog events matching their subscriptions
 - Serial concurrency prevents concurrent spawns of the same agent
 - Timeout and crash handling produce error events visible in changelog and dashboard
 - Session IDs are persisted and reused for `resume` mode
+- Guard scanning runs before every external agent spawn; blocked spawns produce audit-worthy events
 
 ---
 
@@ -693,7 +708,8 @@ ExternalAgentScheduler lifecycle:
 - **StreamDispatcher → ExternalAgentScheduler coupling:** The scheduler must use a dedicated unbounded (or high-bounded) queue from `StreamDispatcher`, NOT the same bounded queue as SSE clients. If the scheduler shares the SSE backpressure policy (drop oldest on QueueFull), a burst of events could silently drop an agent trigger with no recovery path. SSE clients can catch up via cursor API; the scheduler cannot. The scheduler should also poll the changelog store periodically as a consistency check.
 - **API surface parity:** The changelog stream (SSE + WebSocket + cursor) is a new API surface. Token management is a new API surface. The existing artifact publish API (`POST /api/v1/artifacts`) gains auth middleware but its contract doesn't change. Existing route handlers (`ArtifactsComponent`) must be modified to read `request.state.agent_identity` for type scope enforcement. External agents use the same publish endpoint as internal REST clients.
 - **Integration coverage:** The end-to-end flow (publish artifact → changelog event → external agent woken → REST publish back → cascade) crosses 6 layers: store → event emitter → stream dispatcher → scheduler → adapter → REST API. Unit tests cover individual layers; integration tests must verify the full chain.
-- **Unchanged invariants:** Internal agent scheduling via `AgentScheduler.schedule_artifact()` is unchanged. Dashboard WebSocket at `/plugin/ws` is unchanged. Existing visibility policies are unchanged — external agents use them identically. Fan-out, BatchSpec, JoinSpec, Until DSL, semantic subscriptions are unchanged at the protocol level.
+- **Guard component reuse:** The `GuardComponent` framework (`on_pre_evaluate`/`on_post_evaluate`) was designed for internal agents running through `EngineComponent.evaluate()`. External agents bypass this lifecycle, so the `ExternalAgentScheduler` must call `guard.scan_input()` and optionally `guard.scan_output()` explicitly. The `GuardVerdict` model, `GuardBlockedError` exception, and `GuardComponentConfig` (block/warn/annotate modes) are reused directly — no new guard infrastructure is needed. `AzurePromptShieldGuard` works out of the box for detecting prompt injection in artifact payloads before spawn.
+- **Unchanged invariants:** Internal agent scheduling via `AgentScheduler.schedule_artifact()` is unchanged. Dashboard WebSocket at `/plugin/ws` is unchanged. Existing visibility policies are unchanged — external agents use them identically. Fan-out, BatchSpec, JoinSpec, Until DSL, semantic subscriptions are unchanged at the protocol level. The `GuardComponent` framework for internal agents is unchanged — external agent guard scanning uses the same `scan_input()`/`scan_output()` methods but is called from a different lifecycle point.
 
 ## Risks & Dependencies
 
@@ -707,7 +723,7 @@ ExternalAgentScheduler lifecycle:
 | **Retention bulk DELETE causes WAL checkpoint stalls** | Chunk deletes in batches of 500 rows with `asyncio.sleep(0)` between batches. Never VACUUM during normal operation. Schedule heavy pruning during low-traffic windows if possible. |
 | WebSocket deadlock pattern recurs in StreamDispatcher | Fire-and-forget with `create_task()` + task tracking set. Never await broadcast in the publish path. Documented lesson enforced in code review. |
 | External agent CLIs change flags/output format | Each adapter has a version-aware config. Output parsing has fallback paths (raw stdout). Adapters are isolated — one breaking doesn't affect others. |
-| **Malicious artifact payload → arbitrary code execution** | All adapters spawn agents with max permissions. Production MUST use process isolation (container/VM/dedicated user). Prefer `--allowedTools` whitelist over blanket skip where supported. |
+| **Malicious artifact payload → arbitrary code execution** | Defense in depth: (1) `GuardComponent.scan_input()` runs pre-spawn to detect prompt injection/jailbreak via Azure Prompt Shield or custom guards — blocks spawn if flagged, (2) production MUST use process isolation (container/VM/dedicated user), (3) prefer `--allowedTools` whitelist over blanket permission skip, (4) validate `working_dir` against allowlist. |
 | Token auth adds latency to every API request | SHA-256 is ~1μs per hash. Prefix-indexed lookup narrows to 1-2 candidates. Cache resolved tokens in-memory with short TTL (60s), invalidate immediately on revocation. |
 | Append session mode deferred entirely | No concrete IPC mechanism for any adapter. Removed from v1 protocol. Will revisit when a use case and mechanism emerge. |
 | External agent cascade loops burn budget | Server-side cascade depth counter per correlation_id with configurable fail-safe (default 10). Tracked in `ArtifactManager`, not client-provided metadata. |
