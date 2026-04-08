@@ -8,7 +8,8 @@ This folder contains:
 - **Persistent storage** - SQLite blackboard for audit trails
 - **Edge case handling** - Complex scenarios for testing dashboard
 - **Scale testing** - 100+ agent orchestration
-- **Alternative LLMs** - Using local models with LM Studio
+- **Alternative LLMs** - Using local models with LM Studio or Transformers
+- **Cloud auth** - Azure OpenAI with DefaultAzureCredential / Managed Identity
 
 ## 📚 Examples
 
@@ -250,6 +251,64 @@ configure_logging(
 
 ---
 
+### 08 - Local Transformers 🤗
+**Feature:** Running Flock directly on local Hugging Face Transformers
+
+Use a local Transformers backend when you want:
+- No hosted API dependency
+- Local execution on your own hardware
+- Support for quantized Hugging Face models
+- A reproducible offline workflow
+
+```bash
+uv run 04-misc/08_local_transformers.py
+```
+
+**Key Features:**
+- **Transformers provider** - Run via `transformers/...` model names
+- **Local inference** - Keep prompts and outputs on your own hardware
+- **Quantized models** - Demonstrates a practical 4-bit model choice
+- **No API keys** - Ideal for fully local testing
+
+---
+
+### 09 - Azure DefaultAzureCredential ☁️
+**Feature:** Azure OpenAI auth with Entra ID / Managed Identity
+
+Use Azure OpenAI without hard-coded secrets by combining
+`DefaultAzureCredential` with Flock's Azure token-provider helper. The same
+example works for local development (`az login`) and Azure-hosted workloads
+(Managed Identity) while keeping endpoint settings in environment variables.
+
+```bash
+# Install Azure auth support first:
+uv sync --extra azure
+
+export DEFAULT_MODEL="azure/<deployment-name>"
+export AZURE_API_BASE="https://<resource>.openai.azure.com/"
+export AZURE_API_VERSION="2024-12-01-preview"  # optional
+export AZURE_CLIENT_ID="<user-assigned-managed-identity-client-id>"  # optional
+
+uv run 04-misc/09_azure_default_credential.py
+```
+
+**Key Features:**
+- **DefaultAzureCredential** - Uses Azure CLI, Managed Identity, or service-principal credentials
+- **Managed Identity ready** - Works with system- or user-assigned identities
+- **Local development friendly** - Uses the normal `DefaultAzureCredential` fallback chain
+- **DSPyEngine integration** - Passes `azure_ad_token_provider` through `lm_kwargs`
+- **No hard-coded secrets** - Keeps Azure API keys out of source code
+
+**Prerequisite:** Assign the calling identity an Azure OpenAI role such as
+`Cognitive Services OpenAI User` on the target resource.
+
+**Use Cases:**
+- Local development with `az login`
+- App Service / Container Apps / Functions with Managed Identity
+- Enterprise deployments that forbid stored API keys
+
+---
+
 ## 🎓 When to Use These Examples
 
 | Example | Use Case |
@@ -261,6 +320,8 @@ configure_logging(
 | **05 - LM Studio** | Local LLMs, privacy, cost optimization |
 | **06 - PRD Generator** | Product planning, requirements documentation |
 | **07 - Logging Configuration** | Debugging, production logging setup |
+| **08 - Local Transformers** | Offline/local inference with Hugging Face models |
+| **09 - Azure DefaultAzureCredential** | Azure OpenAI with Entra ID / Managed Identity auth |
 
 ## 🔑 Key Features Demonstrated
 
