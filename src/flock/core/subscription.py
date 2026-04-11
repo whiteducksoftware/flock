@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from pydantic import BaseModel
 
@@ -225,6 +225,11 @@ class Subscription:
         self.mode = mode
         self.priority = priority
         self.activation = activation
+        # External agent session management.
+        # None → internal agent (no session tracking).
+        # "new"  → always start a fresh session.
+        # "resume" → attempt to resume a prior session, fall back to "new".
+        self.session_mode: Literal["new", "resume"] | None = None
 
     def _parse_semantic_match_parameter(
         self, semantic_match: str | list[str | dict[str, Any]] | dict[str, Any] | None

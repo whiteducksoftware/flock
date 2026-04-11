@@ -7,7 +7,7 @@ import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
 
@@ -148,6 +148,8 @@ class Agent(metaclass=AutoTracedMeta):
         self.schedule_spec: ScheduleSpec | None = None
         # Output suppression (inherited from orchestrator)
         self.no_output: bool = no_output
+        # Agent kind: "internal" (default Flock agent) or "external" (spawned process)
+        self.agent_kind: Literal["internal", "external"] = "internal"
 
         # Phase 4: Initialize extracted modules
         self._output_processor = OutputProcessor(name)
