@@ -516,14 +516,18 @@ class TestSSEEndpoint:
         app, component, orch = app_and_component
         await component.on_startup_async(orch)
 
+        import flock.components.server.changelog.changelog_component as mod
+
+        original = mod._SSE_KEEPALIVE_SECONDS
+        mod._SSE_KEEPALIVE_SECONDS = 0.1  # Short timeout so generator reaches disconnect check quickly
+
         try:
             # Start with connected, then simulate disconnect
-            disconnect_after = 0
             call_count = [0]
 
             async def is_disconnected():
                 call_count[0] += 1
-                return call_count[0] > 1  # Disconnect after first check
+                return call_count[0] > 2  # Disconnect after a couple of checks
 
             request = MagicMock()
             request.is_disconnected = is_disconnected
@@ -539,6 +543,7 @@ class TestSSEEndpoint:
             count = await component.dispatcher.subscriber_count
             assert count == 0
         finally:
+            mod._SSE_KEEPALIVE_SECONDS = original
             await component.on_shutdown_async(orch)
 
     @pytest.mark.asyncio
