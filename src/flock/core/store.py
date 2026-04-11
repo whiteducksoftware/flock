@@ -23,6 +23,12 @@ import aiosqlite
 from opentelemetry import trace
 
 from flock.core.artifacts import Artifact
+from flock.models.changelog import (
+    ChangelogEvent,
+    ChangelogEventType,
+    ChangelogFilter,
+    ChangelogQueryResult,
+)
 from flock.registry import type_registry
 from flock.storage.artifact_aggregator import ArtifactAggregator
 from flock.utils.type_resolution import TypeResolutionHelper
@@ -80,7 +86,11 @@ class AgentSnapshotRecord:
 
 
 class BlackboardStore:
-    async def publish(self, artifact: Artifact) -> None:
+    async def publish(
+        self,
+        artifact: Artifact,
+        changelog_event: ChangelogEvent | None = None,
+    ) -> None:
         raise NotImplementedError
 
     async def get(self, artifact_id: UUID) -> Artifact | None:
@@ -181,6 +191,41 @@ class BlackboardStore:
         """Remove all persisted agent metadata."""
         raise NotImplementedError
 
+    # -- Changelog operations --------------------------------------------------
+
+    async def append_changelog_event(self, event: ChangelogEvent) -> int:
+        """Persist a changelog event and return its assigned sequence number."""
+        raise NotImplementedError
+
+    async def query_changelog(
+        self,
+        *,
+        after_seq: int = 0,
+        limit: int = 100,
+        filters: ChangelogFilter | None = None,
+    ) -> ChangelogQueryResult:
+        """Return changelog events after *after_seq*, respecting filters."""
+        raise NotImplementedError
+
+    async def get_changelog_bounds(self) -> tuple[int, int]:
+        """Return ``(oldest_available_seq, latest_seq)``.
+
+        Returns ``(0, 0)`` when the changelog is empty.
+        """
+        raise NotImplementedError
+
+    async def prune_changelog(
+        self,
+        *,
+        before_seq: int | None = None,
+        before_time: datetime | None = None,
+    ) -> int:
+        """Delete changelog events older than the given boundary.
+
+        Returns the number of events deleted.
+        """
+        raise NotImplementedError
+
 
 class InMemoryBlackboardStore(BlackboardStore):
     """Simple in-memory implementation suitable for local dev and tests."""
@@ -194,16 +239,28 @@ class InMemoryBlackboardStore(BlackboardStore):
         )
         self._agent_snapshots: dict[str, AgentSnapshotRecord] = {}
 
+        # Changelog state
+        self._changelog: list[ChangelogEvent] = []
+        self._changelog_seq: int = 0
+
         # Initialize helper subsystems
         from flock.storage.in_memory.history_aggregator import HistoryAggregator
 
         self._aggregator = ArtifactAggregator()
         self._history_aggregator = HistoryAggregator()
 
-    async def publish(self, artifact: Artifact) -> None:
+    async def publish(
+        self,
+        artifact: Artifact,
+        changelog_event: ChangelogEvent | None = None,
+    ) -> None:
         async with self._lock:
             self._by_id[artifact.id] = artifact
             self._by_type[artifact.type].append(artifact)
+            if changelog_event is not None:
+                self._changelog_seq += 1
+                changelog_event.seq = self._changelog_seq
+                self._changelog.append(changelog_event)
 
     async def get(self, artifact_id: UUID) -> Artifact | None:
         async with self._lock:
@@ -338,6 +395,67 @@ class InMemoryBlackboardStore(BlackboardStore):
         async with self._lock:
             self._agent_snapshots.clear()
 
+    # -- Changelog (in-memory) -------------------------------------------------
+
+    async def append_changelog_event(self, event: ChangelogEvent) -> int:
+        async with self._lock:
+            self._changelog_seq += 1
+            event.seq = self._changelog_seq
+            self._changelog.append(event)
+            return self._changelog_seq
+
+    async def query_changelog(
+        self,
+        *,
+        after_seq: int = 0,
+        limit: int = 100,
+        filters: ChangelogFilter | None = None,
+    ) -> ChangelogQueryResult:
+        async with self._lock:
+            if not self._changelog:
+                return ChangelogQueryResult()
+
+            oldest = self._changelog[0].seq if self._changelog else 0
+            latest = self._changelog[-1].seq if self._changelog else 0
+
+            matched: list[ChangelogEvent] = []
+            for ev in self._changelog:
+                if ev.seq <= after_seq:
+                    continue
+                if filters and not filters.matches(ev):
+                    continue
+                matched.append(ev)
+                if len(matched) >= limit:
+                    break
+
+            return ChangelogQueryResult(
+                events=matched,
+                oldest_available_seq=oldest,
+                latest_seq=latest,
+            )
+
+    async def get_changelog_bounds(self) -> tuple[int, int]:
+        async with self._lock:
+            if not self._changelog:
+                return (0, 0)
+            return (self._changelog[0].seq, self._changelog[-1].seq)
+
+    async def prune_changelog(
+        self,
+        *,
+        before_seq: int | None = None,
+        before_time: datetime | None = None,
+    ) -> int:
+        async with self._lock:
+            original = len(self._changelog)
+            self._changelog = [
+                ev
+                for ev in self._changelog
+                if (before_seq is None or ev.seq >= before_seq)
+                and (before_time is None or ev.timestamp >= before_time)
+            ]
+            return original - len(self._changelog)
+
 
 __all__ = [
     "AgentSnapshotRecord",
@@ -373,7 +491,11 @@ class SQLiteBlackboardStore(BlackboardStore):
         self._query_params_builder = QueryParamsBuilder()
         self._agent_history_queries = AgentHistoryQueries()
 
-    async def publish(self, artifact: Artifact) -> None:  # type: ignore[override]
+    async def publish(  # type: ignore[override]
+        self,
+        artifact: Artifact,
+        changelog_event: ChangelogEvent | None = None,
+    ) -> None:
         with tracer.start_as_current_span("sqlite_store.publish"):
             conn = await self._get_connection()
 
@@ -403,48 +525,82 @@ class SQLiteBlackboardStore(BlackboardStore):
             }
 
             async with self._write_lock:
-                await conn.execute(
-                    """
-                    INSERT INTO artifacts (
-                        artifact_id,
-                        type,
-                        canonical_type,
-                        produced_by,
-                        payload,
-                        version,
-                        visibility,
-                        tags,
-                        correlation_id,
-                        partition_key,
-                        created_at
-                    ) VALUES (
-                        :artifact_id,
-                        :type,
-                        :canonical_type,
-                        :produced_by,
-                        :payload,
-                        :version,
-                        :visibility,
-                        :tags,
-                        :correlation_id,
-                        :partition_key,
-                        :created_at
+                # Explicit transaction for atomicity (autocommit mode)
+                await conn.execute("BEGIN")
+                try:
+                    await conn.execute(
+                        """
+                        INSERT INTO artifacts (
+                            artifact_id,
+                            type,
+                            canonical_type,
+                            produced_by,
+                            payload,
+                            version,
+                            visibility,
+                            tags,
+                            correlation_id,
+                            partition_key,
+                            created_at
+                        ) VALUES (
+                            :artifact_id,
+                            :type,
+                            :canonical_type,
+                            :produced_by,
+                            :payload,
+                            :version,
+                            :visibility,
+                            :tags,
+                            :correlation_id,
+                            :partition_key,
+                            :created_at
+                        )
+                        ON CONFLICT(artifact_id) DO UPDATE SET
+                            type=excluded.type,
+                            canonical_type=excluded.canonical_type,
+                            produced_by=excluded.produced_by,
+                            payload=excluded.payload,
+                            version=excluded.version,
+                            visibility=excluded.visibility,
+                            tags=excluded.tags,
+                            correlation_id=excluded.correlation_id,
+                            partition_key=excluded.partition_key,
+                            created_at=excluded.created_at
+                        """,
+                        record,
                     )
-                    ON CONFLICT(artifact_id) DO UPDATE SET
-                        type=excluded.type,
-                        canonical_type=excluded.canonical_type,
-                        produced_by=excluded.produced_by,
-                        payload=excluded.payload,
-                        version=excluded.version,
-                        visibility=excluded.visibility,
-                        tags=excluded.tags,
-                        correlation_id=excluded.correlation_id,
-                        partition_key=excluded.partition_key,
-                        created_at=excluded.created_at
-                    """,
-                    record,
-                )
-                await conn.commit()
+
+                    if changelog_event is not None:
+                        cursor = await conn.execute(
+                            """
+                            INSERT INTO changelog_events (
+                                event_type, artifact_id, artifact_type,
+                                produced_by, correlation_id, visibility,
+                                timestamp, payload_summary
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                changelog_event.event_type.value,
+                                str(changelog_event.artifact_id)
+                                if changelog_event.artifact_id
+                                else None,
+                                changelog_event.artifact_type,
+                                changelog_event.produced_by,
+                                changelog_event.correlation_id,
+                                json.dumps(changelog_event.visibility)
+                                if changelog_event.visibility
+                                else None,
+                                changelog_event.timestamp.isoformat(),
+                                json.dumps(changelog_event.payload_summary),
+                            ),
+                        )
+                        changelog_event.seq = cursor.lastrowid or 0
+                        await cursor.close()
+
+                    await conn.execute("COMMIT")
+                except Exception:
+                    await conn.execute("ROLLBACK")
+                    raise
 
     async def record_consumptions(  # type: ignore[override]
         self,
@@ -816,6 +972,146 @@ class SQLiteBlackboardStore(BlackboardStore):
             async with self._write_lock:
                 await conn.execute("DELETE FROM agent_snapshots")
                 await conn.commit()
+
+    # -- Changelog (SQLite) ---------------------------------------------------
+
+    async def append_changelog_event(self, event: ChangelogEvent) -> int:
+        with tracer.start_as_current_span("sqlite_store.append_changelog_event"):
+            conn = await self._get_connection()
+            async with self._write_lock:
+                cursor = await conn.execute(
+                    """
+                    INSERT INTO changelog_events (
+                        event_type, artifact_id, artifact_type,
+                        produced_by, correlation_id, visibility,
+                        timestamp, payload_summary
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.event_type.value,
+                        str(event.artifact_id) if event.artifact_id else None,
+                        event.artifact_type,
+                        event.produced_by,
+                        event.correlation_id,
+                        json.dumps(event.visibility) if event.visibility else None,
+                        event.timestamp.isoformat(),
+                        json.dumps(event.payload_summary),
+                    ),
+                )
+                seq = cursor.lastrowid or 0
+                event.seq = seq
+                await cursor.close()
+            return seq
+
+    async def query_changelog(
+        self,
+        *,
+        after_seq: int = 0,
+        limit: int = 100,
+        filters: ChangelogFilter | None = None,
+    ) -> ChangelogQueryResult:
+        with tracer.start_as_current_span("sqlite_store.query_changelog"):
+            conn = await self._get_connection()
+
+            # Get bounds
+            oldest, latest = await self.get_changelog_bounds()
+
+            # Build filtered query
+            conditions = ["seq > ?"]
+            params: list[Any] = [after_seq]
+
+            if filters:
+                if filters.artifact_types:
+                    placeholders = ",".join("?" for _ in filters.artifact_types)
+                    conditions.append(f"artifact_type IN ({placeholders})")
+                    params.extend(filters.artifact_types)
+                if filters.produced_by:
+                    placeholders = ",".join("?" for _ in filters.produced_by)
+                    conditions.append(f"produced_by IN ({placeholders})")
+                    params.extend(filters.produced_by)
+                if filters.correlation_id:
+                    conditions.append("correlation_id = ?")
+                    params.append(filters.correlation_id)
+                if filters.event_types:
+                    placeholders = ",".join("?" for _ in filters.event_types)
+                    conditions.append(f"event_type IN ({placeholders})")
+                    params.extend(et.value for et in filters.event_types)
+
+            where = " AND ".join(conditions)
+            params.append(limit)
+
+            cursor = await conn.execute(
+                f"SELECT * FROM changelog_events WHERE {where} ORDER BY seq ASC LIMIT ?",  # nosec B608
+                tuple(params),
+            )
+            rows = await cursor.fetchall()
+            await cursor.close()
+
+            events = [self._row_to_changelog_event(row) for row in rows]
+            return ChangelogQueryResult(
+                events=events,
+                oldest_available_seq=oldest,
+                latest_seq=latest,
+            )
+
+    async def get_changelog_bounds(self) -> tuple[int, int]:
+        with tracer.start_as_current_span("sqlite_store.get_changelog_bounds"):
+            conn = await self._get_connection()
+
+            cursor = await conn.execute(
+                "SELECT MIN(seq) AS oldest, MAX(seq) AS latest FROM changelog_events"
+            )
+            row = await cursor.fetchone()
+            await cursor.close()
+
+            if row is None or row["oldest"] is None:
+                return (0, 0)
+            return (row["oldest"], row["latest"])
+
+    async def prune_changelog(
+        self,
+        *,
+        before_seq: int | None = None,
+        before_time: datetime | None = None,
+    ) -> int:
+        with tracer.start_as_current_span("sqlite_store.prune_changelog"):
+            conn = await self._get_connection()
+
+            conditions: list[str] = []
+            params: list[Any] = []
+            if before_seq is not None:
+                conditions.append("seq < ?")
+                params.append(before_seq)
+            if before_time is not None:
+                conditions.append("timestamp < ?")
+                params.append(before_time.isoformat())
+
+            if not conditions:
+                return 0
+
+            where = " OR ".join(conditions)
+            async with self._write_lock:
+                cursor = await conn.execute(
+                    f"DELETE FROM changelog_events WHERE {where}",  # nosec B608
+                    tuple(params),
+                )
+                deleted = cursor.rowcount or 0
+                await cursor.close()
+            return deleted
+
+    def _row_to_changelog_event(self, row: Any) -> ChangelogEvent:
+        """Convert a database row to a ChangelogEvent."""
+        return ChangelogEvent(
+            seq=row["seq"],
+            event_type=ChangelogEventType(row["event_type"]),
+            artifact_id=UUID(row["artifact_id"]) if row["artifact_id"] else None,
+            artifact_type=row["artifact_type"],
+            produced_by=row["produced_by"],
+            correlation_id=row["correlation_id"],
+            visibility=json.loads(row["visibility"]) if row["visibility"] else None,
+            timestamp=datetime.fromisoformat(row["timestamp"]),
+            payload_summary=json.loads(row["payload_summary"]),
+        )
 
     async def ensure_schema(self) -> None:
         conn = await self._ensure_connection()

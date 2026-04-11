@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from flock.core.artifacts import Artifact
 from flock.core.visibility import PublicVisibility, Visibility
+from flock.models.changelog import ChangelogEvent, ChangelogEventType
 from flock.registry import type_registry
 
 
@@ -169,7 +170,8 @@ class ArtifactManager:
         Args:
             artifact: Artifact to publish
         """
-        await self._store.publish(artifact)
+        changelog_event = self._build_changelog_event(artifact)
+        await self._store.publish(artifact, changelog_event)
         self._orchestrator.metrics["artifacts_published"] += 1
         await self._scheduler.schedule_artifact(artifact)
 
@@ -179,8 +181,25 @@ class ArtifactManager:
         Args:
             artifact: Artifact to publish
         """
-        await self._store.publish(artifact)
+        changelog_event = self._build_changelog_event(artifact)
+        await self._store.publish(artifact, changelog_event)
         self._orchestrator.metrics["artifacts_published"] += 1
+
+    def _build_changelog_event(self, artifact: Artifact) -> ChangelogEvent:
+        """Construct a changelog event from a published artifact."""
+        return ChangelogEvent(
+            event_type=ChangelogEventType.artifact_published,
+            artifact_id=artifact.id,
+            artifact_type=artifact.type,
+            produced_by=artifact.produced_by,
+            correlation_id=artifact.correlation_id,
+            visibility=artifact.visibility.model_dump(mode="json"),
+            timestamp=artifact.created_at,
+            payload_summary={
+                "tags": sorted(artifact.tags) if artifact.tags else [],
+                "version": artifact.version,
+            },
+        )
 
 
 __all__ = ["ArtifactManager"]

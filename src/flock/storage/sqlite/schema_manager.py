@@ -29,7 +29,7 @@ class SQLiteSchemaManager:
     - schema_meta table: Version tracking
     """
 
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 4
 
     async def apply_schema(self, conn: aiosqlite.Connection) -> None:
         """
@@ -157,6 +157,49 @@ class SQLiteSchemaManager:
                 last_seen TEXT NOT NULL,
                 signature TEXT NOT NULL
             )
+            """
+        )
+
+        # Changelog events table (schema v4)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS changelog_events (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                artifact_id TEXT,
+                artifact_type TEXT,
+                produced_by TEXT,
+                correlation_id TEXT,
+                visibility TEXT,
+                timestamp TEXT NOT NULL,
+                payload_summary TEXT NOT NULL DEFAULT '{}'
+            )
+            """
+        )
+
+        # Changelog indices for filtered queries and cursor pagination
+        await conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_changelog_event_type_seq
+            ON changelog_events(event_type, seq)
+            """
+        )
+        await conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_changelog_artifact_type_seq
+            ON changelog_events(artifact_type, seq)
+            """
+        )
+        await conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_changelog_produced_by_seq
+            ON changelog_events(produced_by, seq)
+            """
+        )
+        await conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_changelog_correlation
+            ON changelog_events(correlation_id)
             """
         )
 
