@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -999,7 +999,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.5.401"
+version = "0.5.402"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -1023,6 +1023,7 @@ dependencies = [
     { name = "pydantic", extra = ["email"] },
     { name = "python-dotenv" },
     { name = "rich" },
+    { name = "sse-starlette" },
     { name = "starlette" },
     { name = "toml" },
     { name = "typer" },
@@ -1105,6 +1106,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = "==1.2.1" },
     { name = "rich", specifier = "==14.2.0" },
     { name = "sentence-transformers", marker = "extra == 'semantic'", specifier = "==5.1.2" },
+    { name = "sse-starlette", specifier = ">=3.0.3" },
     { name = "starlette", specifier = "==0.49.3" },
     { name = "toml", specifier = "==0.10.2" },
     { name = "transformers", marker = "extra == 'transformers'", specifier = "==4.55.0" },
