@@ -1,7 +1,7 @@
 ---
 title: "feat: Meta-Orchestrator — Changelog Stream + External Agent Runtime"
 type: feat
-status: active
+status: completed
 date: 2026-04-08
 origin: docs/brainstorms/2026-04-07-meta-orchestrator-requirements.md
 deepened: 2026-04-08
@@ -189,7 +189,7 @@ ChangelogEvent ──► StreamDispatcher ──► WebSocket /ws/changelog (fil
 
 ### Phase 1: Changelog Stream
 
-- [ ] **Unit 1: ChangelogEvent model + store protocol**
+- [x] **Unit 1: ChangelogEvent model + store protocol**
 
 **Goal:** Define the changelog event data model and extend the `BlackboardStore` protocol with changelog operations.
 
@@ -227,7 +227,7 @@ ChangelogEvent ──► StreamDispatcher ──► WebSocket /ws/changelog (fil
 
 ---
 
-- [ ] **Unit 2: Store implementations + atomic persist**
+- [x] **Unit 2: Store implementations + atomic persist**
 
 **Goal:** Implement changelog persistence in both SQLite and in-memory stores, wire atomic event emission into `ArtifactManager.persist_and_schedule()`.
 
@@ -276,7 +276,7 @@ ChangelogEvent ──► StreamDispatcher ──► WebSocket /ws/changelog (fil
 
 ---
 
-- [ ] **Unit 3: SSE endpoint + cursor pull API**
+- [x] **Unit 3: SSE endpoint + cursor pull API**
 
 **Goal:** Create the `ChangelogStreamComponent` ServerComponent with SSE push delivery, WebSocket push delivery, and cursor-based pull API.
 
@@ -328,7 +328,7 @@ ChangelogEvent ──► StreamDispatcher ──► WebSocket /ws/changelog (fil
 
 ---
 
-- [ ] **Unit 4: Retention policy**
+- [x] **Unit 4: Retention policy**
 
 **Goal:** Implement configurable event retention that prunes old changelog events by age and/or count.
 
@@ -368,7 +368,7 @@ ChangelogEvent ──► StreamDispatcher ──► WebSocket /ws/changelog (fil
 
 ### Phase 2: Token Authentication
 
-- [ ] **Unit 5: Token model + TokenStore + auth handler**
+- [x] **Unit 5: Token model + TokenStore + auth handler**
 
 **Goal:** Build the token-based authentication system: generation, storage, verification, and integration with the existing `AuthenticationComponent`.
 
@@ -423,7 +423,7 @@ ChangelogEvent ──► StreamDispatcher ──► WebSocket /ws/changelog (fil
 
 ---
 
-- [ ] **Unit 6: Token management API**
+- [x] **Unit 6: Token management API**
 
 **Goal:** Expose token create/list/revoke operations as REST endpoints for programmatic token lifecycle management.
 
@@ -465,7 +465,7 @@ ChangelogEvent ──► StreamDispatcher ──► WebSocket /ws/changelog (fil
 
 ### Phase 3: External Agent Runtime
 
-- [ ] **Unit 7: ExternalAgentRuntime protocol + ExternalAgentScheduler**
+- [x] **Unit 7: ExternalAgentRuntime protocol + ExternalAgentScheduler**
 
 **Goal:** Define the runtime protocol for spawning external agents and build the scheduler that matches changelog events to external subscriptions.
 
@@ -579,7 +579,7 @@ ExternalAgentScheduler lifecycle:
 
 ---
 
-- [ ] **Unit 8: Claude Code adapter**
+- [x] **Unit 8: Claude Code adapter**
 
 **Goal:** Implement the `ExternalAgentRuntime` adapter for Claude Code as the primary external agent.
 
@@ -624,7 +624,7 @@ ExternalAgentScheduler lifecycle:
 
 ---
 
-- [ ] **Unit 9: Codex adapter**
+- [x] **Unit 9: Codex adapter**
 
 **Goal:** Implement runtime adapter for Codex to validate protocol generality with a second agent.
 
@@ -661,7 +661,7 @@ ExternalAgentScheduler lifecycle:
 
 ### Phase 4: Dashboard Integration
 
-- [ ] **Unit 10: External agent status events + dashboard**
+- [x] **Unit 10: External agent status events + dashboard**
 
 **Goal:** Show external agent lifecycle status (spawned, running, completed, failed) in the real-time dashboard.
 
