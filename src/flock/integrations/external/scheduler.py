@@ -4,7 +4,7 @@ events to external agent processes.
 Responsibilities:
   1. Discover agents with agent_kind="external" from the orchestrator registry.
   2. Subscribe to the StreamDispatcher for changelog events.
-  3. Match incoming events against external agent subscriptions (type match).
+  3. Match incoming events against external agent subscriptions (type_names).
   4. Maintain a serial asyncio.Queue per agent name.
   5. Spawn via a registered ExternalAgentRuntime adapter.
   6. Track active processes for graceful shutdown.
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import signal
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, PrivateAttr
@@ -21,14 +22,13 @@ from pydantic import Field, PrivateAttr
 from flock.components.orchestrator.base import OrchestratorComponent
 from flock.integrations.external.models import (
     AgentOutcome,
-    ExternalAgentConfig,
     ExternalSessionStore,
     SpawnConfig,
     SpawnResult,
 )
 from flock.integrations.external.runtime import ExternalAgentRuntime
 from flock.logging.logging import get_logger
-from flock.models.changelog import ChangelogEvent, ChangelogFilter
+from flock.models.changelog import ChangelogEvent, ChangelogEventType, ChangelogFilter
 
 
 if TYPE_CHECKING:
@@ -37,6 +37,7 @@ if TYPE_CHECKING:
         Subscription as StreamSubscription,
     )
     from flock.core import Flock
+    from flock.core.agent import Agent
 
 logger = get_logger(__name__)
 
@@ -47,12 +48,14 @@ _SHUTDOWN_GRACE: float = 5.0
 class ExternalAgentScheduler(OrchestratorComponent):
     """Orchestrator component that dispatches changelog events to external agents.
 
-    Inject dependencies at construction time:
-        - stream_dispatcher: The StreamDispatcher that publishes changelog events.
-        - adapters: Mapping of adapter_name → ExternalAgentRuntime implementation.
-        - external_agents: Mapping of agent_name → ExternalAgentConfig.
+    External agents are discovered from the Flock agent registry — any agent
+    with ``agent_kind="external"`` is managed by this scheduler.  Type matching
+    uses the standard ``Subscription.type_names`` from ``.consumes()``.
 
-    The scheduler owns one asyncio.Queue per registered agent and processes
+    Runtime adapters (``ExternalAgentRuntime`` implementations) are registered
+    by adapter name via ``configure()``.
+
+    The scheduler owns one ``asyncio.Queue`` per external agent and processes
     events serially (one spawn at a time per agent).
     """
 
@@ -62,13 +65,17 @@ class ExternalAgentScheduler(OrchestratorComponent):
     # --- injected dependencies (not serialized) ---
     _stream_dispatcher: StreamDispatcher | None = PrivateAttr(default=None)
     _adapters: dict[str, ExternalAgentRuntime] = PrivateAttr(default_factory=dict)
-    _external_agents: dict[str, ExternalAgentConfig] = PrivateAttr(default_factory=dict)
+
+    # --- discovered at init from orchestrator.agents ---
+    _external_agents: dict[str, Agent] = PrivateAttr(default_factory=dict)
 
     # --- internal state ---
     _session_store: ExternalSessionStore = PrivateAttr(
         default_factory=ExternalSessionStore
     )
-    _queues: dict[str, asyncio.Queue[ChangelogEvent]] = PrivateAttr(default_factory=dict)
+    _queues: dict[str, asyncio.Queue[ChangelogEvent]] = PrivateAttr(
+        default_factory=dict
+    )
     _workers: dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=dict)
     _active_spawns: dict[str, SpawnResult] = PrivateAttr(default_factory=dict)
     _stream_sub: StreamSubscription | None = PrivateAttr(default=None)
@@ -84,12 +91,10 @@ class ExternalAgentScheduler(OrchestratorComponent):
         *,
         stream_dispatcher: StreamDispatcher,
         adapters: dict[str, ExternalAgentRuntime],
-        external_agents: dict[str, ExternalAgentConfig],
     ) -> ExternalAgentScheduler:
         """Inject runtime dependencies.  Returns self for chaining."""
         self._stream_dispatcher = stream_dispatcher
         self._adapters = dict(adapters)
-        self._external_agents = dict(external_agents)
         return self
 
     # ------------------------------------------------------------------
@@ -97,7 +102,7 @@ class ExternalAgentScheduler(OrchestratorComponent):
     # ------------------------------------------------------------------
 
     async def on_initialize(self, orchestrator: Flock) -> None:
-        """Subscribe to the changelog stream and start per-agent workers."""
+        """Discover external agents, subscribe to changelog, start workers."""
         if self._started:
             return
         if self._stream_dispatcher is None:
@@ -105,22 +110,35 @@ class ExternalAgentScheduler(OrchestratorComponent):
                 "ExternalAgentScheduler: no StreamDispatcher configured — skipping"
             )
             return
+
+        # Discover external agents from the orchestrator's agent registry
+        for agent in orchestrator.agents:
+            if agent.agent_kind == "external":
+                if agent.adapter_name is None:
+                    logger.warning(
+                        f"External agent {agent.name!r} has no adapter_name — skipping"
+                    )
+                    continue
+                if agent.adapter_name not in self._adapters:
+                    logger.warning(
+                        f"External agent {agent.name!r} uses adapter "
+                        f"{agent.adapter_name!r} which is not registered — skipping"
+                    )
+                    continue
+                self._external_agents[agent.name] = agent
+
         if not self._external_agents:
-            logger.info("ExternalAgentScheduler: no external agents registered")
+            logger.info("ExternalAgentScheduler: no external agents found")
             return
 
-        # Build a ChangelogFilter from all subscribed artifact types.
-        all_types: set[str] = set()
-        for agent_name, cfg in self._external_agents.items():
-            # We will rely on the caller to set up the types.
-            # For now, subscribe to all artifact_published events.
-            pass
-
+        # Subscribe to all artifact_published events
         self._stream_sub = await self._stream_dispatcher.subscribe(
-            filters=ChangelogFilter(event_types={"artifact_published"}),
+            filters=ChangelogFilter(
+                event_types={ChangelogEventType.artifact_published}
+            ),
         )
 
-        # Create per-agent queues and worker tasks.
+        # Create per-agent queues and worker tasks
         for agent_name in self._external_agents:
             queue: asyncio.Queue[ChangelogEvent] = asyncio.Queue()
             self._queues[agent_name] = queue
@@ -130,13 +148,14 @@ class ExternalAgentScheduler(OrchestratorComponent):
             )
             self._workers[agent_name] = task
 
-        # Start the listener that reads from the stream subscription.
+        # Start the listener
         self._listener_task = asyncio.create_task(
             self._listener_loop(), name="ext-scheduler-listener"
         )
         self._started = True
         logger.info(
-            f"ExternalAgentScheduler started: {len(self._external_agents)} agents"
+            f"ExternalAgentScheduler started: "
+            f"{list(self._external_agents.keys())}"
         )
 
     # ------------------------------------------------------------------
@@ -149,7 +168,7 @@ class ExternalAgentScheduler(OrchestratorComponent):
             return
         self._started = False
 
-        # 1. Cancel the stream listener.
+        # 1. Cancel the stream listener
         if self._listener_task and not self._listener_task.done():
             self._listener_task.cancel()
             try:
@@ -157,21 +176,22 @@ class ExternalAgentScheduler(OrchestratorComponent):
             except asyncio.CancelledError:
                 pass
 
-        # 2. Cancel all per-agent worker tasks.
+        # 2. Cancel all per-agent worker tasks
         for name, task in self._workers.items():
             if not task.done():
                 task.cancel()
         await asyncio.gather(*self._workers.values(), return_exceptions=True)
 
-        # 3. Terminate any still-running spawned processes.
+        # 3. Terminate any still-running spawned processes
         await self._terminate_all_active()
 
-        # 4. Unsubscribe from the stream.
+        # 4. Unsubscribe from the stream
         if self._stream_dispatcher and self._stream_sub:
             await self._stream_dispatcher.unsubscribe(self._stream_sub.id)
 
         self._queues.clear()
         self._workers.clear()
+        self._external_agents.clear()
         logger.info("ExternalAgentScheduler shutdown complete")
 
     # ------------------------------------------------------------------
@@ -194,21 +214,28 @@ class ExternalAgentScheduler(OrchestratorComponent):
             return
 
     async def _route_event(self, event: ChangelogEvent) -> None:
-        """Match a changelog event to external agents and enqueue."""
+        """Match a changelog event against external agent subscriptions."""
         artifact_type = event.artifact_type
         if artifact_type is None:
             return
 
-        for agent_name, cfg in self._external_agents.items():
+        for agent_name, agent in self._external_agents.items():
             queue = self._queues.get(agent_name)
             if queue is None:
                 continue
-            # Type matching: the scheduler accepts the event if the
-            # external agent's subscribed types include this artifact_type.
-            # For simplicity, we store subscribed types on the config
-            # via the `subscribed_types` set populated by the caller.
-            subscribed_types = getattr(cfg, "subscribed_types", None)
-            if subscribed_types is not None and artifact_type not in subscribed_types:
+
+            # Use the agent's subscriptions for type matching
+            matched = False
+            for sub in agent.subscriptions:
+                if artifact_type in sub.type_names:
+                    matched = True
+                    break
+
+            if not matched:
+                continue
+
+            # Prevent self-trigger: skip if the agent produced this artifact
+            if agent.prevent_self_trigger and event.produced_by == agent_name:
                 continue
 
             logger.debug(
@@ -241,54 +268,59 @@ class ExternalAgentScheduler(OrchestratorComponent):
     async def _handle_event(
         self, agent_name: str, event: ChangelogEvent
     ) -> AgentOutcome:
-        """Resolve config, build SpawnConfig, spawn, monitor, record."""
-        cfg = self._external_agents[agent_name]
-        adapter = self._adapters.get(cfg.adapter_name)
+        """Resolve config from agent, build SpawnConfig, spawn, monitor."""
+        agent = self._external_agents[agent_name]
+        adapter = self._adapters.get(agent.adapter_name or "")
         if adapter is None:
             logger.error(
-                f"No adapter '{cfg.adapter_name}' registered for agent {agent_name}"
+                f"No adapter '{agent.adapter_name}' for agent {agent_name}"
             )
             return AgentOutcome(
                 success=False,
                 returncode=-1,
                 stdout="",
-                stderr=f"Missing adapter: {cfg.adapter_name}",
+                stderr=f"Missing adapter: {agent.adapter_name}",
                 session_id="",
             )
 
         # --- Guard hook point ---
-        # Future: if cfg.guard is not None:
-        #     verdict = await cfg.guard.scan_input(prompt_text, documents=[...])
-        #     if not verdict.safe:
-        #         logger.warning(f"Guard blocked input for {agent_name}: {verdict.reason}")
-        #         return AgentOutcome(success=False, returncode=-1, ...)
+        # Future: for guard in agent.guards:
+        #     verdict = await guard.scan_input(prompt, [event.payload_summary])
+        #     if not verdict.safe and guard.config.on_input_flagged == "block":
+        #         emit guard_blocked event; continue
 
-        # Resolve session
+        # Resolve session mode from the first subscription that matches
         artifact_type = event.artifact_type or ""
-        session_id: str | None = None
-        effective_mode = cfg.session_mode
+        session_mode = "new"
+        for sub in agent.subscriptions:
+            if artifact_type in sub.type_names and sub.session_mode:
+                session_mode = sub.session_mode
+                break
 
-        if cfg.session_mode == "resume":
+        session_id: str | None = None
+        if session_mode == "resume":
             stored = self._session_store.get(agent_name, artifact_type)
             if stored is not None:
                 session_id = stored
             else:
                 logger.warning(
                     f"Agent {agent_name}: session_mode='resume' but no stored "
-                    f"session for artifact_type={artifact_type!r} — falling back to 'new'"
+                    f"session for {artifact_type!r} — falling back to 'new'"
                 )
-                effective_mode = "new"
+                session_mode = "new"
 
-        # Build prompt from the event payload summary
+        # Build prompt from the event
         prompt = self._build_prompt(event)
+        working_dir = Path(agent.working_dir or "/tmp")
+        timeout = agent.spawn_timeout
 
         spawn_cfg = SpawnConfig(
             prompt=prompt,
-            working_dir=cfg.working_dir,
-            env_vars=cfg.env_vars,
+            working_dir=working_dir,
+            env_vars=agent.spawn_env,
             session_id=session_id,
-            session_mode=effective_mode,
-            timeout=cfg.timeout,
+            session_mode=session_mode,
+            timeout=timeout,
         )
 
         # Spawn
@@ -309,10 +341,10 @@ class ExternalAgentScheduler(OrchestratorComponent):
         # Monitor with timeout
         try:
             outcome = await asyncio.wait_for(
-                adapter.monitor(result), timeout=cfg.timeout
+                adapter.monitor(result), timeout=timeout
             )
         except asyncio.TimeoutError:
-            logger.warning(f"Agent {agent_name} timed out after {cfg.timeout}s")
+            logger.warning(f"Agent {agent_name} timed out after {timeout}s")
             try:
                 await adapter.terminate(result)
             except Exception:
@@ -321,7 +353,7 @@ class ExternalAgentScheduler(OrchestratorComponent):
                 success=False,
                 returncode=-1,
                 stdout="",
-                stderr=f"timeout after {cfg.timeout}s",
+                stderr=f"timeout after {timeout}s",
                 session_id=result.session_id,
             )
         finally:

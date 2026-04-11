@@ -150,6 +150,11 @@ class Agent(metaclass=AutoTracedMeta):
         self.no_output: bool = no_output
         # Agent kind: "internal" (default Flock agent) or "external" (spawned process)
         self.agent_kind: Literal["internal", "external"] = "internal"
+        # External agent fields (only used when agent_kind == "external")
+        self.adapter_name: str | None = None
+        self.working_dir: str | None = None
+        self.spawn_timeout: float = 1800.0
+        self.spawn_env: dict[str, str] = {}
 
         # Phase 4: Initialize extracted modules
         self._output_processor = OutputProcessor(name)
@@ -673,6 +678,10 @@ class AgentBuilder:
             priority=priority,
             activation=activation,
         )
+        # Propagate pending session_mode if set (external agents)
+        pending = getattr(self._agent, "_pending_session_mode", None)
+        if pending is not None:
+            subscription.session_mode = pending
         self._agent.subscriptions.append(subscription)
         return self
 
@@ -1062,6 +1071,61 @@ class AgentBuilder:
                  .prevent_self_trigger(False)  # Acknowledge risk
         """
         self._agent.prevent_self_trigger = enabled
+        return self
+
+    # External agent configuration -----------------------------------------
+
+    def kind(self, agent_kind: Literal["internal", "external"]) -> AgentBuilder:
+        """Set agent kind. External agents are spawned as subprocesses.
+
+        Example:
+            >>> flock.agent("reviewer").kind("external").adapter("claude_code")
+        """
+        self._agent.agent_kind = agent_kind
+        return self
+
+    def adapter(self, adapter_name: str) -> AgentBuilder:
+        """Set the runtime adapter for an external agent.
+
+        Example:
+            >>> flock.agent("reviewer").kind("external").adapter("claude_code")
+        """
+        self._agent.adapter_name = adapter_name
+        return self
+
+    def working_dir(self, path: str) -> AgentBuilder:
+        """Set the working directory for an external agent's subprocess."""
+        self._agent.working_dir = path
+        return self
+
+    def spawn_timeout(self, seconds: float) -> AgentBuilder:
+        """Set the maximum execution time for an external agent."""
+        self._agent.spawn_timeout = seconds
+        return self
+
+    def spawn_env(self, env: dict[str, str]) -> AgentBuilder:
+        """Set additional environment variables for the external agent subprocess."""
+        self._agent.spawn_env.update(env)
+        return self
+
+    def session_mode(
+        self, mode: Literal["new", "resume"]
+    ) -> AgentBuilder:
+        """Set the session mode for an external agent's subscriptions.
+
+        - "new": Always start a fresh session.
+        - "resume": Attempt to resume a prior session, fall back to "new".
+
+        Example:
+            >>> (flock.agent("reviewer")
+            ...     .kind("external").adapter("claude_code")
+            ...     .consumes(PRDiff).publishes(ReviewResult)
+            ...     .session_mode("resume"))
+        """
+        for sub in self._agent.subscriptions:
+            sub.session_mode = mode
+        # Store for subscriptions added later
+        self._agent._pending_session_mode = mode  # type: ignore[attr-defined]
         return self
 
     # Runtime helpers ------------------------------------------------------

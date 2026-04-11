@@ -17,7 +17,6 @@ import pytest
 
 from flock.integrations.external.models import (
     AgentOutcome,
-    ExternalAgentConfig,
     ExternalSessionStore,
     SpawnConfig,
     SpawnResult,
@@ -182,20 +181,52 @@ def _make_event(
     )
 
 
-def _make_config(
+def _make_external_agent(
+    name: str = "reviewer",
     adapter_name: str = "mock",
-    session_mode: str = "new",
+    session_mode: str | None = "new",
     timeout: float = 5.0,
-) -> ExternalAgentConfig:
-    cfg = ExternalAgentConfig(
-        adapter_name=adapter_name,
-        working_dir=Path("/tmp/test"),
-        session_mode=session_mode,
-        timeout=timeout,
-    )
-    # Attach subscribed types for routing.
-    cfg.subscribed_types = {"BugReport"}  # type: ignore[attr-defined]
-    return cfg
+    consumes_types: list[str] | None = None,
+) -> Any:
+    """Create a mock Agent with agent_kind='external' and proper subscriptions."""
+    from flock.core.agent import Agent
+    from flock.core.subscription import Subscription
+    from flock.registry import type_registry
+    from pydantic import BaseModel
+
+    # Dynamic type creation for subscription, registered with explicit names
+    types = consumes_types or ["BugReport"]
+    type_models = []
+    for type_name in types:
+        model = type(type_name, (BaseModel,), {"__annotations__": {"data": str}, "data": "test"})
+        # Register with the exact name so it matches event.artifact_type
+        type_registry.register(model, name=type_name)
+        type_models.append(model)
+
+    mock_orch = MagicMock()
+    mock_orch.model = "test-model"
+    agent = Agent(name, orchestrator=mock_orch)
+    agent.agent_kind = "external"
+    agent.adapter_name = adapter_name
+    agent.working_dir = "/tmp/test"
+    agent.spawn_timeout = timeout
+
+    for model in type_models:
+        sub = Subscription(agent_name=name, types=[model])
+        if session_mode:
+            sub.session_mode = session_mode
+        agent.subscriptions.append(sub)
+
+    return agent
+
+
+def _make_mock_orchestrator(
+    agents: list[Any] | None = None,
+) -> Any:
+    """Create a mock Flock with registered agents."""
+    mock = MagicMock()
+    mock.agents = agents or []
+    return mock
 
 
 # ---------------------------------------------------------------------------
@@ -272,19 +303,18 @@ class TestExternalAgentScheduler:
     async def _make_scheduler(
         self,
         adapter: MockAdapter | None = None,
-        agents: dict[str, ExternalAgentConfig] | None = None,
+        agents: list[Any] | None = None,
     ) -> tuple[ExternalAgentScheduler, FakeStreamDispatcher, MockAdapter]:
         adapter = adapter or MockAdapter()
         dispatcher = FakeStreamDispatcher()
-        ext_agents = agents or {"reviewer": _make_config()}
+        agent_list = agents or [_make_external_agent()]
+        orchestrator = _make_mock_orchestrator(agent_list)
         scheduler = ExternalAgentScheduler()
         scheduler.configure(
             stream_dispatcher=dispatcher,
             adapters={"mock": adapter},
-            external_agents=ext_agents,
         )
-        # Use a no-op Flock stand-in for on_initialize
-        await scheduler.on_initialize(None)  # type: ignore[arg-type]
+        await scheduler.on_initialize(orchestrator)
         return scheduler, dispatcher, adapter
 
     @pytest.mark.asyncio
@@ -326,9 +356,9 @@ class TestExternalAgentScheduler:
     @pytest.mark.asyncio
     async def test_session_mode_resume_with_stored_session(self) -> None:
         """Resume mode with an existing stored session passes the session_id."""
-        cfg = _make_config(session_mode="resume")
+        agent = _make_external_agent(session_mode="resume")
         scheduler, dispatcher, adapter = await self._make_scheduler(
-            agents={"reviewer": cfg}
+            agents=[agent]
         )
         try:
             # Pre-seed the session store.
@@ -349,9 +379,9 @@ class TestExternalAgentScheduler:
     @pytest.mark.asyncio
     async def test_session_mode_resume_fallback_to_new(self) -> None:
         """Resume mode with no stored session falls back to 'new' and logs warning."""
-        cfg = _make_config(session_mode="resume")
+        agent = _make_external_agent(session_mode="resume")
         scheduler, dispatcher, adapter = await self._make_scheduler(
-            agents={"reviewer": cfg}
+            agents=[agent]
         )
         try:
             # Don't seed session store — should fall back.
@@ -417,9 +447,9 @@ class TestExternalAgentScheduler:
     @pytest.mark.asyncio
     async def test_timeout_triggers_terminate(self) -> None:
         """Agent exceeding timeout gets terminated."""
-        cfg = _make_config(timeout=0.3)
+        agent = _make_external_agent(timeout=0.3)
         scheduler, dispatcher, adapter = await self._make_scheduler(
-            agents={"reviewer": cfg}
+            agents=[agent]
         )
         try:
             dispatcher.inject_event(_make_event())
@@ -476,21 +506,23 @@ class TestExternalAgentScheduler:
         """Scheduler with no dispatcher configured doesn't crash."""
         scheduler = ExternalAgentScheduler()
         # Don't call configure — no dispatcher.
-        await scheduler.on_initialize(None)  # type: ignore[arg-type]
-        await scheduler.on_shutdown(None)  # type: ignore[arg-type]
+        orchestrator = _make_mock_orchestrator([])
+        await scheduler.on_initialize(orchestrator)
+        await scheduler.on_shutdown(orchestrator)
 
     @pytest.mark.asyncio
     async def test_no_external_agents_skips(self) -> None:
-        """Scheduler with no agents registered does nothing on init."""
+        """Scheduler with no external agents does nothing on init."""
         dispatcher = FakeStreamDispatcher()
         scheduler = ExternalAgentScheduler()
         scheduler.configure(
             stream_dispatcher=dispatcher,
             adapters={"mock": MockAdapter()},
-            external_agents={},
         )
-        await scheduler.on_initialize(None)  # type: ignore[arg-type]
-        await scheduler.on_shutdown(None)  # type: ignore[arg-type]
+        # No external agents registered on the orchestrator
+        orchestrator = _make_mock_orchestrator([])
+        await scheduler.on_initialize(orchestrator)
+        await scheduler.on_shutdown(orchestrator)
 
     @pytest.mark.asyncio
     async def test_event_type_not_matching_skipped(self) -> None:
@@ -535,11 +567,18 @@ class TestExternalAgentScheduler:
 
     @pytest.mark.asyncio
     async def test_missing_adapter_returns_error_outcome(self) -> None:
-        """Agent referencing a non-existent adapter logs error."""
-        cfg = _make_config(adapter_name="nonexistent")
-        scheduler, dispatcher, adapter = await self._make_scheduler(
-            agents={"reviewer": cfg}
+        """Agent referencing a non-existent adapter is skipped at init."""
+        agent = _make_external_agent(adapter_name="nonexistent")
+        # The scheduler skips agents with unregistered adapters at init
+        dispatcher = FakeStreamDispatcher()
+        orchestrator = _make_mock_orchestrator([agent])
+        adapter = MockAdapter()
+        scheduler = ExternalAgentScheduler()
+        scheduler.configure(
+            stream_dispatcher=dispatcher,
+            adapters={"mock": adapter},
         )
+        await scheduler.on_initialize(orchestrator)
         try:
             dispatcher.inject_event(_make_event())
             await asyncio.sleep(0.15)
@@ -600,3 +639,71 @@ class TestAgentKindField:
         agent = Agent("test-agent", orchestrator=mock_orch)
         agent.agent_kind = "external"
         assert agent.agent_kind == "external"
+
+
+class TestAgentBuilderExternalAPI:
+    """Test the fluent builder API for external agents."""
+
+    def test_kind_adapter_chain(self) -> None:
+        from unittest.mock import MagicMock
+        from flock.core.agent import AgentBuilder
+
+        mock_orch = MagicMock()
+        mock_orch.model = "test"
+        mock_orch.no_output = False
+        mock_orch.register_agent = MagicMock()
+
+        builder = AgentBuilder(mock_orch, "reviewer")
+        result = builder.kind("external").adapter("claude_code")
+        assert result is builder  # fluent
+        assert builder.agent.agent_kind == "external"
+        assert builder.agent.adapter_name == "claude_code"
+
+    def test_working_dir_and_timeout(self) -> None:
+        from unittest.mock import MagicMock
+        from flock.core.agent import AgentBuilder
+
+        mock_orch = MagicMock()
+        mock_orch.model = "test"
+        mock_orch.no_output = False
+        mock_orch.register_agent = MagicMock()
+
+        builder = AgentBuilder(mock_orch, "reviewer")
+        builder.kind("external").adapter("claude_code").working_dir("/repos/flock").spawn_timeout(60.0)
+        assert builder.agent.working_dir == "/repos/flock"
+        assert builder.agent.spawn_timeout == 60.0
+
+    def test_session_mode_propagates_to_subscriptions(self) -> None:
+        from unittest.mock import MagicMock
+        from pydantic import BaseModel
+        from flock.core.agent import AgentBuilder
+
+        class TestType(BaseModel):
+            x: int = 1
+
+        mock_orch = MagicMock()
+        mock_orch.model = "test"
+        mock_orch.no_output = False
+        mock_orch.register_agent = MagicMock()
+
+        builder = AgentBuilder(mock_orch, "reviewer")
+        builder.kind("external").adapter("claude_code").consumes(TestType).session_mode("resume")
+        assert builder.agent.subscriptions[0].session_mode == "resume"
+
+    def test_session_mode_before_consumes(self) -> None:
+        """session_mode set before consumes is propagated to later subscriptions."""
+        from unittest.mock import MagicMock
+        from pydantic import BaseModel
+        from flock.core.agent import AgentBuilder
+
+        class TestType2(BaseModel):
+            x: int = 1
+
+        mock_orch = MagicMock()
+        mock_orch.model = "test"
+        mock_orch.no_output = False
+        mock_orch.register_agent = MagicMock()
+
+        builder = AgentBuilder(mock_orch, "reviewer")
+        builder.kind("external").adapter("claude_code").session_mode("resume").consumes(TestType2)
+        assert builder.agent.subscriptions[0].session_mode == "resume"
