@@ -10,6 +10,10 @@ from flock.components.orchestrator.base import (
 from flock.components.orchestrator.circuit_breaker import CircuitBreakerComponent
 from flock.components.orchestrator.collection import BuiltinCollectionComponent
 from flock.components.orchestrator.deduplication import DeduplicationComponent
+from flock.components.orchestrator.retention import (
+    RetentionConfig,
+    RetentionPolicyComponent,
+)
 from flock.components.orchestrator.webhook import WebhookDeliveryComponent
 
 
@@ -21,6 +25,8 @@ __all__ = [
     "DeduplicationComponent",
     "OrchestratorComponent",
     "OrchestratorComponentConfig",
+    "RetentionConfig",
+    "RetentionPolicyComponent",
     "ScheduleDecision",
     "WebhookDeliveryComponent",
 ]
