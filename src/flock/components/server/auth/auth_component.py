@@ -1,8 +1,10 @@
 """ServerComponent for configuring authentication middleware."""
 
+from __future__ import annotations
+
 import re
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, PrivateAttr, field_validator
 from starlette.requests import Request
@@ -11,8 +13,58 @@ from starlette.responses import Response
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 
 
+if TYPE_CHECKING:
+    from flock.auth.token_store import InMemoryTokenStore, TokenStore
+
+
 # Type alias for authentication handler
 AuthHandler = Callable[[Request], Awaitable[tuple[bool, Response | None]]]
+
+
+def make_bearer_token_handler(
+    token_store: TokenStore | InMemoryTokenStore,
+) -> AuthHandler:
+    """Create a bearer-token auth handler backed by the given TokenStore.
+
+    On success the handler sets ``request.scope["state"]["agent_identity"]``
+    to an :class:`~flock.core.visibility.AgentIdentity` derived from the token record.
+    """
+    from flock.core.visibility import AgentIdentity
+
+    async def bearer_token_handler(request: Request) -> tuple[bool, Response | None]:
+        from starlette.responses import JSONResponse
+
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return False, JSONResponse(
+                {"error": "Missing or malformed Authorization header"},
+                status_code=401,
+            )
+
+        raw_token = auth_header[len("Bearer "):]
+        if not raw_token or len(raw_token) < 8:
+            return False, JSONResponse(
+                {"error": "Malformed bearer token"}, status_code=401
+            )
+
+        record = await token_store.verify(raw_token)
+        if record is None:
+            return False, JSONResponse(
+                {"error": "Invalid or expired token"}, status_code=401
+            )
+
+        # Attach identity to request state for downstream use
+        if "state" not in request.scope:
+            request.scope["state"] = {}
+        request.scope["state"]["agent_identity"] = AgentIdentity(
+            name=record.identity_name,
+            labels=record.identity_labels,
+            tenant_id=record.identity_tenant_id,
+        )
+
+        return True, None
+
+    return bearer_token_handler
 
 
 class RouteSpecificAuthConfig(ServerComponentConfig):
