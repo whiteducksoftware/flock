@@ -165,5 +165,90 @@ class EventEmitter:
         # Broadcast via WebSocket
         await self._websocket_manager.broadcast(event)
 
+    # ------------------------------------------------------------------
+    # Unit 10: External agent lifecycle events
+    # ------------------------------------------------------------------
+
+    async def emit_external_agent_spawned(
+        self,
+        agent_name: str,
+        session_mode: str,
+        adapter_type: str,
+        trigger_artifact_id: str | None = None,
+    ) -> None:
+        """Emit ExternalAgentSpawnedEvent when an external agent process is spawned.
+
+        Args:
+            agent_name: Name of the external agent
+            session_mode: Session mode (e.g. "oneshot", "persistent")
+            adapter_type: Adapter type (e.g. "subprocess", "docker", "ssh")
+            trigger_artifact_id: Optional artifact ID that triggered the spawn
+        """
+        if self._websocket_manager is None:
+            return
+
+        from flock.components.server.models.events import ExternalAgentSpawnedEvent
+
+        event = ExternalAgentSpawnedEvent(
+            agent_name=agent_name,
+            session_mode=session_mode,
+            adapter_type=adapter_type,
+            trigger_artifact_id=trigger_artifact_id,
+        )
+
+        await self._websocket_manager.broadcast(event)
+
+    async def emit_external_agent_completed(
+        self,
+        agent_name: str,
+        session_id: str | None = None,
+        duration_ms: float = 0.0,
+    ) -> None:
+        """Emit ExternalAgentCompletedEvent when an external agent finishes.
+
+        Args:
+            agent_name: Name of the external agent
+            session_id: Optional session identifier (for persistent sessions)
+            duration_ms: Execution time in milliseconds
+        """
+        if self._websocket_manager is None:
+            return
+
+        from flock.components.server.models.events import ExternalAgentCompletedEvent
+
+        event = ExternalAgentCompletedEvent(
+            agent_name=agent_name,
+            session_id=session_id,
+            duration_ms=duration_ms,
+        )
+
+        await self._websocket_manager.broadcast(event)
+
+    async def emit_external_agent_failed(
+        self,
+        agent_name: str,
+        error: str,
+        session_id: str | None = None,
+    ) -> None:
+        """Emit ExternalAgentFailedEvent when an external agent process fails.
+
+        Args:
+            agent_name: Name of the external agent
+            error: Error message / reason for failure
+            session_id: Optional session identifier (for persistent sessions)
+        """
+        if self._websocket_manager is None:
+            return
+
+        from flock.components.server.models.events import ExternalAgentFailedEvent
+
+        event = ExternalAgentFailedEvent(
+            agent_name=agent_name,
+            error=error,
+            session_id=session_id,
+        )
+
+        await self._websocket_manager.broadcast(event)
+
 
 __all__ = ["EventEmitter"]

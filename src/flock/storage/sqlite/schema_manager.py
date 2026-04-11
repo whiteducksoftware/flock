@@ -29,7 +29,7 @@ class SQLiteSchemaManager:
     - schema_meta table: Version tracking
     """
 
-    SCHEMA_VERSION = 4
+    SCHEMA_VERSION = 5
 
     async def apply_schema(self, conn: aiosqlite.Connection) -> None:
         """
@@ -155,10 +155,19 @@ class SQLiteSchemaManager:
                 labels TEXT NOT NULL,
                 first_seen TEXT NOT NULL,
                 last_seen TEXT NOT NULL,
-                signature TEXT NOT NULL
+                signature TEXT NOT NULL,
+                agent_kind TEXT NOT NULL DEFAULT 'internal'
             )
             """
         )
+
+        # Migration: add agent_kind column for databases created before schema v5
+        try:
+            await conn.execute(
+                "ALTER TABLE agent_snapshots ADD COLUMN agent_kind TEXT NOT NULL DEFAULT 'internal'"
+            )
+        except Exception:
+            pass  # Column already exists
 
         # Changelog events table (schema v4)
         await conn.execute(

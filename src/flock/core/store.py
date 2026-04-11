@@ -83,6 +83,7 @@ class AgentSnapshotRecord:
     first_seen: datetime
     last_seen: datetime
     signature: str
+    agent_kind: str = "internal"  # "internal" (default) or "external" (spawned process)
 
 
 class BlackboardStore:
@@ -913,16 +914,17 @@ class SQLiteBlackboardStore(BlackboardStore):
                 "first_seen": snapshot.first_seen.isoformat(),
                 "last_seen": snapshot.last_seen.isoformat(),
                 "signature": snapshot.signature,
+                "agent_kind": snapshot.agent_kind,
             }
             async with self._write_lock:
                 await conn.execute(
                     """
                     INSERT INTO agent_snapshots (
                         agent_name, description, subscriptions, output_types, labels,
-                        first_seen, last_seen, signature
+                        first_seen, last_seen, signature, agent_kind
                     ) VALUES (
                         :agent_name, :description, :subscriptions, :output_types, :labels,
-                        :first_seen, :last_seen, :signature
+                        :first_seen, :last_seen, :signature, :agent_kind
                     )
                     ON CONFLICT(agent_name) DO UPDATE SET
                         description=excluded.description,
@@ -931,7 +933,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                         labels=excluded.labels,
                         first_seen=excluded.first_seen,
                         last_seen=excluded.last_seen,
-                        signature=excluded.signature
+                        signature=excluded.signature,
+                        agent_kind=excluded.agent_kind
                     """,
                     payload,
                 )
@@ -943,7 +946,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             cursor = await conn.execute(
                 """
                 SELECT agent_name, description, subscriptions, output_types, labels,
-                       first_seen, last_seen, signature
+                       first_seen, last_seen, signature, agent_kind
                 FROM agent_snapshots
                 """
             )
@@ -962,6 +965,7 @@ class SQLiteBlackboardStore(BlackboardStore):
                         first_seen=datetime.fromisoformat(row["first_seen"]),
                         last_seen=datetime.fromisoformat(row["last_seen"]),
                         signature=row["signature"],
+                        agent_kind=row["agent_kind"] or "internal",
                     )
                 )
             return snapshots

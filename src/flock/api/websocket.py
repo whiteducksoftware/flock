@@ -15,6 +15,9 @@ from flock.components.server.models.events import (
     AgentActivatedEvent,
     AgentCompletedEvent,
     AgentErrorEvent,
+    ExternalAgentCompletedEvent,
+    ExternalAgentFailedEvent,
+    ExternalAgentSpawnedEvent,
     MessagePublishedEvent,
     StreamingOutputEvent,
 )
@@ -31,6 +34,9 @@ WebSocketEvent = Union[
     StreamingOutputEvent,
     AgentCompletedEvent,
     AgentErrorEvent,
+    ExternalAgentSpawnedEvent,
+    ExternalAgentCompletedEvent,
+    ExternalAgentFailedEvent,
 ]
 
 

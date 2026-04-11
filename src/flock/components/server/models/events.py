@@ -255,12 +255,82 @@ class BatchItemAddedEvent(BaseModel):
     artifact_type: str
 
 
+# ---------------------------------------------------------------------------
+# Unit 10: External agent lifecycle events
+# ---------------------------------------------------------------------------
+
+
+class ExternalAgentSpawnedEvent(BaseModel):
+    """Event emitted when an external agent process is spawned.
+
+    Allows dashboards to show external agent lifecycle status in real time.
+    Frontends that do not recognise the ``type`` discriminator can safely
+    ignore these events.
+    """
+
+    type: str = Field(default="external_agent_spawned", frozen=True)
+
+    # Event metadata
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    )
+
+    # External agent identification
+    agent_name: str
+    session_mode: str  # e.g. "oneshot", "persistent"
+    adapter_type: str  # e.g. "subprocess", "docker", "ssh"
+    trigger_artifact_id: str | None = None  # Artifact that triggered the spawn
+
+
+class ExternalAgentCompletedEvent(BaseModel):
+    """Event emitted when an external agent process completes successfully.
+
+    Frontends that do not recognise the ``type`` discriminator can safely
+    ignore these events.
+    """
+
+    type: str = Field(default="external_agent_completed", frozen=True)
+
+    # Event metadata
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    )
+
+    # External agent identification
+    agent_name: str
+    session_id: str | None = None  # Session identifier (if persistent)
+    duration_ms: float = 0.0  # Execution time in milliseconds
+
+
+class ExternalAgentFailedEvent(BaseModel):
+    """Event emitted when an external agent process fails.
+
+    Frontends that do not recognise the ``type`` discriminator can safely
+    ignore these events.
+    """
+
+    type: str = Field(default="external_agent_failed", frozen=True)
+
+    # Event metadata
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    )
+
+    # External agent identification
+    agent_name: str
+    error: str  # Error message / reason for failure
+    session_id: str | None = None  # Session identifier (if persistent)
+
+
 __all__ = [
     "AgentActivatedEvent",
     "AgentCompletedEvent",
     "AgentErrorEvent",
     "BatchItemAddedEvent",
     "CorrelationGroupUpdatedEvent",
+    "ExternalAgentCompletedEvent",
+    "ExternalAgentFailedEvent",
+    "ExternalAgentSpawnedEvent",
     "MessagePublishedEvent",
     "StreamingOutputEvent",
     "SubscriptionInfo",
