@@ -13,6 +13,7 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
 import signal
 from datetime import UTC, datetime, timedelta
@@ -34,6 +35,7 @@ from flock.core.visibility import (
 from flock.integrations.external.models import (
     AgentOutcome,
     ExternalSessionStore,
+    SQLiteExternalSessionStore,
     SpawnConfig,
     SpawnResult,
 )
@@ -106,7 +108,7 @@ class ExternalAgentScheduler(OrchestratorComponent):
     _external_agents: dict[str, Agent] = PrivateAttr(default_factory=dict)
 
     # --- internal state ---
-    _session_store: ExternalSessionStore = PrivateAttr(
+    _session_store: ExternalSessionStore | SQLiteExternalSessionStore = PrivateAttr(
         default_factory=ExternalSessionStore
     )
     _queues: dict[str, asyncio.Queue[ChangelogEvent]] = PrivateAttr(
@@ -153,6 +155,21 @@ class ExternalAgentScheduler(OrchestratorComponent):
         """
         self._token_store = store
         self._api_url = api_url or os.environ.get("FLOCK_API_URL")
+        return self
+
+    def set_session_store(
+        self,
+        store: ExternalSessionStore | SQLiteExternalSessionStore,
+    ) -> ExternalAgentScheduler:
+        """Replace the default in-memory session store.
+
+        Pass a :class:`SQLiteExternalSessionStore` to persist sessions
+        across restarts.
+
+        Returns:
+            self for chaining.
+        """
+        self._session_store = store
         return self
 
     # ------------------------------------------------------------------
@@ -384,7 +401,8 @@ class ExternalAgentScheduler(OrchestratorComponent):
 
         session_id: str | None = None
         if session_mode == "resume":
-            stored = self._session_store.get(agent_name, artifact_type)
+            result = self._session_store.get(agent_name, artifact_type)
+            stored = (await result) if inspect.isawaitable(result) else result
             if stored is not None:
                 session_id = stored
             else:
@@ -470,7 +488,11 @@ class ExternalAgentScheduler(OrchestratorComponent):
 
         # Persist session for future resume
         if outcome.session_id:
-            self._session_store.set(agent_name, artifact_type, outcome.session_id)
+            result = self._session_store.set(
+                agent_name, artifact_type, outcome.session_id
+            )
+            if inspect.isawaitable(result):
+                await result
 
         if outcome.success:
             logger.info(f"Agent {agent_name} completed successfully")
@@ -493,6 +515,10 @@ class ExternalAgentScheduler(OrchestratorComponent):
             parts.append(f"[{event.artifact_type}]")
         if event.produced_by:
             parts.append(f"from {event.produced_by}")
+        if event.correlation_id:
+            parts.append(f"correlation_id={event.correlation_id}")
+        if event.artifact_id:
+            parts.append(f"artifact_id={event.artifact_id}")
         summary = event.payload_summary
         if summary:
             for key, value in summary.items():
@@ -561,7 +587,7 @@ class ExternalAgentScheduler(OrchestratorComponent):
         self._active_spawns.clear()
 
     @property
-    def session_store(self) -> ExternalSessionStore:
+    def session_store(self) -> ExternalSessionStore | SQLiteExternalSessionStore:
         """Expose session store for testing and introspection."""
         return self._session_store
 

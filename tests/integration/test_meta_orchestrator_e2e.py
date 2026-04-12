@@ -29,7 +29,6 @@ from flock.core.store import InMemoryBlackboardStore
 from flock.core.visibility import PublicVisibility
 from flock.integrations.external.models import (
     AgentOutcome,
-    ExternalAgentConfig,
     ExternalSessionStore,
     SpawnConfig,
     SpawnResult,

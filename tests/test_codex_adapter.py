@@ -482,7 +482,7 @@ class TestCodexTerminate:
 
         # Patch _TERMINATE_GRACE_SECONDS to a tiny value for fast test
         with patch(
-            "flock.integrations.external.adapters.codex._TERMINATE_GRACE_SECONDS",
+            "flock.integrations.external.adapters.base._TERMINATE_GRACE_SECONDS",
             0.01,
         ):
             runtime = CodexRuntime()

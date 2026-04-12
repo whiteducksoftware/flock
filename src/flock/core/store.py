@@ -1094,14 +1094,21 @@ class SQLiteBlackboardStore(BlackboardStore):
                 return 0
 
             where = " AND ".join(conditions)
-            async with self._write_lock:
-                cursor = await conn.execute(
-                    f"DELETE FROM changelog_events WHERE {where}",  # nosec B608
-                    tuple(params),
-                )
-                deleted = cursor.rowcount or 0
-                await cursor.close()
-            return deleted
+            total_deleted = 0
+            while True:
+                async with self._write_lock:
+                    cursor = await conn.execute(
+                        f"DELETE FROM changelog_events WHERE rowid IN "  # nosec B608
+                        f"(SELECT rowid FROM changelog_events WHERE {where} LIMIT 500)",
+                        tuple(params),
+                    )
+                    batch_deleted = cursor.rowcount or 0
+                    await cursor.close()
+                total_deleted += batch_deleted
+                if batch_deleted < 500:
+                    break
+                await asyncio.sleep(0)  # yield to event loop
+            return total_deleted
 
     def _row_to_changelog_event(self, row: Any) -> ChangelogEvent:
         """Convert a database row to a ChangelogEvent."""

@@ -29,7 +29,7 @@ class SQLiteSchemaManager:
     - schema_meta table: Version tracking
     """
 
-    SCHEMA_VERSION = 5
+    SCHEMA_VERSION = 6
 
     async def apply_schema(self, conn: aiosqlite.Connection) -> None:
         """
@@ -209,6 +209,19 @@ class SQLiteSchemaManager:
             """
             CREATE INDEX IF NOT EXISTS idx_changelog_correlation
             ON changelog_events(correlation_id)
+            """
+        )
+
+        # External session store table (schema v6)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS external_sessions (
+                agent_name TEXT NOT NULL,
+                artifact_type TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (agent_name, artifact_type)
+            )
             """
         )
 

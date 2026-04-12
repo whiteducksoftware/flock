@@ -447,7 +447,7 @@ class TestTerminate:
 
         # Patch the grace period to something tiny for test speed.
         with patch(
-            "flock.integrations.external.adapters.claude_code._TERMINATE_GRACE_SECONDS",
+            "flock.integrations.external.adapters.base._TERMINATE_GRACE_SECONDS",
             0.1,
         ):
             await runtime.terminate(spawn_result)

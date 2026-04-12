@@ -15,12 +15,16 @@ from uuid import uuid4
 
 import pytest
 
+import aiosqlite
+
 from flock.integrations.external.models import (
     AgentOutcome,
     ExternalSessionStore,
+    SQLiteExternalSessionStore,
     SpawnConfig,
     SpawnResult,
 )
+from flock.storage.sqlite.schema_manager import SQLiteSchemaManager
 from flock.integrations.external.runtime import ExternalAgentRuntime
 from flock.integrations.external.scheduler import ExternalAgentScheduler
 from flock.models.changelog import ChangelogEvent, ChangelogEventType
@@ -284,6 +288,77 @@ class TestExternalSessionStore:
         store = ExternalSessionStore()
         store.set("a", "X", "s1")
         assert "1 sessions" in repr(store)
+
+
+class TestSQLiteExternalSessionStore:
+    """Tests for the SQLite-backed session store."""
+
+    @pytest.fixture
+    async def sqlite_store(self, tmp_path: Path) -> SQLiteExternalSessionStore:
+        """Create a SQLiteExternalSessionStore with a temporary database."""
+        db_path = tmp_path / "test_sessions.db"
+        conn = await aiosqlite.connect(str(db_path))
+        schema_mgr = SQLiteSchemaManager()
+        await schema_mgr.apply_schema(conn)
+        store = SQLiteExternalSessionStore(conn)
+        yield store  # type: ignore[misc]
+        await conn.close()
+
+    @pytest.mark.asyncio
+    async def test_get_set(self, sqlite_store: SQLiteExternalSessionStore) -> None:
+        assert await sqlite_store.get("a", "BugReport") is None
+        await sqlite_store.set("a", "BugReport", "sess-1")
+        assert await sqlite_store.get("a", "BugReport") == "sess-1"
+
+    @pytest.mark.asyncio
+    async def test_upsert_overwrites(
+        self, sqlite_store: SQLiteExternalSessionStore
+    ) -> None:
+        await sqlite_store.set("a", "BugReport", "sess-1")
+        await sqlite_store.set("a", "BugReport", "sess-2")
+        assert await sqlite_store.get("a", "BugReport") == "sess-2"
+
+    @pytest.mark.asyncio
+    async def test_clear_all(self, sqlite_store: SQLiteExternalSessionStore) -> None:
+        await sqlite_store.set("a", "X", "s1")
+        await sqlite_store.set("b", "Y", "s2")
+        await sqlite_store.clear()
+        assert await sqlite_store.count() == 0
+
+    @pytest.mark.asyncio
+    async def test_clear_by_agent(
+        self, sqlite_store: SQLiteExternalSessionStore
+    ) -> None:
+        await sqlite_store.set("a", "X", "s1")
+        await sqlite_store.set("a", "Y", "s2")
+        await sqlite_store.set("b", "Z", "s3")
+        await sqlite_store.clear("a")
+        assert await sqlite_store.count() == 1
+        assert await sqlite_store.get("b", "Z") == "s3"
+
+    @pytest.mark.asyncio
+    async def test_persistence_across_reconnect(self, tmp_path: Path) -> None:
+        """Sessions survive closing and reopening the database."""
+        db_path = tmp_path / "persist.db"
+        schema_mgr = SQLiteSchemaManager()
+
+        # First connection: write a session
+        conn1 = await aiosqlite.connect(str(db_path))
+        await schema_mgr.apply_schema(conn1)
+        store1 = SQLiteExternalSessionStore(conn1)
+        await store1.set("agent-a", "PRDiff", "session-42")
+        await conn1.close()
+
+        # Second connection: read it back
+        conn2 = await aiosqlite.connect(str(db_path))
+        await schema_mgr.apply_schema(conn2)
+        store2 = SQLiteExternalSessionStore(conn2)
+        assert await store2.get("agent-a", "PRDiff") == "session-42"
+        await conn2.close()
+
+    @pytest.mark.asyncio
+    async def test_repr(self, sqlite_store: SQLiteExternalSessionStore) -> None:
+        assert "SQLiteExternalSessionStore" in repr(sqlite_store)
 
 
 class TestRuntimeProtocol:

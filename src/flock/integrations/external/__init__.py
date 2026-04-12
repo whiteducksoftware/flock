@@ -4,6 +4,8 @@ from flock.integrations.external.models import (
     AgentOutcome,
     ExternalAgentConfig,
     ExternalSessionStore,
+    SQLiteExternalSessionStore,
+    SessionStoreProtocol,
     SpawnConfig,
     SpawnResult,
 )
@@ -16,6 +18,8 @@ __all__ = [
     "ExternalAgentRuntime",
     "ExternalAgentScheduler",
     "ExternalSessionStore",
+    "SQLiteExternalSessionStore",
+    "SessionStoreProtocol",
     "SpawnConfig",
     "SpawnResult",
 ]
