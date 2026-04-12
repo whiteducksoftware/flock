@@ -262,8 +262,12 @@ class OutputUtilityComponent(AgentComponent):
             )
 
         is_openclaw_agent = self._is_openclaw_agent(agent)
+        is_external_agent = getattr(agent, "agent_kind", "internal") == "external"
         if is_openclaw_agent:
             agent_display = f"{agent.name} 🦞"
+        elif is_external_agent:
+            adapter = getattr(agent, "adapter_name", None) or "external"
+            agent_display = f"{agent.name} [{adapter}]"
         else:
             model = getattr(agent, "model", None) or ctx.get_variable("model")
             model_display = model if model is not None else "default"

@@ -718,6 +718,17 @@ class Flock(metaclass=AutoTracedMeta):
                 await asyncio.sleep(0.1)  # Brief sleep when timers are active
                 continue  # Not idle due to active timers
 
+            # Check for active external agent spawns or queued events.
+            # Yield first to let the event loop propagate dispatcher → scheduler queue.
+            await asyncio.sleep(0.05)
+            has_active_external = any(
+                getattr(c, "active_agent_count", 0) > 0
+                for c in self._components
+            )
+            if has_active_external:
+                await asyncio.sleep(0.1)
+                continue  # Not idle due to running external agents
+
             # If we get here, system is truly idle (no tasks, no batches, no correlations, no timers)
             break
 

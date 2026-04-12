@@ -121,6 +121,7 @@ class ExternalAgentScheduler(OrchestratorComponent):
     _started: bool = PrivateAttr(default=False)
     _token_store: TokenStore | None = PrivateAttr(default=None)
     _api_url: str | None = PrivateAttr(default=None)
+    _orchestrator: Flock | None = PrivateAttr(default=None)
 
     # ------------------------------------------------------------------
     # Construction helper (call after __init__)
@@ -178,6 +179,7 @@ class ExternalAgentScheduler(OrchestratorComponent):
 
     async def on_initialize(self, orchestrator: Flock) -> None:
         """Discover external agents, subscribe to changelog, start workers."""
+        self._orchestrator = orchestrator
         if self._started:
             return
         if self._stream_dispatcher is None:
@@ -496,12 +498,54 @@ class ExternalAgentScheduler(OrchestratorComponent):
 
         if outcome.success:
             logger.info(f"Agent {agent_name} completed successfully")
+            # Auto-publish result as artifact if the agent declares outputs
+            await self._auto_publish_outcome(agent, event, outcome)
         else:
             logger.warning(
                 f"Agent {agent_name} failed: rc={outcome.returncode}, "
                 f"stderr={outcome.stderr[:200]}"
             )
         return outcome
+
+    async def _auto_publish_outcome(
+        self,
+        agent: Agent,
+        trigger_event: ChangelogEvent,
+        outcome: AgentOutcome,
+    ) -> None:
+        """Publish the external agent's stdout as a typed artifact.
+
+        If the agent declares ``.publishes(SomeModel)``, we attempt to parse
+        the stdout as JSON and publish it.  This completes the fire-and-forget
+        pattern without requiring the external agent to call back via REST.
+        """
+        if not agent.outputs:
+            return
+        if not outcome.stdout.strip():
+            return
+
+        import json as _json
+
+        output_spec = agent.outputs[0].spec  # Use first declared output type
+        try:
+            raw = _json.loads(outcome.stdout)
+        except _json.JSONDecodeError:
+            # stdout isn't JSON — wrap raw text in the model
+            raw = {}
+
+        # Try to instantiate the Pydantic model
+        try:
+            instance = output_spec.model.model_validate(raw)
+        except Exception:
+            # Couldn't parse into the model — publish raw text as payload
+            instance = output_spec.model.model_construct(
+                **{field: outcome.stdout[:500] for field in list(output_spec.model.model_fields)[:1]}
+            )
+
+        if self._orchestrator is not None:
+            await self._orchestrator.publish(
+                instance, correlation_id=trigger_event.correlation_id
+            )
 
     # ------------------------------------------------------------------
     # Helpers
@@ -593,5 +637,12 @@ class ExternalAgentScheduler(OrchestratorComponent):
 
     @property
     def active_agent_count(self) -> int:
-        """Number of agents currently running a spawned process."""
-        return len(self._active_spawns)
+        """Number of agents currently running or queued for execution.
+
+        Returns > 0 when any agent has a pending event in its queue OR
+        an active subprocess.  Used by the orchestrator's idle detection.
+        """
+        active = len(self._active_spawns)
+        for q in self._queues.values():
+            active += q.qsize()
+        return active

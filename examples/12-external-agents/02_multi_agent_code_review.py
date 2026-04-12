@@ -27,6 +27,7 @@ USE CASE: Multi-perspective code review, parallel analysis with
 """
 
 import asyncio
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -56,21 +57,29 @@ WORKING_DIR = str(Path.cwd())
 # PREFLIGHT: Verify both CLIs are available
 # ============================================================================
 def preflight_check() -> None:
-    """Verify both CLIs are installed."""
+    """Verify both CLIs are installed and API keys are available."""
     errors: list[str] = []
     if not shutil.which("claude"):
         errors.append(
             "Claude Code CLI not found. Install: npm install -g @anthropic-ai/claude-code"
         )
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        errors.append(
+            "ANTHROPIC_API_KEY not set. Bare-mode subprocesses need an explicit API key."
+        )
     if not shutil.which("codex"):
         errors.append(
             "Codex CLI not found. Install: npm install -g @openai/codex"
+        )
+    if not os.environ.get("OPENAI_API_KEY"):
+        errors.append(
+            "OPENAI_API_KEY not set. Bare-mode subprocesses need an explicit API key."
         )
     if errors:
         for e in errors:
             print(f"ERROR: {e}")
         sys.exit(1)
-    print("Both CLIs found.")
+    print("Both CLIs found, API keys set.")
 
 
 # ============================================================================

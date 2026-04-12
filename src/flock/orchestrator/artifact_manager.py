@@ -200,8 +200,12 @@ class ArtifactManager:
         changelog_event = self._build_changelog_event(artifact)
         await self._store.publish(artifact, changelog_event)
         self._orchestrator.metrics["artifacts_published"] += 1
-        self._notify_dispatcher(changelog_event)
+        # schedule_artifact triggers component initialization (including
+        # ExternalAgentScheduler subscribe), so it must run BEFORE the
+        # dispatcher notification — otherwise the event arrives before
+        # the scheduler is listening.
         await self._scheduler.schedule_artifact(artifact)
+        self._notify_dispatcher(changelog_event)
 
     async def persist(self, artifact: Artifact) -> None:
         """Persist artifact to store without scheduling.

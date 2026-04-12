@@ -81,13 +81,17 @@ class ChangelogStreamComponent(ServerComponent):
     def __init__(self, token_store: Any | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._token_store = token_store
+        # Create dispatcher eagerly so orchestrator components (ExternalAgentScheduler)
+        # can receive the reference during on_initialize, which runs before
+        # server component on_startup_async.
+        self._dispatcher = StreamDispatcher()
 
     @property
     def dispatcher(self) -> StreamDispatcher:
-        """Access the StreamDispatcher (created on startup)."""
+        """Access the StreamDispatcher."""
         if self._dispatcher is None:
             raise RuntimeError(
-                "ChangelogStreamComponent not started — dispatcher not available."
+                "ChangelogStreamComponent dispatcher not available."
             )
         return self._dispatcher
 
@@ -312,12 +316,11 @@ class ChangelogStreamComponent(ServerComponent):
             logger.debug(f"WebSocket push error (sub={sub.id}): {exc!s}")
 
     async def on_startup_async(self, orchestrator: Any) -> None:
-        """Create the StreamDispatcher and wire into ArtifactManager + ExternalAgentScheduler."""
-        self._dispatcher = StreamDispatcher()
-        # Wire dispatcher into artifact_manager for push delivery
-        if hasattr(orchestrator, "artifact_manager"):
-            orchestrator.artifact_manager._stream_dispatcher = self._dispatcher
-        # Wire dispatcher into ExternalAgentScheduler if registered
+        """Wire the StreamDispatcher into ArtifactManager + ExternalAgentScheduler."""
+        # Dispatcher created eagerly in __init__; wire it into runtime components here
+        if hasattr(orchestrator, "_artifact_manager"):
+            orchestrator._artifact_manager._stream_dispatcher = self._dispatcher
+        # Wire into ExternalAgentScheduler if registered
         for comp in getattr(orchestrator, "_components", []):
             if hasattr(comp, "_stream_dispatcher") and hasattr(comp, "_adapters"):
                 comp._stream_dispatcher = self._dispatcher

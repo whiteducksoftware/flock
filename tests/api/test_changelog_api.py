@@ -753,10 +753,10 @@ class TestComponentLifecycle:
         assert component._dispatcher is None
 
     @pytest.mark.asyncio
-    async def test_dispatcher_property_raises_before_startup(self):
+    async def test_dispatcher_available_immediately(self):
+        """Dispatcher is created eagerly in __init__ for early wiring."""
         component = ChangelogStreamComponent()
-        with pytest.raises(RuntimeError, match="not started"):
-            _ = component.dispatcher
+        assert component.dispatcher is not None
 
     @pytest.mark.asyncio
     async def test_component_priority(self):
