@@ -729,7 +729,14 @@ class Flock(metaclass=AutoTracedMeta):
                 await asyncio.sleep(0.1)
                 continue  # Not idle due to running external agents
 
-            # If we get here, system is truly idle (no tasks, no batches, no correlations, no timers)
+            # External agents just finished — their auto-publish may have
+            # created new internal tasks (downstream cascade).  Yield and
+            # re-check pending_tasks before declaring idle.
+            await asyncio.sleep(0.1)
+            if self._scheduler.pending_tasks:
+                continue
+
+            # If we get here, system is truly idle (no tasks, no batches, no correlations, no timers, no external)
             break
 
         # Notify components that orchestrator reached idle state or timeout
