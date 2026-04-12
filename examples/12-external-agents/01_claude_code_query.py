@@ -81,6 +81,14 @@ class CodingAnswer(BaseModel):
     )
 
 
+@flock_type
+class AnswerSummary(BaseModel):
+    """A concise summary of the coding answer."""
+
+    summary: str = Field(description="2-3 sentence summary of the answer")
+    approach: str = Field(default="", description="The approach or technique used")
+
+
 # ============================================================================
 # SETUP
 # ============================================================================
@@ -125,6 +133,7 @@ flock.add_server_component(auth)
 # Internal agent: summarizes the answer for the user
 (flock.agent("summarizer")
     .consumes(CodingAnswer)
+    .publishes(AnswerSummary)
     .description(
         "You received a coding answer from Claude Code. "
         "Summarize it in 2-3 sentences highlighting the key insight. "
