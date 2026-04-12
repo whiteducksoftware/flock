@@ -312,11 +312,16 @@ class ChangelogStreamComponent(ServerComponent):
             logger.debug(f"WebSocket push error (sub={sub.id}): {exc!s}")
 
     async def on_startup_async(self, orchestrator: Any) -> None:
-        """Create the StreamDispatcher and wire into ArtifactManager."""
+        """Create the StreamDispatcher and wire into ArtifactManager + ExternalAgentScheduler."""
         self._dispatcher = StreamDispatcher()
         # Wire dispatcher into artifact_manager for push delivery
         if hasattr(orchestrator, "artifact_manager"):
             orchestrator.artifact_manager._stream_dispatcher = self._dispatcher
+        # Wire dispatcher into ExternalAgentScheduler if registered
+        for comp in getattr(orchestrator, "_components", []):
+            if hasattr(comp, "_stream_dispatcher") and hasattr(comp, "_adapters"):
+                comp._stream_dispatcher = self._dispatcher
+                logger.debug("Wired StreamDispatcher into %s", comp.name)
         logger.info("ChangelogStreamComponent started — dispatcher ready")
 
     async def on_shutdown_async(self, orchestrator: Any) -> None:

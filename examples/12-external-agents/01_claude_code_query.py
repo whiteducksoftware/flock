@@ -14,7 +14,7 @@ KEY CONCEPTS:
 
 REQUIREMENTS:
 - Claude Code CLI installed: npm install -g @anthropic-ai/claude-code
-- ANTHROPIC_API_KEY set in environment
+  (must be authenticated — run `claude` once to log in)
 
 PATTERN: Query -> External Agent -> Answer
 USE CASE: Offload complex coding tasks to Claude Code while keeping
@@ -22,7 +22,7 @@ USE CASE: Offload complex coding tasks to Claude Code while keeping
 """
 
 import asyncio
-import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -43,24 +43,19 @@ from flock.registry import flock_type
 # CONFIGURATION
 # ============================================================================
 USE_DASHBOARD = False  # Set to True for dashboard mode
-WORKING_DIR = str(Path.cwd())  # Where Claude Code runs
+WORKING_DIR = str(Path.cwd())
 
 
 # ============================================================================
 # PREFLIGHT: Verify Claude Code is available
 # ============================================================================
 def check_claude_code() -> None:
-    """Verify the claude CLI is installed and ANTHROPIC_API_KEY is set."""
-    import shutil
-
+    """Verify the claude CLI is installed."""
     if not shutil.which("claude"):
         print("ERROR: Claude Code CLI not found.")
         print("Install it with: npm install -g @anthropic-ai/claude-code")
         sys.exit(1)
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY not set in environment.")
-        sys.exit(1)
-    print("Claude Code CLI found, API key set.")
+    print("Claude Code CLI found.")
 
 
 # ============================================================================
@@ -87,33 +82,31 @@ class CodingAnswer(BaseModel):
 
 
 # ============================================================================
-# AGENT SETUP
+# SETUP
 # ============================================================================
 check_claude_code()
 
-flock = Flock("claude-code-query", model="openai/gpt-4.1", use_dashboard=USE_DASHBOARD)
+flock = Flock()
 
 # --- Infrastructure components ---
 
 # Token store for external agent auth
 token_store = InMemoryTokenStore()
 
-# Changelog stream — delivers events to subscribers in real-time
+# Changelog stream — delivers events to subscribers in real-time.
+# The dispatcher is created during serve() startup and auto-wired
+# into both the ArtifactManager and ExternalAgentScheduler.
 changelog = ChangelogStreamComponent(token_store=token_store)
-
-# Auth component — validates bearer tokens on REST endpoints
 auth = AuthenticationComponent()
 
-# External agent scheduler — bridges changelog events to subprocess spawns
+# External agent scheduler — adapters are registered here.
+# The StreamDispatcher is auto-wired by ChangelogStreamComponent on startup.
 scheduler = ExternalAgentScheduler()
-scheduler.configure(
-    stream_dispatcher=changelog.dispatcher if changelog._dispatcher else None,
-    adapters={"claude_code": ClaudeCodeRuntime()},
-)
+scheduler._adapters = {"claude_code": ClaudeCodeRuntime()}
 scheduler.set_token_store(token_store)
 
-# Register components on the orchestrator
-flock.add_orchestrator_component(scheduler)
+# Register components
+flock.add_component(scheduler)
 flock.add_server_component(changelog)
 flock.add_server_component(auth)
 
@@ -146,7 +139,7 @@ flock.add_server_component(auth)
 
 
 # ============================================================================
-# RUN: Publish a question and watch the cascade
+# RUN
 # ============================================================================
 async def main() -> None:
     print("\n--- Publishing a coding question ---\n")
@@ -157,7 +150,16 @@ async def main() -> None:
         context="Looking for O(n) solution, not O(n^2)",
     )
 
-    await flock.run_async(initial_data=question)
+    if USE_DASHBOARD:
+        # Dashboard mode: serve with UI, publish, wait
+        task = await flock.serve(dashboard=True, blocking=False)
+        await flock.publish(question)
+        await flock.run_until_idle()
+    else:
+        # CLI mode: start server in background for REST API, publish, wait
+        task = await flock.serve(blocking=False)
+        await flock.publish(question)
+        await flock.run_until_idle()
 
     print("\n--- Workflow complete ---")
     print("Flow: CodingQuestion -> code-answerer (Claude Code) -> CodingAnswer -> summarizer")

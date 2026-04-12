@@ -17,9 +17,9 @@ KEY CONCEPTS:
 
 REQUIREMENTS:
 - Claude Code CLI installed: npm install -g @anthropic-ai/claude-code
+  (must be authenticated — run `claude` once to log in)
 - Codex CLI installed: npm install -g @openai/codex
-- ANTHROPIC_API_KEY set in environment
-- OPENAI_API_KEY set in environment
+  (must be authenticated — run `codex` once to log in)
 
 PATTERN: Fan-out -> External Agents (parallel) -> Fan-in
 USE CASE: Multi-perspective code review, parallel analysis with
@@ -27,7 +27,7 @@ USE CASE: Multi-perspective code review, parallel analysis with
 """
 
 import asyncio
-import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -49,38 +49,28 @@ from flock.registry import flock_type
 # CONFIGURATION
 # ============================================================================
 USE_DASHBOARD = False  # Set to True for dashboard mode
-WORKING_DIR = str(Path.cwd())  # Where both agents run
+WORKING_DIR = str(Path.cwd())
 
 
 # ============================================================================
 # PREFLIGHT: Verify both CLIs are available
 # ============================================================================
 def preflight_check() -> None:
-    """Verify both CLIs are installed and API keys are set."""
-    import shutil
-
+    """Verify both CLIs are installed."""
     errors: list[str] = []
-
     if not shutil.which("claude"):
         errors.append(
             "Claude Code CLI not found. Install: npm install -g @anthropic-ai/claude-code"
         )
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        errors.append("ANTHROPIC_API_KEY not set in environment.")
-
     if not shutil.which("codex"):
         errors.append(
             "Codex CLI not found. Install: npm install -g @openai/codex"
         )
-    if not os.environ.get("OPENAI_API_KEY"):
-        errors.append("OPENAI_API_KEY not set in environment.")
-
     if errors:
         for e in errors:
             print(f"ERROR: {e}")
         sys.exit(1)
-
-    print("Both CLIs found, API keys set.")
+    print("Both CLIs found.")
 
 
 # ============================================================================
@@ -130,11 +120,11 @@ class ReviewSummary(BaseModel):
 
 
 # ============================================================================
-# AGENT SETUP
+# SETUP
 # ============================================================================
 preflight_check()
 
-flock = Flock("code-review", model="openai/gpt-4.1", use_dashboard=USE_DASHBOARD)
+flock = Flock()
 
 # --- Infrastructure ---
 token_store = InMemoryTokenStore()
@@ -143,16 +133,13 @@ auth = AuthenticationComponent()
 
 # Scheduler with BOTH adapters registered
 scheduler = ExternalAgentScheduler()
-scheduler.configure(
-    stream_dispatcher=changelog.dispatcher if changelog._dispatcher else None,
-    adapters={
-        "claude_code": ClaudeCodeRuntime(),
-        "codex": CodexRuntime(),
-    },
-)
+scheduler._adapters = {
+    "claude_code": ClaudeCodeRuntime(),
+    "codex": CodexRuntime(),
+}
 scheduler.set_token_store(token_store)
 
-flock.add_orchestrator_component(scheduler)
+flock.add_component(scheduler)
 flock.add_server_component(changelog)
 flock.add_server_component(auth)
 
@@ -200,7 +187,7 @@ flock.add_server_component(auth)
 
 
 # ============================================================================
-# RUN: Publish a PR diff and watch both reviewers work
+# RUN
 # ============================================================================
 async def main() -> None:
     print("\n--- Publishing PR for multi-agent review ---\n")
@@ -245,7 +232,10 @@ new file mode 100644
         author="junior-dev",
     )
 
-    await flock.run_async(initial_data=pr)
+    # Start server (needed for REST API + changelog stream)
+    task = await flock.serve(dashboard=USE_DASHBOARD, blocking=False)
+    await flock.publish(pr)
+    await flock.run_until_idle()
 
     print("\n--- Review workflow complete ---")
     print(
