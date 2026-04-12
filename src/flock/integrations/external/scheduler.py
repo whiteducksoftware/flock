@@ -543,6 +543,20 @@ class ExternalAgentScheduler(OrchestratorComponent):
             )
 
         if self._orchestrator is not None:
+            # Display the result in the CLI (same formatting as internal agents)
+            if not getattr(self._orchestrator, "_no_output", False):
+                try:
+                    from flock.logging.formatters.themed_formatter import (
+                        ThemedAgentResultFormatter,
+                    )
+
+                    adapter = agent.adapter_name or "external"
+                    label = f"{agent.name} [{adapter}]"
+                    formatter = ThemedAgentResultFormatter()
+                    formatter.display_result([instance], label)
+                except Exception:
+                    pass  # Don't crash if display fails
+
             await self._orchestrator.publish(
                 instance, correlation_id=trigger_event.correlation_id
             )
@@ -553,7 +567,32 @@ class ExternalAgentScheduler(OrchestratorComponent):
 
     @staticmethod
     def _build_prompt(event: ChangelogEvent) -> str:
-        """Derive a prompt string from a changelog event."""
+        """Derive a prompt string from a changelog event.
+
+        Prioritises the artifact payload (the actual content) over metadata.
+        Falls back to a metadata summary when no payload is available.
+        """
+        import json as _json
+
+        summary = event.payload_summary or {}
+        payload = summary.get("payload")
+
+        # If we have the actual artifact payload, format it as the prompt
+        if isinstance(payload, dict) and payload:
+            # Render the payload fields as readable text
+            lines: list[str] = []
+            if event.artifact_type:
+                lines.append(f"[{event.artifact_type}]")
+            for key, value in payload.items():
+                if isinstance(value, str) and value:
+                    lines.append(f"{key}: {value}")
+                elif value:
+                    lines.append(f"{key}: {_json.dumps(value)}")
+            if event.correlation_id:
+                lines.append(f"(correlation_id={event.correlation_id})")
+            return "\n".join(lines) if lines else "changelog event"
+
+        # Fallback: metadata-only prompt
         parts: list[str] = []
         if event.artifact_type:
             parts.append(f"[{event.artifact_type}]")
@@ -563,9 +602,8 @@ class ExternalAgentScheduler(OrchestratorComponent):
             parts.append(f"correlation_id={event.correlation_id}")
         if event.artifact_id:
             parts.append(f"artifact_id={event.artifact_id}")
-        summary = event.payload_summary
-        if summary:
-            for key, value in summary.items():
+        for key, value in summary.items():
+            if key != "payload":
                 parts.append(f"{key}={value}")
         return " ".join(parts) if parts else "changelog event"
 

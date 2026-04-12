@@ -236,6 +236,7 @@ class ArtifactManager:
             payload_summary={
                 "tags": sorted(artifact.tags) if artifact.tags else [],
                 "version": artifact.version,
+                "payload": artifact.payload,
             },
         )
 

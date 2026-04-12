@@ -228,49 +228,85 @@ class ClaudeCodeRuntime(BaseExternalRuntime):
         if not stdout:
             return None
 
-        try:
-            data = json.loads(stdout)
-        except (json.JSONDecodeError, ValueError):
-            logger.debug("ClaudeCodeRuntime: JSON parse failed, using raw stdout")
-            return None
-
         result_text: str | None = None
         session_id: str | None = None
 
-        if isinstance(data, dict):
-            # Try common field names for the response text.
-            result_text = (
-                data.get("result")
-                or data.get("content")
-                or data.get("text")
-                or data.get("output")
-            )
-            # Handle content that's a list of blocks.
-            if isinstance(result_text, list):
-                result_text = "\n".join(
-                    block.get("text", "") for block in result_text if isinstance(block, dict)
-                )
+        # Claude Code --output-format json emits either:
+        # 1. A JSON array of event objects: [{...},{...},{...}]
+        # 2. JSONL (one JSON object per line): {...}\n{...}\n{...}
+        # Parse both: try array first, then fall back to line-by-line.
+        events: list[dict[str, Any]] = []
+        try:
+            parsed_array = json.loads(stdout)
+            if isinstance(parsed_array, list):
+                events = [e for e in parsed_array if isinstance(e, dict)]
+        except (json.JSONDecodeError, ValueError):
+            pass
 
-            # Session ID: top-level or under metadata.
-            session_id = data.get("session_id")
-            if session_id is None:
-                metadata = data.get("metadata")
-                if isinstance(metadata, dict):
-                    session_id = metadata.get("session_id")
+        if not events:
+            for line in stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    if isinstance(obj, dict):
+                        events.append(obj)
+                except (json.JSONDecodeError, ValueError):
+                    continue
 
-        elif isinstance(data, list):
-            # Array of content blocks.
-            parts = []
-            for block in data:
-                if isinstance(block, dict):
-                    text = block.get("text") or block.get("content") or ""
-                    if text:
-                        parts.append(str(text))
-            result_text = "\n".join(parts) if parts else None
+        for obj in events:
+            # The "result" event has the final text and session_id
+            if obj.get("type") == "result":
+                result_text = result_text or obj.get("result")
+                session_id = session_id or obj.get("session_id")
+            # The "assistant" event has the message content
+            elif obj.get("type") == "assistant":
+                msg = obj.get("message", {})
+                content = msg.get("content", [])
+                if isinstance(content, list):
+                    text_parts = [
+                        block.get("text", "")
+                        for block in content
+                        if isinstance(block, dict) and block.get("type") == "text"
+                    ]
+                    if text_parts and result_text is None:
+                        result_text = "\n".join(text_parts)
+                session_id = session_id or obj.get("session_id")
+            # system/init event also carries session_id
+            elif obj.get("type") == "system":
+                session_id = session_id or obj.get("session_id")
+
+        # Fallback: try parsing as single JSON object (legacy format)
+        if result_text is None:
+            try:
+                data = json.loads(stdout)
+                if isinstance(data, dict):
+                    result_text = (
+                        data.get("result")
+                        or data.get("content")
+                        or data.get("text")
+                    )
+                    if isinstance(result_text, list):
+                        result_text = "\n".join(
+                            b.get("text", "") for b in result_text if isinstance(b, dict)
+                        )
+                    sid = data.get("session_id")
+                    if sid is None:
+                        meta = data.get("metadata")
+                        if isinstance(meta, dict):
+                            sid = meta.get("session_id")
+                    session_id = session_id or sid
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        if result_text is None and session_id is None:
+            logger.debug("ClaudeCodeRuntime: no result parsed from output")
+            return None
 
         parsed: dict[str, Any] = {}
         if result_text is not None:
             parsed["result_text"] = str(result_text)
         if session_id is not None:
             parsed["session_id"] = str(session_id)
-        return parsed if parsed else None
+        return parsed
