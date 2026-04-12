@@ -113,29 +113,23 @@ flock.add_server_component(auth)
 # --- Agents ---
 
 # External agent: Claude Code answers coding questions
-(
-    flock.agent("code-answerer")
+(flock.agent("code-answerer")
     .kind("external")
     .adapter("claude_code")
     .working_dir(WORKING_DIR)
     .spawn_timeout(120.0)
     .consumes(CodingQuestion)
     .publishes(CodingAnswer)
-    .session_mode("new")
-    .done()
-)
+    .session_mode("new"))
 
 # Internal agent: summarizes the answer for the user
-(
-    flock.agent("summarizer")
+(flock.agent("summarizer")
     .consumes(CodingAnswer)
-    .instruction(
+    .description(
         "You received a coding answer from Claude Code. "
         "Summarize it in 2-3 sentences highlighting the key insight. "
         "If there's a code snippet, mention the approach used."
-    )
-    .done()
-)
+    ))
 
 
 # ============================================================================

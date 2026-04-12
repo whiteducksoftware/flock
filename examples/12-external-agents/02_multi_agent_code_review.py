@@ -144,46 +144,37 @@ flock.add_server_component(changelog)
 flock.add_server_component(auth)
 
 # --- External Agent 1: Claude Code (security + correctness) ---
-(
-    flock.agent("security-reviewer")
+(flock.agent("security-reviewer")
     .kind("external")
     .adapter("claude_code")
     .working_dir(WORKING_DIR)
     .spawn_timeout(300.0)
     .consumes(PRDiff)
     .publishes(SecurityReview)
-    .session_mode("resume")  # Resume conversation for follow-up reviews
-    .done()
-)
+    .session_mode("resume"))  # Resume conversation for follow-up reviews
 
 # --- External Agent 2: Codex (performance + style) ---
-(
-    flock.agent("performance-reviewer")
+(flock.agent("performance-reviewer")
     .kind("external")
     .adapter("codex")
     .working_dir(WORKING_DIR)
     .spawn_timeout(300.0)
     .consumes(PRDiff)
     .publishes(PerformanceReview)
-    .session_mode("new")  # Fresh session each time
-    .done()
-)
+    .session_mode("new"))  # Fresh session each time
 
 # --- Internal Agent: Merge reviews into a summary ---
 # This agent fires when EITHER review arrives. In a production setup,
 # you'd use a JoinSpec to wait for both reviews before summarizing.
-(
-    flock.agent("review-merger")
+(flock.agent("review-merger")
     .consumes(SecurityReview, PerformanceReview)
     .produces(ReviewSummary)
-    .instruction(
+    .description(
         "You are merging code review results from two independent reviewers. "
         "Synthesize their findings into a single summary with an overall verdict. "
         "If either reviewer requests changes, the overall verdict should be "
         "'changes_requested'. List the most important findings and recommended actions."
-    )
-    .done()
-)
+    ))
 
 
 # ============================================================================
