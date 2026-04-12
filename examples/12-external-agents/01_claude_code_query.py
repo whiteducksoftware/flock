@@ -144,19 +144,18 @@ async def main() -> None:
         context="Looking for O(n) solution, not O(n^2)",
     )
 
-    if USE_DASHBOARD:
-        # Dashboard mode: serve with UI, publish, wait
-        task = await flock.serve(dashboard=True, blocking=False)
-        await flock.publish(question)
-        await flock.run_until_idle()
-    else:
-        # CLI mode: start server in background for REST API, publish, wait
-        task = await flock.serve(blocking=False)
-        await flock.publish(question)
-        await flock.run_until_idle()
+    # Start server in background (needed for REST API + changelog stream)
+    await flock.serve(dashboard=USE_DASHBOARD, blocking=False)
+    await flock.publish(question)
+    await flock.run_until_idle()
 
     print("\n--- Workflow complete ---")
     print("Flow: CodingQuestion -> code-answerer (Claude Code) -> CodingAnswer -> summarizer")
+
+    # Clean shutdown — suppress uvicorn's noisy CancelledError log
+    import logging
+    logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
+    await flock.shutdown()
 
 
 if __name__ == "__main__":

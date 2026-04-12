@@ -223,8 +223,8 @@ new file mode 100644
         author="junior-dev",
     )
 
-    # Start server (needed for REST API + changelog stream)
-    task = await flock.serve(dashboard=USE_DASHBOARD, blocking=False)
+    # Start server in background (needed for REST API + changelog stream)
+    await flock.serve(dashboard=USE_DASHBOARD, blocking=False)
     await flock.publish(pr)
     await flock.run_until_idle()
 
@@ -233,6 +233,11 @@ new file mode 100644
         "Flow: PRDiff -> security-reviewer (Claude Code) + performance-reviewer (Codex)"
     )
     print("      -> SecurityReview + PerformanceReview -> review-merger -> ReviewSummary")
+
+    # Clean shutdown — suppress uvicorn's noisy CancelledError log
+    import logging
+    logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
+    await flock.shutdown()
 
 
 if __name__ == "__main__":
