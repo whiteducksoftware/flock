@@ -1093,7 +1093,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             if not conditions:
                 return 0
 
-            where = " OR ".join(conditions)
+            where = " AND ".join(conditions)
             async with self._write_lock:
                 cursor = await conn.execute(
                     f"DELETE FROM changelog_events WHERE {where}",  # nosec B608

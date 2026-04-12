@@ -37,23 +37,23 @@ def make_bearer_token_handler(
         auth_header = request.headers.get("authorization", "")
         if not auth_header.startswith("Bearer "):
             return False, JSONResponse(
-                {"error": "Missing or malformed Authorization header"},
+                {"detail": "Missing or malformed Authorization header"},
                 status_code=401,
             )
 
         raw_token = auth_header[len("Bearer "):]
         if not raw_token or len(raw_token) < 8:
             return False, JSONResponse(
-                {"error": "Malformed bearer token"}, status_code=401
+                {"detail": "Malformed bearer token"}, status_code=401
             )
 
         record = await token_store.verify(raw_token)
         if record is None:
             return False, JSONResponse(
-                {"error": "Invalid or expired token"}, status_code=401
+                {"detail": "Invalid or expired token"}, status_code=401
             )
 
-        # Attach identity to request state for downstream use
+        # Attach identity + scopes to request state for downstream use
         if "state" not in request.scope:
             request.scope["state"] = {}
         request.scope["state"]["agent_identity"] = AgentIdentity(
@@ -61,6 +61,8 @@ def make_bearer_token_handler(
             labels=record.identity_labels,
             tenant_id=record.identity_tenant_id,
         )
+        request.scope["state"]["token_scopes"] = record.scopes
+        request.scope["state"]["token_allowed_types"] = record.allowed_types
 
         return True, None
 

@@ -106,8 +106,7 @@ class StreamDispatcher:
                         f"Queue still full after drop for subscription {sub.id}"
                     )
 
-    @property
-    async def subscriber_count(self) -> int:
+    async def get_subscriber_count(self) -> int:
         """Return the current number of active subscriptions."""
         async with self._lock:
             return len(self._subscriptions)

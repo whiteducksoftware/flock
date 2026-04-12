@@ -13,6 +13,18 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
+    from flock.components.server.control.helpers import (  # noqa: F401
+        _get_batch_state,
+        _get_correlation_groups,
+    )
+    from flock.components.server.models.events import (  # noqa: F401
+        BatchItemAddedEvent,
+        CorrelationGroupUpdatedEvent,
+        ExternalAgentCompletedEvent,
+        ExternalAgentFailedEvent,
+        ExternalAgentSpawnedEvent,
+    )
+
     from flock.core.artifacts import Artifact
     from flock.core.subscription import Subscription
     from flock.orchestrator.batch_accumulator import BatchEngine
@@ -68,8 +80,9 @@ class EventEmitter:
         if self._websocket_manager is None:
             return
 
-        # Import _get_correlation_groups helper from control component
+        # Deferred imports — circular-import safe (server -> core -> orchestrator)
         from flock.components.server.control.helpers import _get_correlation_groups
+        from flock.components.server.models.events import CorrelationGroupUpdatedEvent
 
         # Get current correlation groups state from engine
         groups = _get_correlation_groups(
@@ -84,11 +97,6 @@ class EventEmitter:
         # In practice, the artifact we just added should be in one of these groups
         for group_state in groups:
             if not group_state["is_complete"]:
-                # Import CorrelationGroupUpdatedEvent
-                from flock.components.server.models.events import (
-                    CorrelationGroupUpdatedEvent,
-                )
-
                 # Build and emit event
                 event = CorrelationGroupUpdatedEvent(
                     agent_name=agent_name,
@@ -133,8 +141,9 @@ class EventEmitter:
         if self._websocket_manager is None:
             return
 
-        # Import _get_batch_state helper from control routes component
+        # Deferred imports — circular-import safe (server -> core -> orchestrator)
         from flock.components.server.control.helpers import _get_batch_state
+        from flock.components.server.models.events import BatchItemAddedEvent
 
         # Get current batch state from engine
         batch_state = _get_batch_state(
@@ -143,9 +152,6 @@ class EventEmitter:
 
         if not batch_state:
             return  # No batch to report (shouldn't happen, but defensive)
-
-        # Import BatchItemAddedEvent
-        from flock.components.server.models.events import BatchItemAddedEvent
 
         # Build and emit event
         event = BatchItemAddedEvent(

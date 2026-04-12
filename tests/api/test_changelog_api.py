@@ -80,14 +80,14 @@ class TestStreamDispatcher:
         sub = await dispatcher.subscribe()
         assert sub.id
         assert sub.queue.maxsize == 256
-        assert await dispatcher.subscriber_count == 1
+        assert await dispatcher.get_subscriber_count() == 1
 
     @pytest.mark.asyncio
     async def test_unsubscribe_removes_subscription(self):
         dispatcher = StreamDispatcher()
         sub = await dispatcher.subscribe()
         await dispatcher.unsubscribe(sub.id)
-        assert await dispatcher.subscriber_count == 0
+        assert await dispatcher.get_subscriber_count() == 0
 
     @pytest.mark.asyncio
     async def test_publish_delivers_to_matching_subscribers(self):
@@ -184,10 +184,10 @@ class TestStreamDispatcher:
         dispatcher = StreamDispatcher()
         await dispatcher.subscribe()
         await dispatcher.subscribe()
-        assert await dispatcher.subscriber_count == 2
+        assert await dispatcher.get_subscriber_count() == 2
 
         await dispatcher.shutdown()
-        assert await dispatcher.subscriber_count == 0
+        assert await dispatcher.get_subscriber_count() == 0
 
     @pytest.mark.asyncio
     async def test_publish_never_blocks_caller(self):
@@ -540,7 +540,7 @@ class TestSSEEndpoint:
                 items.append(item)
 
             # After generator exits, subscription should be cleaned up
-            count = await component.dispatcher.subscriber_count
+            count = await component.dispatcher.get_subscriber_count()
             assert count == 0
         finally:
             mod._SSE_KEEPALIVE_SECONDS = original
@@ -701,8 +701,8 @@ class TestWebSocketEndpoint:
 
                     # Should receive error message
                     data = ws.receive_json()
-                    assert "error" in data
-                    assert "Invalid filter JSON" in data["error"]
+                    assert "detail" in data
+                    assert "Invalid filter JSON" in data["detail"]
         finally:
             await component.on_shutdown_async(orch)
 
@@ -718,12 +718,12 @@ class TestWebSocketEndpoint:
                     # Send empty filter (match all)
                     ws.send_text(json.dumps({}))
                     await asyncio.sleep(0.1)
-                    count_during = await component.dispatcher.subscriber_count
+                    count_during = await component.dispatcher.get_subscriber_count()
                     assert count_during >= 1
 
             # After disconnect, subscription should be cleaned up
             await asyncio.sleep(0.2)
-            count_after = await component.dispatcher.subscriber_count
+            count_after = await component.dispatcher.get_subscriber_count()
             assert count_after == 0
         finally:
             await component.on_shutdown_async(orch)

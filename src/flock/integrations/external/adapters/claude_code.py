@@ -24,6 +24,22 @@ logger = logging.getLogger(__name__)
 # Default grace period between SIGTERM and SIGKILL.
 _TERMINATE_GRACE_SECONDS: float = 30.0
 
+# ---------------------------------------------------------------------------
+# Environment allowlist — only these vars propagate to the subprocess.
+# ---------------------------------------------------------------------------
+_SAFE_ENV_VARS: frozenset[str] = frozenset({
+    "PATH", "HOME", "USER", "LANG", "LC_ALL", "LC_CTYPE",
+    "TERM", "TMPDIR", "TMP", "TEMP",
+    "SHELL", "LOGNAME", "HOSTNAME",
+    # Flock-specific (injected by scheduler)
+    "FLOCK_API_TOKEN", "FLOCK_API_URL",
+})
+
+# Adapter-specific keys the CLI needs to function.
+_ADAPTER_REQUIRED_VARS: frozenset[str] = frozenset({
+    "ANTHROPIC_API_KEY",
+})
+
 
 @dataclass
 class ClaudeCodeConfig:
@@ -89,11 +105,20 @@ class ClaudeCodeRuntime:
 
         # Write prompt to stdin and close the stream so the CLI can
         # proceed.  We do NOT await output here — that's monitor()'s job.
-        assert proc.stdin is not None
-        proc.stdin.write(prompt_bytes)
-        await proc.stdin.drain()
-        proc.stdin.close()
-        await proc.stdin.wait_closed()
+        if proc.stdin is None:
+            raise RuntimeError("Subprocess stdin not available")
+        try:
+            proc.stdin.write(prompt_bytes)
+            await proc.stdin.drain()
+            proc.stdin.close()
+            await proc.stdin.wait_closed()
+        except (BrokenPipeError, OSError, ConnectionResetError) as exc:
+            # Subprocess exited early — kill and raise
+            proc.kill()
+            await proc.wait()
+            raise RuntimeError(
+                f"Claude Code process exited before accepting input: {exc}"
+            ) from exc
 
         session_id = config.session_id or "pending"
 
@@ -212,10 +237,24 @@ class ClaudeCodeRuntime:
         return args
 
     def _build_env(self, config: SpawnConfig) -> dict[str, str]:
-        """Merge OS environment with config env_vars and adapter config."""
-        env = dict(os.environ)
+        """Build a minimal environment for the subprocess.
+
+        Only allowlisted variables from the parent process are propagated
+        to prevent leaking secrets (DATABASE_URL, other API keys, etc.)
+        to untrusted external agent subprocesses.  Explicit overrides from
+        ``config.env_vars`` and ``additional_env`` are always applied on top.
+        """
+        # Start with safe subset of parent environment
+        env = {k: v for k, v in os.environ.items() if k in _SAFE_ENV_VARS}
+        # Add adapter-specific required vars
+        for key in _ADAPTER_REQUIRED_VARS:
+            if key in os.environ:
+                env[key] = os.environ[key]
+        # Merge config env vars (explicit overrides)
         env.update(config.env_vars)
-        env.update(self._config.additional_env)
+        # Merge additional env
+        if self._config.additional_env:
+            env.update(self._config.additional_env)
         return env
 
     @staticmethod

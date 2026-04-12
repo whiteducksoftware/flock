@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from pydantic import BaseModel, Field
 
 from flock.auth.token_models import TokenCreateRequest
@@ -96,12 +96,8 @@ class TokenManagementComponent(ServerComponent):
     """REST endpoints for creating, listing, and revoking bearer tokens.
 
     The component receives a :class:`TokenStore` via its constructor and
-    delegates all persistence to it.  Endpoints are intentionally left
-    unauthenticated for now -- auth gating will be added when the full
-    auth middleware is wired in.
-
-    Note: Rate limiting should be applied to these endpoints before
-    production use (see component-level docstring).
+    delegates all persistence to it.  Endpoints require ``token:manage``
+    scope when auth middleware is active.
     """
 
     name: str = Field(
@@ -142,7 +138,24 @@ class TokenManagementComponent(ServerComponent):
         prefix = self.config.prefix.rstrip("/")
         tags = self.config.tags
 
-        # TODO: Add rate limiting before production use.
+        def _require_manage_scope(request: Request) -> None:
+            """Enforce ``token:manage`` scope when auth middleware is active.
+
+            If no auth middleware ran (``agent_identity`` not in request state),
+            the request is allowed through — this is dev/test mode where no
+            AuthenticationComponent is registered.  In production the auth
+            middleware intercepts unauthenticated requests *before* they reach
+            the endpoint, so the only way to arrive here without identity is
+            if auth is genuinely disabled.
+            """
+            state = request.scope.get("state", {})
+            if "agent_identity" not in state:
+                return  # No auth middleware active — dev mode
+            scopes = state.get("token_scopes", set())
+            if "token:manage" not in scopes:
+                raise HTTPException(
+                    status_code=403, detail="Scope 'token:manage' required"
+                )
 
         @app.post(
             f"{prefix}/",
@@ -150,12 +163,13 @@ class TokenManagementComponent(ServerComponent):
             status_code=201,
             tags=tags,
         )
-        async def create_token_endpoint(body: TokenCreateBody) -> TokenCreateResponse:
+        async def create_token_endpoint(request: Request, body: TokenCreateBody) -> TokenCreateResponse:
             """Create a new bearer token.
 
             The raw token is returned **once** in this response and cannot be
-            retrieved afterwards.
+            retrieved afterwards.  Requires ``token:manage`` scope.
             """
+            _require_manage_scope(request)
             scopes = body.scopes if body.scopes is not None else list(_DEFAULT_SCOPES)
 
             expires_at: datetime | None = None
@@ -185,8 +199,12 @@ class TokenManagementComponent(ServerComponent):
             response_model=list[TokenListItem],
             tags=tags,
         )
-        async def list_tokens_endpoint() -> list[TokenListItem]:
-            """List all tokens (metadata only -- never exposes hashes)."""
+        async def list_tokens_endpoint(request: Request) -> list[TokenListItem]:
+            """List all tokens (metadata only -- never exposes hashes).
+
+            Requires ``token:manage`` scope.
+            """
+            _require_manage_scope(request)
             infos = await store.list_tokens()
             return [
                 TokenListItem(
@@ -206,8 +224,12 @@ class TokenManagementComponent(ServerComponent):
             status_code=204,
             tags=tags,
         )
-        async def revoke_token_endpoint(prefix_id: str) -> None:
-            """Revoke a token by its 8-character prefix (soft-delete)."""
+        async def revoke_token_endpoint(request: Request, prefix_id: str) -> None:
+            """Revoke a token by its 8-character prefix (soft-delete).
+
+            Requires ``token:manage`` scope.
+            """
+            _require_manage_scope(request)
             revoked = await store.revoke(prefix_id)
             if not revoked:
                 raise HTTPException(status_code=404, detail="Token prefix not found.")

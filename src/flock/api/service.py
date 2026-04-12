@@ -158,8 +158,18 @@ class BlackboardHTTPService:
         )
         async def publish_artifact(
             body: ArtifactPublishRequest,
+            request: Request,
             idempotency_key: str | None = Depends(check_idempotency),
         ) -> ArtifactPublishResponse:
+            # Enforce token type scope when auth is active
+            state = request.scope.get("state", {})
+            allowed_types = state.get("token_allowed_types")
+            if allowed_types is not None and body.type not in allowed_types:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Token does not allow publishing type '{body.type}'"
+                )
+
             # Generate correlation_id for tracking (always, for consistency)
             correlation_id = str(uuid4())
 
@@ -211,6 +221,7 @@ class BlackboardHTTPService:
         )
         async def publish_sync(
             body: SyncPublishRequest,
+            request: Request,
             idempotency_key: str | None = Depends(check_idempotency),
         ) -> SyncPublishResponse:
             """Publish artifact and wait for workflow to complete.
@@ -224,6 +235,15 @@ class BlackboardHTTPService:
             Returns:
                 SyncPublishResponse with correlation_id, artifacts, completed flag, duration
             """
+            # Enforce token type scope when auth is active
+            state = request.scope.get("state", {})
+            allowed_types = state.get("token_allowed_types")
+            if allowed_types is not None and body.type not in allowed_types:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Token does not allow publishing type '{body.type}'"
+                )
+
             start_time = time.monotonic()
             correlation_id = str(uuid4())
             completed = True

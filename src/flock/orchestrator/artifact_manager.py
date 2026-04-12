@@ -10,14 +10,18 @@ from pydantic import BaseModel
 
 from flock.core.artifacts import Artifact
 from flock.core.visibility import PublicVisibility, Visibility
+from flock.logging.logging import get_logger
 from flock.models.changelog import ChangelogEvent, ChangelogEventType
 from flock.registry import type_registry
 
 
 if TYPE_CHECKING:
+    from flock.components.server.changelog.stream_dispatcher import StreamDispatcher
     from flock.core import Flock
     from flock.core.store import BlackboardStore
     from flock.orchestrator import AgentScheduler
+
+logger = get_logger(__name__)
 
 
 class ArtifactManager:
@@ -44,6 +48,11 @@ class ArtifactManager:
         self._store = store
         self._scheduler = scheduler
         self._logger = orchestrator._logger
+        # Late-bound by ChangelogStreamComponent.on_startup_async()
+        self._stream_dispatcher: StreamDispatcher | None = None
+        # Cascade depth tracking — prevents unbounded A→B→A loops
+        self._cascade_depths: dict[str, int] = {}
+        self._max_cascade_depth: int = 10
 
     async def publish(
         self,
@@ -165,14 +174,33 @@ class ArtifactManager:
         return artifacts
 
     async def persist_and_schedule(self, artifact: Artifact) -> None:
-        """Persist artifact to store and trigger scheduling.
+        """Persist artifact to store, notify stream, and trigger scheduling.
 
         Args:
             artifact: Artifact to publish
         """
+        # Check cascade depth before scheduling
+        cid = artifact.correlation_id
+        if cid:
+            depth = self._cascade_depths.get(cid, 0) + 1
+            if depth > self._max_cascade_depth:
+                logger.warning(
+                    "Cascade depth %d exceeded for correlation_id=%s "
+                    "— persisting but skipping schedule",
+                    depth,
+                    cid,
+                )
+                changelog_event = self._build_changelog_event(artifact)
+                await self._store.publish(artifact, changelog_event)
+                self._orchestrator.metrics["artifacts_published"] += 1
+                self._notify_dispatcher(changelog_event)
+                return
+            self._cascade_depths[cid] = depth
+
         changelog_event = self._build_changelog_event(artifact)
         await self._store.publish(artifact, changelog_event)
         self._orchestrator.metrics["artifacts_published"] += 1
+        self._notify_dispatcher(changelog_event)
         await self._scheduler.schedule_artifact(artifact)
 
     async def persist(self, artifact: Artifact) -> None:
@@ -184,6 +212,12 @@ class ArtifactManager:
         changelog_event = self._build_changelog_event(artifact)
         await self._store.publish(artifact, changelog_event)
         self._orchestrator.metrics["artifacts_published"] += 1
+        self._notify_dispatcher(changelog_event)
+
+    def _notify_dispatcher(self, event: ChangelogEvent) -> None:
+        """Fire-and-forget push to StreamDispatcher subscribers."""
+        if self._stream_dispatcher is not None:
+            self._stream_dispatcher.publish(event)
 
     def _build_changelog_event(self, artifact: Artifact) -> ChangelogEvent:
         """Construct a changelog event from a published artifact."""

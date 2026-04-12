@@ -76,6 +76,11 @@ class ChangelogStreamComponent(ServerComponent):
     )
 
     _dispatcher: StreamDispatcher | None = None
+    _token_store: Any | None = None  # Optional TokenStore for WebSocket auth
+
+    def __init__(self, token_store: Any | None = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._token_store = token_store
 
     @property
     def dispatcher(self) -> StreamDispatcher:
@@ -124,7 +129,19 @@ class ChangelogStreamComponent(ServerComponent):
             """WebSocket endpoint for real-time changelog event streaming.
 
             Client sends initial filter config as JSON, then receives events.
+            Token auth via query parameter (?token=...) when token_store is set.
             """
+            # Auth check before accept — token via query parameter
+            if component._token_store is not None:
+                raw_token = websocket.query_params.get("token")
+                if not raw_token:
+                    await websocket.close(code=1008, reason="Token required")
+                    return
+                record = await component._token_store.verify(raw_token)
+                if record is None:
+                    await websocket.close(code=1008, reason="Invalid or expired token")
+                    return
+
             await websocket.accept()
 
             # Wait for initial filter message
@@ -139,7 +156,7 @@ class ChangelogStreamComponent(ServerComponent):
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
                 # Malformed filter — send error and close
                 await websocket.send_json({
-                    "error": f"Invalid filter JSON: {exc!s}",
+                    "detail": f"Invalid filter JSON: {exc!s}",
                 })
                 await websocket.close(code=1003, reason="Invalid filter JSON")
                 return
@@ -222,6 +239,19 @@ class ChangelogStreamComponent(ServerComponent):
         if after_seq > 0:
             store = orchestrator.store
             result = await store.query_changelog(after_seq=after_seq, limit=1000)
+
+            # Notify client if requested sequence is behind retention window
+            if result.oldest_available_seq > after_seq:
+                yield {
+                    "event": "gap",
+                    "data": json.dumps({
+                        "message": "Events pruned by retention policy",
+                        "requested_after": after_seq,
+                        "oldest_available": result.oldest_available_seq,
+                    }),
+                    "id": str(result.oldest_available_seq),
+                }
+
             for ev in result.events:
                 if await request.is_disconnected():
                     return
@@ -247,11 +277,15 @@ class ChangelogStreamComponent(ServerComponent):
                         sub.queue.get(), timeout=_SSE_KEEPALIVE_SECONDS
                     )
                     # Parse to get seq and event_type for SSE fields
-                    event_data = json.loads(serialized)
+                    try:
+                        event_data = json.loads(serialized)
+                    except (json.JSONDecodeError, ValueError):
+                        logger.warning("Malformed changelog event JSON, skipping")
+                        continue
                     yield {
                         "event": event_data.get("event_type", "changelog"),
                         "data": serialized,
-                        "id": str(event_data.get("seq", "")),
+                        "id": str(event_data.get("seq", "0")),
                     }
                 except asyncio.TimeoutError:
                     # Send keepalive comment
@@ -278,8 +312,11 @@ class ChangelogStreamComponent(ServerComponent):
             logger.debug(f"WebSocket push error (sub={sub.id}): {exc!s}")
 
     async def on_startup_async(self, orchestrator: Any) -> None:
-        """Create the StreamDispatcher."""
+        """Create the StreamDispatcher and wire into ArtifactManager."""
         self._dispatcher = StreamDispatcher()
+        # Wire dispatcher into artifact_manager for push delivery
+        if hasattr(orchestrator, "artifact_manager"):
+            orchestrator.artifact_manager._stream_dispatcher = self._dispatcher
         logger.info("ChangelogStreamComponent started — dispatcher ready")
 
     async def on_shutdown_async(self, orchestrator: Any) -> None:

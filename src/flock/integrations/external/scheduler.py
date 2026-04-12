@@ -13,13 +13,24 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Annotated, Union
 
-from pydantic import Field, PrivateAttr
+from pydantic import Discriminator, Field, PrivateAttr, Tag
 
 from flock.components.orchestrator.base import OrchestratorComponent
+from flock.core.visibility import (
+    AfterVisibility,
+    AgentIdentity,
+    LabelledVisibility,
+    PrivateVisibility,
+    PublicVisibility,
+    TenantVisibility,
+    Visibility,
+)
 from flock.integrations.external.models import (
     AgentOutcome,
     ExternalSessionStore,
@@ -32,6 +43,7 @@ from flock.models.changelog import ChangelogEvent, ChangelogEventType, Changelog
 
 
 if TYPE_CHECKING:
+    from flock.auth.token_store import TokenStore
     from flock.components.server.changelog.stream_dispatcher import (
         StreamDispatcher,
         Subscription as StreamSubscription,
@@ -39,10 +51,34 @@ if TYPE_CHECKING:
     from flock.core import Flock
     from flock.core.agent import Agent
 
+# Discriminated union for reconstructing Visibility from serialized dicts.
+_VisibilityUnion = Annotated[
+    Union[
+        Annotated[PublicVisibility, Tag("Public")],
+        Annotated[PrivateVisibility, Tag("Private")],
+        Annotated[LabelledVisibility, Tag("Labelled")],
+        Annotated[TenantVisibility, Tag("Tenant")],
+        Annotated[AfterVisibility, Tag("After")],
+    ],
+    Discriminator("kind"),
+]
+
 logger = get_logger(__name__)
 
 # Grace period (seconds) between SIGTERM and SIGKILL during shutdown.
 _SHUTDOWN_GRACE: float = 5.0
+
+
+def _reconstruct_visibility(data: dict[str, Any]) -> Visibility:
+    """Reconstruct a :class:`Visibility` subclass from a serialized dict.
+
+    The ``kind`` discriminator field is used to select the correct subclass
+    via Pydantic's ``TypeAdapter``.
+    """
+    from pydantic import TypeAdapter
+
+    _adapter: TypeAdapter[Visibility] = TypeAdapter(_VisibilityUnion)
+    return _adapter.validate_python(data)
 
 
 class ExternalAgentScheduler(OrchestratorComponent):
@@ -81,6 +117,8 @@ class ExternalAgentScheduler(OrchestratorComponent):
     _stream_sub: StreamSubscription | None = PrivateAttr(default=None)
     _listener_task: asyncio.Task[None] | None = PrivateAttr(default=None)
     _started: bool = PrivateAttr(default=False)
+    _token_store: TokenStore | None = PrivateAttr(default=None)
+    _api_url: str | None = PrivateAttr(default=None)
 
     # ------------------------------------------------------------------
     # Construction helper (call after __init__)
@@ -95,6 +133,26 @@ class ExternalAgentScheduler(OrchestratorComponent):
         """Inject runtime dependencies.  Returns self for chaining."""
         self._stream_dispatcher = stream_dispatcher
         self._adapters = dict(adapters)
+        return self
+
+    def set_token_store(
+        self,
+        store: TokenStore,
+        *,
+        api_url: str | None = None,
+    ) -> ExternalAgentScheduler:
+        """Attach a token store for automatic credential injection.
+
+        Args:
+            store: Token store used to create short-lived tokens.
+            api_url: Base URL of the Flock REST API.  Falls back to
+                     the ``FLOCK_API_URL`` environment variable.
+
+        Returns:
+            self for chaining.
+        """
+        self._token_store = store
+        self._api_url = api_url or os.environ.get("FLOCK_API_URL")
         return self
 
     # ------------------------------------------------------------------
@@ -125,6 +183,10 @@ class ExternalAgentScheduler(OrchestratorComponent):
                         f"{agent.adapter_name!r} which is not registered — skipping"
                     )
                     continue
+                if agent.working_dir is None:
+                    logger.warning(
+                        f"External agent {agent.name!r} has no working_dir — using /tmp"
+                    )
                 self._external_agents[agent.name] = agent
 
         if not self._external_agents:
@@ -200,7 +262,8 @@ class ExternalAgentScheduler(OrchestratorComponent):
 
     async def _listener_loop(self) -> None:
         """Read serialized events from the stream subscription and route them."""
-        assert self._stream_sub is not None
+        if self._stream_sub is None:
+            raise RuntimeError("StreamDispatcher subscription not initialized")
         try:
             while True:
                 serialized = await self._stream_sub.queue.get()
@@ -233,6 +296,28 @@ class ExternalAgentScheduler(OrchestratorComponent):
 
             if not matched:
                 continue
+
+            # Visibility check: ensure the agent is allowed to see this artifact
+            if event.visibility is not None:
+                try:
+                    vis: Visibility = _reconstruct_visibility(event.visibility)
+                    identity = AgentIdentity(
+                        name=agent.name,
+                        labels=getattr(agent, "labels", set()),
+                        tenant_id=getattr(agent, "tenant_id", None),
+                    )
+                    if not vis.allows(identity):
+                        logger.debug(
+                            f"Agent {agent_name} blocked by visibility "
+                            f"({vis.kind}) for event (type={artifact_type})"
+                        )
+                        continue
+                except Exception:
+                    logger.warning(
+                        f"Could not reconstruct visibility for event "
+                        f"(type={artifact_type}) — allowing by default",
+                        exc_info=True,
+                    )
 
             # Prevent self-trigger: skip if the agent produced this artifact
             if agent.prevent_self_trigger and event.produced_by == agent_name:
@@ -314,10 +399,25 @@ class ExternalAgentScheduler(OrchestratorComponent):
         working_dir = Path(agent.working_dir or "/tmp")
         timeout = agent.spawn_timeout
 
+        # Build env vars: start with injected credentials, then let
+        # agent.spawn_env override (explicit user config wins).
+        env_vars: dict[str, str] = {}
+        if self._token_store is not None:
+            try:
+                env_vars.update(
+                    await self._create_agent_credentials(agent, timeout)
+                )
+            except Exception:
+                logger.warning(
+                    f"Failed to create credentials for agent {agent_name}",
+                    exc_info=True,
+                )
+        env_vars.update(agent.spawn_env)  # agent overrides take precedence
+
         spawn_cfg = SpawnConfig(
             prompt=prompt,
             working_dir=working_dir,
-            env_vars=agent.spawn_env,
+            env_vars=env_vars,
             session_id=session_id,
             session_mode=session_mode,
             timeout=timeout,
@@ -338,24 +438,33 @@ class ExternalAgentScheduler(OrchestratorComponent):
 
         self._active_spawns[agent_name] = result
 
-        # Monitor with timeout
+        # Monitor with timeout.  The try/finally guarantees
+        # _active_spawns cleanup even on CancelledError (shutdown).
         try:
-            outcome = await asyncio.wait_for(
-                adapter.monitor(result), timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            logger.warning(f"Agent {agent_name} timed out after {timeout}s")
             try:
-                await adapter.terminate(result)
-            except Exception:
-                logger.exception(f"Terminate failed for agent {agent_name}")
-            outcome = AgentOutcome(
-                success=False,
-                returncode=-1,
-                stdout="",
-                stderr=f"timeout after {timeout}s",
-                session_id=result.session_id,
-            )
+                outcome = await asyncio.wait_for(
+                    adapter.monitor(result), timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Agent {agent_name} timed out after {timeout}s")
+                try:
+                    await adapter.terminate(result)
+                except Exception:
+                    logger.exception(f"Terminate failed for agent {agent_name}")
+                outcome = AgentOutcome(
+                    success=False,
+                    returncode=-1,
+                    stdout="",
+                    stderr=f"timeout after {timeout}s",
+                    session_id=result.session_id,
+                )
+            except asyncio.CancelledError:
+                # Shutdown in progress — terminate this process
+                try:
+                    await adapter.terminate(result)
+                except Exception:
+                    pass
+                raise
         finally:
             self._active_spawns.pop(agent_name, None)
 
@@ -389,6 +498,39 @@ class ExternalAgentScheduler(OrchestratorComponent):
             for key, value in summary.items():
                 parts.append(f"{key}={value}")
         return " ".join(parts) if parts else "changelog event"
+
+    async def _create_agent_credentials(
+        self, agent: Agent, timeout: float
+    ) -> dict[str, str]:
+        """Create a short-lived token for *agent* and return env vars to inject."""
+        from flock.auth.token_models import TokenCreateRequest
+        from flock.auth.token_store import create_token
+
+        # Collect the artifact type names this agent publishes
+        publishes_types: set[str] = set()
+        for group in agent.output_groups:
+            for out in group.outputs:
+                publishes_types.add(out.spec.type_name)
+
+        expires_at = datetime.now(UTC) + timedelta(seconds=timeout * 2)
+
+        request = TokenCreateRequest(
+            identity_name=agent.name,
+            identity_labels=getattr(agent, "labels", set()),
+            identity_tenant_id=getattr(agent, "tenant_id", None),
+            allowed_types=publishes_types,
+            scopes={"artifact:publish", "artifact:read"},
+            expires_at=expires_at,
+        )
+        raw_token, record = create_token(request)
+
+        assert self._token_store is not None  # caller checks before calling
+        await self._token_store.store(record)
+
+        env: dict[str, str] = {"FLOCK_API_TOKEN": raw_token}
+        if self._api_url:
+            env["FLOCK_API_URL"] = self._api_url
+        return env
 
     async def _terminate_all_active(self) -> None:
         """SIGTERM → grace → SIGKILL for every active spawn."""

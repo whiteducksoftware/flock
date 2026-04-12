@@ -47,6 +47,7 @@ class AgentActivatedEvent(BaseModel):
     agent_name: str
     agent_id: str  # Same as agent.name (unique per orchestrator)
     run_id: str  # Context.task_id (unique per agent activation)
+    agent_kind: str = Field(default="internal")  # "internal" or "external"
 
     # Consumption info
     consumed_types: list[str]  # Artifact types being consumed
@@ -147,6 +148,7 @@ class AgentCompletedEvent(BaseModel):
     # Agent identification
     agent_name: str
     run_id: str  # Context.task_id
+    agent_kind: str = Field(default="internal")  # "internal" or "external"
 
     # Execution metrics
     duration_ms: float  # Execution time in milliseconds
