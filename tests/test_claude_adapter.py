@@ -147,7 +147,7 @@ class TestSpawn:
             call_args = mock_exec.call_args
             positional = call_args[0]
             assert positional[0] == "claude"
-            assert "--bare" in positional
+            assert "--bare" not in positional  # bare=False by default (subscription auth)
             assert "-p" in positional
             assert "-" in positional
             assert "--output-format" in positional

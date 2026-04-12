@@ -39,6 +39,14 @@ class ClaudeCodeConfig:
     max_budget_usd: float | None = None
     allowed_tools: list[str] = field(default_factory=list)
     additional_env: dict[str, str] = field(default_factory=dict)
+    bare: bool = False
+    """Use ``--bare`` mode (skips hooks, plugins, CLAUDE.md).
+
+    **Warning:** bare mode also skips OAuth/keychain reads, so subscription
+    auth won't work.  Set this to True only when ``ANTHROPIC_API_KEY`` is
+    provided explicitly (e.g. in CI).  Default False uses the logged-in
+    session's authentication.
+    """
 
 
 class ClaudeCodeRuntime(BaseExternalRuntime):
@@ -51,7 +59,7 @@ class ClaudeCodeRuntime(BaseExternalRuntime):
     """
 
     _ADAPTER_REQUIRED_VARS: frozenset[str] = frozenset({
-        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_API_KEY",  # Optional — only needed when bare=True (CI mode)
     })
 
     def __init__(self, config: ClaudeCodeConfig | None = None) -> None:
@@ -171,11 +179,16 @@ class ClaudeCodeRuntime(BaseExternalRuntime):
         """Construct the CLI argument list."""
         args = [
             "claude",
-            "--bare",
             "-p", "-",
             "--output-format", "json",
             "--dangerously-skip-permissions",
         ]
+
+        # --bare skips hooks/plugins/CLAUDE.md for faster, deterministic
+        # invocations (CI).  It also skips OAuth, so subscription auth
+        # won't work — only ANTHROPIC_API_KEY.
+        if self._config.bare:
+            args.insert(1, "--bare")
 
         # Session resume
         if config.session_id and config.session_mode == "resume":

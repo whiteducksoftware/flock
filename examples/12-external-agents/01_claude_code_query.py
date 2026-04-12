@@ -13,8 +13,8 @@ KEY CONCEPTS:
 - Token auth lets the external agent publish results back
 
 REQUIREMENTS:
-- Claude Code CLI installed: npm install -g @anthropic-ai/claude-code
-  (must be authenticated — run `claude` once to log in)
+- Claude Code CLI installed and authenticated (npm install -g @anthropic-ai/claude-code)
+  Uses your logged-in subscription — no API key needed.
 
 PATTERN: Query -> External Agent -> Answer
 USE CASE: Offload complex coding tasks to Claude Code while keeping
@@ -22,7 +22,6 @@ USE CASE: Offload complex coding tasks to Claude Code while keeping
 """
 
 import asyncio
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -51,17 +50,12 @@ WORKING_DIR = str(Path.cwd())
 # PREFLIGHT: Verify Claude Code is available
 # ============================================================================
 def check_claude_code() -> None:
-    """Verify the claude CLI is installed and an API key is available."""
+    """Verify the claude CLI is installed and authenticated."""
     if not shutil.which("claude"):
         print("ERROR: Claude Code CLI not found.")
         print("Install it with: npm install -g @anthropic-ai/claude-code")
         sys.exit(1)
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY not set.")
-        print("Bare-mode subprocesses need an explicit API key (subscription auth")
-        print("only works in interactive mode). Get one at console.anthropic.com.")
-        sys.exit(1)
-    print("Claude Code CLI found, API key set.")
+    print("Claude Code CLI found.")
 
 
 # ============================================================================
