@@ -23,12 +23,10 @@ Register an external agent using the builder API:
 
 ```python
 from flock import Flock
-from flock.integrations.external.adapters.claude_code import ClaudeCodeAdapter
+from flock.integrations.external.adapters.claude_code import ClaudeCodeRuntime
+from flock.integrations.external.scheduler import ExternalAgentScheduler
 
 flock = Flock("my-project", model="openai/gpt-4.1")
-
-# Register the Claude Code adapter
-flock.register_adapter("claude_code", ClaudeCodeAdapter())
 
 # Create an external agent that reviews PRDiff artifacts
 (flock.agent("pr-reviewer")
@@ -39,6 +37,10 @@ flock.register_adapter("claude_code", ClaudeCodeAdapter())
     .consumes(PRDiff)
     .session_mode("resume")
     .done())
+
+# The ExternalAgentScheduler is wired as an OrchestratorComponent with
+# adapters passed to its configure() method. The scheduler auto-discovers
+# agents with agent_kind="external" on startup.
 ```
 
 When a `PRDiff` artifact is published to the blackboard, the scheduler automatically:
@@ -161,7 +163,7 @@ External agents receive these environment variables automatically:
 | `FLOCK_API_TOKEN` | Bearer token for authenticating back to Flock |
 | `FLOCK_API_URL` | Base URL of the Flock REST API |
 
-Additional env vars can be set per-agent via `spawn_env` on the Agent object or via the `ExternalAgentConfig.env_vars` field.
+Additional env vars can be set per-agent via `.spawn_env({"KEY": "value"})` on the AgentBuilder. Note: adapters use an environment allowlist — only safe variables from the parent process are inherited. Adapter-specific keys (e.g. `ANTHROPIC_API_KEY` for Claude Code) are included automatically.
 
 ---
 
@@ -172,7 +174,7 @@ A complete PR review pipeline with three stages:
 ```python
 from pydantic import BaseModel, Field
 from flock import Flock
-from flock.integrations.external.adapters.claude_code import ClaudeCodeAdapter
+from flock.integrations.external.adapters.claude_code import ClaudeCodeRuntime
 
 # Define artifact types
 class PRDiff(BaseModel):
@@ -193,8 +195,6 @@ class ReviewSummary(BaseModel):
 
 # Build the flock
 flock = Flock("pr-review", model="openai/gpt-4.1")
-flock.register_adapter("claude_code", ClaudeCodeAdapter())
-
 # Stage 1: External Claude Code reviews PRDiff
 (flock.agent("code-reviewer")
     .kind("external")
@@ -235,13 +235,13 @@ result = await store.query_changelog(
 
 ## Reference
 
-### Schema Migration (v4 to v5)
+### Schema Migration (to v6)
 
-The meta-orchestrator adds the changelog table to the SQLite schema. Migration is automatic on first access:
+The meta-orchestrator adds the changelog and session tables to the SQLite schema. Migration is automatic on first access:
 
 ```sql
--- v5 adds:
-CREATE TABLE IF NOT EXISTS changelog (
+-- Changelog events (added in schema v4)
+CREATE TABLE IF NOT EXISTS changelog_events (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
     event_type TEXT NOT NULL,
     artifact_id TEXT,
@@ -252,9 +252,19 @@ CREATE TABLE IF NOT EXISTS changelog (
     timestamp TEXT NOT NULL,
     payload_summary TEXT NOT NULL DEFAULT '{}'
 );
-CREATE INDEX idx_changelog_type ON changelog(artifact_type);
-CREATE INDEX idx_changelog_correlation ON changelog(correlation_id);
-CREATE INDEX idx_changelog_timestamp ON changelog(timestamp);
+CREATE INDEX IF NOT EXISTS idx_changelog_event_type_seq ON changelog_events(event_type, seq);
+CREATE INDEX IF NOT EXISTS idx_changelog_artifact_type_seq ON changelog_events(artifact_type, seq);
+CREATE INDEX IF NOT EXISTS idx_changelog_produced_by_seq ON changelog_events(produced_by, seq);
+CREATE INDEX IF NOT EXISTS idx_changelog_correlation ON changelog_events(correlation_id);
+
+-- External agent sessions (added in schema v6)
+CREATE TABLE IF NOT EXISTS external_sessions (
+    agent_name TEXT NOT NULL,
+    artifact_type TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (agent_name, artifact_type)
+);
 ```
 
 ### New Agent Fields
