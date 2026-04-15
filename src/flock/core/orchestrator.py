@@ -1011,6 +1011,27 @@ class Flock(metaclass=AutoTracedMeta):
             for comp in additional_server_components:
                 self.add_server_component(comp)
 
+        # Auto-add ChangelogStreamComponent when external agents exist
+        # and no changelog component was registered manually.
+        has_external = any(
+            getattr(a, "agent_kind", "internal") == "external"
+            for a in self.agents
+        )
+        if has_external:
+            from flock.components.server.changelog.changelog_component import (
+                ChangelogStreamComponent,
+            )
+
+            has_changelog = any(
+                isinstance(c, ChangelogStreamComponent)
+                for c in self._server_components
+            )
+            if not has_changelog:
+                self._server_components.append(ChangelogStreamComponent())
+                self._logger.info(
+                    "ChangelogStreamComponent auto-registered for external agents"
+                )
+
         return await ServerManager.serve(
             self,
             dashboard=dashboard,
@@ -1153,25 +1174,25 @@ class Flock(metaclass=AutoTracedMeta):
     async def _run_initialize(self) -> None:
         """Initialize orchestrator components.
 
-        Checks if any agents have schedule_spec and registers TimerComponent
-        if needed before delegating to ComponentRunner.
+        Auto-detects agent traits and registers infrastructure components:
+        - TimerComponent for agents with schedule_spec
+        - ExternalAgentScheduler + StreamDispatcher for agents with kind("external")
         """
-        # Check if any agents have schedule_spec and TimerComponent isn't already registered
+        _components_changed = False
+
+        # --- Auto-wire TimerComponent for scheduled agents ---
         has_scheduled_agents = any(
             hasattr(agent, "schedule_spec") and agent.schedule_spec
             for agent in self.agents
         )
 
-        # Check if TimerComponent is already registered
         from flock.components.orchestrator.scheduling.timer import TimerComponent
 
         has_timer_component = any(
             isinstance(c, TimerComponent) for c in self._components
         )
 
-        # Register TimerComponent if needed
         if has_scheduled_agents and not has_timer_component:
-            # Validation: scheduled agents must declare publishes()
             for agent in self.agents:
                 if hasattr(agent, "schedule_spec") and agent.schedule_spec:
                     if not getattr(agent, "output_groups", []):
@@ -1181,15 +1202,70 @@ class Flock(metaclass=AutoTracedMeta):
 
             timer_component = TimerComponent()
             self._components.append(timer_component)
-            self._components.sort(key=lambda c: c.priority)
-
-            # Update ComponentRunner with new sorted components
-            self._component_runner = ComponentRunner(self._components, self._logger)
+            _components_changed = True
 
             self._logger.info(
-                f"TimerComponent registered: priority={timer_component.priority}, "
+                f"TimerComponent auto-registered: priority={timer_component.priority}, "
                 f"scheduled_agents={sum(1 for a in self.agents if hasattr(a, 'schedule_spec') and a.schedule_spec)}"
             )
+
+        # --- Auto-wire ExternalAgentScheduler for external agents ---
+        external_agents = [
+            a for a in self.agents if getattr(a, "agent_kind", "internal") == "external"
+        ]
+
+        if external_agents:
+            from flock.integrations.external.scheduler import ExternalAgentScheduler
+
+            has_ext_scheduler = any(
+                isinstance(c, ExternalAgentScheduler) for c in self._components
+            )
+
+            if not has_ext_scheduler:
+                # Build default adapter registry from known adapters
+                adapters: dict[str, Any] = {}
+                needed = {a.adapter_name for a in external_agents if a.adapter_name}
+
+                if "claude_code" in needed:
+                    from flock.integrations.external.adapters.claude_code import (
+                        ClaudeCodeRuntime,
+                    )
+                    adapters["claude_code"] = ClaudeCodeRuntime()
+
+                if "codex" in needed:
+                    from flock.integrations.external.adapters.codex import (
+                        CodexRuntime,
+                    )
+                    adapters["codex"] = CodexRuntime()
+
+                # Create StreamDispatcher for event routing
+                from flock.components.server.changelog.stream_dispatcher import (
+                    StreamDispatcher,
+                )
+
+                dispatcher = StreamDispatcher()
+
+                # Wire dispatcher into ArtifactManager so publishes emit events
+                if hasattr(self, "_artifact_manager"):
+                    self._artifact_manager._stream_dispatcher = dispatcher
+
+                # Create and wire scheduler
+                scheduler = ExternalAgentScheduler()
+                scheduler._adapters = adapters
+                scheduler._stream_dispatcher = dispatcher
+                self._components.append(scheduler)
+                _components_changed = True
+
+                agent_names = [a.name for a in external_agents]
+                self._logger.info(
+                    f"ExternalAgentScheduler auto-registered: "
+                    f"adapters={list(adapters.keys())}, agents={agent_names}"
+                )
+
+        # Rebuild ComponentRunner if any components were added
+        if _components_changed:
+            self._components.sort(key=lambda c: c.priority)
+            self._component_runner = ComponentRunner(self._components, self._logger)
 
         await self._component_runner.run_initialize(self)
 
