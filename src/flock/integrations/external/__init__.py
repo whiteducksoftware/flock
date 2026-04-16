@@ -1,9 +1,9 @@
-"""External agent runtime integration — protocol, models, engine, and scheduler.
+"""External agent runtime integration — protocol, models, and engine.
 
-The engine path (``ExternalEngineComponent``) is the supported way to run
-external CLI agents. The legacy ``ExternalAgentScheduler`` is being phased
-out in favour of the engine — see
-docs/plans/2026-04-16-001-refactor-meta-orchestrator-engine-pattern-plan.md
+External agents plug into Flock through ``ExternalEngineComponent``,
+which is auto-attached to any agent declared with
+``.kind("external").adapter("...")``.  See
+docs/guides/meta-orchestrator.md for usage.
 """
 
 from flock.integrations.external.engine import (
@@ -21,13 +21,11 @@ from flock.integrations.external.models import (
     SpawnResult,
 )
 from flock.integrations.external.runtime import ExternalAgentRuntime
-from flock.integrations.external.scheduler import ExternalAgentScheduler
 
 __all__ = [
     "AgentOutcome",
     "ExternalAgentConfig",
     "ExternalAgentRuntime",
-    "ExternalAgentScheduler",
     "ExternalEngineComponent",
     "ExternalEngineExecutionError",
     "ExternalSessionStore",

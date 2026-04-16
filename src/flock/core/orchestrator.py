@@ -1176,7 +1176,7 @@ class Flock(metaclass=AutoTracedMeta):
 
         Auto-detects agent traits and registers infrastructure components:
         - TimerComponent for agents with schedule_spec
-        - ExternalAgentScheduler + StreamDispatcher for agents with kind("external")
+        - ExternalEngineComponent for agents with kind("external")
         """
         _components_changed = False
 

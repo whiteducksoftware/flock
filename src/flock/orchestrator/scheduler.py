@@ -59,10 +59,10 @@ class AgentScheduler:
             return  # Artifact blocked by component
 
         for agent in self._orchestrator.agents:
-            # External agents are handled by ExternalAgentScheduler, not here
-            if getattr(agent, "agent_kind", "internal") == "external":
-                continue
-
+            # External agents are routed through the same path as internal
+            # agents — their ExternalEngineComponent (auto-attached by the
+            # orchestrator at init) handles the subprocess spawn during
+            # _run_engines.  No special-casing here.
             identity = agent.identity
             for subscription in agent.subscriptions:
                 if not subscription.accepts_events():

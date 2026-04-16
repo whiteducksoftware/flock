@@ -81,7 +81,7 @@ class ChangelogStreamComponent(ServerComponent):
     def __init__(self, token_store: Any | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._token_store = token_store
-        # Create dispatcher eagerly so orchestrator components (ExternalAgentScheduler)
+        # Create dispatcher eagerly so SSE/WebSocket observers
         # can receive the reference during on_initialize, which runs before
         # server component on_startup_async.
         self._dispatcher = StreamDispatcher()
@@ -316,15 +316,13 @@ class ChangelogStreamComponent(ServerComponent):
             logger.debug(f"WebSocket push error (sub={sub.id}): {exc!s}")
 
     async def on_startup_async(self, orchestrator: Any) -> None:
-        """Wire the StreamDispatcher into ArtifactManager + ExternalAgentScheduler."""
-        # Dispatcher created eagerly in __init__; wire it into runtime components here
+        """Wire the StreamDispatcher into the ArtifactManager.
+
+        The dispatcher feeds SSE / WebSocket / cursor observers — useful
+        independently of external agents (dashboards, replay, audit).
+        """
         if hasattr(orchestrator, "_artifact_manager"):
             orchestrator._artifact_manager._stream_dispatcher = self._dispatcher
-        # Wire into ExternalAgentScheduler if registered
-        for comp in getattr(orchestrator, "_components", []):
-            if hasattr(comp, "_stream_dispatcher") and hasattr(comp, "_adapters"):
-                comp._stream_dispatcher = self._dispatcher
-                logger.debug("Wired StreamDispatcher into %s", comp.name)
         logger.info("ChangelogStreamComponent started — dispatcher ready")
 
     async def on_shutdown_async(self, orchestrator: Any) -> None:

@@ -207,3 +207,33 @@ src/flock/orchestrator/event_emitter.py            +111L  emit_external_agent_*
 ```
 
 Implementation checklist: complete. Architecture review: superseded by SFD retro. Ship-readiness: depends on whether the engine-component refactor lands first.
+
+---
+
+## Refactor Deletion Inventory (2026-04-16)
+
+The engine-component refactor (`docs/plans/2026-04-16-001-refactor-meta-orchestrator-engine-pattern-plan.md`, Unit 3) removed the following:
+
+**Deleted files:**
+- `src/flock/integrations/external/scheduler.py` (~686 LOC) — `ExternalAgentScheduler` class
+- `tests/test_external_runtime.py` (~784 LOC) — scheduler-specific unit tests
+
+**Removed exports** (`src/flock/integrations/external/__init__.py`):
+- `ExternalAgentScheduler`
+
+**Removed special-cases:**
+- `src/flock/orchestrator/scheduler.py:62-64` — the `if agent_kind == "external": continue` skip; external agents are now scheduled normally
+- `src/flock/components/server/changelog/changelog_component.py` — wiring of `StreamDispatcher` into `ExternalAgentScheduler` (loop over `_components` looking for adapter+dispatcher attrs); the dispatcher still wires into `ArtifactManager` for SSE/WS observers
+- `src/flock/orchestrator/artifact_manager.py:204-207` — comment explaining the scheduler-must-listen-first ordering (no longer applicable)
+- `src/flock/core/orchestrator.py:1212-1263` — auto-wire block that installed scheduler + dispatcher; replaced with `ExternalEngineComponent` attachment
+
+**Preserved (still useful):**
+- `ChangelogEvent`, store schema v6, retention, SSE/cursor/WebSocket changelog API — independently useful for dashboards, audit, replay
+- Token store, token API, bearer auth handler — opt-in for HTTP clients publishing into Flock from outside the process
+- Adapter classes (`ClaudeCodeRuntime`, `CodexRuntime`) — same subprocess code, called from a different lifecycle point
+- `ExternalSessionStore`, `SQLiteExternalSessionStore`, new `LazySQLiteExternalSessionStore` wrapper
+
+**Notes:**
+- The `agent_kind="external"` field is preserved on agents — useful for dashboards and introspection, no longer the discriminator that decides which scheduler runs the agent
+- Token type-scope enforcement in `src/flock/api/service.py` is preserved — it serves any HTTP client with a bearer token, not just spawned agents
+- Remaining `ExternalAgentScheduler` references in `docs/` and `examples/12-external-agents/02_*.py` are addressed by Unit 5 (examples + docs rewrite)
