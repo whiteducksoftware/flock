@@ -1209,57 +1209,89 @@ class Flock(metaclass=AutoTracedMeta):
                 f"scheduled_agents={sum(1 for a in self.agents if hasattr(a, 'schedule_spec') and a.schedule_spec)}"
             )
 
-        # --- Auto-wire ExternalAgentScheduler for external agents ---
+        # --- Auto-attach ExternalEngineComponent to external agents ---
+        # External agents declared via .kind("external").adapter("name") get
+        # the matching ExternalAgentRuntime adapter wrapped in an
+        # ExternalEngineComponent and installed onto agent.engines.  From
+        # AgentScheduler / Agent._run_engines' perspective they are then
+        # indistinguishable from internal engine-driven agents.
         external_agents = [
             a for a in self.agents if getattr(a, "agent_kind", "internal") == "external"
         ]
 
         if external_agents:
-            from flock.integrations.external.scheduler import ExternalAgentScheduler
-
-            has_ext_scheduler = any(
-                isinstance(c, ExternalAgentScheduler) for c in self._components
+            from flock.integrations.external.adapters.claude_code import (
+                ClaudeCodeRuntime,
+            )
+            from flock.integrations.external.adapters.codex import CodexRuntime
+            from flock.integrations.external.engine import (
+                ExternalEngineComponent,
+            )
+            from flock.integrations.external.models import (
+                ExternalSessionStore,
+                LazySQLiteExternalSessionStore,
             )
 
-            if not has_ext_scheduler:
-                # Build default adapter registry from known adapters
-                adapters: dict[str, Any] = {}
-                needed = {a.adapter_name for a in external_agents if a.adapter_name}
+            # Build the adapter registry from agents' .adapter() declarations.
+            # Custom adapters can also be registered explicitly by setting
+            # them on a user-supplied ExternalEngineComponent before init.
+            needed_adapter_names = {
+                a.adapter_name for a in external_agents if a.adapter_name
+            }
+            adapter_registry: dict[str, Any] = {}
+            if "claude_code" in needed_adapter_names:
+                adapter_registry["claude_code"] = ClaudeCodeRuntime()
+            if "codex" in needed_adapter_names:
+                adapter_registry["codex"] = CodexRuntime()
 
-                if "claude_code" in needed:
-                    from flock.integrations.external.adapters.claude_code import (
-                        ClaudeCodeRuntime,
+            # Pick the right session store: SQLite when the blackboard is
+            # SQLite-backed (sessions persist across restarts), in-memory
+            # otherwise.  The SQLite variant is wrapped in a lazy adapter
+            # because the blackboard connection is opened on first publish,
+            # which happens AFTER component initialisation.
+            shared_session_store: Any
+            store_cls_name = type(self.store).__name__
+            if store_cls_name == "SQLiteBlackboardStore":
+                shared_session_store = LazySQLiteExternalSessionStore(self.store)
+            else:
+                shared_session_store = ExternalSessionStore()
+
+            attached_count = 0
+            for agent in external_agents:
+                # Skip agents that already have engines (user-supplied wins).
+                if agent.engines:
+                    continue
+
+                if not agent.adapter_name:
+                    raise ValueError(
+                        f"External agent '{agent.name}' has .kind('external') "
+                        "but no .adapter('...') declared"
                     )
-                    adapters["claude_code"] = ClaudeCodeRuntime()
 
-                if "codex" in needed:
-                    from flock.integrations.external.adapters.codex import (
-                        CodexRuntime,
+                adapter = adapter_registry.get(agent.adapter_name)
+                if adapter is None:
+                    raise ValueError(
+                        f"External agent '{agent.name}' references unknown "
+                        f"adapter '{agent.adapter_name}'. Known adapters: "
+                        f"{sorted(adapter_registry.keys())}"
                     )
-                    adapters["codex"] = CodexRuntime()
 
-                # Create StreamDispatcher for event routing
-                from flock.components.server.changelog.stream_dispatcher import (
-                    StreamDispatcher,
+                engine = ExternalEngineComponent(
+                    adapter=adapter,
+                    working_dir=agent.working_dir or ".",
+                    spawn_timeout=getattr(agent, "spawn_timeout", 1800.0),
+                    additional_env=dict(getattr(agent, "spawn_env", {}) or {}),
+                    session_store=shared_session_store,
                 )
+                agent.engines.append(engine)
+                attached_count += 1
 
-                dispatcher = StreamDispatcher()
-
-                # Wire dispatcher into ArtifactManager so publishes emit events
-                if hasattr(self, "_artifact_manager"):
-                    self._artifact_manager._stream_dispatcher = dispatcher
-
-                # Create and wire scheduler
-                scheduler = ExternalAgentScheduler()
-                scheduler._adapters = adapters
-                scheduler._stream_dispatcher = dispatcher
-                self._components.append(scheduler)
-                _components_changed = True
-
-                agent_names = [a.name for a in external_agents]
+            if attached_count:
                 self._logger.info(
-                    f"ExternalAgentScheduler auto-registered: "
-                    f"adapters={list(adapters.keys())}, agents={agent_names}"
+                    "ExternalEngineComponent auto-attached: "
+                    f"adapters={sorted(adapter_registry.keys())}, "
+                    f"agents={[a.name for a in external_agents]}, "
+                    f"session_store={type(shared_session_store).__name__}"
                 )
 
         # Rebuild ComponentRunner if any components were added

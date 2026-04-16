@@ -192,3 +192,40 @@ class SQLiteExternalSessionStore:
 
     def __repr__(self) -> str:
         return "SQLiteExternalSessionStore()"
+
+
+class LazySQLiteExternalSessionStore:
+    """SQLite session store that resolves its connection lazily.
+
+    Used by orchestrator auto-wiring when the blackboard store is
+    SQLite-backed but the connection has not been opened yet at
+    initialization time.  The first ``get`` / ``set`` call obtains the
+    connection from the supplied ``BlackboardStore``.
+    """
+
+    def __init__(self, store: Any) -> None:
+        self._store = store
+        self._inner: SQLiteExternalSessionStore | None = None
+
+    async def _ensure(self) -> SQLiteExternalSessionStore:
+        if self._inner is None:
+            conn = await self._store._get_connection()  # noqa: SLF001
+            self._inner = SQLiteExternalSessionStore(conn)
+        return self._inner
+
+    async def get(self, agent_name: str, artifact_type: str) -> str | None:
+        inner = await self._ensure()
+        return await inner.get(agent_name, artifact_type)
+
+    async def set(
+        self, agent_name: str, artifact_type: str, session_id: str
+    ) -> None:
+        inner = await self._ensure()
+        await inner.set(agent_name, artifact_type, session_id)
+
+    async def clear(self, agent_name: str | None = None) -> None:
+        inner = await self._ensure()
+        await inner.clear(agent_name)
+
+    def __repr__(self) -> str:
+        return f"LazySQLiteExternalSessionStore(inner={'set' if self._inner else 'pending'})"
