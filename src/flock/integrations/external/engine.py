@@ -268,12 +268,36 @@ class ExternalEngineComponent(EngineComponent):
         """Build the prompt sent to the external agent.
 
         Includes:
+          - A trace context block (correlation_id, triggering artifact id/type)
+            so the external agent can refer back to the request
           - Agent description (if present) as instructions
           - Each input artifact's payload as JSON
           - JSON schemas for each expected output type
           - Strict instruction to reply with only valid JSON
         """
         sections: list[str] = []
+
+        # Trace context — gives the external agent a handle to refer back
+        # to the request (correlation_id, triggering artifact metadata).
+        trace_context: dict[str, Any] = {}
+        if ctx.correlation_id:
+            trace_context["correlation_id"] = ctx.correlation_id
+        if inputs.artifacts:
+            first = inputs.artifacts[0]
+            if getattr(first, "id", None) is not None:
+                trace_context["triggering_artifact_id"] = str(first.id)
+            if getattr(first, "type", None):
+                trace_context["triggering_artifact_type"] = first.type
+            if len(inputs.artifacts) > 1:
+                trace_context["additional_input_ids"] = [
+                    str(getattr(a, "id", "")) for a in inputs.artifacts[1:]
+                ]
+        if trace_context:
+            sections.append(
+                "## Trace context\n```json\n"
+                + json.dumps(trace_context, indent=2, default=str)
+                + "\n```"
+            )
 
         description = getattr(agent, "description", None)
         if description:

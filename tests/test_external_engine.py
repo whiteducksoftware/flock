@@ -560,3 +560,59 @@ def test_external_engine_is_engine_component() -> None:
 
     engine = ExternalEngineComponent(adapter=_MockAdapter())
     assert isinstance(engine, EngineComponent)
+
+
+# ---------------------------------------------------------------------------
+# Trace context (Unit 8)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_prompt_includes_correlation_id_when_present() -> None:
+    adapter = _MockAdapter(
+        AgentOutcome(success=True, returncode=0, stdout='{"answer": "x"}', stderr="", session_id="s")
+    )
+    engine = ExternalEngineComponent(adapter=adapter)
+    agent = _make_agent([_Answer])
+    inputs = _make_inputs({"text": "?"})
+    ctx = Context(task_id="t1", correlation_id="trace-corr-abc-123")
+
+    await engine.evaluate(agent, ctx, inputs, agent.output_groups[0])
+
+    prompt = adapter.spawn_calls[0].prompt
+    assert "Trace context" in prompt
+    assert "trace-corr-abc-123" in prompt
+
+
+@pytest.mark.asyncio
+async def test_prompt_includes_triggering_artifact_id_and_type() -> None:
+    adapter = _MockAdapter(
+        AgentOutcome(success=True, returncode=0, stdout='{"answer": "x"}', stderr="", session_id="s")
+    )
+    engine = ExternalEngineComponent(adapter=adapter)
+    agent = _make_agent([_Answer])
+    inputs = _make_inputs({"text": "?"})
+
+    await engine.evaluate(agent, _ctx(), inputs, agent.output_groups[0])
+
+    prompt = adapter.spawn_calls[0].prompt
+    artifact_id = str(inputs.artifacts[0].id)
+    assert artifact_id in prompt
+    assert type_registry.name_for(_Question) in prompt
+
+
+@pytest.mark.asyncio
+async def test_prompt_omits_trace_context_when_no_correlation_and_no_artifact_id() -> None:
+    """An agent with no inputs and no correlation_id has no trace context."""
+    adapter = _MockAdapter(
+        AgentOutcome(success=True, returncode=0, stdout='{"answer": "x"}', stderr="", session_id="s")
+    )
+    engine = ExternalEngineComponent(adapter=adapter)
+    agent = _make_agent([_Answer])
+    inputs = EvalInputs(artifacts=[])
+    ctx = Context(task_id="t1")  # no correlation_id
+
+    await engine.evaluate(agent, ctx, inputs, agent.output_groups[0])
+
+    prompt = adapter.spawn_calls[0].prompt
+    assert "Trace context" not in prompt
