@@ -137,7 +137,7 @@ No runtime skill loader. Skills ARE the prompt. Optimizer-compatible: `MIPROv2`/
 
 **Confidence:** 60%
 **Complexity:** High (4–6 weeks)
-**Status:** Selected — primary blackboard-native mode.
+**Status:** Rejected by Pyro (2026-04-17, scope cut) — cognitive load of "write SKILL.md so it becomes a blackboard agent" is too high for a PoC phase. Also: #5 already buys blackboard interaction for free, because the consuming agent still publishes through the normal cascade — skills don't need to be first-class blackboard citizens for cascades to fire. Revisit post-PoC if real-world use surfaces a need.
 
 ---
 
@@ -155,54 +155,49 @@ No runtime skill loader. Skills ARE the prompt. Optimizer-compatible: `MIPROv2`/
 
 ---
 
-## Selected Path: #5 + #6 + #7 with #2 as alt-mode
+## Selected Path: #5 + #7 with #2 as alt-mode
 
-Pyro's picks (2026-04-17):
-- **Primary:** #5 (compile into DSPy signatures) + #6 (typed blackboard agents)
-- **Multiplier:** #7 (DSPy optimizes skill bodies)
-- **Alt-mode / fallback:** #2 (MAF-style ContextProvider — runtime tool path for skills that don't fit #5 or #6)
-- **Out:** #1 (explicitly want internal skills), #3 (didn't catch), #4 (didn't catch)
+Pyro's picks (2026-04-17, refined):
+- **Primary:** #5 (compile SKILL.md into DSPy signatures at registration)
+- **Multiplier:** #7 (DSPy optimizes skill bodies against changelog traces)
+- **Alt-mode / fallback:** #2 (MAF-style `SkillsContextProvider` — runtime tool path for cases where compile-time doesn't fit)
+- **Out:** #1 (explicitly want internal skills), #3 (didn't catch), #4 (didn't catch), #6 (scope cut — cognitive load too high for PoC; #5 already yields blackboard interaction via the consuming agent's normal cascade)
 
-### Core tension to resolve in surface-first
+### Key insight from scope cut
 
-**#5 and #6 are philosophically different answers:**
-- #5: a skill becomes *part of the DSPy signature*. Static per agent, baked at registration, runs through normal `Predict`/`ReAct`. **Skill body IS prompt.**
-- #6: a skill becomes *its own blackboard agent*. Dynamic, subscribes/publishes typed artifacts, runs in the cascade. **Skill body IS an agent definition.**
+**#5 alone already makes skill-enhanced agents full blackboard citizens.** The agent that has a skill compiled into its signature still publishes to the blackboard, still fires cascades, still shows up in OTel traces and changelog replay. Skills don't need to *be* first-class blackboard citizens for the cascade to work — the consuming agent carries them into the cascade transparently. #6's "skill = agent" abstraction was architecturally exciting but its interop cost (breaking Anthropic's SKILL.md schema, forcing Pydantic literacy on skill authors) is too high to pay until a real use case demands it.
 
-They can coexist. The design question is **who picks the mode**:
+### Core tension to resolve in surface-first (simplified)
+
+With #6 out, the design space collapses to: **#5 (compile-time) + #2 (runtime fallback) — who decides which a given skill uses?**
 
 **Option A — mode declared in SKILL.md frontmatter:**
 ```yaml
 # skills/pdf-extract/SKILL.md
-mode: agent      # → #6 path
-publishes: InvoiceExtracted
+mode: inline   # body compiled into consumer's signature (#5)
 # vs
-mode: inline     # → #5 path (body compiled into consumer's signature)
-# vs
-mode: tool       # → #2 path (load_skill tool injected)
+mode: tool     # load_skill tool injected, body lazy-loaded (#2)
 ```
 
 **Option B — caller picks the mode explicitly:**
 ```python
-flock.agent(...).with_skills_compiled([...])     # #5
-flock.agent(...).with_skills_available([...])    # #2 alt-mode
-flock.attach_skill_as_agent(pdf_skill)            # #6
+flock.agent(...).with_skills_compiled([...])    # #5
+flock.agent(...).with_skills_available([...])   # #2 fallback
 ```
 
-**Option C — unified API, compiler chooses by frontmatter shape:**
+**Option C — unified API, compiler picks by shape:**
 ```python
 flock.agent(...).with_skills([...])
-# compiler: if typed `consumes`/`publishes` declared → #6 path
-#           elif signature-enrichable (prose + demos) → #5 path
-#           else → #2 tool fallback
+# compiler: if signature-enrichable (prose + demos) → #5
+#           else (too dynamic, or agent uses dspy.Predict) → #2
 ```
 
-Graceful degradation for pure-prose skills (common — "how to write DHH-style Rails code" has no typed output) is the main correctness constraint. Option C handles it most naturally; Option A forces every SKILL.md to pick a mode; Option B is explicit but noisy.
+Graceful degradation for pure-prose skills ("how to write DHH-style Rails code" — no typed output, no demos) is the correctness constraint. Option C handles it most naturally; A forces every SKILL.md to pick; B is explicit but noisy.
 
-### Proposed next steps (not yet done)
+### Proposed next steps
 
-1. **Surface-first prototype** via `limitless:surface-first-development` — write sample user code for 3–4 realistic scenarios (typed-output skill, pure-prose skill, script-heavy skill, shared-across-agents skill) before touching architecture. Converge on Option A/B/C.
-2. **Throwaway prototype on `feat/skills` branch** — implement #5 first (cheapest to feel), then layer #6, then #2 fallback.
+1. **Surface-first prototype** via `limitless:surface-first-development` — write sample user code for 3–4 realistic scenarios (typed-output skill, pure-prose skill, script-heavy skill, skill shared across agents) before touching architecture. Converge on Option A/B/C.
+2. **Throwaway prototype on `feat/skills` branch** — implement #5 first (cheapest to feel), then layer #2 fallback, then #7 optimizer loop.
 3. **Only after the surface feels right**, decide final architecture and write implementation plan.
 
 Pyro's explicit concern: *"I can't tell how the proposed solutions 'feel' in the end without actually trying them."* → surface-first is the right workflow.
@@ -214,6 +209,7 @@ Pyro's explicit concern: *"I can't tell how the proposed solutions 'feel' in the
 | 1 | Delegate to `ExternalEngineComponent` | Pyro explicitly wants internal DSPy agents to run skills, not punt to external |
 | 3 | SKILL.md → auto-generated MCP server | Didn't catch Pyro; also: MCP conflates methodology with callable tool (CrewAI's concern) |
 | 4 | Event-triggered signature mutation | Didn't catch Pyro; also: fights DSPy's "one canonical signature" mental model |
+| 6 | Skills as typed blackboard agents | Scope cut — cognitive load too high for PoC; #5 already gives blackboard cascade via the consuming agent's publish. Revisit post-PoC if real use surfaces a need. |
 | R1 | Skills as RAG corpus (embedding retrieval per call) | New infra (embedding index), uncertain win, duplicates filesystem/MCP semantics |
 | R2 | Skills are the product, agents are scaffolding | Product pivot, not an "agents-run-skills" answer — better as brainstorm variant |
 | R3 | Batch-apply skill across artifact collections | Contingent follow-on once baseline exists |
@@ -229,4 +225,5 @@ Pyro's explicit concern: *"I can't tell how the proposed solutions 'feel' in the
 
 ## Session Log
 
-- **2026-04-17:** Initial ideation — 40 raw candidates across 4 parallel ideation frames (user pain, inversion, reframing, leverage/compounding), deduped to ~19 unique concepts, second stricter pass → 7 survivors + cross-cutting combinations. Pyro selected #5+#6+#7 with #2 as alt-mode. Branch `feat/skills` created from `feat/meta-orchestrator` to host prototype work. Next step: route to `limitless:surface-first-development` to converge on API shape (Option A/B/C) before architecture.
+- **2026-04-17:** Initial ideation — 40 raw candidates across 4 parallel ideation frames (user pain, inversion, reframing, leverage/compounding), deduped to ~19 unique concepts, second stricter pass → 7 survivors + cross-cutting combinations. Pyro initially selected #5+#6+#7 with #2 as alt-mode. Branch `feat/skills` created from `feat/meta-orchestrator` to host prototype work.
+- **2026-04-17 (revision):** Pyro cut #6 from scope — reasoning: cognitive load of "write SKILL.md so it becomes a blackboard agent" is too high for PoC phase, and #5 already yields blackboard interaction for free via the consuming agent's normal publish/cascade. Final selected path is #5 + #7 + #2 (fallback). Surface-first design question simplified from 3-way (A/B/C over 3 modes) to 2-mode (compile-time vs runtime tool). Next step: route to `limitless:surface-first-development`.
