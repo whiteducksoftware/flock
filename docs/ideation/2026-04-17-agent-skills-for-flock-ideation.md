@@ -61,7 +61,7 @@ Ideas are ordered risk-graded (safe → ambitious). The **selected** set (for th
 
 **Confidence:** 85% (it works — question is whether it's *enough*)
 **Complexity:** Low (days)
-**Status:** Rejected by Pyro (2026-04-17) — the point is explicitly internal skills.
+**Status:** Rejected by Andre (2026-04-17) — the point is explicitly internal skills.
 
 ---
 
@@ -89,7 +89,7 @@ Ideas are ordered risk-graded (safe → ambitious). The **selected** set (for th
 
 **Confidence:** 70%
 **Complexity:** Medium (~2 weeks)
-**Status:** Rejected by Pyro (2026-04-17) — didn't catch.
+**Status:** Rejected by Andre (2026-04-17) — didn't catch.
 
 ---
 
@@ -103,7 +103,7 @@ Ideas are ordered risk-graded (safe → ambitious). The **selected** set (for th
 
 **Confidence:** 65%
 **Complexity:** Medium-High (~3 weeks)
-**Status:** Rejected by Pyro (2026-04-17) — didn't catch.
+**Status:** Rejected by Andre (2026-04-17) — didn't catch.
 
 ---
 
@@ -137,7 +137,7 @@ No runtime skill loader. Skills ARE the prompt. Optimizer-compatible: `MIPROv2`/
 
 **Confidence:** 60%
 **Complexity:** High (4–6 weeks)
-**Status:** Rejected by Pyro (2026-04-17, scope cut) — cognitive load of "write SKILL.md so it becomes a blackboard agent" is too high for a PoC phase. Also: #5 already buys blackboard interaction for free, because the consuming agent still publishes through the normal cascade — skills don't need to be first-class blackboard citizens for cascades to fire. Revisit post-PoC if real-world use surfaces a need.
+**Status:** Rejected by Andre (2026-04-17, scope cut) — cognitive load of "write SKILL.md so it becomes a blackboard agent" is too high for a PoC phase. Also: #5 already buys blackboard interaction for free, because the consuming agent still publishes through the normal cascade — skills don't need to be first-class blackboard citizens for cascades to fire. Revisit post-PoC if real-world use surfaces a need.
 
 ---
 
@@ -157,7 +157,7 @@ No runtime skill loader. Skills ARE the prompt. Optimizer-compatible: `MIPROv2`/
 
 ## Selected Path: #5 + #7 with #2 as alt-mode
 
-Pyro's picks (2026-04-17, refined):
+Andre's picks (2026-04-17, refined):
 - **Primary:** #5 (compile SKILL.md into DSPy signatures at registration)
 - **Multiplier:** #7 (DSPy optimizes skill bodies against changelog traces)
 - **Alt-mode / fallback:** #2 (MAF-style `SkillsContextProvider` — runtime tool path for cases where compile-time doesn't fit)
@@ -200,15 +200,15 @@ Graceful degradation for pure-prose skills ("how to write DHH-style Rails code" 
 2. **Throwaway prototype on `feat/skills` branch** — implement #5 first (cheapest to feel), then layer #2 fallback, then #7 optimizer loop.
 3. **Only after the surface feels right**, decide final architecture and write implementation plan.
 
-Pyro's explicit concern: *"I can't tell how the proposed solutions 'feel' in the end without actually trying them."* → surface-first is the right workflow.
+Andre's explicit concern: *"I can't tell how the proposed solutions 'feel' in the end without actually trying them."* → surface-first is the right workflow.
 
 ## Rejection Summary
 
 | # | Idea | Reason Rejected |
 |---|------|-----------------|
-| 1 | Delegate to `ExternalEngineComponent` | Pyro explicitly wants internal DSPy agents to run skills, not punt to external |
-| 3 | SKILL.md → auto-generated MCP server | Didn't catch Pyro; also: MCP conflates methodology with callable tool (CrewAI's concern) |
-| 4 | Event-triggered signature mutation | Didn't catch Pyro; also: fights DSPy's "one canonical signature" mental model |
+| 1 | Delegate to `ExternalEngineComponent` | Andre explicitly wants internal DSPy agents to run skills, not punt to external |
+| 3 | SKILL.md → auto-generated MCP server | Didn't catch Andre; also: MCP conflates methodology with callable tool (CrewAI's concern) |
+| 4 | Event-triggered signature mutation | Didn't catch Andre; also: fights DSPy's "one canonical signature" mental model |
 | 6 | Skills as typed blackboard agents | Scope cut — cognitive load too high for PoC; #5 already gives blackboard cascade via the consuming agent's publish. Revisit post-PoC if real use surfaces a need. |
 | R1 | Skills as RAG corpus (embedding retrieval per call) | New infra (embedding index), uncertain win, duplicates filesystem/MCP semantics |
 | R2 | Skills are the product, agents are scaffolding | Product pivot, not an "agents-run-skills" answer — better as brainstorm variant |
@@ -225,5 +225,5 @@ Pyro's explicit concern: *"I can't tell how the proposed solutions 'feel' in the
 
 ## Session Log
 
-- **2026-04-17:** Initial ideation — 40 raw candidates across 4 parallel ideation frames (user pain, inversion, reframing, leverage/compounding), deduped to ~19 unique concepts, second stricter pass → 7 survivors + cross-cutting combinations. Pyro initially selected #5+#6+#7 with #2 as alt-mode. Branch `feat/skills` created from `feat/meta-orchestrator` to host prototype work.
-- **2026-04-17 (revision):** Pyro cut #6 from scope — reasoning: cognitive load of "write SKILL.md so it becomes a blackboard agent" is too high for PoC phase, and #5 already yields blackboard interaction for free via the consuming agent's normal publish/cascade. Final selected path is #5 + #7 + #2 (fallback). Surface-first design question simplified from 3-way (A/B/C over 3 modes) to 2-mode (compile-time vs runtime tool). Next step: route to `limitless:surface-first-development`.
+- **2026-04-17:** Initial ideation — 40 raw candidates across 4 parallel ideation frames (user pain, inversion, reframing, leverage/compounding), deduped to ~19 unique concepts, second stricter pass → 7 survivors + cross-cutting combinations. Andre initially selected #5+#6+#7 with #2 as alt-mode. Branch `feat/skills` created from `feat/meta-orchestrator` to host prototype work.
+- **2026-04-17 (revision):** Andre cut #6 from scope — reasoning: cognitive load of "write SKILL.md so it becomes a blackboard agent" is too high for PoC phase, and #5 already yields blackboard interaction for free via the consuming agent's normal publish/cascade. Final selected path is #5 + #7 + #2 (fallback). Surface-first design question simplified from 3-way (A/B/C over 3 modes) to 2-mode (compile-time vs runtime tool). Next step: route to `limitless:surface-first-development`.
