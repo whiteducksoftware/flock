@@ -28,6 +28,9 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.codies-memory
+docs/dapr/
+.compound-engineering/
 MANIFEST
 .DS_Store
 # PyInstaller
