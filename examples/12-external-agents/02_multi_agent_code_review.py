@@ -1,5 +1,4 @@
-"""
-External Agents: Multi-Agent Code Review with Claude Code + Codex
+"""External Agents: Multi-Agent Code Review with Claude Code + Codex
 
 A code review pipeline using two external agents in parallel:
 - Claude Code reviews for correctness and security
@@ -11,7 +10,6 @@ their results are merged by an internal summarizer agent.
 KEY CONCEPTS:
 - Multiple external agents triggered by the same artifact type
 - Two different adapters (claude_code, codex) in one orchestrator
-- Serial execution per agent, but different agents run concurrently
 - Internal agent consumes results from both external agents
 - Session resume for iterative review workflows
 
@@ -23,6 +21,9 @@ REQUIREMENTS:
 PATTERN: Fan-out -> External Agents (parallel) -> Fan-in
 USE CASE: Multi-perspective code review, parallel analysis with
           different AI models, consensus-building pipelines
+
+All infrastructure (engine attachment, adapter wiring, session store) is
+auto-wired by Flock when it detects agents with kind("external").
 """
 
 import asyncio
@@ -33,14 +34,6 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.auth.token_store import InMemoryTokenStore
-from flock.components.server.auth.auth_component import AuthenticationComponent
-from flock.components.server.changelog.changelog_component import (
-    ChangelogStreamComponent,
-)
-from flock.integrations.external.adapters.claude_code import ClaudeCodeRuntime
-from flock.integrations.external.adapters.codex import CodexRuntime
-from flock.integrations.external.scheduler import ExternalAgentScheduler
 from flock.registry import flock_type
 
 
@@ -55,7 +48,6 @@ WORKING_DIR = str(Path.cwd())
 # PREFLIGHT: Verify both CLIs are available
 # ============================================================================
 def preflight_check() -> None:
-    """Verify both CLIs are installed."""
     errors: list[str] = []
     if not shutil.which("claude"):
         errors.append(
@@ -125,23 +117,6 @@ preflight_check()
 
 flock = Flock()
 
-# --- Infrastructure ---
-token_store = InMemoryTokenStore()
-changelog = ChangelogStreamComponent(token_store=token_store)
-auth = AuthenticationComponent()
-
-# Scheduler with BOTH adapters registered
-scheduler = ExternalAgentScheduler()
-scheduler._adapters = {
-    "claude_code": ClaudeCodeRuntime(),
-    "codex": CodexRuntime(),
-}
-scheduler.set_token_store(token_store)
-
-flock.add_component(scheduler)
-flock.add_server_component(changelog)
-flock.add_server_component(auth)
-
 # --- External Agent 1: Claude Code (security + correctness) ---
 (flock.agent("security-reviewer")
     .kind("external")
@@ -163,11 +138,9 @@ flock.add_server_component(auth)
     .session_mode("new"))  # Fresh session each time
 
 # --- Internal Agent: Merge reviews into a summary ---
-# This agent fires when EITHER review arrives. In a production setup,
-# you'd use a JoinSpec to wait for both reviews before summarizing.
 (flock.agent("review-merger")
     .consumes(SecurityReview, PerformanceReview)
-    .produces(ReviewSummary)
+    .publishes(ReviewSummary)
     .description(
         "You are merging code review results from two independent reviewers. "
         "Synthesize their findings into a single summary with an overall verdict. "
@@ -222,7 +195,6 @@ new file mode 100644
         author="junior-dev",
     )
 
-    # Start server in background (needed for REST API + changelog stream)
     await flock.serve(dashboard=USE_DASHBOARD, blocking=False)
     await flock.publish(pr)
     await flock.run_until_idle()
@@ -233,7 +205,6 @@ new file mode 100644
     )
     print("      -> SecurityReview + PerformanceReview -> review-merger -> ReviewSummary")
 
-    # Clean shutdown — suppress uvicorn's noisy CancelledError log
     import logging
     logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
     await flock.shutdown()

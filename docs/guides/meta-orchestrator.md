@@ -1,263 +1,215 @@
 ---
 title: Meta-Orchestrator Guide
-description: Orchestrate external AI agents (Claude Code, Codex) via the changelog stream, token auth, and the external agent runtime
+description: Orchestrate external AI agents (Claude Code, Codex) as engine-driven blackboard participants
 tags:
   - meta-orchestrator
   - external-agents
   - guide
   - advanced
-  - changelog
 search:
   boost: 1.5
 ---
 
 # Meta-Orchestrator
 
-The meta-orchestrator extends Flock to manage **external AI agent processes** (Claude Code, OpenAI Codex, or any CLI-based agent) as first-class participants in the blackboard workflow. External agents are spawned on demand, triggered by changelog events, authenticated via bearer tokens, and their results flow back through the same artifact pipeline as internal agents.
+Flock can drive external CLI-based AI agents (Claude Code, OpenAI Codex, or any subprocess-based agent) as first-class blackboard participants. External agents are spawned on demand when their subscriptions match, do their work, and publish typed results back through the same `EvalResult` pipeline as internal LLM agents.
+
+The mechanism is the standard engine pattern: an external agent is just an agent whose `EngineComponent` happens to spawn a subprocess instead of calling an LLM directly. From the orchestrator's perspective, there is no special-casing.
 
 ---
 
 ## Quick Start
 
-Register an external agent using the builder API:
+Declare an external agent and let auto-wiring do the rest:
 
 ```python
+from pydantic import BaseModel
 from flock import Flock
-from flock.integrations.external.adapters.claude_code import ClaudeCodeRuntime
-from flock.integrations.external.scheduler import ExternalAgentScheduler
+from flock.registry import flock_type
 
-flock = Flock("my-project", model="openai/gpt-4.1")
+@flock_type
+class PRDiff(BaseModel):
+    repo: str
+    pr_number: int
+    diff: str
 
-# Create an external agent that reviews PRDiff artifacts
+@flock_type
+class ReviewResult(BaseModel):
+    verdict: str
+    comments: list[str] = []
+
+flock = Flock()
+
 (flock.agent("pr-reviewer")
     .kind("external")
     .adapter("claude_code")
     .working_dir("/repos/my-project")
-    .spawn_timeout(120.0)
+    .spawn_timeout(300.0)
     .consumes(PRDiff)
-    .session_mode("resume")
-    .done())
+    .publishes(ReviewResult)
+    .session_mode("resume"))
 
-# The ExternalAgentScheduler is wired as an OrchestratorComponent with
-# adapters passed to its configure() method. The scheduler auto-discovers
-# agents with agent_kind="external" on startup.
+await flock.serve(blocking=False)
+await flock.publish(PRDiff(repo="x", pr_number=42, diff="..."))
+await flock.run_until_idle()
 ```
 
-When a `PRDiff` artifact is published to the blackboard, the scheduler automatically:
-
-1. Detects the new changelog event
-2. Matches it to `pr-reviewer`'s subscription
-3. Spawns Claude Code with the artifact context as prompt
-4. Monitors the process until completion or timeout
-5. Stores the session ID for future resume
+When `flock.serve()` runs, Flock detects every agent with `kind("external")` and attaches an `ExternalEngineComponent` configured with the named adapter. No scheduler, no token wiring, no REST return path setup — the engine pipeline handles everything.
 
 ---
 
 ## How It Works
 
-### Changelog Stream
-
-Every blackboard state change emits a `ChangelogEvent` to an append-only, ordered log. The `StreamDispatcher` delivers these events to subscribers in real-time via server-sent events (SSE).
+### Engine attachment
 
 ```
-Artifact Published  -->  ChangelogEvent  -->  StreamDispatcher  -->  Subscribers
-                                                     |
-                                                     +--> ExternalAgentScheduler
-                                                     +--> Dashboard SSE
-                                                     +--> REST /changelog endpoint
+agent.kind("external").adapter("claude_code")
+                  │
+                  ▼
+   Flock._run_initialize()
+                  │
+                  ▼
+   ExternalEngineComponent(adapter=ClaudeCodeRuntime(), ...) → agent.engines.append(...)
 ```
 
-Events carry enough metadata for routing without fetching the full artifact:
-
-- `artifact_type` -- for subscription matching
-- `correlation_id` -- for workflow threading
-- `produced_by` -- for self-trigger prevention
-- `payload_summary` -- lightweight context for prompts
-
-### Token Authentication
-
-External agents authenticate via bearer tokens when calling back to publish artifacts:
+When you publish an artifact:
 
 ```
-External Agent  --[POST /artifacts + Bearer token]-->  Flock REST API
-                                                           |
-                                                    TokenStore.verify()
-                                                           |
-                                                    TokenRecord (identity, scopes, allowed_types)
+publish(A)
+  → ArtifactManager.persist_and_schedule
+  → AgentScheduler.schedule_artifact          (same path as internal agents)
+  → Agent._run_engines
+  → ExternalEngineComponent.evaluate
+       ├─ compose prompt (input artifacts + output schemas)
+       ├─ adapter.spawn → subprocess
+       ├─ adapter.monitor → text response
+       ├─ JSON parse + Pydantic validate
+       └─ return EvalResult → publish(B) → cascade continues
 ```
 
-Tokens are:
-- **Scoped** to specific artifact types (`allowed_types`)
-- **Time-limited** with optional expiration
-- **Revocable** at any time via the token management API
-- **Hashed** with per-token salt (SHA-256) -- raw tokens are never stored
+### Output coercion
 
-### External Agent Lifecycle
+The engine composes a prompt that includes:
+- The agent's `description` (instructions)
+- Each input artifact's payload as JSON
+- The JSON schema(s) of the expected output type(s)
+- A strict instruction to reply with valid JSON only
 
-```
-1. ChangelogEvent arrives
-2. Scheduler matches event.artifact_type against agent subscriptions
-3. Session resolution: resume (lookup stored session) or new
-4. SpawnConfig built (prompt, working_dir, env_vars, session_id)
-5. Adapter.spawn() creates the subprocess
-6. Adapter.monitor() awaits completion (with timeout)
-7. On success: session_id stored for future resume
-8. On timeout: Adapter.terminate() sends SIGTERM -> grace -> SIGKILL
-```
+The adapter returns text. The engine parses it as JSON, validates each item against the corresponding output type, and returns an `EvalResult`. Validation failure raises `ExternalEngineExecutionError` and surfaces through the agent's normal error path.
 
-Each external agent processes events **serially** -- one spawn at a time per agent name. This prevents race conditions in agents that maintain conversational state.
+### Session management
+
+External CLIs (Claude Code, Codex) maintain conversation state via session IDs. Two modes are supported per subscription:
+
+- `"new"` — always start a fresh session
+- `"resume"` — look up the stored session ID for `(agent_name, artifact_type)` and pass it to the adapter; falls back to `"new"` with a warning if no stored session exists
+
+Session IDs persist in the `external_sessions` table when the blackboard is SQLite-backed (via the auto-wired `LazySQLiteExternalSessionStore`). For in-memory blackboards, sessions live for the lifetime of the process.
+
+### Available adapters
+
+| Adapter name | Runtime | Notes |
+|---|---|---|
+| `"claude_code"` | `ClaudeCodeRuntime` | Uses your logged-in subscription by default; set `bare=True` + `ANTHROPIC_API_KEY` for CI |
+| `"codex"` | `CodexRuntime` | Uses your logged-in subscription by default; supports `OPENAI_API_KEY` |
+
+Custom adapters can be registered by attaching an `ExternalEngineComponent` directly via `.with_engines(...)` instead of relying on `.adapter("name")`.
 
 ---
 
 ## Configuration
 
-### Token Management
+### Builder methods
 
-Create tokens programmatically:
+| Method | Default | Description |
+|--------|---------|-------------|
+| `.kind("external")` | `"internal"` | Marks the agent for engine attachment |
+| `.adapter(name)` | required | Adapter to use (`"claude_code"`, `"codex"`, …) |
+| `.working_dir(path)` | `"."` | Filesystem cwd for the spawned process |
+| `.spawn_timeout(seconds)` | `1800.0` | Maximum wall-clock time before terminate |
+| `.spawn_env({"K": "V"})` | `{}` | Extra env vars (allowlisted in adapter) |
+| `.session_mode("new" \| "resume")` | none | Per-subscription session policy |
 
-```python
-from flock.auth.token_models import TokenCreateRequest
-from flock.auth.token_store import InMemoryTokenStore, create_token
+### Optional: changelog stream
 
-token_store = InMemoryTokenStore()
-
-request = TokenCreateRequest(
-    identity_name="pr-reviewer",
-    identity_labels={"external", "claude"},
-    allowed_types={"ReviewResult", "ReviewSummary"},
-    scopes={"artifact:publish", "artifact:read"},
-)
-raw_token, record = create_token(request)
-await token_store.store(record)
-# Give raw_token to the external agent (one-time, cannot be recovered)
-```
-
-Or via REST (when server components are active):
-
-```bash
-curl -X POST http://localhost:8000/tokens \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{"identity_name": "reviewer", "allowed_types": ["ReviewResult"]}'
-```
-
-### Retention Policy
-
-The changelog supports pruning for long-running deployments:
+If you want dashboard streaming, audit logs, or replay-from-cursor over external agent activity, register the `ChangelogStreamComponent`:
 
 ```python
-# Delete events older than sequence 1000
-deleted = await store.prune_changelog(before_seq=1000)
-
-# Delete events older than a timestamp
-from datetime import datetime, timedelta, UTC
-cutoff = datetime.now(UTC) - timedelta(days=7)
-deleted = await store.prune_changelog(before_time=cutoff)
+from flock.components.server.changelog import ChangelogStreamComponent
+flock.add_server_component(ChangelogStreamComponent())
 ```
 
-### Environment Variables
+This exposes `/api/v1/changelog/events` (cursor pull), `/api/v1/changelog/stream` (SSE), and `/ws/changelog` (WebSocket). See [`changelog-stream.md`](changelog-stream.md) — it is independently useful even without external agents.
 
-External agents receive these environment variables automatically:
+### Optional: token authentication
 
-| Variable | Description |
-|----------|-------------|
-| `FLOCK_API_TOKEN` | Bearer token for authenticating back to Flock |
-| `FLOCK_API_URL` | Base URL of the Flock REST API |
+External agents do **not** need tokens — they return results in-process via `evaluate()`. Tokens are only relevant for **HTTP clients** publishing artifacts into Flock from outside the process. To enable bearer-token auth for those clients:
 
-Additional env vars can be set per-agent via `.spawn_env({"KEY": "value"})` on the AgentBuilder. Note: adapters use an environment allowlist — only safe variables from the parent process are inherited. Adapter-specific keys (e.g. `ANTHROPIC_API_KEY` for Claude Code) are included automatically.
+```python
+from flock.components.server.auth import AuthenticationComponent
+from flock.components.server.auth.token_management_component import TokenManagementComponent
+flock.add_server_component(AuthenticationComponent())
+flock.add_server_component(TokenManagementComponent())
+```
+
+See the auth-related modules under `src/flock/auth/` and `src/flock/components/server/auth/` for token lifecycle.
 
 ---
 
-## Example: PR Review Workflow
-
-A complete PR review pipeline with three stages:
+## Example: Multi-Agent Code Review
 
 ```python
 from pydantic import BaseModel, Field
 from flock import Flock
-from flock.integrations.external.adapters.claude_code import ClaudeCodeRuntime
+from flock.registry import flock_type
 
-# Define artifact types
+@flock_type
 class PRDiff(BaseModel):
     repo: str
     pr_number: int
     diff: str
-    author: str
 
-class ReviewResult(BaseModel):
-    verdict: str  # "approved" | "changes_requested"
-    comments: list[str] = Field(default_factory=list)
-    reviewer: str
+@flock_type
+class SecurityReview(BaseModel):
+    verdict: str
+    issues: list[str] = Field(default_factory=list)
 
-class ReviewSummary(BaseModel):
-    pr_number: int
-    approved: bool
-    summary: str
+@flock_type
+class PerformanceReview(BaseModel):
+    verdict: str
+    suggestions: list[str] = Field(default_factory=list)
 
-# Build the flock
-flock = Flock("pr-review", model="openai/gpt-4.1")
-# Stage 1: External Claude Code reviews PRDiff
-(flock.agent("code-reviewer")
-    .kind("external")
-    .adapter("claude_code")
-    .working_dir("/repos/target")
-    .spawn_timeout(300.0)
-    .consumes(PRDiff)
-    .session_mode("resume")
-    .done())
+flock = Flock()
 
-# Stage 2: Internal agent summarizes ReviewResult
-(flock.agent("summarizer")
-    .consumes(ReviewResult)
-    .produces(ReviewSummary)
-    .instruction("Summarize the code review verdict and key comments.")
-    .done())
+# Two external agents fan out from the same artifact
+(flock.agent("security-reviewer")
+    .kind("external").adapter("claude_code").working_dir(".")
+    .consumes(PRDiff).publishes(SecurityReview)
+    .session_mode("resume"))
 
-# Trigger: publish a PRDiff artifact
-await flock.publish(PRDiff(
-    repo="my-app",
-    pr_number=42,
-    diff="...",
-    author="developer",
-))
-# Flow: PRDiff -> code-reviewer (Claude Code) -> ReviewResult -> summarizer -> ReviewSummary
+(flock.agent("performance-reviewer")
+    .kind("external").adapter("codex").working_dir(".")
+    .consumes(PRDiff).publishes(PerformanceReview)
+    .session_mode("new"))
+
+# Internal agent merges the two reviews
+(flock.agent("merger")
+    .consumes(SecurityReview, PerformanceReview)
+    .publishes(...)  # your merged type
+    .description("Merge security + performance findings into a single verdict."))
 ```
 
-All three artifacts share a `correlation_id`, making the full workflow queryable:
-
-```python
-result = await store.query_changelog(
-    filters=ChangelogFilter(correlation_id="pr-42")
-)
-# Returns all 3 events in sequence order
-```
+See `examples/12-external-agents/02_multi_agent_code_review.py` for the full runnable version.
 
 ---
 
 ## Reference
 
-### Schema Migration (to v6)
+### Schema (SQLite v6)
 
-The meta-orchestrator adds the changelog and session tables to the SQLite schema. Migration is automatic on first access:
+The blackboard schema includes external-agent session storage:
 
 ```sql
--- Changelog events (added in schema v4)
-CREATE TABLE IF NOT EXISTS changelog_events (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_type TEXT NOT NULL,
-    artifact_id TEXT,
-    artifact_type TEXT,
-    produced_by TEXT,
-    correlation_id TEXT,
-    visibility TEXT,
-    timestamp TEXT NOT NULL,
-    payload_summary TEXT NOT NULL DEFAULT '{}'
-);
-CREATE INDEX IF NOT EXISTS idx_changelog_event_type_seq ON changelog_events(event_type, seq);
-CREATE INDEX IF NOT EXISTS idx_changelog_artifact_type_seq ON changelog_events(artifact_type, seq);
-CREATE INDEX IF NOT EXISTS idx_changelog_produced_by_seq ON changelog_events(produced_by, seq);
-CREATE INDEX IF NOT EXISTS idx_changelog_correlation ON changelog_events(correlation_id);
-
--- External agent sessions (added in schema v6)
 CREATE TABLE IF NOT EXISTS external_sessions (
     agent_name TEXT NOT NULL,
     artifact_type TEXT NOT NULL,
@@ -267,22 +219,31 @@ CREATE TABLE IF NOT EXISTS external_sessions (
 );
 ```
 
-### New Agent Fields
+Migration is automatic on first SQLite connection.
+
+### Agent fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `agent_kind` | `str` | `"internal"` | Set to `"external"` for subprocess agents |
-| `adapter_name` | `str \| None` | `None` | Registered adapter name (e.g. `"claude_code"`) |
+| `adapter_name` | `str \| None` | `None` | Adapter to instantiate at auto-wire time |
 | `working_dir` | `str \| None` | `None` | Filesystem path for the spawned process |
 | `spawn_timeout` | `float` | `1800.0` | Max seconds before timeout/kill |
-| `spawn_env` | `dict` | `{}` | Extra env vars for the process |
-| `prevent_self_trigger` | `bool` | `True` | Skip events produced by this agent |
+| `spawn_env` | `dict` | `{}` | Extra env vars |
 
-### Subscription Extensions
+### Subscription fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `session_mode` | `str \| None` | `None` | `"new"` or `"resume"` for external agents |
+| `session_mode` | `str \| None` | `None` | `"new"` or `"resume"` |
+
+### `ExternalEngineComponent` errors
+
+| Exception | When |
+|-----------|------|
+| `ExternalEngineExecutionError` | Subprocess non-zero exit, JSON parse failure, schema validation failure, no output, no adapter |
+| `FileNotFoundError` | Adapter raised because the CLI is not installed |
+| `asyncio.TimeoutError` | `spawn_timeout` exceeded — adapter is terminated; engine re-raises |
 
 ---
 
@@ -290,12 +251,11 @@ CREATE TABLE IF NOT EXISTS external_sessions (
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| External agent never triggers | `agent_kind` not set to `"external"` | Use `.kind("external")` in builder |
-| "adapter not registered" warning | Adapter name mismatch | Verify `flock.register_adapter(name, ...)` matches `.adapter(name)` |
-| Agent times out immediately | `spawn_timeout` too low | Increase timeout (default 1800s) |
-| Token rejected (403) | Token expired or revoked | Create a new token; check `expires_at` |
-| Type scope error | Token `allowed_types` missing the artifact type | Add the type to `TokenCreateRequest.allowed_types` |
-| Resume mode falls back to new | No stored session for this agent+type | First run always uses "new"; session stored after success |
-| SQLite latency > 5ms | Expected on WSL2 / network filesystems | Use in-memory store for dev, or accept ~10ms on WSL2 |
-| Events not reaching subscriber | Subscriber created after publish | Subscribe before publishing, or use cursor API for history |
-| Self-trigger loop | Agent publishes type it subscribes to | Enable `prevent_self_trigger` (default True) |
+| Agent never spawns | `agent_kind` not set to `"external"` | Use `.kind("external")` in builder |
+| `ValueError: External agent 'X' has no .adapter` | Missing `.adapter("name")` call | Add it |
+| `ValueError: ... unknown adapter` | Typo in adapter name | Use `"claude_code"` or `"codex"` |
+| Agent times out | `spawn_timeout` too low for the workload | Increase via `.spawn_timeout(seconds)` |
+| `ExternalEngineExecutionError: non-JSON output` | Agent ignored the JSON instruction | Tighten the agent's `.description()` to emphasise JSON-only output |
+| `ExternalEngineExecutionError: does not match <Type>` | Agent's JSON does not match the published type's schema | Inspect the schema; the model may need clearer field constraints/descriptions |
+| Resume mode falls back to new | No stored session for this agent+type yet | Expected on first run; session stored after success |
+| Agent process orphaned on crash | Adapter spawn failed mid-write | Already handled — adapter kills the process on `BrokenPipeError`. File a bug if you see it persist |
