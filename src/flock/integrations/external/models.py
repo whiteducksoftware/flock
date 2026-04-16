@@ -39,22 +39,33 @@ class SpawnConfig:
 
 @dataclass
 class SpawnResult:
-    """Handle returned after a successful spawn."""
+    """Handle returned after a successful spawn.
+
+    ``session_id`` is ``None`` when the spawning caller did not supply one
+    and the adapter has not yet parsed an ID from the subprocess output.
+    The engine treats ``None`` as "no session to persist".
+    """
 
     pid: int
-    session_id: str
     process: asyncio.subprocess.Process
+    session_id: str | None = None
 
 
 @dataclass
 class AgentOutcome:
-    """Terminal state after an external agent finishes (or crashes)."""
+    """Terminal state after an external agent finishes (or crashes).
+
+    ``session_id`` is ``None`` when the adapter could not extract one from
+    the subprocess output (e.g. parse failure, missing event).  The engine
+    only persists a session when this field is set to a real string, so
+    unresolved cases do not poison the session store.
+    """
 
     success: bool
     returncode: int
     stdout: str
     stderr: str
-    session_id: str
+    session_id: str | None = None
 
 
 # ---------------------------------------------------------------------------

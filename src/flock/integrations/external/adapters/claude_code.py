@@ -116,7 +116,10 @@ class ClaudeCodeRuntime(BaseExternalRuntime):
                 f"Claude Code process exited before accepting input: {exc}"
             ) from exc
 
-        session_id = config.session_id or "pending"
+        # Leave session_id unresolved (None) unless the caller supplied one;
+        # monitor() will populate it from the parsed JSON.  A None value
+        # prevents the engine from persisting an unresolved session.
+        session_id = config.session_id
 
         logger.debug(
             "ClaudeCodeRuntime.spawn: pid=%d, session_id=%s, cwd=%s",

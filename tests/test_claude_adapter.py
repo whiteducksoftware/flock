@@ -164,9 +164,9 @@ class TestSpawn:
             fake_proc.stdin.close.assert_called_once()
             fake_proc.stdin.wait_closed.assert_awaited_once()
 
-        # Verify SpawnResult
+        # Verify SpawnResult — session_id is None until monitor() extracts one.
         assert result.pid == 123
-        assert result.session_id == "pending"
+        assert result.session_id is None
         assert result.process is fake_proc
 
     @pytest.mark.asyncio
@@ -274,7 +274,7 @@ class TestMonitor:
         fake_proc.returncode = None
 
         runtime = ClaudeCodeRuntime()
-        spawn_result = SpawnResult(pid=10, session_id="pending", process=fake_proc)
+        spawn_result = SpawnResult(pid=10, session_id=None, process=fake_proc)
 
         outcome = await runtime.monitor(spawn_result)
 
@@ -297,7 +297,7 @@ class TestMonitor:
         fake_proc.returncode = None
 
         runtime = ClaudeCodeRuntime()
-        spawn_result = SpawnResult(pid=10, session_id="pending", process=fake_proc)
+        spawn_result = SpawnResult(pid=10, session_id=None, process=fake_proc)
 
         outcome = await runtime.monitor(spawn_result)
         assert outcome.success is True
@@ -321,7 +321,7 @@ class TestMonitor:
         fake_proc.returncode = None
 
         runtime = ClaudeCodeRuntime()
-        spawn_result = SpawnResult(pid=10, session_id="pending", process=fake_proc)
+        spawn_result = SpawnResult(pid=10, session_id=None, process=fake_proc)
 
         outcome = await runtime.monitor(spawn_result)
         assert outcome.success is True
@@ -340,7 +340,7 @@ class TestMonitor:
         fake_proc.returncode = None
 
         runtime = ClaudeCodeRuntime()
-        spawn_result = SpawnResult(pid=10, session_id="pending", process=fake_proc)
+        spawn_result = SpawnResult(pid=10, session_id=None, process=fake_proc)
 
         outcome = await runtime.monitor(spawn_result)
         assert outcome.success is False
@@ -394,7 +394,7 @@ class TestMonitor:
         fake_proc.returncode = None
 
         runtime = ClaudeCodeRuntime()
-        spawn_result = SpawnResult(pid=10, session_id="pending", process=fake_proc)
+        spawn_result = SpawnResult(pid=10, session_id=None, process=fake_proc)
 
         outcome = await runtime.monitor(spawn_result)
         assert outcome.success is True
@@ -571,7 +571,7 @@ class TestFullLifecycle:
             result = await runtime.spawn(config)
 
         assert result.pid == 77
-        assert result.session_id == "pending"
+        assert result.session_id is None
 
         # Now monitor — reset returncode to None as it would be in real life.
         fake_proc.returncode = None

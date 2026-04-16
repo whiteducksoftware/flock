@@ -121,9 +121,10 @@ class TestCodexSpawnNew:
             idx = list(args).index("-C")
             assert args[idx + 1] == str(config.working_dir)
 
-            # Verify result
+            # Verify result — session_id is None until monitor() parses one
+            # out of the JSONL stream.
             assert result.pid == 123
-            assert result.session_id == "pending"
+            assert result.session_id is None
 
     async def test_spawn_new_writes_prompt_to_stdin(self) -> None:
         """Prompt is written to stdin, not passed as a CLI argument."""
@@ -200,7 +201,13 @@ class TestCodexSpawnNew:
 
 class TestCodexSpawnResume:
     async def test_spawn_resume_uses_resume_command(self) -> None:
-        """Resume mode uses 'codex exec resume <session_id>' invocation."""
+        """Resume mode uses 'codex exec resume <session_id>' invocation.
+
+        The JSONL / full-auto / -C flags MUST be preserved so that
+        :meth:`monitor` can parse the event stream identically to a new
+        session.  The prompt MUST stay out of argv to preserve the
+        stdin-only security invariant.
+        """
         config = _make_spawn_config(
             session_mode="resume",
             session_id="thread_abc123",
@@ -220,9 +227,18 @@ class TestCodexSpawnResume:
             assert args[2] == "resume"
             assert args[3] == "thread_abc123"
 
-            # --json and --full-auto should NOT be present in resume mode
-            assert "--json" not in args
-            assert "--full-auto" not in args
+            # JSONL + full-auto + cwd flags MUST be present so monitor()'s
+            # parser path is identical to the new-session branch.
+            assert "--json" in args
+            assert "--full-auto" in args
+            assert "--skip-git-repo-check" in args
+            assert "-C" in args
+
+            # The prompt must NEVER appear in argv (stdin-only invariant).
+            assert "Continue the work" not in args
+
+            # Prompt is still written to stdin.
+            proc.stdin.write.assert_called_once_with(b"Continue the work")
 
             assert result.session_id == "thread_abc123"
 
@@ -314,7 +330,7 @@ class TestCodexGracefulDegradation:
             outcome = await runtime.monitor(result)
 
             assert outcome.stdout == raw_output
-            assert outcome.session_id == "pending"  # no session extracted
+            assert outcome.session_id is None  # no session extracted
 
     async def test_unknown_event_types_ignored(self) -> None:
         """Unknown event types are silently skipped during parsing."""
@@ -363,7 +379,7 @@ class TestCodexGracefulDegradation:
             outcome = await runtime.monitor(result)
 
             assert outcome.stdout == ""
-            assert outcome.session_id == "pending"
+            assert outcome.session_id is None
 
     async def test_nonzero_returncode_is_failure(self) -> None:
         """Non-zero exit code results in success=False."""

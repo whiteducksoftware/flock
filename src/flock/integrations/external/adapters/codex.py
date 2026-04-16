@@ -5,11 +5,13 @@ prompt via stdin, and parses the JSONL event stream output.  Supports
 session resumption via ``codex exec resume <session_id>``.
 
 Security: The prompt is ALWAYS passed through stdin, never interpolated
-into CLI arguments, to prevent flag-injection attacks.
+into CLI arguments, to prevent flag-injection attacks.  This invariant
+holds for both new and resume invocations.
 
 CLI invocation:
     New:    codex exec --json --full-auto --skip-git-repo-check -C <cwd>
-    Resume: codex exec resume <session_id> <prompt>  (prompt also on stdin)
+    Resume: codex exec resume <session_id> --json --full-auto
+            --skip-git-repo-check -C <cwd>
 """
 
 from __future__ import annotations
@@ -113,7 +115,10 @@ class CodexRuntime(BaseExternalRuntime):
                 f"Codex process exited before accepting input: {exc}"
             ) from exc
 
-        session_id = config.session_id or "pending"
+        # Leave session_id unresolved (None) unless the caller supplied one;
+        # monitor() will populate it from the parsed JSONL events.  A None
+        # value prevents the engine from persisting an unresolved session.
+        session_id = config.session_id
 
         logger.debug(
             "CodexRuntime.spawn: pid=%d, session_id=%s, cwd=%s",
@@ -177,15 +182,26 @@ class CodexRuntime(BaseExternalRuntime):
     # ------------------------------------------------------------------
 
     def _build_args(self, config: SpawnConfig) -> list[str]:
-        """Construct the CLI argument list."""
+        """Construct the CLI argument list.
+
+        The prompt is NEVER placed in argv — both branches rely on
+        :meth:`spawn` writing ``config.prompt`` to stdin.  Both branches
+        also keep ``--json --full-auto --skip-git-repo-check -C <cwd>`` so
+        that :meth:`monitor` can parse the JSONL event stream identically
+        regardless of session mode.
+        """
         if config.session_mode == "resume" and config.session_id:
-            # Resume an existing session.
+            # Resume an existing session.  The session_id is a positional
+            # argument to the ``resume`` subcommand.
             return [
                 "codex",
                 "exec",
                 "resume",
                 config.session_id,
-                config.prompt,
+                "--json",
+                "--full-auto",
+                "--skip-git-repo-check",
+                "-C", str(config.working_dir),
             ]
 
         # New session.
