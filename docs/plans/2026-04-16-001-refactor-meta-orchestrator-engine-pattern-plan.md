@@ -1,7 +1,7 @@
 ---
 title: "refactor: Meta-Orchestrator — ExternalEngineComponent + Findings Cleanup"
 type: refactor
-status: active
+status: completed
 date: 2026-04-16
 origin: docs/reviews/2026-04-16-meta-orchestrator-findings.md
 ---
@@ -206,7 +206,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ### Phase 1 — Engine surface (foundation)
 
-- [ ] **Unit 1: ExternalEngineComponent + adapter glue**
+- [x] **Unit 1: ExternalEngineComponent + adapter glue**
 
 **Goal:** Implement `ExternalEngineComponent` that wraps an `ExternalAgentRuntime` adapter and produces typed `EvalResult`s through the existing engine pipeline.
 
@@ -259,7 +259,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ---
 
-- [ ] **Unit 2: Builder + auto-wiring rewrite**
+- [x] **Unit 2: Builder + auto-wiring rewrite**
 
 **Goal:** Update `.kind("external").adapter(...)` to attach an `ExternalEngineComponent` via the existing engine list, and rewrite the orchestrator's auto-detect block to install engines instead of an external scheduler.
 
@@ -303,7 +303,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ### Phase 2 — Demolition
 
-- [ ] **Unit 3: Delete scheduler, return-path-token-injection, and scheduler-coupled dispatcher wiring**
+- [x] **Unit 3: Delete scheduler, return-path-token-injection, and scheduler-coupled dispatcher wiring**
 
 **Goal:** Remove `ExternalAgentScheduler`, the `set_token_store` / token-injection code that exists only to authenticate the REST return path, and the dispatcher-for-triggering coupling on `ArtifactManager`. Preserve `StreamDispatcher` itself for SSE/cursor observers.
 
@@ -344,7 +344,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ### Phase 3 — Bug fixes from findings report
 
-- [ ] **Unit 4: Quick correctness fixes**
+- [x] **Unit 4: Quick correctness fixes**
 
 **Goal:** Land the small, isolated bug fixes flagged in the findings report.
 
@@ -375,7 +375,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ### Phase 4 — Examples and documentation
 
-- [ ] **Unit 5: Rewrite both examples + meta-orchestrator guide**
+- [x] **Unit 5: Rewrite both examples + meta-orchestrator guide**
 
 **Goal:** Migrate `examples/12-external-agents/01_*.py` and `02_*.py` to the new engine surface (no infrastructure imports). Rewrite `docs/guides/meta-orchestrator.md` to match.
 
@@ -414,7 +414,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ### Phase 5 — Residual cleanup
 
-- [ ] **Unit 6: Guard hook on the engine**
+- [x] **Unit 6: Guard hook on the engine**
 
 **Goal:** Implement `GuardComponent.scan_input` / `scan_output` integration on `ExternalEngineComponent` (replacing the commented-out scheduler stub).
 
@@ -444,7 +444,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ---
 
-- [ ] **Unit 7: Adapter base class + retention chunked DELETE + token store GC + audit log**
+- [x] **Unit 7: Adapter base class + retention chunked DELETE + token store GC + audit log**
 
 **Goal:** Land the residual P2/P3 cleanup items in one focused unit.
 
@@ -483,7 +483,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ---
 
-- [ ] **Unit 8: Prompt enrichment with traceability metadata**
+- [x] **Unit 8: Prompt enrichment with traceability metadata**
 
 **Goal:** Replace the lossy `_build_prompt` (which strips `correlation_id` and `artifact_id`) with a structured composition that gives external agents a traceback handle.
 
@@ -512,7 +512,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ### Phase 6 — Integration verification + benchmark
 
-- [ ] **Unit 9: Rewrite end-to-end integration test**
+- [x] **Unit 9: Rewrite end-to-end integration test**
 
 **Goal:** Rewrite `tests/integration/test_meta_orchestrator_e2e.py` against the engine path. SC1-SC6 are restated where they still apply; SC1 in particular is rewritten to exercise the engine path, not the scheduler path.
 
@@ -545,7 +545,7 @@ async def evaluate(agent, ctx, inputs, output_group) -> EvalResult:
 
 ---
 
-- [ ] **Unit 10: Changelog publish latency benchmark**
+- [x] **Unit 10: Changelog publish latency benchmark**
 
 **Goal:** Replace the WSL2 15ms one-off with a reproducible benchmark of `persist_and_schedule()` under load. Document the actual sustainable throughput as a known limit.
 
