@@ -50,7 +50,9 @@ async def main() -> None:
 #      The agent sees: pdf-extract__extract_text, pdf-extract__detect_scanned
 #   2. Engine silently upgrades Predict → ReAct because scripts are present
 #   3. references/ stay lazy — loaded only if agent calls read_skill_resource
-#   4. flock.sandbox: subprocess in frontmatter opts into subprocess isolation;
-#      default is in-process (cheap, trusted).
+#   4. Sandbox default is by discovery path: in-repo skills (./skills/, explicit
+#      project-relative paths) → in-process (same trust as your code); installed
+#      skills (~/.flock/skills/, ./.claude/skills/) → subprocess (third-party
+#      isolation). flock.sandbox: inprocess|subprocess in frontmatter overrides.
 #   5. Tool names are namespaced (<skill>__<script>) to prevent collisions when
 #      multiple skills define similarly-named scripts

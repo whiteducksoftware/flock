@@ -345,7 +345,7 @@ Apply? [y/n/d(iff)/s(ave-as-candidate)] _
 1. **One method (`.with_skills`), not three.** No `.with_skills_compiled()` / `.with_skills_available()` split. The compiler picks mode by shape; frontmatter or `runtime=True` overrides.
 2. **Interop-first.** Anthropic's SKILL.md format is the wire format. Flock-specific metadata sits under `flock:` frontmatter key. Skills written for Claude Code work unchanged.
 3. **Discovery defaults** are project → user global → Claude Code compat, first-match wins.
-4. **Scripts default to in-process**, `flock.sandbox: subprocess` opts into isolation.
+4. **Sandbox default by discovery path** — in-repo skills (`./skills/`, project-relative paths) default to `inprocess` (same trust boundary as your code); installed skills (`~/.flock/skills/`, `./.claude/skills/`) default to `subprocess` (third-party isolation). `flock.sandbox: inprocess|subprocess` in frontmatter overrides either default. *(Updated 2026-04-18 from "always in-process default" after document review.)*
 5. **`#7 optimizer is CLI-triggered, not automatic.** Shows diffs, never overwrites silently.
 6. **Engine selection is automatic** — scripts present → ReAct; no scripts + prose-only → Predict.
 
@@ -353,7 +353,7 @@ Apply? [y/n/d(iff)/s(ave-as-candidate)] _
 
 - Does the one-method API (`.with_skills(...)`) feel right? Or should there be explicit compile/runtime variants?
 - Does `flock:` frontmatter namespace feel clean? Or should Flock extensions be inline with Anthropic fields?
-- Is in-process the right default for scripts? Or should subprocess be the safe default with `sandbox: inprocess` as the opt-in?
+- ~~Is in-process the right default for scripts? Or should subprocess be the safe default with `sandbox: inprocess` as the opt-in?~~ **Resolved 2026-04-18 (document review):** sandbox default is by discovery path. In-repo → `inprocess`; installed (`~/.flock/skills/`, `./.claude/skills/`) → `subprocess`. `flock.sandbox` frontmatter overrides. Reconciles R2 (interop = shared skills) with the original "trust local authors" intuition without forcing every author to choose.
 - Does `runtime=True` (single knob) cover enough cases, or do you want per-skill runtime-vs-compile control?
 - The optimizer CLI — good enough, or do you want it hookable from a Python API too (e.g., `flock.optimize_skills(agent='invoice-extractor')`)?
 - Anything about the 4 scenarios that doesn't cover a real case you have in mind?

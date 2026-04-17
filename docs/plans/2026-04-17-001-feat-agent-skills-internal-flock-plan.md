@@ -60,18 +60,18 @@ See origin: `.sfd/contracts.md` §1-§9 (public API, frontmatter schema, types, 
 ### Relevant Code and Patterns
 
 - `src/flock/core/agent.py:509-1000` — `AgentBuilder` class; `with_skills` goes here between `with_tools` (line ~966) and `with_context` (line ~970). Mirror `with_tools`' iterable-taking pattern; return `AgentBuilder` for fluent chaining.
-- `src/flock/core/agent.py:125-149` — `Agent.__init__`; add `self.skills: list[Skill] | None = None` and `self.skill_component: SkillsComponent | None = None` alongside existing `tools`, `utilities`, `engines`, `context_provider` state.
+- `src/flock/core/agent.py:125-149` — `Agent.__init__`; add `self.skills: list[Skill] | None = None` and `self.skill_demos: list[dspy.Example] | None = None` alongside existing `tools`, `utilities`, `engines`, `context_provider` state.
 - `src/flock/core/context_provider.py:19-168` — `BaseContextProvider` ABC. **Do not** use this as the primary skills integration seam; `get_artifacts` can only return artifacts, not tools or signature mutations. This was the fatal flaw in the original contracts §6 design.
-- `src/flock/engines/dspy_engine.py:201-343` — `DSPyEngine.evaluate` pipeline. Two integration points: (a) `combined_tools = native_tools + mcp_tools` at line 332 — append skill tools here by mutating `agent.tools`; (b) `_choose_program` at lines 531-540 decides Predict vs ReAct based on tool presence — no change needed, it flips automatically.
+- `src/flock/engines/dspy_engine.py:201-343` — `DSPyEngine.evaluate` pipeline. Two integration points: (a) `combined_tools = native_tools + mcp_tools` at line 332 — add skill tools via `agent.tools.update({...})` (NB: `agent.tools` is `set[Callable]`, not a list; order is not preserved, so the runtime-tool preamble must sort by skill name for deterministic output); (b) `_choose_program` at lines 531-540 decides Predict vs ReAct based on tool presence — no change needed, it flips automatically.
 - `src/flock/engines/dspy/signature_builder.py:318-343` — `prepare_signature_for_output_group` does `signature.with_instructions(...)` using `engine_instructions or agent.description`. Skills inject their body by prepending to `agent.description` at `.with_skills()` time, which flows through automatically.
-- `src/flock/components/` and `src/flock/agent/component_lifecycle.py:147-163` — `AgentComponent` pattern with `run_pre_evaluate` chain. Use this for `SkillsComponent` if per-invocation logic is needed (currently only needed for demo attachment).
+- `src/flock/components/` and `src/flock/agent/component_lifecycle.py:147-163` — `AgentComponent` pattern with `run_pre_evaluate(agent, ctx, inputs: EvalInputs) -> EvalInputs` chain. Hook fires before `engine.evaluate()` constructs the program — confirmed during review-2026-04-18 that no `program` parameter is available, which is why this plan attaches demos inside `DSPyEngine.evaluate` rather than via an `AgentComponent`.
 - `src/flock/models/changelog.py:17-65` — `ChangelogEvent`, `ChangelogEventType` (`artifact_published` / `artifact_consumed` / `agent_snapshot_updated`), `ChangelogFilter`.
 - `src/flock/core/store.py:197-218` — `query_changelog(after_seq, limit, filters)` and `get_changelog_bounds`. No skill-name filter — optimizer must reconstruct traces from `produced_by=<agent>` artifact pairs.
 - `src/flock/registry.py:19-91` — `TypeRegistry.resolve_name`. First-tier resolution for `flock.outputs: <dotted.path>`; fall back to `importlib` for unregistered types.
 - `src/flock/mcp/config.py:214`, `src/flock/mcp/types/types.py:192, 279` — existing `importlib.import_module` + `getattr` pattern, unwrapped. New `src/flock/skills/resolvers.py` consolidates this.
 - `tests/conftest.py:57-73` — `mock_llm` autouse fixture patches `dspy.Predict.__call__`; needs equivalent `mock_react` for tool-mode scenarios (or extend the existing fixture).
 - `tests/integration/test_meta_orchestrator_e2e.py`, `tests/integration/test_external_engine_e2e.py` — naming convention for `tests/integration/test_skills_e2e.py`.
-- `examples/` — `examples/01-getting-started/`, `examples/02-patterns/` pattern; place skill examples at `examples/11-skills/`.
+- `examples/` — `examples/01-getting-started/`, `examples/02-patterns/` pattern; place skill examples at `examples/13-skills/` (slots 11-openclaw and 12-external-agents are already taken).
 
 ### Institutional Learnings
 
@@ -93,11 +93,11 @@ See origin: `.sfd/contracts.md` §1-§9 (public API, frontmatter schema, types, 
 
 Research surfaced design mistakes in the original contract that this plan supersedes:
 
-1. **§6 `SkillsContextProvider`** — cannot be the primary integration seam. `BaseContextProvider.get_artifacts` returns `list[Artifact]` only; it cannot inject tools or mutate signatures. **Plan corrects:** split into (a) `AgentBuilder.with_skills` mutates `agent.tools` + `agent.description` at config time, (b) `SkillsComponent` (an `AgentComponent`) attaches demos to the predictor at `on_pre_evaluate`, (c) signature instructions flow via `agent.description` through the existing `signature_builder.py` path.
+1. **§6 `SkillsContextProvider`** — cannot be the primary integration seam. `BaseContextProvider.get_artifacts` returns `list[Artifact]` only; it cannot inject tools or mutate signatures. **Plan corrects (final, post-review-2026-04-18):** two seams, not three: (a) `AgentBuilder.with_skills` mutates `agent.tools` + `agent.description` + stashes demos on `agent.skill_demos` at config time; (b) signature instructions flow via `agent.description` through the existing `signature_builder.py` path; (c) demo attachment is a 5-line patch inside `DSPyEngine.evaluate` after `_choose_program(...)` — no `SkillsComponent` AgentComponent (the first-correction `on_pre_evaluate` proposal was itself wrong: that hook has no `program` parameter and fires before engine evaluation).
 
 2. **§1 return type `Self`** — should be `AgentBuilder` to match `with_tools`/`with_context`/`with_mcps`. `with_skills` lives on `AgentBuilder`, not `FlockAgent`.
 
-3. **§8 `changelog.query(skill_name=..., since=...)`** — that API does not exist. Real API is `query_changelog(after_seq, limit, filters=ChangelogFilter(produced_by=[agent_name]))`. Skill-specific trace reconstruction happens in `src/flock/skills/optimize/trainset.py` by correlating `artifact_consumed` (agent's input) with `artifact_published` (agent's output) within the same `correlation_id`, filtered by agents that attach the target skill.
+3. **§8 `changelog.query(skill_name=..., since=...)`** — that API does not exist. Real API is `query_changelog(after_seq, limit, filters=ChangelogFilter(produced_by={agent_name}))` (set, not list). Skill-specific trace reconstruction happens in `src/flock/skills/optimize/trainset.py` via **publish-to-publish correlation**: for the target agent's `artifact_published` events, identify upstream `artifact_published` events in the same `correlation_id` whose payload type matches the agent's subscribed types and predates the target. Upstream payloads become implicit inputs. The `artifact_consumed` enum value exists but no orchestrator caller emits it today, so input-event-based reconstruction is not viable; publish-to-publish gives a usable signal with documented attribution noise for predicated subscriptions and multi-skill agents.
 
 4. **§5 "auto-upgrade engine from Predict to ReAct"** — implemented by existing `DSPyEngine._choose_program`: presence of any tool in `combined_tools` automatically picks ReAct. No new "auto-upgrade logic" to write.
 
@@ -105,19 +105,19 @@ Research surfaced design mistakes in the original contract that this plan supers
 
 ## Key Technical Decisions
 
-- **Three integration seams, not one.** Config-time (`AgentBuilder.with_skills` mutates state), per-invocation (`SkillsComponent` attaches demos), signature-time (existing `signature_builder` reads `agent.description`). **Rationale:** DSPy's signature-compile-at-call-time architecture plus Flock's immutable Context mean no single hook can carry tools + instructions + demos.
+- **Two integration seams.** Config-time (`AgentBuilder.with_skills` mutates `agent.tools`, `agent.description`, and stashes demos on `agent.skill_demos`) + signature-time (existing `signature_builder` reads `agent.description`). Demos attach inside `DSPyEngine.evaluate` directly after `_choose_program(...)` returns the program — a 5-line patch in the engine, no `AgentComponent` lifecycle hook involved. **Rationale:** the actual `AgentComponent.on_pre_evaluate(agent, ctx, inputs) -> EvalInputs` signature has no `program` parameter and fires before `evaluate()` constructs the program; routing demo attachment through it would require either a new lifecycle hook (touches every existing component subclass) or engine subclassing (parallel pipeline), both larger than extending the existing config-time mutation pattern that `AgentBuilder` already uses for `agent.tools`/`agent.description`/`agent.utilities`.
 
 - **Skill body merges into `agent.description` at registration, not per-call.** The existing `signature_builder.py:321` does `instruction = engine_instructions or agent.description`. Mutating description once is cheap and correct; per-call mutation would fight the signature builder's existing architecture.
 
-- **Demos attach at `on_pre_evaluate`, not registration.** The engine constructs `program = dspy.Predict(sig)` fresh each call. Setting `predictor.demos` needs a post-construction hook — `SkillsComponent.on_pre_evaluate` is the right lifecycle point.
+- **Demos stash on `agent.skill_demos` at registration; engine attaches post-`_choose_program`.** `AgentBuilder.with_skills` reads each compiled skill's `demos.jsonl` and stores `list[dspy.Example]` on `agent.skill_demos`. `DSPyEngine.evaluate` checks the attribute right after `_choose_program(...)` and sets `program.demos` (Predict) or `program.react.react.demos` + `program.react.extract.demos` (ReAct). One narrow `flock.skills` import in the engine; no new lifecycle hook, no new component class, no `SkillsComponent`. Engine remains a strict consumer of agent state — same shape as how it consumes `agent.tools` today.
 
-- **ReAct demos target `react.react.demos`, not `react.demos`.** Verified in DSPy 3.0.3 source: `dspy.ReAct` has two sub-predictors (`self.react` for the thought/action loop, `self.extract` for final-answer extraction). Demos attach to the inner thought loop. Plan carries this caveat explicitly in Unit 6.
+- **ReAct demos target `react.react.demos`, not `react.demos`.** Verified in DSPy 3.0.3 source: `dspy.ReAct` has two sub-predictors (`self.react` for the thought/action loop, `self.extract` for final-answer extraction). Demos attach to the inner thought loop. Plan carries this caveat explicitly in the `DSPyEngine` patch (Unit 6).
 
-- **Script sandboxing defaults to in-process.** Trust the skill author by default; users who ship untrusted skills use `flock.sandbox: subprocess`. Rationale: ~60% of skill scripts are helpers the agent author wrote themselves; forcing subprocess adds 20-100ms per call without security benefit in the common case. Flippable later if threat model changes.
+- **Script sandboxing defaults by discovery path, not by frontmatter absence.** In-repo skills (`./skills/`, plus any explicit project-root-relative path passed to `.with_skills(...)`) default to `inprocess` — these live inside the developer's existing trust boundary alongside the rest of their code. Installed skills (`~/.flock/skills/`, `./.claude/skills/`, anything resolving outside the project root) default to `subprocess` — these may have arrived via `pip install`, `git clone`, or a third-party skill pack. Frontmatter `flock.sandbox: inprocess|subprocess` overrides the path default. **Rationale:** matches existing developer intuition about repo-vs-installed code trust, and reconciles R2 (Claude Code SKILL.md interop = shareable skills) with the sandbox default (in-process trust = local-author code). The previous "60% are local helpers" rationale assumed a world where the interop story doesn't apply; the path-based default works for both worlds simultaneously.
 
 - **Token budget uses `len(text) / 4` heuristic initially.** Adding `tiktoken` is a runtime dep for a budget heuristic — not worth it until we see users with badly-sized skills. If/when needed, promote to `tiktoken.encoding_for_model(...)` with a fallback.
 
-- **Optimizer trainset reconstruction is best-effort.** Without a dedicated `skill_invoked` changelog event, we reconstruct per-skill traces by correlating artifact pairs within `correlation_id` for agents that attached the skill. This works for agents with stable subscribe/publish contracts; it degrades for agents that use multiple skills per call (no way to attribute quality back to a specific skill). Flagged in Unit 8 verification.
+- **Optimizer trainset reconstruction uses publish-to-publish correlation.** Without a dedicated `skill_invoked` changelog event (and without `artifact_consumed` events, which the changelog enum declares but no caller emits), we reconstruct per-skill traces from `artifact_published` events alone: for an agent's published artifact, we identify upstream `artifact_published` events in the same `correlation_id` whose types match the agent's subscribed types and predate the target event. Those upstream payloads become the implicit inputs. **Limitations:** (a) for agents with `where=` predicate filters, we attribute to the superset of upstream candidates rather than the specific consumed instance, producing slightly noisier examples; (b) for multi-skill agents, output quality is attributed to all attached skills (no way to discriminate which skill drove the outcome). Both limitations are documented per-trace in `OptimizationResult.notes`.
 
 - **No new top-level exports in `flock/__init__.py`.** Skills are discoverable via `from flock.skills import Skill, FlockSkillMetadata, SkillRegistry`. Follows the existing `flock.mcp`, `flock.semantic` pattern.
 
@@ -132,13 +132,13 @@ Research surfaced design mistakes in the original contract that this plan supers
 - **Tool JSON schema generation** — `dspy.adapters.types.tool.Tool._parse_function` auto-infers from type hints. Pydantic BaseModels work natively via `.model_json_schema()`. Skills just pass typed Python callables.
 - **Signature.with_instructions vs setting `__doc__`** — `.with_instructions(...)` is the canonical path. Setting `__doc__` post-construction does nothing (`SignatureMeta` reads it only at class creation).
 - **Module layout** — `src/flock/skills/` matches the `src/flock/mcp/` pattern (feature spanning agents + engines + serialization).
-- **Integration seam (corrected)** — see Key Technical Decisions above; three seams, not a ContextProvider.
+- **Integration seam (corrected twice)** — see Key Technical Decisions above. Origin contracts §6 named `SkillsContextProvider` as the seam (cannot inject tools or signature mutations); first correction proposed three seams (config + per-invocation `SkillsComponent` + signature-time); review-2026-04-18 falsified the per-invocation seam (`AgentComponent.on_pre_evaluate` has no `program` parameter and fires before engine evaluation). Final design is two seams — config-time mutation + signature-time read — with demo attachment as a 5-line patch inside `DSPyEngine.evaluate` after `_choose_program`.
 - **Changelog query shape** — `query_changelog(filters=ChangelogFilter(produced_by=[...]))`; no per-skill event type; trace reconstruction is best-effort.
 
 ### Deferred to Implementation
 
 - **Exact `FlockError` import path** — needs verification at Unit 1 start (likely `src/flock/core/errors.py` or similar).
-- **`AgentComponent` base class exact interface (`on_initialize`, `on_pre_evaluate`)** — to verify before writing `SkillsComponent` in Unit 6. Lifecycle is well-documented but method signatures need confirmation.
+- **`DSPyEngine.evaluate` insertion point for the demo-attachment block** — line 343 (`program = self._choose_program(...)`) is the canonical point per current source; verify the line number is still correct at Unit 6 implementation time. The block is engine-internal (no new public hook) so refactor risk is low.
 - **CLI framework choice for `flock skills optimize`** — does Flock already use Click/Typer for its CLI? Unit 8 adopts whatever `src/flock/api/cli.py` or equivalent already uses.
 - **Default discovery root for `~/.flock/skills/`** — may need first-time-user creation with friendly empty-state handling. Deferred to Unit 2 implementation.
 - **MIPROv2 metric function for skill optimization** — custom metric that scores "did the typed artifact publish without downstream errors in the cascade?" Exact implementation depends on how cleanly we can correlate artifacts to cascade outcomes from changelog alone.
@@ -147,7 +147,7 @@ Research surfaced design mistakes in the original contract that this plan supers
 
 ```
 src/flock/skills/
-├── __init__.py                  # Public API: Skill, FlockSkillMetadata, SkillRegistry, SkillsComponent
+├── __init__.py                  # Public API: Skill, FlockSkillMetadata, SkillRegistry
 ├── types.py                     # Skill (frozen dataclass), FlockSkillMetadata, ScriptSpec (Pydantic)
 ├── errors.py                    # SkillError hierarchy (8 exception classes)
 ├── frontmatter.py               # YAML parser: Anthropic + flock: namespace
@@ -155,8 +155,7 @@ src/flock/skills/
 ├── registry.py                  # SkillRegistry: discovery, precedence, caching
 ├── compilation.py               # shape_select, compile_skill_to_signature, attach_demos
 ├── tools.py                     # load_skill, read_skill_resource, run_skill_script callables + preamble builder
-├── scripts.py                   # ScriptRunner ABC, InProcessRunner, SubprocessRunner
-├── component.py                 # SkillsComponent(AgentComponent) — per-invocation demo attachment
+├── scripts.py                   # ScriptRunner ABC, InProcessRunner, SubprocessRunner, resolve_sandbox()
 └── optimize/
     ├── __init__.py              # Public: optimize_skill()
     ├── cli.py                   # `flock skills optimize` subcommand
@@ -175,7 +174,7 @@ tests/
 └── integration/
     └── test_skills_e2e.py       # 4 canonical scenarios end-to-end
 
-examples/11-skills/
+examples/13-skills/
 ├── README.md
 ├── scenario_1_typed_output.py
 ├── scenario_2_pure_prose.py
@@ -201,7 +200,6 @@ sequenceDiagram
     participant User as User code
     participant AB as AgentBuilder
     participant Reg as SkillRegistry
-    participant Comp as SkillsComponent
     participant Engine as DSPyEngine
     participant SB as SignatureBuilder
     participant DSPy as dspy.Predict/ReAct
@@ -212,10 +210,9 @@ sequenceDiagram
     Reg-->>AB: [Skill, Skill, Skill]
     AB->>AB: shape_select() per skill → inline/tool
     AB->>AB: inline skills: agent.description += skill.body
-    AB->>AB: tool-mode skills: agent.tools.update(load_skill, read_skill_resource, run_skill_script)
-    AB->>AB: agent.skills = [Skill, ...]  (for Component access)
-    AB->>AB: agent.skill_component = SkillsComponent(skills)
-    AB->>AB: agent._add_utilities([skill_component])
+    AB->>AB: inline skills with demos: agent.skill_demos = [dspy.Example(...), ...]
+    AB->>AB: tool-mode skills: agent.tools.update({load_skill, read_skill_resource, run_skill_script})
+    AB->>AB: agent.skills = [Skill, ...]
 
     Note over Engine,DSPy: Run time (per invocation)
     Engine->>SB: prepare_signature_for_output_group(...)
@@ -223,8 +220,7 @@ sequenceDiagram
     SB-->>Engine: signature.with_instructions(instruction)
     Engine->>Engine: combined_tools = agent.tools + mcp_tools
     Engine->>DSPy: _choose_program() — Predict if no tools, ReAct otherwise
-    Engine->>Comp: on_pre_evaluate(program, ctx)
-    Comp->>DSPy: program.demos = skill_demos  (or program.react.react.demos for ReAct)
+    Engine->>Engine: if agent.skill_demos: attach to program.demos / program.react.react.demos
     Engine->>DSPy: program(**inputs)
     DSPy-->>Engine: result
 ```
@@ -240,21 +236,21 @@ sequenceDiagram
 | scripts present | False | inline + scripts as tools | signature.instructions | per-script tool + possibly `run_skill_script` |
 | budget exceeded | False | tool (fallback) | n/a | 3 tools |
 
-### Trainset reconstruction (Unit 8) — best-effort
+### Trainset reconstruction (Unit 8) — publish-to-publish correlation
 
 ```mermaid
 graph TD
-    A[query_changelog filters=produced_by=agent_name] --> B{event_type}
-    B -->|artifact_consumed| C[collect as INPUT for correlation_id]
-    B -->|artifact_published| D[collect as OUTPUT for correlation_id]
-    C --> E[group by correlation_id]
-    D --> E
-    E --> F[dspy.Example input=X, output=Y .with_inputs  ...]
-    F --> G[trainset: list dspy.Example]
-    G --> H[MIPROv2.compile or BootstrapFewShot.compile]
-    H --> I[optimized_program.dump_state  ...]
-    I --> J[SKILL.optimized.md or diff-and-apply]
+    A[query_changelog filters=produced_by=agent_name] --> B[collect agent's artifact_published events]
+    B --> C[for each event: query upstream artifact_published in same correlation_id matching agent's subscribed types, earlier timestamp]
+    C --> D[pair upstream payload as input, agent's payload as output]
+    D --> E[dspy.Example input=X, output=Y .with_inputs  ...]
+    E --> F[trainset: list dspy.Example]
+    F --> G[MIPROv2.compile or BootstrapFewShot.compile]
+    G --> H[optimized_program.dump_state  ...]
+    H --> I[SKILL.optimized.md or diff-and-apply]
 ```
+
+**Note:** `artifact_consumed` events exist in `ChangelogEventType` but no orchestrator caller emits them today. Reconstruction therefore uses upstream `artifact_published` events as implicit inputs. This is precise for unfiltered subscriptions; for predicated (`where=`) subscriptions, attribution is to the superset of upstream candidates.
 
 ## Implementation Units
 
@@ -276,7 +272,7 @@ graph TD
 
 **Approach:**
 - `FlockSkillMetadata(BaseModel)` and `ScriptSpec(BaseModel)` per origin §2 schema
-- `parse_skill_frontmatter(markdown: str) -> tuple[AnthropicMeta, FlockSkillMetadata, body: str]` — split YAML header from body, validate Anthropic required fields loosely, parse `flock:` block strictly with Pydantic
+- `parse_skill_frontmatter(markdown: str) -> tuple[AnthropicMeta, FlockSkillMetadata, body: str]` — split YAML header from body using `yaml.safe_load()` (never `yaml.load` — prevents `!!python/object/apply:...` tag-based code execution from hostile SKILL.md); validate Anthropic required fields loosely, parse `flock:` block strictly with Pydantic
 - `resolve_pydantic_class(dotted: str) -> type[BaseModel]` — try `TypeRegistry.resolve_name` first, fall back to `importlib.import_module` + `getattr` on last-dot split; validate `issubclass(cls, BaseModel)`; raise `SkillSchemaResolutionError` on any failure
 - Error hierarchy: `SkillError(FlockError)` root + 7 subclasses per origin §9
 
@@ -294,6 +290,7 @@ graph TD
 - Edge case: SKILL.md with no frontmatter raises `SkillParseError`
 - Edge case: unknown `flock.mode` value raises `SkillParseError` (Pydantic Literal validation)
 - Edge case: `flock:` block with extra unknown keys raises `SkillParseError` (strict mode)
+- Security: SKILL.md frontmatter containing `!!python/object/apply:os.system [...]` raises `SkillParseError` (safe_load rejects the tag) and never executes the command
 - Error path: `resolve_pydantic_class("no.such.module")` raises `SkillSchemaResolutionError`
 - Error path: `resolve_pydantic_class("os.path")` (resolves but not a BaseModel) raises `SkillSchemaResolutionError`
 - Error path: malformed YAML frontmatter raises `SkillParseError` with line number
@@ -371,7 +368,8 @@ graph TD
 - `InProcessRunner`: `importlib.import_module(skill.directory / script.run.split()[-1])`; call `main(args: schema) -> returns` coroutine or sync fn; honor `timeout_seconds` via `asyncio.wait_for`
 - `SubprocessRunner`: `asyncio.create_subprocess_exec(*shlex.split(script.run), stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=skill.directory)`; write JSON args to stdin; read JSON from stdout; on timeout, `process.kill()`; honor `timeout_seconds`
 - Both runners validate args against `script.schema` (if declared) before invocation; raise `SkillScriptError` with stderr + exit code + elapsed time on any failure
-- Factory function `get_runner(skill: Skill) -> ScriptRunner` returns correct runner based on `skill.flock_meta.sandbox`
+- `resolve_sandbox(skill, project_root) -> Literal["inprocess", "subprocess"]` — explicit `skill.flock_meta.sandbox` wins. Otherwise infer from `skill.directory`: paths under `project_root` (in-repo) → `"inprocess"`; paths under `~/.flock/skills/`, `./.claude/skills/`, or anywhere outside `project_root` → `"subprocess"`. `project_root` resolved via `Path.cwd()` at registry-discovery time (the directory the user invoked Flock from).
+- Factory function `get_runner(skill: Skill) -> ScriptRunner` returns the runner picked by `resolve_sandbox(skill, project_root)`.
 
 **Patterns to follow:**
 - Async subprocess pattern from `src/flock/integrations/external/adapters/claude_code.py` (ClaudeCodeRuntime spawns subprocesses; mirror its timeout + stderr-capture pattern)
@@ -387,6 +385,11 @@ graph TD
 - Edge case: script declares schema, receives args missing required field → `SkillScriptError` (Pydantic validation) before invocation
 - Edge case: script declares `returns` schema, returns incompatible dict → `SkillScriptError` (Pydantic validation) after invocation
 - Edge case: subprocess script emits stderr but exits 0 → stderr logged at WARNING, result returned normally
+- Sandbox resolution: skill loaded from `./skills/foo/` (in-repo) → `InProcessRunner`
+- Sandbox resolution: skill loaded from `~/.flock/skills/foo/` → `SubprocessRunner`
+- Sandbox resolution: skill loaded from `./.claude/skills/foo/` → `SubprocessRunner`
+- Sandbox resolution: any skill with `flock.sandbox: inprocess` frontmatter → `InProcessRunner` regardless of path
+- Sandbox resolution: any skill with `flock.sandbox: subprocess` frontmatter → `SubprocessRunner` regardless of path
 
 **Verification:**
 - All test scenarios above pass
@@ -482,62 +485,72 @@ graph TD
 
 ---
 
-- [ ] **Unit 6: `AgentBuilder.with_skills()` + `SkillsComponent` integration**
+- [ ] **Unit 6: `AgentBuilder.with_skills()` + `DSPyEngine` demo-attachment patch**
 
-**Goal:** Public API method `.with_skills(*sources, runtime=False, token_budget=8000)` on `AgentBuilder`. `SkillsComponent` attaches demos per-invocation. Together they wire the three integration seams.
+**Goal:** Public API method `.with_skills(*sources, runtime=False, token_budget=8000)` on `AgentBuilder` mutates agent state at config time (tools, description, skill_demos). `DSPyEngine.evaluate` patched to attach `agent.skill_demos` to the program after `_choose_program(...)`. Two integration seams (config-time mutation + signature-time read); no `SkillsComponent`, no new lifecycle hook.
 
 **Requirements:** R1, R2, R3.
 
 **Dependencies:** Units 4, 5.
 
 **Files:**
-- Create: `src/flock/skills/component.py`
-- Modify: `src/flock/core/agent.py` (add `self.skills`, `self.skill_component` to `Agent.__init__`; add `with_skills` method to `AgentBuilder`)
+- Modify: `src/flock/core/agent.py` (add `self.skills: list[Skill] | None = None` and `self.skill_demos: list[dspy.Example] | None = None` to `Agent.__init__`; add `with_skills` method to `AgentBuilder`)
+- Modify: `src/flock/engines/dspy_engine.py` (add ~5-line skill-demo attachment block after `program = self._choose_program(...)` at line 343, before `program(**inputs)`)
 - Test: `tests/test_skills_agent_integration.py`
 
 **Approach:**
 - `AgentBuilder.with_skills(*sources, runtime=False, token_budget=8000) -> AgentBuilder`:
-  1. If `self._agent.skill_component` already exists, raise or merge (decide at impl time — likely merge)
+  1. If `self._agent.skills` is already populated, raise or merge (decide at impl time — likely merge)
   2. Build `SkillRegistry` (lazy — reuse `flock._skill_registry` if present, else create)
   3. `registry.discover(*sources, use_defaults=(len(sources) == 0))`
   4. Validate each skill's `outputs_model` against `self._agent.publishes` set via `validate_outputs_compatibility`
   5. Partition skills by `shape_select(...)` into inline vs tool
   6. Inline skills: concatenate bodies via `compile_inline_skills`, prepend to `self._agent.description`
-  7. Inline skills with scripts: wrap script callables and append to `self._agent.tools`
-  8. Tool-mode skills: append `make_load_skill/read_skill_resource/run_skill_script` (closed over the allowed skill set) to `self._agent.tools`; store skills in `self._agent.skills` for component access
-  9. Create `SkillsComponent(skills=all_skills)`, assign to `self._agent.skill_component`, `_add_utilities([skill_component])`
-  10. Return `self`
-- `SkillsComponent(AgentComponent)`:
-  - `on_pre_evaluate(ctx, program)` — attach demos to `program.demos` (Predict) or `program.react.react.demos` + `program.react.extract.demos` (ReAct)
-  - Introspect `type(program)` to choose path (likely `isinstance(program, dspy.ReAct)`)
-  - No-op when no skills have demos
+  7. Inline skills with scripts: wrap script callables and `self._agent.tools.update({...})` (set, not list)
+  8. Tool-mode skills: `self._agent.tools.update({make_load_skill(...), make_read_skill_resource(...), make_run_skill_script(...)})` (closures over the allowed skill set)
+  9. Stash demos: `self._agent.skill_demos = [dspy.Example(**demo).with_inputs(*input_keys) for skill in compiled_skills for demo in load_demos_for_skill(skill)]` — `None` if no skills have demos
+  10. `self._agent.skills = list(all_skills)` (bookkeeping for introspection / optimizer)
+  11. Return `self`
+- `DSPyEngine.evaluate` patch (after `program = self._choose_program(...)`):
+  ```python
+  if agent.skill_demos:
+      if isinstance(program, dspy.ReAct):
+          program.react.react.demos = list(agent.skill_demos)
+          program.react.extract.demos = list(agent.skill_demos)
+      else:
+          program.demos = list(agent.skill_demos)
+  ```
+  Lazy `from flock.skills` is unnecessary — engine reads attribute on `agent` only; no `flock.skills` symbol referenced. Compatible with existing `_choose_program` fallback (Predict on tool-registration failure) since the demo block runs unconditionally on whatever program type was returned.
 
-**Execution note:** Integration-test-first. Before wiring anything, write a failing integration test that asserts scenario 1 runs end-to-end (parse SKILL.md → agent gets instructions with skill body → Predict call uses those instructions). Then fill in the glue.
+**Execution note:** Integration-test-first. Before wiring anything, write a failing integration test that asserts scenario 1 runs end-to-end (parse SKILL.md → agent gets instructions with skill body → Predict call uses those instructions, demos attached). Then fill in the glue.
 
 **Patterns to follow:**
 - `AgentBuilder.with_tools` (line ~966) — iterable parameter, mutates `self._agent.tools`, returns `self`
 - `AgentBuilder.with_mcps` (line ~1003) — similar shape, adds a `MCPManager` to agent
-- `AgentBuilder.with_utilities` (line ~880) — `_add_utilities` invocation pattern
-- Existing `AgentComponent` lifecycle hooks in `src/flock/components/` — use the same base class + priority semantics
+- `DSPyEngine` already reads multiple attributes off `agent` (`agent.tools`, `agent.description`, `agent.engines`, etc.); `agent.skill_demos` follows the same pattern
 
 **Test scenarios:**
-- Happy path: `agent.with_skills("./example_skills/invoice-extractor/")` mutates `agent.description` to include skill body and attaches `SkillsComponent` to utilities
-- Happy path: `agent.with_skills(runtime=True)` skips inline merge entirely, attaches 3 tools, agent.description unchanged
+- Happy path: `agent.with_skills("./example_skills/invoice-extractor/")` mutates `agent.description` to include skill body and stashes demos on `agent.skill_demos`
+- Happy path: `agent.with_skills(runtime=True)` skips inline merge entirely, adds 3 tools to `agent.tools`, `agent.description` unchanged, `agent.skill_demos` is `None`
 - Happy path: `agent.with_skills()` (no args) uses default discovery precedence
 - Happy path: `with_skills(directory)` finds 4 skills, partitions them — 3 inline (small prose), 1 tool (`flock.mode: tool` forced)
 - Happy path: mixed-mode agent has both instruction additions AND tool injections (partition result respected)
 - Edge case: glob pattern expands to matching SKILL.md dirs
+- Edge case: `agent.skill_demos` is `None` for skills without `demos.jsonl`
 - Error path: skill's `outputs_model` incompatible with agent's `publishes` raises `SkillOutputMismatchError` at `.with_skills()` time
 - Error path: source path doesn't exist raises `SkillNotFoundError`
-- Integration: `SkillsComponent.on_pre_evaluate` attaches demos to `program.demos` for `dspy.Predict`
-- Integration: `SkillsComponent.on_pre_evaluate` attaches demos to `program.react.react.demos` for `dspy.ReAct`
+- Integration: `DSPyEngine.evaluate` sets `program.demos` from `agent.skill_demos` for `dspy.Predict` — assert via spy on `program.demos` length
+- Integration: `DSPyEngine.evaluate` sets `program.react.react.demos` AND `program.react.extract.demos` from `agent.skill_demos` for `dspy.ReAct`
+- Integration: agent without skills has `agent.skill_demos == None`; engine evaluate skips the attachment block — no regressions in non-skill agents
 - Integration: re-calling `with_skills` twice on same builder — decide: merge (attach both) vs raise (last wins). Test whichever behavior we pick.
 
 **Verification:**
 - All test scenarios above pass
 - `scenario_1_typed_output.py` runs (with mocked LLM) to completion and publishes `InvoiceExtracted`
 - `agent.description` contains skill body text after `.with_skills()` (substring assertion)
-- No regressions in existing agent/engine tests
+- `agent.skill_demos` length matches sum of demo counts across compiled skills
+- DSPyEngine ReAct path: `program.react.react.demos` is non-empty after `_choose_program` returns + skill-demo block executes
+- No regressions in existing agent/engine tests (priority-flag any test that touches `Agent.__init__` or `DSPyEngine.evaluate`)
 
 ---
 
@@ -550,19 +563,19 @@ graph TD
 **Dependencies:** Unit 6.
 
 **Files:**
-- Create: `examples/11-skills/README.md`
-- Create: `examples/11-skills/scenario_1_typed_output.py` (migrated from `docs/surface-prototypes/.../scenario_1_typed_output.py`, wired to real Flock API)
-- Create: `examples/11-skills/scenario_2_pure_prose.py`
-- Create: `examples/11-skills/scenario_3_script_heavy.py`
-- Create: `examples/11-skills/scenario_4_shared_library.py`
-- Create: `examples/11-skills/skills/invoice-extractor/SKILL.md` (+ `demos.jsonl`)
-- Create: `examples/11-skills/skills/dhh-rails-style/SKILL.md`
-- Create: `examples/11-skills/skills/pdf-extract/SKILL.md` (+ `scripts/*.py`, `references/*.md`)
-- Create: `examples/11-skills/skills/security-review/SKILL.md`
+- Create: `examples/13-skills/README.md`
+- Create: `examples/13-skills/scenario_1_typed_output.py` (migrated from `docs/surface-prototypes/.../scenario_1_typed_output.py`, wired to real Flock API)
+- Create: `examples/13-skills/scenario_2_pure_prose.py`
+- Create: `examples/13-skills/scenario_3_script_heavy.py`
+- Create: `examples/13-skills/scenario_4_shared_library.py`
+- Create: `examples/13-skills/skills/invoice-extractor/SKILL.md` (+ `demos.jsonl`)
+- Create: `examples/13-skills/skills/dhh-rails-style/SKILL.md`
+- Create: `examples/13-skills/skills/pdf-extract/SKILL.md` (+ `scripts/*.py`, `references/*.md`)
+- Create: `examples/13-skills/skills/security-review/SKILL.md`
 - Create: `tests/integration/test_skills_e2e.py`
 
 **Approach:**
-- Each scenario Python file is directly executable with `uv run python examples/11-skills/scenario_N.py`
+- Each scenario Python file is directly executable with `uv run python examples/13-skills/scenario_N.py`
 - Each scenario-module's `main()` is also callable from `tests/integration/test_skills_e2e.py` under a mocked LLM fixture
 - Create Pydantic schema classes referenced in `flock.outputs` frontmatter — place under `flock.examples.schemas` (or equivalent based on where examples currently live)
 - Scripts in `pdf-extract/scripts/` implement real PDF detection/extraction (cheap libs — `pdfplumber` already likely a dep; check `pyproject.toml`)
@@ -585,7 +598,7 @@ graph TD
 
 **Verification:**
 - All 4 scenarios pass as integration tests
-- Each scenario runs as `uv run python examples/11-skills/scenario_N.py` against real LLM (manual verification — documented in example README)
+- Each scenario runs as `uv run python examples/13-skills/scenario_N.py` against real LLM (manual verification — documented in example README)
 - `pytest tests/integration/test_skills_e2e.py` green
 - Full suite regression-free
 
@@ -605,23 +618,24 @@ graph TD
 - Create: `src/flock/skills/optimize/trainset.py`
 - Create: `src/flock/skills/optimize/runner.py`
 - Create: `src/flock/skills/optimize/history.py`
-- Modify: `src/flock/api/cli.py` (or existing CLI entry point) to register the `skills optimize` subcommand
+- Modify: `src/flock/cli.py` (the Typer app) to register the `skills optimize` subcommand via `skills_app = typer.Typer(); app.add_typer(skills_app, name="skills")`
 - Test: `tests/test_skills_optimize.py`
 
 **Approach:**
 - `trainset.build_from_changelog(flock, skill_name, since, success_signal) -> list[dspy.Example]`:
   1. Identify agents that have this skill attached (introspect `flock.agents` for `agent.skills` containing the named skill)
-  2. `query_changelog(filters=ChangelogFilter(produced_by=[a.name for a in agents]))` with the `since` time window
-  3. Group events by `correlation_id`
-  4. For each correlation group, pair `artifact_consumed` events (inputs) with `artifact_published` events (outputs) of the matching agent — rehydrate into `dspy.Example(input_field=..., output_field=...).with_inputs(...)`
-  5. Apply `success_signal` predicate to filter: `"downstream-cascade-completed"` checks for no error events + at least one downstream publish; `"no-errors"` checks only for absence of error events; custom callables pass through
+  2. `query_changelog(after_seq=cursor, limit=1000, filters=ChangelogFilter(produced_by={a.name for a in agents}))` — page via `after_seq` in batches of `limit`, iterating `result.events` until `result.latest_seq` is reached. The store exposes no time-based filter, so apply `since` client-side by filtering `event.timestamp >= since` during the page loop. Note: `ChangelogFilter.produced_by` expects a `set[str]`, not a list. Collect only `artifact_published` events (the `artifact_consumed` enum value exists but no orchestrator caller emits it today).
+  3. For each target-agent `artifact_published` event E, query upstream `artifact_published` events in the same `correlation_id` whose payload `__flock_type__` matches one of the agent's subscribed types and whose `seq < E.seq`. Those are the implicit inputs.
+  4. Pair: upstream payload(s) → `input_field`, target agent's published payload → `output_field`. Rehydrate via `dspy.Example(input_field=upstream.payload, output_field=target.payload).with_inputs(*input_keys)`. For multi-input agents (multiple subscribed types), merge upstream payloads into one `dspy.Example` keyed by the agent's input field names.
+  5. Apply `success_signal` predicate to filter: `"downstream-cascade-completed"` checks for no error events + at least one downstream publish in the same correlation; `"no-errors"` checks only for absence of error events; custom callables pass through.
+  6. Annotate `OptimizationResult.notes` per-trace when (a) the target agent has `where=` predicate filters (attribution is to upstream superset, not the specific consumed instance) or (b) the target agent attaches multiple skills (output quality cannot be discriminated per-skill).
 - `runner.run_optimization(skill, trainset, optimizer_name) -> OptimizationResult` — instantiate MIPROv2 or BootstrapFewShot, compile a one-predictor program against the skill's signature, extract `optimized_program.named_predictors()[0][1].signature.instructions` and `.demos`
 - `cli.optimize_cmd(skill_name, since, success_signal, optimizer, apply, save_as_candidate, output)` — Click/Typer command; default behavior: build diff, present to stdout, prompt `[y/n/d(iff)/s(ave-as-candidate)]`
 - `history.record(skill_name, result, config)` — writes `.flock/skills/optimization-history/{skill}-{timestamp}.json` audit entry
 - `optimize_skill(skill_name, flock, since, success_signal, optimizer) -> OptimizationResult` — Python API symmetric to CLI
 
 **Patterns to follow:**
-- Existing Flock CLI entry in `src/flock/api/cli.py` (or confirm path during implementation)
+- Existing Flock CLI entry in `src/flock/cli.py` (Typer app with nested subcommands via `app.add_typer`)
 - `src/flock/storage/sqlite_store.py:982` — `query_changelog` usage pattern
 - Diff generation: Python `difflib.unified_diff`
 
@@ -643,7 +657,7 @@ graph TD
 
 ## System-Wide Impact
 
-- **Interaction graph:** `AgentBuilder.with_skills` touches `agent.tools` (same surface as `with_tools` and `with_mcps`), `agent.description` (new — previously only set at `.with_description()`), `agent.utilities` (new entry via `SkillsComponent`), and `agent.skills` (new attribute). Downstream: `DSPyEngine._choose_program` auto-picks ReAct when skill tools are present (existing behavior, no change).
+- **Interaction graph:** `AgentBuilder.with_skills` touches `agent.tools` (same surface as `with_tools` and `with_mcps`), `agent.description` (new — previously only set at `.description(text)`), `agent.skills` (new attribute, list of attached `Skill` objects), and `agent.skill_demos` (new attribute, list of `dspy.Example` for predictor attachment). `agent.utilities` is **not** touched — earlier drafts proposed a `SkillsComponent` utility, but final design replaces it with a 5-line block inside `DSPyEngine.evaluate` after `_choose_program`. Downstream: `DSPyEngine._choose_program` auto-picks ReAct when skill tools are present (existing behavior, no change); the new demo-attachment block runs after `_choose_program` returns.
 - **Error propagation:** Skill errors raise at `.with_skills()` time (fail fast for config errors like missing paths, schema mismatches) vs. at invocation time (script failures flow through as tool errors — existing engine handling). Compile-time errors are not recoverable; runtime script errors are retriable by the agent.
 - **State lifecycle risks:** Cached `Skill` objects (keyed by content hash) can go stale if SKILL.md edits happen in-process. Invalidation via `registry.invalidate(path)` is manual for now — hot-reload is out of scope. Document in README.
 - **API surface parity:** `with_skills` mirrors `with_tools`/`with_mcps` but adds `runtime=` and `token_budget=` kwargs. No parity change to `with_tools` itself. Skills do **not** reach external engines (`ClaudeCodeRuntime`/`OpenClawEngine`) — they already handle skills natively via their own runtime; attempting `.with_skills()` on a non-DSPy-engine agent should log a WARNING or raise — decide at Unit 6 impl time.
@@ -654,12 +668,12 @@ graph TD
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| DSPy `ReAct.react.demos` attachment path doesn't propagate demos correctly at runtime | Medium | High | Write an explicit integration test (Unit 6) that runs a ReAct agent with hand-crafted demos and asserts the demo examples appear in the formatted prompt. Fall back to `extract.demos` or document as known limitation if broken upstream. |
+| DSPy `ReAct.react.demos` attachment path doesn't propagate demos correctly at runtime | Medium | High | Write an explicit integration test (Unit 6) that runs a ReAct agent through `DSPyEngine.evaluate` with hand-crafted `agent.skill_demos` and asserts the demo examples appear in the formatted prompt. Fall back to `extract.demos`-only or document as known limitation if broken upstream. |
 | Token budget heuristic (`len/4`) miscalculates for skill-heavy agents, causing surprise mode switches | Medium | Medium | Document heuristic + `flock.token_cost_estimate` override explicitly. Add a WARNING log when a skill is mode-switched due to budget overflow. Add `tiktoken` as a dep only if user reports surface. |
-| Trainset reconstruction from changelog is lossy for multi-skill agents | High | Medium | Document limitation in `OptimizationResult.notes`. Flag in CLI output: "Warning: agent X uses N skills; this trainset attributes all outputs to this skill." Future: dedicated `skill_invoked` event type (deferred). |
-| Script sandboxing in-process default lets malicious/buggy skills take down the process | Low | High | Document `flock.sandbox: subprocess` prominently. Add lint-style warning at skill-load time if `scripts:` present but `sandbox` unset — suggest `subprocess` for untrusted skills. |
+| Trainset reconstruction noisier for predicated subscriptions and multi-skill agents | High | Medium | Use `artifact_published`-only correlation (no dependency on `artifact_consumed` events, which the codebase doesn't emit). Document limitations in `OptimizationResult.notes` per-trace. Flag in CLI output when target agent has `where=` predicates or attaches multiple skills. Future: dedicated `skill_invoked` event type (deferred). |
+| Script sandboxing default could let malicious skills execute in-process if path-based default is misclassified | Low | High | Default-by-discovery-path: in-repo skills (`./skills/`, project-relative paths) → `inprocess`; installed skills (`~/.flock/skills/`, `./.claude/skills/`, anything outside project root) → `subprocess`. Frontmatter `flock.sandbox` overrides. Add a debug log when path classification triggers subprocess to surface unexpected installs. |
 | Circular imports between `src/flock/skills/*` and `src/flock/core/agent.py` | Medium | Low | Keep `Skill` / `FlockSkillMetadata` import-light (stdlib + pydantic only). `AgentBuilder.with_skills` imports from `flock.skills` lazily inside the method body if needed. |
-| Existing 2558-test suite flakes under new ContextProvider / Agent state additions | Low | Medium | Run `uv run pytest` after every unit lands. Priority-flag any test that touches `Agent.__init__` or `AgentBuilder` internals. |
+| Existing 2558-test suite flakes under new Agent state additions or `DSPyEngine.evaluate` patch | Low | Medium | Run `uv run pytest` after every unit lands. Priority-flag any test that touches `Agent.__init__`, `AgentBuilder` internals, or `DSPyEngine.evaluate` (the demo-attachment block must be guard-clauseed on `agent.skill_demos` so non-skill agents are unaffected). |
 | `Signature.with_instructions` behavior changes in future DSPy version | Low | Medium | Pin DSPy version in `pyproject.toml` (already at 3.0.3). Verified 2026-04-17: every API this plan relies on (`with_instructions`, `make_signature(dict, instructions)`, `predictor.demos`, `react.react.demos` / `react.extract.demos`, `Tool._parse_function`, `MIPROv2.compile`, `dump_state`) is byte-compatible through the current DSPy 3.1.3 release. Add integration test that asserts `signature.instructions` contains skill body text after compilation. |
 
 ## Phased Delivery
