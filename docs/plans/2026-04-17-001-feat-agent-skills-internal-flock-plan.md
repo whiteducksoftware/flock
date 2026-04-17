@@ -53,6 +53,7 @@ See origin: `.sfd/contracts.md` §1-§9 (public API, frontmatter schema, types, 
 - **Per-agent skill glob scopes (`with_skills(["finance/*"])` whitelist/blacklist for access control):** low-effort follow-on once baseline exists; attach as a lightweight predicate filter on `SkillRegistry.discover`.
 - **OTel span per skill hop with prompt-diff:** Flock already has OTel; this is automatic instrumentation work after compile-time path ships.
 - **Token estimation via `tiktoken`:** start with `len(text) / 4` heuristic; switch to `tiktoken` only if users report bad mode decisions.
+- **DSPy 3.0.3 → 3.1.3 upgrade (orthogonal):** verified compatible with this plan's API usage, but worth a separate chore for secondary wins: Python 3.14 / PEP 649 annotation support, ReAct `max_iters` default bump 10 → 20, `Parallel` gains `timeout` + `straggler_limit`, `Module.save`/`load` default `allow_pickle=False` (security), `dspy.configure(allow_tool_async_sync_conversion=True)` flag for async tools in sync contexts, GEPA optimizer more mature at 0.0.26 (potential future Unit 8 extension for textual-feedback optimization). Optional elegance win for Unit 4 once upgraded: `Signature.prepend/append/insert/delete` (now documented in 3.1.3) let us inject skills as a dedicated `<skill_context>` field rather than mutating the instruction string.
 
 ## Context & Research
 
@@ -659,7 +660,7 @@ graph TD
 | Script sandboxing in-process default lets malicious/buggy skills take down the process | Low | High | Document `flock.sandbox: subprocess` prominently. Add lint-style warning at skill-load time if `scripts:` present but `sandbox` unset — suggest `subprocess` for untrusted skills. |
 | Circular imports between `src/flock/skills/*` and `src/flock/core/agent.py` | Medium | Low | Keep `Skill` / `FlockSkillMetadata` import-light (stdlib + pydantic only). `AgentBuilder.with_skills` imports from `flock.skills` lazily inside the method body if needed. |
 | Existing 2558-test suite flakes under new ContextProvider / Agent state additions | Low | Medium | Run `uv run pytest` after every unit lands. Priority-flag any test that touches `Agent.__init__` or `AgentBuilder` internals. |
-| `Signature.with_instructions` behavior changes in future DSPy version | Low | Medium | Pin DSPy version in `pyproject.toml` (already at 3.0.3). Add integration test that asserts `signature.instructions` contains skill body text after compilation. |
+| `Signature.with_instructions` behavior changes in future DSPy version | Low | Medium | Pin DSPy version in `pyproject.toml` (already at 3.0.3). Verified 2026-04-17: every API this plan relies on (`with_instructions`, `make_signature(dict, instructions)`, `predictor.demos`, `react.react.demos` / `react.extract.demos`, `Tool._parse_function`, `MIPROv2.compile`, `dump_state`) is byte-compatible through the current DSPy 3.1.3 release. Add integration test that asserts `signature.instructions` contains skill body text after compilation. |
 
 ## Phased Delivery
 
