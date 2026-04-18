@@ -32,7 +32,7 @@ See origin: `.sfd/contracts.md` §1-§9 (public API, frontmatter schema, types, 
 - **R1.** `agent.with_skills(*sources, runtime=False)` compiles skills into the DSPy signature by default, falling back to runtime tools by shape (see origin §1, §5).
 - **R2.** SKILL.md format is Anthropic-standard + optional `flock:` frontmatter namespace — skills written for Claude Code run unchanged (see origin §2).
 - **R3.** Discovery precedence: `./skills/` → `~/.flock/skills/` → `./.claude/skills/`, first match wins (see origin §4).
-- **R4.** Script execution supports in-process (default) and subprocess sandbox modes via `flock.sandbox` frontmatter (see origin §7).
+- **R4.** Script execution supports in-process and subprocess sandbox modes; default chosen by discovery path (in-repo → `inprocess` per `Flock(in_repo_sandbox_default=...)`, default `"inprocess"`; installed → `subprocess`); `flock.sandbox` frontmatter overrides, with `inprocess` overrides on installed skills gated by `<project_root>/.flock/trusted-skills.toml` allowlist (see origin §7 + round-2 review amendments).
 - **R5.** `flock skills optimize <name>` CLI runs MIPROv2/BootstrapFewShot over changelog traces, shows diff, never silent-overwrites (see origin §8).
 - **R6.** Four canonical scenarios from surface-first prototype (`scenario_1_typed_output.py` through `scenario_4_shared_library.py`) run end-to-end after Unit 7 lands.
 - **R7.** Zero regression in the existing 2558-test suite.
@@ -113,7 +113,7 @@ Research surfaced design mistakes in the original contract that this plan supers
 
 - **ReAct demos target `program.react.demos` and `program.extract.predict.demos`.** Verified live against DSPy 3.0.3 (round-2 review 2026-04-18): `dspy.ReAct.__init__` does `self.react = dspy.Predict(react_signature)` (so `self.react` IS the inner thought-loop Predict — has `.demos` directly, no further nesting) and `self.extract = dspy.ChainOfThought(fallback_signature)` (so `.extract` is a CoT wrapping a Predict at `.predict` — demos attach to `.extract.predict.demos`). Earlier rounds of this plan documented `.react.react.demos` and `.react.extract.demos`; both raise `AttributeError` and were corrected after live REPL verification. Plan carries the corrected paths explicitly in the `DSPyEngine` patch (Unit 6).
 
-- **Script sandboxing defaults by discovery path, not by frontmatter absence.** In-repo skills (`./skills/`, plus any explicit project-root-relative path passed to `.with_skills(...)`) default to `inprocess` — these live inside the developer's existing trust boundary alongside the rest of their code. Installed skills (`~/.flock/skills/`, `./.claude/skills/`, anything resolving outside the project root) default to `subprocess` — these may have arrived via `pip install`, `git clone`, or a third-party skill pack. Frontmatter `flock.sandbox: inprocess|subprocess` overrides the path default. **Rationale:** matches existing developer intuition about repo-vs-installed code trust, and reconciles R2 (Claude Code SKILL.md interop = shareable skills) with the sandbox default (in-process trust = local-author code). The previous "60% are local helpers" rationale assumed a world where the interop story doesn't apply; the path-based default works for both worlds simultaneously.
+- **Script sandboxing defaults by discovery path + configurable per Flock instance.** `Flock(in_repo_sandbox_default="inprocess" | "subprocess")` controls the default for in-repo skills (`./skills/`, project-relative paths). Default `inprocess` matches the early-adopter solo-dev shape (no per-call subprocess tax during iteration); team repos with hostile-contributor concerns flip to `subprocess` in one line. Installed skills (`~/.flock/skills/`, `./.claude/skills/`, anything outside `project_root`) always default to `subprocess` (third-party trust boundary). Frontmatter `flock.sandbox: inprocess|subprocess` overrides — but `inprocess` overrides for installed skills are gated by `<project_root>/.flock/trusted-skills.toml` (allowlist of `(name, content_hash)` pairs the user has explicitly trusted). `subprocess` overrides (downgrades to safer mode) are always honored. **Rationale:** path-based default reconciles R2 (Claude Code SKILL.md interop = shareable skills) with the sandbox default (in-process trust = local-author code), the kwarg gives team repos a one-line escape hatch, and the allowlist prevents malicious skill packs from defeating the default by simply declaring `flock.sandbox: inprocess` in their frontmatter.
 
 - **Token budget uses `len(text) / 4` heuristic initially.** Adding `tiktoken` is a runtime dep for a budget heuristic — not worth it until we see users with badly-sized skills. If/when needed, promote to `tiktoken.encoding_for_model(...)` with a fallback.
 
@@ -121,7 +121,7 @@ Research surfaced design mistakes in the original contract that this plan supers
 
 - **No new top-level exports in `flock/__init__.py`.** Skills are discoverable via `from flock.skills import Skill, FlockSkillMetadata, SkillRegistry`. Follows the existing `flock.mcp`, `flock.semantic` pattern.
 
-- **Error hierarchy roots at `FlockError`.** `SkillError(FlockError)` plus 7 subclasses (see origin §9).
+- **Error hierarchy roots at `FlockError`** (verify import path at Unit 1 start; codebase grep showed no `class FlockError` — likely needs to be introduced under `src/flock/core/errors.py` or `SkillError(Exception)` directly). `SkillError(FlockError)` plus 8 subclasses: 7 from origin §9 minus `SkillTokenBudgetError` (zero raise sites — round-1 P2 #16) plus `SkillEngineModeError` (round-2 P1 #6 — raised inside `DSPyEngine.evaluate` when `_choose_program` silently degrades a tool-mode skill agent to Predict) plus `SkillTrainsetTooThinError` (round-2 P1 #5 — raised by `optimize.trainset.build_from_changelog` when no-upstream drop ratio exceeds threshold). Net: 8 subclasses with concrete raise sites each.
 
 ## Open Questions
 
@@ -147,9 +147,9 @@ Research surfaced design mistakes in the original contract that this plan supers
 
 ```
 src/flock/skills/
-├── __init__.py                  # Public API: Skill, FlockSkillMetadata, SkillRegistry
-├── types.py                     # Skill (frozen dataclass), FlockSkillMetadata, ScriptSpec (Pydantic)
-├── errors.py                    # SkillError hierarchy (8 exception classes)
+├── __init__.py                  # Public API: Skill, FlockSkillMetadata, SkillRegistry, SkillEngineModeError
+├── types.py                     # Skill (frozen dataclass with nested flock_meta: FlockSkillMetadata field), FlockSkillMetadata + ScriptSpec (Pydantic, defined in same module)
+├── errors.py                    # SkillError hierarchy (8 exception classes — drop SkillTokenBudgetError per round-1 P2 #16, add SkillEngineModeError + SkillTrainsetTooThinError per round-2 P1)
 ├── frontmatter.py               # YAML parser: Anthropic + flock: namespace
 ├── resolvers.py                 # resolve_pydantic_class(dotted: str) -> type[BaseModel]
 ├── registry.py                  # SkillRegistry: discovery, precedence, caching
@@ -159,9 +159,10 @@ src/flock/skills/
 └── optimize/
     ├── __init__.py              # Public: optimize_skill()
     ├── cli.py                   # `flock skills optimize` subcommand
-    ├── trainset.py              # Changelog → dspy.Example list reconstruction
+    ├── trust_cli.py             # `flock skills trust` subcommand — manages .flock/trusted-skills.toml
+    ├── trainset.py              # Changelog → dspy.Example list reconstruction (store-fetched payloads, no-upstream drop threshold)
     ├── runner.py                # MIPROv2 / BootstrapFewShot drivers
-    └── history.py               # .flock/skills/optimization-history/*.json audit trail
+    └── history.py               # .flock/skills/optimization-history/*.json — redacted by default; --include-trainset opt-in for raw payloads
 
 tests/
 ├── test_skills_frontmatter.py
@@ -231,10 +232,13 @@ sequenceDiagram
 |---|---|---|---|---|
 | (nothing, default) | False | inline | signature.instructions | none |
 | (nothing, default) | True | tool | n/a | load_skill / read_skill_resource / run_skill_script |
-| `flock.mode: inline` | (any) | inline | signature.instructions | none |
-| `flock.mode: tool` | (any) | tool | n/a | 3 tools |
+| `flock.mode: inline` | False | inline | signature.instructions | none |
+| `flock.mode: inline` | True | tool | n/a | 3 tools (caller `runtime=True` overrides frontmatter preference) |
+| `flock.mode: tool` | (any) | tool | n/a | 3 tools (frontmatter is a hard force) |
 | scripts present | False | inline + scripts as tools | signature.instructions | per-script tool + possibly `run_skill_script` |
 | budget exceeded | False | tool (fallback) | n/a | 3 tools |
+
+**Precedence rule** (clarifies asymmetry above): `flock.mode: tool` is a hard force — caller cannot override (skill author has determined the skill genuinely cannot work inline). `flock.mode: inline` is a preference — caller `runtime=True` wins (caller knows total token budget and agent shape; skill author's preference is honored when caller doesn't ask otherwise). `flock.mode: auto` (default) lets the caller decide.
 
 ### Trainset reconstruction (Unit 8) — publish-to-publish correlation
 
@@ -265,16 +269,16 @@ graph TD
 **Files:**
 - Create: `src/flock/skills/__init__.py`
 - Create: `src/flock/skills/frontmatter.py`
-- Create: `src/flock/skills/types.py` (partial — `FlockSkillMetadata`, `ScriptSpec`; `Skill` dataclass goes in Unit 2)
+- Create: `src/flock/skills/types.py` (complete — `Skill` frozen dataclass with nested `flock_meta: FlockSkillMetadata | None` Pydantic field; `FlockSkillMetadata` and `ScriptSpec` defined as nested types within the same file)
 - Create: `src/flock/skills/resolvers.py`
 - Create: `src/flock/skills/errors.py`
 - Test: `tests/test_skills_frontmatter.py`
 
 **Approach:**
-- `FlockSkillMetadata(BaseModel)` and `ScriptSpec(BaseModel)` per origin §2 schema
+- `Skill` frozen dataclass (per origin §3) with fields: `name`, `description`, `body`, `directory`, `flock_meta: FlockSkillMetadata | None`, `anthropic_meta: AnthropicMeta`, `outputs_model: type[BaseModel] | None`, `demos: list[dict]`, `resources: dict[str, Path]`, `content_hash`. `FlockSkillMetadata(BaseModel)` and `ScriptSpec(BaseModel)` defined in the same module as nested types — exported for IDE intellisense but not peer-level concerns. Skill is the user-facing object; `flock_meta` is data hung on it.
 - `parse_skill_frontmatter(markdown: str) -> tuple[AnthropicMeta, FlockSkillMetadata, body: str]` — split YAML header from body using `yaml.safe_load()` (never `yaml.load` — prevents `!!python/object/apply:...` tag-based code execution from hostile SKILL.md); validate Anthropic required fields loosely, parse `flock:` block strictly with Pydantic
-- `resolve_pydantic_class(dotted: str) -> type[BaseModel]` — try `TypeRegistry.resolve_name` first, fall back to `importlib.import_module` + `getattr` on last-dot split; validate `issubclass(cls, BaseModel)`; raise `SkillSchemaResolutionError` on any failure
-- Error hierarchy: `SkillError(FlockError)` root + 7 subclasses per origin §9
+- `resolve_pydantic_class(dotted: str) -> type[BaseModel]` — **TypeRegistry-only**: call `TypeRegistry.resolve_name(dotted)`; if not registered, raise `SkillSchemaResolutionError("flock.outputs references unregistered type X — types referenced by skills must be decorated with @flock_type in the importing project")`. **No `importlib` fallback.** This closes the frontmatter code-execution attack vector (`flock.outputs: os.system` → arbitrary import-time module execution): types must be pre-registered, no arbitrary dotted paths resolve. Skill authors who want a custom output type must `@flock_type` it somewhere in their consuming project before any skill references it. The friction is the right friction for shareable skills.
+- Error hierarchy: `SkillError(FlockError)` root + 8 subclasses per origin §9 (drop `SkillTokenBudgetError` per round-1 P2 #16 — zero raise sites; add `SkillEngineModeError` per round-2 P1 #6 — raised when a tool-mode skill agent is silently degraded to Predict by `_choose_program` exception fallback)
 
 **Execution note:** Test-first — write fixture SKILL.md files under `tests/fixtures/skills/` covering minimal / full / malformed / missing-required / invalid-flock-mode cases, then implement parsing to make tests green.
 
@@ -286,15 +290,16 @@ graph TD
 **Test scenarios:**
 - Happy path: minimal SKILL.md (name + description only) parses with empty FlockSkillMetadata defaults
 - Happy path: full SKILL.md with all flock: fields parses correctly
-- Happy path: `flock.outputs: flock.examples.schemas.InvoiceExtracted` resolves to the actual BaseModel class
+- Happy path: `flock.outputs: InvoiceExtracted` resolves via TypeRegistry when `InvoiceExtracted` is decorated with `@flock_type` in the importing project
 - Edge case: SKILL.md with no frontmatter raises `SkillParseError`
 - Edge case: unknown `flock.mode` value raises `SkillParseError` (Pydantic Literal validation)
 - Edge case: `flock:` block with extra unknown keys raises `SkillParseError` (strict mode)
 - Security: SKILL.md frontmatter containing `!!python/object/apply:os.system [...]` raises `SkillParseError` (safe_load rejects the tag) and never executes the command
-- Error path: `resolve_pydantic_class("no.such.module")` raises `SkillSchemaResolutionError`
-- Error path: `resolve_pydantic_class("os.path")` (resolves but not a BaseModel) raises `SkillSchemaResolutionError`
+- Security: `resolve_pydantic_class("os.system")` raises `SkillSchemaResolutionError` WITHOUT calling `importlib.import_module` (no module-level code executes). Verify by patching `importlib.import_module` to fail loudly if invoked — must never be called.
+- Security: `resolve_pydantic_class("subprocess.Popen")` raises `SkillSchemaResolutionError` (registered-types-only enforcement)
+- Error path: `resolve_pydantic_class("no.such.type")` raises `SkillSchemaResolutionError` with helpful message ("type not registered; decorate with @flock_type in your project")
 - Error path: malformed YAML frontmatter raises `SkillParseError` with line number
-- Happy path: resolver prefers `TypeRegistry` when type is registered (cached fast path)
+- Happy path: resolver hits TypeRegistry only — no `importlib` fallback path exists in code (assert via test that the resolver function body does not reference `importlib`)
 
 **Verification:**
 - All test scenarios above pass
@@ -312,12 +317,12 @@ graph TD
 **Dependencies:** Unit 1.
 
 **Files:**
-- Modify: `src/flock/skills/types.py` (add `Skill` dataclass, `SKILL_FILENAME = "SKILL.md"`)
+- Modify: `src/flock/skills/types.py` (add module-level `SKILL_FILENAME = "SKILL.md"` constant only; `Skill` dataclass already lives here from Unit 1)
 - Create: `src/flock/skills/registry.py`
 - Test: `tests/test_skills_registry.py`
 
 **Approach:**
-- `Skill` as frozen dataclass with fields per origin §3 (`name`, `description`, `body`, `directory`, `flock_meta`, `anthropic_meta`, `outputs_model`, `demos`, `resources`, `content_hash`)
+- `Skill` dataclass already defined in Unit 1's `types.py` — Unit 2 only adds the loader path (`SkillRegistry.discover` constructs `Skill` instances from filesystem)
 - `SkillRegistry.__init__(flock)` holds a `dict[content_hash, Skill]` cache + `dict[name, Skill]` resolution index
 - `SkillRegistry.discover(*sources, use_defaults=False) -> list[Skill]` implements the algorithm from origin §4
 - `load_demos(path: Path) -> list[dict]` reads JSONL one line at a time, yields parsed `dspy.Example`-compatible dicts
@@ -352,7 +357,7 @@ graph TD
 
 - [ ] **Unit 3: Script runners (InProcess + Subprocess)**
 
-**Goal:** Execute skill scripts declared in frontmatter. Support in-process (default, trust-based) and subprocess (isolated) modes. Validate args/returns against declared schemas.
+**Goal:** Execute skill scripts declared in frontmatter. Support in-process and subprocess sandbox modes; choose default per discovery path + `Flock(in_repo_sandbox_default=...)` kwarg + `<project_root>/.flock/trusted-skills.toml` allowlist (gates `inprocess` overrides for installed skills). Validate args/returns against declared schemas.
 
 **Requirements:** R4.
 
@@ -368,13 +373,19 @@ graph TD
 - `InProcessRunner`: `importlib.import_module(skill.directory / script.run.split()[-1])`; call `main(args: schema) -> returns` coroutine or sync fn; honor `timeout_seconds` via `asyncio.wait_for`
 - `SubprocessRunner`: `asyncio.create_subprocess_exec(*shlex.split(script.run), stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=skill.directory)`; write JSON args to stdin; read JSON from stdout; on timeout, `process.kill()`; honor `timeout_seconds`
 - Both runners validate args against `script.schema` (if declared) before invocation; raise `SkillScriptError` with stderr + exit code + elapsed time on any failure
-- `resolve_sandbox(skill, project_root) -> Literal["inprocess", "subprocess"]` — ordered precedence list (first match wins). All paths are canonicalized via `Path.resolve()` (follows symlinks) before comparison:
-  1. **Explicit frontmatter wins.** If `skill.flock_meta.sandbox` is set, use it.
-  2. **Managed/shared skill roots → `subprocess`.** If `skill.directory.resolve()` lives under `~/.flock/skills/` (resolved) OR `project_root / ".claude" / "skills"` (resolved), return `"subprocess"`. These are the third-party / Claude-Code-shared roots regardless of where they happen to sit on disk.
-  3. **In-repo → `"inprocess"`.** Else if `skill.directory.resolve()` is under `project_root.resolve()`, return `"inprocess"` (developer's own code, same trust as the rest of the repo).
+- `resolve_sandbox(skill, flock) -> Literal["inprocess", "subprocess"]` — ordered precedence list (first match wins). All paths are canonicalized via `Path.resolve()` (follows symlinks) before comparison. Reads `flock.project_root`, `flock.in_repo_sandbox_default`, and `flock.trusted_skills_allowlist`:
+  1. **Explicit frontmatter wins (with allowlist gate for installed skills).** If `skill.flock_meta.sandbox` is set:
+     - Honor unconditionally if the skill is under `flock.project_root` (in-repo — the developer controls these files).
+     - For skills outside `flock.project_root` (installed): only honor `flock.sandbox: inprocess` if the `(skill.name, skill.content_hash)` pair appears in `flock.trusted_skills_allowlist` (loaded from `<project_root>/.flock/trusted-skills.toml` at `Flock.__init__`). Otherwise log WARNING ("skill X requested inprocess but is not in trusted-skills.toml; defaulting to subprocess") and continue to rule 2-4. Honor `flock.sandbox: subprocess` overrides unconditionally (downgrading to safer mode is always allowed).
+  2. **Managed/shared skill roots → `subprocess`.** If `skill.directory.resolve()` lives under `~/.flock/skills/` (resolved) OR `<flock.project_root> / ".claude" / "skills"` (resolved), return `"subprocess"`. These are the third-party / Claude-Code-shared roots regardless of where they happen to sit on disk.
+  3. **In-repo → `flock.in_repo_sandbox_default`.** Else if `skill.directory.resolve()` is under `flock.project_root.resolve()`, return the configured in-repo default (`"inprocess"` for solo-dev convenience, `"subprocess"` for team-repo paranoia).
   4. **Default → `"subprocess"`.** Anywhere else (random absolute path, unfamiliar location), return `"subprocess"` (fail closed).
-- `project_root` is captured **once at `Flock.__init__` time** (not at `discover()` time) by walking up from `Path.cwd()` to find a `pyproject.toml`, `flock.yaml`, or `.git` marker. Falls back to `Path.cwd()` if no marker found, with a WARNING. Stored as immutable on the `Flock` instance — eliminates `chdir()` race conditions between init and discovery.
-- Factory function `get_runner(skill: Skill) -> ScriptRunner` returns the runner picked by `resolve_sandbox(skill, project_root)`.
+- `Flock.__init__` gains two new kwargs:
+  - `in_repo_sandbox_default: Literal["inprocess", "subprocess"] = "inprocess"` — controls rule 3 above. Solo developers get inprocess (no per-call subprocess tax during iteration); team repos with hostile-contributor concerns flip to `"subprocess"` in one line.
+  - `trusted_skills_allowlist: Path | str | None = None` — explicit path to the TOML allowlist; defaults to `<project_root>/.flock/trusted-skills.toml`. File format: `[[trusted]] name = "<skill-name>" content_hash = "<sha256>"` entries. Loaded once at init; validates via Pydantic. If file is missing, allowlist is empty (no installed-skill inprocess overrides honored).
+- `flock.project_root` captured **once at `Flock.__init__`** by walking up from `Path.cwd()` to find a `pyproject.toml`, `flock.yaml`, or `.git` marker. Falls back to `Path.cwd()` if no marker found, with a WARNING. Stored as immutable on the `Flock` instance — eliminates `chdir()` race conditions between init and discovery.
+- The `flock skills trust <name>` CLI command (defined in Unit 8 alongside `optimize`) computes the skill's current content hash and appends an entry to `<project_root>/.flock/trusted-skills.toml`. Auto-creates the file on first use; records who added the entry + timestamp for audit. Unit 3 only needs to read the allowlist via `Flock.__init__`; the CLI lives in Unit 8.
+- Factory function `get_runner(skill: Skill, flock: Flock) -> ScriptRunner` returns the runner picked by `resolve_sandbox(skill, flock)`.
 
 **Patterns to follow:**
 - Async subprocess pattern from `src/flock/integrations/external/adapters/claude_code.py` (ClaudeCodeRuntime spawns subprocesses; mirror its timeout + stderr-capture pattern)
@@ -390,14 +401,21 @@ graph TD
 - Edge case: script declares schema, receives args missing required field → `SkillScriptError` (Pydantic validation) before invocation
 - Edge case: script declares `returns` schema, returns incompatible dict → `SkillScriptError` (Pydantic validation) after invocation
 - Edge case: subprocess script emits stderr but exits 0 → stderr logged at WARNING, result returned normally
-- Sandbox resolution: skill loaded from `./skills/foo/` (in-repo, not under managed roots) → `InProcessRunner` (rule 3)
+- Sandbox resolution: skill loaded from `./skills/foo/` (in-repo, not under managed roots) → `InProcessRunner` when `flock.in_repo_sandbox_default == "inprocess"` (default); `SubprocessRunner` when set to `"subprocess"` (team-repo mode)
 - Sandbox resolution: skill loaded from `~/.flock/skills/foo/` → `SubprocessRunner` (rule 2 — managed root, even if cwd is `~`)
 - Sandbox resolution: skill loaded from `<project_root>/.claude/skills/foo/` → `SubprocessRunner` (rule 2 — managed root precedence over rule 3 in-repo, even though path is technically under project_root)
 - Sandbox resolution: symlink under `./skills/` pointing to `~/Downloads/external-pack/` → `SubprocessRunner` (rule 4 default — resolved path is outside project_root and not under any managed root)
-- Sandbox resolution: any skill with `flock.sandbox: inprocess` frontmatter → `InProcessRunner` regardless of path (rule 1)
-- Sandbox resolution: any skill with `flock.sandbox: subprocess` frontmatter → `SubprocessRunner` regardless of path (rule 1)
+- Sandbox resolution: in-repo skill with `flock.sandbox: inprocess` frontmatter → `InProcessRunner` (rule 1, in-repo path → unconditional honor)
+- Sandbox resolution: any skill with `flock.sandbox: subprocess` frontmatter → `SubprocessRunner` regardless of path (rule 1, downgrade always honored)
+- Sandbox resolution (NEW — allowlist gate): installed skill (`~/.flock/skills/risky-pack/`) with `flock.sandbox: inprocess` frontmatter, NOT in `trusted-skills.toml` → `SubprocessRunner` (override silently rejected; WARNING logged)
+- Sandbox resolution (NEW — allowlist gate): installed skill with `flock.sandbox: inprocess` frontmatter AND `(name, content_hash)` in `trusted-skills.toml` → `InProcessRunner` (override honored)
+- Sandbox resolution (NEW — allowlist gate): installed skill with `flock.sandbox: inprocess` AND `(name, WRONG_content_hash)` in `trusted-skills.toml` → `SubprocessRunner` (content hash mismatch — likely the skill was updated after trust was granted; user must re-trust)
+- Sandbox resolution (NEW — team-repo mode): `Flock(in_repo_sandbox_default="subprocess")` + skill in `./skills/foo/` → `SubprocessRunner` (rule 3 returns subprocess in team mode)
 - Project-root capture: `Flock()` walks up from `Path.cwd()` to find `pyproject.toml`/`flock.yaml`/`.git`; resolves to that ancestor. If no marker found, falls back to `Path.cwd()` and emits a WARNING.
 - Project-root stability: `os.chdir()` between `Flock.__init__` and `with_skills()` does NOT change the resolved sandbox classification (project_root is captured once at init time).
+- Allowlist file load: `Flock()` reads `<project_root>/.flock/trusted-skills.toml` if present; missing file → empty allowlist (no installed-skill inprocess overrides honored).
+- Allowlist explicit path: `Flock(trusted_skills_allowlist=Path("/custom/allowlist.toml"))` reads from the specified path instead of the default.
+- `flock skills trust <name>` CLI: computes current content hash, appends to allowlist file, auto-creates file on first use.
 
 **Verification:**
 - All test scenarios above pass
@@ -433,8 +451,10 @@ graph TD
 **Test scenarios:**
 - `shape_select`: (frontmatter auto, caller runtime=False, under budget) → "inline"
 - `shape_select`: (frontmatter auto, caller runtime=True, under budget) → "tool"
-- `shape_select`: (frontmatter tool, caller runtime=False) → "tool" (frontmatter force)
-- `shape_select`: (frontmatter inline, caller runtime=True) → "tool" (caller wins when frontmatter is not explicit force; re-verify rule with integration test — see integration below)
+- `shape_select`: (frontmatter tool, caller runtime=False) → "tool" (`flock.mode: tool` is a hard force; caller cannot override down to inline)
+- `shape_select`: (frontmatter tool, caller runtime=True) → "tool" (force already aligned with caller intent)
+- `shape_select`: (frontmatter inline, caller runtime=False) → "inline" (preference honored)
+- `shape_select`: (frontmatter inline, caller runtime=True) → "tool" (caller `runtime=True` overrides frontmatter `inline` preference; `flock.mode: inline` is non-forcing — only `flock.mode: tool` is a hard force, see decision table for the asymmetry)
 - `shape_select`: budget overflow → "tool"
 - `compile_inline_skills`: two skills produce `## --- skill1 ---\n<body1>\n## --- skill2 ---\n<body2>`
 - `compile_inline_skills`: empty list returns empty string
@@ -521,19 +541,38 @@ graph TD
   11. Return `self`
 - `DSPyEngine.evaluate` patch (after `program = self._choose_program(...)`):
   ```python
+  from flock.skills.errors import SkillEngineModeError
+
+  # Guard: tool-mode skill agents MUST resolve to ReAct. _choose_program (line 531)
+  # silently catches exceptions and returns Predict(signature) on failure — for a
+  # tool-mode skill agent that means tools are lost AND the agent silently runs
+  # degraded. Fail loud instead of attaching demos to a broken Predict.
+  has_tool_mode_skills = any(
+      getattr(s, "_resolved_mode", None) == "tool"
+      for s in (getattr(agent, "skills", None) or [])
+  )
+  if has_tool_mode_skills and not isinstance(program, dspy.ReAct):
+      raise SkillEngineModeError(
+          f"Agent {agent.name!r} has tool-mode skills attached but _choose_program "
+          f"returned {type(program).__name__} instead of dspy.ReAct. This usually "
+          f"means tool registration failed (check tool schemas, DSPy version compat). "
+          f"Fix the underlying tool-construction error rather than running degraded."
+      )
+
   skill_demos = getattr(agent, "skill_demos", None)
   if skill_demos:
       if isinstance(program, dspy.ReAct):
           # Verified live against DSPy 3.0.3:
-          #   program.react       is dspy.Predict (inner thought-loop) — demos go here
-          #   program.extract     is dspy.ChainOfThought (final-answer extraction)
-          #   program.extract.predict  is the inner Predict of the CoT — demos go here
+          #   program.react           is dspy.Predict (inner thought-loop) — demos here
+          #   program.extract         is dspy.ChainOfThought (final-answer extraction)
+          #   program.extract.predict is the inner Predict of the CoT — demos here
           program.react.demos = list(skill_demos)
           program.extract.predict.demos = list(skill_demos)
       else:
           program.demos = list(skill_demos)
   ```
-  `getattr` defensive read covers Agent instances constructed via non-`__init__` paths (deepcopy, custom `__reduce__`, future YAML deserialization). Engine reads attribute on `agent` only; no `flock.skills` symbol referenced. **Caveat:** `_choose_program` (`dspy_engine.py:531`) silently catches exceptions and returns `Predict(signature)` on failure. For tool-mode skill agents, that fallback means: tools are lost AND demos route to `program.demos` instead of the ReAct branch — the agent runs degraded but the demo attachment makes the call look successful. Unit 6 implementation must add a `SkillEngineModeError` raise (or at minimum a WARNING log) when the agent has tool-mode skills attached but `_choose_program` returned non-ReAct, before the demo block runs.
+  Two safety properties: (a) `getattr` defensive read covers Agent instances constructed via non-`__init__` paths (deepcopy, custom `__reduce__`, future YAML deserialization); (b) `SkillEngineModeError` fails loud when a tool-mode skill agent gets degraded to Predict — silent degradation with attached demos is the worst possible failure mode (looks successful, lost all tools). Engine imports `SkillEngineModeError` from `flock.skills.errors` (one narrow skills import in the engine; acceptable per the two-seam decision).
+  `_resolved_mode` is set on each `Skill` instance by `compilation.shape_select(...)` at `with_skills()` time — values: `"inline"` or `"tool"`. The guard checks per-skill mode rather than re-running `shape_select`, since the partition is already decided at registration.
 
 **Execution note:** Integration-test-first. Before wiring anything, write a failing integration test that asserts scenario 1 runs end-to-end (parse SKILL.md → agent gets instructions with skill body → Predict call uses those instructions, demos attached). Then fill in the glue.
 
@@ -617,9 +656,9 @@ graph TD
 
 ---
 
-- [ ] **Unit 8: Optimizer CLI + Python API (`#7`)**
+- [ ] **Unit 8: Optimizer CLI + Python API + `trust` subcommand (`#7`)**
 
-**Goal:** `flock skills optimize <name>` CLI that queries changelog traces, builds a trainset, runs MIPROv2/BootstrapFewShot, emits a diff or applies the optimized body.
+**Goal:** `flock skills optimize <name>` CLI that queries changelog traces, builds a trainset (with store-fetched payloads, no-upstream drop threshold, redacted history by default), runs MIPROv2/BootstrapFewShot, emits a diff or applies the optimized body. Also `flock skills trust <name>` CLI to manage the `<project_root>/.flock/trusted-skills.toml` allowlist consumed by Unit 3's `resolve_sandbox`.
 
 **Requirements:** R5.
 
@@ -631,21 +670,24 @@ graph TD
 - Create: `src/flock/skills/optimize/trainset.py`
 - Create: `src/flock/skills/optimize/runner.py`
 - Create: `src/flock/skills/optimize/history.py`
-- Modify: `src/flock/cli.py` (the Typer app) to register the `skills optimize` subcommand via `skills_app = typer.Typer(); app.add_typer(skills_app, name="skills")`
+- Modify: `src/flock/cli.py` (the Typer app) to register the `skills` subapp via `skills_app = typer.Typer(); app.add_typer(skills_app, name="skills")` and attach both `optimize` and `trust` subcommands
+- Create: `src/flock/skills/optimize/trust_cli.py` — `trust` subcommand: computes skill content hash, appends `(name, content_hash, added_by, added_at)` entry to `<project_root>/.flock/trusted-skills.toml` (auto-creates file). Also supports `flock skills trust --list` and `flock skills trust --revoke <name>`.
 - Test: `tests/test_skills_optimize.py`
 
 **Approach:**
-- `trainset.build_from_changelog(flock, skill_name, since, success_signal) -> list[dspy.Example]`:
+- `trainset.build_from_changelog(flock, skill_name, since, success_signal, drop_threshold=0.8) -> TrainsetResult`:
   1. Identify agents that have this skill attached (introspect `flock.agents` for `agent.skills` containing the named skill)
   2. `query_changelog(after_seq=cursor, limit=1000, filters=ChangelogFilter(produced_by={a.name for a in agents}))` — page via `after_seq` in batches of `limit`, iterating `result.events` until `result.latest_seq` is reached. The store exposes no time-based filter, so apply `since` client-side by filtering `event.timestamp >= since` during the page loop. Note: `ChangelogFilter.produced_by` expects a `set[str]`, not a list. Collect only `artifact_published` events (the `artifact_consumed` enum value exists but no orchestrator caller emits it today).
   3. For each target-agent `artifact_published` event E, query upstream `artifact_published` events in the same `correlation_id` whose `event.artifact_type` is in the agent's `subscription.type_names` (introspectable via `agent.subscriptions`) and whose `event.seq < E.seq`. Those are the implicit inputs. Note: `__flock_type__` is a class attribute on the registered Pydantic model (set by `flock.registry`), not a key in event data — the matching field on `ChangelogEvent` is `artifact_type: str | None`, populated from `artifact.type` at publish time.
-  4. Pair: upstream payload(s) → `input_field`, target agent's published payload → `output_field`. Rehydrate via `dspy.Example(input_field=upstream.payload, output_field=target.payload).with_inputs(*input_keys)`. For multi-input agents (multiple subscribed types), merge upstream payloads into one `dspy.Example` keyed by the agent's input field names.
-  5. Apply `success_signal` predicate to filter: `"downstream-cascade-completed"` checks for no error events + at least one downstream publish in the same correlation; `"no-errors"` checks only for absence of error events; custom callables pass through.
-  6. Annotate `OptimizationResult.notes` per-trace when (a) the target agent has `where=` predicate filters (attribution is to upstream superset, not the specific consumed instance) or (b) the target agent attaches multiple skills (output quality cannot be discriminated per-skill).
-- `runner.run_optimization(skill, trainset, optimizer_name) -> OptimizationResult` — instantiate MIPROv2 or BootstrapFewShot, compile a one-predictor program against the skill's signature, extract `optimized_program.named_predictors()[0][1].signature.instructions` and `.demos`
-- `cli.optimize_cmd(skill_name, since, success_signal, optimizer, apply, save_as_candidate, output)` — Click/Typer command; default behavior: build diff, present to stdout, prompt `[y/n/d(iff)/s(ave-as-candidate)]`
-- `history.record(skill_name, result, config)` — writes `.flock/skills/optimization-history/{skill}-{timestamp}.json` audit entry
-- `optimize_skill(skill_name, flock, since, success_signal, optimizer) -> OptimizationResult` — Python API symmetric to CLI
+  4. **Rehydrate full payloads via store fetch** (since `ChangelogEvent.payload_summary` is not the full payload). For each event in the candidate set, call `await flock.store.get_artifact(event.artifact_id)` to retrieve the typed Pydantic instance. Cache results in a `dict[UUID, BaseModel]` keyed by `artifact_id` to avoid re-fetching the same artifact when it appears in multiple correlation pairs. (Verify `BlackboardStore.get_artifact(uuid)` exists across all store implementations — sqlite, in-memory; if not, add a thin protocol-level method first.)
+  5. Pair: upstream payload(s) → `input_field`, target agent's published payload → `output_field`. Construct `dspy.Example(input_field=upstream.payload, output_field=target.payload).with_inputs(*input_keys)`. For multi-input agents (multiple subscribed types), merge upstream payloads into one `dspy.Example` keyed by the agent's input field names.
+  6. **No-upstream handling.** Track `dropped_no_upstream` count: for any target-agent event whose `correlation_id` has zero matching upstream events (cascade-starting agents — CLI-triggered, scheduled, external publishes), drop the trace and increment the counter. After the candidate-set sweep, if `dropped_no_upstream / candidate_count > drop_threshold` (default 0.8 = 80%), raise `SkillTrainsetTooThinError` with a clear message: "Of N candidate traces, M were dropped because the target agent had no upstream artifacts in correlation. Pass `--allow-thin-trainset` to optimize anyway, or use `--seed-inputs path/to/seeds.jsonl` (deferred follow-on) to supply training inputs explicitly."
+  7. Apply `success_signal` predicate to filter the surviving traces: `"downstream-cascade-completed"` checks for no error events + at least one downstream publish in the same correlation; `"no-errors"` checks only for absence of error events; custom callables pass through.
+  8. Return `TrainsetResult(examples: list[dspy.Example], dropped_no_upstream: int, total_candidates: int, attribution_caveats: list[str])`. Caveats include: target agent has `where=` predicate filters → "attribution is to upstream superset"; target agent attaches multiple skills → "output quality cannot be discriminated per-skill".
+- `runner.run_optimization(skill, trainset_result, optimizer_name) -> OptimizationResult` — instantiate MIPROv2 or BootstrapFewShot, compile a one-predictor program against the skill's signature, extract `optimized_program.named_predictors()[0][1].signature.instructions` and `.demos`. `OptimizationResult.notes` carries `trainset_result.attribution_caveats` + dropped-trace summary so users see the data-quality context alongside the diff.
+- `cli.optimize_cmd(skill_name, since, success_signal, optimizer, apply, save_as_candidate, output, include_trainset, allow_thin_trainset)` — Click/Typer command; default behavior: build diff, present to stdout, prompt `[y/n/d(iff)/s(ave-as-candidate)]`. New flags: `--include-trainset` opts into writing raw `dspy.Example` data into history (default: history records only score deltas + SKILL.md diff + config); `--allow-thin-trainset` bypasses the no-upstream `drop_threshold` check.
+- `history.record(skill_name, result, config, *, include_trainset=False)` — writes `.flock/skills/optimization-history/{skill}-{timestamp}.json`. **Default redacted:** records only `score_delta`, `optimizer_config`, `skill_md_diff` (unified diff between original and optimized SKILL.md body), `attribution_caveats`, `dropped_no_upstream_count`, `total_candidates`. The raw `dspy.Example` trainset (which carries full artifact payloads — potentially PII / credentials / financial data) is written only when `include_trainset=True`. On first invocation, also appends `.flock/` to the project's `.gitignore` if not already present (idempotent), preventing accidental commit of optimization artifacts.
+- `optimize_skill(skill_name, flock, since, success_signal, optimizer, *, include_trainset=False, allow_thin_trainset=False) -> OptimizationResult` — Python API symmetric to CLI.
 
 **Patterns to follow:**
 - Existing Flock CLI entry in `src/flock/cli.py` (Typer app with nested subcommands via `app.add_typer`)
@@ -653,25 +695,35 @@ graph TD
 - Diff generation: Python `difflib.unified_diff`
 
 **Test scenarios:**
-- Happy path: trainset built from seeded changelog events produces expected number of `dspy.Example` objects
-- Happy path: MIPROv2 runner returns `OptimizationResult(before_score, after_score, diff, optimized_body)` (may use mock optimizer for CI speed)
+- Happy path: trainset built from seeded changelog events produces expected number of `dspy.Example` objects (with full payloads via store rehydration, not truncated `payload_summary`)
+- Happy path: MIPROv2 runner returns `OptimizationResult(before_score, after_score, diff, optimized_body, notes)` (may use mock optimizer for CI speed)
 - Happy path: `--save-as-candidate` writes `SKILL.optimized.md` and leaves `SKILL.md` untouched
-- Happy path: `--apply` writes `SKILL.md` and appends audit entry to `.flock/skills/optimization-history/`
-- Edge case: empty changelog → clear error message, no write
+- Happy path: `--apply` writes `SKILL.md` and appends redacted audit entry to `.flock/skills/optimization-history/`
+- Rehydration: store fetch cache prevents re-fetch — assert `store.get_artifact` is called once per unique `artifact_id` even when the same artifact appears in multiple correlation pairs
+- No-upstream threshold: 90% of traces have no upstream events + `drop_threshold=0.8` → raises `SkillTrainsetTooThinError` with message naming both counts and the `--allow-thin-trainset` escape hatch
+- No-upstream override: same scenario with `--allow-thin-trainset` → optimizer runs on the surviving 10%; `OptimizationResult.notes` carries the dropped-count caveat
+- No-upstream zero: 100% of candidates dropped → raises clearly with "0 usable traces" message even with `--allow-thin-trainset`
+- History redaction (default): JSON output contains `score_delta`, `optimizer_config`, `skill_md_diff`, `attribution_caveats`, `dropped_no_upstream_count`, `total_candidates`. Asserts NO field named `trainset` or containing raw `dspy.Example` payloads.
+- History opt-in: `--include-trainset` flag → JSON output additionally contains the raw `dspy.Example` list under `trainset` key
+- Gitignore creation: first run on a project with no `.gitignore` creates one containing `.flock/`; first run on a project with an existing `.gitignore` that already contains `.flock/` is a no-op; first run on a project with a `.gitignore` lacking `.flock/` appends the line
+- Edge case: empty changelog → clear error message, no write, no `.gitignore` mutation
 - Edge case: no agents currently attach the skill → error message pointing user to `.with_skills()` usage
-- Edge case: `success_signal` filters out all traces → error suggesting different signal
-- Integration: Python API `optimize_skill(...)` returns equivalent result to CLI with same args
-- Best-effort caveat: multi-skill agent traces attribute outputs to *all* attached skills (documented limitation, not a bug) — test verifies result carries this caveat in `OptimizationResult.notes`
+- Edge case: `success_signal` filters out all surviving traces → error suggesting different signal
+- Integration: Python API `optimize_skill(...)` returns equivalent result to CLI with same args (including `include_trainset` and `allow_thin_trainset` kwargs)
+- Multi-skill caveat: traces from agent attaching multiple skills carry attribution caveat in `OptimizationResult.notes`
+- Predicated subscription caveat: agent with `where=` filter carries "attribution to upstream superset" caveat
 
 **Verification:**
 - All test scenarios above pass
-- Manual smoke test: run `flock skills optimize invoice-extractor --from-changelog=last-30d --optimizer=BootstrapFewShot` against a seeded changelog, confirm diff is non-trivial
-- CLI help text is discoverable (`flock skills --help` lists `optimize`)
+- Manual smoke test: run `flock skills optimize invoice-extractor --from-changelog=last-30d --optimizer=BootstrapFewShot` against a seeded changelog, confirm diff is non-trivial and history file is redacted by default
+- CLI help text is discoverable (`flock skills --help` lists `optimize` and `trust`)
+- `.gitignore` integration: confirm `.flock/` lands in `.gitignore` after first optimize run
 
 ## System-Wide Impact
 
-- **Interaction graph:** `AgentBuilder.with_skills` touches `agent.tools` (same surface as `with_tools` and `with_mcps`), `agent.description` (new — previously only set at `.description(text)`), `agent.skills` (new attribute, list of attached `Skill` objects), and `agent.skill_demos` (new attribute, list of `dspy.Example` for predictor attachment). `agent.utilities` is **not** touched — earlier drafts proposed a `SkillsComponent` utility, but final design replaces it with a 5-line block inside `DSPyEngine.evaluate` after `_choose_program`. Downstream: `DSPyEngine._choose_program` auto-picks ReAct when skill tools are present (existing behavior, no change); the new demo-attachment block runs after `_choose_program` returns.
-- **Error propagation:** Skill errors raise at `.with_skills()` time (fail fast for config errors like missing paths, schema mismatches) vs. at invocation time (script failures flow through as tool errors — existing engine handling). Compile-time errors are not recoverable; runtime script errors are retriable by the agent.
+- **Interaction graph:** `AgentBuilder.with_skills` touches `agent.tools` (same surface as `with_tools` and `with_mcps`), `agent.description` (new — previously only set at `.description(text)`), `agent.skills` (new attribute, list of attached `Skill` objects, each carrying `_resolved_mode: Literal["inline", "tool"]`), and `agent.skill_demos` (new attribute, list of `dspy.Example` for predictor attachment). `agent.utilities` is **not** touched — earlier drafts proposed a `SkillsComponent` utility, but final design replaces it with a guarded block inside `DSPyEngine.evaluate` after `_choose_program`. Downstream: `DSPyEngine._choose_program` auto-picks ReAct when skill tools are present (existing behavior, no change); the new demo-attachment block runs after `_choose_program` returns and includes a `SkillEngineModeError` guard that raises when a tool-mode skill agent gets degraded to Predict by the `_choose_program` exception fallback (silent degradation with attached demos is the worst possible failure mode).
+- **`Flock.__init__` gains two new kwargs:** `in_repo_sandbox_default: Literal["inprocess", "subprocess"] = "inprocess"` (default for in-repo skills; team repos flip to `"subprocess"` for stricter posture) and `trusted_skills_allowlist: Path | str | None = None` (path to TOML allowlist of `(name, content_hash)` pairs that may opt into `inprocess` from installed paths; defaults to `<project_root>/.flock/trusted-skills.toml`). Both are read by `resolve_sandbox` in Unit 3. Stored as immutable on the Flock instance alongside `project_root` (also captured at init).
+- **Error propagation:** Skill errors raise at `.with_skills()` time (fail fast for config errors like missing paths, schema mismatches) vs. at invocation time (script failures flow through as tool errors — existing engine handling). `SkillEngineModeError` raises inside `DSPyEngine.evaluate` for the tool-mode-degraded-to-Predict case. `SkillTrainsetTooThinError` raises from `optimize.trainset.build_from_changelog` when the no-upstream drop ratio exceeds the threshold. Compile-time errors are not recoverable; runtime script errors are retriable by the agent.
 - **State lifecycle risks:** Cached `Skill` objects (keyed by content hash) can go stale if SKILL.md edits happen in-process. Invalidation via `registry.invalidate(path)` is manual for now — hot-reload is out of scope. Document in README.
 - **API surface parity:** `with_skills` mirrors `with_tools`/`with_mcps` but adds `runtime=` and `token_budget=` kwargs. No parity change to `with_tools` itself. Skills do **not** reach external engines (`ClaudeCodeRuntime`/`OpenClawEngine`) — they already handle skills natively via their own runtime; attempting `.with_skills()` on a non-DSPy-engine agent should log a WARNING or raise — decide at Unit 6 impl time.
 - **Integration coverage:** Scenario 1-4 integration tests prove cross-layer correctness (frontmatter parse → registry → compilation → agent state → engine evaluation → blackboard publish → cascade). Unit tests alone would not catch e.g. the ReAct sub-predictor path footgun (correct paths: `program.react.demos` + `program.extract.predict.demos`; the earlier `react.react.demos`/`react.extract.demos` claim was wrong and would `AttributeError`).
@@ -684,7 +736,7 @@ graph TD
 | DSPy ReAct sub-predictor demo attachment doesn't propagate demos correctly at runtime | Medium | High | Write an explicit integration test (Unit 6) that runs a ReAct agent through `DSPyEngine.evaluate` with hand-crafted `agent.skill_demos` and asserts the demo examples appear in the formatted prompt. Verified live against DSPy 3.0.3 that the paths are `program.react.demos` (inner Predict) and `program.extract.predict.demos` (Predict inside CoT extractor). Add a smoke test asserting both attributes are settable before relying on them in production. |
 | Token budget heuristic (`len/4`) miscalculates for skill-heavy agents, causing surprise mode switches | Medium | Medium | Document heuristic + `flock.token_cost_estimate` override explicitly. Add a WARNING log when a skill is mode-switched due to budget overflow. Add `tiktoken` as a dep only if user reports surface. |
 | Trainset reconstruction noisier for predicated subscriptions and multi-skill agents | High | Medium | Use `artifact_published`-only correlation (no dependency on `artifact_consumed` events, which the codebase doesn't emit). Document limitations in `OptimizationResult.notes` per-trace. Flag in CLI output when target agent has `where=` predicates or attaches multiple skills. Future: dedicated `skill_invoked` event type (deferred). |
-| Script sandboxing default could let malicious skills execute in-process if path-based default is misclassified | Low | High | Default-by-discovery-path: in-repo skills (`./skills/`, project-relative paths) → `inprocess`; installed skills (`~/.flock/skills/`, `./.claude/skills/`, anything outside project root) → `subprocess`. Frontmatter `flock.sandbox` overrides. Add a debug log when path classification triggers subprocess to surface unexpected installs. |
+| Script sandboxing default could let malicious skills execute in-process if path-based default is misclassified | Low | High | Three-layer defense: (1) path-based default (in-repo `inprocess`, installed `subprocess`); (2) `Flock(in_repo_sandbox_default="subprocess")` for team-repo paranoia; (3) frontmatter `inprocess` override on installed skills gated by `.flock/trusted-skills.toml` allowlist (name + content_hash). Symlinks resolved via `Path.resolve()` before classification. `subprocess` overrides always honored (downgrade is safe). |
 | Circular imports between `src/flock/skills/*` and `src/flock/core/agent.py` | Medium | Low | Keep `Skill` / `FlockSkillMetadata` import-light (stdlib + pydantic only). `AgentBuilder.with_skills` imports from `flock.skills` lazily inside the method body if needed. |
 | Existing 2558-test suite flakes under new Agent state additions or `DSPyEngine.evaluate` patch | Low | Medium | Run `uv run pytest` after every unit lands. Priority-flag any test that touches `Agent.__init__`, `AgentBuilder` internals, or `DSPyEngine.evaluate` (the demo-attachment block must be guard-clauseed on `agent.skill_demos` so non-skill agents are unaffected). |
 | `Signature.with_instructions` behavior changes in future DSPy version | Low | Medium | Pin DSPy version in `pyproject.toml` (already at 3.0.3). Verified 2026-04-17 + corrected 2026-04-18 (round-2 review): every API this plan relies on (`with_instructions`, `make_signature(dict, instructions)`, `predictor.demos`, `program.react.demos`, `program.extract.predict.demos`, `Tool._parse_function`, `MIPROv2.compile`, `dump_state`) is byte-compatible through the current DSPy 3.1.3 release. The earlier `react.react.demos` / `react.extract.demos` claim was wrong; corrected paths now reflect live DSPy 3.0.3 source. Add integration test that asserts `signature.instructions` contains skill body text after compilation, plus a smoke test that asserts ReAct demo paths are settable. |
