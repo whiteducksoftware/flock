@@ -67,7 +67,7 @@ See origin: `.sfd/contracts.md` §1-§9 (public API, frontmatter schema, types, 
 - `src/flock/components/` and `src/flock/agent/component_lifecycle.py:147-163` — `AgentComponent` pattern with `run_pre_evaluate(agent, ctx, inputs: EvalInputs) -> EvalInputs` chain. Hook fires before `engine.evaluate()` constructs the program — confirmed during review-2026-04-18 that no `program` parameter is available, which is why this plan attaches demos inside `DSPyEngine.evaluate` rather than via an `AgentComponent`.
 - `src/flock/models/changelog.py:17-65` — `ChangelogEvent`, `ChangelogEventType` (`artifact_published` / `artifact_consumed` / `agent_snapshot_updated`), `ChangelogFilter`.
 - `src/flock/core/store.py:197-218` — `query_changelog(after_seq, limit, filters)` and `get_changelog_bounds`. No skill-name filter — optimizer must reconstruct traces from `produced_by=<agent>` artifact pairs.
-- `src/flock/registry.py:19-91` — `TypeRegistry.resolve_name`. First-tier resolution for `flock.outputs: <dotted.path>`; fall back to `importlib` for unregistered types.
+- `src/flock/registry.py:19-91` — `TypeRegistry.resolve(name)` returns `type[BaseModel]` for skill-output rehydration. **No `importlib` fallback** for skill type resolution (closed in round-2 P1 #2 to remove the frontmatter code-execution attack vector). Types referenced by `flock.outputs` must be pre-registered via `@flock_type` in the consuming project.
 - `src/flock/mcp/config.py:214`, `src/flock/mcp/types/types.py:192, 279` — existing `importlib.import_module` + `getattr` pattern, unwrapped. New `src/flock/skills/resolvers.py` consolidates this.
 - `tests/conftest.py:57-73` — `mock_llm` autouse fixture patches `dspy.Predict.__call__`; needs equivalent `mock_react` for tool-mode scenarios (or extend the existing fixture).
 - `tests/integration/test_meta_orchestrator_e2e.py`, `tests/integration/test_external_engine_e2e.py` — naming convention for `tests/integration/test_skills_e2e.py`.
@@ -277,15 +277,15 @@ graph TD
 **Approach:**
 - `Skill` frozen dataclass (per origin §3) with fields: `name`, `description`, `body`, `directory`, `flock_meta: FlockSkillMetadata | None`, `anthropic_meta: AnthropicMeta`, `outputs_model: type[BaseModel] | None`, `demos: list[dict]`, `resources: dict[str, Path]`, `content_hash`. `FlockSkillMetadata(BaseModel)` and `ScriptSpec(BaseModel)` defined in the same module as nested types — exported for IDE intellisense but not peer-level concerns. Skill is the user-facing object; `flock_meta` is data hung on it.
 - `parse_skill_frontmatter(markdown: str) -> tuple[AnthropicMeta, FlockSkillMetadata, body: str]` — split YAML header from body using `yaml.safe_load()` (never `yaml.load` — prevents `!!python/object/apply:...` tag-based code execution from hostile SKILL.md); validate Anthropic required fields loosely, parse `flock:` block strictly with Pydantic
-- `resolve_pydantic_class(dotted: str) -> type[BaseModel]` — **TypeRegistry-only**: call `TypeRegistry.resolve_name(dotted)`; if not registered, raise `SkillSchemaResolutionError("flock.outputs references unregistered type X — types referenced by skills must be decorated with @flock_type in the importing project")`. **No `importlib` fallback.** This closes the frontmatter code-execution attack vector (`flock.outputs: os.system` → arbitrary import-time module execution): types must be pre-registered, no arbitrary dotted paths resolve. Skill authors who want a custom output type must `@flock_type` it somewhere in their consuming project before any skill references it. The friction is the right friction for shareable skills.
+- `resolve_pydantic_class(dotted: str) -> type[BaseModel]` — **TypeRegistry-only**: call `type_registry.resolve(dotted)` directly (NOT `resolve_name`, which returns a canonical `str`, not the class — verified in `src/flock/registry.py:48-83`). On `RegistryError`, wrap as `SkillSchemaResolutionError("flock.outputs references unregistered type X — types referenced by skills must be decorated with @flock_type in the importing project")`. **No `importlib` fallback.** This closes the frontmatter code-execution attack vector (`flock.outputs: os.system` → arbitrary import-time module execution): types must be pre-registered, no arbitrary dotted paths resolve. Skill authors who want a custom output type must `@flock_type` it somewhere in their consuming project before any skill references it. The friction is the right friction for shareable skills.
 - Error hierarchy: `SkillError(FlockError)` root + 8 subclasses per origin §9 (drop `SkillTokenBudgetError` per round-1 P2 #16 — zero raise sites; add `SkillEngineModeError` per round-2 P1 #6 — raised when a tool-mode skill agent is silently degraded to Predict by `_choose_program` exception fallback)
 
 **Execution note:** Test-first — write fixture SKILL.md files under `tests/fixtures/skills/` covering minimal / full / malformed / missing-required / invalid-flock-mode cases, then implement parsing to make tests green.
 
 **Patterns to follow:**
-- `src/flock/mcp/config.py:214` and `src/flock/mcp/types/types.py:192, 279` — existing `importlib`+`getattr` pattern; consolidate into `resolvers.py`
+- `src/flock/mcp/config.py:214` and `src/flock/mcp/types/types.py:192, 279` — existing `importlib`+`getattr` pattern in the codebase. **Skills do NOT follow this pattern** (round-2 P1 #2): `resolvers.py` is TypeRegistry-only with no `importlib` fallback, to close the frontmatter code-execution attack vector. The MCP-style pattern remains valid for MCP's own use case (where dotted paths come from trusted local config, not from arbitrary frontmatter).
 - Pydantic v2 `ConfigDict(extra="forbid")` on `FlockSkillMetadata` for strict validation
-- `src/flock/registry.py:19-91` — `TypeRegistry.resolve_name` for the fast-path resolution
+- `src/flock/registry.py:19-91` — `TypeRegistry.resolve(name)` returns `type[BaseModel]`; `TypeRegistry.resolve_name(name)` returns canonical `str` only. Use `.resolve()` for skill-output rehydration.
 
 **Test scenarios:**
 - Happy path: minimal SKILL.md (name + description only) parses with empty FlockSkillMetadata defaults
@@ -439,7 +439,7 @@ graph TD
 - `shape_select(skill, caller_runtime_override, running_token_total, token_budget) -> Literal["inline", "tool"]` per origin §5 decision logic
 - `compile_inline_skills(skills: list[Skill]) -> str` — concatenates bodies with `## --- <skill_name> ---` separators; returns one string to prepend to `agent.description`
 - `load_demos_for_skill(skill: Skill) -> list[dspy.Example]` — reads JSONL, constructs `dspy.Example(**demo).with_inputs(*input_keys)` based on skill's declared `outputs_model` signature
-- `validate_outputs_compatibility(skill, agent_publishes) -> None` — raises `SkillOutputMismatchError` if skill declares `outputs_model` but agent's `.publishes()` set doesn't include it (or a subclass)
+- `validate_outputs_compatibility(skill, agent_output_types: set[type[BaseModel]]) -> None` — raises `SkillOutputMismatchError` if skill declares `outputs_model` but `agent_output_types` doesn't include it (or a subclass). Caller derives the type-set from `agent.outputs` (the `list[AgentOutput]` runtime state on `Agent`, populated by the `.publishes(*types)` builder method): `agent_output_types = {out.artifact_type for out in agent.outputs}`. (Note: `Agent` has no `agent.publishes` set attribute — `publishes` is a builder method; the runtime state is `agent.outputs`.)
 - `estimate_tokens(text: str) -> int` — `len(text) // 4` heuristic; documented as approximate
 
 **Execution note:** Test-first on `shape_select` truth table; implement the rest in-order.
@@ -531,7 +531,7 @@ graph TD
   1. If `self._agent.skills` is already populated, raise or merge (decide at impl time — likely merge)
   2. Build `SkillRegistry` (lazy — reuse `flock._skill_registry` if present, else create)
   3. `registry.discover(*sources, use_defaults=(len(sources) == 0))`
-  4. Validate each skill's `outputs_model` against `self._agent.publishes` set via `validate_outputs_compatibility`
+  4. Validate each skill's `outputs_model` against `{out.artifact_type for out in self._agent.outputs}` via `validate_outputs_compatibility` (note: `agent.outputs: list[AgentOutput]` is the runtime state populated by the `.publishes(*types)` builder method — there is no `agent.publishes` attribute)
   5. Partition skills by `shape_select(...)` into inline vs tool
   6. Inline skills: concatenate bodies via `compile_inline_skills`, prepend to `self._agent.description`
   7. Inline skills with scripts: wrap script callables and `self._agent.tools.update({...})` (set, not list)
@@ -539,7 +539,7 @@ graph TD
   9. Stash demos: `self._agent.skill_demos = [dspy.Example(**demo).with_inputs(*input_keys) for skill in compiled_skills for demo in load_demos_for_skill(skill)]` — `None` if no skills have demos
   10. `self._agent.skills = list(all_skills)` (bookkeeping for introspection / optimizer)
   11. Return `self`
-- `DSPyEngine.evaluate` patch (after `program = self._choose_program(...)`):
+- `DSPyEngine.evaluate` patch (after `program = self._choose_program(dspy_mod, signature, combined_tools)` at line 343). **Note:** DSPyEngine imports DSPy lazily as `dspy_mod = self._import_dspy()` (line 253); there is no module-level `import dspy`. The patch must use `dspy_mod.ReAct`, not `dspy.ReAct`:
   ```python
   from flock.skills.errors import SkillEngineModeError
 
@@ -551,7 +551,7 @@ graph TD
       getattr(s, "_resolved_mode", None) == "tool"
       for s in (getattr(agent, "skills", None) or [])
   )
-  if has_tool_mode_skills and not isinstance(program, dspy.ReAct):
+  if has_tool_mode_skills and not isinstance(program, dspy_mod.ReAct):
       raise SkillEngineModeError(
           f"Agent {agent.name!r} has tool-mode skills attached but _choose_program "
           f"returned {type(program).__name__} instead of dspy.ReAct. This usually "
@@ -561,7 +561,7 @@ graph TD
 
   skill_demos = getattr(agent, "skill_demos", None)
   if skill_demos:
-      if isinstance(program, dspy.ReAct):
+      if isinstance(program, dspy_mod.ReAct):
           # Verified live against DSPy 3.0.3:
           #   program.react           is dspy.Predict (inner thought-loop) — demos here
           #   program.extract         is dspy.ChainOfThought (final-answer extraction)
@@ -571,7 +571,7 @@ graph TD
       else:
           program.demos = list(skill_demos)
   ```
-  Two safety properties: (a) `getattr` defensive read covers Agent instances constructed via non-`__init__` paths (deepcopy, custom `__reduce__`, future YAML deserialization); (b) `SkillEngineModeError` fails loud when a tool-mode skill agent gets degraded to Predict — silent degradation with attached demos is the worst possible failure mode (looks successful, lost all tools). Engine imports `SkillEngineModeError` from `flock.skills.errors` (one narrow skills import in the engine; acceptable per the two-seam decision).
+  Three safety properties: (a) `getattr` defensive read covers Agent instances constructed via non-`__init__` paths (deepcopy, custom `__reduce__`, future YAML deserialization); (b) `SkillEngineModeError` fails loud when a tool-mode skill agent gets degraded to Predict — silent degradation with attached demos is the worst possible failure mode (looks successful, lost all tools); (c) the lazy `dspy_mod` binding (already in scope from the engine's existing `_import_dspy()` call) avoids adding a top-level DSPy import to the engine. Engine imports `SkillEngineModeError` from `flock.skills.errors` (one narrow skills import in the engine; acceptable per the two-seam decision).
   `_resolved_mode` is set on each `Skill` instance by `compilation.shape_select(...)` at `with_skills()` time — values: `"inline"` or `"tool"`. The guard checks per-skill mode rather than re-running `shape_select`, since the partition is already decided at registration.
 
 **Execution note:** Integration-test-first. Before wiring anything, write a failing integration test that asserts scenario 1 runs end-to-end (parse SKILL.md → agent gets instructions with skill body → Predict call uses those instructions, demos attached). Then fill in the glue.
@@ -679,7 +679,7 @@ graph TD
   1. Identify agents that have this skill attached (introspect `flock.agents` for `agent.skills` containing the named skill)
   2. `query_changelog(after_seq=cursor, limit=1000, filters=ChangelogFilter(produced_by={a.name for a in agents}))` — page via `after_seq` in batches of `limit`, iterating `result.events` until `result.latest_seq` is reached. The store exposes no time-based filter, so apply `since` client-side by filtering `event.timestamp >= since` during the page loop. Note: `ChangelogFilter.produced_by` expects a `set[str]`, not a list. Collect only `artifact_published` events (the `artifact_consumed` enum value exists but no orchestrator caller emits it today).
   3. For each target-agent `artifact_published` event E, query upstream `artifact_published` events in the same `correlation_id` whose `event.artifact_type` is in the agent's `subscription.type_names` (introspectable via `agent.subscriptions`) and whose `event.seq < E.seq`. Those are the implicit inputs. Note: `__flock_type__` is a class attribute on the registered Pydantic model (set by `flock.registry`), not a key in event data — the matching field on `ChangelogEvent` is `artifact_type: str | None`, populated from `artifact.type` at publish time.
-  4. **Rehydrate full payloads via store fetch** (since `ChangelogEvent.payload_summary` is not the full payload). For each event in the candidate set, call `await flock.store.get_artifact(event.artifact_id)` to retrieve the typed Pydantic instance. Cache results in a `dict[UUID, BaseModel]` keyed by `artifact_id` to avoid re-fetching the same artifact when it appears in multiple correlation pairs. (Verify `BlackboardStore.get_artifact(uuid)` exists across all store implementations — sqlite, in-memory; if not, add a thin protocol-level method first.)
+  4. **Rehydrate full payloads via store fetch** (since `ChangelogEvent.payload_summary` is not the full payload). For each event in the candidate set, call `await flock.store.get(event.artifact_id)` (verified method on `BlackboardStore` — `src/flock/core/store.py:97`; overrides exist on `InMemoryBlackboardStore` and the SQLite store). The returned `Artifact` wrapper carries the dict payload at `.payload`; rehydrate to the typed Pydantic instance via `type_registry.resolve(event.artifact_type)(**artifact.payload)`. Cache results in a `dict[UUID, BaseModel]` keyed by `artifact_id` to avoid re-fetching + re-rehydrating the same artifact when it appears in multiple correlation pairs.
   5. Pair: upstream payload(s) → `input_field`, target agent's published payload → `output_field`. Construct `dspy.Example(input_field=upstream.payload, output_field=target.payload).with_inputs(*input_keys)`. For multi-input agents (multiple subscribed types), merge upstream payloads into one `dspy.Example` keyed by the agent's input field names.
   6. **No-upstream handling.** Track `dropped_no_upstream` count: for any target-agent event whose `correlation_id` has zero matching upstream events (cascade-starting agents — CLI-triggered, scheduled, external publishes), drop the trace and increment the counter. After the candidate-set sweep, if `dropped_no_upstream / candidate_count > drop_threshold` (default 0.8 = 80%), raise `SkillTrainsetTooThinError` with a clear message: "Of N candidate traces, M were dropped because the target agent had no upstream artifacts in correlation. Pass `--allow-thin-trainset` to optimize anyway, or use `--seed-inputs path/to/seeds.jsonl` (deferred follow-on) to supply training inputs explicitly."
   7. Apply `success_signal` predicate to filter the surviving traces: `"downstream-cascade-completed"` checks for no error events + at least one downstream publish in the same correlation; `"no-errors"` checks only for absence of error events; custom callables pass through.
@@ -699,7 +699,7 @@ graph TD
 - Happy path: MIPROv2 runner returns `OptimizationResult(before_score, after_score, diff, optimized_body, notes)` (may use mock optimizer for CI speed)
 - Happy path: `--save-as-candidate` writes `SKILL.optimized.md` and leaves `SKILL.md` untouched
 - Happy path: `--apply` writes `SKILL.md` and appends redacted audit entry to `.flock/skills/optimization-history/`
-- Rehydration: store fetch cache prevents re-fetch — assert `store.get_artifact` is called once per unique `artifact_id` even when the same artifact appears in multiple correlation pairs
+- Rehydration: store fetch cache prevents re-fetch — assert `store.get` is called once per unique `artifact_id` even when the same artifact appears in multiple correlation pairs; assert `type_registry.resolve(artifact_type)(**payload)` produces the typed Pydantic instance
 - No-upstream threshold: 90% of traces have no upstream events + `drop_threshold=0.8` → raises `SkillTrainsetTooThinError` with message naming both counts and the `--allow-thin-trainset` escape hatch
 - No-upstream override: same scenario with `--allow-thin-trainset` → optimizer runs on the surviving 10%; `OptimizationResult.notes` carries the dropped-count caveat
 - No-upstream zero: 100% of candidates dropped → raises clearly with "0 usable traces" message even with `--allow-thin-trainset`
