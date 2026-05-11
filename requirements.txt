@@ -145,7 +145,7 @@ markdown-it-py==4.2.0
     # via rich
 markupsafe==3.0.3
     # via jinja2
-mcp==1.20.0
+mcp==1.23.0
     # via flock-core (pyproject.toml)
 mdurl==0.1.2
     # via markdown-it-py
