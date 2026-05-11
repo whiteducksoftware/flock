@@ -328,6 +328,7 @@ typing-extensions==4.15.0
     #   fastapi
     #   grpcio
     #   huggingface-hub
+    #   mcp
     #   openai
     #   opentelemetry-api
     #   opentelemetry-exporter-otlp-proto-grpc
@@ -343,6 +344,7 @@ typing-extensions==4.15.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via
+    #   mcp
     #   pydantic
     #   pydantic-settings
 urllib3==2.7.0
