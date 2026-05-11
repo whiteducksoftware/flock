@@ -5,7 +5,7 @@ description = "Flock: A declrative framework for building and orchestrating AI a
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
- "dspy==3.0.3",
+ "dspy==3.2.1",
  "litellm==1.83.7",
  "fastapi==0.121.0",
  "httpx==0.28.1",
