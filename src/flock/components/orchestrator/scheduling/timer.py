@@ -283,10 +283,10 @@ class TimerComponent(OrchestratorComponent):
                 target = now.replace(
                     hour=spec.at.hour,
                     minute=spec.at.minute,
-                    second=spec.at.second if spec.at.second else 0,
+                    second=spec.at.second,
                     microsecond=0,
                 )
-                if target <= now:
+                if target < now.replace(microsecond=0):
                     # Time passed today, schedule for tomorrow
                     target += timedelta(days=1)
                 return target
@@ -343,14 +343,15 @@ class TimerComponent(OrchestratorComponent):
                 target = now.replace(
                     hour=spec.at.hour,
                     minute=spec.at.minute,
-                    second=spec.at.second if spec.at.second else 0,
+                    second=spec.at.second,
                     microsecond=0,
                 )
-                if target <= now:
+                if target < now.replace(microsecond=0):
                     # Time passed today, schedule for tomorrow
                     target += timedelta(days=1)
                 seconds_until = (target - now).total_seconds()
-                await asyncio.sleep(seconds_until)
+                if seconds_until > 0:
+                    await asyncio.sleep(seconds_until)
 
             elif isinstance(spec.at, datetime):
                 # One-time scheduling: wait until specific datetime

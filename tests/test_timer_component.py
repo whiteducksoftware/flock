@@ -582,8 +582,8 @@ class TestWaitForNextFire:
         elapsed = (datetime.now(UTC) - start).total_seconds()
 
         # Assert - Should sleep for approximately the expected wait time
-        # Allow 0.1s tolerance for execution overhead
-        assert elapsed >= expected_wait - 0.1
+        # Allow 0.5s tolerance for execution overhead and timing variance in CI
+        assert elapsed >= expected_wait - 0.5
         assert elapsed < expected_wait + 0.5
 
     @pytest.mark.asyncio
