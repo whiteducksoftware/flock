@@ -1,0 +1,23 @@
+<div id="env-vars-container">
+    <table class="striped" style="font-size:0.9rem;">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Value</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for var in env_vars %}
+            <tr>
+                <td>{{ var.name }}</td>
+                <td>{{ var.value }}</td>                <td>                    <button class="secondary small outline" hx-post="{{ url_for('htmx_env_edit') }}" hx-vals='{"var_name": "{{ var.name }}"}'
+                            hx-prompt="Enter new value for {{ var.name }}" hx-target="#env-vars-container" hx-swap="outerHTML">Edit</button>
+                    <button class="contrast small outline" hx-post="{{ url_for('htmx_env_delete') }}" hx-vals='{"var_name": "{{ var.name }}"}'
+                            hx-confirm="Delete {{ var.name }}?" hx-target="#env-vars-container" hx-swap="outerHTML" style="margin-left:0.25rem;">Delete</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div> 

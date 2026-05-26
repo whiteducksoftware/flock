@@ -1,0 +1,22 @@
+{% if input_fields %}
+    {% for field in input_fields %}
+    <fieldset> {# Group each field #}
+        <label for="agent_input_{{ field.name }}">{{ field.name }} ({{ field.type }})</label>
+        {% if field.description %}
+            <small>{{ field.description }}</small>
+        {% endif %}
+        {% if field.html_type == 'textarea' %}
+            <textarea id="agent_input_{{ field.name }}" name="agent_input_{{ field.name }}" rows="3" placeholder="{{ field.placeholder if field.placeholder else ('Enter ' + field.type) }}"></textarea>
+        {% elif field.html_type == 'checkbox' %}
+            <label for="agent_input_{{ field.name }}_cb">
+                <input type="checkbox" id="agent_input_{{ field.name }}_cb" name="agent_input_{{ field.name }}" value="true">
+                Enabled
+            </label>
+        {% else %}
+            <input type="{{ field.html_type }}" id="agent_input_{{ field.name }}" name="agent_input_{{ field.name }}" placeholder="{{ field.placeholder if field.placeholder else ('Enter ' + field.type) }}">
+        {% endif %}
+    </fieldset>
+    {% endfor %}
+{% else %}
+    <p><small>This agent requires no specific inputs, or input signature could not be parsed.</small></p>
+{% endif %}

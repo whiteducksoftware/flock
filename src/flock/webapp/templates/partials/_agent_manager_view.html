@@ -1,0 +1,51 @@
+<!-- <article id="dashboard-flock-manager-content"> -->
+    <!-- {# This outer header is removed, title moves into the left-pane's new article structure #}
+    {# <header>
+        <h2>Manage & Load Flocks</h2> #}
+    </header> -->
+
+    {% if error_message %}
+        <div class="error DANGER" role="alert" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
+            {{ error_message }} <button type="button" class="close" @click="show = false">×</button>
+        </div>
+    {% endif %}
+    {% if success_message %}
+        <div class="success SUCCESS" role="alert" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
+            {{ success_message }} <button type="button" class="close" @click="show = false">×</button>
+        </div>
+    {% endif %}
+
+    <article class="two-pane-flex-container">
+        <article class="left-pane"> {# Changed section to article, or wrap section in article #}
+            <header class="grid">
+              <h2>Agents ({{ flock.agents|length }}) </h2>
+              <div style="text-align: right;">
+                  <button role="button" class="outline" hx-get="{{ url_for('htmx_get_new_agent_form') }}" hx-target="#agent-detail-panel" hx-swap="innerHTML">Add New Agent</button>
+              </div>
+              
+          </header>
+
+            {# Content of the left pane now goes into this article #}
+            <div style="padding: var(--pico-block-spacing-vertical) var(--pico-block-spacing-horizontal); flex-grow: 1; display: flex; flex-direction: column;">                <div hx-get="{{ url_for('htmx_get_agent_list') }}" 
+                     hx-trigger="load, agentListChanged from:body"
+                     hx-swap="innerHTML"
+                     id="agent-list-panel"
+                     class="item-list-container" style="flex-grow: 1; overflow-y: auto;border: 1px solid var(--pico-border-color); border-radius: var(--pico-border-radius);">
+                    <p style="padding:1rem;">Loading Agents...</p><progress indeterminate></progress>
+                </div>
+            </div>
+        </article>
+
+      
+            
+            <section id="agent-detail-panel" class="right-pane-framed"> {# Added right-pane-framed #}
+                <header>
+                    <h5>Agent Details</h5> {# Changed to h5 for consistency #}
+                </header>
+             
+             <p>Select an agent from the list to view/edit, or create a new one using the button above.</p>
+            </section>
+
+     
+    </article>
+<!-- </article> -->

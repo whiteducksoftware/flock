@@ -1,0 +1,281 @@
+/* ========================================================================
+   layout.css — Global layout & structure styles for Flock web UI
+   (extracted from legacy custom.css)
+   ======================================================================== */
+
+/* ---------- Global grid layout ---------- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    display: grid;
+    /* Sidebar column (300px) + main flexible column */
+    grid-template-columns: 300px 1fr;
+    /* Header (auto height) + main (flex) + footer (auto) rows */
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+        "header header"
+        "sidebar main"
+        "footer footer";
+    min-height: 100vh;
+    margin: 0;
+    background-color: var(--pico-background-color);
+}
+
+/* ---------- Main content area ---------- */
+main.main-content {
+    grid-area: main;
+    padding: 1.5rem;
+    overflow-y: auto;
+    /* account for fixed header height so content starts below */
+    margin-top: 3.5rem;
+    background-color: var(--pico-background-color);
+    /* ensure footer does not overlap scrolling content */
+    padding-bottom: 3.75rem;
+}
+
+body.logs-expanded main.main-content {
+    padding-bottom: 18rem;
+}
+
+/* ---------- Footer ---------- */
+footer.main-footer {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    background-color: var(--pico-card-background-color);
+    border-top: 1px solid var(--pico-muted-border-color);
+    padding: 0.15rem 1.25rem 0.2rem;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    align-items: stretch;
+    box-sizing: border-box;
+}
+
+
+.footer-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.live-log-toggle-link {
+    border: none;
+    background: none;
+    color: var(--pico-color-primary, #2e8aea);
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    margin-left: auto;
+    line-height: 1;
+}
+
+.live-log-toggle-link:hover,
+.live-log-toggle-link:focus-visible {
+    color: var(--pico-color-primary-contrast, #75b6ff);
+    text-decoration: none;
+    outline: none;
+}
+
+/* ---------- Live log footer panel ---------- */
+.live-log-wrapper {
+    width: 100%;
+    max-width: none;
+    background-color: var(--pico-muted-background-color, rgba(0, 0, 0, 0.04));
+    border-radius: 0.6rem;
+    padding: 0.8rem 1rem 1rem;
+    box-shadow: inset 0 0 0 1px var(--pico-muted-border-color);
+    display: none;
+    flex-direction: column;
+    gap: 0.65rem;
+    min-height: 0;
+}
+
+footer.main-footer.expanded .live-log-wrapper {
+    display: flex;
+}
+
+.live-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+}
+
+.live-log-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.live-log-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.live-log-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    margin: 0;
+}
+
+.live-log-option {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+}
+
+.live-log-filter input[type="checkbox"],
+.live-log-option input[type="checkbox"] {
+    margin: 0;
+}
+
+.live-log-title {
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.live-log-hint {
+    color: var(--pico-muted-color, #778089);
+    font-size: 0.72rem;
+    font-style: italic;
+}
+
+.live-log-panel {
+    flex: 1 1 auto;
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    background-color: var(--pico-card-background-color);
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 0.45rem;
+    padding: 0.5rem 0.6rem;
+    min-height: 0;
+}
+
+.live-log-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.live-log-action-button {
+    border: 1px solid var(--pico-muted-border-color);
+    background: var(--pico-card-background-color);
+    color: var(--pico-color-text, inherit);
+    border-radius: 0.45rem;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.live-log-action-button:hover,
+.live-log-action-button:focus-visible {
+    border-color: var(--pico-color-primary, #2e8aea);
+    background: rgba(46, 138, 234, 0.08);
+    outline: none;
+}
+
+.live-log-entries {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.live-log-entry {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 1.1em;
+}
+
+.live-log-entry.stdout .live-log-stream {
+    color: var(--pico-color-primary, #2e8aea);
+}
+
+.live-log-entry.stderr .live-log-stream {
+    color: var(--pico-color-danger, #e5534b);
+}
+
+.live-log-time {
+    color: var(--pico-muted-color, #858b94);
+    font-size: 0.72rem;
+    min-width: 3.5rem;
+}
+
+.live-log-stream {
+    font-weight: 600;
+    font-size: 0.72rem;
+    min-width: 3.8rem;
+}
+
+.live-log-text {
+    flex: 1 1 auto;
+}
+
+.live-log-empty {
+    color: var(--pico-muted-color, #858b94);
+    font-style: italic;
+    font-size: 0.78rem;
+    text-align: center;
+}
+
+body.logs-maximized {
+    overflow: hidden;
+}
+
+footer.main-footer.maximized {
+    top: 0;
+    bottom: 0;
+    height: auto;
+    padding: 1.4rem 2rem;
+    gap: 1rem;
+}
+
+footer.main-footer.maximized .footer-bar {
+    align-items: flex-start;
+}
+
+footer.main-footer.maximized .live-log-wrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+footer.main-footer.maximized .live-log-panel {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+footer.main-footer.maximized .live-log-wrapper {
+    display: flex;
+}
+
+.footer-meta {
+    font-size: 0.72rem;
+    color: var(--pico-muted-color, #6f7782);
+    text-align: center;
+    flex: 1;
+    margin: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.45rem;
+}

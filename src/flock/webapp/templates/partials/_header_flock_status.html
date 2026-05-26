@@ -1,0 +1,5 @@
+{% if current_flock %}
+<small>Current: <code>{{ current_filename or current_flock.name }}</code></small>
+{% else %}
+<small>No Flock Loaded</small>
+{% endif %}

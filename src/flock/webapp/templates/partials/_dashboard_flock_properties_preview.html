@@ -1,0 +1,28 @@
+<article id="flock-preview-article">
+    <header>
+        <h4>Preview: {{ preview_flock.name if preview_flock else selected_filename }}</h4>
+    </header>
+    {% if preview_flock %}
+        <p><strong>Default Model:</strong> {{ preview_flock.model or 'Not set' }}</p>
+        <p><strong>Description:</strong> {{ preview_flock.description or 'None' }}</p>
+        <p><strong>Agents:</strong> {{ preview_flock.agents_count }}</p>
+          <form hx-post="{{ url_for('ui_load_flock_by_name_action') }}" 
+              hx-target="#main-content-area" {# This will load the full editor for this flock #}
+              hx-swap="innerHTML" 
+              hx-indicator="#flock-preview-loading-indicator">
+            <input type="hidden" name="selected_flock_filename" value="{{ selected_filename }}">
+            <button type="submit" class="primary">Load this Flock into Editor</button>
+            <span id="flock-preview-loading-indicator" class="htmx-indicator"><progress indeterminate></progress></span>
+        </form>
+    {% else %}
+        <p class="error">Could not load preview for <code>{{ selected_filename }}</code>. It might be corrupted or not a valid Flock file.</p>
+        <p><small>You can still attempt to load it into the editor.</small></p>
+        <form hx-post="{{ url_for('ui_load_flock_by_name_action') }}" hx-target="#main-content-area" hx-swap="innerHTML">
+            <input type="hidden" name="selected_flock_filename" value="{{ selected_filename }}">
+            <button type="submit" class="secondary">Attempt to Load into Editor</button>
+        </form>
+    {% endif %}
+    <hr>
+    
+
+</article>

@@ -1,0 +1,17 @@
+name: ❓ Question
+description: Ask a question or request support
+title: "❓ [QUESTION] <title>"
+labels: ["question"]
+body:
+  - type: textarea
+    attributes:
+      label: Your question
+      description: Please describe your question as clearly as possible.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Context
+      description: Add any relevant context, code examples, or screenshots.
+    validations:
+      required: false

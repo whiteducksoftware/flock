@@ -1,0 +1,11 @@
+{# This snippet is returned by the /ui/htmx/share/chat/generate-link endpoint #}
+{% if share_url %}
+    <p style="margin-bottom: 0.5rem;"><strong>Shareable Chat Link generated:</strong></p>
+    <input type="text" id="generatedShareChatLinkInput" value="{{ share_url }}" readonly style="width: 100%; margin-bottom: 0.5rem;">
+    <p><small>You can select the link above and copy it (Ctrl+C or Cmd+C).</small></p>
+    <p><small>This link will start a chat session with the agent '{{ agent_name }}' from Flock '{{ flock_name }}' using the currently saved settings.</small></p>
+{% elif error_message %}
+    <p style="color: var(--pico-form-invalid-color);">Error generating chat link: {{ error_message }}</p>
+{% else %}
+    <p><em>Something went wrong, no chat link generated.</em></p>
+{% endif %} 

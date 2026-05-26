@@ -1,0 +1,49 @@
+<!-- <article id="dashboard-flock-manager-content"> -->
+    <!-- {# This outer header is removed, title moves into the left-pane's new article structure #}
+    {# <header>
+        <h2>Manage & Load Flocks</h2> #}
+    </header> -->
+
+    {% if error_message %}
+        <div class="error DANGER" role="alert" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
+            {{ error_message }} <button type="button" class="close" @click="show = false">×</button>
+        </div>
+    {% endif %}
+    {% if success_message %}
+        <div class="success SUCCESS" role="alert" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
+            {{ success_message }} <button type="button" class="close" @click="show = false">×</button>
+        </div>
+    {% endif %}
+
+    <article class="two-pane-flex-container">
+        <article class="left-pane"> {# Changed section to article, or wrap section in article #}
+            <header class="grid">
+                <h2>Load Flock</h2> {# Moved title here #}
+                <div style="text-align: right;">
+                    <button role="button" class="outline" hx-get="{{ url_for('htmx_get_create_flock_form') }}?ui_mode={{ ui_mode }}" hx-target="#flock-properties-or-action-content" hx-swap="innerHTML">Add New Flock</button>
+                </div>
+            </header>
+            {# Content of the left pane now goes into this article #}
+            <div style="padding: var(--pico-block-spacing-vertical) var(--pico-block-spacing-horizontal); flex-grow: 1; display: flex; flex-direction: column;">                <div hx-get="{{ url_for('htmx_get_dashboard_flock_file_list_partial') }}" 
+                     hx-trigger="load, flockFileListChanged from:body" 
+                     hx-swap="innerHTML" 
+                     id="dashboard-flock-file-list-target"
+                     class="item-list-container" style="flex-grow: 1; overflow-y: auto;border: 1px solid var(--pico-border-color); border-radius: var(--pico-border-radius);">
+                    <p style="padding:1rem; border: 1px solid var(--pico-border-color); border-radius: var(--pico-border-radius);">Loading files...</p><progress indeterminate></progress>
+                </div>
+            </div>
+        </article>
+
+        <section id="flock-detail-action-column" class="right-pane-framed">
+            <header>
+                <h5>Flock Details</h5>
+            </header>
+            <div id="flock-properties-or-action-content">
+                 <article style="text-align:center; margin-top: 2rem; border: none; background: transparent;">
+                    <p>Select a Flock from the list to view its details and load it into the editor.</p>
+                    <p><small>To create a new Flock or upload an existing one, use the options in the sidebar.</small></p>
+                </article>
+            </div>
+        </section>
+    </article>
+<!-- </article> -->

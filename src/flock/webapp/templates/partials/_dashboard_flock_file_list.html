@@ -1,0 +1,16 @@
+{% if flock_files %}
+<ul class="item-list">
+    {% for file_name in flock_files %}    <li hx-get="{{ url_for('htmx_get_dashboard_flock_properties_preview', filename=file_name) }}" 
+        hx-target="#flock-properties-or-action-content" {# Target the right pane #}
+        hx-swap="innerHTML"
+        hx-indicator="#flock-properties-or-action-content progress" 
+        {# Optional: Add hx-select-from-response or other advanced HTMX if needed to highlight this li #}
+        onclick="this.closest('ul').querySelectorAll('li').forEach(li => li.classList.remove('selected-item')); this.classList.add('selected-item');"
+        > 
+        <strong>{{ file_name }}</strong>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p style="padding: 1rem;">No Flock files found in <code>./.flock_ui_projects/</code>.</p>
+{% endif %}

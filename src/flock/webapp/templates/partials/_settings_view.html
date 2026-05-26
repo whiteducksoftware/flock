@@ -1,0 +1,36 @@
+<!-- Settings View -->
+<article>
+    <header>
+        <h2>Settings</h2>
+    </header>
+    <nav>
+        <ul role="group">
+            <li>
+                <button role="button" class="primary" hx-get="{{ url_for('htmx_settings_env_vars') }}" hx-target="#settings-content-container" hx-indicator="#settings-loading" hx-on:click="setActiveButton(this)">Environment</button>
+            </li>
+            <li>
+                <button role="button" class="outline" hx-get="{{ url_for('htmx_settings_theme') }}" hx-target="#settings-content-container" hx-indicator="#settings-loading" hx-on:click="setActiveButton(this)">Theme</button>
+            </li>
+        </ul>
+    </nav>
+
+    <div id="settings-loading" class="htmx-indicator" style="text-align:center; margin-top:1rem;">
+        <progress></progress> Loading...
+    </div>
+
+    <div id="settings-content-container" style="margin-top:1.5rem;">
+        {% include 'partials/_settings_env_content.html' %}
+    </div>
+</article>
+
+<script>
+    function setActiveButton(clickedButton) {
+        const buttons = clickedButton.closest('ul[role="group"]').querySelectorAll('button');
+        buttons.forEach(btn => {
+            btn.classList.remove('primary');
+            btn.classList.add('outline');
+        });
+        clickedButton.classList.remove('outline');
+        clickedButton.classList.add('primary');
+    }
+</script> 

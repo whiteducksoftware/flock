@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Flock Editor - {{ flock.name if flock else 'Loading...' }}{% endblock %}
+
+{% block content %}
+{# Main content area is now loaded dynamically based on sidebar clicks #}
+{# We can load the properties form by default when this page is hit #}
+<div id="editor-main-content"     hx-get="{{ url_for('htmx_get_flock_properties_form') }}" 
+     hx-trigger="load"
+     hx-swap="innerHTML">
+     <article>
+        <p>Loading editor content...</p>
+        <progress></progress>
+     </article>
+</div>
+{% endblock %}

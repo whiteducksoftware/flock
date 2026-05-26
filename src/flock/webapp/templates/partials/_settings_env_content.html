@@ -1,0 +1,9 @@
+<article>
+    <h3>Environment Variables</h3>
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">        <button class="outline small" id="toggle-secrets-btn" hx-post="{{ url_for('htmx_toggle_show_secrets') }}" hx-target="#env-vars-container" hx-swap="outerHTML">
+            {% if show_secrets %}Hide Secrets{% else %}Show Secrets{% endif %}
+        </button>
+        <button class="outline small" hx-get="{{ url_for('htmx_env_add_form') }}" hx-target="#env-vars-container" hx-swap="afterbegin">Add Variable</button>
+    </div>
+    {% include 'partials/_env_vars_table.html' %}
+</article> 

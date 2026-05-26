@@ -1,0 +1,4 @@
+[submodule "examples"]
+	path = examples
+	url = https://github.com/whiteducksoftware/flock-showcase.git
+	branch = master

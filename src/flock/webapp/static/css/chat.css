@@ -1,0 +1,301 @@
+/* --- Enhanced Chat Styles --- */
+body.chat-page {
+    display: block;
+    padding: 0;
+    margin: 0;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    background-color: var(--pico-background-color);
+}
+
+#chat-container {
+    /* Allow the chat container to grow to full width on small screens,
+       but cap it at 80% of the viewport on larger displays and
+       center it horizontally. */
+    width: 100%;
+    max-width: 80%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: var(--pico-background-color);
+    overflow: hidden;
+}
+
+#chat-log { 
+    flex: 1; 
+    overflow-y: auto; 
+    padding: 1rem 1.5rem; 
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 1rem;
+    background-color: rgba(0, 0, 0, 0.05);
+    background-image: 
+        radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+}
+
+
+
+.bubble { 
+    position: relative;
+    padding: 0.75rem 1rem; 
+    border-radius: 1.2rem; 
+    max-width: 80%; 
+    margin: 0.25rem 0; 
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    animation: fadeIn 0.3s ease-out;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.bubble.user { 
+    background: var(--pico-primary); 
+    color: var(--pico-button-base-color); 
+    margin-left: auto; 
+    border-bottom-right-radius: 0.3rem;
+    text-align: right;
+}
+
+.bubble.user::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: -0.5rem;
+    width: 1rem;
+    height: 1rem;
+    background: var(--pico-primary-hover, var(--pico-primary));
+    clip-path: polygon(0 0, 0% 100%, 100% 100%);
+}
+
+.bubble.bot { 
+    background: var(--pico-code-background-color); 
+    color: var(--pico-code-color); 
+    margin-right: auto; 
+    border-bottom-left-radius: 0.3rem;
+}
+
+.bubble.bot::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -0.5rem;
+    width: 1rem;
+    height: 1rem;
+    background: var(--pico-code-background-color);
+    clip-path: polygon(100% 0, 0% 100%, 100% 100%);
+}
+
+#chat-container form { 
+    display: flex; 
+    gap: 0.5rem; 
+    margin: 0;
+    padding: 1rem;
+    background-color: var(--pico-card-background-color);
+    border-top: 1px solid var(--pico-muted-border-color);
+}
+
+#chat-container form input[type="text"] { 
+    flex: 1; 
+    border-radius: 2rem;
+    padding-left: 1.25rem;
+    background-color: var(--pico-background-color);
+    border: 1px solid var(--pico-muted-border-color);
+    transition: all 0.2s ease;
+    height: 3rem;
+    font-size: 1rem;
+}
+
+#chat-container form input[type="text"]:focus {
+    border-color: var(--pico-primary);
+    box-shadow: 0 0 0 2px rgba(var(--pico-primary-rgb, 0, 123, 255), 0.25);
+}
+
+#chat-container form button[type="submit"] { 
+    flex: 0 0 auto; 
+    min-width: auto;
+    width: 150px; /* Wider send button */
+    padding: 0 1rem;
+    border-radius: 2rem;
+    background: var(--pico-primary);
+    color: var(--pico-button-base-color);
+    font-weight: 600;
+    transition: all 0.2s ease;
+    margin-left: 0.5rem;
+    height: 3rem;
+}
+
+#chat-container form button[type="submit"]:hover {
+    background: var(--pico-primary-hover, var(--pico-primary));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.chat-header {
+    padding: 1rem 1.5rem;
+    background-color: var(--pico-card-background-color);
+    border-bottom: 1px solid var(--pico-muted-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.chat-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--pico-color);
+}
+
+.chat-header h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--pico-muted-color);
+    font-weight: normal;
+}
+
+.chat-timestamp {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--pico-button-base-color);
+    margin-top: 0.25rem;
+    opacity: 0.8;
+}
+
+.chat-footer {
+    padding: 0.5rem 1rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--pico-muted-color);
+    background-color: var(--pico-card-background-color);
+    border-top: 1px solid var(--pico-muted-border-color);
+    flex-shrink: 0;
+}
+/* --- End Enhanced Chat Styles --- */
+
+/* -------------------------------------------------------------------------
+   Chat container tweaks when embedded in the main UI (non-standalone mode)
+   ------------------------------------------------------------------------- */
+body:not(.chat-page) #chat-container,
+body:not(.chat-page) .chat-container {
+    height: 100%;
+    min-height: 100%;
+    /* allow full width inside the main content area */
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+/* Settings form inside chat container should stack vertically */
+.chat-settings-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 60vh;
+    min-width: 100%;
+}
+
+.chat-settings-form label,
+.chat-settings-form input,
+.chat-settings-form select {
+    display: block;
+    width: 100%;
+    margin-bottom: 0.75rem;
+}
+
+.chat-settings-form .grid {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Button sizing for Save Settings */
+.chat-settings-form .grid button:first-child {
+    flex: 1 1 auto; /* expand in standalone */
+    width: 50%;
+}
+
+/* In integrated UI (non chat-page) keep natural size */
+body:not(.chat-page) .chat-settings-form .grid button:first-child {
+    flex: 0 0 auto;
+    width: auto;
+}
+
+/* -------------------------------------------------------------------------
+   Container flex area to ensure chat-log grows/shrinks as needed
+   ------------------------------------------------------------------------- */
+#chat-content-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    overflow: hidden;
+}
+
+/* Prevent double scrollbars when chat is embedded */
+main.main-content:has(#chat-container) {
+    overflow: hidden;
+}
+
+/* Ensure all direct text and common markdown elements within bot bubbles use the bot's text color */
+.bubble.bot,
+.bubble.bot p,
+.bubble.bot li,
+.bubble.bot h1,
+.bubble.bot h2,
+.bubble.bot h3,
+.bubble.bot h4,
+.bubble.bot h5,
+.bubble.bot h6,
+.bubble.bot strong,
+.bubble.bot em,
+.bubble.bot table,
+.bubble.bot th,
+.bubble.bot td {
+    color: var(--pico-code-color);
+}
+
+/* For links specifically within bot messages, you might want them to also use the bot text color */
+.bubble.bot a {
+    color: var(--pico-code-color);
+    text-decoration: underline; /* Or your preferred link style */
+}
+.bubble.bot a:hover {
+    color: var(--pico-primary-hover, var(--pico-primary));
+    text-decoration: underline;
+}
+
+/* Styling for code blocks generated by Markdown and highlighted by Prism.js */
+/* The prism-okaidia theme will handle the internal colors of the code. */
+/* This is more about the container of the code block. */
+.bubble.bot pre[class*="language-"] {
+    background-color: var(--pico-card-background-color); /* Or a slightly different dark shade */
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+    padding: 0.75em;
+    margin: 0.5em 0;
+    font-size: 0.875em; /* Adjust as needed */
+    overflow-x: auto; /* Allow horizontal scrolling for long code lines */
+    /* The text color *inside* the code block will be handled by the Prism theme (e.g., Okaidia) */
+}
+
+/* Ensure the code itself inside the pre block also resets its base color if needed,
+   though Prism themes usually take care of this. This is a fallback. */
+.bubble.bot pre[class*="language-"] code {
+    /* color: inherit; */ /* This might not be necessary if Prism theme is comprehensive - try without first */
+    background: none;
+    padding: 0;
+}
+
+/* Styles for preformatted text wrapping */
+.bubble pre {
+    white-space: pre-wrap;  /* Allows wrapping and preserves sequences of white space and newlines */
+    word-wrap: break-word; /* Breaks long words/strings if they would overflow */
+    overflow-x: auto;     /* Adds a scrollbar if content is still too wide */
+}

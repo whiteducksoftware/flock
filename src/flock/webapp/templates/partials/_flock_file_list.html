@@ -1,0 +1,23 @@
+{% if flock_files %}
+<ul class="item-list">
+    {% for file_name in flock_files %}    <li hx-post="{{ url_for('ui_load_flock_by_name_action') }}" 
+        hx-vals='{"selected_flock_filename": "{{ file_name }}"}'
+        {# After successful load, the main.py route for by-name will now return 
+           the flock properties form targeted to the main content area AND
+           trigger flockLoaded event for the sidebar.
+           For the right pane of *this* view, we might want to show file details.
+           Let's assume for now loading a flock navigates to the editor.
+           If we want to show details *here*, the target would be #flock-file-detail-or-upload
+        #}
+        hx-target="#main-content-area" {# This will load the editor page content #}
+        hx-swap="innerHTML" 
+        hx-indicator="#flock-file-list-loading-indicator"
+        hx-push-url="{{ url_for('page_editor_section', ui_mode='properties') }}"> {# Push URL to editor after load #}
+        {{ file_name }}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p style="padding: 1rem;">No Flock files found. Create one or upload.</p>
+{% endif %}
+<div id="flock-file-list-loading-indicator" class="htmx-indicator" style="text-align:center;"><progress indeterminate></progress></div>

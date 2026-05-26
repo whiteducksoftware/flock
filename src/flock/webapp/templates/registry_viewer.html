@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Flock UI - Registry Viewer{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <h2>Flock Registry Viewer</h2>
+        <p>Browse items registered with the Flock framework.</p>
+    </header>
+
+    <nav>
+        <ul role="group">
+            <li>
+                <button role="button" class="outline"
+                    hx-get="{{ url_for('htmx_get_registry_table', item_type='type') }}"
+                    hx-target="#registry-table-container" hx-indicator="#registry-loading"
+                    hx-on:click="setActiveButton(this)">
+                    View Types
+                </button>
+            </li>
+            <li>
+                <button role="button" class="outline"
+                    hx-get="{{ url_for('htmx_get_registry_table', item_type='component') }}"
+                    hx-target="#registry-table-container" hx-indicator="#registry-loading"
+                    hx-on:click="setActiveButton(this)">
+                    View Components
+                </button>
+            </li>
+            <li>
+                <button role="button" class="outline"
+                    hx-get="{{ url_for('htmx_get_registry_table', item_type='component') }}"
+                    hx-target="#registry-table-container" hx-indicator="#registry-loading"
+                    hx-on:click="setActiveButton(this)">
+                    View Components
+                </button>
+            </li>
+            <li>
+                <button role="button" class="secondary" hx-get="{{ url_for('chat_feedback_download_all')}}" download>
+                    Download Feedback-Files for Agents
+                </button>
+            </li>
+        </ul>
+    </nav>
+
+    <div id="registry-loading" class="htmx-indicator" style="text-align: center; margin-top: 1rem;">
+        <progress></progress> Loading...
+    </div>
+
+    <div id="registry-table-container" style="margin-top: 1.5rem;">
+        <p>Select a category above to view registered items.</p>
+    </div>
+
+    <footer style="margin-top: 2rem;">
+        <a href="{{ url_for('page_editor_section', section='execute') }}" role="button" class="secondary contrast">Back
+            to Editor</a>
+    </footer>
+</article>
+
+<script>
+    function setActiveButton(clickedButton) {
+        // Get all buttons in the group
+        const buttons = clickedButton.closest('ul[role="group"]').querySelectorAll('button');
+        // Remove 'primary' (or any active class) and add 'outline' to all
+        buttons.forEach(button => {
+            button.classList.remove('primary'); // Assuming 'primary' is your active class
+            button.classList.add('outline');
+        });
+        // Add 'primary' and remove 'outline' from the clicked button
+        clickedButton.classList.remove('outline');
+        clickedButton.classList.add('primary'); // Use Pico's primary button style for active
+    }
+
+    // Optional: Set the first button as active on initial load,
+    // or if you want to default to loading "Types"
+    document.addEventListener('DOMContentLoaded', function () {
+        const firstButton = document.querySelector('nav ul[role="group"] button');
+        if (firstButton) {
+            // setActiveButton(firstButton); // Uncomment if you want a default active button
+            // htmx.trigger(firstButton, 'click'); // Uncomment to auto-load Types on page load
+        }
+    });
+</script>
+{% endblock %}

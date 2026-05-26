@@ -1,0 +1,25 @@
+<article style="margin-top:0; padding-top:0;"> {# Remove top margin/padding from article to align with buttons #}
+    <header>
+        <h4 style="margin-bottom: 0.5rem;">{{ item_type_display }}</h4>
+    </header>
+    {% if items %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Module Path</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.name }}</td>
+                <td>{{ item.module }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No {{ item_type_display.lower() }} found in the registry.</p>
+    {% endif %}
+</article>

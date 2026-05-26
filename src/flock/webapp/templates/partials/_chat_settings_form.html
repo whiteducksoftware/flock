@@ -1,0 +1,85 @@
+<form class="chat-settings-form" hx-post="{{ url_for('chat_settings_submit') }}" hx-target="this" hx-swap="outerHTML" hx-indicator="#chat-settings-saving" style="max-width: 500px; margin: 1rem auto;">
+    <hgroup style="margin-bottom: 1rem;">
+        <h3>Chat Settings</h3>
+        <h4>Select agent & field mappings</h4>
+    </hgroup>
+
+    <label for="agent_name_field">Chat Agent</label>    <select id="agent_name_field" name="agent_name"
+            hx-get="{{ url_for('htmx_chat_settings_partial') }}"
+            hx-target="closest form"
+            hx-trigger="change"
+            hx-include="[name=agent_name]">
+        <option value="" {% if not chat_cfg.agent_name %}selected{% endif %}>-- Echo (no agent) --</option>
+        {% if current_flock and current_flock.agents %}
+            {% for agent_name in current_flock.agents.keys() %}
+            <option value="{{ agent_name }}" {% if chat_cfg.agent_name == agent_name %}selected{% endif %}>{{ agent_name }}</option>
+            {% endfor %}
+        {% else %}
+            <option disabled>(no agents loaded)</option>
+        {% endif %}
+    </select>
+
+    <label for="message_key_field">Message Key</label>
+    {% if input_fields %}
+    <select id="message_key_field" name="message_key">
+        <option value="" {% if not chat_cfg.message_key %}selected{% endif %}>-- None --</option>
+        {% for field in input_fields %}
+        <option value="{{ field }}" {% if chat_cfg.message_key == field %}selected{% endif %}>{{ field }}</option>
+        {% endfor %}
+    </select>
+    {% else %}
+    <input type="text" id="message_key_field" name="message_key" value="{{ chat_cfg.message_key }}" required>
+    {% endif %}
+
+    <label for="history_key_field">History Key</label>
+    {% if input_fields %}
+    <select id="history_key_field" name="history_key">
+        <option value="" {% if not chat_cfg.history_key %}selected{% endif %}>-- None --</option>
+        {% for field in input_fields %}
+        <option value="{{ field }}" {% if chat_cfg.history_key == field %}selected{% endif %}>{{ field }}</option>
+        {% endfor %}
+    </select>
+    {% else %}
+    <input type="text" id="history_key_field" name="history_key" value="{{ chat_cfg.history_key }}" required>
+    {% endif %}
+
+    <label for="response_key_field">Response Key</label>
+    {% if output_fields %}
+    <select id="response_key_field" name="response_key">
+        <option value="" {% if not chat_cfg.response_key %}selected{% endif %}>-- None --</option>
+        {% for field in output_fields %}
+        <option value="{{ field }}" {% if chat_cfg.response_key == field %}selected{% endif %}>{{ field }}</option>
+        {% endfor %}
+    </select>
+    {% else %}
+    <input type="text" id="response_key_field" name="response_key" value="{{ chat_cfg.response_key }}" required>
+    {% endif %}
+
+    <div class="grid" style="margin-top: 1rem;">
+        <button type="submit">Save Settings</button>        <button type="reset" class="outline">Reset</button>
+        <button type="button" class="secondary outline" hx-get="{{ url_for('htmx_chat_view') }}" hx-target="#chat-content-area" hx-swap="innerHTML">Cancel</button>
+    </div>
+    <div id="chat-settings-saving" class="htmx-indicator" style="text-align:center; margin-top:0.5rem;"><progress indeterminate></progress></div>
+
+    {# Share Chat Link Section #}
+    <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--pico-muted-border-color);">
+        <h5 style="margin-bottom: 0.5rem;">Share Chat Configuration</h5>
+        <p><small>Create a shareable link for this chat configuration. The current Flock and these chat settings will be frozen for the shared session.</small></p>
+        <a href="#" 
+           id="shareChatHtmxLink"
+           hx-post="{{ url_for('htmx_generate_share_link') }}" 
+           hx-target="#shareChatLinkDisplayArea" 
+           hx-swap="innerHTML"
+           hx-indicator="#share-chat-loading-indicator"
+           hx-include="closest form"  {# Includes all fields from the parent form #}
+           style="text-decoration: underline; cursor: pointer; color: var(--pico-primary);">
+            Create shareable chat link...
+        </a>
+        <span id="share-chat-loading-indicator" class="htmx-indicator" style="margin-left: 0.5rem;">
+            <progress indeterminate style="width: 100px;"></progress>
+        </span>
+        <div id="shareChatLinkDisplayArea" style="margin-top: 1rem;">
+            <!-- Shareable chat link will be loaded here by HTMX -->
+        </div>
+    </div>
+</form> 

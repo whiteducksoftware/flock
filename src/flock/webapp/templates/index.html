@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Flock UI - Dashboard{% endblock %}
+
+{% block content %}
+{# This content will be loaded dynamically via HTMX from the sidebar #}
+{# We can load the 'load/manage' view by default #}
+<div id="dashboard-content" hx-get="{{ url_for('htmx_get_load_flock_view') }}" hx-trigger="load" hx-swap="innerHTML">
+    <p>Loading dashboard content...</p>
+    <progress></progress>
+</div>
+{% endblock %}

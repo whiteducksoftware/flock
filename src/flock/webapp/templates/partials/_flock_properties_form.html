@@ -1,0 +1,52 @@
+<article id="flock-properties-form-article">
+    <header>
+        <h2>Flock Properties </h2>
+       
+    </header>
+    
+    {% if update_message %}
+        <div class="form-message {{ 'success' if success else 'error' }}" role="alert"
+             x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
+             x-transition:leave="transition ease-in duration-300"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+            {{ update_message }}
+        </div>
+    {% endif %}
+    {% if save_message %}
+        <div class="form-message {{ 'success' if success else 'error' }}" role="alert"
+             x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
+             x-transition:leave="transition ease-in duration-300"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+            {{ save_message }}
+        </div>
+    {% endif %}
+
+    <form hx-post="{{ url_for('htmx_update_flock_properties') }}" hx-target="#flock-properties-form-article" hx-swap="innerHTML" hx-indicator="#flock-props-loading">
+        <label for="flock_name">Flock Name</label>
+        <input type="text" id="flock_name" name="flock_name" value="{{ flock.name if flock else '' }}" required>
+
+        <label for="default_model">Default Model</label>
+        <input type="text" id="default_model" name="default_model" value="{{ flock.model if flock and flock.model else '' }}" placeholder="e.g., openai/gpt-4o">
+
+        <label for="description">Description</label>
+        <textarea id="description" name="description" placeholder="A brief description of this Flock.">{{ flock.description if flock and flock.description else '' }}</textarea>
+        
+        <div class="grid">
+            <button type="submit">Update Properties <span id="flock-props-loading" class="htmx-indicator"><progress indeterminate></progress></span></button>
+        </div>
+    </form>
+    <hr>
+     <form hx-post="{{ url_for('htmx_save_flock') }}" hx-target="#flock-properties-form-article" hx-swap="innerHTML" hx-indicator="#flock-save-loading">
+        <label for="save_filename">Save Flock As:</label>
+        <input type="text" id="save_filename" name="save_filename" 
+               value="{{ current_filename if current_filename else (flock.name.replace(' ', '_').lower() + '.flock.yaml' if flock and flock.name else 'my_flock.flock.yaml') }}" 
+               required
+               placeholder="filename.flock.yaml">
+        <small>Will save to <code>./.flock_ui_projects/</code>. Use <code>.flock.yaml</code>, <code>.yaml</code>, or <code>.yml</code>.</small>
+        <div class="grid">
+            <button type="submit">Save to File <span id="flock-save-loading" class="htmx-indicator"><progress indeterminate></progress></span></button>
+        </div>
+    </form>
+</article>

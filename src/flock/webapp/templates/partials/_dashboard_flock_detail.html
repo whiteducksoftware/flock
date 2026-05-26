@@ -1,0 +1,17 @@
+<article>
+    <header>
+        <h5>Flock File: <code>{{ selected_filename }}</code></h5>
+    </header>
+    <p>Details for this Flock file (e.g., size, last modified) could be shown here if fetched.</p>    <form hx-post="{{ url_for('ui_load_flock_by_name_action') }}" 
+          hx-target="#main-content-area" {# Target the main area to show editor on success #}
+          hx-swap="innerHTML"
+          hx-indicator="#dashboard-flock-detail-loading-indicator">
+        <input type="hidden" name="selected_flock_filename" value="{{ selected_filename }}">
+        <button type="submit">Load this Flock into Editor</button>
+        <span id="dashboard-flock-detail-loading-indicator" class="htmx-indicator"><progress indeterminate></progress></span>
+    </form>
+    <hr>
+    <p><small>Or, you can use the form below to upload a different Flock file.</small></p>
+    {# Include the upload form again or link back to it #}
+    <div hx-get="{{ url_for('htmx_get_dashboard_upload_flock_form') }}" hx-trigger="load" hx-swap="innerHTML"></div>
+</article>

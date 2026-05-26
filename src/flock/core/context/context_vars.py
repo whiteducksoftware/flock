@@ -1,0 +1,11 @@
+"""Context variables for Flock."""
+
+FLOCK_CURRENT_AGENT = "flock.current_agent"
+FLOCK_INITIAL_INPUT = "flock.initial_input"
+FLOCK_LOCAL_DEBUG = "flock.local_debug"
+FLOCK_RUN_ID = "flock.run_id"
+FLOCK_LAST_AGENT = "flock.last_agent"
+FLOCK_LAST_RESULT = "flock.last_result"
+FLOCK_MODEL = "flock.model"
+FLOCK_BATCH_SILENT_MODE = "flock.batch_silent"
+FLOCK_USE_PRODUCTION_TOOLS = "flock.use_production_tools"

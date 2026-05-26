@@ -1,0 +1,125 @@
+# mkdocs.yml
+site_name: Flock Agent Framework
+site_url: https://your-flock-docs-url.com/ # Replace with actual URL later
+repo_url: https://github.com/whiteducksoftware/flock # Replace with your repo URL
+repo_name: whiteducksoftware/flock
+edit_uri: "" # Optional: Link to edit pages in repo
+
+# Theme Configuration
+theme:
+  name: material
+  # logo: assets/images/flock_logo_small.png # Removed logo for now
+  favicon: assets/images/favicon.png # Optional: Add a favicon
+  features:
+    - navigation.tabs
+    # - navigation.tabs.sticky # Optional
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes # Allows section index pages
+    - toc.integrate # Show TOC on the right
+    - search.suggest
+    - search.highlight
+    - content.code.annotate
+    - content.code.copy
+    # - content.tabs.link # If using code tabs
+  palette:
+    # Palette toggle for light/dark mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: orange # Set primary color for light mode
+      accent: deep orange # Set accent color for light mode (optional, can adjust)
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: orange # Set primary color for dark mode
+      accent: deep orange # Set accent color for dark mode (optional, can adjust)
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    repo: fontawesome/brands/github
+
+# Extensions
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+# Copyright
+copyright: Copyright © 2024 White Duck GmbH
+
+# Navigation Structure
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Overview: getting-started/index.md
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+      - Configuration: getting-started/configuration.md
+  - Interacting with Flock:
+      - Overview: interacting-with-flock/index.md
+      - Programmatic API: interacting-with-flock/programmatic.md
+      - REST API: interacting-with-flock/rest-api.md
+      - Web UI: interacting-with-flock/web-ui.md
+      - Interactive CLI: interacting-with-flock/interactive-cli.md
+      - CLI Tool: interacting-with-flock/cli-tool.md
+  - Core Concepts:
+      - Overview: core-concepts/index.md
+      - Agents: core-concepts/agents.md
+      - Declarative Approach: core-concepts/declarative.md
+      - Workflows: core-concepts/workflows.md
+    # Add later: Type System, Error Handling
+  - Key Components:
+      - Overview: components/index.md
+      - Evaluators: components/evaluators.md
+      - Modules: components/modules.md
+      - Tools: components/tools.md
+    # Add later: Routers, Memory, Context, Registry
+  - Guides:
+      - Overview: guides/index.md
+      - Chaining Agents: guides/chaining-agents.md
+      - Configuring Temporal Execution: guides/temporal-configuration.md
+    # Add later: Custom Tools, Using Memory, Advanced Workflows
+  - Deployment:
+      - Overview: deployment/index.md
+      - Temporal Integration: deployment/temporal.md
+    # Add later: Production Setup, Monitoring, Security
+  - API Reference:
+      - Overview: reference/index.md
+      - FlockAgent: reference/flock_agent.md
+    # Add later: Flock Class, Core Modules, etc.
+  - v0.4.0 Magpie - Release Notes:
+      - Overview: release-notes/magpie.md
+  - About:
+      - Contributing: about/contributing.md
+      - Changelog: about/changelog.md
+
+# Optional Plugins (Install them: pip install mkdocs-material-extensions mkdocs-macros-plugin)
+# plugins:
+#   - search
+#   - macros: # Example for using variables
+#       module_name: flock
+#   - material/extensions
+
+extra_css:
+  - stylesheets/extra.css # Optional custom CSS

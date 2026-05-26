@@ -1,0 +1,326 @@
+
+    <!DOCTYPE html>
+    <html lang="en" data-theme="light">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Theme Mapper</title>
+        <!-- Use Pico CSS only -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+        <style>
+            {{ css_vars | safe }}
+
+            /* Only use Pico CSS classes and variables */
+           
+            .color-sample {
+                height: 20px;
+                width: 100%;
+                border-radius: 4px;
+                margin-bottom: 5px;
+            }
+            .theme-selector {
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                z-index: 100;
+                background-color: var(--pico-card-background-color);
+                padding: 10px;
+                border-radius: 8px;
+                border: 1px solid var(--pico-border-color);
+            }
+            article {
+                margin-bottom: 1rem;
+            }
+            .contrast-table td {
+                padding: 5px;
+                text-align: center;
+            }
+            .good-contrast {
+                background-color: var(--pico-ins-color);
+                color: var(--pico-background-color);
+            }
+            .bad-contrast {
+                background-color: var(--pico-del-color);
+                color: var(--pico-background-color);
+            }
+            
+            /* New: give demo content cards a themed background so text always contrasts */
+            article {
+                background-color: var(--pico-card-sectioning-background-color);
+                border: 1px solid var(--pico-card-border-color);
+                padding: 1rem;
+                border-radius: 8px;
+            }
+            /* New: background for the two grid columns */
+            .grid > div {
+                background-color: var(--pico-card-background-color);
+                padding: 1rem;
+                border-radius: 8px;
+            }
+            
+            /* Override any non-pico CSS variables */
+            body {
+                background-color: var(--pico-background-color);
+                color: var(--pico-color);
+            }
+            a {
+                color: var(--pico-primary);
+            }
+            a:hover {
+                color: var(--pico-primary-hover);
+            }
+            h1 {
+                color: var(--pico-h1-color);
+            }
+            h2 {
+                color: var(--pico-h2-color);
+            }
+            h3 {
+                color: var(--pico-h3-color);
+            }
+            mark {
+                background-color: var(--pico-mark-background-color);
+                color: var(--pico-mark-color);
+            }
+            ins {
+                color: var(--pico-ins-color);
+            }
+            del {
+                color: var(--pico-del-color);
+            }
+            code {
+                background-color: var(--pico-code-background-color);
+                color: var(--pico-code-color);
+            }
+            button, input[type="submit"], input[type="button"] {
+                background-color: var(--pico-button-base-background-color);
+                color: var(--pico-button-base-color);
+                border-color: var(--pico-button-base-background-color);
+            }
+            button:hover, input[type="submit"]:hover, input[type="button"]:hover {
+                background-color: var(--pico-button-hover-background-color);
+                color: var(--pico-button-hover-color);
+                border-color: var(--pico-button-hover-background-color);
+            }
+            button.secondary, input[type="submit"].secondary, input[type="button"].secondary {
+                background-color: var(--pico-secondary);
+                color: var(--pico-secondary-inverse);
+                border-color: var(--pico-secondary);
+            }
+            button.secondary:hover, input[type="submit"].secondary:hover, input[type="button"].secondary:hover {
+                background-color: var(--pico-secondary-hover);
+                color: var(--pico-secondary-inverse);
+                border-color: var(--pico-secondary-hover);
+            }
+            button.contrast, input[type="submit"].contrast, input[type="button"].contrast {
+                background-color: var(--pico-contrast);
+                color: var(--pico-contrast-inverse);
+                border-color: var(--pico-contrast);
+            }
+            /* Improve grid columns on wider screens */
+            @media (min-width: 768px) {
+                .grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+                    gap: 2rem;
+                }
+            }
+            /* Ensure container can grow a little wider than Pico default */
+            .container {
+                max-width: 90rem; /* ~1440px */
+            }
+            /* Ensure tables use full-strength text colour */
+            table th,
+            table td {
+                color: var(--pico-color);
+                opacity: 1; /* override Pico's default fade */
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="theme-selector">
+                <label for="theme-select">Select Theme:</label>
+                <select id="theme-select" onchange="window.location.href='/?theme=' + this.value">
+                    {% for theme_name in themes %}
+                    <option value="{{ theme_name }}" {% if theme_name == current_theme %}selected{% endif %}>{{ theme_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <h1>Theme Mapper: {{ current_theme }}</h1>
+            
+            <div class="grid">
+                <div>
+                    <h2>UI Elements</h2>
+                    <article>
+                        <h3>Headings and Text</h3>
+                        <h1>Heading 1</h1>
+                        <h2>Heading 2</h2>
+                        <h3>Heading 3</h3>
+                        <p>Normal paragraph text. <a href="#">This is a link</a>. <mark>This is marked text</mark>.</p>
+                        <p><small>This is small text</small></p>
+                        <p><ins>This is inserted text</ins> and <del>this is deleted text</del>.</p>
+                        <blockquote>
+                            This is a blockquote with <cite>a citation</cite>.
+                        </blockquote>
+                        <code>This is inline code</code>
+                        <pre><code>// This is a code block
+function example() {
+  return "Hello World";
+}</code></pre>
+                    </article>
+                    
+                    <article>
+                        <h3>Buttons</h3>
+                        <button>Default Button</button>
+                        <button class="secondary">Secondary Button</button>
+                        <button class="contrast">Contrast Button</button>
+                    </article>
+                    
+                    <article>
+                        <h3>Form Elements</h3>
+                        <form>
+                            <label for="text">Text Input</label>
+                            <input type="text" id="text" placeholder="Text input">
+                            
+                            <label for="select">Select</label>
+                            <select id="select">
+                                <option>Option 1</option>
+                                <option>Option 2</option>
+                            </select>
+                            
+                            <label for="textarea">Textarea</label>
+                            <textarea id="textarea" placeholder="Textarea"></textarea>
+                            
+                            <label for="invalid" aria-invalid="true">Invalid Input</label>
+                            <input type="text" id="invalid" aria-invalid="true" placeholder="Invalid input">
+                            
+                            <fieldset>
+                                <legend>Checkboxes</legend>
+                                <label>
+                                    <input type="checkbox" checked>
+                                    Checkbox 1
+                                </label>
+                                <label>
+                                    <input type="checkbox">
+                                    Checkbox 2
+                                </label>
+                            </fieldset>
+                            
+                            <fieldset>
+                                <legend>Radio Buttons</legend>
+                                <label>
+                                    <input type="radio" name="radio" checked>
+                                    Radio 1
+                                </label>
+                                <label>
+                                    <input type="radio" name="radio">
+                                    Radio 2
+                                </label>
+                            </fieldset>
+                        </form>
+                    </article>
+                </div>
+                
+                <div>
+                    <h2>Theme Color Mapping</h2>
+                    <article>
+                        <h3>Main Colors</h3>
+                        <div class="grid">
+                            {% for color_name, color_value in main_colors %}
+                            <div>
+                                <div class="color-sample" style="background-color: {{ color_value }};"></div>
+                                <small>{{ color_name }}<br>{{ color_value }}</small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </article>
+                    
+                    <article>
+                        <h3>All Pico CSS Variables</h3>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Variable</th>
+                                        <th>Value</th>
+                                        <th>Sample</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for var_name, var_value in all_vars %}
+                                    <tr>
+                                        <td>{{ var_name }}</td>
+                                        <td>{{ var_value }}</td>
+                                        <td>
+                                            {% if var_value.startswith('#') or var_value.startswith('rgb') %}
+                                            <div class="color-sample" style="background-color: {{ var_value }};"></div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                    
+                    <article>
+                        <h3>Color Contrast Checks</h3>
+                        <table class="contrast-table">
+                            <thead>
+                                <tr>
+                                    <th>Foreground</th>
+                                    <th>Background</th>
+                                    <th>Contrast</th>
+                                    <th>WCAG AA</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for check in contrast_checks %}
+                                <tr>
+                                    <td>{{ check.fg_name }}</td>
+                                    <td>{{ check.bg_name }}</td>
+                                    <td>{{ check.contrast }}</td>
+                                    <td class="{% if check.passes %}good-contrast{% else %}bad-contrast{% endif %}">
+                                        {{ "Pass" if check.passes else "Fail" }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </article>
+
+                    <article>
+                        <h3>Original Theme Colors</h3>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Group</th>
+                                        <th>Name</th>
+                                        <th>Value</th>
+                                        <th>Sample</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for group, names in original_colors.items() %}
+                                        {% for name, value in names.items() %}
+                                        <tr>
+                                            <td>{{ group }}</td>
+                                            <td>{{ name }}</td>
+                                            <td>{{ value }}</td>
+                                            <td><div class="color-sample" style="background-color: {{ value }};"></div></td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    

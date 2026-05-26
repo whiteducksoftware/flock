@@ -1,0 +1,40 @@
+{% macro render_value(value, level=0) %}
+    {% if value is mapping %}
+        {% if not value %}
+            <em style="color: var(--pico-muted-color);">(Empty Dictionary)</em>
+        {% else %}
+            <table class="structured-table level-{{ level }}" style="margin-left: {{ level * 20 }}px; margin-bottom: 0.5em; border-collapse: collapse; width: auto;">
+                <tbody>
+                {% for k, v in value.items() %}
+                    <tr style="border-bottom: 1px solid var(--pico-muted-border-color);">
+                        <td style="font-weight: bold; padding: 0.25em 0.5em; vertical-align: top; border-right: 1px solid var(--pico-muted-border-color); width: 30%;">{{ k }}</td>
+                        <td style="padding: 0.25em 0.5em; vertical-align: top;">{{ render_value(v, level + 1) }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    {% elif value is iterable and value is not string %}
+        {% if not value %}
+            <em style="color: var(--pico-code-color);">(Empty List)</em>
+        {% else %}
+            <ul style="margin-left: {{ level * 20 }}px; padding-left: 1em; list-style-type: disc; margin-bottom:0.5em;">
+            {% for item in value %}
+                <li>{{ render_value(item, level + 1) }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+    {% elif value is boolean %}
+        <code style="color: {{ 'var(--flock-success-color)' if value else 'var(--flock-error-color)' }}; font-weight:bold;">{{ value }}</code>
+    {% elif value is number %}
+        <code style="color: var(--pico-code-color);">{{ value }}</code>
+    {% elif value is none %}
+        <em style="color: var(--pico-code-color);">None</em>
+    {% else %}
+        {# Apply pre-wrap for multi-line strings and render markdown #}
+        <div class="markdown-content" style="word-break: break-word;">{{ value | markdown | safe }}</div>
+    {% endif %}
+{% endmacro %}
+
+{# Main entry point for this partial, assuming result_data is in context #}
+{{ render_value(result_data) }}

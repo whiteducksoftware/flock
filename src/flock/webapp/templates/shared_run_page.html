@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flock Shared Agent: {{ selected_agent_name }}</title>
+    
+    {# Link to Pico.css #}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />    <link rel="stylesheet" href="{{ url_for('static', path='css/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/header.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/sidebar.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/chat.css') }}">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Prism.js CSS for syntax highlighting (okaidia theme) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" referrerpolicy="no-referrer" />
+    {# Inline generated theme CSS variables #}
+    {% if theme_css %}
+    <style>
+        /* Start Theme CSS */
+        /* stylelint-disable */
+        {{ theme_css | safe }}
+        /* stylelint-enable */
+        /* End Theme CSS */
+    </style>
+    {% endif %}
+
+    
+    {# HTMX script - ensure this is loaded for the page to work #}
+    <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+    <main class="main-content">
+        <header>
+            <hgroup>
+                <h2>Run {{ flock.name }} - {{ selected_agent_name }} </h2>
+            </hgroup>
+        </header>
+
+        {% if error_message %}
+            <article class="error-message" role="alert">
+                <strong>Error:</strong> {{ error_message }}
+            </article>
+        {% endif %}
+
+        {% if selected_agent_name and not error_message %} {# Only show form if no fatal error and agent is selected #}
+            <div style="display: flex; gap: var(--pico-spacing, 1rem);">
+                <div style="flex: 1;">
+                    <article id="execution-form-content">                        <form id="agent-run-form-shared"                              hx-post="{{ url_for('htmx_run_shared_flock') }}" 
+                              hx-target="#results-display"
+                              hx-swap="innerHTML" 
+                              hx-indicator="#run-loading-indicator">
+                            
+                            {# Hidden input for the fixed agent name #}
+                            <input type="hidden" name="start_agent_name" value="{{ selected_agent_name }}">
+                            
+                            {# Add share_id as a hidden input to be sent with the form #}
+                            <input type="hidden" name="share_id" value="{{ share_id }}">
+
+                            {# flock_definition_str hidden input is no longer needed #}
+                            {# {% if flock_definition_str %} #}
+                            {# <input type="hidden" name="flock_definition_str" value="{{ flock_definition_str }}"> #}
+                            {# {% endif %} #}
+                            
+                            {# Dynamically generated input fields #}
+                            {% if input_fields %}
+                                <h4>Inputs for <code>{{ selected_agent_name }}</code>:</h4>
+                                {% for field in input_fields %}
+                                    <label for="agent_input_{{ field.name }}">
+                                        {{ field.name }} ({{ field.type }})<br>
+                                        {% if field.description %}<small>{{ field.description }}</small>{% endif %}
+                                    </label>
+                                    {% if field.html_type == "checkbox" %}
+                                        <input type="checkbox" id="agent_input_{{ field.name }}" name="agent_input_{{ field.name }}" role="switch">
+                                    {% elif field.html_type == "textarea" %}
+                                        <textarea id="agent_input_{{ field.name }}" name="agent_input_{{ field.name }}" placeholder="{{ field.placeholder | default('Enter value') }}"></textarea>
+                                    {% else %}
+                                        <input type="{{ field.html_type }}" id="agent_input_{{ field.name }}" name="agent_input_{{ field.name }}" placeholder="Enter {{ field.type }} value">
+                                    {% endif %}
+                                {% endfor %}
+                            {% elif flock and selected_agent_name in flock.agents and not flock.agents[selected_agent_name].input %}
+                                <p>Agent <code>{{ selected_agent_name }}</code> requires no inputs.</p>
+                            {% elif not error_message %}
+                                 <p>Could not determine inputs for agent <code>{{ selected_agent_name }}</code>. The input signature might be missing or invalid.</p>
+                            {% endif %}
+
+                            <button type="submit" class="hide-on-request">Run Agent</button>
+                            <span id="run-loading-indicator" class="htmx-indicator">
+                                <progress indeterminate></progress> Running...
+                            </span>
+                        </form>
+                    </article>
+                </div>
+                <section class="right-pane-framed" style="flex: 2; border-left: 1px solid var(--pico-muted-border-color); padding-left: 1.5rem;">
+                    <header style=" border-bottom: 1px solid var(--pico-muted-border-color); margin-bottom: 1rem;">
+                        <h5>Execution Results</h5>
+                    </header>
+                    <div id="results-display">
+                        <p><code>Results will appear here after running the Flock.</code></p>
+                    </div>
+                </section>
+            </div>
+        
+        {% elif not error_message %}
+            <p>This shared link is not configured correctly. No agent specified or an issue occurred loading the configuration.</p>
+        {% endif %}
+
+        <footer class="main-footer">
+            <small>Built with FastAPI, HTMX, Pico.CSS by 🤍 white duck 🦆 - Theme: {{ active_theme_name | default('default') }}</small>
+        </footer>
+    </main>
+
+    <!-- Prism.js JS (core and autoloader) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" referrerpolicy="no-referrer"></script>
+    <script>
+        // Add HTMX event listener for Prism highlighting
+        document.addEventListener('htmx:afterSwap', function(event) {
+            const resultsDisplay = document.getElementById('results-display');
+            // Check if the swapped element is the results display or a child of it
+            if (resultsDisplay && (event.detail.target === resultsDisplay || resultsDisplay.contains(event.detail.target))) {
+                if (typeof Prism !== 'undefined') {
+                    // console.log('Prism highlighting triggered for swapped content in results-display.');
+                    Prism.highlightAllUnder(resultsDisplay);
+                }
+            }
+        });
+
+        // Initial highlight on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof Prism !== 'undefined') {
+                // console.log('Prism initial highlighting on shared page.');
+                Prism.highlightAll(); 
+            }
+        });
+    </script>
+</body>
+</html> 

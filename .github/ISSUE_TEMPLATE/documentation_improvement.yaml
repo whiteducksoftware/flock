@@ -1,0 +1,17 @@
+name: 📚 Documentation Improvement
+description: Suggest improvements or report issues in the documentation
+title: "📚 [DOCS] <title>"
+labels: ["documentation"]
+body:
+  - type: textarea
+    attributes:
+      label: What is unclear or incorrect?
+      description: Describe the issue or suggestion for improvement.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Suggested improvement
+      description: How could the documentation be improved?
+    validations:
+      required: false

@@ -1,0 +1,48 @@
+/* ========================================================================
+   two-pane.css — Styles for the two-pane layout used in execution view
+   ======================================================================== */
+
+/* Two pane container */
+.two-pane-flex-container {
+  display: flex;
+  width: 100%;
+}
+
+/* Collapsed left pane */
+.left-pane-collapsed {
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--pico-muted-border-color);
+  border-radius: 0 4px 4px 0;
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  margin-right: 10px;
+  transition: background-color 0.2s;
+}
+
+.left-pane-collapsed:hover {
+  background-color: var(--pico-primary-hover);
+}
+
+/* Toggle links styling */
+.pane-toggle {
+  text-decoration: none;
+  color: var(--pico-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.pane-toggle:hover {
+  background-color: var(--pico-primary-hover);
+  color: var(--pico-primary-inverse);
+}
+
+/* Ensure right pane takes full width when left is collapsed */
+#execution-right-pane {
+  transition: flex 0.3s, padding-left 0.3s;
+}

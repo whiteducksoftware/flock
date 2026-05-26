@@ -1,0 +1,15 @@
+<article id="chat-container" class="chat-container">
+    <div id="chat-log" hx-get="{{ url_for('chat_history_partial') }}" hx-trigger="load" hx-swap="innerHTML">
+        <p><em>Loading chat…</em></p>
+    </div>
+    <form id="chat-form-embedded" class="chat-form"
+          hx-post="{{ url_for('chat_send') }}"
+          hx-target="#chat-log"
+          hx-swap="innerHTML"
+          hx-disabled-elt="input[name='message'], button[type='submit']"
+          hx-on::before-request="htmx.find('#chat-form-embedded button[type=\'submit\']').textContent = 'Sending...'"
+          hx-on::after-request="htmx.find('#chat-form-embedded button[type=\'submit\']').textContent = 'Send'; this.reset();">
+        <input type="text" name="message" placeholder="Type a message…" required>
+        <button type="submit">Send</button>
+    </form>
+</article> 

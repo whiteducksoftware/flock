@@ -1,0 +1,18 @@
+<article id="agent-list-content">
+
+    {% if message %}
+        <div class="form-message {{ 'success' if success else 'error' }}">{{ message }}</div>
+    {% endif %}
+    {% if flock.agents %}
+    <ul class="item-list">
+        {% for agent_name, agent in flock.agents.items() %}        <li hx-get="{{ url_for('htmx_get_agent_details_form', agent_name=agent.name) }}" hx-target="#agent-detail-panel" hx-swap="innerHTML" hx-indicator="#agent-detail-loading-indicator" onclick="this.closest('ul').querySelectorAll('li').forEach(li => li.classList.remove('selected-item')); this.classList.add('selected-item');">
+            <strong>{{ agent.name }}</strong><br>
+            <small>{{ agent.resolved_description|truncate(80) if agent.resolved_description else 'No description' }}</small>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No agents defined in this Flock yet. Click "Add New Agent" to create one.</p>
+    {% endif %}
+    <div id="agent-list-loading" class="htmx-indicator">Loading agents... <progress></progress></div>
+</article>

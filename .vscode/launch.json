@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "justMyCode": false,
+            "subProcess": true,
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Attach to debugpy",
+            "type": "debugpy",
+            "subProcess": true,
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "justMyCode": false
+        }
+    ]
+}

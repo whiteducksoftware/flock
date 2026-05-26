@@ -1,0 +1,167 @@
+/* ========================================================================
+   components.css — Reusable component / utility styles
+   ======================================================================== */
+
+/* ---------- Message container (toast notifications) ---------- */
+.message-container {
+    position: fixed;
+    bottom: 3rem;
+    right: 1rem;
+    z-index: 1002;
+    max-width: 400px;
+}
+
+.message-container > div {
+    margin-top: 0.5rem;
+    box-shadow: var(--pico-card-box-shadow);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-radius: var(--pico-border-radius);
+    font-weight: 500;
+}
+
+.message-container .success {
+    background-color: var(--flock-success-color, var(--pico-ins-color));
+    color: var(--pico-primary-inverse);
+    border: 1px solid var(--flock-success-color, var(--pico-ins-color));
+}
+
+.message-container .error {
+    background-color: var(--flock-error-color, var(--pico-del-color));
+    color: var(--pico-primary-inverse);
+    border: 1px solid var(--flock-error-color, var(--pico-del-color));
+}
+
+.message-container .close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0 0.5rem;
+    margin-left: 1rem;
+}
+
+/* ---------- HTMX loading indicator ---------- */
+.htmx-indicator { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
+.htmx-request .htmx-indicator { display: inline-block; opacity: 1; margin-left: 0.5em; }
+.htmx-request.htmx-indicator { display: inline-block; opacity: 1; }
+
+/* ---------- Form & validation helpers ---------- */
+.field-error { color: var(--flock-error-color, var(--pico-del-color)); font-size: var(--pico-font-size-small); margin-top: -0.5rem; margin-bottom: 0.5rem; }
+
+/* ---------- Main content headings ---------- */
+main.main-content h1, main.main-content h2, main.main-content h3 {
+    color: var(--pico-color);
+    font-weight: 600;
+    line-height: 1.2;
+    margin-top: 0;
+}
+main.main-content h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+main.main-content h2 { font-size: 1.75rem; margin-bottom: 1.25rem; }
+main.main-content h3 { font-size: 1.5rem; margin-bottom: 1rem; }
+
+.panel-title { margin-top: 0; margin-bottom: 1.25rem; }
+
+/* ---------- Two-pane flex container (Execution, Agents, etc.) ---------- */
+.two-pane-flex-container {
+    display: flex;
+    gap: 1.5rem;
+    border: 1px solid var(--pico-muted-border-color);
+    background-color: var(--pico-card-background-color);
+}
+
+.left-pane { flex: 1; min-width: 300px; display: flex; flex-direction: column; }
+.left-pane > .scrollable-content { flex-grow: 1; }
+
+.right-pane-framed { flex: 2; border-left: 1px solid var(--pico-muted-border-color); padding-left: 1.5rem; }
+.right-pane-framed > header { padding-bottom: 0.75rem; border-bottom: 1px solid var(--pico-muted-border-color); margin-bottom: 1rem; }
+.right-pane-framed > header > h5 { margin-bottom: 0; font-size: 1.1rem; }
+
+/* ---------- Item-list utility ---------- */
+.item-list-container { flex-grow: 1; }
+ul.item-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Guard against ::marker still appearing in some browsers */
+ul.item-list li::marker { content: none; }
+
+ul.item-list li { padding: 0.75rem 1rem; border-bottom: 1px solid var(--pico-muted-border-color); cursor: pointer; transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out; }
+ul.item-list li:last-child { border-bottom: none; }
+ul.item-list li:hover, ul.item-list li.selected-item { background-color: var(--pico-primary-focus); color: var(--pico-primary-inverse); }
+
+/* ---------- Misc ---------- */
+progress { border-radius: 10px; height: 8px; }
+progress:indeterminate { background: rgba(var(--pico-primary-rgb, 0, 0, 0), 0.2); }
+
+/* ---------- Tool checklist (Agent form) ---------- */
+.tool-checklist {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid var(--pico-muted-border-color);
+    padding: 0.5rem;
+    margin-bottom: 0.75rem;
+    border-radius: var(--pico-border-radius);
+    background-color: var(--pico-form-element-background-color);
+}
+
+.tool-checklist label { display: block; margin-bottom: 0.25rem; font-weight: normal; }
+.tool-checklist input[type="checkbox"] { margin-right: 0.5rem; }
+.tool-checklist label small { color: var(--pico-muted-color); }
+
+/* ---------- Execution / Results display ---------- */
+#results-display {
+    background-color: var(--pico-code-background-color);
+    color: var(--pico-code-color);
+    padding: 1rem;
+    border-radius: var(--pico-border-radius);
+    overflow-x: auto;
+    margin-top: 1rem;
+    min-height: 100px;
+    border: 1px solid var(--pico-muted-border-color);
+}
+
+#results-display pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+
+#results-display .structured-table {
+    border: 1px solid var(--pico-muted-border-color);
+    font-size: 0.9em;
+    width: 100%;
+    margin-bottom: 0.75rem !important;
+    border-collapse: collapse;
+}
+#results-display .structured-table td,
+#results-display .structured-table th {
+    padding: 0.4em 0.6em !important;
+    vertical-align: top;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+}
+#results-display .structured-table tr:last-child td { border-bottom: none; }
+#results-display .structured-table td[style*="font-weight: bold"] {
+    color: var(--pico-secondary);
+    min-width: 120px;
+    max-width: 250px;
+    word-break: break-word;
+    border-right: 1px solid var(--pico-muted-border-color);
+}
+#results-display .structured-table ul { margin-left: 1em; padding-left: 1em; }
+
+/* ---------- Registry viewer tweaks ---------- */
+nav ul[role="group"] { margin-bottom: 1rem; }
+nav ul[role="group"] li button { width: 100%; }
+#registry-table-container table { margin-top: 1rem; }
+
+/* ---------- Progress elements ---------- */
+.sidebar progress { width: 80%; margin: 1rem auto; display: block; }
+progress { border-radius: 10px; height: 8px; }
+progress:indeterminate { background: rgba(var(--pico-primary-rgb, 0, 0, 0), 0.2); } 
+
+
+
+
+

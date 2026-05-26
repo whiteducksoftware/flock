@@ -1,0 +1,127 @@
+<script>
+    // Create URL template for agent input forms
+    window.agentInputFormUrlTemplate = '{{ url_for("htmx_get_agent_input_form", agent_name="AGENT_PLACEHOLDER") }}';
+</script>
+
+<article id="execution-form-content">
+    <header>
+        <h2>Run Flock</h2>
+    </header>
+    {% if flock and flock.agents %} <form hx-post="{{ url_for('htmx_run_flock') }}" hx-target="#results-display"
+        hx-swap="innerHTML" hx-indicator="#run-loading-indicator" x-data="{ selectedAgentForInput: '' }">
+
+        <label for="start_agent_name_select">Select Start Agent:</label>
+        <select id="start_agent_name_select" name="start_agent_name" required x-model="selectedAgentForInput" @change="
+                    if ($event.target.value) {
+                        const url = window.agentInputFormUrlTemplate.replace('AGENT_PLACEHOLDER', $event.target.value);
+                        htmx.ajax('GET', url, {target: '#dynamic-input-form-fields', swap: 'innerHTML', indicator: '#input-form-loading-indicator'});
+                    } else {
+                        document.getElementById('dynamic-input-form-fields').innerHTML = '<p><small>Select an agent to see its input fields.</small></p>';
+                    }
+                ">
+            <option value="" disabled {% if not selected_agent_name %}selected{% endif %}>-- Choose an agent --</option>
+            {% for agent_name_key in flock.agents.keys() %}
+            <option value="{{ agent_name_key }}" {% if selected_agent_name==agent_name_key %}selected{% endif %}>{{
+                agent_name_key }}</option>
+            {% endfor %}
+        </select>
+
+        <div id="dynamic-input-form-fields">
+            <!-- Input fields for the selected agent will be loaded here -->
+            <p><small>Select an agent to see its input fields.</small></p>
+        </div>
+        <div id="input-form-loading-indicator" class="htmx-indicator">
+            <progress indeterminate></progress> Loading input form...
+        </div>
+
+        <fieldset style="margin-top: 1rem;">
+            <label style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="checkbox" name="use_production_tools" value="true"
+                    @change="if ($event.target.checked && !confirm('Use production tool set? These calls may access live systems.')) { $event.target.checked = false; }">
+                <span>Use production tool set</span>
+            </label>
+            <small>Production tools may connect to live services.</small>
+        </fieldset>
+
+        <button type="submit" {% if not flock.agents %}disabled{% endif %}>Run Flock</button>
+        <div id="share-agent-link-container" style="margin-top: 0.5rem;">
+            <a href="#" id="shareAgentHtmxLink" hx-post="{{ url_for('htmx_generate_share_link') }}"
+                hx-target="#shareLinkDisplayArea" hx-swap="innerHTML" hx-indicator="#share-loading-indicator"
+                hx-include="#start_agent_name_select"
+                style="padding: 0.25rem 0.5rem; margin: 0.25rem; background: var(--pico-primary); color: white; text-decoration: none; border-radius: 4px; font-size: 0.875rem;">
+                Create shareable link...
+            </a>
+            <span id="share-loading-indicator" class="htmx-indicator">
+                <progress indeterminate></progress> Generating link...
+            </span>
+        </div>
+
+        <div id="feedback-download-container" style="margin-top: 0.5rem;">
+            <div x-show="selectedAgentForInput" x-cloak
+                style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span style="padding: 0.25rem; text-decoration: underline;">Download feedback for selected
+                    agent:</span>
+                <div>
+                    <a href="#" id="downloadFeedbackLink" hx-indicator="#download-feedback-loading-indicator"
+                    hx-include="#start_agent_name_select"
+                    :href="selectedAgentForInput ? '{{ url_for('chat_feedback_download', agent_name='AGENT_PLACEHOLDER', format='csv') }}'.replace('AGENT_PLACEHOLDER', selectedAgentForInput) : '#'"
+                    style="padding: 0.25rem 0.5rem; margin: 0.25rem; background: var(--pico-primary); color: white; text-decoration: none; border-radius: 4px; font-size: 0.875rem;">
+                    CSV
+                </a>
+                <a href="#" id="downloadFeedbackLinkXlsx" hx-indicator="#download-feedback-loading-indicator"
+                    hx-include="#start_agent_name_select"
+                    :href="selectedAgentForInput ? '{{ url_for('chat_feedback_download', agent_name='AGENT_PLACEHOLDER', format='xlsx') }}'.replace('AGENT_PLACEHOLDER', selectedAgentForInput) : '#'"
+                    style="padding: 0.25rem 0.5rem; margin: 0.25rem; background: var(--pico-primary); color: white; text-decoration: none; border-radius: 4px; font-size: 0.875rem;">
+                    XLSX
+                </a>
+                </div>
+            </div>
+            <span id="download-feedback-loading-indicator" class="htmx-indicator">
+                <progress indeterminate></progress> Preparing file...
+            </span>
+        </div>
+
+        <div id="feedback-download-container-all" style="margin-top: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span style="padding: 0.25rem; text-decoration: underline;">Download feedback for all
+                    agents:</span>
+                <div>
+                    <a href="{{ url_for('chat_feedback_download_all', format='csv') }}" id="downloadFeedbackLinkAll"
+                        style="padding: 0.25rem 0.5rem; margin: 0.25rem; background: var(--pico-primary); color: white; text-decoration: none; border-radius: 4px; font-size: 0.875rem;">
+                        CSV
+                    </a>
+                    <a href="{{ url_for('chat_feedback_download_all', format='xlsx') }}"
+                        id="downloadFeedbackLinkAllXlsx"
+                        style="padding: 0.25rem 0.5rem; margin: 0.25rem; background: var(--pico-primary); color: white; text-decoration: none; border-radius: 4px; font-size: 0.875rem;">
+                        XLSX
+                    </a>
+                </div>
+            </div>
+            <span id="download-feedback-loading-indicator-all" class="htmx-indicator">
+                <progress indeterminate></progress> Preparing file...
+            </span>
+        </div>
+
+        <span id="run-loading-indicator" class="htmx-indicator">
+            <progress indeterminate></progress> Running...
+        </span>
+    </form>
+    {% elif flock and not flock.agents %}
+    <p>No agents available in the current Flock. Add agents to enable execution.</p>
+    {% else %}
+    <p>Load or create a Flock to enable execution.</p>
+    {% endif %}
+
+    <div id="shareLinkDisplayArea" style="margin-top: 1rem;">
+        <!-- Content will be loaded here by HTMX -->
+    </div>
+
+</article>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // All previous JavaScript for toggling share link visibility is removed.
+        // If there are other unrelated JavaScript functions in this script block,
+        // they would remain.
+    });
+</script>

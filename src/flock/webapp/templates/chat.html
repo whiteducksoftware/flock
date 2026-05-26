@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flock Chat</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <link rel="stylesheet" href="{{ url_for('static', path='css/chat.css') }}">
+    {# Prism.js CSS for syntax highlighting (okaidia theme) #}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" referrerpolicy="no-referrer" />
+    {# Inject active theme variables #}
+    {% if theme_css and theme_css.strip() %}
+    <style>
+        /* Start Theme CSS */
+        /* stylelint-disable */
+        {{ theme_css | safe }}
+        /* stylelint-enable */
+        /* End Theme CSS */
+    </style>
+    {% endif %}
+    <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    {# Prism.js JS (core and components for common languages) #}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" referrerpolicy="no-referrer"></script>
+</head>
+<body class="chat-page">
+    <div id="global-toast-container" style="position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem;">
+        <!-- Toasts will be appended here -->
+    </div>
+
+    <div id="chat-container">
+        <div class="chat-header" style="justify-content: space-between;">
+            <hgroup>
+                <h2>Flock Chat</h2>
+                <h3>{{ chat_subtitle }}</h3>
+            </hgroup>            {% if not is_shared_chat %}
+            <button class="secondary outline" hx-get="{{ url_for('chat_settings_standalone') }}" hx-target="#chat-content-area" hx-swap="innerHTML" style="min-width:auto;">Settings</button>
+            {% else %}
+            {# Optionally, could show a disabled settings button or some other indicator #}
+            <span style="font-size: 0.8rem; color: var(--pico-muted-color);">Settings frozen for shared session.</span>
+            {% endif %}
+        </div>
+
+        <div id="chat-content-area">            <div id="chat-log" 
+                 hx-get="{% if is_shared_chat %}{{ url_for('chat_history_shared_partial', share_id=share_id) }}{% else %}{{ url_for('chat_history_partial') }}{% endif %}" 
+                 hx-trigger="load" {# Polling removed #}
+                 hx-swap="innerHTML">
+                <p><em>Loading chat…</em></p>
+            </div>
+              <form id="chat-form-standalone"
+                  hx-post="{% if is_shared_chat %}{{ url_for('chat_send_shared') }}{% else %}{{ url_for('chat_send') }}{% endif %}"
+                  hx-target="#chat-log"
+                  hx-swap="innerHTML"
+                  hx-disabled-elt="input[name='message'], button[type='submit']"
+                  hx-on::before-request="htmx.find('#chat-form-standalone button[type=\'submit\']').textContent = 'Sending...'"
+                  hx-on::after-request="htmx.find('#chat-form-standalone button[type=\'submit\']').textContent = 'Send'; this.reset();">
+                
+                {% if is_shared_chat %}
+                <input type="hidden" name="share_id" value="{{ share_id }}">
+                {% endif %}
+                <input type="text" name="message" placeholder="Type a message…" required autofocus>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+
+        <div class="chat-footer">
+            <small>Built with FastAPI • HTMX • Pico.css – Theme: {{ active_theme_name | default('default') }}</small>
+        </div>
+    </div>
+
+<script>
+    (function() {
+        const log = document.getElementById('chat-log');
+        function scrollBottom() {
+            log.scrollTop = log.scrollHeight;
+        }
+        document.addEventListener('htmx:afterSwap', e => {
+            if (e.detail.target.id === 'chat-log') {
+                scrollBottom();
+                // Re-run Prism highlighting after new content is swapped in
+                Prism.highlightAllUnder(log);
+            }
+        });
+        window.addEventListener('load', scrollBottom);
+        // Initial highlight on page load for any pre-existing content
+        document.addEventListener('DOMContentLoaded', () => {
+            Prism.highlightAll();
+        });
+    })();
+
+    // Global Toast Handler
+    document.body.addEventListener('showGlobalToast', function (event) {
+        const detail = event.detail;
+        const message = detail.message || 'Done!';
+        const type = detail.type || 'info'; // success, error, warning, info
+
+        const toastContainer = document.getElementById('global-toast-container');
+        if (!toastContainer) return;
+
+        const toast = document.createElement('article');
+        toast.className = `toast-message ${type}`;
+        toast.innerHTML = `<button class="close-toast" style="float: right; background: none; border: none; font-size: 1.2rem; line-height: 1; padding: 0.25rem 0.5rem; cursor: pointer;">&times;</button>${message}`;
+        
+        // Basic styling, can be enhanced in CSS file
+        toast.style.padding = '0.75rem';
+        toast.style.border = '1px solid';
+        toast.style.borderRadius = 'var(--pico-border-radius, 4px)';
+        toast.style.minWidth = '250px';
+        toast.style.maxWidth = '400px';
+        toast.style.opacity = '0'; // Start faded out
+        toast.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out';
+        toast.style.transform = 'translateX(100%)'; // Start off-screen
+
+        if (type === 'success') {
+            toast.style.borderColor = 'var(--pico-color-green-500, green)';
+            toast.style.backgroundColor = 'var(--pico-color-green-150, #e6fffa)';
+            toast.style.color = 'var(--pico-color-green-700, darkgreen)';
+        } else if (type === 'error') {
+            toast.style.borderColor = 'var(--pico-color-red-500, red)';
+            toast.style.backgroundColor = 'var(--pico-color-red-150, #ffe6e6)';
+            toast.style.color = 'var(--pico-color-red-700, darkred)';
+        } else { // Default/info/warning
+            toast.style.borderColor = 'var(--pico-color-blue-500, blue)';
+            toast.style.backgroundColor = 'var(--pico-color-blue-150, #e6f7ff)';
+            toast.style.color = 'var(--pico-color-blue-700, darkblue)';
+        }
+
+        toastContainer.appendChild(toast);
+
+        // Animate in
+        setTimeout(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(0)';
+        }, 10); // Small delay to allow CSS to apply initial state
+
+        const closeButton = toast.querySelector('.close-toast');
+        closeButton.onclick = () => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px)';
+            setTimeout(() => toast.remove(), 300);
+        };
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px)';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000); // Auto-dismiss after 5 seconds
+    });
+</script>
+</body>
+</html>

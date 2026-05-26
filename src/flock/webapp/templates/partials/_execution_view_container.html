@@ -1,0 +1,28 @@
+<article class="two-pane-flex-container" x-data="{ showLeftPane: true }">
+    <!-- Left pane - collapsed state -->
+    <div class="left-pane-collapsed" x-show="!showLeftPane" style="display: none;">
+        <a href="#" class="pane-toggle" @click.prevent="showLeftPane = true" aria-label="Expand left pane">Show</a>
+    </div>
+
+    <!-- Left pane - expanded state -->
+    <section id="execution-left-pane" x-show="showLeftPane" style="flex: 1; min-width: 200px; max-width: 500px;">
+        <div class="pane-header" style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+            <a href="#" class="pane-toggle" @click.prevent="showLeftPane = false" aria-label="Hide left pane">Hide</a>
+        </div>
+        {# The Execution Form will be loaded here #}        <div id="execution-form-wrapper" hx-get="{{ url_for('htmx_get_execution_form_content') }}" 
+            hx-trigger="load" hx-swap="innerHTML">
+            <p>Loading execution form...</p><progress indeterminate></progress>
+        </div>
+    </section>
+
+    <section id="execution-right-pane" class="right-pane-framed"
+        :style="showLeftPane ? 'flex: 2; border-left: 1px solid var(--pico-muted-border-color); padding-left: 1.5rem;' : 'flex: 1; border-left: none; padding-left: 0;'">
+        {# The Results Display area, always present when this container is loaded #}
+        <header style=" border-bottom: 1px solid var(--pico-muted-border-color); margin-bottom: 1rem;">
+            <h5>Execution Results</h5>
+        </header>
+        <div id="results-display">
+            <p><code>Results will appear here after running the Flock.</code></p>
+        </div>
+    </section>
+</article>

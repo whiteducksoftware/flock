@@ -1,0 +1,39 @@
+/* ========================================================================
+   header.css — Top header bar styles
+   ======================================================================== */
+
+header.top-header {
+    grid-area: header;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+    padding: 0.7rem 1.5rem;
+    background-color: var(--pico-card-sectioning-background-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1001;
+    box-shadow: var(--pico-card-box-shadow, 0 2px 10px rgba(0, 0, 0, 0.2));
+}
+
+header.top-header strong {
+    color: var(--pico-color);
+    font-weight: 600;
+    font-size: 1.2rem;
+    letter-spacing: 0.02em;
+}
+
+header.top-header small {
+    color: var(--pico-muted-color);
+    font-size: 0.85rem;
+}
+
+header.top-header code {
+    background: var(--pico-code-background-color);
+    color: var(--pico-code-color);
+    padding: 0.2em 0.5em;
+    border-radius: 4px;
+    font-size: 0.85rem;
+} 

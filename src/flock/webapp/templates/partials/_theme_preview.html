@@ -1,0 +1,36 @@
+{% if css_vars_str %}
+<script>
+(function() {
+    // Remove any existing theme preview
+    var existingPreview = document.getElementById('theme-preview-css');
+    if (existingPreview) {
+        existingPreview.remove();
+    }
+
+    // Inject new theme preview CSS
+    var style = document.createElement('style');
+    style.id = 'theme-preview-css';
+    style.textContent = `{{ css_vars_str | safe }}`;
+    document.head.appendChild(style);
+})();
+</script>
+{% endif %}
+<article style="border:1px solid var(--pico-border-color); padding:1rem; border-radius:8px;">
+    <hgroup>
+        <h3>Theme Preview: {{ theme_name }}</h3>
+        <p><small>Preview applied globally - navigate away or refresh to revert</small></p>
+    </hgroup>
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:0.5rem;">
+        {% for color_name, color_value in main_colors %}
+        <div>
+            <div style="height:24px; border-radius:4px; background-color: {{ color_value }};"></div>
+            <small>{{ color_name }}<br>{{ color_value }}</small>
+        </div>
+        {% endfor %}
+    </div>
+    <hr>
+    <button>Button</button>
+    <button class="secondary">Secondary</button>
+    <button class="contrast">Contrast</button>
+    <p>Sample text with <a href="#">link</a>, <mark>mark</mark>, <code>code</code>.</p>
+</article>

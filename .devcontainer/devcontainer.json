@@ -1,0 +1,36 @@
+{
+	"name": "flock dev",
+	"image": "ghcr.io/astral-sh/uv:python3.12-bookworm",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"charliermarsh.ruff"
+			],
+			"settings": {
+				"python.defaultInterpreterPath": "/usr/local/bin/python",
+				"[python]": {
+					"editor.defaultFormatter": "charliermarsh.ruff",
+					"editor.formatOnSave": true,
+					"editor.codeActionsOnSave": {
+						"source.fixAll": "explicit",
+						"source.organizeImports": "explicit"
+					}
+				},
+				"ruff.lint.run": "onSave",
+				"ruff.format.args": [
+					"--line-length",
+					"88"
+				],
+				"ruff.lint.args": [
+					"--line-length",
+					"88"
+				]
+			}
+		}
+	},
+	"forwardPorts": [
+		8888
+	],
+	"postCreateCommand": "uv sync --all-groups --all-extras --frozen"
+}

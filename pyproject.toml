@@ -1,0 +1,225 @@
+[project]
+name = "flock-core"
+version = "0.4.543"
+description = "Declarative LLM Orchestration at Scale"
+readme = "README.md"
+authors = [
+    { name = "Andre Ratzenberger", email = "andre.ratzenberger@whiteduck.de" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "cloudpickle>=3.1.1",
+    "devtools>=0.12.2",
+    "dspy==2.6.23",
+    "fastapi>=0.115.8",
+    "httpx>=0.28.1",
+    "litellm>=v1.75.3",
+    "loguru>=0.7.3",
+    "mcp>=1.7.1",
+    "msgpack>=1.1.0",
+    "opentelemetry-api>=1.30.0",
+    "opentelemetry-exporter-jaeger>=1.21.0",
+    "opentelemetry-exporter-jaeger-proto-grpc>=1.21.0",
+    "opentelemetry-exporter-otlp>=1.30.0",
+    "opentelemetry-instrumentation-logging>=0.51b0",
+    "opentelemetry-sdk>=1.30.0",
+    "openai==1.75.0",
+    "pandas>=2.2.3",
+    "pillow>=10.4.0",
+    "prometheus-client>=0.21.1",
+    "psutil>=6.1.1",
+    "pydantic==2.10.5",
+    "pydantic-settings>=2.7.1",
+    "python-box>=7.3.2",
+    "python-decouple>=3.8",
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0",
+    "questionary>=2.1.0",
+    "rich>=13.7.1",
+    "temporalio>=1.9.0",
+    "thefuzz>=0.22.1",
+    "tiktoken>=0.8.0",
+    "toml>=0.10.2",
+    "tqdm>=4.60.1",
+    "uvicorn>=0.29.1",
+    "aiosqlite>=0.21.0",
+    "markdown2>=2.5.3",
+    "wd-di>=0.2.14",
+    "websockets>=13.0.1",
+    "opik>=1.7.26",
+    "azure-data-tables>=12.7.0",
+    "croniter>=6.0.0",
+    "werkzeug>=3.1.3",
+    "azure-storage-blob>=12.25.1",
+    "xlsxwriter>=3.2.3",
+]
+
+[project.optional-dependencies]
+basic-tools = [
+    "tavily-python>=0.5.0",
+    "markdownify>=0.14.1",
+    "ddgs>=9.2.0",   
+]
+azure-tools = [
+    "azure-identity>=1.23.0",
+    "azure-storage-blob>=12.25.1",
+    "azure-search-documents>=11.5.2",
+]
+llm-tools = ["nltk>=3.9.1"]
+code-tools = [ "docker>=7.1.0"]
+memory = [
+    "zep-python>=2.0.2",
+    "mem0ai[graph]>=0.1.101",
+    "chromadb>=0.6.3",
+    "matplotlib>=3.10.0",
+]
+evaluation = [
+    "datasets>=3.2.0",
+    "rouge-score>=0.1.2",
+    "sentence-transformers>=3.4.1",
+]
+all-tools = [
+    "docling>=2.34.0",
+    "tavily-python>=0.5.0",
+    "markdownify>=0.14.1",
+    "ddgs>=9.2.0",
+    "azure-identity>=1.23.0",
+    "azure-storage-blob>=12.25.1",
+    "azure-search-documents>=11.5.2",
+    "nltk>=3.9.1",
+    "docker>=7.1.0",
+]
+all = [
+    "docling>=2.34.0",
+    "tavily-python>=0.5.0",
+    "markdownify>=0.14.1",
+    "ddgs>=9.2.0",
+    "azure-identity>=1.23.0",
+    "azure-storage-blob>=12.25.1",
+    "azure-search-documents>=11.5.2",
+    "nltk>=3.9.1",
+    "datasets>=3.2.0",
+    "rouge-score>=0.1.2",
+    "sentence-transformers>=3.4.1",
+    "zep-python>=2.0.2",
+    "mem0ai[graph]>=0.1.101",
+    "chromadb>=0.6.3",
+    "matplotlib>=3.10.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.3",
+    "pytest-clarity>=1.0.1",
+    "pytest-cov>=6.0.0",
+    "pytest-sugar>=1.0.0",
+    "ruff>=0.7.2",
+    "pytest-asyncio>=0.24.0",
+    "poethepoet>=0.30.0",
+    "pytest-mock>=3.14.0",
+    "httpx>=0.28.1",
+    "respx>=0.22.0",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.3",
+    "mkdocstrings[python]>=0.28.0",
+    "mypy>=1.15.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flock"]
+
+[project.scripts]
+flock = "flock:main"
+
+
+[tool.ruff]
+cache-dir = ".cache/ruff"
+line-length = 80
+
+## formatting
+format.quote-style = "double"
+format.indent-style = "space"
+format.skip-magic-trailing-comma = false
+format.line-ending = "auto"
+format.docstring-code-format = true
+format.docstring-code-line-length = "dynamic"
+## linting
+lint.select = [
+    'D',   #pydocstyle
+    'E',
+    'W',   # pycodestyle
+    'F',   #pyflakes
+    'I',   # sort imports
+    'UP',  #pyupgrade
+    "RUF", # ruff dev's own rules
+    "SIM", # pyflakes simplicity
+    "C90", # more complexity rules
+]
+lint.ignore = ["E203", "E266", "E501", "F541", "D417"]
+lint.exclude = ["logs/", "data/", "tests/", "docs/", "dump/"]
+lint.pydocstyle.convention = "google"
+lint.isort.combine-as-imports = true
+include = ["src/"]
+exclude = [
+    "logs/",
+    "data/",
+    "tests/",
+    "docs/",
+    "src/templates/",
+    "dump/",
+    "src/frontend/",
+    "examples/",
+]
+
+[tool.pytest.ini_options]
+adopts = " -v"
+minversion = "6.0"
+python_files = "test_*.py"
+python_classes = "Test"
+python_functions = "test"
+verbosity_test_cases = 2
+testpaths = ["tests"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+
+
+[tool.poe.tasks]
+_sync = "uv sync --dev --all-groups --all-extras --reinstall"
+_build = "uv build"
+_install = "uv pip install -e ."
+_init = ["_ensure-uv", "_sync-submodules"]
+_ensure-uv = "python scripts/ensure_uv.py"
+_sync-submodules = "git submodule update --init --recursive"
+_docs-serve = "mkdocs serve"
+_docs-build = "mkdocs build"
+install-showcase = "uv pip install -r examples/requirements.txt"
+update-showcase = "git submodule update --remote examples"
+
+
+install = ["_init", "build", "update-showcase", "install-showcase"]
+build = ["_sync", "_build", "_install"]
+collect-code = "python scripts/code_collector.py"
+lint = "ruff check src/flock/* tests/*"
+format = "ruff format src/flock/* tests/*"
+docs = ["_docs-build", "_docs-serve"]
+
+
+[tool.poe.tasks.clean]
+script = "poethepoet.scripts:rm('dist', 'htmlcov', 'logs','metrics','.mypy_cache', '.pytest_cache', './**/__pycache__')"
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

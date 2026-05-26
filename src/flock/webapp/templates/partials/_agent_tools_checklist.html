@@ -1,0 +1,14 @@
+<!-- This partial might be used if tool selection becomes more complex -->
+<!-- For MVP, it's integrated into _agent_detail_form.html -->
+<fieldset>
+    <legend>Select Tools</legend>
+    {% for tool in registered_tools %}
+    <label for="tool_{{ tool.name }}_{{ context_id }}"> <!-- context_id for uniqueness if form is loaded multiple times -->
+        <input type="checkbox" id="tool_{{ tool.name }}_{{ context_id }}" name="tools" value="{{ tool.name }}"
+               {% if tool.name in current_tools %}checked{% endif %}>
+        {{ tool.name }} <small>({{ tool.module }})</small>
+    </label>
+    {% else %}
+    <p>No tools available in registry.</p>
+    {% endfor %}
+</fieldset>

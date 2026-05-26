@@ -1,0 +1,127 @@
+/* ========================================================================
+   sidebar.css — Left navigation sidebar styles
+   ======================================================================== */
+
+aside.sidebar {
+    grid-area: sidebar;
+    background: var(--flock-sidebar-background, var(--pico-card-background-color));
+    padding: 1.5rem 0;
+    border-right: 1px solid var(--pico-muted-border-color);
+    margin-top: 3.2rem; /* header height compensation */
+    height: calc(100vh - 3.5rem - 2.1rem); /* header + footer */
+    position: fixed;
+    left: 0;
+    bottom: 2.1rem; /* footer height */
+    width: 300px;
+    z-index: 1000;
+}
+
+.sidebar nav h5 {
+    margin-bottom: 0.9rem;
+    padding-left: 1.5rem;
+    color: var(--pico-color);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+}
+
+.sidebar nav h5:first-of-type {
+    margin-top: 0;
+    margin-bottom: 0.9rem;
+}
+
+.sidebar nav ul {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    list-style: none;
+    margin-bottom: 1.5rem;
+}
+
+.sidebar nav li {
+    margin-bottom: 0.2rem;
+}
+
+.sidebar hr {
+    margin: 1.25rem 1.5rem;
+    border-color: var(--pico-muted-border-color);
+    opacity: 0.5;
+}
+
+/* Links & buttons */
+.sidebar nav a,
+.sidebar nav button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 0;
+    padding: 0.7rem 1rem;
+    border: none;
+    background-color: transparent;
+    color: var(--pico-button-base-color);
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar nav a i,
+.sidebar nav button i {
+    width: 24px;
+    margin-right: 8px;
+    text-align: center;
+    color: var(--pico-h2-color);
+    transition: all 0.2s ease-in-out;
+    flex-shrink: 0;
+}
+
+.sidebar nav a:hover i,
+.sidebar nav button:hover i,
+.sidebar nav a.active-nav i,
+.sidebar nav button.active-nav i {
+    color: var(--pico-primary-inverse);
+    transform: scale(1.1);
+}
+
+/* Button variations / states */
+.sidebar nav button.outline,
+.sidebar nav button.contrast {
+    border: none;
+    background-color: transparent;
+    color: var(--pico-muted-color);
+    box-shadow: none;
+}
+
+.sidebar nav button:focus {
+    box-shadow: 0 0 0 3px var(--pico-primary-focus);
+}
+
+.sidebar nav a:hover,
+.sidebar nav button:hover {
+    background-color: var(--pico-primary-hover-background, var(--pico-primary-focus));
+    color: var(--pico-primary-inverse);
+    transform: translateX(3px);
+}
+
+/* Active navigation */
+.sidebar nav a[aria-current="page"],
+.sidebar nav button[aria-current="page"],
+.sidebar nav a.active-nav,
+.sidebar nav button.active-nav {
+    background-color: var(--pico-primary);
+    color: var(--pico-primary-inverse);
+    font-weight: 600;
+    box-shadow: var(--pico-card-box-shadow);
+}
+
+/* Progress bar inside sidebar (used as loading indicator) */
+.sidebar progress {
+    width: 80%;
+    margin: 1rem auto;
+    display: block;
+} 

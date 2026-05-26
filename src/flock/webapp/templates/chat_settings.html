@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Settings</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />    <link rel="stylesheet" href="{{ url_for('static', path='css/chat.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/header.css') }}">
+    {# Active theme CSS #}
+    {% if theme_css %}<style>{{ theme_css | safe }}</style>{% endif %}
+    <script src="https://unpkg.com/htmx.org@1.9.10" crossorigin="anonymous"></script>
+</head>
+<body class="chat-page">
+    <main style="max-width: 700px; margin: 2rem auto;">
+        {% include 'partials/_chat_settings_form.html' %}
+        <p style="text-align:center; margin-top: 1rem;"><a href="{{ url_for('chat_page') }}">← Back to Chat</a></p>
+    </main>
+</body>
+</html> 

@@ -1,0 +1,35 @@
+{# This snippet is returned by the /ui/htmx/share/generate-link endpoint #}
+{% if share_url %}
+    <p style="margin-bottom: 0.5rem;"><strong>Shareable Link generated:</strong></p>
+    <input type="text" id="generatedShareLinkInput" value="{{ share_url }}" readonly style="width: 100%; margin-bottom: 0.5rem;">
+    {# <button type="button" onclick="copyGeneratedLinkToClipboard()">Copy Link</button> #}
+    {# <small id="copyGeneratedStatusMsg" style="margin-left: 0.5rem;"></small> #}
+    <p><small>You can select the link above and copy it (Ctrl+C or Cmd+C).</small></p>
+{% elif error_message %}
+    <p style="color: var(--pico-form-invalid-color);">Error: {{ error_message }}</p>
+{% else %}
+    <p><em>Something went wrong, no link generated.</em></p>
+{% endif %}
+
+{# 
+<script>
+    // Minimal JS for copy if desired - but user asked for JS-free.
+    // If you re-add the button, uncomment this.
+    function copyGeneratedLinkToClipboard() {
+        const input = document.getElementById('generatedShareLinkInput');
+        const msg = document.getElementById('copyGeneratedStatusMsg');
+        if (!input || !msg) return;
+
+        input.select();
+        input.setSelectionRange(0, 99999); // For mobile devices
+        try {
+            document.execCommand('copy');
+            msg.textContent = 'Copied!';
+            setTimeout(() => { msg.textContent = ''; }, 2000);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            msg.textContent = 'Failed to copy.';
+        }
+    }
+</script>
+#} 

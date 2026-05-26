@@ -1,0 +1,57 @@
+{% for entry in history %}
+    {% if entry.role == 'user' %}
+        <div class="bubble user">
+            {{ entry.text }}
+            <span class="chat-timestamp">{{ entry.timestamp|default(now().strftime('%H:%M')) }}</span>
+        </div>
+    {% else %}
+        <div class="bubble bot" x-data="{showForm:false}">
+            <!-- Bubble content (visible when feedback form hidden) -->
+            <div x-show="!showForm">
+                <div>
+                    {{ entry.text | safe }}
+                    <span class="chat-timestamp">
+                        {{ entry.timestamp|default(now().strftime('%H:%M')) }}{% if entry.agent %} - {{ entry.agent }}{% endif %}{% if entry.duration_ms is defined %} - {{ entry.duration_ms }}ms - {% endif %}
+                        <!-- hidden meta form (used by thumbs links) -->
+                        <form class="feedback-meta" style="display:none">
+                            {% if share_id %}<input type="hidden" name="share_id" value="{{ share_id }}">{% endif %}
+                            <input type="hidden" name="flock_definition" value="{{ entry.flock_yaml | replace('"', '&quot;') }}">
+                            <input type="hidden" name="agent_name" value="{{ entry.agent }}">
+                            <input type="hidden" name="actual_response" value='{{ entry.raw_json | replace("'", "&#39;") }}'>
+                            <input type="hidden" name="reason" value="positive">
+                        </form>                        <a href="#" 
+                           hx-post="{% if share_id %}{{ url_for('chat_feedback_shared') }}{% else %}{{ url_for('chat_feedback') }}{% endif %}" 
+                           hx-include="closest .feedback-meta" 
+                           hx-target="closest .bubble" 
+                           hx-swap="innerHTML" 
+                           title="Looks good!" class="feedback-link">👍</a>
+                        - 
+                        <a href="#" @click.prevent="showForm=true" title="Submit detailed feedback" class="feedback-link">👎</a>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Feedback form (initially hidden, toggled by 👎 link) -->
+            <div x-show="showForm" style="width: 800px;">                <form
+                    hx-post="{% if share_id %}{{ url_for('chat_feedback_shared') }}{% else %}{{ url_for('chat_feedback') }}{% endif %}"
+                    hx-target="closest .bubble"
+                    hx-swap="innerHTML"
+                    x-on:htmx:afterRequest="showForm=false"
+                    style="display:block; width:800px;">
+                    {% if share_id %}<input type="hidden" name="share_id" value="{{ share_id }}">{% endif %}
+                    <input type="hidden" name="flock_definition" value='{{ entry.flock_yaml | tojson | safe }}'>
+                    <input type="hidden" name="agent_name" value='{{ entry.agent | tojson | safe }}'>
+                    <input type="hidden" name="actual_response" value='{{ entry.raw_json | tojson | safe }}'>
+                    <label>Reason</label>
+                    <textarea name="reason" required style="min-height:5rem;width:100%; white-space:pre-wrap;"></textarea>
+                    <label>Expected / Correct Response</label>
+                    <textarea name="expected_response" style="min-height:12rem;width:100%; white-space:pre-wrap;font-family:monospace;">{{ entry.raw_json }}</textarea>
+                    <div style="margin-top:0.4rem; display:flex; gap:0.5rem;">
+                        <button type="submit" class="secondary">Send</button>
+                        <button type="button" class="outline" @click="showForm=false">Back...</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+{% endfor %}

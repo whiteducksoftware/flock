@@ -1,0 +1,74 @@
+<nav>
+    {% if ui_mode == 'standalone' %}
+    <h5>Manage Flocks</h5>
+    <ul>
+        <li>            <button hx-get="{{ url_for('htmx_get_load_flock_view') }}?ui_mode={{ ui_mode }}" hx-target="#main-content-area"
+                hx-push-url="{{ url_for('page_dashboard') }}?ui_mode={{ ui_mode }}" hx-indicator="#content-loading-indicator-main"
+                class="contrast {% if request.url.path == url_for('page_dashboard') or request.url.path == url_for('htmx_get_load_flock_view') %}active-nav{% endif %}">
+                <i class="fas fa-folder-open"></i> Load Flock
+            </button>
+        </li>
+        <!-- <li>            <button hx-get="{{ url_for('htmx_get_create_flock_form') }}?ui_mode={{ ui_mode }}" hx-target="#main-content-area"
+                hx-push-url="{{ url_for('page_create') }}?ui_mode={{ ui_mode }}" hx-indicator="#content-loading-indicator-main"
+                class="contrast {% if request.url.path == url_for('page_create') %}active-nav{% endif %}">>
+                <i class="fas fa-plus-circle"></i> Create New Flock
+            </button>
+        </li> -->
+    </ul>
+    {% endif %}
+
+    {% if current_flock %}
+    <hr>
+    <h5>Current Flock</h5>
+    <ul>        
+        <li>            <button hx-get="{{ url_for('htmx_get_execution_view_container') }}?ui_mode={{ ui_mode }}" hx-target="#main-content-area"
+                hx-push-url="{{ url_for('page_editor_section', section='execute') }}?ui_mode={{ ui_mode }}" hx-indicator="#content-loading-indicator-main"
+                class="contrast {% if request.url.path == url_for('page_editor_section', section='execute') %}active-nav{% endif %}">
+                <i class="fas fa-play-circle"></i> Execute Flock
+            </button>
+        </li>
+        <li>            <button hx-get="{{ url_for('htmx_get_agent_manager_view') }}?ui_mode={{ ui_mode }}" hx-target="#main-content-area"
+                hx-push-url="{{ url_for('page_editor_section', section='agents') }}?ui_mode={{ ui_mode }}" hx-indicator="#content-loading-indicator-main"
+                class="contrast{% if request.url.path == url_for('page_editor_section', section='agents') %}active-nav{% endif %}">
+                <i class="fas fa-robot"></i> Agents ({{ current_flock.agents|length }})
+            </button>
+        </li>        <li>            <button hx-get="{{ url_for('htmx_get_flock_properties_form') }}?ui_mode={{ ui_mode }}" hx-target="#main-content-area"
+                hx-push-url="{{ url_for('page_editor_section', section='properties') }}?ui_mode={{ ui_mode }}" hx-indicator="#content-loading-indicator-main"
+                class="contrast {% if request.url.path == url_for('page_editor_section', section='properties') %}active-nav{% endif %}">
+                <i class="fas fa-cog"></i> Properties
+            </button>
+        </li>
+    </ul>
+    {% endif %}
+
+    <hr>
+    <h5>Tools</h5>
+    <ul>
+        <li>            <button hx-get="{{ url_for('htmx_get_registry_viewer') }}?ui_mode={{ ui_mode }}" hx-target="#main-content-area"
+                hx-push-url="{{ url_for('page_registry') }}?ui_mode={{ ui_mode }}" hx-indicator="#content-loading-indicator-main"
+                class="contrast {% if request.url.path == url_for('page_registry') %}active-nav{% endif %}">
+                <i class="fas fa-book"></i> View Registry
+            </button>
+        </li>
+        <li>            <button hx-get="{{ url_for('htmx_get_settings_view') }}?ui_mode={{ ui_mode }}" hx-target="#main-content-area"
+                hx-push-url="{{ url_for('page_settings') }}?ui_mode={{ ui_mode }}" hx-indicator="#content-loading-indicator-main"
+                class="contrast {% if request.url.path == url_for('page_settings') %}active-nav{% endif %}">
+                <i class="fas fa-sliders-h"></i> Settings
+            </button>
+        </li>
+        {% if chat_enabled %}        <li>            <button hx-get="{{ url_for('htmx_get_chat_view') }}?ui_mode={{ ui_mode }}" hx-target="#main-content-area"
+                hx-push-url="{{ url_for('page_chat') }}?ui_mode={{ ui_mode }}" hx-indicator="#content-loading-indicator-main"
+                class="contrast {% if request.url.path == url_for('page_chat') %}active-nav{% endif %}">
+                <i class="fas fa-comments"></i> Chat
+            </button>
+        </li>        <li>            <button hx-get="{{ url_for('chat_settings_form') }}?ui_mode={{ ui_mode }}" hx-target="#main-content-area"
+                hx-push-url="{{ url_for('chat_settings_standalone') }}?ui_mode={{ ui_mode }}" hx-indicator="#content-loading-indicator-main"
+                class="contrast {% if request.url.path == url_for('chat_settings_standalone') %}active-nav{% endif %}">
+                <i class="fas fa-sliders-h"></i> Chat Settings
+            </button>
+        </li>
+        {% endif %}
+    </ul>
+    <div id="content-loading-indicator-main" class="htmx-indicator" style="text-align:center; padding:1rem;"><progress
+            indeterminate></progress></div>
+</nav>

@@ -1,0 +1,16 @@
+<article>
+    <header>
+        <h5>Upload New Flock File</h5>
+    </header>    <form hx-post="{{ url_for('load_flock_by_upload') }}"
+          hx-target="#main-content-area" {# After upload, go to editor #}
+          hx-swap="innerHTML"
+          hx-encoding="multipart/form-data"
+          hx-indicator="#upload-loading-indicator-pane">
+        <label for="flock_file_upload_pane">Upload <code>.flock.yaml</code>, <code>.yaml</code>, or <code>.yml</code> file:</label>
+        <input type="file" id="flock_file_upload_pane" name="flock_file_upload" accept=".yaml,.yml,.flock" required>
+        <button type="submit">Upload and Load Flock</button>
+        <span id="upload-loading-indicator-pane" class="htmx-indicator"><progress indeterminate></progress> Uploading...</span>
+    </form>
+    {# Optionally, if a file from the list was clicked to show details before loading: #}
+    {# {% if selected_file_details %} ... display details ... {% endif %} #}
+</article>

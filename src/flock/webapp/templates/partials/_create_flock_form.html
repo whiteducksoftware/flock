@@ -1,0 +1,50 @@
+<article id="create-flock-view-content">
+    <header>
+        <h2>Create or Upload Flock</h2>
+    </header>
+
+    {% if error_message %}
+        <div class="error DANGER" role="alert" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
+            {{ error_message }} <button type="button" class="close" @click="show = false">×</button>
+        </div>
+    {% endif %}
+    {% if success_message %} {# For messages after an action within this view #}
+        <div class="success SUCCESS" role="alert" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
+            {{ success_message }} <button type="button" class="close" @click="show = false">×</button>
+        </div>
+    {% endif %}
+    
+    <section id="create-by-details-section">
+        <h4>Define New Flock Properties</h4>        <form hx-post="{{ url_for('create_flock') }}" 
+              hx-target="#main-content-area" {# On success, loads properties form into main area #}
+              hx-swap="innerHTML" 
+              hx-indicator="#create-indicator-details">
+            <label for="flock_name_create_details">Flock Name *</label>
+            <input type="text" id="flock_name_create_details" name="flock_name" placeholder="My Awesome Flock" required>
+
+            <label for="default_model_create_details">Default Model (Optional)</label>
+            <input type="text" id="default_model_create_details" name="default_model" placeholder="openai/gpt-4o">
+
+            <label for="description_create_details">Description (Optional)</label>
+            <textarea id="description_create_details" name="description" placeholder="A brief description..."></textarea>
+
+            <button type="submit">Create and Edit Flock</button>
+            <span id="create-indicator-details" class="htmx-indicator"><progress indeterminate></progress> Creating...</span>
+        </form>
+    </section>
+
+    <hr>
+
+    <section id="create-by-upload-section">
+        <h4>Upload Existing Flock File</h4>        <form hx-post="{{ url_for('load_flock_by_upload') }}"
+              hx-target="#main-content-area" {# On success, loads properties form into main area #}
+              hx-swap="innerHTML"
+              hx-encoding="multipart/form-data"
+              hx-indicator="#create-upload-loading-indicator">
+            <label for="flock_file_upload_create">Upload <code>.flock.yaml</code>, <code>.yaml</code>, or <code>.yml</code> file:</label>
+            <input type="file" id="flock_file_upload_create" name="flock_file_upload" accept=".yaml,.yml,.flock" required>
+            <button type="submit">Upload and Edit Flock</button>
+            <span id="create-upload-loading-indicator" class="htmx-indicator"><progress indeterminate></progress> Uploading...</span>
+        </form>
+    </section>
+</article>
