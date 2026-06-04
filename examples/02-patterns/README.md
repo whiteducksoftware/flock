@@ -171,6 +171,6 @@ After mastering these patterns, explore:
 
 ## 📖 Additional Resources
 
-- [Fan-Out Publishing Guide](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/guides/fan-out.md)
-- [Agent Guide](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/guides/agents.md)
+- [Fan-Out Publishing Guide](https://github.com/whiteducksoftware/flock/blob/main/docs/guides/fan-out.md)
+- [Agent Guide](https://github.com/whiteducksoftware/flock/blob/main/docs/guides/agents.md)
 - AGENTS.md - Section on "Fan-Out Publishing"
