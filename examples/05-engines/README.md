@@ -369,9 +369,9 @@ class HybridEngine(EngineComponent):
 
 ## 📚 Documentation
 
-- [Engine Component Guide](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/guides/components.md)
+- [Engine Component Guide](https://github.com/whiteducksoftware/flock/blob/main/docs/guides/components.md)
 - AGENTS.md - "Components" section
-- [Architecture Guide](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/guides/agents.md)
+- [Architecture Guide](https://github.com/whiteducksoftware/flock/blob/main/docs/guides/agents.md)
 
 ## 💡 Design Tips
 

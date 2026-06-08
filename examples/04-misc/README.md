@@ -396,8 +396,8 @@ After exploring these examples:
 
 - **AGENTS.md** - "Persistent Blackboard History" section
 - **AGENTS.md** - "Test Isolation" section for scale testing
-- [Dashboard Guide](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/guides/dashboard.md)
-- [Configuration Guide](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/reference/configuration.md)
+- [Dashboard Guide](https://github.com/whiteducksoftware/flock/blob/main/docs/guides/dashboard.md)
+- [Configuration Guide](https://github.com/whiteducksoftware/flock/blob/main/docs/reference/configuration.md)
 
 ---
 

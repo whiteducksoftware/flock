@@ -17,8 +17,8 @@ Welcome to Flock! We're excited to have you contribute to the future of AI agent
 
 ```bash
 # 1. Fork and clone the repository
-git clone https://github.com/yourusername/flock-flow.git
-cd flock-flow
+git clone https://github.com/yourusername/flock.git
+cd flock
 
 # 2. Install all dependencies
 poe install

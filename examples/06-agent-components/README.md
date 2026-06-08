@@ -361,8 +361,8 @@ agent.with_utilities(
 
 ## 📚 Documentation
 
-- [Agent Components Guide](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/guides/components.md)
-- [Agent Guide](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/guides/agents.md)
+- [Agent Components Guide](https://github.com/whiteducksoftware/flock/blob/main/docs/guides/components.md)
+- [Agent Guide](https://github.com/whiteducksoftware/flock/blob/main/docs/guides/agents.md)
 - AGENTS.md - "Components" section
 
 ---

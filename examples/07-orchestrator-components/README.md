@@ -408,8 +408,8 @@ class ConditionalMonitor(OrchestratorComponent):
 
 ## 📚 Documentation
 
-- [Orchestrator Components Guide](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/guides/orchestrator-components.md)
-- [Component Architecture](https://github.com/whiteducksoftware/flock-flow/blob/main/docs/guides/components.md)
+- [Orchestrator Components Guide](https://github.com/whiteducksoftware/flock/blob/main/docs/guides/orchestrator-components.md)
+- [Component Architecture](https://github.com/whiteducksoftware/flock/blob/main/docs/guides/components.md)
 - AGENTS.md - "Components" section
 
 ## 💡 Design Tips

@@ -994,8 +994,8 @@ pip install flock-core[semantic]
 export OPENAI_API_KEY="sk-..."
 
 # Try examples
-git clone https://github.com/whiteducksoftware/flock-flow.git
-cd flock-flow
+git clone https://github.com/whiteducksoftware/flock.git
+cd flock
 
 # CLI examples
 uv run python examples/01-cli/01_declarative_pizza.py
@@ -1121,7 +1121,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed status and tracking.
 
 **"Declarative contracts eliminate prompt hell. Blackboard architecture eliminates graph spaghetti. Semantic intelligence eliminates keyword brittleness. Proven patterns applied to modern LLMs."**
 
-[⭐ Star on GitHub](https://github.com/whiteducksoftware/flock-flow) | [📖 Documentation](https://whiteducksoftware.github.io/flock) | [🚀 Try Examples](examples/) | [💼 Enterprise Support](mailto:support@whiteduck.de)
+[⭐ Star on GitHub](https://github.com/whiteducksoftware/flock) | [📖 Documentation](https://whiteducksoftware.github.io/flock) | [🚀 Try Examples](examples/) | [💼 Enterprise Support](mailto:support@whiteduck.de)
 
 </div>
 
