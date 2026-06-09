@@ -3,6 +3,7 @@
 Utilizes Dapr State-Store Components
 as the backend for the Flock Blackboard.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -86,6 +87,7 @@ registry = type_registry
 _IDX_ALL_ARTIFACTS = "idx:artifacts"
 _IDX_SNAPSHOTS = "idx:snapshots"
 
+
 def _artifact_key(artifact_id: UUID) -> str:
     return f"artifact:{artifact_id}"
 
@@ -142,6 +144,7 @@ def _build_dapr_query(filters: FilterConfig | None) -> str:
         query["filter"] = {"AND": conditions}
     query["sort"] = [{"key": "created_at", "order": "ASC"}]
     return json.dumps(query)
+
 
 class DaprStateBlackboardStoreClientConfig(BaseModel):
     """Optional Config for the underlying Dapr-Client for the Blackboard."""
@@ -217,7 +220,7 @@ class DaprStateBlackboardConfig(BaseModel):
         ge=0,
     )
 
-    consistency: Literal["unspecified", "eventual", "strong" ] = Field(
+    consistency: Literal["unspecified", "eventual", "strong"] = Field(
         default="unspecified",
         description="Consistency level for state operations. "
         "Use Consistency.strong for strong consistency or "
@@ -253,6 +256,7 @@ class DaprStateBlackboardConfig(BaseModel):
             )
             self.supports_transactions = False
         return self
+
 
 class DaprStateBlackboardStore(BlackboardStore):
     """Dapr-backed implementation of :class:`BlackboardStore`.
@@ -335,9 +339,7 @@ class DaprStateBlackboardStore(BlackboardStore):
         is configured.
         """
         concurrency = (
-            Concurrency.first_write
-            if self._supports_etag
-            else Concurrency.unspecified
+            Concurrency.first_write if self._supports_etag else Concurrency.unspecified
         )
         if (
             concurrency == Concurrency.unspecified
@@ -357,7 +359,11 @@ class DaprStateBlackboardStore(BlackboardStore):
             if code == StatusCode.ABORTED:
                 return True
             if code == StatusCode.FAILED_PRECONDITION:
-                details = err.details() if hasattr(err, "details") and callable(err.details) else ""
+                details = (
+                    err.details()
+                    if hasattr(err, "details") and callable(err.details)
+                    else ""
+                )
                 if details and "etag" in details.lower():
                     return True
         return False
@@ -542,9 +548,7 @@ class DaprStateBlackboardStore(BlackboardStore):
                 if item.error or not item.text():
                     continue
                 try:
-                    artifacts.append(
-                        deserialize_artifact(item.text())
-                    )
+                    artifacts.append(deserialize_artifact(item.text()))
                     live_keys.add(item.key.replace("artifact:", ""))
                 except Exception:
                     logger.debug(f"Skipping non-artifact key: {item.key}")
@@ -554,11 +558,15 @@ class DaprStateBlackboardStore(BlackboardStore):
                 for type_name in filters.type_names:
                     type_ids, type_etag = self._read_index(_type_index_key(type_name))
                     self._reconcile_index(
-                        _type_index_key(type_name), type_ids, live_keys,
+                        _type_index_key(type_name),
+                        type_ids,
+                        live_keys,
                         etag=type_etag,
                     )
             else:
-                self._reconcile_index(_IDX_ALL_ARTIFACTS, all_ids, live_keys, etag=_etag)
+                self._reconcile_index(
+                    _IDX_ALL_ARTIFACTS, all_ids, live_keys, etag=_etag
+                )
             # Apply full in-memory filtering
             artifact_filter = ArtifactFilter(filters)
             artifacts = [a for a in artifacts if artifact_filter.matches(a)]
@@ -697,7 +705,9 @@ class DaprStateBlackboardStore(BlackboardStore):
                 type_idx, type_etag = self._read_index(_type_index_key(artifact.type))
                 if uid not in type_idx:
                     type_idx.append(uid)
-                    self._write_index(_type_index_key(artifact.type), type_idx, etag=type_etag)
+                    self._write_index(
+                        _type_index_key(artifact.type), type_idx, etag=type_etag
+                    )
                 logger.info(
                     f"Published artifact {artifact.id} (type={artifact.type}) [non-transactional]"
                 )
@@ -925,7 +935,8 @@ class DaprStateBlackboardStore(BlackboardStore):
                 for id in all_ids:  # noqa: A001
                     logger.debug(f"Deleting agent snapshot '{id}'")
                     _ = self._client.delete_state(
-                        self._store_name, key=_snapshot_key(id),
+                        self._store_name,
+                        key=_snapshot_key(id),
                         options=self._build_state_options(),
                     )
                 # 3. Clear the index
@@ -979,11 +990,11 @@ class DaprStateBlackboardStore(BlackboardStore):
                     if not item.text():
                         continue
                     live_keys.add(item.key.replace("artifact:", ""))
-                    artifacts.append(
-                        deserialize_artifact(item.text())
-                    )
+                    artifacts.append(deserialize_artifact(item.text()))
                 # Reconcile stale index entries
-                self._reconcile_index(_IDX_ALL_ARTIFACTS, all_ids, live_keys, etag=idx_etag)
+                self._reconcile_index(
+                    _IDX_ALL_ARTIFACTS, all_ids, live_keys, etag=idx_etag
+                )
                 logger.debug(f"Listed {len(artifacts)} artifact(s)")
                 return artifacts
 
@@ -1007,11 +1018,11 @@ class DaprStateBlackboardStore(BlackboardStore):
                     if not item.text():
                         continue
                     live_keys.add(item.key.replace("artifact:", ""))
-                    artifacts.append(
-                        deserialize_artifact(item.text())
-                    )
+                    artifacts.append(deserialize_artifact(item.text()))
                 # Reconcile stale index entries
-                self._reconcile_index(_type_index_key(type_name), uids, live_keys, etag=idx_etag)
+                self._reconcile_index(
+                    _type_index_key(type_name), uids, live_keys, etag=idx_etag
+                )
                 logger.debug(
                     f"Listed {len(artifacts)} artifact(s) of type '{type_name}'"
                 )
@@ -1028,7 +1039,9 @@ class DaprStateBlackboardStore(BlackboardStore):
                 f"Getting artifacts by type '{artifact_type.__name__}' (correlation_id={correlation_id})"
             )
             artifacts: list[Artifact] = []
-            type_name = TypeResolutionHelper.safe_resolve(registry=registry, type_name=artifact_type.__name__)
+            type_name = TypeResolutionHelper.safe_resolve(
+                registry=registry, type_name=artifact_type.__name__
+            )
             artifacts = await self.list_by_type(type_name)
             if correlation_id is not None:
                 before = len(artifacts)
@@ -1187,9 +1200,7 @@ class DaprStateBlackboardStore(BlackboardStore):
                         logger.debug(f"Skipping empty snapshot entry: {item.key}")
                         continue
                     live_keys.add(item.key.replace("snapshot:", ""))
-                    deserialized = deserialize_agent_snapshot(
-                        item.text()
-                    )
+                    deserialized = deserialize_agent_snapshot(item.text())
                     snapshot_records.append(deserialized)
                 # Reconcile stale snapshot index entries
                 self._reconcile_index(_IDX_SNAPSHOTS, all_ids, live_keys, etag=idx_etag)
