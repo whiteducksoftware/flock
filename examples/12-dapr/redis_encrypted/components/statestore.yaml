@@ -1,0 +1,27 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: flockstate
+  namespace: development
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: "redis:6379"
+    - name: redisPassword
+      secretKeyRef:
+        name: redis_password
+        key:  redis_password
+    - name: keyPrefix
+      value: namespace
+    - name: primaryEncryptionKey
+      secretKeyRef:
+        name: encryption_key
+        key: encryption_key
+    - name: secondaryEncryptionKey
+      secretKeyRef:
+        name: encryption_key_backup
+        key: encryption_key_backup
+auth:
+  secretStore: flock-dev-secretstore

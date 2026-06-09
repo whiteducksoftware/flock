@@ -30,6 +30,8 @@ export DEFAULT_MODEL="openai/gpt-4.1"
 
 **That's it.** Flock works with any LiteLLM-supported model (OpenAI, Anthropic, Azure, local models, etc.).
 
+Need distributed blackboard persistence? See [Dapr State Store Integration](../guides/dapr-state-store.md).
+
 ---
 
 ## Your First Agent (60 Seconds)

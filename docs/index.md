@@ -120,6 +120,14 @@ await flock.serve(dashboard=True)
 
     [Guides →](guides/index.md){ .md-button }
 
+-   :material-database: **Dapr State Store**
+
+    ---
+
+    Use Redis, PostgreSQL, or other Dapr-supported state stores as distributed blackboard backends.
+
+    [Dapr Guide →](guides/dapr-state-store.md){ .md-button }
+
 -   :material-api: **API Reference**
 
     ---

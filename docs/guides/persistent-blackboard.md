@@ -21,7 +21,7 @@ The in-memory blackboard is perfect for local prototyping, but production teams 
 - **Replay & Audits** — Inspect any published artifact (including payloads, tags, visibility, version, correlation IDs) even after the orchestrator restarts.
 - **Lifecycle Analytics** — Summaries and agent history endpoints expose production/consumption counts, visibility breakdowns, and tag trends over arbitrary windows.
 - **Operator Experience** — Dashboard users can scroll back through previous runs, inspect payload details, and view retention banners that explain how far history goes.
-- **Future Backends** — The updated store interface (`FilterConfig`, `ArtifactEnvelope`) paves the way for Postgres, DuckDB, or cloud warehouses with identical semantics.
+- **Alternative Backends** — The same store contract also supports distributed backends via Dapr state stores.
 
 ---
 
@@ -45,6 +45,23 @@ Key capabilities:
 - **Operational helpers** — `sqlite-maintenance` CLI can prune (`--delete-before`) and vacuum the database on a schedule.
 
 > Tip: Run `examples/02-the-blackboard/01_persistent_pizza.py` to seed `.flock/examples/pizza_history.db`, then reuse that file across sessions.
+
+---
+
+## Choosing SQLite vs Dapr
+
+Use this quick matrix when deciding which store to use:
+
+| Option | Best For | Persistence Scope | Tradeoffs |
+| --- | --- | --- | --- |
+| In-memory (default) | Local prototyping and tests | Process lifetime only | Fastest setup, but data is lost on restart |
+| SQLiteBlackboardStore | Single-node durable history | Local file persistence | Simple operations, but not a shared distributed backend |
+| DaprStateBlackboardStore | Shared/distributed blackboard workloads | Depends on chosen Dapr state store | Flexible backend choice, but requires Dapr sidecar + component setup |
+
+- Use SQLite when you want local durable history for a single-node deployment.
+- Use Dapr-backed storage when you need shared/distributed state or backend-specific capabilities such as store-managed encryption and TTL.
+
+See [Dapr State Store Integration](dapr-state-store.md) for distributed setup options.
 
 ---
 

@@ -11,9 +11,9 @@ Learn by example! Explore working code samples demonstrating Flock's features an
 
 Explore the numbered example folders in this repository:
 
-- **01 — The Declarative Way** (`examples/01-the-declarative-way`) — minimal and focused
-- **02 — The Blackboard** (`examples/02-the-blackboard`) — architecture overview
-- **03 — The Dashboard** (`examples/03-the-dashboard`) — real-time monitoring
+- **01 — Getting Started** (`examples/01-getting-started`) — minimal and focused
+- **02 — Patterns** (`examples/02-patterns`) — architecture and flow patterns
+- **04 — Misc** (`examples/04-misc`) — dashboard and persistence demos
 
 ### Component Examples
 **Learn to build custom components and engines**
@@ -44,12 +44,19 @@ These examples show how to extend Flock with custom logic:
 ### Feature Examples
 **Focused examples for specific capabilities**
 
-Feature-focused examples are integrated into the folders above (e.g., dashboard edge cases). Additional feature demos may be added over time.
+Feature-focused examples are integrated into the folders above (for example dashboard edge cases). Additional feature demos may be added over time.
+
+### Dapr Examples
+**Run Flock with Dapr-backed state stores**
+
+- **12 — Dapr** (`examples/12-dapr`) — in-memory, Redis encrypted, and PostgreSQL state-store setups
+
+Start here for setup details: `examples/12-dapr/README.md`
 
 ### Dashboard Examples
 **Interactive dashboard demonstrations**
 
-Check out `examples/03-the-dashboard` to explore:
+Check out `examples/04-misc` to explore:
 
 - **Declarative Pizza** - Single-agent dashboard demo
 - **Edge Cases** - Multi-agent cascades and filtering
@@ -108,10 +115,10 @@ git clone https://github.com/whiteducksoftware/flock.git
 cd flock
 
 # Run a minimal example
-python examples/01-the-declarative-way/01_declarative_pizza.py
+python examples/01-getting-started/01_declarative_pizza.py
 
 # Run with dashboard
-python examples/03-the-dashboard/01_declarative_pizza.py
+python examples/04-misc/02-dashboard-edge-cases.py
 ```
 
 ---
@@ -151,7 +158,7 @@ async def main():
 asyncio.run(main())
 ```
 
-Run it locally: `python examples/01-the-declarative-way/01_declarative_pizza.py`
+Run it locally: `python examples/01-getting-started/01_declarative_pizza.py`
 
 ---
 
@@ -159,7 +166,7 @@ Run it locally: `python examples/01-the-declarative-way/01_declarative_pizza.py`
 
 **What it demonstrates:** Agent cascades, filtering, and real-time updates
 
-Run: `python examples/03-the-dashboard/02-dashboard-edge-cases.py`
+Run: `python examples/04-misc/02-dashboard-edge-cases.py`
 
 ---
 
@@ -180,7 +187,7 @@ await orchestrator.serve(
 )
 ```
 
-Run: `python examples/03-the-dashboard/01_declarative_pizza.py`
+Run: `python examples/04-misc/02-dashboard-edge-cases.py`
 
 ---
 
