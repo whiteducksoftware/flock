@@ -659,3 +659,270 @@ async def test_load_agent_snapshots_handles_error_empty_and_valid_entries(
     assert result[0].agent_name == "agent-ok"
     assert reconcile_calls["live"] == {"agent-ok"}
     assert reconcile_calls["etag"] == "etag-snap"
+
+
+def test_read_and_write_index_use_etag_and_state_options(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch, supports_etag=True, consistency="strong")
+
+    monkeypatch.setattr(
+        store._client,
+        "get_state",
+        lambda _store, _key: _FakeStateResponse('["a"]', etag="etag-read"),
+        raising=False,
+    )
+
+    save_call: dict[str, object] = {}
+
+    def _save_state(_store, key, value, **kwargs):
+        save_call["key"] = key
+        save_call["value"] = value
+        save_call.update(kwargs)
+
+    monkeypatch.setattr(store._client, "save_state", _save_state, raising=False)
+
+    items, etag = store._read_index("idx:key")
+    store._write_index("idx:key", ["x"], etag="etag-write")
+
+    assert items == ["a"]
+    assert etag == "etag-read"
+    assert save_call["key"] == "idx:key"
+    assert save_call["value"] == '["x"]'
+    assert save_call["etag"] == "etag-write"
+    assert save_call["state_metadata"] == {}
+    assert save_call["options"] is not None
+
+
+def test_reconcile_index_without_stale_entries_does_not_write(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch)
+    called = {"count": 0}
+
+    def _write(*_args, **_kwargs):
+        called["count"] += 1
+
+    monkeypatch.setattr(store, "_write_index", _write)
+
+    result = store._reconcile_index("idx:test", ["a", "b"], {"a", "b"})
+
+    assert result == ["a", "b"]
+    assert called["count"] == 0
+
+
+async def test_query_via_dapr_api_handles_pagination_errors_and_tag_filter(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch)
+
+    keep = Artifact(
+        type="Demo",
+        payload={"x": 1},
+        produced_by="writer",
+        tags={"keep", "extra"},
+    )
+    drop = Artifact(
+        type="Demo",
+        payload={"x": 2},
+        produced_by="writer",
+        tags={"other"},
+    )
+
+    class _QueryItem:
+        def __init__(self, key: str, data: str, error: str | None = None) -> None:
+            self.key = key
+            self._data = data
+            self.error = error
+
+        def text(self) -> str:
+            return self._data
+
+    class _QueryResponse:
+        def __init__(self, results, token: str | None) -> None:
+            self.results = results
+            self.token = token
+
+    calls: list[str] = []
+
+    def _query_state(*, store_name: str, query: str):
+        calls.append(query)
+        if len(calls) == 1:
+            return _QueryResponse(
+                [
+                    _QueryItem("bad", "", error="boom"),
+                    _QueryItem("non-artifact", "not-json"),
+                    _QueryItem("artifact-1", keep.model_dump_json()),
+                ],
+                token="next-token",
+            )
+        return _QueryResponse([_QueryItem("artifact-2", drop.model_dump_json())], None)
+
+    monkeypatch.setattr(store._client, "query_state", _query_state, raising=False)
+
+    artifacts = await store._query_via_dapr_api(FilterConfig(tags={"keep"}))
+
+    assert [a.id for a in artifacts] == [keep.id]
+    assert len(calls) == 2
+    assert '"token": "next-token"' in calls[1]
+
+
+def test_query_via_index_scan_type_filters_and_reconcile_paths(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch)
+    artifact = Artifact(type="Demo", payload={"v": 1}, produced_by="writer")
+
+    class _AlwaysMatch:
+        def __init__(self, _filters) -> None:
+            pass
+
+        def matches(self, _artifact: Artifact) -> bool:
+            return True
+
+    monkeypatch.setattr(
+        "flock.storage.dapr.dapr_state_blackboard_store.ArtifactFilter",
+        _AlwaysMatch,
+    )
+
+    def _read_index(key: str):
+        if key == _type_index_key("A"):
+            return ([str(artifact.id)], "etag-a")
+        if key == _type_index_key("B"):
+            return ([str(uuid4())], "etag-b")
+        return ([], None)
+
+    monkeypatch.setattr(store, "_read_index", _read_index)
+
+    monkeypatch.setattr(
+        store._client,
+        "get_bulk_state",
+        lambda _store, _keys, parallelism=10: SimpleNamespace(
+            items=[
+                _FakeBulkItem(f"artifact:{artifact.id}", artifact.model_dump_json()),
+                _FakeBulkItem(f"artifact:{uuid4()}", "not-json"),
+            ]
+        ),
+        raising=False,
+    )
+
+    reconciled: list[tuple[str, list[str], set[str], str | None]] = []
+
+    def _reconcile(index_key, index_ids, live_keys, *, etag=None):
+        reconciled.append((index_key, index_ids, live_keys, etag))
+        return [str(artifact.id)]
+
+    monkeypatch.setattr(store, "_reconcile_index", _reconcile)
+
+    result = store._query_via_index_scan(FilterConfig(type_names={"A", "B"}))
+
+    assert [a.id for a in result] == [artifact.id]
+    assert len(reconciled) == 2
+    assert {row[0] for row in reconciled} == {
+        _type_index_key("A"),
+        _type_index_key("B"),
+    }
+    assert all(str(artifact.id) in row[2] for row in reconciled)
+
+
+async def test_get_consumptions_by_artifact_ids_skips_error_entries(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch)
+    artifact_id = uuid4()
+
+    monkeypatch.setattr(
+        store._client,
+        "get_bulk_state",
+        lambda store_name, keys, parallelism=10: SimpleNamespace(
+            items=[
+                _FakeBulkItem(f"consumptions:{artifact_id}", "[]"),
+                _FakeBulkItem("consumptions:bad", "[]", error="oops"),
+            ]
+        ),
+        raising=False,
+    )
+
+    result = await store._get_consumptions_by_artifact_ids([artifact_id])
+
+    assert result == {str(artifact_id): []}
+
+
+async def test_publish_transactional_writes_artifact_and_index_updates(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch, supports_transactions=True, supports_etag=True)
+    artifact = Artifact(type="Demo", payload={"x": 1}, produced_by="writer")
+
+    def _read_index(key: str):
+        if key == "idx:artifacts":
+            return ([], "etag-all")
+        return ([], "etag-type")
+
+    monkeypatch.setattr(store, "_read_index", _read_index)
+
+    save_calls: list[dict[str, object]] = []
+
+    def _save_state(_store, key, value, **kwargs):
+        save_calls.append({"key": key, "value": value, **kwargs})
+
+    tx_calls: dict[str, object] = {}
+
+    def _execute_state_transaction(*, store_name, operations):
+        tx_calls["store_name"] = store_name
+        tx_calls["operations"] = operations
+
+    monkeypatch.setattr(store._client, "save_state", _save_state, raising=False)
+    monkeypatch.setattr(
+        store._client,
+        "execute_state_transaction",
+        _execute_state_transaction,
+        raising=False,
+    )
+
+    await store._publish_transactional(artifact)
+
+    assert len(save_calls) == 1
+    assert save_calls[0]["key"] == f"artifact:{artifact.id}"
+    operations = tx_calls["operations"]
+    assert len(operations) == 2
+    assert {op.key for op in operations} == {"idx:artifacts", "idx:type:Demo"}
+
+
+async def test_record_consumptions_non_transactional_groups_and_saves_bulk(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch, supports_etag=True)
+    artifact_id = uuid4()
+    existing = ConsumptionRecord(artifact_id=artifact_id, consumer="existing")
+    new_record = ConsumptionRecord(artifact_id=artifact_id, consumer="new")
+
+    monkeypatch.setattr(
+        store._client,
+        "get_state",
+        lambda _store, _key: _FakeStateResponse(
+            json.dumps([
+                {
+                    "artifact_id": str(existing.artifact_id),
+                    "consumer": existing.consumer,
+                    "run_id": existing.run_id,
+                    "correlation_id": existing.correlation_id,
+                    "consumed_at": existing.consumed_at.isoformat(),
+                }
+            ]),
+            etag="etag-cons",
+        ),
+        raising=False,
+    )
+
+    captured: dict[str, object] = {}
+
+    def _save_bulk_state(*, store_name, states):
+        captured["store_name"] = store_name
+        captured["states"] = states
+
+    monkeypatch.setattr(
+        store._client, "save_bulk_state", _save_bulk_state, raising=False
+    )
+
+    await store._record_consumptions_non_transactional([new_record])
+
+    states = captured["states"]
+    assert len(states) == 1
+    payload = json.loads(states[0].value)
+    assert len(payload) == 2
+    assert {entry["consumer"] for entry in payload} == {"existing", "new"}

@@ -8,8 +8,9 @@ import pytest
 
 from flock.core.artifacts import Artifact
 from flock.core.store import AgentSnapshotRecord, ConsumptionRecord
-from flock.core.visibility import AgentIdentity, PrivateVisibility
+from flock.core.visibility import AgentIdentity, PrivateVisibility, Visibility
 from flock.storage.dapr._serialization import (
+    _VISIBILITY_MAP,
     _default,
     deserialize_agent_snapshot,
     deserialize_artifact,
@@ -55,6 +56,17 @@ def test_artifact_roundtrip_preserves_visibility_subclass() -> None:
     assert not decoded.visibility.allows(AgentIdentity(name="allowed-agent"))
 
 
+def test_deserialize_artifact_keeps_base_visibility_when_kind_map_missing(
+    monkeypatch,
+) -> None:
+    artifact = Artifact(type="demo.Type", payload={"value": 1}, produced_by="writer")
+    monkeypatch.setitem(_VISIBILITY_MAP, "Public", None)  # type: ignore[arg-type]
+
+    decoded = deserialize_artifact(serialize_artifact(artifact))
+
+    assert type(decoded.visibility) is Visibility
+
+
 def test_consumption_records_roundtrip_and_empty_decode() -> None:
     record = ConsumptionRecord(
         artifact_id=uuid4(),
@@ -69,6 +81,7 @@ def test_consumption_records_roundtrip_and_empty_decode() -> None:
 
     assert decoded == [record]
     assert deserialize_consumption_records("") == []
+    assert deserialize_consumption_records(encoded.encode("utf-8")) == [record]
 
 
 def test_agent_snapshot_roundtrip_and_dict_input() -> None:
@@ -85,9 +98,11 @@ def test_agent_snapshot_roundtrip_and_dict_input() -> None:
 
     encoded = serialize_agent_snapshot(snapshot)
     decoded_from_json = deserialize_agent_snapshot(encoded)
+    decoded_from_bytes = deserialize_agent_snapshot(encoded.encode("utf-8"))
     decoded_from_dict = deserialize_agent_snapshot(json.loads(encoded))
 
     assert decoded_from_json == snapshot
+    assert decoded_from_bytes == snapshot
     assert decoded_from_dict == snapshot
 
 
@@ -97,4 +112,5 @@ def test_index_helpers_roundtrip_and_empty_data() -> None:
     encoded = serialize_index(keys)
 
     assert deserialize_index(encoded) == keys
+    assert deserialize_index(encoded.encode("utf-8")) == keys
     assert deserialize_index("") == []

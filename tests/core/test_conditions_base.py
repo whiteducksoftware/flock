@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
+
+from flock.core.conditions import AndCondition
+
 
 if TYPE_CHECKING:
     from flock.core import Flock
