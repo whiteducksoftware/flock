@@ -7,10 +7,17 @@ OpenClaw streaming execution.
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Iterable, Iterator, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterable,
+    Iterator,
+    Sequence,
+)
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Awaitable, Callable, Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import httpx
 
@@ -88,7 +95,7 @@ def parse_sse_lines(lines: Iterable[str]) -> Iterator[SSEFrame]:
         if not sep:
             continue
 
-        value = raw_value[1:] if raw_value.startswith(" ") else raw_value
+        value = raw_value.removeprefix(" ")
 
         if field == "event":
             event = value
@@ -463,7 +470,7 @@ class OpenClawSSEConsumer:
             if not sep:
                 continue
 
-            value = raw_value[1:] if raw_value.startswith(" ") else raw_value
+            value = raw_value.removeprefix(" ")
 
             if field == "event":
                 event = value

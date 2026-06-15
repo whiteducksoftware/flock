@@ -15,6 +15,7 @@ from flock.storage.dapr import (
 
 logger = get_logger(__name__)
 
+
 @flock_type
 class BandConcept(BaseModel):
     genre: str = Field(description="Musical genre (rock, jazz, metal, pop, etc.)")
@@ -84,31 +85,26 @@ async def full_blown_flock_test():
     with DaprClient() as client:
         logger.info(f"Retrieving {FLOCK_BASE_URL_SECRET_KEY} secret")
         base_url = client.get_secret(
-            store_name=FLOCK_SECRET_STORE,
-            key=FLOCK_BASE_URL_SECRET_KEY
+            store_name=FLOCK_SECRET_STORE, key=FLOCK_BASE_URL_SECRET_KEY
         ).secret.get(FLOCK_BASE_URL_SECRET_KEY)
         logger.info(f"Got {FLOCK_BASE_URL_SECRET_KEY}")
         logger.info(f"Retrieving {FLOCK_API_VERSION_SECRET_KEY}")
         api_version = client.get_secret(
-            store_name=FLOCK_SECRET_STORE,
-            key=FLOCK_API_VERSION_SECRET_KEY
+            store_name=FLOCK_SECRET_STORE, key=FLOCK_API_VERSION_SECRET_KEY
         ).secret.get(FLOCK_API_VERSION_SECRET_KEY)
         logger.info(f"Got {FLOCK_API_VERSION_SECRET_KEY}")
         logger.info(f"Retrieving {FLOCK_API_KEY_SECRET_KEY}")
         api_key = client.get_secret(
-            store_name=FLOCK_SECRET_STORE,
-            key=FLOCK_API_KEY_SECRET_KEY
+            store_name=FLOCK_SECRET_STORE, key=FLOCK_API_KEY_SECRET_KEY
         ).secret.get(FLOCK_API_KEY_SECRET_KEY)
         logger.info(f"Got {FLOCK_API_KEY_SECRET_KEY}")
         logger.info(f"Retrieving {FLOCK_STATE_STORE_SECRET_KEY}")
         state_store_name = client.get_secret(
-            store_name=FLOCK_SECRET_STORE,
-            key=FLOCK_STATE_STORE_SECRET_KEY
+            store_name=FLOCK_SECRET_STORE, key=FLOCK_STATE_STORE_SECRET_KEY
         ).secret.get(FLOCK_STATE_STORE_SECRET_KEY)
         logger.info(f"Retrieving {FLOCK_DEFAULT_MODEL_SECRET_KEY}")
         default_model = client.get_secret(
-            store_name=FLOCK_SECRET_STORE,
-            key=FLOCK_DEFAULT_MODEL_SECRET_KEY
+            store_name=FLOCK_SECRET_STORE, key=FLOCK_DEFAULT_MODEL_SECRET_KEY
         ).secret.get(FLOCK_DEFAULT_MODEL_SECRET_KEY)
         logger.info(f"Got {FLOCK_DEFAULT_MODEL_SECRET_KEY}")
     # Check if all keys have been retrieved
@@ -118,7 +114,7 @@ async def full_blown_flock_test():
         api_version is None,
         state_store_name is None,
         api_key is None,
-        default_model is None
+        default_model is None,
     ]):
         logger.error("UNABLE TO RETRIEVE FULL LIST OF SECRETS!!!")
         raise ValueError
@@ -170,10 +166,12 @@ async def full_blown_flock_test():
 
     await flock.serve(dashboard=True)
 
+
 async def main_test():
     print("Liftoff!")
     print("=== Testing Flock with an In-Memory Backend ===")
     await full_blown_flock_test()
+
 
 if __name__ == "__main__":
     asyncio.run(main_test())

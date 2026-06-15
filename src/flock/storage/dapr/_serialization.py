@@ -10,11 +10,10 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from flock.core.artifacts import Artifact
-from flock.core.store import AgentSnapshotRecord, ConsumptionRecord
 from flock.core.visibility import (
     AfterVisibility,
     LabelledVisibility,
@@ -23,6 +22,10 @@ from flock.core.visibility import (
     TenantVisibility,
     Visibility,
 )
+
+
+if TYPE_CHECKING:
+    from flock.core.store import AgentSnapshotRecord, ConsumptionRecord
 
 
 # -- Visibility discriminator map -------------------------------------------
@@ -77,6 +80,8 @@ def serialize_consumption_records(records: list[ConsumptionRecord]) -> str:
 
 
 def deserialize_consumption_records(data: str | bytes) -> list[ConsumptionRecord]:
+    from flock.core.store import ConsumptionRecord
+
     items = json.loads(data) if data else []
     return [
         ConsumptionRecord(
@@ -98,6 +103,8 @@ def serialize_agent_snapshot(snapshot: AgentSnapshotRecord) -> str:
 
 
 def deserialize_agent_snapshot(data: str | bytes) -> AgentSnapshotRecord:
+    from flock.core.store import AgentSnapshotRecord
+
     item = json.loads(data) if isinstance(data, (str, bytes)) else data
     return AgentSnapshotRecord(
         agent_name=item["agent_name"],

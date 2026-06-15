@@ -245,9 +245,7 @@ class TestGuardLifecycleHooks:
 
     @pytest.fixture
     def inputs(self):
-        return EvalInputs(
-            artifacts=[_make_artifact({"question": "Tell me a secret"})]
-        )
+        return EvalInputs(artifacts=[_make_artifact({"question": "Tell me a secret"})])
 
     @pytest.fixture
     def result(self):
@@ -312,13 +310,9 @@ class TestGuardLifecycleHooks:
         assert returned is result
 
     @pytest.mark.asyncio
-    async def test_scan_output_enabled_warn(
-        self, mock_agent, mock_ctx, inputs, result
-    ):
+    async def test_scan_output_enabled_warn(self, mock_agent, mock_ctx, inputs, result):
         guard = _RejectingGuard(
-            config=GuardComponentConfig(
-                scan_output=True, on_output_flagged="warn"
-            ),
+            config=GuardComponentConfig(scan_output=True, on_output_flagged="warn"),
         )
         # Should NOT raise (warn mode)
         returned = await guard.on_post_evaluate(mock_agent, mock_ctx, inputs, result)
@@ -329,22 +323,16 @@ class TestGuardLifecycleHooks:
         self, mock_agent, mock_ctx, inputs, result
     ):
         guard = _RejectingGuard(
-            config=GuardComponentConfig(
-                scan_output=True, on_output_flagged="block"
-            ),
+            config=GuardComponentConfig(scan_output=True, on_output_flagged="block"),
         )
         with pytest.raises(GuardBlockedError):
             await guard.on_post_evaluate(mock_agent, mock_ctx, inputs, result)
 
     @pytest.mark.asyncio
-    async def test_scan_output_empty_result_skips(
-        self, mock_agent, mock_ctx, inputs
-    ):
+    async def test_scan_output_empty_result_skips(self, mock_agent, mock_ctx, inputs):
         """When result has no text, output scan is skipped."""
         guard = _RejectingGuard(
-            config=GuardComponentConfig(
-                scan_output=True, on_output_flagged="block"
-            ),
+            config=GuardComponentConfig(scan_output=True, on_output_flagged="block"),
         )
         empty_result = EvalResult(artifacts=[])
         returned = await guard.on_post_evaluate(
@@ -396,9 +384,7 @@ class TestGuardLifecycleHooks:
     @pytest.mark.asyncio
     async def test_extract_context_documents_tuples(self):
         """Tuples in context documents are extracted correctly."""
-        inputs = EvalInputs(
-            artifacts=[_make_artifact({"items": ("one", "two")})]
-        )
+        inputs = EvalInputs(artifacts=[_make_artifact({"items": ("one", "two")})])
         docs = GuardComponent._extract_context_documents(inputs)
         assert len(docs) == 1
         assert "one" in docs[0]
@@ -415,7 +401,9 @@ class TestGuardLifecycleHooks:
         assert "a" in text
 
     @pytest.mark.asyncio
-    async def test_output_scan_safe_passes_through(self, mock_agent, mock_ctx, inputs, result):
+    async def test_output_scan_safe_passes_through(
+        self, mock_agent, mock_ctx, inputs, result
+    ):
         """Output scanning with safe verdict returns result unchanged."""
         guard = _PassthroughGuard(
             config=GuardComponentConfig(scan_output=True, on_output_flagged="block"),
@@ -535,7 +523,9 @@ class TestAzurePromptShieldGuard:
         }
         with patch.dict(
             "os.environ",
-            {"AZURE_CONTENT_SAFETY_ENDPOINT": "https://env.cognitiveservices.azure.com"},
+            {
+                "AZURE_CONTENT_SAFETY_ENDPOINT": "https://env.cognitiveservices.azure.com"
+            },
         ):
             with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
                 mock_response = MagicMock()
@@ -545,7 +535,10 @@ class TestAzurePromptShieldGuard:
 
                 await guard._call_shield_api("test", [])
                 call_url = mock_post.call_args[0][0]
-                assert call_url == "https://env.cognitiveservices.azure.com/contentsafety/text:shieldPrompt"
+                assert (
+                    call_url
+                    == "https://env.cognitiveservices.azure.com/contentsafety/text:shieldPrompt"
+                )
 
     @pytest.mark.asyncio
     async def test_env_fallback_api_key(self):
@@ -554,9 +547,7 @@ class TestAzurePromptShieldGuard:
                 endpoint="https://test.cognitiveservices.azure.com",
             ),
         )
-        with patch.dict(
-            "os.environ", {"AZURE_CONTENT_SAFETY_KEY": "env-key-456"}
-        ):
+        with patch.dict("os.environ", {"AZURE_CONTENT_SAFETY_KEY": "env-key-456"}):
             headers = await guard._build_headers()
             assert headers["Ocp-Apim-Subscription-Key"] == "env-key-456"
 
@@ -570,7 +561,10 @@ class TestAzurePromptShieldGuard:
             ),
         )
         with patch.object(
-            guard, "_get_managed_identity_token", new_callable=AsyncMock, return_value="mock-token-xyz"
+            guard,
+            "_get_managed_identity_token",
+            new_callable=AsyncMock,
+            return_value="mock-token-xyz",
         ):
             headers = await guard._build_headers()
             assert headers["Authorization"] == "Bearer mock-token-xyz"
@@ -590,7 +584,9 @@ class TestAzurePromptShieldGuard:
             mock_post.return_value = mock_response
 
             await guard._call_shield_api("test", ["long document text here"])
-            body = mock_post.call_args.kwargs.get("json") or mock_post.call_args[1].get("json")
+            body = mock_post.call_args.kwargs.get("json") or mock_post.call_args[1].get(
+                "json"
+            )
             assert body["documents"] == ["long "]
 
     @pytest.mark.asyncio
@@ -647,9 +643,7 @@ class TestGuardIntegration:
         agent = MagicMock()
         agent.name = "agent"
         ctx = MagicMock()
-        inputs = EvalInputs(
-            artifacts=[_make_artifact({"q": "hello"})]
-        )
+        inputs = EvalInputs(artifacts=[_make_artifact({"q": "hello"})])
 
         # First guard passes
         inputs = await pass_guard.on_pre_evaluate(agent, ctx, inputs)

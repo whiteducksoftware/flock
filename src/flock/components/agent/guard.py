@@ -232,7 +232,7 @@ class GuardComponent(AgentComponent, abc.ABC):
         if action == "block":
             logger.warning(msg)
             raise GuardBlockedError(verdict)
-        elif action == "warn":
+        if action == "warn":
             logger.warning(msg)
         elif action == "annotate":
             logger.info(f"[annotate] {msg}")
