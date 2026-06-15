@@ -926,3 +926,403 @@ async def test_record_consumptions_non_transactional_groups_and_saves_bulk(
     payload = json.loads(states[0].value)
     assert len(payload) == 2
     assert {entry["consumer"] for entry in payload} == {"existing", "new"}
+
+
+def test_build_dapr_query_single_producer_and_visibility_paths() -> None:
+    query = json.loads(
+        _build_dapr_query(
+            FilterConfig(
+                produced_by={"solo-producer"},
+                visibility={"Public"},
+            )
+        )
+    )
+
+    and_conditions = query["filter"]["AND"]
+    assert {"EQ": {"produced_by": "solo-producer"}} in and_conditions
+    assert {"EQ": {"visibility.kind": "Public"}} in and_conditions
+
+
+def test_store_initializes_eventual_consistency_branch(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch, consistency="eventual")
+
+    assert store._consistency.name == "unspecified"
+
+
+async def test_retry_on_etag_conflict_re_raises_non_etag_errors(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch, supports_etag=True, etag_max_retries=3)
+
+    async def _sleep_should_not_be_called(_delay: float) -> None:
+        raise AssertionError("sleep should not be called for non-etag errors")
+
+    monkeypatch.setattr(
+        "flock.storage.dapr.dapr_state_blackboard_store.asyncio.sleep",
+        _sleep_should_not_be_called,
+    )
+
+    def _operation() -> None:
+        raise RuntimeError("not an etag conflict")
+
+    try:
+        await store._retry_on_etag_conflict(_operation)
+    except RuntimeError as err:
+        assert "not an etag conflict" in str(err)
+    else:
+        raise AssertionError("Expected RuntimeError to be raised")
+
+
+def test_reconcile_index_with_stale_entries_writes_cleaned_index(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch)
+    write_calls: list[tuple[str, list[str], str | None]] = []
+
+    def _write(index_key: str, items: list[str], *, etag: str | None = None) -> None:
+        write_calls.append((index_key, items, etag))
+
+    monkeypatch.setattr(store, "_write_index", _write)
+
+    cleaned = store._reconcile_index(
+        "idx:artifacts",
+        ["live-1", "stale-1", "live-2"],
+        {"live-1", "live-2"},
+        etag="etag-reconcile",
+    )
+
+    assert cleaned == ["live-1", "live-2"]
+    assert write_calls == [("idx:artifacts", ["live-1", "live-2"], "etag-reconcile")]
+
+
+async def test_publish_non_transactional_persists_and_updates_indexes(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch, supports_etag=True, supports_ttl=True)
+    artifact = Artifact(type="Demo", payload={"x": 1}, produced_by="writer")
+
+    save_calls: list[dict[str, object]] = []
+    index_writes: list[tuple[str, list[str], str | None]] = []
+
+    def _read_index(key: str):
+        if key == "idx:artifacts":
+            return ([], "etag-all")
+        if key == "idx:type:Demo":
+            return ([], "etag-type")
+        raise AssertionError(f"Unexpected index key {key}")
+
+    def _save_state(_store, key, value, **kwargs):
+        save_calls.append({"key": key, "value": value, **kwargs})
+
+    def _write_index(key: str, items: list[str], *, etag: str | None = None) -> None:
+        index_writes.append((key, items, etag))
+
+    monkeypatch.setattr(store, "_read_index", _read_index)
+    monkeypatch.setattr(store._client, "save_state", _save_state, raising=False)
+    monkeypatch.setattr(store, "_write_index", _write_index)
+
+    await store._publish_non_transactional(artifact)
+
+    assert len(save_calls) == 1
+    assert save_calls[0]["key"] == f"artifact:{artifact.id}"
+    assert {w[0] for w in index_writes} == {"idx:artifacts", "idx:type:Demo"}
+    assert all(str(artifact.id) in w[1] for w in index_writes)
+
+
+async def test_record_consumptions_transactional_groups_and_transacts(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch, supports_etag=True)
+    first_id = uuid4()
+    second_id = uuid4()
+    records = [
+        ConsumptionRecord(artifact_id=first_id, consumer="a"),
+        ConsumptionRecord(artifact_id=first_id, consumer="b"),
+        ConsumptionRecord(artifact_id=second_id, consumer="c"),
+    ]
+
+    def _get_state(_store, key: str):
+        if key.endswith(str(first_id)):
+            return _FakeStateResponse("[]", etag="etag-first")
+        if key.endswith(str(second_id)):
+            return _FakeStateResponse("[]", etag="etag-second")
+        return _FakeStateResponse("[]")
+
+    tx_call: dict[str, object] = {}
+
+    def _execute_state_transaction(*, store_name, operations):
+        tx_call["store_name"] = store_name
+        tx_call["operations"] = operations
+
+    monkeypatch.setattr(store._client, "get_state", _get_state, raising=False)
+    monkeypatch.setattr(
+        store._client,
+        "execute_state_transaction",
+        _execute_state_transaction,
+        raising=False,
+    )
+
+    await store._record_consumptions_transactional(records)
+
+    operations = tx_call["operations"]
+    assert len(operations) == 2
+    assert {op.key for op in operations} == {
+        f"consumptions:{first_id}",
+        f"consumptions:{second_id}",
+    }
+
+
+async def test_upsert_agent_snapshot_transactional_builds_operations(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch, supports_etag=True)
+    snapshot = AgentSnapshotRecord(
+        agent_name="agent-a",
+        description="desc",
+        subscriptions=["Input"],
+        output_types=["Output"],
+        labels=["label"],
+        first_seen=datetime(2026, 1, 1, tzinfo=UTC),
+        last_seen=datetime(2026, 1, 2, tzinfo=UTC),
+        signature="sig-a",
+    )
+
+    monkeypatch.setattr(
+        store._client,
+        "get_state",
+        lambda _store, _key: _FakeStateResponse("", etag="etag-snap"),
+        raising=False,
+    )
+    monkeypatch.setattr(store, "_read_index", lambda _k: ([], "etag-idx"))
+
+    tx_call: dict[str, object] = {}
+
+    def _execute_state_transaction(*, store_name, operations):
+        tx_call["store_name"] = store_name
+        tx_call["operations"] = operations
+
+    monkeypatch.setattr(
+        store._client,
+        "execute_state_transaction",
+        _execute_state_transaction,
+        raising=False,
+    )
+
+    await store._upsert_agent_snapshot_transactional(snapshot)
+
+    operations = tx_call["operations"]
+    assert len(operations) == 2
+    assert {op.key for op in operations} == {
+        "snapshot:agent-a",
+        "idx:snapshots",
+    }
+
+
+async def test_upsert_agent_snapshot_non_transactional_reads_etag_and_updates_index(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch, supports_etag=True)
+    snapshot = AgentSnapshotRecord(
+        agent_name="agent-b",
+        description="desc",
+        subscriptions=["Input"],
+        output_types=["Output"],
+        labels=["label"],
+        first_seen=datetime(2026, 1, 1, tzinfo=UTC),
+        last_seen=datetime(2026, 1, 2, tzinfo=UTC),
+        signature="sig-b",
+    )
+
+    monkeypatch.setattr(
+        store._client,
+        "get_state",
+        lambda _store, _key: _FakeStateResponse("", etag="etag-existing"),
+        raising=False,
+    )
+    monkeypatch.setattr(store, "_read_index", lambda _k: ([], "etag-idx"))
+
+    save_calls: list[dict[str, object]] = []
+    index_writes: list[tuple[str, list[str], str | None]] = []
+
+    def _save_state(_store, key, value, **kwargs):
+        save_calls.append({"key": key, "value": value, **kwargs})
+
+    def _write_index(key: str, items: list[str], *, etag: str | None = None) -> None:
+        index_writes.append((key, items, etag))
+
+    monkeypatch.setattr(store._client, "save_state", _save_state, raising=False)
+    monkeypatch.setattr(store, "_write_index", _write_index)
+
+    await store._upsert_agent_snapshot_non_transactional(snapshot)
+
+    assert len(save_calls) == 1
+    assert save_calls[0]["etag"] == "etag-existing"
+    assert index_writes == [("idx:snapshots", ["agent-b"], "etag-idx")]
+
+
+async def test_clear_agent_snapshots_transactional_deletes_all_and_index(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch)
+    monkeypatch.setattr(store, "_read_index", lambda _k: (["a", "b"], "etag-idx"))
+
+    tx_call: dict[str, object] = {}
+
+    def _execute_state_transaction(*, store_name, operations):
+        tx_call["store_name"] = store_name
+        tx_call["operations"] = operations
+
+    monkeypatch.setattr(
+        store._client,
+        "execute_state_transaction",
+        _execute_state_transaction,
+        raising=False,
+    )
+
+    await store._clear_agent_snapshots_transactional()
+
+    operations = tx_call["operations"]
+    assert len(operations) == 3
+    assert {op.key for op in operations} == {
+        "snapshot:a",
+        "snapshot:b",
+        "idx:snapshots",
+    }
+
+
+async def test_clear_agent_snapshots_non_transactional_deletes_and_resets_index(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch)
+    monkeypatch.setattr(store, "_read_index", lambda _k: (["a", "b"], "etag-idx"))
+
+    deleted_keys: list[str] = []
+    wrote_index: list[tuple[str, list[str], str | None]] = []
+
+    def _delete_state(_store, *, key, options=None):
+        _ = options
+        deleted_keys.append(key)
+
+    def _write_index(key: str, items: list[str], *, etag: str | None = None) -> None:
+        wrote_index.append((key, items, etag))
+
+    monkeypatch.setattr(store._client, "delete_state", _delete_state, raising=False)
+    monkeypatch.setattr(store, "_write_index", _write_index)
+
+    await store._clear_agent_snapshots_non_transactional()
+
+    assert deleted_keys == ["snapshot:a", "snapshot:b"]
+    assert wrote_index == [("idx:snapshots", [], "etag-idx")]
+
+
+async def test_list_returns_empty_when_index_empty(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch)
+    monkeypatch.setattr(store, "_read_index", lambda _k: ([], "etag-none"))
+
+    result = await store.list()
+
+    assert result == []
+
+
+async def test_list_by_type_reads_bulk_and_reconciles_non_empty_index(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch)
+    artifact = Artifact(type="Demo", payload={"v": 1}, produced_by="writer")
+    stale_id = str(uuid4())
+    monkeypatch.setattr(
+        store, "_read_index", lambda _k: ([str(artifact.id), stale_id], "etag-type")
+    )
+
+    reconcile_calls: dict[str, object] = {}
+
+    def _reconcile(index_key, index_ids, live_keys, *, etag=None):
+        reconcile_calls["index_key"] = index_key
+        reconcile_calls["index_ids"] = index_ids
+        reconcile_calls["live_keys"] = live_keys
+        reconcile_calls["etag"] = etag
+        return [str(artifact.id)]
+
+    monkeypatch.setattr(store, "_reconcile_index", _reconcile)
+    monkeypatch.setattr(
+        store._client,
+        "get_bulk_state",
+        lambda _store, _keys: SimpleNamespace(
+            items=[
+                _FakeBulkItem(f"artifact:{artifact.id}", artifact.model_dump_json()),
+                _FakeBulkItem(f"artifact:{stale_id}", ""),
+            ]
+        ),
+        raising=False,
+    )
+
+    result = await store.list_by_type("Demo")
+
+    assert [a.id for a in result] == [artifact.id]
+    assert reconcile_calls["index_key"] == "idx:type:Demo"
+    assert reconcile_calls["etag"] == "etag-type"
+    assert reconcile_calls["live_keys"] == {str(artifact.id)}
+
+
+async def test_query_artifacts_limit_zero_and_without_meta(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch)
+    artifacts = [
+        Artifact(type="T", payload={"i": 2}, produced_by="a"),
+        Artifact(type="T", payload={"i": 1}, produced_by="a"),
+    ]
+
+    async def _backend(_filters):
+        return artifacts
+
+    monkeypatch.setattr(store, "_query_backend", _backend)
+
+    page, total = await store.query_artifacts(limit=0, offset=0, embed_meta=False)
+
+    assert total == 2
+    assert len(page) == 2
+    assert all(isinstance(item, Artifact) for item in page)
+
+
+async def test_fetch_graph_artifacts_keeps_existing_envelopes(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch)
+    envelope = ArtifactEnvelope(
+        artifact=Artifact(type="T", payload={"x": 1}, produced_by="agent")
+    )
+
+    async def _query(**_kwargs):
+        return ([envelope], 1)
+
+    monkeypatch.setattr(store, "query_artifacts", _query)
+
+    envelopes, total = await store.fetch_graph_artifacts()
+
+    assert total == 1
+    assert envelopes == [envelope]
+
+
+async def test_summarize_artifacts_raises_type_error_for_non_artifact_items(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch)
+    envelope = ArtifactEnvelope(
+        artifact=Artifact(type="T", payload={}, produced_by="agent")
+    )
+
+    async def _query(**_kwargs):
+        return ([envelope], 1)
+
+    monkeypatch.setattr(store, "query_artifacts", _query)
+
+    try:
+        await store.summarize_artifacts()
+    except TypeError as err:
+        assert "Expected Artifact instance" in str(err)
+    else:
+        raise AssertionError("Expected TypeError to be raised")
+
+
+async def test_load_agent_snapshots_returns_empty_when_index_is_empty(
+    monkeypatch,
+) -> None:
+    store, _ = _make_store(monkeypatch)
+    monkeypatch.setattr(store, "_read_index", lambda _k: ([], "etag-empty"))
+
+    result = await store.load_agent_snapshots()
+
+    assert result == []
