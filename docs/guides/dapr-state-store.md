@@ -83,7 +83,7 @@ The examples in this repository include three reference Dapr setups:
 | Backend | Example Directory | Encryption | Transactions | Query API | TTL |
 | --- | --- | --- | --- | --- | --- |
 | In-memory | `examples/12-dapr/inmemory/` | No | No | No | No |
-| Redis (encrypted) | `examples/12-dapr/redis_encrypted/` | Yes | Yes | Yes | Yes |
+| Redis (encrypted) | `examples/12-dapr/redis_encrypted/` | Yes | No (auto-disabled) | Yes | Yes |
 | PostgreSQL 17 | `examples/12-dapr/postgresql_unencrypted/` | No | Yes | No | No |
 
 ---
@@ -98,10 +98,10 @@ The examples in this repository include three reference Dapr setups:
 | supports_ttl | bool | False | Enable TTL-based expiration if backend supports TTL |
 | encrypted_backend | bool | False | Use Dapr encryption metadata path |
 | backend_encryption_key | str \| None | None | Optional encryption key when encrypted backend is enabled |
-| supports_transactions | bool | False | Use execute_state_transaction for atomic writes |
+| supports_transactions | bool | False | Use execute_state_transaction where supported |
 | supports_dapr_query_lang | bool | False | Enable Dapr query API paths |
-| supports_etag | bool | False | Enable optimistic concurrency with ETags |
-| etag_max_retries | int | 3 | Retries on ETag conflict |
+| supports_etag | bool | False | Pass ETags to Dapr writes for optimistic concurrency |
+| etag_max_retries | int | 3 | Reserved for follow-up ETag retry hardening |
 | consistency | str | unspecified | eventual, strong, or unspecified |
 | entries_ttl_seconds | int \| None | None | TTL in seconds when supports_ttl is enabled |
 | client_config | DaprStateBlackboardStoreClientConfig \| None | None | Optional Dapr client settings |
@@ -124,7 +124,7 @@ The examples in this repository include three reference Dapr setups:
 - Encryption and transactions cannot be combined due to a Dapr runtime transaction serialization issue; Flock automatically falls back to non-transactional writes for encrypted backends.
 - Dapr query support depends on the selected state store and component implementation.
 - TTL support depends on backend capabilities.
-- Distributed writes can still race across multiple Flock instances; use ETags where supported.
+- Distributed writes can still race across multiple Flock instances. ETags are passed where supported; automatic conflict retry and stronger atomicity guarantees are tracked in [issue #415](https://github.com/whiteducksoftware/flock/issues/415).
 
 ---
 

@@ -61,7 +61,6 @@ if TYPE_CHECKING:
         BulkStatesResponse,
         QueryResponse,
     )
-    from dapr.clients.retry import RetryPolicy
 
 
 T = TypeVar("T")
@@ -173,7 +172,7 @@ class DaprStateBlackboardStoreClientConfig(BaseModel):
         default=None,
     )
 
-    retry_policy: RetryPolicy | None = Field(default=None, description="Retry-Policy.")
+    retry_policy: Any | None = Field(default=None, description="Retry-Policy.")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -210,13 +209,13 @@ class DaprStateBlackboardConfig(BaseModel):
         description="Enable optimistic concurrency control via Dapr ETags. "
         "When True, all read-modify-write operations pass the ETag received "
         "during the preceding read, using first-write-wins semantics. "
-        "ETag mismatches trigger automatic retries.",
+        "ETag mismatch retries are planned as follow-up hardening work.",
     )
 
     etag_max_retries: int = Field(
         default=3,
-        description="Maximum number of retries on ETag conflict when "
-        "supports_etag is True. Ignored when supports_etag is False.",
+        description="Reserved for follow-up ETag conflict retry handling. "
+        "Ignored by current write paths when supports_etag is False.",
         ge=0,
     )
 
@@ -293,7 +292,8 @@ class DaprStateBlackboardStore(BlackboardStore):
 
     def __init__(self, config: DaprStateBlackboardConfig) -> None:
         self._store_name = config.store_name
-        self._client = create_dapr_client(config.client_config)
+        client_config = config.client_config or DaprStateBlackboardStoreClientConfig()
+        self._client = create_dapr_client(client_config)
         self._lock = Lock()
         self._supports_ttl = config.supports_ttl
         self._entries_ttl = config.entries_ttl_seconds
@@ -305,7 +305,7 @@ class DaprStateBlackboardStore(BlackboardStore):
         self._supports_etag = config.supports_etag
         self._etag_max_retries = config.etag_max_retries
         if config.consistency == "eventual":
-            self._consistency = Consistency.unspecified
+            self._consistency = Consistency.eventual
         elif config.consistency == "strong":
             self._consistency = Consistency.strong
         else:
@@ -599,8 +599,8 @@ class DaprStateBlackboardStore(BlackboardStore):
             # Retrieve consumptions for each artifact_id
             results: dict[str, list[ConsumptionRecord]] = {}
             entry_ids: list[str] = []
-            for id in artifact_ids:
-                entry_ids.append(_consumptions_key(id))  # noqa: PERF401
+            for artifact_id in artifact_ids:
+                entry_ids.append(_consumptions_key(artifact_id))  # noqa: PERF401
             retrieved_consumption_entries: BulkStatesResponse = (
                 self._client.get_bulk_state(
                     store_name=self._store_name, keys=entry_ids, parallelism=10
@@ -899,11 +899,11 @@ class DaprStateBlackboardStore(BlackboardStore):
                 all_ids, idx_etag = self._read_index(_IDX_SNAPSHOTS)
                 # 2. Prepare transaction
                 operations: list[TransactionalStateOperation] = []
-                for id in all_ids:  # noqa: A001
+                for snapshot_id in all_ids:
                     operation = TransactionalStateOperation(
                         operation_type=TransactionOperationType.delete,
-                        key=_snapshot_key(id),
-                        data=str(id),
+                        key=_snapshot_key(snapshot_id),
+                        data=str(snapshot_id),
                     )
                     operations.append(operation)
                 # 3. Also clear the index itself
@@ -932,11 +932,11 @@ class DaprStateBlackboardStore(BlackboardStore):
                 all_ids, idx_etag = self._read_index(_IDX_SNAPSHOTS)
                 logger.debug("Found %d snapshot(s) to delete", len(all_ids))
                 # 2. Perform deletes
-                for id in all_ids:  # noqa: A001
-                    logger.debug(f"Deleting agent snapshot '{id}'")
+                for snapshot_id in all_ids:
+                    logger.debug(f"Deleting agent snapshot '{snapshot_id}'")
                     _ = self._client.delete_state(
                         self._store_name,
-                        key=_snapshot_key(id),
+                        key=_snapshot_key(snapshot_id),
                         options=self._build_state_options(),
                     )
                 # 3. Clear the index

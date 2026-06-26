@@ -76,6 +76,7 @@ store_config = DaprStateBlackboardConfig(
     supports_transactions=True,         # Redis, PostgreSQL, CosmosDB
     supports_etag=True,                 # optimistic concurrency control
     consistency="strong",               # "eventual" | "strong" | "unspecified"
+    client_config=client_config,
 )
 
 # 2. Create the store and wire it into Flock
@@ -109,7 +110,7 @@ backends:
 | Backend | Example Directory | Encryption | Transactions | Query API | TTL |
 |---|---|---|---|---|---|
 | **In-memory** | `examples/12-dapr/inmemory/` | — | — | — | — |
-| **Redis** (redis-stack) | `examples/12-dapr/redis_encrypted/` | ✅ Primary + secondary key | ✅ | ✅ | ✅ |
+| **Redis** (redis-stack, encrypted) | `examples/12-dapr/redis_encrypted/` | ✅ Primary + secondary key | Disabled by Flock for encrypted backends | ✅ | ✅ |
 | **PostgreSQL 17** | `examples/12-dapr/postgresql_unencrypted/` | — | ✅ | — | — |
 
 > **Tip:** All setups use the same `DaprStateBlackboardStore` class — only the
@@ -131,10 +132,10 @@ and adjust the config flags accordingly.
 | `supports_ttl` | `bool` | `False` | Enable TTL-based entry expiration (backend must support it) |
 | `encrypted_backend` | `bool` | `False` | Indicate the backend uses Dapr encryption (`primaryEncryptionKey`) |
 | `backend_encryption_key` | `str \| None` | `None` | Encryption key (only used when `encrypted_backend=True`) |
-| `supports_transactions` | `bool` | `False` | Use `execute_state_transaction` for atomic index updates (Redis, PostgreSQL, CosmosDB) |
+| `supports_transactions` | `bool` | `False` | Use `execute_state_transaction` where supported (Redis, PostgreSQL, CosmosDB) |
 | `supports_dapr_query_lang` | `bool` | `False` | Use Dapr's query API for `query_artifacts` / `fetch_graph_artifacts` |
-| `supports_etag` | `bool` | `False` | Optimistic concurrency control via ETags (first-write-wins with auto-retry) |
-| `etag_max_retries` | `int` | `3` | Max retries on ETag conflict (ignored when `supports_etag=False`) |
+| `supports_etag` | `bool` | `False` | Optimistic concurrency control via ETags (first-write-wins options passed to Dapr) |
+| `etag_max_retries` | `int` | `3` | Reserved for follow-up ETag retry hardening |
 | `consistency` | `str` | `"unspecified"` | Consistency level: `"eventual"`, `"strong"`, or `"unspecified"` |
 | `entries_ttl_seconds` | `int \| None` | `None` | TTL in seconds for state entries (requires `supports_ttl=True`) |
 | `client_config` | `...ClientConfig \| None` | `None` | Optional Dapr client settings (see below) |
@@ -180,11 +181,13 @@ and adjust the config flags accordingly.
 ### Key Design Decisions
 
 - **Transactional vs non-transactional paths** — When the backend supports
-  transactions, artifact writes and index updates are wrapped in
-  `execute_state_transaction` for atomicity.  When encryption is enabled,
-  transactions are automatically disabled (see [Known Limitations](#-known-limitations))
-  and the store falls back to individual `save_state` calls with lazy index
-  reconciliation on read.
+  transactions, index updates use `execute_state_transaction` where possible.
+  Artifact data may still be saved separately when TTL metadata is needed.
+  When encryption is enabled, transactions are automatically disabled (see
+  [Known Limitations](#-known-limitations)) and the store falls back to
+  individual `save_state` calls with lazy index reconciliation on read. Full
+  artifact/index atomicity hardening is tracked in
+  [issue #415](https://github.com/whiteducksoftware/flock/issues/415).
 
 - **Index-based key management** — Dapr state stores are key-value stores.
   flock-dapr maintains secondary indexes manually:
@@ -213,7 +216,7 @@ and adjust the config flags accordingly.
 | **Encryption disables transactions** | Dapr's Go runtime corrupts values in `ExecuteStateTransaction` before encrypting (converts `[]byte` via `fmt.Appendf`). flock-dapr auto-detects this and falls back to non-transactional writes. Index consistency is maintained via lazy reconciliation. |
 | **Query API varies by backend** | `supports_dapr_query_lang=True` requires a backend that implements [Dapr's query API](https://docs.dapr.io/developing-applications/building-blocks/state-management/howto-state-query-api/) (e.g. Redis with RediSearch). PostgreSQL v2 does not support it. |
 | **TTL depends on the state store** | Set `supports_ttl=True` only if the backing store actually supports TTL; otherwise Dapr will return errors. |
-| **No distributed locking** | Concurrent writes from multiple Flock instances to the same index can race. Use `supports_etag=True` for optimistic concurrency control to mitigate this. |
+| **No distributed locking** | Concurrent writes from multiple Flock instances to the same index can race. `supports_etag=True` passes ETags to Dapr writes where supported; automatic conflict retry and stronger atomicity guarantees are tracked in [issue #415](https://github.com/whiteducksoftware/flock/issues/415). |
 
 ---
 

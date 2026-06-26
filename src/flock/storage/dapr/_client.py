@@ -18,7 +18,7 @@ def create_dapr_client(config) -> DaprClient:
     """
     return DaprClient(
         address=config.dapr_grpc_endpoint,
-        headers_callback=config.header_callback,
+        headers_callback=config.headers_callback,
         interceptors=config.interceptors,
         http_timeout_seconds=config.http_timeout_seconds,
         max_grpc_message_length=config.max_grpc_message_length,

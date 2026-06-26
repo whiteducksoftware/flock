@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
-from dapr.clients.retry import RetryPolicy
 from grpc import StatusCode
 from pydantic import BaseModel
 
@@ -19,23 +18,13 @@ from flock.core.store import (
 from flock.storage.dapr._serialization import serialize_agent_snapshot
 from flock.storage.dapr.dapr_state_blackboard_store import (
     DaprStateBlackboardConfig,
-    DaprStateBlackboardStoreClientConfig,
     DaprStateBlackboardStore,
+    DaprStateBlackboardStoreClientConfig,
     _artifact_key,
     _build_dapr_query,
     _consumptions_key,
     _snapshot_key,
     _type_index_key,
-)
-
-
-DaprStateBlackboardStoreClientConfig.model_rebuild(
-    _types_namespace={"RetryPolicy": RetryPolicy}
-)
-DaprStateBlackboardConfig.model_rebuild(
-    _types_namespace={
-        "DaprStateBlackboardStoreClientConfig": DaprStateBlackboardStoreClientConfig,
-    }
 )
 
 
@@ -96,6 +85,38 @@ def _make_store(
         **config_overrides,
     )
     return DaprStateBlackboardStore(config), dummy_client
+
+
+def test_public_config_models_construct_without_rebuild() -> None:
+    client_config = DaprStateBlackboardStoreClientConfig(
+        dapr_grpc_endpoint="localhost:50001"
+    )
+    config = DaprStateBlackboardConfig(client_config=client_config)
+
+    assert config.client_config is client_config
+
+
+def test_store_uses_default_client_config_when_omitted(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    dummy_client = _DummyClient()
+
+    def _create_dapr_client(config):
+        captured["config"] = config
+        return dummy_client
+
+    monkeypatch.setattr(
+        "flock.storage.dapr.dapr_state_blackboard_store.create_dapr_client",
+        _create_dapr_client,
+    )
+    monkeypatch.setattr(
+        "flock.storage.dapr.dapr_state_blackboard_store.atexit.register",
+        lambda *_: None,
+    )
+
+    store = DaprStateBlackboardStore(DaprStateBlackboardConfig())
+
+    assert isinstance(captured["config"], DaprStateBlackboardStoreClientConfig)
+    assert store._client is dummy_client
 
 
 def test_key_helpers_build_expected_prefixes() -> None:
@@ -946,7 +967,7 @@ def test_build_dapr_query_single_producer_and_visibility_paths() -> None:
 def test_store_initializes_eventual_consistency_branch(monkeypatch) -> None:
     store, _ = _make_store(monkeypatch, consistency="eventual")
 
-    assert store._consistency.name == "unspecified"
+    assert store._consistency.name == "eventual"
 
 
 async def test_retry_on_etag_conflict_re_raises_non_etag_errors(monkeypatch) -> None:
