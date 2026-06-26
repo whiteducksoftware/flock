@@ -725,6 +725,23 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f1/2a/8c3ac3d8bc94e6de8d7ae270bb5bc437b210bb9d6d9e46630c98f4abd20c/csscompressor-0.9.5.tar.gz", hash = "sha256:afa22badbcf3120a4f392e4d22f9fff485c044a1feda4a950ecc5eba9dd31a05", size = 237808, upload-time = "2017-11-26T21:13:08.238Z" }
 
 [[package]]
+name = "dapr"
+version = "1.14.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "grpcio" },
+    { name = "grpcio-status" },
+    { name = "protobuf" },
+    { name = "python-dateutil" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d5/6e/5e68994d32e31023b5545e7e1c36e2d835084dc17e6efe8abba170180208/dapr-1.14.1.tar.gz", hash = "sha256:c53923e28d08ee5a0c2e32aec73d15847028bea69674e59d275ef9439da7a3e7", size = 114863, upload-time = "2026-03-25T14:02:52.674Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/58/5494f4c7bb5da53f0671600db81501382ea98bba6cb71d46e98adf06d494/dapr-1.14.1-py3-none-any.whl", hash = "sha256:569da8e13baa1065d532f25c892e15365bfedc52cc1f800dd0d5a06a935f0a87", size = 154465, upload-time = "2026-03-25T14:02:51.121Z" },
+]
+
+[[package]]
 name = "debugpy"
 version = "1.8.17"
 source = { registry = "https://pypi.org/simple" }
@@ -960,7 +977,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.5.500"
+version = "0.5.502"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -995,6 +1012,9 @@ dependencies = [
 [package.optional-dependencies]
 azure = [
     { name = "azure-identity" },
+]
+dapr = [
+    { name = "dapr" },
 ]
 semantic = [
     { name = "sentence-transformers" },
@@ -1047,6 +1067,7 @@ requires-dist = [
     { name = "azure-identity", marker = "extra == 'azure'", specifier = ">=1.15.0" },
     { name = "bitsandbytes", marker = "extra == 'transformers'", specifier = ">=0.48.2" },
     { name = "croniter", specifier = "==6.0.0" },
+    { name = "dapr", marker = "extra == 'dapr'", specifier = ">=1.13.0,<1.15" },
     { name = "devtools", specifier = "==0.12.2" },
     { name = "dspy", specifier = "==3.2.1" },
     { name = "duckdb", specifier = "==1.4.1" },
@@ -1075,7 +1096,7 @@ requires-dist = [
     { name = "uvicorn", specifier = "==0.38.0" },
     { name = "websockets", specifier = "==15.0.1" },
 ]
-provides-extras = ["azure", "semantic", "transformers"]
+provides-extras = ["azure", "semantic", "transformers", "dapr"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1327,6 +1348,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4a/45/122df922d05655f63930cf42c9e3f72ba20aadb26c100ee105cad4ce4257/grpcio-1.76.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:1c9b93f79f48b03ada57ea24725d83a30284a012ec27eab2cf7e50a550cbbbcc", size = 7592214, upload-time = "2025-10-21T16:22:33.831Z" },
     { url = "https://files.pythonhosted.org/packages/4a/6e/0b899b7f6b66e5af39e377055fb4a6675c9ee28431df5708139df2e93233/grpcio-1.76.0-cp314-cp314-win32.whl", hash = "sha256:747fa73efa9b8b1488a95d0ba1039c8e2dca0f741612d80415b1e1c560febf4e", size = 4062961, upload-time = "2025-10-21T16:22:36.468Z" },
     { url = "https://files.pythonhosted.org/packages/19/41/0b430b01a2eb38ee887f88c1f07644a1df8e289353b78e82b37ef988fb64/grpcio-1.76.0-cp314-cp314-win_amd64.whl", hash = "sha256:922fa70ba549fce362d2e2871ab542082d66e2aaf0c19480ea453905b01f384e", size = 4834462, upload-time = "2025-10-21T16:22:39.772Z" },
+]
+
+[[package]]
+name = "grpcio-status"
+version = "1.71.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "googleapis-common-protos" },
+    { name = "grpcio" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fd/d1/b6e9877fedae3add1afdeae1f89d1927d296da9cf977eca0eb08fb8a460e/grpcio_status-1.71.2.tar.gz", hash = "sha256:c7a97e176df71cdc2c179cd1847d7fc86cca5832ad12e9798d7fed6b7a1aab50", size = 13677, upload-time = "2025-06-28T04:24:05.426Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/67/58/317b0134129b556a93a3b0afe00ee675b5657f0155509e22fcb853bafe2d/grpcio_status-1.71.2-py3-none-any.whl", hash = "sha256:803c98cb6a8b7dc6dbb785b1111aed739f241ab5e9da0bba96888aa74704cfd3", size = 14424, upload-time = "2025-06-28T04:23:42.136Z" },
 ]
 
 [[package]]

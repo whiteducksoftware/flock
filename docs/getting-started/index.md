@@ -40,6 +40,14 @@ Welcome to Flock! This section will help you get up and running quickly with the
 
     [:octicons-arrow-right-24: Server Components Concepts](server-components-concepts.md)
 
+-   **🧱 Dapr State Store**
+
+    ---
+
+    Optional distributed persistence with Dapr-backed state stores.
+
+    [:octicons-arrow-right-24: Dapr State Store Guide](../guides/dapr-state-store.md)
+
 </div>
 
 ---

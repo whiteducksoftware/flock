@@ -1,0 +1,69 @@
+# NOTE: This stack uses the same host ports as the Redis encrypted stack.
+# Do NOT run both stacks simultaneously — they are mutually exclusive.
+
+services:
+
+  # Sidecar for Flock Dev app
+  flock-dapr:
+    image: "daprio/daprd:edge"
+    command: [
+      "./daprd",
+      "--app-id", "flock-dev",
+      "--placement-host-address", "placement:50006",
+      "--scheduler-host-address", "scheduler:50007",
+      "--resources-path", "/components"
+    ]
+    volumes:
+      - "./components/:/components"
+      - "./secrets.json:/secrets/secrets.json:ro"
+    ports:
+      - "50001:50001"   # Dapr gRPC port (used by DaprClient on the host)
+      - "3500:3500"     # Dapr HTTP port
+    networks:
+      - dapr-net
+    depends_on:
+      placement:
+        condition: service_started
+      scheduler:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  placement:
+    image: "daprio/placement"
+    command: ["./placement", "--port", "50006"]
+    ports:
+      - "50006:50006"
+    networks:
+      - dapr-net
+
+  scheduler:
+    image: "daprio/scheduler"
+    command: ["./scheduler", "--port", "50007", "--etcd-data-dir", "/data"]
+    user: root
+    volumes:
+      - "./dapr-etcd-data/:/data"
+    networks:
+      - dapr-net
+
+  postgres:
+    image: "postgres:17"
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: "flock-postgres-dev-2026!"
+      POSTGRES_DB: "flock_dapr"
+    networks:
+      - dapr-net
+    volumes:
+      - "./postgres_data:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d flock_dapr"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+networks:
+  dapr-net: null

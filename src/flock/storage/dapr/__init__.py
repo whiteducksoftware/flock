@@ -1,15 +1,12 @@
-"""Storage backends for Flock blackboard."""
+"""Dapr-Backed Blackboard Storage for Flock."""
 
 from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
-    from flock.storage.dapr import (
-        DaprStateBlackboardConfig,
-        DaprStateBlackboardStore,
-        DaprStateBlackboardStoreClientConfig,
-        create_dapr_client,
+    from flock.storage.dapr._client import create_dapr_client
+    from flock.storage.dapr._serialization import (
         deserialize_agent_snapshot,
         deserialize_artifact,
         deserialize_consumption_records,
@@ -19,66 +16,61 @@ if TYPE_CHECKING:
         serialize_consumption_records,
         serialize_index,
     )
-    from flock.storage.sqlite.query_builder import SQLiteQueryBuilder
-    from flock.storage.sqlite.schema_manager import SQLiteSchemaManager
+    from flock.storage.dapr.dapr_state_blackboard_store import (
+        DaprStateBlackboardConfig,
+        DaprStateBlackboardStore,
+        DaprStateBlackboardStoreClientConfig,
+    )
 
 
 _EXPORT_MAP: dict[str, tuple[str, str]] = {
     "DaprStateBlackboardConfig": (
-        "flock.storage.dapr",
+        "flock.storage.dapr.dapr_state_blackboard_store",
         "DaprStateBlackboardConfig",
     ),
     "DaprStateBlackboardStore": (
-        "flock.storage.dapr",
+        "flock.storage.dapr.dapr_state_blackboard_store",
         "DaprStateBlackboardStore",
     ),
     "DaprStateBlackboardStoreClientConfig": (
-        "flock.storage.dapr",
+        "flock.storage.dapr.dapr_state_blackboard_store",
         "DaprStateBlackboardStoreClientConfig",
     ),
     "create_dapr_client": (
-        "flock.storage.dapr",
+        "flock.storage.dapr._client",
         "create_dapr_client",
     ),
-    "deserialize_agent_snapshot": (
-        "flock.storage.dapr",
-        "deserialize_agent_snapshot",
-    ),
-    "deserialize_artifact": (
-        "flock.storage.dapr",
-        "deserialize_artifact",
-    ),
-    "deserialize_consumption_records": (
-        "flock.storage.dapr",
-        "deserialize_consumption_records",
-    ),
-    "deserialize_index": (
-        "flock.storage.dapr",
-        "deserialize_index",
-    ),
     "serialize_agent_snapshot": (
-        "flock.storage.dapr",
+        "flock.storage.dapr._serialization",
         "serialize_agent_snapshot",
     ),
     "serialize_artifact": (
-        "flock.storage.dapr",
+        "flock.storage.dapr._serialization",
         "serialize_artifact",
     ),
     "serialize_consumption_records": (
-        "flock.storage.dapr",
+        "flock.storage.dapr._serialization",
         "serialize_consumption_records",
     ),
     "serialize_index": (
-        "flock.storage.dapr",
+        "flock.storage.dapr._serialization",
         "serialize_index",
     ),
-    "SQLiteQueryBuilder": (
-        "flock.storage.sqlite.query_builder",
-        "SQLiteQueryBuilder",
+    "deserialize_agent_snapshot": (
+        "flock.storage.dapr._serialization",
+        "deserialize_agent_snapshot",
     ),
-    "SQLiteSchemaManager": (
-        "flock.storage.sqlite.schema_manager",
-        "SQLiteSchemaManager",
+    "deserialize_artifact": (
+        "flock.storage.dapr._serialization",
+        "deserialize_artifact",
+    ),
+    "deserialize_consumption_records": (
+        "flock.storage.dapr._serialization",
+        "deserialize_consumption_records",
+    ),
+    "deserialize_index": (
+        "flock.storage.dapr._serialization",
+        "deserialize_index",
     ),
 }
 
@@ -97,8 +89,6 @@ __all__ = [
     "DaprStateBlackboardConfig",
     "DaprStateBlackboardStore",
     "DaprStateBlackboardStoreClientConfig",
-    "SQLiteQueryBuilder",
-    "SQLiteSchemaManager",
     "create_dapr_client",
     "deserialize_agent_snapshot",
     "deserialize_artifact",

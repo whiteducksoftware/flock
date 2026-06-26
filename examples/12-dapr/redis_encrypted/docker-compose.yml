@@ -1,0 +1,56 @@
+services:
+
+  # Sidecar for Flock Dev app
+  flock-dapr:
+    image: "daprio/daprd:edge"
+    command: [
+      "./daprd",
+      "--app-id", "flock-dev",
+      "--placement-host-address", "placement:50006",
+      "--scheduler-host-address", "scheduler:50007",
+      "--resources-path", "/components"
+    ]
+    volumes:
+      - "./components/:/components"
+      - "./secrets.json:/secrets/secrets.json:ro"
+    ports:
+      - "50001:50001"   # Dapr gRPC port (used by DaprClient on the host)
+      - "3500:3500"     # Dapr HTTP port
+    networks:
+      - dapr-net
+    depends_on:
+      - placement
+      - scheduler
+      - redis
+
+  placement:
+    image: "daprio/placement"
+    command: ["./placement", "--port", "50006"]
+    ports:
+      - "50006:50006"
+    networks:
+      - dapr-net
+
+  scheduler:
+    image: "daprio/scheduler"
+    command: ["./scheduler", "--port", "50007", "--etcd-data-dir", "/data"]
+    user: root
+    volumes:
+      - "./dapr-etcd-data/:/data"
+    networks:
+      - dapr-net
+
+  redis:
+    image: "redis/redis-stack"
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - dapr-net
+    command: ["redis-server", "--loglevel", "warning", "--save", "20", "1", "--requirepass", "flock-redis-dev-2026!", "--loadmodule", "/opt/redis-stack/lib/redisearch.so", "--loadmodule", "/opt/redis-stack/lib/rejson.so"]
+    volumes:
+      - "./redis_data:/data"
+    
+
+networks:
+  dapr-net: null

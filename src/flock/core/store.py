@@ -24,7 +24,6 @@ from opentelemetry import trace
 
 from flock.core.artifacts import Artifact
 from flock.registry import type_registry
-from flock.storage.artifact_aggregator import ArtifactAggregator
 from flock.utils.type_resolution import TypeResolutionHelper
 from flock.utils.visibility_utils import deserialize_visibility
 
@@ -186,6 +185,8 @@ class InMemoryBlackboardStore(BlackboardStore):
     """Simple in-memory implementation suitable for local dev and tests."""
 
     def __init__(self) -> None:
+        from flock.storage.artifact_aggregator import ArtifactAggregator
+
         self._lock = Lock()
         self._by_id: dict[UUID, Artifact] = {}
         self._by_type: dict[str, list[Artifact]] = defaultdict(list)

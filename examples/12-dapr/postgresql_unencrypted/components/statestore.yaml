@@ -1,0 +1,27 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: flockstate
+  namespace: development
+spec:
+  type: state.postgresql
+  version: v2
+  metadata:
+    - name: host
+      value: "postgres"
+    - name: port
+      value: "5432"
+    - name: user
+      value: "postgres"
+    - name: password
+      secretKeyRef:
+        name: postgresql_password
+        key: postgresql_password
+    - name: database
+      value: "flock_dapr"
+    - name: sslmode
+      value: "disable"
+    - name: keyPrefix
+      value: namespace
+auth:
+  secretStore: flock-dev-secretstore

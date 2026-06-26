@@ -531,19 +531,25 @@ await flock.store.clear()
 
 ### Memory Management
 
-**Current limitation:** Blackboard is in-memory only (v0.5.0)
+Flock supports multiple blackboard storage backends depending on your deployment needs.
 
 ```python
-# ⚠️ In-memory only
-# After 10,000 artifacts, memory usage grows
-# Restart required to clear
+# In-memory store (default)
+flock = Flock("openai/gpt-4.1")
 
-# ✅ v1.0 will support:
-# - Redis backend (distributed state)
-# - PostgreSQL backend (persistent history)
-# - Automatic artifact expiration
-# - Query by time range
+# SQLite store (local durable history)
+from flock.store import SQLiteBlackboardStore
+flock = Flock("openai/gpt-4.1", store=SQLiteBlackboardStore(".flock/history.db"))
+
+# Dapr store (distributed backend)
+from flock.storage import DaprStateBlackboardStore, DaprStateBlackboardConfig
+flock = Flock(
+    "openai/gpt-4.1",
+    store=DaprStateBlackboardStore(DaprStateBlackboardConfig(store_name="flockstate")),
+)
 ```
+
+For backend-specific guidance, see the [Persistent Blackboard guide](persistent-blackboard.md) and the [Dapr State Store guide](dapr-state-store.md).
 
 ### Observability
 

@@ -80,6 +80,14 @@ Comprehensive guides for building production-ready multi-agent systems with Floc
 
 <div class="grid cards" markdown>
 
+-   **🧱 Dapr State Store Integration**
+
+    ---
+
+    Plug Redis, PostgreSQL, or other Dapr-supported state stores into Flock's blackboard backend.
+
+    [:octicons-arrow-right-24: Dapr State Store Guide](dapr-state-store.md)
+
 -   **🦞 OpenClaw Integration**
 
     ---

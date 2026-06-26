@@ -128,5 +128,17 @@ Environment variables are resolved in this order:
 For detailed configuration options, see:
 - [Installation Guide](../getting-started/installation.md) for environment setup
 - [.envtemplate](https://github.com/whiteducksoftware/flock/blob/main/.envtemplate) for all available options
+
+## Storage Backends
+
+Flock can run with different blackboard backends:
+
+- In-memory blackboard (default, no extra setup)
+- SQLite durable history (single-node persistence)
+- Dapr-backed state stores (distributed backend, optional dependency)
+
+See:
+- [Persistent Blackboard History](../guides/persistent-blackboard.md)
+- [Dapr State Store Integration](../guides/dapr-state-store.md)
 - [DSPy Engine Guide](../guides/dspy-engine.md) for `lm_kwargs`, adapters, and Azure auth wiring
 - [Tracing Configuration](../guides/tracing/) for telemetry settings

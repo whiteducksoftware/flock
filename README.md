@@ -22,6 +22,13 @@
 
 ---
 
+<p align="center">
+  <b>🧩 New: Dapr-backed blackboards.</b> Swap Flock's blackboard store to a Dapr state-store backend for distributed blackboard state.<br>
+  <a href="#-dapr-state-store-backend-new">Learn more →</a>
+</p>
+
+---
+
 
 # 🐧 Flock - Declarative Blackboard Agent Orchestration
 
@@ -38,6 +45,7 @@ Flock is a production-focused framework for orchestrating AI agents through **de
 - **[Tutorials](https://whiteducksoftware.github.io/flock/tutorials/)** - Step-by-step learning path
 - **[User Guides](https://whiteducksoftware.github.io/flock/guides/)** - In-depth feature documentation
 - **[API Reference](https://whiteducksoftware.github.io/flock/reference/api/)** - Complete API documentation
+- **[Dapr State Store](docs/guides/dapr-state-store.md)** - Optional distributed blackboard backend
 - **[Roadmap](https://whiteducksoftware.github.io/flock/about/roadmap/)** - What's coming in v1.0
 - **[Changelog](https://whiteducksoftware.github.io/flock/about/changelog/)** - Recent new features and version history
 
@@ -639,6 +647,47 @@ flock = Flock("openai/gpt-4.1", store=store)
 - Dashboard integration with retention windows
 - CLI tools for maintenance and retention policies
 
+### 🧩 Dapr State Store Backend (New!)
+
+**Distributed blackboard storage via Dapr:**
+
+```bash
+pip install "flock-core[dapr]"
+```
+
+```python
+from flock import Flock
+from flock.storage import (
+    DaprStateBlackboardConfig,
+    DaprStateBlackboardStore,
+    DaprStateBlackboardStoreClientConfig,
+)
+
+client_config = DaprStateBlackboardStoreClientConfig(
+    dapr_grpc_endpoint="localhost:50001"
+)
+
+store_config = DaprStateBlackboardConfig(
+    store_name="flockstate",          # must match your Dapr component name
+    supports_transactions=True,       # if supported by the backend
+    supports_etag=True,               # pass ETags for optimistic concurrency
+    consistency="strong",
+    client_config=client_config,
+)
+
+dapr_store = DaprStateBlackboardStore(config=store_config)
+flock = Flock("openai/gpt-4.1", store=dapr_store)
+```
+
+**Why this matters:**
+- ✅ **Pluggable backends** - Redis, PostgreSQL, Cosmos DB, and other Dapr state stores
+- ✅ **Same Flock API** - agents, artifacts, visibility, tracing, and dashboard stay unchanged
+- ✅ **Distributed state** - multiple Flock processes can share one blackboard backend
+- ✅ **Backend capabilities** - opt into transactions, TTL, query API, encryption, and ETags where supported
+- ✅ **Local-first choice** - use SQLite for simple single-node durability; use Dapr when state should live in shared infrastructure
+
+Dapr backend capabilities vary by component. See the **[Dapr State Store guide](docs/guides/dapr-state-store.md)** and **[Dapr examples](examples/12-dapr/README.md)** for the backend matrix, setup files, and known limitations.
+
 ### Parallel Execution Control
 
 **Batch-then-execute pattern:**
@@ -954,6 +1003,7 @@ await flock.serve(dashboard=True)  # API + Dashboard on port 8344
 - Best-of-N, batching, joins, fan-out
 - Type-safe retrieval API
 - SQLite persistent store
+- Dapr-backed blackboard store via optional `flock-core[dapr]`
 
 **⚠️ What's missing for large-scale:**
 - Advanced retry logic (basic only)
@@ -990,6 +1040,9 @@ pip install flock-core
 # With semantic features
 pip install flock-core[semantic]
 
+# With Dapr state store support
+pip install "flock-core[dapr]"
+
 # Set API key
 export OPENAI_API_KEY="sk-..."
 
@@ -1005,6 +1058,9 @@ uv run python examples/02-dashboard/01_declarative_pizza.py
 
 # Semantic routing
 uv run python examples/08-semantic/01_intelligent_ticket_routing.py
+
+# Dapr-backed blackboard examples
+uv run python examples/12-dapr/inmemory/flock_dapr_inmemory.py
 ```
 
 **Learn by doing:**
@@ -1012,6 +1068,7 @@ uv run python examples/08-semantic/01_intelligent_ticket_routing.py
 - 🖥️ [CLI Examples](examples/01-cli/) - Console output (01-12)
 - 📊 [Dashboard Examples](examples/02-dashboard/) - Interactive visualization (01-12)
 - 🧠 [Semantic Examples](examples/08-semantic/) - Meaning-based routing
+- 🧩 [Dapr Examples](examples/12-dapr/) - Dapr-backed blackboard storage
 - 📖 [Documentation](https://whiteducksoftware.github.io/flock) - Full docs
 
 ---

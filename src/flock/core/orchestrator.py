@@ -27,6 +27,7 @@ from flock.core.artifacts import Artifact
 from flock.core.store import BlackboardStore, ConsumptionRecord
 from flock.core.subscription import Subscription
 from flock.core.visibility import PublicVisibility, Visibility
+from flock.integrations.openclaw import OpenClawConfig, OpenClawEngine
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
 from flock.mcp import (
@@ -34,7 +35,6 @@ from flock.mcp import (
     FlockMCPConfiguration,
     ServerParameters,
 )
-from flock.integrations.openclaw import OpenClawConfig, OpenClawEngine
 from flock.orchestrator import (
     AgentScheduler,
     ArtifactManager,
