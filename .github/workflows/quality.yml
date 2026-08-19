@@ -49,31 +49,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
-          uv run pytest --cov=src/flock --cov-branch --cov-report=xml --cov-report=term --cov-fail-under=75
-
-      - name: Extract test metrics
-        id: test-metrics
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-
-          # Count total tests
-          TEST_COUNT=$(uv run pytest --collect-only -q | tail -n 1 | awk '{print $1}')
-          echo "test_count=$TEST_COUNT" >> $GITHUB_OUTPUT
-          echo "📊 Total tests: $TEST_COUNT"
-
-          # Extract coverage percentage from XML
-          COVERAGE=$(python -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage.xml'); root = tree.getroot(); print(f\"{float(root.attrib['line-rate']) * 100:.0f}\")")
-          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-          echo "📈 Coverage: $COVERAGE%"
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.xml
-          flags: backend
-          name: backend-coverage
-          fail_ci_if_error: false
+          uv run pytest --cov=src/flock --cov-branch --cov-report=term --cov-fail-under=75
 
       - name: Backend build check
         run: |
@@ -106,14 +82,6 @@ jobs:
       - name: Run tests
         working-directory: src/flock/frontend
         run: npm test
-
-      # Coverage disabled until vitest.config.ts is properly configured
-      # - name: Upload coverage to Codecov
-      #   uses: codecov/codecov-action@v4
-      #   with:
-      #     file: ./frontend/coverage/coverage-final.json
-      #     flags: frontend
-      #     name: frontend-coverage
 
       - name: Frontend build check
         working-directory: src/flock/frontend
