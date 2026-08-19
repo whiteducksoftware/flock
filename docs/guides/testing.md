@@ -504,7 +504,7 @@ async def test_with_tracing():
 
 ### Flock Project Standards
 
-- **Overall coverage:** 75%+ minimum (currently 77.65%)
+- **Overall coverage:** 75%+ minimum (enforced by CI)
 - **Critical paths:** 100% (orchestrator, subscription, visibility, agent)
 - **Frontend:** 80%+ recommended
 
