@@ -1,6 +1,6 @@
 {
   "name": "flock-ui",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Flock Real-Time Dashboard Frontend",
   "type": "module",
   "scripts": {
@@ -36,13 +36,13 @@
     "@types/react-dom": "^19.2.0",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^5.0.4",
-    "@vitest/coverage-v8": "^3.2.4",
-    "@vitest/ui": "^3.2.4",
+    "@vitest/coverage-v8": "^3.2.6",
+    "@vitest/ui": "^3.2.6",
     "fake-indexeddb": "^6.2.2",
     "jsdom": "^27.0.0",
     "mock-socket": "^9.3.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.6"
   }
 }
