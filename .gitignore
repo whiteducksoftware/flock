@@ -361,3 +361,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Dapr example stacks: local secret-store files
+examples/12-dapr/**/secrets.json
