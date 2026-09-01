@@ -8,7 +8,7 @@ can consume.
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from flock import Flock
 from flock.api.service import BlackboardHTTPService
@@ -20,6 +20,7 @@ class DictPublishProbe(BaseModel):
     """Registered without an explicit name → canonical name is module-qualified."""
 
     value: str
+    priority: int = 1
 
 
 CANONICAL = type_registry.name_for(DictPublishProbe)
@@ -35,7 +36,7 @@ async def test_simple_name_resolves_to_canonical_name():
     )
 
     assert artifact.type == CANONICAL
-    assert artifact.payload == {"value": "x"}
+    assert artifact.payload == {"value": "x", "priority": 1}  # defaults filled in
 
 
 @pytest.mark.asyncio
@@ -82,3 +83,37 @@ def test_rest_publish_with_simple_name_is_stored_canonically():
 
     listing = client.get("/api/v1/artifacts", params={"type": CANONICAL}).json()
     assert [item["type"] for item in listing["items"]] == [CANONICAL]
+
+
+@pytest.mark.asyncio
+async def test_invalid_payload_raises_validation_error():
+    orchestrator = Flock()
+
+    with pytest.raises(ValidationError):
+        await orchestrator.publish(
+            {"type": "DictPublishProbe", "payload": {"priority": "high"}},
+            schedule_immediately=False,
+        )
+
+
+@pytest.mark.asyncio
+async def test_payload_is_normalized_like_a_model_publish():
+    orchestrator = Flock()
+
+    artifact = await orchestrator.publish(
+        {"type": "DictPublishProbe", "value": "x", "priority": "7"},
+        schedule_immediately=False,
+    )
+
+    assert artifact.payload == {"value": "x", "priority": 7}
+
+
+def test_rest_publish_with_invalid_payload_returns_400():
+    client = TestClient(BlackboardHTTPService(Flock()).app)
+
+    response = client.post(
+        "/api/v1/artifacts", json={"type": "DictPublishProbe", "payload": {}}
+    )
+
+    assert response.status_code == 400
+    assert "value" in response.json()["detail"]

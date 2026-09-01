@@ -114,6 +114,12 @@ class ArtifactManager:
                 payload = obj["payload"]
             else:
                 payload = {k: v for k, v in obj.items() if k != "type"}
+            # Validate against the registered model so a bad payload fails at
+            # publish time (HTTP 400 on the REST path) instead of inside the
+            # first agent that consumes it. Mirrors the BaseModel branch:
+            # the stored payload is the validated model's model_dump().
+            model_cls = type_registry.resolve(type_name)
+            payload = model_cls.model_validate(payload).model_dump()
 
             artifact = Artifact(
                 type=type_name,
