@@ -175,9 +175,10 @@ Only one stack at a time: they share host ports.
 
 ## Gotchas
 
-- Artifact types are registered with explicit names (`@flock_type(name="BandConcept")`).
-  Without that the registry uses `_common.BandConcept`, and a REST publish with
-  `"type": "BandConcept"` is accepted but never matches a subscription.
+- Artifact types are registered with explicit names (`@flock_type(name="BandConcept")`)
+  so the dashboard and the REST API show `BandConcept` rather than
+  `_common.BandConcept`. Either form works in a REST publish: simple names are
+  resolved to the registered name, unknown names are rejected with 400.
 - Only one example stack at a time: they share the host ports 50001, 3500 and 6379.
 
 ## Reset

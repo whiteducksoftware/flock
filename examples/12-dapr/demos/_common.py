@@ -21,8 +21,8 @@ from flock.storage import (
 
 # ── Artifact types ───────────────────────────────────────────────────
 # Same types as the redis_encrypted example, plus ``Review`` for demo 2.
-# Explicit names keep REST payloads short (``"type": "BandConcept"``) and
-# identical across both processes; the default would be ``_common.BandConcept``.
+# Explicit names keep the dashboard and REST responses readable
+# (``BandConcept`` instead of the default ``_common.BandConcept``).
 
 
 @flock_type(name="BandConcept")
