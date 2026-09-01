@@ -6,6 +6,8 @@ services:
   # Sidecar for Flock Dev app
   flock-dapr:
     image: "daprio/daprd:edge"
+    # run the sidecar as the invoking user so secrets.json can stay 0600
+    user: "${DAPR_UID:-1000}:${DAPR_GID:-1000}"
     command: [
       "./daprd",
       "--app-id", "flock-dev",
@@ -42,7 +44,7 @@ services:
     command: ["./scheduler", "--port", "50007", "--etcd-data-dir", "/data"]
     user: root
     volumes:
-      - "./dapr-etcd-data/:/data"
+      - "dapr-etcd-data:/data"
     networks:
       - dapr-net
 
@@ -57,7 +59,7 @@ services:
     networks:
       - dapr-net
     volumes:
-      - "./postgres_data:/var/lib/postgresql/data"
+      - "postgres-data:/var/lib/postgresql/data"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d flock_dapr"]
       interval: 2s
@@ -67,3 +69,7 @@ services:
 
 networks:
   dapr-net: null
+
+volumes:
+  dapr-etcd-data: null
+  postgres-data: null

@@ -3,6 +3,8 @@ services:
   # Sidecar for Flock Dev app
   flock-dapr:
     image: "daprio/daprd:edge"
+    # run the sidecar as the invoking user so secrets.json can stay 0600
+    user: "${DAPR_UID:-1000}:${DAPR_GID:-1000}"
     command: [
       "./daprd",
       "--app-id", "flock-dev",
@@ -36,7 +38,7 @@ services:
     command: ["./scheduler", "--port", "50007", "--etcd-data-dir", "/data"]
     user: root
     volumes:
-      - "./dapr-etcd-data/:/data"
+      - "dapr-etcd-data:/data"
     networks:
       - dapr-net
 
@@ -49,8 +51,12 @@ services:
       - dapr-net
     command: ["redis-server", "--loglevel", "warning", "--save", "20", "1", "--requirepass", "flock-redis-dev-2026!", "--loadmodule", "/opt/redis-stack/lib/redisearch.so", "--loadmodule", "/opt/redis-stack/lib/rejson.so"]
     volumes:
-      - "./redis_data:/data"
+      - "redis-data:/data"
     
 
 networks:
   dapr-net: null
+
+volumes:
+  dapr-etcd-data: null
+  redis-data: null

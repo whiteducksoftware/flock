@@ -105,11 +105,21 @@ class ArtifactManager:
                     "Example: {'type': 'Task', 'name': 'foo', 'priority': 5}"
                 )
             # Support both {'type': 'X', 'payload': {...}} and {'type': 'X', ...}
-            type_name = obj["type"]
+            # Resolve simple names ("Task") to the canonical registered name
+            # ("__main__.Task") so subscriptions match. Unknown or ambiguous
+            # names raise RegistryError instead of persisting an artifact that
+            # no agent can ever consume.
+            type_name = type_registry.resolve_name(obj["type"])
             if "payload" in obj:
                 payload = obj["payload"]
             else:
                 payload = {k: v for k, v in obj.items() if k != "type"}
+            # Validate against the registered model so a bad payload fails at
+            # publish time (HTTP 400 on the REST path) instead of inside the
+            # first agent that consumes it. Mirrors the BaseModel branch:
+            # the stored payload is the validated model's model_dump().
+            model_cls = type_registry.resolve(type_name)
+            payload = model_cls.model_validate(payload).model_dump()
 
             artifact = Artifact(
                 type=type_name,

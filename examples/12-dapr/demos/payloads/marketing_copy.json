@@ -1,0 +1,9 @@
+{
+  "type": "MarketingCopy",
+  "payload": {
+    "press_release": "Sidecar Sunrise, the debut album from the distributed-systems supergroup Blackboard Drift, drops today on all platforms. Twelve tracks of typed, validated, replayable synthwave recorded in one take across three processes that never spoke to each other. Critics are calling it the first record that survives a kill -9.",
+    "social_media_hook": "New album. Three processes. Zero prompts. Sidecar Sunrise by Blackboard Drift is out now. Kill the player, the music continues.",
+    "billboard_tagline": "The blackboard survives. The process doesn't have to.",
+    "target_playlists": ["Synthwave Essentials", "Late Night Drive", "Cloud Native Beats", "Focus Flow"]
+  }
+}
