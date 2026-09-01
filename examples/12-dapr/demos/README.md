@@ -21,6 +21,8 @@ reader.py  (:8345)  ─┘
 
 - Docker with Compose v2
 - This repository with the Dapr extra: `uv sync --extra dapr`
+- Node.js 20+ and npm — when running from the repository checkout, the first
+  `dashboard=True` start builds the dashboard frontend
 - An LLM endpoint. The stack reads credentials from a Dapr **secret store**
   (`components/secretstore.yaml` → `secrets.json`), so nothing is hard-coded.
 - `curl` and `jq` for the driver commands below
@@ -33,8 +35,12 @@ scheduler.
 ```bash
 cd examples/12-dapr/redis_encrypted
 cp secrets.example.json secrets.json
-chmod 644 secrets.json      # daprd runs as a non-root user inside the container and must be able to read it
+chmod 600 secrets.json
 ```
+
+The Compose file runs the sidecar as uid/gid 1000 so it can read a `0600`
+file owned by you. If your user is not 1000, export `DAPR_UID=$(id -u)` and
+`DAPR_GID=$(id -g)` before `docker compose up`.
 
 Fill in `secrets.json`:
 
@@ -132,13 +138,13 @@ curl -s localhost:8345/api/v1/artifacts | jq -r '.items[] | "\(.type)\t\(.produc
 
 # 2. write on A, read on B
 curl -s -X POST localhost:8344/api/v1/artifacts -H 'content-type: application/json' \
-  -d @examples/12-dapr/demos/payloads/band_concept_2.json | jq .id
+  -d @examples/12-dapr/demos/payloads/band_concept_2.json | jq          # {"status": "accepted"}
 sleep 30
 curl -s 'localhost:8345/api/v1/artifacts?type=MarketingCopy' | jq '.items | length'
 
 # 3. write on B, read on A — the reader's own agent, critic, turns MarketingCopy into a Review
 curl -s -X POST localhost:8345/api/v1/artifacts -H 'content-type: application/json' \
-  -d @examples/12-dapr/demos/payloads/marketing_copy.json | jq .id
+  -d @examples/12-dapr/demos/payloads/marketing_copy.json | jq          # {"status": "accepted"}
 sleep 10
 curl -s 'localhost:8344/api/v1/artifacts?type=Review' | jq '.items[0].payload'
 
@@ -168,10 +174,21 @@ If the LLM is unavailable, `payloads/review_fallback.json` lets you publish a
 
 ## Swap the backend (optional)
 
-The same two scripts run against the PostgreSQL stack — edit `make_store()` in
-`_common.py` to `encrypted_backend=False, supports_transactions=True` and start
-[`../postgresql_unencrypted/`](../postgresql_unencrypted/) instead of Redis.
-Only one stack at a time: they share host ports.
+The same two scripts run against the PostgreSQL stack:
+
+1. Stop the Redis stack (`docker compose down` in `redis_encrypted/`) — the
+   stacks share host ports.
+2. `cd examples/12-dapr/postgresql_unencrypted && cp secrets.example.json secrets.json && chmod 600 secrets.json`.
+   This stack has its own secret store: set `postgresql_password` to the
+   `POSTGRES_PASSWORD` from its `docker-compose.yml` (`flock-postgres-dev-2026!`)
+   and copy `api_key`, `base_url`, `api_version`, `state_store_name`
+   (`flockstate`) and `default_model` from the Redis one.
+3. `docker compose up -d`.
+4. In `_common.py`, `make_store()`: `encrypted_backend=False`,
+   `supports_transactions=True` — PostgreSQL is not encrypted at the Dapr layer
+   and supports transactions; it has no query API, so leave
+   `supports_dapr_query_lang=False`.
+5. Run `writer.py` / `reader.py` exactly as above.
 
 ## Gotchas
 

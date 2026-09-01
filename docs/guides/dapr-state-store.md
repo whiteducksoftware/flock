@@ -156,7 +156,7 @@ cp secrets.example.json secrets.json
 docker compose up -d
 ```
 
-For all three setups, copy `secrets.example.json` to `secrets.json` and fill in required keys before running. The file must be readable by the non-root `daprd` user inside the container (`chmod 644 secrets.json`).
+For all three setups, copy `secrets.example.json` to `secrets.json` and fill in required keys before running. Keep it `chmod 600`; the Compose files run `daprd` as uid/gid 1000 so it can read your file (export `DAPR_UID`/`DAPR_GID` if your user differs).
 
 Then run the matching example script from repository root:
 

@@ -257,9 +257,11 @@ docker compose up -d
 
 ### 2. Configure secrets
 
-> `daprd` runs as a non-root user inside the container. `secrets.json` must be
-> readable by it (`chmod 644 secrets.json`), otherwise the secret store fails to
-> initialize and the sidecar exits.
+> The Compose files run `daprd` as uid/gid 1000 so that a `secrets.json` with
+> mode `0600` owned by you stays readable inside the container. If your user is
+> not 1000, export `DAPR_UID=$(id -u)` and `DAPR_GID=$(id -g)` before
+> `docker compose up`; otherwise the secret store fails to initialize and the
+> sidecar exits with "permission denied".
 
 Edit `secrets.json` with your values:
 

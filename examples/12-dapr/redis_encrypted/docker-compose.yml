@@ -3,6 +3,8 @@ services:
   # Sidecar for Flock Dev app
   flock-dapr:
     image: "daprio/daprd:edge"
+    # run the sidecar as the invoking user so secrets.json can stay 0600
+    user: "${DAPR_UID:-1000}:${DAPR_GID:-1000}"
     command: [
       "./daprd",
       "--app-id", "flock-dev",
