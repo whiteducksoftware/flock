@@ -39,9 +39,12 @@ services:
     command: ["./scheduler", "--port", "50007", "--etcd-data-dir", "/data"]
     user: root
     volumes:
-      - "./dapr-etcd-data/:/data"
+      - "dapr-etcd-data:/data"
     networks:
       - dapr-net
 
 networks:
   dapr-net: null
+
+volumes:
+  dapr-etcd-data: null

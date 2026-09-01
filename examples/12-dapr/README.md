@@ -257,6 +257,10 @@ docker compose up -d
 
 ### 2. Configure secrets
 
+> `daprd` runs as a non-root user inside the container. `secrets.json` must be
+> readable by it (`chmod 644 secrets.json`), otherwise the secret store fails to
+> initialize and the sidecar exits.
+
 Edit `secrets.json` with your values:
 
 ```jsonc
@@ -287,7 +291,19 @@ uv run python examples/12-dapr/redis_encrypted/flock_dapr_redis.py
 uv run python examples/12-dapr/postgresql_unencrypted/flock_dapr_postgresql.py
 ```
 
-### 4. Dapr component files
+### 4. Peeking at the state store
+
+Dapr stores Redis state as a hash, keys are prefixed with the app id:
+
+```bash
+docker exec redis redis-cli -a 'flock-redis-dev-2026!' --no-auth-warning --scan --pattern '*artifact:*' | head
+docker exec redis redis-cli -a 'flock-redis-dev-2026!' --no-auth-warning HGET '<key>' data   # ciphertext on the encrypted stack
+```
+
+The stacks keep their data in named Docker volumes; `docker compose down -v`
+removes them.
+
+### 5. Dapr component files
 
 Each example stack ships three component definitions under `components/`:
 

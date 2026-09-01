@@ -42,7 +42,7 @@ services:
     command: ["./scheduler", "--port", "50007", "--etcd-data-dir", "/data"]
     user: root
     volumes:
-      - "./dapr-etcd-data/:/data"
+      - "dapr-etcd-data:/data"
     networks:
       - dapr-net
 
@@ -57,7 +57,7 @@ services:
     networks:
       - dapr-net
     volumes:
-      - "./postgres_data:/var/lib/postgresql/data"
+      - "postgres-data:/var/lib/postgresql/data"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d flock_dapr"]
       interval: 2s
@@ -67,3 +67,7 @@ services:
 
 networks:
   dapr-net: null
+
+volumes:
+  dapr-etcd-data: null
+  postgres-data: null

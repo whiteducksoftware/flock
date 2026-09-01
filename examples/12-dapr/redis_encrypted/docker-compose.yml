@@ -36,7 +36,7 @@ services:
     command: ["./scheduler", "--port", "50007", "--etcd-data-dir", "/data"]
     user: root
     volumes:
-      - "./dapr-etcd-data/:/data"
+      - "dapr-etcd-data:/data"
     networks:
       - dapr-net
 
@@ -49,8 +49,12 @@ services:
       - dapr-net
     command: ["redis-server", "--loglevel", "warning", "--save", "20", "1", "--requirepass", "flock-redis-dev-2026!", "--loadmodule", "/opt/redis-stack/lib/redisearch.so", "--loadmodule", "/opt/redis-stack/lib/rejson.so"]
     volumes:
-      - "./redis_data:/data"
+      - "redis-data:/data"
     
 
 networks:
   dapr-net: null
+
+volumes:
+  dapr-etcd-data: null
+  redis-data: null

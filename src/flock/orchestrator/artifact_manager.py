@@ -105,7 +105,11 @@ class ArtifactManager:
                     "Example: {'type': 'Task', 'name': 'foo', 'priority': 5}"
                 )
             # Support both {'type': 'X', 'payload': {...}} and {'type': 'X', ...}
-            type_name = obj["type"]
+            # Resolve simple names ("Task") to the canonical registered name
+            # ("__main__.Task") so subscriptions match. Unknown or ambiguous
+            # names raise RegistryError instead of persisting an artifact that
+            # no agent can ever consume.
+            type_name = type_registry.resolve_name(obj["type"])
             if "payload" in obj:
                 payload = obj["payload"]
             else:

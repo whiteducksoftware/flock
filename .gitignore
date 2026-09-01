@@ -362,5 +362,8 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
-# Dapr example stacks: local secret-store files
+# Dapr example stacks: local secret-store files and data dirs left behind by older compose files
 examples/12-dapr/**/secrets.json
+examples/12-dapr/**/dapr-etcd-data/
+examples/12-dapr/**/redis_data/
+examples/12-dapr/**/postgres_data/
