@@ -173,13 +173,13 @@ class BlackboardHTTPService:
                 set_webhook_context(ctx)
 
             try:
-                # Pass correlation_id to ensure webhook context matches artifact
-                # Note: correlation_id comes AFTER payload spread to prevent override
-                await orchestrator.publish({
-                    "type": body.type,
-                    **body.payload,
-                    "correlation_id": correlation_id,
-                })
+                # The correlation id is artifact metadata, not payload: pass it
+                # as a keyword so the artifact (and the cascade it triggers)
+                # carries it, and the webhook context matches it.
+                await orchestrator.publish(
+                    {"type": body.type, "payload": body.payload},
+                    correlation_id=correlation_id,
+                )
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             finally:
@@ -238,15 +238,13 @@ class BlackboardHTTPService:
                 set_webhook_context(ctx)
 
             try:
-                # Publish artifact with correlation_id
-                # Note: correlation_id comes AFTER payload spread to prevent
-                # malicious payloads from overriding our generated correlation_id
+                # Publish with the generated correlation id as artifact
+                # metadata; the result query below filters on it.
                 try:
-                    await orchestrator.publish({
-                        "type": body.type,
-                        **body.payload,
-                        "correlation_id": correlation_id,
-                    })
+                    await orchestrator.publish(
+                        {"type": body.type, "payload": body.payload},
+                        correlation_id=correlation_id,
+                    )
                 except Exception as exc:
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
 
