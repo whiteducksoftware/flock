@@ -1,6 +1,6 @@
 """Tests for SQLite query builder."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pydantic import BaseModel
@@ -92,6 +92,14 @@ def test_build_filters_date_range(builder):
     assert len(params) == 2
     assert params[0] == start.isoformat()
     assert params[1] == end.isoformat()
+
+
+def test_build_filters_normalizes_date_offsets(builder):
+    start = datetime(2025, 1, 1, 2, tzinfo=timezone(timedelta(hours=2)))
+
+    _, params = builder.build_filters(FilterConfig(start=start))
+
+    assert params == [datetime(2025, 1, 1, tzinfo=UTC).isoformat()]
 
 
 def test_build_filters_tags(builder):

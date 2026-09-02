@@ -116,6 +116,29 @@ async def test_simple_and_gate_waits_for_both_types(orchestrator):
 
 
 @pytest.mark.asyncio
+async def test_simple_and_gate_ignores_artifact_correlation_ids(orchestrator):
+    """Plain AND gates pair types; JoinSpec provides correlation semantics."""
+    received = []
+
+    class TrackingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs, output_group):
+            received.append({artifact.type for artifact in inputs.artifacts})
+            return EvalResult(artifacts=[])
+
+    orchestrator.agent("uncorrelated_and_gate").consumes(TypeA, TypeB).with_engines(
+        TrackingEngine()
+    )
+
+    first = await orchestrator.publish(TypeA(value="a"))
+    second = await orchestrator.publish(TypeB(value="b"))
+    assert first.correlation_id != second.correlation_id
+
+    await orchestrator.run_until_idle()
+
+    assert received == [{"TypeA", "TypeB"}]
+
+
+@pytest.mark.asyncio
 async def test_and_gate_order_independence(orchestrator):
     """
     Test that AND gate works regardless of artifact publication order.

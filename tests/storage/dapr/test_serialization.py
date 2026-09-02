@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from flock.core.artifacts import Artifact
 from flock.core.store import AgentSnapshotRecord, ConsumptionRecord
-from flock.core.visibility import AgentIdentity, PrivateVisibility, Visibility
+from flock.core.visibility import (
+    AfterVisibility,
+    AgentIdentity,
+    LabelledVisibility,
+    PrivateVisibility,
+    TenantVisibility,
+)
 from flock.storage.dapr._serialization import (
-    _VISIBILITY_MAP,
     _default,
     deserialize_agent_snapshot,
     deserialize_artifact,
@@ -53,18 +59,82 @@ def test_artifact_roundtrip_preserves_visibility_subclass() -> None:
 
     assert isinstance(decoded.visibility, PrivateVisibility)
     assert decoded.visibility.kind == "Private"
-    assert not decoded.visibility.allows(AgentIdentity(name="allowed-agent"))
+    assert decoded.visibility.allows(AgentIdentity(name="allowed-agent"))
 
 
-def test_deserialize_artifact_keeps_base_visibility_when_kind_map_missing(
-    monkeypatch,
-) -> None:
-    artifact = Artifact(type="demo.Type", payload={"value": 1}, produced_by="writer")
-    monkeypatch.setitem(_VISIBILITY_MAP, "Public", None)  # type: ignore[arg-type]
+def test_artifact_roundtrip_preserves_nested_visibility_policy() -> None:
+    created_at = datetime(2026, 1, 1, tzinfo=UTC)
+    artifact = Artifact(
+        type="demo.Type",
+        payload={"value": 1},
+        produced_by="writer",
+        created_at=created_at,
+        visibility=AfterVisibility(
+            ttl=timedelta(days=1),
+            then=PrivateVisibility(agents={"allowed-agent"}),
+        ),
+    )
 
     decoded = deserialize_artifact(serialize_artifact(artifact))
 
-    assert type(decoded.visibility) is Visibility
+    assert isinstance(decoded.visibility, AfterVisibility)
+    assert decoded.visibility.ttl == timedelta(days=1)
+    assert isinstance(decoded.visibility.then, PrivateVisibility)
+    assert decoded.visibility.then.agents == {"allowed-agent"}
+    assert decoded.visibility.allows(
+        AgentIdentity(name="allowed-agent"), now=created_at + timedelta(days=2)
+    )
+    assert not decoded.visibility.allows(
+        AgentIdentity(name="outsider"), now=created_at + timedelta(days=2)
+    )
+
+
+@pytest.mark.parametrize(
+    "visibility",
+    [
+        PrivateVisibility(),
+        LabelledVisibility(),
+        TenantVisibility(),
+        AfterVisibility(),
+        AfterVisibility(then=LabelledVisibility()),
+    ],
+)
+def test_artifact_roundtrip_preserves_core_valid_visibility(visibility) -> None:
+    artifact = Artifact(
+        type="demo.Type",
+        payload={"value": 1},
+        produced_by="writer",
+        visibility=visibility,
+    )
+
+    decoded = deserialize_artifact(serialize_artifact(artifact))
+
+    assert type(decoded.visibility) is type(visibility)
+    assert decoded.visibility.model_dump() == visibility.model_dump()
+
+
+def test_deserialize_artifact_rejects_unknown_visibility_kind() -> None:
+    artifact = Artifact(type="demo.Type", payload={"value": 1}, produced_by="writer")
+    payload = json.loads(serialize_artifact(artifact))
+    payload["visibility"] = {"kind": "Unknown"}
+
+    with pytest.raises(ValidationError):
+        deserialize_artifact(json.dumps(payload))
+
+
+@pytest.mark.parametrize("kind", ["Private", "Labelled", "Tenant", "After"])
+def test_deserialize_legacy_restricted_visibility_fails_closed(kind) -> None:
+    artifact = Artifact(type="demo.Type", payload={"value": 1}, produced_by="writer")
+    payload = json.loads(serialize_artifact(artifact))
+    payload["visibility"] = {"kind": kind}
+
+    decoded = deserialize_artifact(json.dumps(payload))
+    decoded_again = deserialize_artifact(serialize_artifact(decoded))
+
+    assert isinstance(decoded.visibility, PrivateVisibility)
+    assert not decoded.visibility.allows(AgentIdentity(name="anyone"))
+    assert isinstance(decoded_again.visibility, PrivateVisibility)
+    assert not decoded_again.visibility.allows(AgentIdentity(name="anyone"))
 
 
 def test_consumption_records_roundtrip_and_empty_decode() -> None:

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from flock.utils.time_utils import as_utc
+
 
 if TYPE_CHECKING:
     from flock.core.store import FilterConfig
@@ -92,11 +94,11 @@ class SQLiteQueryBuilder:
         # Date range filters
         if filters.start is not None:
             conditions.append(f"{prefix}created_at >= ?")
-            params.append(filters.start.isoformat())
+            params.append(as_utc(filters.start).isoformat())
 
         if filters.end is not None:
             conditions.append(f"{prefix}created_at <= ?")
-            params.append(filters.end.isoformat())
+            params.append(as_utc(filters.end).isoformat())
 
         # Tag filter (JSON array contains check)
         if filters.tags:

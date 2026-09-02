@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, SerializeAsAny, field_validator
 
 
 if TYPE_CHECKING:
@@ -68,8 +68,22 @@ class TenantVisibility(Visibility):
 class AfterVisibility(Visibility):
     kind: Literal["After"] = "After"
     ttl: timedelta = Field(default=timedelta())
-    then: Visibility | None = None
+    then: SerializeAsAny[Visibility] | None = None
     _created_at: datetime = PrivateAttr(default_factory=lambda: datetime.now(UTC))
+
+    @field_validator("then", mode="before")
+    @classmethod
+    def _deserialize_then(cls, value):
+        if isinstance(value, dict) or type(value) is Visibility:
+            from flock.utils.visibility_utils import deserialize_visibility
+
+            data = (
+                value.model_dump(mode="json")
+                if isinstance(value, Visibility)
+                else value
+            )
+            return deserialize_visibility(data, validate_shape=True)
+        return value
 
     def allows(self, agent: AgentIdentity, *, now: datetime | None = None) -> bool:
         now = now or datetime.now(UTC)

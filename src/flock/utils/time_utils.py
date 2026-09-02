@@ -5,7 +5,14 @@ Provides human-readable time span formatting for date ranges.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
+
+
+def as_utc(value: datetime) -> datetime:
+    """Return an aware UTC datetime, treating naive values as UTC."""
+    if value.utcoffset() is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def format_time_span(earliest: datetime | None, latest: datetime | None) -> str:

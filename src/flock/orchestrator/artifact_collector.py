@@ -40,12 +40,12 @@ class ArtifactCollector:
 
     def __init__(self) -> None:
         """Initialize empty waiting pools."""
-        # Structure: {(agent_name, subscription_index, correlation_id): {type_name: [artifact1, artifact2, ...]}}
-        # Example: {("diagnostician", 0, "corr-1"): {"XRay": [artifact1], "LabResult": [artifact2]}}
+        # Structure: {(agent_name, subscription_index): {type_name: [artifact1, artifact2, ...]}}
+        # Example: {("diagnostician", 0): {"XRay": [artifact1], "LabResult": [artifact2]}}
         # For count-based AND gates: {"TypeA": [artifact1, artifact2, artifact3]} (3 As collected)
-        self._waiting_pools: dict[
-            tuple[str, int, str | None], dict[str, list[Artifact]]
-        ] = defaultdict(lambda: defaultdict(list))
+        self._waiting_pools: dict[tuple[str, int], dict[str, list[Artifact]]] = (
+            defaultdict(lambda: defaultdict(list))
+        )
 
     def add_artifact(
         self,
@@ -68,7 +68,6 @@ class ArtifactCollector:
         Design Notes:
             - Single-type subscriptions with count=1 bypass the pool and return immediately complete
             - Multi-type or count-based subscriptions collect artifacts until all required counts met
-            - Scoped by correlation_id so concurrent runs never cross-pair artifacts
             - Latest artifacts win (keeps most recent N artifacts per type)
             - After returning complete=True, the pool is automatically cleared
         """
@@ -91,7 +90,7 @@ class ArtifactCollector:
                 "This indicates an internal orchestrator error."
             )
 
-        pool_key = (agent.name, subscription_index, artifact.correlation_id)
+        pool_key = (agent.name, subscription_index)
 
         # Add artifact to pool (collect in list for count-based logic)
         self._waiting_pools[pool_key][artifact.type].append(artifact)
@@ -110,7 +109,7 @@ class ArtifactCollector:
             for type_name, required_count in subscription.type_counts.items():
                 # Take exactly the required count (latest artifacts)
                 type_artifacts = self._waiting_pools[pool_key][type_name]
-                artifacts.extend(type_artifacts[-required_count:])
+                artifacts.extend(type_artifacts[:required_count])
 
             del self._waiting_pools[pool_key]  # Clear for next cycle
             return (True, artifacts)
@@ -118,41 +117,23 @@ class ArtifactCollector:
         return (False, [])
 
     def get_waiting_status(
-        self,
-        agent: Agent,
-        subscription_index: int,
-        correlation_id: str | None = None,
+        self, agent: Agent, subscription_index: int
     ) -> dict[str, list[Artifact]]:
         """Get current waiting pool contents for debugging/inspection.
 
         Args:
             agent: Agent to inspect
             subscription_index: Index of the subscription
-            correlation_id: Optional correlation ID to filter by. If None,
-                returns merged artifacts across all correlation pools for this
-                agent and subscription index.
 
         Returns:
             Dictionary mapping type names to lists of collected artifacts (empty if none)
         """
-        if correlation_id is not None:
-            pool_key = (agent.name, subscription_index, correlation_id)
-            pool = self._waiting_pools.get(pool_key, {})
-            return {type_name: list(artifacts) for type_name, artifacts in pool.items()}
+        pool_key = (agent.name, subscription_index)
+        # Return a copy to prevent external mutation
+        pool = self._waiting_pools.get(pool_key, {})
+        return {type_name: list(artifacts) for type_name, artifacts in pool.items()}
 
-        merged: dict[str, list[Artifact]] = defaultdict(list)
-        for (a_name, s_idx, _c_id), pool in self._waiting_pools.items():
-            if a_name == agent.name and s_idx == subscription_index:
-                for type_name, artifacts in pool.items():
-                    merged[type_name].extend(artifacts)
-        return dict(merged)
-
-    def clear_waiting_pool(
-        self,
-        agent: Agent,
-        subscription_index: int,
-        correlation_id: str | None = None,
-    ) -> None:
+    def clear_waiting_pool(self, agent: Agent, subscription_index: int) -> None:
         """Manually clear a waiting pool.
 
         Useful for cleanup or resetting agent state.
@@ -160,21 +141,10 @@ class ArtifactCollector:
         Args:
             agent: Agent whose pool to clear
             subscription_index: Index of the subscription
-            correlation_id: Optional correlation ID. If None, clears all pools
-                for this agent and subscription index.
         """
-        if correlation_id is not None:
-            pool_key = (agent.name, subscription_index, correlation_id)
-            if pool_key in self._waiting_pools:
-                del self._waiting_pools[pool_key]
-        else:
-            keys_to_delete = [
-                k
-                for k in self._waiting_pools
-                if k[0] == agent.name and k[1] == subscription_index
-            ]
-            for k in keys_to_delete:
-                del self._waiting_pools[k]
+        pool_key = (agent.name, subscription_index)
+        if pool_key in self._waiting_pools:
+            del self._waiting_pools[pool_key]
 
     def clear_all_pools(self) -> None:
         """Clear all waiting pools.

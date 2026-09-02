@@ -24,6 +24,7 @@ from opentelemetry import trace
 
 from flock.core.artifacts import Artifact
 from flock.registry import type_registry
+from flock.utils.time_utils import as_utc
 from flock.utils.type_resolution import TypeResolutionHelper
 from flock.utils.visibility_utils import deserialize_visibility
 
@@ -127,7 +128,7 @@ class BlackboardStore:
         offset: int = 0,
         embed_meta: bool = False,
     ) -> tuple[list[Artifact | ArtifactEnvelope], int]:
-        """Search artifacts with filtering and pagination."""
+        """Search artifacts ordered by ``(created_at, id)`` before pagination."""
         raise NotImplementedError
 
     async def fetch_graph_artifacts(
@@ -381,7 +382,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             payload_json = json.dumps(artifact.payload)
             visibility_json = json.dumps(artifact.visibility.model_dump(mode="json"))
             tags_json = json.dumps(sorted(artifact.tags))
-            created_at = artifact.created_at.isoformat()
+            created_at = as_utc(artifact.created_at).isoformat()
 
             canonical_type = TypeResolutionHelper.safe_resolve(
                 type_registry, artifact.type
@@ -645,7 +646,7 @@ class SQLiteBlackboardStore(BlackboardStore):
                 created_at
             FROM artifacts
             {where_clause}
-            ORDER BY created_at ASC, rowid ASC
+            ORDER BY created_at ASC, artifact_id ASC
         """  # nosec B608
 
         # Use query params builder for pagination
@@ -904,7 +905,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             type=row["type"],
             payload=payload,
             produced_by=row["produced_by"],
-            visibility=deserialize_visibility(visibility_data),
+            visibility=deserialize_visibility(visibility_data, validate_shape=True),
             tags=set(tags),
             correlation_id=correlation,
             partition_key=row["partition_key"],

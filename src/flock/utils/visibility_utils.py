@@ -6,7 +6,6 @@ Extracted from store.py to reduce complexity and improve testability.
 
 from __future__ import annotations
 
-import re
 from datetime import timedelta
 from typing import Any
 
@@ -20,12 +19,27 @@ from flock.core.visibility import (
 )
 
 
-ISO_DURATION_RE = re.compile(
-    r"^P(?:T?(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)$"
-)
+_VISIBILITY_MODELS = {
+    "Public": PublicVisibility,
+    "Private": PrivateVisibility,
+    "Labelled": LabelledVisibility,
+    "Tenant": TenantVisibility,
+    "After": AfterVisibility,
+}
 
 
-def parse_iso_duration(value: str | None) -> timedelta:
+def _normalize_iso_duration(value: Any) -> Any:
+    if (
+        isinstance(value, str)
+        and value.startswith("P")
+        and "T" not in value
+        and any(unit in value for unit in "HMS")
+    ):
+        return f"PT{value[1:]}"
+    return value
+
+
+def parse_iso_duration(value: str | timedelta | None) -> timedelta:
     """
     Parse ISO 8601 duration string to timedelta.
 
@@ -43,18 +57,20 @@ def parse_iso_duration(value: str | None) -> timedelta:
         >>> parse_iso_duration(None)
         timedelta(0)
     """
-    if not value:
+    if isinstance(value, timedelta):
+        return value
+    if not isinstance(value, str) or not value.startswith("P"):
         return timedelta(0)
-    match = ISO_DURATION_RE.match(value)
-    if not match:
+    value = _normalize_iso_duration(value)
+    try:
+        return AfterVisibility.model_validate({"ttl": value}).ttl
+    except ValueError:
         return timedelta(0)
-    hours = int(match.group("hours") or 0)
-    minutes = int(match.group("minutes") or 0)
-    seconds = int(match.group("seconds") or 0)
-    return timedelta(hours=hours, minutes=minutes, seconds=seconds)
 
 
-def deserialize_visibility(data: Any) -> Visibility:
+def deserialize_visibility(
+    data: Any, *, strict: bool = False, validate_shape: bool = False
+) -> Visibility:
     """
     Deserialize visibility object from JSON data.
 
@@ -63,6 +79,8 @@ def deserialize_visibility(data: Any) -> Visibility:
 
     Args:
         data: JSON data dict or Visibility instance
+        strict: Reject malformed policies instead of falling back to Public
+        validate_shape: Reject unknown kinds and fields while preserving model defaults
 
     Returns:
         Visibility object (defaults to PublicVisibility if invalid)
@@ -73,6 +91,11 @@ def deserialize_visibility(data: Any) -> Visibility:
         >>> deserialize_visibility({"kind": "Private", "agents": ["agent1"]})
         PrivateVisibility(agents={"agent1"})
     """
+    if strict:
+        return _validate_visibility(data)
+    if validate_shape:
+        return _validate_visibility_shape(data)
+
     # Early returns for simple cases
     if isinstance(data, Visibility):
         return data
@@ -86,6 +109,66 @@ def deserialize_visibility(data: Any) -> Visibility:
 
     # Dispatch to appropriate deserializer
     return _VISIBILITY_DESERIALIZERS.get(kind, _deserialize_public)(data)
+
+
+def _validate_visibility_shape(data: Any) -> Visibility:
+    """Validate the discriminated shape without changing core model semantics."""
+    if isinstance(data, Visibility):
+        return data
+    if not isinstance(data, dict):
+        raise TypeError("visibility must be an object")
+
+    kind = data.get("kind")
+    fields_by_kind = {
+        "Public": set(),
+        "Private": {"agents"},
+        "Labelled": {"required_labels"},
+        "Tenant": {"tenant_id"},
+        "After": {"ttl", "then"},
+    }
+    if kind not in fields_by_kind:
+        raise ValueError(f"unknown visibility kind: {kind!r}")
+    if unexpected := set(data) - {"kind"} - fields_by_kind[kind]:
+        raise ValueError(
+            f"unexpected fields for {kind} visibility: {sorted(unexpected)}"
+        )
+    model_data = data
+    if kind == "After" and "ttl" in data:
+        model_data = {**data, "ttl": _normalize_iso_duration(data["ttl"])}
+    return _VISIBILITY_MODELS[kind].model_validate(model_data)
+
+
+def _validate_visibility(data: Any) -> Visibility:
+    """Validate policies accepted from an external trust boundary."""
+    visibility = _validate_visibility_shape(data)
+    if isinstance(data, Visibility):
+        data = data.model_dump(mode="python")
+    kind = data["kind"]
+
+    list_fields = {"Private": "agents", "Labelled": "required_labels"}
+    if field := list_fields.get(kind):
+        values = data.get(field)
+        if (
+            not isinstance(values, (list, set, tuple))
+            or not values
+            or any(not isinstance(value, str) or not value.strip() for value in values)
+        ):
+            raise ValueError(f"{kind} visibility requires a non-empty {field} list")
+
+    if kind == "Tenant":
+        tenant_id = data.get("tenant_id")
+        if not isinstance(tenant_id, str) or not tenant_id.strip():
+            raise ValueError("Tenant visibility requires a non-empty tenant_id")
+
+    if kind == "After":
+        ttl = data.get("ttl")
+        if not isinstance(ttl, (str, timedelta)) or parse_iso_duration(
+            ttl
+        ) <= timedelta(0):
+            raise ValueError("After visibility requires a positive ISO 8601 ttl")
+        if data.get("then") is not None:
+            _validate_visibility(data["then"])
+    return visibility
 
 
 def _deserialize_public(data: dict[str, Any]) -> PublicVisibility:

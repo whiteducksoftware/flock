@@ -1,10 +1,11 @@
 """Tests for visibility enforcement."""
 
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
 from flock.agent import AgentIdentity
+from flock.core.artifacts import Artifact
 from flock.core.visibility import (
     AfterVisibility,
     LabelledVisibility,
@@ -12,6 +13,78 @@ from flock.core.visibility import (
     PublicVisibility,
     TenantVisibility,
 )
+
+
+@pytest.mark.parametrize(
+    ("created_at", "expected"),
+    [
+        (datetime(2026, 1, 1), datetime(2026, 1, 1, tzinfo=UTC)),  # noqa: DTZ001
+        (
+            datetime(2026, 1, 1, 2, tzinfo=timezone(timedelta(hours=2))),
+            datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+    ],
+)
+def test_artifact_anchors_after_visibility_timestamp_in_utc(created_at, expected):
+    artifact = Artifact(
+        type="demo.Delayed",
+        payload={},
+        produced_by="writer",
+        created_at=created_at,
+        visibility=AfterVisibility(ttl=timedelta(hours=1)),
+    )
+
+    assert artifact.created_at == created_at
+    assert artifact.visibility._created_at == expected
+    assert artifact.visibility.allows(
+        AgentIdentity(name="reader"),
+        now=datetime(2026, 1, 1, 2, tzinfo=UTC),
+    )
+
+
+def test_artifacts_do_not_share_after_visibility_timestamps():
+    policy = AfterVisibility(ttl=timedelta(hours=1))
+    first_created_at = datetime(2026, 1, 1, tzinfo=UTC)
+    first = Artifact(
+        type="demo.Delayed",
+        payload={},
+        produced_by="writer",
+        created_at=first_created_at,
+        visibility=policy,
+    )
+    second = Artifact(
+        type="demo.Delayed",
+        payload={},
+        produced_by="writer",
+        created_at=first_created_at + timedelta(days=1),
+        visibility=policy,
+    )
+
+    assert first.visibility is not second.visibility
+    assert first.visibility.allows(
+        AgentIdentity(name="reader"), now=first_created_at + timedelta(hours=2)
+    )
+    assert not second.visibility.allows(
+        AgentIdentity(name="reader"), now=first_created_at + timedelta(hours=2)
+    )
+
+
+def test_artifact_visibility_survives_python_dump_roundtrip():
+    artifact = Artifact(
+        type="demo.Delayed",
+        payload={},
+        produced_by="writer",
+        visibility=AfterVisibility(
+            ttl=timedelta(hours=1),
+            then=PrivateVisibility(agents={"reader"}),
+        ),
+    )
+
+    restored = Artifact.model_validate(artifact.model_dump())
+
+    assert isinstance(restored.visibility, AfterVisibility)
+    assert isinstance(restored.visibility.then, PrivateVisibility)
+    assert restored.visibility.then.agents == {"reader"}
 
 
 @pytest.mark.asyncio
