@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Query
 from pydantic import Field
@@ -118,8 +118,13 @@ class ArtifactsComponent(ServerComponent):
         async def publish_artifact(
             body: ArtifactPublishRequest,
         ) -> ArtifactPublishResponse:
+            # A generated correlation id ties the cascade this publish triggers
+            # together; it is artifact metadata, not payload.
             try:
-                await orchestrator.publish({"type": body.type, **body.payload})
+                await orchestrator.publish(
+                    {"type": body.type, "payload": body.payload},
+                    correlation_id=str(uuid4()),
+                )
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             return ArtifactPublishResponse(status="accepted")
