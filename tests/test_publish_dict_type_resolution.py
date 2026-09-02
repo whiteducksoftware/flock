@@ -172,3 +172,74 @@ def test_consumption_record_without_correlation_id_is_still_embedded():
 
     assert isinstance(listed.items[0], ArtifactWithConsumptions)
     assert listed.items[0].consumed_by == ["talent_scout"]
+
+
+def _component_client() -> TestClient:
+    """The /api/v1/artifacts routes flock.serve() mounts (ArtifactsComponent)."""
+    from fastapi import FastAPI
+
+    from flock.components.server.artifacts.artifacts_component import (
+        ArtifactComponentConfig,
+        ArtifactsComponent,
+    )
+
+    app = FastAPI()
+    component = ArtifactsComponent(
+        name="test_artifacts", config=ArtifactComponentConfig(prefix="/api/v1/")
+    )
+    component.register_routes(app, Flock())
+    return TestClient(app)
+
+
+def test_component_publish_sets_the_artifact_correlation_id():
+    client = _component_client()
+
+    response = client.post(
+        "/api/v1/artifacts",
+        json={"type": "DictPublishProbe", "payload": {"value": "d"}},
+    )
+    assert response.status_code == 200
+
+    item = client.get("/api/v1/artifacts", params={"type": CANONICAL}).json()["items"][
+        0
+    ]
+    assert item["correlation_id"], "serve() publishes must carry a correlation id too"
+    assert "correlation_id" not in item["payload"]
+
+
+def test_component_consumption_record_without_correlation_id_is_still_embedded():
+    from flock.components.server.artifacts.models import (
+        ArtifactListResponse,
+        ArtifactWithConsumptions,
+    )
+
+    item = {
+        "id": "b" * 36,
+        "type": CANONICAL,
+        "payload": {"value": "x"},
+        "produced_by": "external",
+        "visibility": {"kind": "Public"},
+        "visibility_kind": "Public",
+        "created_at": "2026-09-02T00:00:00+00:00",
+        "correlation_id": None,
+        "partition_key": None,
+        "tags": [],
+        "version": 1,
+        "consumptions": [
+            {
+                "artifact_id": "b" * 36,
+                "consumer": "talent_scout",
+                "run_id": "r1",
+                "correlation_id": None,
+                "consumed_at": "2026-09-02T00:00:01+00:00",
+            }
+        ],
+        "consumed_by": ["talent_scout"],
+    }
+
+    listed = ArtifactListResponse(
+        items=[item], pagination={"limit": 50, "offset": 0, "total": 1}
+    )
+
+    assert isinstance(listed.items[0], ArtifactWithConsumptions)
+    assert listed.items[0].consumed_by == ["talent_scout"]

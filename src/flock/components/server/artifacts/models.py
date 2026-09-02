@@ -36,7 +36,9 @@ class ConsumptionRecord(BaseModel):
     artifact_id: str = Field(description="ID of the artifact that was consumed")
     consumer: str = Field(description="Name of the agent that consumed it")
     run_id: str = Field(description="Run ID of the consumption")
-    correlation_id: str = Field(description="Correlation ID of the consumption")
+    correlation_id: str | None = Field(
+        None, description="Correlation ID of the consumption, if the artifact had one"
+    )
     consumed_at: str = Field(description="Timestamp of consumption (ISO 8601)")
 
 
