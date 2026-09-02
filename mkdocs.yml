@@ -273,6 +273,7 @@ nav:
 
   - ℹ️ About:
     - Roadmap: about/roadmap.md
+    - Repository Assessment: about/repository-assessment.md
     - Contributing: about/contributing.md
     - Changelog: about/changelog.md
 
