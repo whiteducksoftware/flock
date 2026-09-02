@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Query
 from pydantic import Field
+from starlette.requests import Request
 
 from flock.components.server.artifacts.models import (
     ArtifactListResponse,
@@ -14,7 +15,11 @@ from flock.components.server.artifacts.models import (
     ArtifactSummaryResponse,
 )
 from flock.components.server.base import ServerComponent, ServerComponentConfig
+from flock.core.artifacts import Artifact
 from flock.core.store import ArtifactEnvelope, ConsumptionRecord, FilterConfig
+from flock.core.visibility import AgentIdentity
+from flock.storage.artifact_aggregator import ArtifactAggregator
+from flock.utils.visibility_utils import deserialize_visibility
 
 
 class ArtifactComponentConfig(ServerComponentConfig):
@@ -26,6 +31,14 @@ class ArtifactComponentConfig(ServerComponentConfig):
     tags: list[str] = Field(
         default=["Artifacts"],
         description="A list of tags to pass to the endpoints to be listed under.",
+    )
+    enforce_visibility: bool = Field(
+        default=True,
+        description="Whether to enforce the Visibility model (Public/Private/Tenant/Labelled) on artifact endpoints.",
+    )
+    default_identity: AgentIdentity | None = Field(
+        default=None,
+        description="Optional default identity to use when no caller identity can be resolved.",
     )
 
 
@@ -105,6 +118,45 @@ class ArtifactsComponent(ServerComponent):
             end=self._parse_datetime(end, "to"),
         )
 
+    def _resolve_identity(self, request: Request) -> AgentIdentity:
+        """Resolve caller into an AgentIdentity for visibility enforcement."""
+        # 1. From request.state (e.g. set by auth middleware or prior component)
+        state_ident = getattr(request.state, "identity", None) or getattr(
+            request.state, "agent_identity", None
+        )
+        if isinstance(state_ident, AgentIdentity):
+            return state_ident
+        if isinstance(state_ident, dict):
+            return AgentIdentity(**state_ident)
+
+        # 2. From request headers
+        agent_name = request.headers.get("x-agent-name") or request.headers.get(
+            "x-flock-agent-name"
+        )
+        tenant_id = request.headers.get("x-tenant-id") or request.headers.get(
+            "x-flock-tenant-id"
+        )
+        raw_labels = request.headers.get("x-agent-labels") or request.headers.get(
+            "x-flock-agent-labels"
+        )
+        if agent_name or tenant_id or raw_labels:
+            labels = (
+                {label.strip() for label in raw_labels.split(",") if label.strip()}
+                if raw_labels
+                else set()
+            )
+            return AgentIdentity(
+                name=agent_name or "anonymous",
+                labels=labels,
+                tenant_id=tenant_id,
+            )
+
+        # 3. Configured default identity, or anonymous
+        if self.config.default_identity is not None:
+            return self.config.default_identity
+
+        return AgentIdentity(name="__anonymous__", labels=set(), tenant_id=None)
+
     def configure(self, app, orchestrator):
         # No - op
         pass
@@ -121,9 +173,16 @@ class ArtifactsComponent(ServerComponent):
             # A generated correlation id ties the cascade this publish triggers
             # together; it is artifact metadata, not payload.
             try:
+                visibility = None
+                if body.visibility is not None:
+                    visibility = deserialize_visibility(body.visibility)
+                tags = set(body.tags) if body.tags else None
                 await orchestrator.publish(
                     {"type": body.type, "payload": body.payload},
                     correlation_id=str(uuid4()),
+                    visibility=visibility,
+                    tags=tags,
+                    partition_key=body.partition_key,
                 )
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -135,6 +194,7 @@ class ArtifactsComponent(ServerComponent):
             tags=self.config.tags,
         )
         async def list_artifacts(
+            request: Request,
             type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
             correlation_id: str | None = None,
@@ -146,6 +206,7 @@ class ArtifactsComponent(ServerComponent):
             offset: int = Query(0, ge=0),
             embed_meta: bool = Query(False, alias="embed_meta"),
         ) -> ArtifactListResponse:
+            identity = self._resolve_identity(request)
             filters = self._make_filter_config(
                 type_names=type_names,
                 produced_by=produced_by,
@@ -155,14 +216,47 @@ class ArtifactsComponent(ServerComponent):
                 start=start,
                 end=end,
             )
-            artifacts, total = await orchestrator.store.query_artifacts(
+
+            if not self.config.enforce_visibility:
+                artifacts, total = await orchestrator.store.query_artifacts(
+                    filters,
+                    limit=limit,
+                    offset=offset,
+                    embed_meta=embed_meta,
+                )
+                items: list[dict[str, Any]] = []
+                for artifact in artifacts:
+                    if isinstance(artifact, ArtifactEnvelope):
+                        items.append(
+                            self._serialize_artifact(
+                                artifact.artifact, artifact.consumptions
+                            )
+                        )
+                    else:
+                        items.append(self._serialize_artifact(artifact))
+                return ArtifactListResponse(
+                    items=items,
+                    pagination={"limit": limit, "offset": offset, "total": total},
+                )
+
+            # Query all matching records and filter by allowed visibility for caller
+            all_envelopes, _ = await orchestrator.store.query_artifacts(
                 filters,
-                limit=limit,
-                offset=offset,
+                limit=0,
+                offset=0,
                 embed_meta=embed_meta,
             )
-            items: list[dict[str, Any]] = []
-            for artifact in artifacts:
+            visible_artifacts = []
+            for item in all_envelopes:
+                art = item.artifact if isinstance(item, ArtifactEnvelope) else item
+                if art.visibility.allows(identity):
+                    visible_artifacts.append(item)
+
+            total = len(visible_artifacts)
+            paged_slice = visible_artifacts[offset : offset + limit]
+
+            items = []
+            for artifact in paged_slice:
                 if isinstance(artifact, ArtifactEnvelope):
                     items.append(
                         self._serialize_artifact(
@@ -171,6 +265,7 @@ class ArtifactsComponent(ServerComponent):
                     )
                 else:
                     items.append(self._serialize_artifact(artifact))
+
             return ArtifactListResponse(
                 items=items,
                 pagination={"limit": limit, "offset": offset, "total": total},
@@ -182,6 +277,7 @@ class ArtifactsComponent(ServerComponent):
             tags=self.config.tags,
         )
         async def summarize_artifacts(
+            request: Request,
             type_names: list[str] | None = Query(None, alias="type"),
             produced_by: list[str] | None = Query(None),
             correlation_id: str | None = None,
@@ -190,6 +286,7 @@ class ArtifactsComponent(ServerComponent):
             end: str | None = Query(None, alias="to"),
             visibility: list[str] | None = Query(None),
         ) -> ArtifactSummaryResponse:
+            identity = self._resolve_identity(request)
             filters = self._make_filter_config(
                 type_names=type_names,
                 produced_by=produced_by,
@@ -199,15 +296,40 @@ class ArtifactsComponent(ServerComponent):
                 start=start,
                 end=end,
             )
-            summary = await orchestrator.store.summarize_artifacts(filters)
+
+            if not self.config.enforce_visibility:
+                summary = await orchestrator.store.summarize_artifacts(filters)
+                return ArtifactSummaryResponse(summary=summary)
+
+            # Query all matching artifacts and compute summary solely across visible items
+            artifacts, _ = await orchestrator.store.query_artifacts(
+                filters=filters,
+                limit=0,
+                offset=0,
+                embed_meta=False,
+            )
+            allowed = [
+                a
+                for a in artifacts
+                if isinstance(a, Artifact) and a.visibility.allows(identity)
+            ]
+            is_full_window = filters.start is None and filters.end is None
+            summary = ArtifactAggregator().build_summary(
+                allowed, len(allowed), is_full_window
+            )
             return ArtifactSummaryResponse(summary=summary)
 
         @app.get(
             self._join_path(self.config.prefix, "artifacts/{artifact_id}"),
             tags=self.config.tags,
         )
-        async def get_artifact(artifact_id: UUID) -> dict[str, Any]:
+        async def get_artifact(artifact_id: UUID, request: Request) -> dict[str, Any]:
             artifact = await orchestrator.store.get(artifact_id)
             if artifact is None:
+                raise HTTPException(status_code=404, detail="artifact not found")
+            identity = self._resolve_identity(request)
+            if self.config.enforce_visibility and not artifact.visibility.allows(
+                identity
+            ):
                 raise HTTPException(status_code=404, detail="artifact not found")
             return self._serialize_artifact(artifact)

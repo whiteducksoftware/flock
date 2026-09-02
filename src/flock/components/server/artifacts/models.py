@@ -78,6 +78,13 @@ class ArtifactPublishRequest(BaseModel):
     payload: dict[str, Any] = Field(
         default_factory=dict, description="Artifact payload data"
     )
+    visibility: dict[str, Any] | None = Field(
+        default=None, description="Optional visibility configuration"
+    )
+    tags: list[str] | None = Field(default=None, description="Optional list of tags")
+    partition_key: str | None = Field(
+        default=None, description="Optional partition key"
+    )
 
 
 class ArtifactPublishResponse(BaseModel):
