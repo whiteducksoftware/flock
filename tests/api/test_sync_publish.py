@@ -92,9 +92,9 @@ class TestSyncPublishHappyPath:
         """Correlation ID in response should match artifacts queried."""
         captured_cid = None
 
-        async def capture_publish(artifact_dict):
+        async def capture_publish(artifact_dict, **kwargs):
             nonlocal captured_cid
-            captured_cid = artifact_dict.get("correlation_id")
+            captured_cid = kwargs.get("correlation_id")
 
         mock_orchestrator.publish = capture_publish
 

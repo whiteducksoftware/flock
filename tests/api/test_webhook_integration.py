@@ -80,7 +80,7 @@ class TestAsyncPublishWithWebhook:
 
         captured_context = None
 
-        async def capture_context(artifact_dict):
+        async def capture_context(artifact_dict, **kwargs):
             nonlocal captured_context
             captured_context = get_webhook_context()
 
@@ -116,9 +116,9 @@ class TestAsyncPublishWithWebhook:
         captured_artifact = None
         captured_context = None
 
-        async def capture_both(artifact_dict):
+        async def capture_both(artifact_dict, **kwargs):
             nonlocal captured_artifact, captured_context
-            captured_artifact = artifact_dict
+            captured_artifact = {**artifact_dict, **kwargs}
             captured_context = get_webhook_context()
 
         mock_orchestrator.publish = capture_both
@@ -150,7 +150,7 @@ class TestAsyncPublishWithWebhook:
 
         captured_context = "not_checked"
 
-        async def capture_context(artifact_dict):
+        async def capture_context(artifact_dict, **kwargs):
             nonlocal captured_context
             captured_context = get_webhook_context()
 
@@ -202,7 +202,7 @@ class TestAsyncPublishWithWebhook:
 
         captured_context = None
 
-        async def capture_context(artifact_dict):
+        async def capture_context(artifact_dict, **kwargs):
             nonlocal captured_context
             captured_context = get_webhook_context()
 
@@ -239,7 +239,7 @@ class TestSyncPublishWithWebhook:
 
         captured_context = None
 
-        async def capture_context(artifact_dict):
+        async def capture_context(artifact_dict, **kwargs):
             nonlocal captured_context
             captured_context = get_webhook_context()
 
@@ -273,7 +273,7 @@ class TestSyncPublishWithWebhook:
 
         captured_context = None
 
-        async def capture_context(artifact_dict):
+        async def capture_context(artifact_dict, **kwargs):
             nonlocal captured_context
             captured_context = get_webhook_context()
 
@@ -308,7 +308,7 @@ class TestSyncPublishWithWebhook:
 
         captured_context = "not_checked"
 
-        async def capture_context(artifact_dict):
+        async def capture_context(artifact_dict, **kwargs):
             nonlocal captured_context
             captured_context = get_webhook_context()
 
@@ -364,7 +364,7 @@ class TestWebhookContextIsolation:
 
         contexts_captured = []
 
-        async def capture_context(artifact_dict):
+        async def capture_context(artifact_dict, **kwargs):
             ctx = get_webhook_context()
             if ctx:
                 contexts_captured.append(ctx.url)
@@ -443,7 +443,7 @@ class TestWebhookValidation:
 
         captured_context = None
 
-        async def capture_context(artifact_dict):
+        async def capture_context(artifact_dict, **kwargs):
             nonlocal captured_context
             captured_context = get_webhook_context()
 

@@ -269,6 +269,9 @@ def get_default_severity(
     return level
 
 
+_EXTERNAL_LOGGERS = ("dspy", "litellm", "LiteLLM", "httpx")
+
+
 def configure_logging(
     flock_level: Literal[
         "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NO_LOGS", "SUCCESS"
@@ -298,6 +301,10 @@ def configure_logging(
     # Get default severity
     external_severity = get_default_severity(external_level)
     logging.basicConfig(level=external_severity)
+    # Libraries that install their own handler and level at import time ignore
+    # basicConfig; apply the external level to them explicitly.
+    for external_logger in _EXTERNAL_LOGGERS:
+        logging.getLogger(external_logger).setLevel(external_severity)
 
     flock_severity = get_default_severity(flock_level)
     _DEFAULT_FLOCK_SEVERITY = flock_severity  # Store for future loggers

@@ -117,3 +117,58 @@ def test_rest_publish_with_invalid_payload_returns_400():
 
     assert response.status_code == 400
     assert "value" in response.json()["detail"]
+
+
+def test_rest_publish_sets_the_artifact_correlation_id():
+    client = TestClient(BlackboardHTTPService(Flock()).app)
+
+    response = client.post(
+        "/api/v1/artifacts",
+        json={"type": "DictPublishProbe", "payload": {"value": "c"}},
+    )
+    assert response.status_code == 200
+
+    item = client.get("/api/v1/artifacts", params={"type": CANONICAL}).json()["items"][
+        0
+    ]
+    assert item["correlation_id"], (
+        "REST publishes must carry the generated correlation id"
+    )
+    assert "correlation_id" not in item["payload"]
+
+
+def test_consumption_record_without_correlation_id_is_still_embedded():
+    """A consumer of an artifact without correlation id must not make the API drop
+    the whole consumptions block (union fallback to ArtifactBase)."""
+    from flock.api.models import ArtifactListResponse, ArtifactWithConsumptions
+
+    item = {
+        "id": "a" * 36,
+        "type": CANONICAL,
+        "payload": {"value": "x"},
+        "produced_by": "external",
+        "visibility": {"kind": "Public"},
+        "visibility_kind": "Public",
+        "created_at": "2026-09-02T00:00:00+00:00",
+        "correlation_id": None,
+        "partition_key": None,
+        "tags": [],
+        "version": 1,
+        "consumptions": [
+            {
+                "artifact_id": "a" * 36,
+                "consumer": "talent_scout",
+                "run_id": "r1",
+                "correlation_id": None,
+                "consumed_at": "2026-09-02T00:00:01+00:00",
+            }
+        ],
+        "consumed_by": ["talent_scout"],
+    }
+
+    listed = ArtifactListResponse(
+        items=[item], pagination={"limit": 50, "offset": 0, "total": 1}
+    )
+
+    assert isinstance(listed.items[0], ArtifactWithConsumptions)
+    assert listed.items[0].consumed_by == ["talent_scout"]
