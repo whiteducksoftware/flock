@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VisibilityInfo(BaseModel):
@@ -74,9 +74,18 @@ class ArtifactListResponse(BaseModel):
 class ArtifactPublishRequest(BaseModel):
     """Request body for POST /api/v1/artifacts."""
 
+    model_config = ConfigDict(extra="forbid")
+
     type: str = Field(description="Artifact type name")
     payload: dict[str, Any] = Field(
         default_factory=dict, description="Artifact payload data"
+    )
+    visibility: dict[str, Any] | None = Field(
+        default=None, description="Optional visibility configuration"
+    )
+    tags: list[str] | None = Field(default=None, description="Optional list of tags")
+    partition_key: str | None = Field(
+        default=None, description="Optional partition key"
     )
 
 

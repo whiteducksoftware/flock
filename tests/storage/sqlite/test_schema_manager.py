@@ -106,6 +106,43 @@ async def test_schema_manager_idempotent(temp_db, schema_manager):
 
 
 @pytest.mark.asyncio
+async def test_schema_manager_normalizes_v3_artifact_timestamps(
+    temp_db, schema_manager
+):
+    await schema_manager.apply_schema(temp_db)
+    await temp_db.execute(
+        """
+        INSERT INTO artifacts (
+            artifact_id, type, canonical_type, produced_by, payload, version,
+            visibility, tags, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "artifact-1",
+            "demo.Item",
+            "demo.Item",
+            "test",
+            "{}",
+            1,
+            '{"kind":"Public"}',
+            "[]",
+            "2020-01-01T02:00:00.000050+02:00",
+        ),
+    )
+    await temp_db.execute("UPDATE schema_meta SET version=3 WHERE id=1")
+    await temp_db.commit()
+
+    await schema_manager.apply_schema(temp_db)
+
+    cursor = await temp_db.execute(
+        "SELECT created_at FROM artifacts WHERE artifact_id='artifact-1'"
+    )
+    row = await cursor.fetchone()
+    await cursor.close()
+    assert row["created_at"] == "2020-01-01T00:00:00.000050+00:00"
+
+
+@pytest.mark.asyncio
 async def test_schema_manager_artifacts_table_structure(temp_db, schema_manager):
     """Test that artifacts table has correct structure."""
     await schema_manager.apply_schema(temp_db)

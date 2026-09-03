@@ -5,7 +5,10 @@ This module handles database schema creation, versioning, and migrations.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
+
+from flock.utils.time_utils import as_utc
 
 
 if TYPE_CHECKING:
@@ -29,7 +32,7 @@ class SQLiteSchemaManager:
     - schema_meta table: Version tracking
     """
 
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 4
 
     async def apply_schema(self, conn: aiosqlite.Connection) -> None:
         """
@@ -64,6 +67,10 @@ class SQLiteSchemaManager:
             """,
             (self.SCHEMA_VERSION,),
         )
+        cursor = await conn.execute("SELECT version FROM schema_meta WHERE id=1")
+        row = await cursor.fetchone()
+        await cursor.close()
+        previous_version = int(row[0])
 
         # Main artifacts table
         await conn.execute(
@@ -83,6 +90,20 @@ class SQLiteSchemaManager:
             )
             """
         )
+
+        if previous_version < 4:
+            cursor = await conn.execute("SELECT artifact_id, created_at FROM artifacts")
+            rows = await cursor.fetchall()
+            await cursor.close()
+            updates = []
+            for artifact_id, value in rows:
+                normalized = as_utc(datetime.fromisoformat(value)).isoformat()
+                if normalized != value:
+                    updates.append((normalized, artifact_id))
+            if updates:
+                await conn.executemany(
+                    "UPDATE artifacts SET created_at=? WHERE artifact_id=?", updates
+                )
 
         # Artifact indices for performance
         await conn.execute(

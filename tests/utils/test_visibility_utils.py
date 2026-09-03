@@ -88,6 +88,9 @@ class TestDeserializeVisibility:
         from datetime import timedelta
 
         assert result.ttl == timedelta(hours=1)
+        assert deserialize_visibility({"kind": "After", "ttl": "P1H"}).ttl == timedelta(
+            hours=1
+        )
 
     def test_deserialize_after_without_ttl(self):
         """Should deserialize After visibility with zero ttl if missing."""

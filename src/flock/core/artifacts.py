@@ -6,10 +6,11 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializeAsAny, field_validator, model_validator
 
-from flock.core.visibility import Visibility, ensure_visibility
+from flock.core.visibility import AfterVisibility, Visibility, ensure_visibility
 from flock.registry import type_registry
+from flock.utils.time_utils import as_utc
 
 
 class Artifact(BaseModel):
@@ -22,9 +23,35 @@ class Artifact(BaseModel):
     correlation_id: str | None = None
     partition_key: str | None = None
     tags: set[str] = Field(default_factory=set)
-    visibility: Visibility = Field(default_factory=lambda: ensure_visibility(None))
+    visibility: SerializeAsAny[Visibility] = Field(
+        default_factory=lambda: ensure_visibility(None)
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     version: int = 1
+
+    @field_validator("visibility", mode="before")
+    @classmethod
+    def _deserialize_visibility(cls, value):
+        if isinstance(value, dict) or type(value) is Visibility:
+            from flock.utils.visibility_utils import deserialize_visibility
+
+            data = (
+                value.model_dump(mode="json")
+                if isinstance(value, Visibility)
+                else value
+            )
+            return deserialize_visibility(data, validate_shape=True)
+        return value
+
+    @model_validator(mode="after")
+    def _anchor_delayed_visibility(self) -> Artifact:
+        if isinstance(self.visibility, AfterVisibility):
+            self.visibility = self.visibility.model_copy(deep=True)
+        visibility = self.visibility
+        while isinstance(visibility, AfterVisibility):
+            visibility._created_at = as_utc(self.created_at)
+            visibility = visibility.then
+        return self
 
     def model_dump_payload(self) -> dict[str, Any]:  # pragma: no cover - convenience
         return dict(self.payload)

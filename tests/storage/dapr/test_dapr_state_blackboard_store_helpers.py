@@ -161,25 +161,33 @@ def test_build_dapr_query_with_single_and_multiple_filters() -> None:
     assert "tags" not in json.dumps(multiple)
 
 
-def test_config_validator_warns_for_ttl_without_support(capsys) -> None:
+def test_config_validator_warns_for_ttl_without_support(mocker) -> None:
+    mock_warn = mocker.patch(
+        "flock.storage.dapr.dapr_state_blackboard_store.logger.warning"
+    )
     _ = DaprStateBlackboardConfig(supports_ttl=False, entries_ttl_seconds=30)
 
+    mock_warn.assert_called_once()
     assert (
         "entries_ttl_seconds is set but supports_ttl is False"
-        in capsys.readouterr().out
+        in mock_warn.call_args[0][0]
     )
 
 
-def test_config_validator_disables_transactions_for_encrypted_backend(capsys) -> None:
+def test_config_validator_disables_transactions_for_encrypted_backend(mocker) -> None:
+    mock_warn = mocker.patch(
+        "flock.storage.dapr.dapr_state_blackboard_store.logger.warning"
+    )
     config = DaprStateBlackboardConfig(
         encrypted_backend=True,
         supports_transactions=True,
     )
 
     assert config.supports_transactions is False
+    mock_warn.assert_called_once()
     assert (
         "Encrypted backend with transactions is not supported"
-        in capsys.readouterr().out
+        in mock_warn.call_args[0][0]
     )
 
 

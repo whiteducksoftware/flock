@@ -14,29 +14,12 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from flock.core.artifacts import Artifact
-from flock.core.visibility import (
-    AfterVisibility,
-    LabelledVisibility,
-    PrivateVisibility,
-    PublicVisibility,
-    TenantVisibility,
-    Visibility,
-)
+from flock.core.visibility import PrivateVisibility
 
 
 if TYPE_CHECKING:
     from flock.core.store import AgentSnapshotRecord, ConsumptionRecord
 
-
-# -- Visibility discriminator map -------------------------------------------
-
-_VISIBILITY_MAP: dict[str, type[Visibility]] = {
-    "Public": PublicVisibility,
-    "Private": PrivateVisibility,
-    "Labelled": LabelledVisibility,
-    "Tenant": TenantVisibility,
-    "After": AfterVisibility,
-}
 
 # -- JSON encoder for dataclass types ----------------------------------------
 
@@ -59,17 +42,18 @@ def serialize_artifact(artifact: Artifact) -> str:
 
 
 def deserialize_artifact(data: str | bytes) -> Artifact:
-    artifact = Artifact.model_validate_json(data)
-    # Pydantic deserializes visibility as the base Visibility class, not the
-    # correct subclass, because Artifact.visibility is typed as ``Visibility``
-    # (not a discriminated union).  Re-parse the kind field to get the right
-    # subclass so that .allows() works.
-    vis = artifact.visibility
-    if type(vis) is Visibility:
-        cls = _VISIBILITY_MAP.get(vis.kind)
-        if cls is not None:
-            artifact.visibility = cls.model_validate(vis.model_dump())
-    return artifact
+    payload = json.loads(data)
+    visibility = payload.get("visibility")
+    # <=0.5.602 persisted only the kind; deny access when policy data is gone.
+    if isinstance(visibility, dict) and (
+        (
+            set(visibility) == {"kind"}
+            and visibility["kind"] in {"Private", "Labelled", "Tenant", "After"}
+        )
+        or visibility == {"kind": "Private", "agents": []}
+    ):
+        payload["visibility"] = PrivateVisibility()
+    return Artifact.model_validate(payload)
 
 
 # -- ConsumptionRecord -------------------------------------------------------
