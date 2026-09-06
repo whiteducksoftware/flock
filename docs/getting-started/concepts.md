@@ -656,12 +656,11 @@ async with flock.traced_run("workflow_name"):
     await flock.run_until_idle()
 ```
 
-**7 trace viewer modes:**
+**6 trace viewer modes:**
 - Timeline (waterfall view)
 - Statistics (sortable table)
 - RED Metrics (rate, errors, duration)
 - Dependencies (service communication)
-- DuckDB SQL (interactive queries)
 - Configuration (filtering)
 - Guide (built-in docs)
 

@@ -32,14 +32,13 @@ await flock.serve(dashboard=True)
 # Open browser → Trace Viewer tab
 ```
 
-**7 visualization modes:**
+**6 visualization modes:**
 1. **Timeline** - Waterfall view with span hierarchies
 2. **Statistics** - Sortable table with durations
 3. **RED Metrics** - Rate, Errors, Duration monitoring
 4. **Dependencies** - Agent communication graph
-5. **DuckDB SQL** - Interactive queries
-6. **Configuration** - Real-time filtering
-7. **Guide** - Built-in documentation
+5. **Configuration** - Real-time filtering
+6. **Guide** - Built-in documentation
 
 ---
 

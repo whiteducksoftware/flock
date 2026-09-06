@@ -515,14 +515,14 @@ Time 45s: book_idea_agent executes again (↓ 2 Review → ↑ 0 BookHook) [feed
 
 ### Trace Viewer Integration
 
-The dashboard includes a **Jaeger-style trace viewer** with 7 visualization modes:
+The dashboard includes a **Jaeger-style trace viewer** with 6 visualization modes:
 
 **Access traces:**
 1. Enable tracing: `export FLOCK_AUTO_TRACE=true`
 2. Wrap workflows: `async with flock.traced_run("workflow_name"):`
 3. Open dashboard → Trace Viewer tab
 
-**7 Visualization Modes:**
+**6 Visualization Modes:**
 
 1. **Timeline** - Waterfall view with span hierarchies
    - See parent-child relationships
@@ -544,18 +544,13 @@ The dashboard includes a **Jaeger-style trace viewer** with 7 visualization mode
    - Request volumes
    - Error rates per connection
 
-5. **DuckDB SQL** - Interactive query editor
-   - Query trace data with SQL
-   - Export results to CSV
-   - Saved query templates
-
-6. **Configuration** - Real-time filtering
+5. **Configuration** - Real-time filtering
    - Filter by service name
    - Filter by operation type
    - Hide/show specific spans
 
-7. **Guide** - Built-in documentation
-   - Query examples
+6. **Guide** - Built-in documentation
+   - Tracing setup examples
    - Keyboard shortcuts
    - Feature explanations
 
@@ -563,7 +558,6 @@ The dashboard includes a **Jaeger-style trace viewer** with 7 visualization mode
 - **Full I/O capture** - Complete input/output for every span
 - **JSON viewer** - Collapsible tree with expand all/collapse all
 - **Multi-trace support** - Open multiple traces side-by-side
-- **CSV export** - Download query results
 
 **Use cases:**
 - Production debugging (find slow operations)
@@ -729,9 +723,9 @@ The dashboard includes a **Jaeger-style trace viewer** with 7 visualization mode
 - WCAG 2.1 AA accessible
 
 **Production-Grade Trace Viewer:**
-- 7 visualization modes (Timeline, Statistics, RED, Dependencies, SQL, Config, Guide)
+- 6 visualization modes (Timeline, Statistics, RED, Dependencies, Config, Guide)
 - Full I/O capture with JSON viewer
-- Multi-trace support with CSV export
+- Multi-trace support
 
 ---
 

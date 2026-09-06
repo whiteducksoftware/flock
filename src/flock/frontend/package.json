@@ -1,6 +1,6 @@
 {
   "name": "flock-ui",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Flock Real-Time Dashboard Frontend",
   "type": "module",
   "scripts": {

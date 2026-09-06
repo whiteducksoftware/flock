@@ -502,10 +502,10 @@ async def health_check(ctx: AgentContext) -> HealthStatus:
     # ctx.trigger_type == "timer"  # Know it's timer-triggered
     # ctx.timer_iteration  # How many times fired (0, 1, 2...)
     # ctx.fire_time  # When timer fired
-    
+
     # Access filtered blackboard context
     recent_errors = ctx.get_artifacts(LogEntry)  # Only ERROR logs
-    
+
     return HealthStatus(healthy=len(recent_errors) == 0)
 ```
 
@@ -737,7 +737,7 @@ class CustomAPIComponent(ServerComponent):
     async def on_startup(self, orchestrator):
         # Add custom routes, middleware, or startup logic
         pass
-    
+
     async def on_shutdown(self, orchestrator):
         # Cleanup resources
         pass
@@ -828,26 +828,15 @@ await flock.serve(dashboard=True)
 
 ### Production-Grade Trace Viewer
 
-**Jaeger-style tracing with 7 modes:**
+**Jaeger-style tracing with 6 modes:**
 
-<p align="center">
-  <img alt="Trace Viewer" src="docs/assets/images/trace_1.png" width="1000">
-  <i>Timeline view with span hierarchies</i>
-</p>
-
-**7 Trace Modes:**
+**6 Trace Modes:**
 1. **Timeline** - Waterfall visualization
 2. **Statistics** - Sortable duration/error tracking
 3. **RED Metrics** - Rate, Errors, Duration monitoring
 4. **Dependencies** - Service communication analysis
-5. **DuckDB SQL** - Interactive query editor with CSV export
-6. **Configuration** - Real-time filtering
-7. **Guide** - Built-in documentation
-
-<p align="center">
-  <img alt="Dependencies" src="docs/assets/images/trace_2.png" width="1000">
-  <i>Dependency analysis</i>
-</p>
+5. **Configuration** - Real-time filtering
+6. **Guide** - Built-in documentation
 
 ### OpenTelemetry + DuckDB Tracing
 
@@ -861,7 +850,9 @@ python your_app.py
 # Traces stored in .flock/traces.duckdb
 ```
 
-**AI-queryable debugging:**
+**Local DuckDB analysis:**
+
+Trusted operators with filesystem access can query the trace database directly:
 
 ```python
 import duckdb
@@ -894,11 +885,6 @@ AI: [queries DuckDB]
      Input size: 50KB of conversation history.
      Recommendation: Limit context to last 5 messages."
 ```
-
-<p align="center">
-  <img alt="DuckDB Query" src="docs/assets/images/trace_3.png" width="1000">
-  <i>DuckDB SQL query interface</i>
-</p>
 
 ### REST API
 
@@ -997,7 +983,7 @@ await flock.serve(dashboard=True)  # API + Dashboard on port 8344
 - Server components for extensible HTTP API
 - Circuit breakers and feedback prevention
 - OpenTelemetry + DuckDB tracing
-- Real-time dashboard with 7-mode trace viewer
+- Real-time dashboard with 6-mode trace viewer
 - MCP integration (Model Context Protocol)
 - Best-of-N, batching, joins, fan-out
 - Type-safe retrieval API

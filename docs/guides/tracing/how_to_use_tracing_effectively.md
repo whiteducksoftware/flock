@@ -6,7 +6,7 @@
 
 - [Introduction: Why Tracing Matters for Blackboard Systems](#introduction-why-tracing-matters-for-blackboard-systems)
 - [Getting Started: Your First Trace](#getting-started-your-first-trace)
-- [The Seven Views: Complete Observability](#the-seven-views-complete-observability)
+- [The Six Views: Complete Observability](#the-six-views-complete-observability)
 - [Real-World Debugging Scenarios](#real-world-debugging-scenarios)
 - [Advanced Techniques](#advanced-techniques)
 - [Production Best Practices](#production-best-practices)
@@ -96,9 +96,9 @@ Flock.publish          [0.00ms - 0.50ms]   ━━━━━━━━━━━━�
 
 ---
 
-## The Seven Views: Complete Observability
+## The Six Views: Complete Observability
 
-The Trace Viewer provides **7 specialized view modes** for different analysis needs:
+The Trace Viewer provides **6 specialized view modes** for different analysis needs:
 
 ### Quick Reference
 
@@ -108,7 +108,6 @@ The Trace Viewer provides **7 specialized view modes** for different analysis ne
 | Statistics | 📊 | Sortable tabular data | Compare traces, find patterns |
 | RED Metrics | 🔴 | Service health monitoring | Production dashboards |
 | Dependencies | 🔗 | Service communication | Understand architecture |
-| DuckDB SQL | 🗄️ | Custom analytics | Advanced queries, reports |
 | Configuration | ⚙️ | Runtime filtering | Fine-tune tracing |
 | Guide | 📚 | Documentation & examples | Learn and reference |
 
@@ -116,7 +115,6 @@ The Trace Viewer provides **7 specialized view modes** for different analysis ne
 
 **NEW in this version:**
 - ✨ **Smart Sorting**: Sort traces by date (newest first), span count, or total duration
-- 📥 **CSV Export**: Download SQL query results for Excel/analysis
 - 🖥️ **Maximize Mode**: Full-screen view for all modules
 - 🎨 **Modern UI**: Emoji-enhanced toolbar for better visual scanning
 
@@ -410,7 +408,7 @@ agent.subscribe(
 **Investigation with RED Metrics**:
 
 1. Go to **RED Metrics View**
-2. Compare P95/P99 between environments (use DuckDB SQL):
+2. Compare P95/P99 between environments using [local DuckDB analysis](#technique-1-using-duckdb-for-custom-analysis) as a trusted operator:
 
 ```sql
 -- Dev environment traces
@@ -560,10 +558,10 @@ for attempt in range(5):  # ← Calls LLM 5x on every request!
 
 ### Technique 1: Using DuckDB for Custom Analysis
 
-**Access the traces directly**:
+**Access the traces locally as a trusted operator**. The SQL examples in this guide run directly against the database file, outside the dashboard and HTTP API:
 
 ```bash
-duckdb .flock/traces.duckdb
+duckdb -readonly .flock/traces.duckdb
 ```
 
 **Example queries**:
@@ -937,7 +935,7 @@ FLOCK_TRACE_IGNORE=["Agent.health_check"]  # Blacklist
 
 ### 7. ✨ SQL-Based Analytics
 
-**Flock**: Direct DuckDB access for custom queries
+**Flock**: Local DuckDB access for custom queries by trusted operators
 
 **Other frameworks**:
 - ❌ LangSmith: API only (rate limited)
@@ -1308,7 +1306,7 @@ dashboard:
       title: "Vegan vs Non-Vegan Orders"
 ```
 
-**Status**: Low priority for 1.0 (SQL queries work for now)
+**Status**: Low priority for 1.0 (trusted operators can use local DuckDB queries)
 
 ---
 
@@ -1373,7 +1371,7 @@ Flock's tracing system is designed specifically for **blackboard multi-agent sys
 1. **Start simple**: Enable tracing with 3 env vars
 2. **Use all four views**: Timeline (debug), Statistics (inspect), RED Metrics (monitor), Dependencies (discover)
 3. **Filter wisely**: Trace core services, not everything
-4. **DuckDB is your friend**: Write custom SQL for deep analysis
+4. **Analyze locally with DuckDB**: Trusted operators can write custom SQL for deep analysis
 5. **Monitor production**: Set SLOs and check RED metrics daily
 
 **What makes Flock unique**:

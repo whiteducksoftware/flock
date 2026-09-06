@@ -323,7 +323,8 @@ async with flock.traced_run("pizza_workflow"):
 - Statistics (duration, errors)
 - RED Metrics (rate, errors, duration)
 - Dependencies (agent communication graph)
-- SQL queries (DuckDB analytics)
+- Configuration (tracing settings and filters)
+- Guide (built-in documentation)
 
 [**👉 Full tracing guide**](../guides/tracing/index.md)
 
@@ -556,7 +557,7 @@ for i in range(100):
 
 **[Tracing Guide](../guides/tracing/index.md)**
 - OpenTelemetry auto-instrumentation
-- Seven trace viewer modes
+- Six trace viewer modes
 - Production debugging scenarios
 - **Time:** 20 minutes
 

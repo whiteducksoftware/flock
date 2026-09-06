@@ -74,14 +74,13 @@ await flock.serve(dashboard=True)
 # Open browser → Trace Viewer tab
 ```
 
-**7 visualization modes:**
+**6 visualization modes:**
 1. **Timeline** - Waterfall view with span hierarchies
 2. **Statistics** - Sortable table with durations and errors
 3. **RED Metrics** - Rate, Errors, Duration monitoring
 4. **Dependencies** - Service-to-service communication graph
-5. **DuckDB SQL** - Interactive SQL queries with CSV export
-6. **Configuration** - Real-time filtering
-7. **Guide** - Built-in documentation
+5. **Configuration** - Real-time filtering
+6. **Guide** - Built-in documentation
 
 [**👉 See auto-tracing setup**](auto-tracing.md)
 
@@ -132,7 +131,7 @@ async with flock.traced_run("customer_review_workflow"):
 
 **[How to Use Tracing Effectively](how_to_use_tracing_effectively.md)** 📖 **Deep dive**
 - Complete guide to debugging and monitoring
-- Seven trace viewer modes explained
+- Six trace viewer modes explained
 - Real-world debugging scenarios
 - Advanced techniques and production best practices
 - **Time:** 30 minutes
@@ -153,7 +152,7 @@ async with flock.traced_run("customer_review_workflow"):
 
 ---
 
-## The Seven Trace Viewer Modes
+## The Six Trace Viewer Modes
 
 ### 1. Timeline View (Waterfall)
 
@@ -178,7 +177,6 @@ async with flock.traced_run("customer_review_workflow"):
 - Sortable table of all spans
 - Duration, start time, status (success/error)
 - Filter by operation name, service, status
-- Export to CSV for analysis
 
 **Use when:**
 - Finding slowest operations
@@ -215,22 +213,7 @@ async with flock.traced_run("customer_review_workflow"):
 - Finding bottleneck services
 - Identifying circular dependencies
 
-### 5. DuckDB SQL View (Query)
-
-**Purpose:** Ad-hoc analysis and custom reporting
-
-**What you see:**
-- Interactive SQL query editor
-- Full access to trace data schema
-- CSV export for offline analysis
-- Saved query templates
-
-**Use when:**
-- Custom analytics
-- Debugging complex issues
-- Building reports
-
-### 6. Configuration View (Filtering)
+### 5. Configuration View (Filtering)
 
 **Purpose:** Focus on specific traces/services
 
@@ -245,19 +228,19 @@ async with flock.traced_run("customer_review_workflow"):
 - Focusing on specific agents
 - Time-based analysis
 
-### 7. Guide View (Documentation)
+### 6. Guide View (Documentation)
 
 **Purpose:** Built-in help and examples
 
 **What you see:**
-- Query examples
+- Tracing setup examples
 - Keyboard shortcuts
 - Feature explanations
 - Troubleshooting tips
 
 **Use when:**
 - Learning trace viewer features
-- Finding SQL query examples
+- Configuring tracing
 - Quick reference
 
 ---
@@ -343,7 +326,7 @@ python your_agent.py
 
 **DuckDB trace storage:**
 - Columnar format: 10-100x compression vs JSON
-- Built-in analytics: Query traces with SQL
+- Local analytics: Trusted operators can query the trace database directly with DuckDB
 - No external dependencies: Embedded database
 
 **Example sizes:**
@@ -405,7 +388,7 @@ print(f"Cleared {result['deleted_count']} traces")
 
 **Other frameworks:** Export to external trace collector (Jaeger, Zipkin)
 
-**Flock:** Built-in DuckDB storage with SQL analytics
+**Flock:** Built-in DuckDB storage with local SQL analytics for trusted operators
 
 **Why it matters:**
 - No external dependencies
@@ -475,7 +458,7 @@ print(f"Cleared {result['deleted_count']} traces")
 **Getting Started:**
 1. **[Enable auto-tracing](auto-tracing.md)** - 5-minute setup
 2. **[Use traced_run()](unified-tracing.md)** - Wrap workflows
-3. **[Explore the dashboard](../dashboard.md)** - Seven trace viewer modes
+3. **[Explore the dashboard](../dashboard.md)** - Six trace viewer modes
 
 **Deep Dive:**
 4. **[How to Use Tracing Effectively](how_to_use_tracing_effectively.md)** - Complete guide
@@ -495,7 +478,7 @@ print(f"Cleared {result['deleted_count']} traces")
 
 ✅ **OpenTelemetry auto-instrumentation** - Zero-code tracing for all agents
 ✅ **DuckDB storage** - Fast, embedded, no external dependencies
-✅ **Seven trace viewer modes** - Timeline, Statistics, RED, Dependencies, SQL, Config, Guide
+✅ **Six trace viewer modes** - Timeline, Statistics, RED, Dependencies, Config, Guide
 ✅ **Full I/O capture** - See complete input/output artifacts
 ✅ **Unified tracing** - Single trace per workflow with `traced_run()`
 ✅ **Production-ready** - Export to Grafana/Jaeger/Datadog
