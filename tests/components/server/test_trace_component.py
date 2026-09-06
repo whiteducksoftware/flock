@@ -383,143 +383,42 @@ class TestTracingComponent:
             assert response.json() == {}
 
     @pytest.mark.asyncio
-    async def test_execute_trace_query_valid_select(self, app, orchestrator, temp_db):
-        """Test executing a valid SELECT query."""
-        config = TracingComponentConfig(db_path=temp_db)
-        component = TracingComponent(config=config)
-        component.configure(app, orchestrator)
-        component.register_routes(app, orchestrator)
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://testserver"
-        ) as client:
-            response = await client.post(
-                "/api/plugin/traces/query",
-                json={
-                    "query": "SELECT name, service FROM spans WHERE service = 'Flock'"
-                },
-            )
-
-            assert response.status_code == 200
-            result = response.json()
-            assert "results" in result
-            assert result["row_count"] == 1
-            assert result["results"][0]["name"] == "Flock.publish"
-            assert result["results"][0]["service"] == "Flock"
-
-    @pytest.mark.asyncio
-    async def test_execute_trace_query_empty_query(self, app, orchestrator, temp_db):
-        """Test executing an empty query."""
-        config = TracingComponentConfig(db_path=temp_db)
-        component = TracingComponent(config=config)
-        component.configure(app, orchestrator)
-        component.register_routes(app, orchestrator)
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://testserver"
-        ) as client:
-            response = await client.post("/api/plugin/traces/query", json={"query": ""})
-
-            assert response.status_code == 200
-            result = response.json()
-            assert result["error"] == "Query cannot be empty"
-            assert result["results"] == []
-
-    @pytest.mark.asyncio
-    async def test_execute_trace_query_non_select(self, app, orchestrator, temp_db):
-        """Test executing a non-SELECT query."""
-        config = TracingComponentConfig(db_path=temp_db)
-        component = TracingComponent(config=config)
-        component.configure(app, orchestrator)
-        component.register_routes(app, orchestrator)
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://testserver"
-        ) as client:
-            response = await client.post(
-                "/api/plugin/traces/query", json={"query": "DELETE FROM spans"}
-            )
-
-            assert response.status_code == 200
-            result = response.json()
-            assert result["error"] == "Only SELECT queries are allowed"
-
-    @pytest.mark.asyncio
-    async def test_execute_trace_query_dangerous_keywords(
-        self, app, orchestrator, temp_db
+    @pytest.mark.parametrize("prefix", ["/api", "/api/plugin/", "/custom/tracing/"])
+    async def test_trace_sql_is_unavailable(
+        self, app, orchestrator, temp_db, tmp_path, prefix
     ):
-        """Test that queries with dangerous keywords are rejected."""
-        config = TracingComponentConfig(db_path=temp_db)
-        component = TracingComponent(config=config)
+        """HTTP cannot execute SQL or read files outside the trace database."""
+        probe = tmp_path / "outside-trace-database.txt"
+        canary = "synthetic trace SQL file-read probe"
+        probe.write_text(canary)
+        component = TracingComponent(
+            config=TracingComponentConfig(prefix=prefix, db_path=temp_db)
+        )
         component.configure(app, orchestrator)
         component.register_routes(app, orchestrator)
+        traces_path = f"{prefix.rstrip('/')}/traces"
+        query_path = f"{traces_path}/query"
+        probe_sql_path = probe.as_posix().replace("'", "''")
 
-        transport = ASGITransport(app=app)
         async with AsyncClient(
-            transport=transport, base_url="http://testserver"
-        ) as client:
-            dangerous_queries = [
-                "SELECT * FROM spans; DROP TABLE spans",
-                "SELECT * FROM spans WHERE name = 'test' INSERT INTO spans VALUES (...)",
-                "SELECT * FROM spans; UPDATE spans SET name = 'hacked'",
-                "SELECT * FROM spans; ALTER TABLE spans ADD COLUMN bad TEXT",
-                "SELECT * FROM spans; CREATE TABLE malicious (id INT)",
-                "SELECT * FROM spans; TRUNCATE TABLE spans",
-            ]
-
-            for query in dangerous_queries:
-                response = await client.post(
-                    "/api/plugin/traces/query", json={"query": query}
-                )
-
-                assert response.status_code == 200
-                result = response.json()
-                assert result["error"] == "Query contains forbidden operations"
-
-    @pytest.mark.asyncio
-    async def test_execute_trace_query_db_not_found(self, app, orchestrator):
-        """Test query execution when database doesn't exist."""
-        component = TracingComponent()
-        component._db_path_exists = False
-        component.register_routes(app, orchestrator)
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://testserver"
+            transport=ASGITransport(app=app), base_url="http://testserver"
         ) as client:
             response = await client.post(
-                "/api/plugin/traces/query",
-                json={"query": "SELECT * FROM spans"},
+                query_path,
+                json={"query": f"SELECT content FROM read_text('{probe_sql_path}')"},
             )
+            assert response.status_code == 404, response.text
+            assert canary not in response.text
+            assert query_path not in {route.path for route in app.routes}
+            assert query_path not in (await client.get("/openapi.json")).json()["paths"]
 
-            assert response.status_code == 200
-            result = response.json()
-            assert result["error"] == "Trace database not found"
-
-    @pytest.mark.asyncio
-    async def test_execute_trace_query_sql_error(self, app, orchestrator, temp_db):
-        """Test query execution with SQL error."""
-        config = TracingComponentConfig(db_path=temp_db)
-        component = TracingComponent(config=config)
-        component.configure(app, orchestrator)
-        component.register_routes(app, orchestrator)
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://testserver"
-        ) as client:
-            response = await client.post(
-                "/api/plugin/traces/query",
-                json={"query": "SELECT * FROM nonexistent_table"},
-            )
-
-            assert response.status_code == 200
-            result = response.json()
-            assert "error" in result
-            assert result["results"] == []
+            traces = await client.get(traces_path)
+            assert traces.status_code == 200
+            assert {span["context"]["span_id"] for span in traces.json()} == {
+                "span-001",
+                "span-002",
+                "span-003",
+            }
 
     @pytest.mark.asyncio
     async def test_get_trace_stats_success(self, app, orchestrator, temp_db):
@@ -763,30 +662,6 @@ class TestTracingComponent:
             # Test stats endpoint with custom prefix
             response = await client.get("/custom/api/traces/stats")
             assert response.status_code == 200
-
-    @pytest.mark.asyncio
-    async def test_query_with_bytes_conversion(self, app, orchestrator, temp_db):
-        """Test that query results convert bytes to strings."""
-        config = TracingComponentConfig(db_path=temp_db)
-        component = TracingComponent(config=config)
-        component.configure(app, orchestrator)
-        component.register_routes(app, orchestrator)
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://testserver"
-        ) as client:
-            # This query will return results with various types
-            response = await client.post(
-                "/api/plugin/traces/query",
-                json={"query": "SELECT name, service, duration_ms FROM spans LIMIT 1"},
-            )
-
-            assert response.status_code == 200
-            result = response.json()
-            assert len(result["results"]) > 0
-            # Verify data is JSON-serializable
-            assert isinstance(result["results"][0]["name"], str)
 
     @pytest.mark.asyncio
     async def test_message_history_with_correlation_id(self, app, orchestrator):

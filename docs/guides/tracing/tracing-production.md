@@ -12,14 +12,13 @@ Flock's distributed tracing system is **85% production-ready** with a robust arc
 
 **Critical Strengths:**
 - Zero external dependencies (self-contained DuckDB storage)
-- 7-view comprehensive UI (Timeline, Statistics, RED Metrics, Dependencies, SQL, Configuration, Guide)
-- SQL injection protection with read-only queries
+- 6-view comprehensive UI (Timeline, Statistics, RED Metrics, Dependencies, Configuration, Guide)
+- Server-owned queries for trace retrieval and statistics
 - Automatic TTL-based cleanup
 - Environment-based filtering (whitelist/blacklist)
 - Operation-level dependency drill-down
 
 **Production Gaps:**
-- Missing rate limiting on SQL query endpoint
 - No authentication/authorization on trace APIs
 - Limited error recovery in frontend
 - Missing production monitoring/alerting
@@ -51,12 +50,12 @@ Flock's distributed tracing system is **85% production-ready** with a robust arc
 │  │ OpenTelemetry  │              │              └────────────┘ │
 │  │     Spans      │              │                     │        │
 │  └────────────────┘              │                     ▼        │
-│         │                        │              7 View Modes:   │
+│         │                        │              6 View Modes:   │
 │         │                        │              • Timeline       │
 │         ▼                        │              • Statistics     │
 │  ┌────────────────┐              │              • RED Metrics   │
 │  │  Span Storage  │◀─────────────┘              • Dependencies  │
-│  │   (DuckDB)     │                             • SQL Query     │
+│  │   (DuckDB)     │                                             │
 │  └────────────────┘                             • Configuration │
 │                                                  • Guide         │
 └─────────────────────────────────────────────────────────────────┘
@@ -67,8 +66,8 @@ Flock's distributed tracing system is **85% production-ready** with a robust arc
 1. **Capture:** `@traced_and_logged` decorator → OpenTelemetry spans
 2. **Filter:** `TraceFilterConfig` checks whitelist/blacklist → Skip or continue
 3. **Export:** `DuckDBSpanExporter` → `.flock/traces.duckdb` (columnar storage)
-4. **Query:** FastAPI endpoints → SQL queries against DuckDB
-5. **Display:** React frontend polls `/api/traces` → 7 visualization modes
+4. **Retrieve:** FastAPI endpoints → Server-owned queries against DuckDB
+5. **Display:** React frontend polls `/api/traces` → 6 visualization modes
 6. **Cleanup:** TTL-based deletion on startup (configurable via `FLOCK_TRACE_TTL_DAYS`)
 
 ---
@@ -210,7 +209,7 @@ Flock's distributed tracing system is **85% production-ready** with a robust arc
 
 ### 3. API Layer: FastAPI Endpoints
 
-**File:** `src/flock/dashboard/service.py` (lines 410-701)
+**File:** `src/flock/components/server/traces/trace_component.py`
 
 #### ✅ Production-Ready Features
 
@@ -236,39 +235,22 @@ Flock's distributed tracing system is **85% production-ready** with a robust arc
    - Returns deletion count
    - Runs VACUUM to reclaim space (based on static method implementation)
 
-5. **POST /api/traces/query** - SQL Query Execution
-   - **Security:** Only allows SELECT queries
-   - **Validation:** Checks for dangerous keywords (DROP, DELETE, INSERT, etc.)
-   - **Read-only:** Uses `read_only=True` connection
-   - **Result handling:** Converts bytes to strings, handles nulls
+Custom SQL analysis is available to trusted operators through direct access to the local DuckDB file. The HTTP API does not accept SQL statements.
 
 #### ⚠️ Production Concerns
 
-1. **Missing Rate Limiting**
-   - SQL query endpoint can be abused
-   - **Attack:** Expensive queries (e.g., `SELECT COUNT(*) FROM spans WHERE ...` on large datasets)
-   - **Recommendation:** Add rate limiting (e.g., 10 queries per minute per IP)
-
-2. **No Query Timeout**
-   - Long-running queries can hang connections
-   - **Recommendation:** Add timeout (e.g., 30 seconds)
-
-3. **No Authentication**
+1. **No Authentication**
    - All trace APIs are public
    - **Impact:** Anyone on network can view traces (may contain sensitive data)
    - **Recommendation:** Add JWT authentication or API key
 
-4. **No Pagination**
+2. **No Pagination**
    - `/api/traces` returns ALL spans (unbounded)
    - **Impact:** Large databases (>100k spans) will slow down/crash frontend
    - **Recommendation:** Add pagination with `LIMIT` and `OFFSET`
 
-5. **SQL Injection Protection Incomplete**
-   - Keyword blacklist can be bypassed (e.g., `SeLeCt`, `DeLeTe`)
-   - **Recommendation:** Use case-insensitive check: `query_upper = query.strip().upper()`
-
-6. **Error Messages Leak Information**
-   - Returns raw SQL error messages to client
+3. **Error Messages Leak Information**
+   - Returns raw database error messages to client
    - **Impact:** May reveal database schema
    - **Recommendation:** Sanitize error messages for production
 
@@ -282,12 +264,11 @@ Flock's distributed tracing system is **85% production-ready** with a robust arc
 
 #### ✅ Production-Ready Features
 
-1. **Seven View Modes**
+1. **Six View Modes**
    - **Timeline:** Waterfall visualization with hierarchical span trees
    - **Statistics:** Tabular view with JSON attribute explorer
    - **RED Metrics:** Rate, Errors, Duration per service
    - **Dependencies:** Service-to-service relationships with operation drill-down
-   - **SQL:** Interactive DuckDB query editor with CSV export
    - **Configuration:** Trace settings (whitelist, blacklist, TTL) with autocomplete
    - **Guide:** In-app documentation and quick start
 
@@ -304,13 +285,7 @@ Flock's distributed tracing system is **85% production-ready** with a robust arc
    - **Error Highlighting:** Red borders and icons for failed spans
    - **Service Badges:** Visual indicators for multi-service traces
 
-4. **SQL Query Features**
-   - **Quick Examples:** Pre-populated queries (All, By Service, Errors, Avg Duration)
-   - **CSV Export:** One-click download with proper escaping
-   - **Keyboard Shortcuts:** Cmd+Enter to execute
-   - **Column/Row Counts:** Real-time result statistics
-
-5. **Performance Optimizations**
+4. **Performance Optimizations**
    - **Memoization:** `useMemo` for expensive computations (trace grouping, metrics)
    - **Scroll Preservation:** Maintains scroll position across refreshes
    - **Conditional Rendering:** Only renders expanded traces
@@ -341,11 +316,7 @@ Flock's distributed tracing system is **85% production-ready** with a robust arc
    - `setInterval` may not clean up if component unmounts during fetch
    - **Recommendation:** Clear interval in cleanup function before starting new one
 
-6. **SQL Query Result Limits**
-   - No limit on result size (can crash browser with `SELECT * FROM spans`)
-   - **Recommendation:** Add result limit (e.g., max 10,000 rows)
-
-7. **Missing Validation**
+6. **Missing Validation**
    - Configuration view doesn't validate service names or TTL values
    - **Impact:** Can set invalid values that break tracing
    - **Recommendation:** Add client-side validation
@@ -408,9 +379,9 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 
 ### 🔒 Implemented Protections
 
-1. **SQL Injection Prevention**
-   - Keyword blacklist (DROP, DELETE, INSERT, UPDATE, ALTER, CREATE, TRUNCATE)
-   - Read-only database connections
+1. **Server-Owned Trace Queries**
+   - Fixed queries for trace retrieval and statistics
+   - Read-only database connections for retrieval
    - Parameterized queries for TTL cleanup
 
 2. **Path Traversal Protection**
@@ -430,28 +401,13 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 
 2. **No Authorization**
    - No role-based access control
-   - **Risk:** All users can delete traces, execute SQL
+   - **Risk:** All users can delete traces
    - **Recommendation:** Add roles (viewer, admin)
 
-3. **SQL Query Abuse**
-   - No rate limiting
-   - No query complexity limits
-   - **Risk:** DoS via expensive queries
-   - **Recommendation:** Rate limit + timeout + complexity analysis
-
-4. **Case-Insensitive Bypass**
-   - Keyword check is case-sensitive: `"SeLeCt"` bypasses blacklist
-   - **Fix:** Use `.upper()` before checking
-
-5. **CORS Policy**
+3. **CORS Policy**
    - Development mode allows all origins (`allow_origins=["*"]`)
    - **Risk:** CSRF attacks in production
    - **Recommendation:** Restrict to specific origins in production
-
-6. **No Input Sanitization**
-   - `/api/traces/query` accepts arbitrary SQL
-   - **Risk:** Information disclosure via error messages
-   - **Recommendation:** Sanitize error messages
 
 **Security Score:** 🔴 **60/100** - Needs significant hardening
 
@@ -565,7 +521,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 1. **how_to_use_tracing_effectively.md** (1377 lines)
    - Comprehensive guide for all user levels
    - Real-world debugging scenarios
-   - SQL query examples
+   - Local DuckDB analysis examples for trusted operators
    - Best practices for production
    - Roadmap for v1.0
 
@@ -577,7 +533,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 
 3. **In-App Guide View**
    - Quick start embedded in UI
-   - Example SQL queries
+   - Tracing setup examples
    - Best practices
 
 ### ⚠️ Missing Documentation
@@ -605,11 +561,11 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 - [x] Data capture complete (all necessary span data)
 - [x] DuckDB storage with indexes
 - [x] TTL cleanup mechanism
-- [x] SQL injection basic protection
+- [x] Server-owned trace retrieval queries
 - [x] Error logging and tracing
 - [x] Environment-based configuration
 - [x] Service/operation filtering
-- [x] 7-view comprehensive UI
+- [x] 6-view comprehensive UI
 - [x] Documentation extensive
 - [x] RESTful API design
 
@@ -617,9 +573,6 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 
 **High Priority (Security & Reliability):**
 - [ ] Add authentication to trace APIs (JWT or API key)
-- [ ] Fix SQL keyword check to be case-insensitive
-- [ ] Add rate limiting to `/api/traces/query` (10 req/min)
-- [ ] Add query timeout (30 seconds)
 - [ ] Add pagination to `/api/traces` (limit 1000 spans per request)
 - [ ] Add React error boundaries
 - [ ] Add database health check on startup
@@ -631,14 +584,12 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 - [ ] Add ETag caching for `/api/traces`
 - [ ] Extract common attributes to columns (correlation_id, agent.name)
 - [ ] Add VACUUM after TTL cleanup
-- [ ] Add frontend result limits (max 10k rows)
 
 **Low Priority (Nice-to-Have):**
 - [ ] Add authorization (viewer/admin roles)
 - [ ] Add database backup/restore
 - [ ] Add performance metrics (span export latency)
 - [ ] Add circuit breaker for exporters
-- [ ] Add query complexity analysis
 - [ ] Add loading indicators for refreshes
 
 ### 🚀 Future Enhancements (v1.0)
@@ -663,41 +614,36 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
    - **Likelihood:** HIGH - No authentication
    - **Mitigation:** Add JWT auth before production
 
-2. **SQL Query DoS Attack**
-   - **Impact:** HIGH - Can crash database or consume resources
-   - **Likelihood:** MEDIUM - Public endpoint without rate limit
-   - **Mitigation:** Add rate limiting + timeout
-
-3. **Frontend Memory Exhaustion**
+2. **Frontend Memory Exhaustion**
    - **Impact:** MEDIUM - Browser crash with large datasets
    - **Likelihood:** MEDIUM - No pagination or virtualization
    - **Mitigation:** Add pagination + virtual scrolling
 
 ### Medium Risks 🟡
 
-4. **Database Corruption**
+3. **Database Corruption**
    - **Impact:** HIGH - Loss of all traces
    - **Likelihood:** LOW - DuckDB is stable
    - **Mitigation:** Add health checks + backups
 
-5. **Disk Space Exhaustion**
+4. **Disk Space Exhaustion**
    - **Impact:** MEDIUM - Application stops writing traces
    - **Likelihood:** MEDIUM - No max database size limit
    - **Mitigation:** Add disk space check + max size enforcement
 
-6. **CORS Bypass in Production**
+5. **CORS Bypass in Production**
    - **Impact:** MEDIUM - CSRF attacks possible
    - **Likelihood:** LOW - If `DASHBOARD_DEV=1` left on
    - **Mitigation:** Strict CORS policy in production
 
 ### Low Risks 🟢
 
-7. **TTL Cleanup Failure**
+6. **TTL Cleanup Failure**
    - **Impact:** LOW - Database grows larger than expected
    - **Likelihood:** LOW - Cleanup is simple and tested
    - **Mitigation:** Monitor database size
 
-8. **Unicode/Emoji Handling**
+7. **Unicode/Emoji Handling**
    - **Impact:** LOW - Rare serialization errors
    - **Likelihood:** LOW - Most input is ASCII
    - **Mitigation:** Add UTF-8 validation
@@ -732,7 +678,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 
 6. **SQL-Based Analytics**
    - Others: API-only (rate limited)
-   - **Flock:** Direct DuckDB access for unlimited custom queries
+   - **Flock:** Direct local DuckDB access for custom queries by trusted operators
 
 ### Missing Features (Compared to Competitors)
 
@@ -800,7 +746,6 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 
 1. **Unit Tests:**
    - [ ] DuckDB exporter edge cases (connection failures, disk full)
-   - [ ] SQL injection attempts (bypass keyword blacklist)
    - [ ] Serialization with circular references
    - [ ] TTL cleanup with various date formats
 
@@ -810,9 +755,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
    - [ ] Concurrent write/read operations
 
 3. **Security Tests:**
-   - [ ] SQL injection fuzzing
    - [ ] Authentication bypass attempts
-   - [ ] Rate limit enforcement
 
 4. **Performance Tests:**
    - [ ] Query performance with large databases
@@ -836,9 +779,6 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
    # Restrict CORS
    export DASHBOARD_DEV=0  # Disable wildcard CORS
    export ALLOWED_ORIGINS="https://yourdomain.com"
-
-   # Enable rate limiting
-   export FLOCK_TRACE_RATE_LIMIT=10  # queries per minute
    ```
 
 2. **Performance Tuning**
@@ -890,28 +830,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 
 ### Immediate Actions (Before Production)
 
-1. **Fix SQL Injection Protection** (1 hour)
-   ```python
-   # Current (vulnerable)
-   if any(keyword in query_upper for keyword in dangerous):
-
-   # Fixed (secure)
-   query_upper = query.strip().upper()
-   if any(keyword in query_upper for keyword in dangerous):
-   ```
-
-2. **Add Rate Limiting** (2-4 hours)
-   ```python
-   from slowapi import Limiter
-   limiter = Limiter(key_func=get_remote_address)
-
-   @app.post("/api/traces/query")
-   @limiter.limit("10/minute")
-   async def execute_trace_query(request: dict, req: Request):
-       ...
-   ```
-
-3. **Add Authentication** (4-8 hours)
+1. **Add Authentication** (4-8 hours)
    ```python
    from fastapi.security import HTTPBearer
    security = HTTPBearer()
@@ -922,7 +841,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
        ...
    ```
 
-4. **Add Pagination** (2-4 hours)
+2. **Add Pagination** (2-4 hours)
    ```python
    @app.get("/api/traces")
    async def get_traces(offset: int = 0, limit: int = 1000):
@@ -963,11 +882,7 @@ Flock's tracing system is **impressively comprehensive** for a blackboard multi-
 
 **Critical Blockers:**
 - Add authentication (4-8 hours)
-- Fix SQL injection case-sensitivity (1 hour)
-- Add rate limiting (2-4 hours)
 - Add pagination (2-4 hours)
-
-**Total Time to Production-Ready: ~12-24 hours of focused engineering**
 
 Once these security and scalability gaps are addressed, Flock's tracing system will be **best-in-class for blackboard multi-agent observability**.
 

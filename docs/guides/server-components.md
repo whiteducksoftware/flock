@@ -231,7 +231,6 @@ tracing = TracingComponent()
 **Endpoints:**
 - `GET /api/plugin/traces` - Query traces
 - `DELETE /api/plugin/traces/clear` - Clear all traces
-- `POST /api/plugin/traces/query` - Execute custom SQL queries
 - `GET /api/plugin/traces/stats` - Get trace statistics
 
 **📚 [Full Documentation](server_components/tracing-component.md)**

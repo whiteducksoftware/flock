@@ -103,27 +103,6 @@ Clear all traces from the database.
 }
 ```
 
-### POST /api/plugin/traces/query
-
-Execute custom DuckDB SQL query on traces.
-
-**Request Body:**
-```json
-{
-  "query": "SELECT service, COUNT(*) as count FROM spans GROUP BY service"
-}
-```
-
-**Response:**
-```json
-{
-  "results": [
-    {"service": "pizza_master", "count": 10},
-    {"service": "pizza_reviewer", "count": 8}
-  ]
-}
-```
-
 ### GET /api/plugin/traces/stats
 
 Get statistics about the trace database.
@@ -141,34 +120,38 @@ Get statistics about the trace database.
 
 ## Best Practices
 
-### 1. Use for Debugging
+### 1. Debug with Local DuckDB Analysis
+
+Trusted operators with filesystem access can run SQL directly against the local trace database. Custom SQL execution is not available through the HTTP API.
 
 ```python
+import duckdb
+
 # Find failed executions
-response = await client.post('/api/plugin/traces/query', json={
-    "query": """
+with duckdb.connect(".flock/traces.duckdb", read_only=True) as conn:
+    errors = conn.execute("""
         SELECT trace_id, name, status_description
         FROM spans
         WHERE status_code = 'ERROR'
         ORDER BY start_time DESC
         LIMIT 10
-    """
-})
+    """).fetchall()
 ```
 
-### 2. Analyze Performance
+### 2. Analyze Performance Locally
 
 ```python
+import duckdb
+
 # Find slowest operations
-response = await client.post('/api/plugin/traces/query', json={
-    "query": """
+with duckdb.connect(".flock/traces.duckdb", read_only=True) as conn:
+    slow_operations = conn.execute("""
         SELECT service, name, AVG(duration_ms) as avg_duration
         FROM spans
         GROUP BY service, name
         ORDER BY avg_duration DESC
         LIMIT 10
-    """
-})
+    """).fetchall()
 ```
 
 ### 3. Clear Old Traces
