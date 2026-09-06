@@ -31,6 +31,25 @@ _RESERVED_LM_KWARGS = frozenset({
     "cache",
     "num_retries",
 })
+_SENSITIVE_LM_KWARGS = frozenset({
+    "api_key",
+    "api_secret",
+    "secret",
+    "token",
+    "access_token",
+    "refresh_token",
+    "client_secret",
+    "password",
+    "authorization",
+    "credential",
+    "credentials",
+    "azure_ad_token",
+    "aws_access_key_id",
+    "aws_secret_access_key",
+    "aws_session_token",
+    "api-key",
+    "x-api-key",
+})
 
 
 # T071: Auto-detect test environment for streaming
@@ -193,10 +212,8 @@ class DSPyEngine(EngineComponent):
 
     @field_serializer("lm_kwargs", when_used="always")
     def _serialize_lm_kwargs(self, value: dict[str, Any], _info: Any) -> dict[str, Any]:
-        """Return a JSON-safe representation of ``lm_kwargs`` for serialization."""
-        return {
-            key: self._serialize_lm_kwarg_value(item) for key, item in value.items()
-        }
+        """Return JSON-safe ``lm_kwargs`` with known credential values redacted."""
+        return self._serialize_lm_kwarg_value(value)
 
     async def evaluate(
         self, agent, ctx, inputs: EvalInputs, output_group
@@ -552,12 +569,15 @@ class DSPyEngine(EngineComponent):
         if isinstance(value, BaseModel):
             value = value.model_dump()
         if isinstance(value, Mapping):
-            return {
-                key
-                if isinstance(key, str)
-                else str(key): self._serialize_lm_kwarg_value(item)
-                for key, item in value.items()
-            }
+            serialized = {}
+            for key, item in value.items():
+                serialized_key = key if isinstance(key, str) else str(key)
+                serialized[serialized_key] = (
+                    "<redacted>"
+                    if serialized_key.lower() in _SENSITIVE_LM_KWARGS
+                    else self._serialize_lm_kwarg_value(item)
+                )
+            return serialized
         if isinstance(value, (set, frozenset)):
             value = list(value)
         if isinstance(value, Sequence) and not isinstance(
