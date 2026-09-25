@@ -1,0 +1,3 @@
+# Flock with the Azure identity and Foundry hosting extras; pip resolves the rest.
+# Before a release, drop the flock-core wheel into ./wheels (see README).
+flock-core[azure,foundry]==0.5.612

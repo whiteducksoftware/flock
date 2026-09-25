@@ -70,6 +70,13 @@ class TimerComponent(OrchestratorComponent):
         super().__init__(**kwargs)
         self._timer_tasks: dict[str, asyncio.Task[None]] = {}
         self._timer_states: dict[str, TimerState] = {}
+        # Agents whose timer loop crashed (the loop's exception is otherwise lost)
+        self._crashed_timers: set[str] = set()
+
+    @property
+    def crashed_timers(self) -> set[str]:
+        """Agents whose timer loop crashed."""
+        return set(self._crashed_timers)
 
     async def on_initialize(self, orchestrator: Flock) -> None:
         """Start timer tasks for all scheduled agents.
@@ -220,6 +227,7 @@ class TimerComponent(OrchestratorComponent):
                 f"Timer loop crashed for agent '{agent_name}': {e}",
                 exc_info=True,
             )
+            self._crashed_timers.add(agent_name)
             if agent_name in self._timer_states:
                 self._timer_states[agent_name].is_active = False
                 self._timer_states[agent_name].is_stopped = True

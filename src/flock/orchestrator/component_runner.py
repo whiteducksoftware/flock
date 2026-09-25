@@ -46,6 +46,9 @@ class ComponentRunner:
         self._components = components
         self._logger = logger or get_logger(__name__)
         self._initialized = False
+        # ids of components whose on_initialize already ran, so components added
+        # after start-up are initialized exactly once and the rest are not re-run
+        self._initialized_components: set[int] = set()
 
     @property
     def components(self) -> list[OrchestratorComponent]:
@@ -54,26 +57,33 @@ class ComponentRunner:
 
     @property
     def is_initialized(self) -> bool:
-        """Check if components have been initialized."""
-        return self._initialized
+        """Check if every registered component has been initialized."""
+        return self._initialized and all(
+            id(component) in self._initialized_components
+            for component in self._components
+        )
 
     async def run_initialize(self, orchestrator: Any) -> None:
-        """Initialize all components in priority order (called once).
+        """Initialize components in priority order, each exactly once.
 
-        Executes on_initialize hook for each component. Sets _initialized
-        flag to prevent multiple initializations.
+        Executes on_initialize for every component that has not been
+        initialized yet. Components added later are initialized on the next
+        call without re-running the hook for the others.
 
         Args:
             orchestrator: The Flock orchestrator instance
         """
-        if self._initialized:
+        if self.is_initialized:
             return
 
-        self._logger.info(
-            f"Initializing {len(self._components)} orchestrator components"
-        )
+        pending = [
+            component
+            for component in self._components
+            if id(component) not in self._initialized_components
+        ]
+        self._logger.info(f"Initializing {len(pending)} orchestrator components")
 
-        for component in self._components:
+        for component in pending:
             comp_name = component.name or component.__class__.__name__
             self._logger.debug(
                 f"Initializing component: name={comp_name}, priority={component.priority}"
@@ -86,6 +96,7 @@ class ComponentRunner:
                     f"Component initialization failed: name={comp_name}, error={e!s}"
                 )
                 raise
+            self._initialized_components.add(id(component))
 
         self._initialized = True
         self._logger.info(f"All components initialized: count={len(self._components)}")
