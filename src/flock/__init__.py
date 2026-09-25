@@ -45,9 +45,13 @@ from flock.components.server import (
 )
 from flock.core import Flock, start_orchestrator
 
+
 # =============================================================================
 # Application - transport-independent workflow execution for hosts
 # =============================================================================
+# isort: split
+# Must stay after flock.core: flock.application imports flock.core directly,
+# and flock.core only initializes cleanly once flock.cli/components are loaded.
 from flock.application import (
     CompletionPolicy,
     FlockApplication,
