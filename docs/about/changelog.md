@@ -22,12 +22,12 @@ search:
 ### ⚠️ Changes
 
 - OpenTelemetry now requires `>=1.43` (tested with 1.44; required by the Foundry SDK). The legacy `opentelemetry-exporter-jaeger` packages were removed; `TelemetryConfig(jaeger_endpoint=...)` raises - export to Jaeger via OTLP.
-- `Flock.shutdown()` now cancels in-flight agent tasks (bounded by `cancel_grace`) before closing MCP connections.
+- `Flock.shutdown()` now cancels in-flight agent tasks (bounded by `cancel_grace`) before closing MCP connections. No new agent work is scheduled during shutdown; if a task outlives the grace period, the instance stays closed for scheduling.
 - Scheduled-agent timers start with the first `publish()` as well as with `run_until*()`.
 
 ### 🐛 Fixes
 
-- Orchestrator components are initialized exactly once (previously twice after `add_component()` or timer auto-registration).
+- Orchestrator components are initialized exactly once (previously twice after `add_component()` or timer auto-registration, or when first publishes raced); an `on_initialize` hook may publish without recursing.
 - Agent tasks that fail outside the agent run (context building, output persistence) are recorded instead of lost; an agent whose inputs were all deferred is no longer run with empty input.
 - `no_output=True` now also silences user-built `DSPyEngine` instances.
 - Flock chains to a previously installed `sys.excepthook`.

@@ -95,3 +95,47 @@ async def test_instance_is_usable_after_shutdown():
     await flock.shutdown()
 
     assert order.count("engine:cancelled") == 1
+
+
+@flock_type(name="ShutdownDownstream")
+class ShutdownDownstream(BaseModel):
+    value: str
+
+
+class StubbornEngine(EngineComponent):
+    """Swallows cancellation and publishes after the grace period."""
+
+    async def evaluate(self, agent, ctx, inputs, output_group) -> EvalResult:
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.3)
+        return EvalResult.from_object(ShutdownOutput(value="late"), agent=agent)
+
+
+class DownstreamEngine(EngineComponent):
+    ran: Any = None
+
+    async def evaluate(self, agent, ctx, inputs, output_group) -> EvalResult:
+        self.ran.append(agent.name)
+        return EvalResult.from_object(ShutdownDownstream(value="d"), agent=agent)
+
+
+@pytest.mark.asyncio
+async def test_task_outliving_grace_cannot_schedule_downstream_work():
+    ran: list[str] = []
+    flock = Flock(no_output=True)
+    flock.agent("stubborn").consumes(ShutdownInput).publishes(
+        ShutdownOutput
+    ).with_engines(StubbornEngine())
+    flock.agent("downstream").consumes(ShutdownOutput).publishes(
+        ShutdownDownstream
+    ).with_engines(DownstreamEngine(ran=ran))
+
+    await flock.publish(ShutdownInput(value="x"))
+    await asyncio.sleep(0.05)
+    await flock.shutdown(cancel_grace=0.1)
+    await asyncio.sleep(0.5)  # the stubborn task publishes meanwhile
+
+    assert ran == []
+    assert not flock._scheduler.accepting

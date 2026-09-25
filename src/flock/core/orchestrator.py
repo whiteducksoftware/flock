@@ -928,12 +928,35 @@ class Flock(metaclass=AutoTracedMeta):
                 state between cascades.
             cancel_grace: Seconds to wait for cancelled agent tasks. Work that
                 blocks outside the event loop may not stop in time; it is logged.
+
+        While a full shutdown runs, no new agent tasks are scheduled. Afterwards
+        the instance schedules again only if every agent task stopped; a task
+        that outlived ``cancel_grace`` keeps scheduling closed, so it cannot
+        trigger downstream agents after cleanup.
         """
-        if include_components:
+        if not include_components:
+            await self._release_resources()
+            return
+
+        reopen = self._scheduler.accepting
+        self._scheduler.close_gate()
+        try:
             if self._component_runner.is_initialized:
                 await self._component_runner.run_shutdown(self)
             await self._cancel_agent_tasks(cancel_grace)
+            await self._release_resources()
+        finally:
+            still_running = any(not t.done() for t in self._scheduler.pending_tasks)
+            if reopen and not still_running:
+                self._scheduler.open_gate()
+            elif reopen:
+                self._logger.warning(
+                    "Shutdown: agent tasks are still running; scheduling stays "
+                    "closed on this instance."
+                )
 
+    async def _release_resources(self) -> None:
+        """Stop the background server, lifecycle tasks and MCP connections."""
         # Cancel background server task if running (non-blocking serve)
         if self._server_task and not self._server_task.done():
             self._server_task.cancel()

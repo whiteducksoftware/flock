@@ -20,7 +20,7 @@ import weakref
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Literal, Protocol, Self
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -62,6 +62,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 WorkflowFactory = Callable[..., "Flock | Awaitable[Flock]"]
+_T = TypeVar("_T")
 
 _PROBE_ID = "__flock_contract_probe__"
 
@@ -102,6 +103,10 @@ class _FactoryError(Exception):
     """The factory failed or returned an unusable instance."""
 
 
+class _StopRequested(Exception):  # noqa: N818 - a signal, not an error
+    """The workflow was cancelled while a start-up step was still running."""
+
+
 def _default_access_policy(artifact: Artifact, context: WorkflowContext) -> bool:
     caller = AgentIdentity(name="__caller__", tenant_id=context.principal_id)
     try:
@@ -139,9 +144,13 @@ class _Workflow:
         self.failed_tasks = 0
         self.late_task_failures = 0
         self.build_started = False
+        self.teardown_error: str | None = None
         self.runtime: WorkflowRuntime | None = None
         self.agent_names: set[str] = set()
         self.wake = asyncio.Event()
+        # Set once on cancellation; unlike ``wake`` it is never cleared, so
+        # start-up steps can race against it.
+        self.stopped = asyncio.Event()
         self.changed = asyncio.Event()
         self.result: WorkflowResult | None = None
         self.driver: asyncio.Task[WorkflowResult] | None = None
@@ -151,6 +160,7 @@ class _Workflow:
     def request_stop(self, reason: Literal["cancelled"]) -> None:
         if self.stop_reason is None and not self.frozen:
             self.stop_reason = reason
+            self.stopped.set()
         self.wake.set()
 
     def _fail(self, code: FailureCode, agent: str | None, *, fatal: bool) -> None:
@@ -161,7 +171,23 @@ class _Workflow:
         self.wake.set()
 
     def on_publish(self, artifact: Artifact) -> None:
-        """Publication listener: runs synchronously right after persistence."""
+        """Publication listener: runs synchronously right after persistence.
+
+        The publishing side swallows listener errors, so any failure here (for
+        example a raising access policy) must end the workflow explicitly -
+        otherwise the output would silently go missing.
+        """
+        try:
+            self._observe(artifact)
+        except Exception as exc:
+            # No traceback: policies and payloads may carry private data.
+            logger.error(  # noqa: TRY400
+                f"Workflow {self.context.workflow_id}: output handling failed "
+                f"for an artifact of {artifact.produced_by}: {type(exc).__name__}"
+            )
+            self._fail(FailureCode.INTERNAL_ERROR, artifact.produced_by, fatal=True)
+
+    def _observe(self, artifact: Artifact) -> None:
         if self.frozen:
             self.late_publications += 1
             return
@@ -223,22 +249,26 @@ class _Workflow:
             try:
                 async with asyncio.timeout_at(self.deadline) as deadline_scope:
                     if session_key is not None:
-                        await app._acquire_session(session_key)
+                        await self._unless_stopped(app._acquire_session(session_key))
                         session_locked = True
+                    if self.stop_reason is not None:
+                        raise _StopRequested
                     self.build_started = True
-                    flock = await app._build(self.context)
+                    flock = await self._unless_stopped(app._build(self.context))
                     self.runtime = WorkflowRuntime(flock, self.context.workflow_id)
                     self.agent_names = {agent.name for agent in flock.agents}
                     self.runtime.install(
                         on_publish=self.on_publish,
                         on_task_outcome=self.on_task_outcome,
                     )
-                    await self.runtime.start(self.value)
+                    await self._unless_stopped(self.runtime.start(self.value))
                     await self._loop(self.runtime)
             except TimeoutError:
                 if not deadline_scope.expired():
                     raise
                 self.timed_out = True
+        except _StopRequested:
+            pass  # cancelled during start-up; stop_reason is already set
         except _FactoryError:
             logger.exception(f"Workflow {self.context.workflow_id}: factory failed")
             self._fail(FailureCode.FACTORY_ERROR, None, fatal=True)
@@ -253,7 +283,10 @@ class _Workflow:
             if self.runtime is not None:
                 try:
                     await self.runtime.close(app.cancel_grace)
-                except Exception:
+                except Exception as exc:
+                    # The outcome stands (outputs may already be delivered);
+                    # the failed cleanup is reported in the diagnostics.
+                    self.teardown_error = type(exc).__name__
                     logger.exception(
                         f"Workflow {self.context.workflow_id}: teardown failed"
                     )
@@ -263,6 +296,31 @@ class _Workflow:
             app._finish(self)
             self.changed.set()
         return self.result
+
+    async def _unless_stopped(self, step: Awaitable[_T]) -> _T:
+        """Await a start-up step unless the workflow is cancelled first.
+
+        On cancellation the step is cancelled and awaited (a session lock that
+        was granted in the meantime is released by the lock itself), then
+        :class:`_StopRequested` ends the start-up.
+        """
+        task = asyncio.ensure_future(step)
+        if self.stopped.is_set():
+            task.cancel()
+        stop = asyncio.ensure_future(self.stopped.wait())
+        try:
+            await asyncio.wait({task, stop}, return_when=asyncio.FIRST_COMPLETED)
+        except BaseException:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            raise
+        finally:
+            stop.cancel()
+        if task.done() and not task.cancelled():
+            return task.result()  # the step wins ties: keep what it acquired
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        raise _StopRequested
 
     async def _loop(self, runtime: WorkflowRuntime) -> None:
         app = self.app
@@ -294,6 +352,8 @@ class _Workflow:
             "failed_tasks": self.failed_tasks,
             "late_task_failures": self.late_task_failures,
         }
+        if self.teardown_error is not None:
+            diagnostics["teardown_failed"] = self.teardown_error
         tripped: list[str] = []
         crashed: list[str] = []
         if self.runtime is not None:
@@ -480,6 +540,10 @@ class FlockApplication:
             raise ValueError("history must be 'stateless' or 'conversation'")
         if max_outputs < 1 or default_timeout <= 0 or max_timeout < default_timeout:
             raise ValueError("invalid limits: check max_outputs and timeouts")
+        if max_retained_ids < 0 or id_retention < timedelta(0) or cancel_grace < 0:
+            raise ValueError(
+                "max_retained_ids, id_retention and cancel_grace must not be negative"
+            )
         if admission is not None and max_active_workflows is not None:
             raise ValueError("Pass either admission or max_active_workflows.")
 
@@ -545,6 +609,9 @@ class FlockApplication:
             if self._state != "new":
                 raise ApplicationNotRunning("The application was shut down.")
             await self._validate_contract()
+            if self._state != "new":
+                # shutdown() or begin_drain() ran while the contract was validated
+                raise ApplicationNotRunning("The application was shut down.")
             self._state = "running"
 
     def begin_drain(self) -> None:

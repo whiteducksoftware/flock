@@ -176,16 +176,18 @@ class WorkflowRuntime:
         self.diagnostics.crashed_timers = sorted(self.crashed_timers())
 
         flock._scheduler.close_gate()
-        # Flock.shutdown() owns the safe order: component hooks (timers), then
-        # cancel + await agent tasks, then background tasks and MCP connections.
-        await flock.shutdown(cancel_grace=grace)
-        # Flock.shutdown() already logged tasks that outlived the grace period.
-        self.diagnostics.leftover_tasks = sum(
-            1 for task in flock._scheduler.pending_tasks if not task.done()
-        )
-        for remove in self._removers:
-            remove()
-        self._removers.clear()
+        try:
+            # Flock.shutdown() owns the safe order: component hooks (timers), then
+            # cancel + await agent tasks, then background tasks and MCP connections.
+            await flock.shutdown(cancel_grace=grace)
+        finally:
+            # Flock.shutdown() already logged tasks that outlived the grace period.
+            self.diagnostics.leftover_tasks = sum(
+                1 for task in flock._scheduler.pending_tasks if not task.done()
+            )
+            for remove in self._removers:
+                remove()
+            self._removers.clear()
 
     def describe(self) -> dict[str, Any]:
         """Diagnostics as plain data."""

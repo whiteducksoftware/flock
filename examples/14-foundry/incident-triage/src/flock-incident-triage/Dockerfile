@@ -7,13 +7,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Flock from PyPI - or from a wheel placed in ./wheels before a release.
-COPY requirements.txt ./
-COPY wheels/ ./wheels/
+# The whole build context: ./wheels is optional (git-ignored) and holds a
+# pre-release flock-core wheel; without it pip only warns and uses PyPI.
+COPY . ./
 RUN pip install --no-cache-dir --find-links ./wheels -r requirements.txt \
     && rm -rf ./wheels
-
-COPY main.py ./
 
 EXPOSE 8088
 

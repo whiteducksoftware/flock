@@ -6,6 +6,7 @@ Components can modify artifacts, control scheduling decisions, and handle collec
 
 from __future__ import annotations
 
+import asyncio
 from asyncio import Task
 from typing import TYPE_CHECKING, Any
 
@@ -49,6 +50,10 @@ class ComponentRunner:
         # ids of components whose on_initialize already ran, so components added
         # after start-up are initialized exactly once and the rest are not re-run
         self._initialized_components: set[int] = set()
+        # Serializes initialization: concurrent first publishes must not run a
+        # component's on_initialize twice.
+        self._init_lock = asyncio.Lock()
+        self._init_task: asyncio.Task[Any] | None = None
 
     @property
     def components(self) -> list[OrchestratorComponent]:
@@ -75,31 +80,44 @@ class ComponentRunner:
         """
         if self.is_initialized:
             return
+        if self._init_lock.locked() and asyncio.current_task() is self._init_task:
+            return  # re-entered from an on_initialize hook (e.g. it published)
 
-        pending = [
-            component
-            for component in self._components
-            if id(component) not in self._initialized_components
-        ]
-        self._logger.info(f"Initializing {len(pending)} orchestrator components")
-
-        for component in pending:
-            comp_name = component.name or component.__class__.__name__
-            self._logger.debug(
-                f"Initializing component: name={comp_name}, priority={component.priority}"
-            )
-
+        async with self._init_lock:
+            if self.is_initialized:
+                return
+            self._init_task = asyncio.current_task()
             try:
-                await component.on_initialize(orchestrator)
-            except Exception as e:
-                self._logger.exception(
-                    f"Component initialization failed: name={comp_name}, error={e!s}"
+                pending = [
+                    component
+                    for component in self._components
+                    if id(component) not in self._initialized_components
+                ]
+                self._logger.info(
+                    f"Initializing {len(pending)} orchestrator components"
                 )
-                raise
-            self._initialized_components.add(id(component))
 
-        self._initialized = True
-        self._logger.info(f"All components initialized: count={len(self._components)}")
+                for component in pending:
+                    comp_name = component.name or component.__class__.__name__
+                    self._logger.debug(
+                        f"Initializing component: name={comp_name}, priority={component.priority}"
+                    )
+
+                    try:
+                        await component.on_initialize(orchestrator)
+                    except Exception as e:
+                        self._logger.exception(
+                            f"Component initialization failed: name={comp_name}, error={e!s}"
+                        )
+                        raise
+                    self._initialized_components.add(id(component))
+
+                self._initialized = True
+                self._logger.info(
+                    f"All components initialized: count={len(self._components)}"
+                )
+            finally:
+                self._init_task = None
 
     async def run_artifact_published(
         self, orchestrator: Any, artifact: Artifact

@@ -128,7 +128,9 @@ Finishing one workflow never touches another workflow's instance.
 Work that blocks the event loop cannot be interrupted: synchronous tools,
 synchronous engine paths or thread-bound calls finish (or keep running) on
 their own. Prefer async tools. `diagnostics["leftover_tasks"]` reports tasks
-that did not stop within the grace period.
+that did not stop within the grace period, and `diagnostics["teardown_failed"]`
+names the exception type if cleanup itself failed. Neither changes the outcome:
+the outputs were produced (and may already be delivered).
 
 ## Identity, sessions and retries
 

@@ -10,6 +10,7 @@ from datetime import timedelta
 import pytest
 
 from flock.application import (
+    ApplicationNotRunning,
     CapacityExceeded,
     CompletionPolicy,
     ContractError,
@@ -727,3 +728,121 @@ def test_task_outcomes_after_freeze_are_only_diagnostics():
 
     assert workflow.failure is None
     assert workflow.late_task_failures == 1
+
+
+def _session_app(built: list[str], delay: float = 0.5) -> FlockApplication:
+    async def slow(agent, ctx, inputs):
+        await asyncio.sleep(delay)
+        return [AppSummary(text=inputs.artifacts[0].payload["text"])]
+
+    def factory(context: WorkflowContext) -> Flock:
+        built.append(context.workflow_id)
+        flock = Flock(no_output=True)
+        flock.agent("slow").consumes(AppTicket).publishes(AppSummary).with_engines(
+            engine(slow)
+        )
+        return flock
+
+    return app_for(factory, history="conversation")
+
+
+def _turn(workflow_id: str) -> WorkflowContext:
+    return ctx(workflow_id, principal_id="p", session_id="conversation-1")
+
+
+@pytest.mark.asyncio
+async def test_cancelling_a_queued_turn_does_not_wait_for_the_previous_turn():
+    built: list[str] = []
+    app = _session_app(built)
+    loop = asyncio.get_running_loop()
+
+    first = asyncio.create_task(app.run(AppTicket(text="a"), context=_turn("t1")))
+    await asyncio.sleep(0.1)
+    started = loop.time()
+    async with app.stream(AppTicket(text="b"), context=_turn("t2")) as workflow:
+        workflow.cancel()
+        queued = await workflow.result()
+    elapsed = loop.time() - started
+
+    assert queued.status is WorkflowStatus.CANCELLED
+    assert elapsed < 0.2
+    assert "t2" not in built  # never built nor published
+    assert (await first).ok
+    # the conversation is not blocked by the cancelled turn
+    assert (await app.run(AppTicket(text="c"), context=_turn("t3"))).ok
+
+
+@pytest.mark.asyncio
+async def test_shutdown_with_a_queued_turn_returns_promptly():
+    app = _session_app([], delay=5)
+    running = asyncio.create_task(app.run(AppTicket(text="a"), context=_turn("t1")))
+    queued = asyncio.create_task(app.run(AppTicket(text="b"), context=_turn("t2")))
+    await asyncio.sleep(0.1)
+
+    await asyncio.wait_for(app.shutdown(grace=0), 2)
+
+    assert (await running).status is WorkflowStatus.CANCELLED
+    assert (await queued).status is WorkflowStatus.CANCELLED
+
+
+@pytest.mark.asyncio
+async def test_raising_access_policy_fails_the_workflow():
+    def policy(artifact, context):
+        raise RuntimeError("policy bug")
+
+    app = app_for(access_policy=policy)
+
+    result = await app.run(AppTicket(text="x"), context=ctx())
+
+    assert result.status is WorkflowStatus.FAILED
+    assert result.failure.code is FailureCode.INTERNAL_ERROR
+    assert result.outputs == ()
+
+
+@pytest.mark.asyncio
+async def test_teardown_failure_is_reported_without_changing_the_outcome():
+    def factory() -> Flock:
+        flock = two_stage_flock()
+        original = flock.shutdown
+
+        async def failing_shutdown(**kwargs):
+            if kwargs.get("include_components", True):
+                raise RuntimeError("cleanup broke")
+            await original(**kwargs)
+
+        flock.shutdown = failing_shutdown
+        return flock
+
+    result = await app_for(factory).run(AppTicket(text="x"), context=ctx())
+
+    assert result.ok
+    assert result.diagnostics["teardown_failed"] == "RuntimeError"
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"max_retained_ids": -1},
+        {"id_retention": timedelta(seconds=-1)},
+        {"cancel_grace": -1},
+    ],
+)
+def test_negative_limits_are_rejected(kwargs):
+    with pytest.raises(ValueError, match="must not be negative"):
+        app_for(**kwargs)
+
+
+@pytest.mark.asyncio
+async def test_shutdown_during_start_keeps_the_application_closed():
+    async def slow_factory() -> Flock:
+        await asyncio.sleep(0.2)
+        return two_stage_flock()
+
+    app = app_for(slow_factory)
+    starting = asyncio.create_task(app.start())
+    await asyncio.sleep(0.05)
+    await app.shutdown()
+
+    with pytest.raises(ApplicationNotRunning):
+        await starting
+    assert not app.accepting

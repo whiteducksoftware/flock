@@ -1473,3 +1473,62 @@ class TestDeduplicationComponent:
             sample_artifact, agent, subscription
         )
         assert result2 == ScheduleDecision.SKIP
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_publishes_initialize_components_once():
+    """Two racing first publishes must not run on_initialize twice."""
+    import asyncio
+
+    from pydantic import BaseModel
+
+    from flock.components.orchestrator import OrchestratorComponent
+    from flock.core import Flock
+    from flock.registry import flock_type
+
+    @flock_type(name="ConcurrentInitProbe")
+    class ConcurrentInitProbe(BaseModel):
+        value: str
+
+    calls: list[str] = []
+
+    class SlowInit(OrchestratorComponent):
+        async def on_initialize(self, orch):
+            await asyncio.sleep(0.05)
+            calls.append("init")
+
+    flock = Flock(no_output=True)
+    flock.add_component(SlowInit())
+
+    await asyncio.gather(
+        flock.publish(ConcurrentInitProbe(value="a")),
+        flock.publish(ConcurrentInitProbe(value="b")),
+    )
+    await flock.shutdown()
+
+    assert calls == ["init"]
+
+
+@pytest.mark.asyncio
+async def test_on_initialize_may_publish_without_deadlock():
+    import asyncio
+
+    from pydantic import BaseModel
+
+    from flock.components.orchestrator import OrchestratorComponent
+    from flock.core import Flock
+    from flock.registry import flock_type
+
+    @flock_type(name="InitPublishProbe")
+    class InitPublishProbe(BaseModel):
+        value: str
+
+    class PublishingInit(OrchestratorComponent):
+        async def on_initialize(self, orch):
+            await orch.publish(InitPublishProbe(value="from-init"))
+
+    flock = Flock(no_output=True)
+    flock.add_component(PublishingInit())
+
+    await asyncio.wait_for(flock.publish(InitPublishProbe(value="first")), 5)
+    await flock.shutdown()
