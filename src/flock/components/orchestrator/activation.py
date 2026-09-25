@@ -158,10 +158,8 @@ class ActivationComponent(OrchestratorComponent):
 
         Creates a copy of the condition with the artifact's correlation_id
         bound, so that queries are scoped to the current workflow rather
-        than searching the entire store.
-
-        For composite conditions (And, Or, Not), recursively binds to
-        all child conditions.
+        than searching the entire store. Delegates to
+        :func:`flock.core.conditions.bind_correlation`.
 
         Args:
             condition: RunCondition to potentially wrap
@@ -170,48 +168,9 @@ class ActivationComponent(OrchestratorComponent):
         Returns:
             Condition with correlation_id bound (if applicable)
         """
-        from dataclasses import replace
+        from flock.core.conditions import bind_correlation
 
-        from flock.core.conditions import (
-            AndCondition,
-            ArtifactCountCondition,
-            ExistsCondition,
-            FieldPredicateCondition,
-            NotCondition,
-            OrCondition,
-        )
-
-        if correlation_id is None:
-            return condition
-
-        # Handle composite conditions recursively
-        if isinstance(condition, AndCondition):
-            return AndCondition(
-                left=self._bind_correlation_context(condition.left, correlation_id),
-                right=self._bind_correlation_context(condition.right, correlation_id),
-            )
-        if isinstance(condition, OrCondition):
-            return OrCondition(
-                left=self._bind_correlation_context(condition.left, correlation_id),
-                right=self._bind_correlation_context(condition.right, correlation_id),
-            )
-        if isinstance(condition, NotCondition):
-            return NotCondition(
-                condition=self._bind_correlation_context(
-                    condition.condition, correlation_id
-                ),
-            )
-
-        # Bind correlation_id to conditions that support it
-        # Only bind if the condition doesn't already have a correlation_id set
-        if isinstance(
-            condition,
-            (ArtifactCountCondition, ExistsCondition, FieldPredicateCondition),
-        ):
-            if condition.correlation_id is None:
-                return replace(condition, correlation_id=correlation_id)
-
-        return condition
+        return bind_correlation(condition, correlation_id)
 
 
 __all__ = ["ActivationComponent"]

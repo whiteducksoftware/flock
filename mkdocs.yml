@@ -238,6 +238,9 @@ nav:
       - Context Providers: guides/context-providers.md
       - Persistent Blackboard: guides/persistent-blackboard.md
       - MCP Roots: guides/mcp-roots.md
+    - Hosting:
+      - Applications (FlockApplication): guides/applications.md
+      - Microsoft Foundry Hosted Agents: guides/foundry.md
     - Integrations:
       - Dapr State Store: guides/dapr-state-store.md
       - OpenClaw: guides/openclaw.md

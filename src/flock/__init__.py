@@ -45,6 +45,22 @@ from flock.components.server import (
 )
 from flock.core import Flock, start_orchestrator
 
+
+# =============================================================================
+# Application - transport-independent workflow execution for hosts
+# =============================================================================
+# isort: split
+# Must stay after flock.core: flock.application imports flock.core directly,
+# and flock.core only initializes cleanly once flock.cli/components are loaded.
+from flock.application import (
+    CompletionPolicy,
+    FlockApplication,
+    WorkflowContext,
+    WorkflowEvent,
+    WorkflowResult,
+    WorkflowStatus,
+)
+
 # =============================================================================
 # Artifacts - Core data types
 # =============================================================================
@@ -134,6 +150,8 @@ __all__ = [
     "Artifact",
     # Engines
     "BAMLAdapter",
+    # Application
+    "CompletionPolicy",
     # Subscriptions
     "BatchSpec",
     "ChatAdapter",
@@ -147,6 +165,7 @@ __all__ = [
     "FilterConfig",
     # Core
     "Flock",
+    "FlockApplication",
     # Integrations - OpenClaw
     "GatewayConfig",
     "JSONAdapter",
@@ -167,6 +186,10 @@ __all__ = [
     "Until",
     "Visibility",
     "When",
+    "WorkflowContext",
+    "WorkflowEvent",
+    "WorkflowResult",
+    "WorkflowStatus",
     "XMLAdapter",
     # Logging
     "configure_logging",

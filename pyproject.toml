@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.611"
+version = "0.5.612"
 description = "Flock: A declrative framework for building and orchestrating AI agents."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -14,12 +14,10 @@ dependencies = [
  "rich==14.2.0",
  "typer==0.20.0",
  "uvicorn==0.38.0",
- "opentelemetry-api==1.34.1",
- "opentelemetry-exporter-jaeger==1.21.0",
- "opentelemetry-exporter-jaeger-proto-grpc==1.21.0",
- "opentelemetry-exporter-otlp==1.34.1",
- "opentelemetry-instrumentation-logging==0.55b1",
- "opentelemetry-sdk==1.34.1",
+ "opentelemetry-api>=1.43.0,<2",
+ "opentelemetry-exporter-otlp>=1.43.0,<2",
+ "opentelemetry-instrumentation-logging>=0.64b0",
+ "opentelemetry-sdk>=1.43.0,<2",
  "loguru==0.7.3",
  "mcp==1.23.0",
  "toml==0.10.2",
@@ -47,6 +45,11 @@ transformers = [
 ]
 dapr = [
     "dapr>=1.13.0,<1.15"
+]
+foundry = [
+    # Microsoft Foundry hosted agents: container Responses protocol 2.0.0.
+    "azure-ai-agentserver-responses>=2.1.0,<2.2",
+    "azure-ai-agentserver-core>=2.1.0,<2.2",
 ]
 
 [[project.authors]]

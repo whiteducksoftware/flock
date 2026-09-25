@@ -344,7 +344,22 @@ sum(rate(traces{service.name="flock-auto-trace", status.code="ERROR"}[5m]))
 traces{correlation_id="12d0fcda-e7f7-4c96-ae8e-14ae4eca1518"}
 ```
 
+## When your host owns OpenTelemetry
+
+With `FLOCK_AUTO_TRACE` enabled (the default), importing Flock installs an
+OpenTelemetry tracer provider unless one is already installed. A host that
+configures OpenTelemetry itself - for example the Microsoft Foundry agent
+server - should do so *before* importing Flock, or set
+`FLOCK_DISABLE_TELEMETRY_AUTOSETUP=1` (keeps Flock's spans, lets the host's
+provider export them) or `FLOCK_AUTO_TRACE=false` (no Flock spans, no DEBUG
+logging). Flock chains to the previously installed `sys.excepthook`.
+
 ## Using with Jaeger
+
+Jaeger ingests OTLP natively, so Flock exports to it through the OTLP exporter.
+The legacy `opentelemetry-exporter-jaeger` packages were removed (they cannot be
+installed next to current OpenTelemetry releases); `TelemetryConfig(jaeger_endpoint=...)`
+now raises an error pointing to `OTEL_EXPORTER_OTLP_ENDPOINT`.
 
 ### 1. Start Jaeger
 

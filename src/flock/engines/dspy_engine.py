@@ -132,6 +132,16 @@ class DSPyEngine(EngineComponent):
     instructions: str | None = None
     temperature: float = 1.0
     max_tokens: int = 32000
+    max_completion_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Upper bound for generated tokens sent as ``max_completion_tokens`` "
+            "instead of ``max_tokens``. Required by reasoning models whose "
+            "deployment name DSPy/LiteLLM cannot recognise (e.g. custom Azure "
+            "deployment names). When set, ``max_tokens`` is not sent."
+        ),
+    )
     max_tool_calls: int = 100
     max_retries: int = 0
     lm_kwargs: dict[str, Any] = Field(
@@ -253,14 +263,7 @@ class DSPyEngine(EngineComponent):
         dspy_mod = self._import_dspy()
         extra_kwargs = self._build_lm_kwargs()
 
-        lm = dspy_mod.LM(
-            model=model_name,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            cache=self.enable_cache,
-            num_retries=self.max_retries,
-            **extra_kwargs,
-        )
+        lm = self._create_lm(dspy_mod, model_name, extra_kwargs)
 
         primary_artifact = self._select_primary_artifact(inputs.artifacts)
         input_model = self._resolve_input_model(primary_artifact)
@@ -344,12 +347,18 @@ class DSPyEngine(EngineComponent):
 
             # Detect if there's already an active Rich Live context
             should_stream = self.stream
+            # no_output may be assigned after construction (the agent propagates
+            # the orchestrator's setting), so re-sync the helper every call.
+            self._streaming_executor.no_output = self.no_output
             # Phase 6+7 Security Fix: Use Agent class variables for streaming coordination
             if ctx:
                 from flock.core import Agent
 
                 # Check if dashboard mode (WebSocket broadcast is set)
                 is_dashboard = Agent._websocket_broadcast_global is not None
+                # Terminal streaming is pure output; skip it entirely when silenced
+                if self.no_output and not is_dashboard:
+                    should_stream = False
                 # if dashboard we always stream, streaming queue only for CLI output
                 if should_stream and not is_dashboard:
                     # Get current active streams count from Agent class variable (shared across all agents)
@@ -478,6 +487,37 @@ class DSPyEngine(EngineComponent):
                 "DSPyEngine requires a configured model (set DEFAULT_MODEL, or pass model=...)."
             )
         return model
+
+    def _create_lm(
+        self, dspy_mod: Any, model_name: str, extra_kwargs: dict[str, Any]
+    ) -> Any:
+        """Create the ``dspy.LM`` with exactly one output-token limit."""
+        if self.max_completion_tokens is None:
+            return dspy_mod.LM(
+                model=model_name,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                cache=self.enable_cache,
+                num_retries=self.max_retries,
+                **extra_kwargs,
+            )
+        if "max_tokens" in self.model_fields_set:
+            raise ValueError(
+                "Set either max_tokens or max_completion_tokens on DSPyEngine, not both."
+            )
+        lm = dspy_mod.LM(
+            model=model_name,
+            temperature=self.temperature,
+            max_tokens=None,
+            cache=self.enable_cache,
+            num_retries=self.max_retries,
+            **extra_kwargs,
+        )
+        # DSPy maps max_tokens itself only for model names it recognises as
+        # reasoning models; set the completion limit explicitly and never send both.
+        lm.kwargs.pop("max_tokens", None)
+        lm.kwargs["max_completion_tokens"] = self.max_completion_tokens
+        return lm
 
     def _build_lm_kwargs(self) -> dict[str, Any]:
         """Validate and clone provider-specific LM kwargs before construction."""
