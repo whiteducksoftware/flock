@@ -88,6 +88,21 @@ try:
 except Exception as e:
     print(f"⚠️  Could not add search MCP (is uvx installed?): {e}")
 
+# You.com's free MCP profile is a keyless remote server: no API key and no
+# local install needed. It is registered here as an alternative search source —
+# swap it into `.with_mcps([...])` below to use it instead of `zai_search_web`.
+try:
+    flock.add_mcp(
+        name="you_search_web",
+        enable_tools_feature=True,
+        connection_params=StreamableHttpServerParameters(
+            url="https://api.you.com/mcp?profile=free",
+        ),
+    )
+    print("✅ Added You.com search MCP (keyless free profile)")
+except Exception as e:
+    print(f"⚠️  Could not add You.com search MCP (is the endpoint reachable?): {e}")
+
 try:
     flock.add_mcp(
         name="read_website",
