@@ -416,6 +416,66 @@ class TestHookRunnerInitialize:
             await orchestrator._run_initialize()
 
 
+class TestSingleInitialization:
+    """Components are initialized exactly once across publish and run paths."""
+
+    @pytest.mark.asyncio
+    async def test_on_initialize_once_after_add_component_publish_and_run_until_idle(
+        self,
+    ):
+        from pydantic import BaseModel
+
+        from flock.components.orchestrator import OrchestratorComponent
+        from flock.core import Flock
+        from flock.registry import flock_type
+
+        @flock_type(name="SingleInitProbe")
+        class SingleInitProbe(BaseModel):
+            value: str
+
+        calls: list[str] = []
+
+        class CountingComponent(OrchestratorComponent):
+            async def on_initialize(self, orch):
+                calls.append("init")
+
+        flock = Flock(no_output=True)
+        flock.add_component(CountingComponent())
+
+        await flock.publish(SingleInitProbe(value="x"))
+        await flock.run_until_idle()
+        await flock.run_until_idle()
+
+        assert calls == ["init"]
+
+    @pytest.mark.asyncio
+    async def test_component_added_after_initialization_is_initialized_once(self):
+        from flock.components.orchestrator import OrchestratorComponent
+        from flock.core import Flock
+
+        calls: list[str] = []
+
+        class First(OrchestratorComponent):
+            async def on_initialize(self, orch):
+                calls.append("first")
+
+        class Late(OrchestratorComponent):
+            async def on_initialize(self, orch):
+                calls.append("late")
+
+        flock = Flock(no_output=True)
+        flock.add_component(First())
+        await flock._run_initialize()
+        flock.add_component(Late())
+        assert flock._components_initialized is False
+
+        await flock._run_initialize()
+        await flock._run_initialize()
+
+        assert calls == ["first", "late"]
+        assert flock._scheduler._component_runner is flock._component_runner
+
+
 class TestHookRunnerArtifactPublished:
     """Tests for _run_artifact_published() hook runner."""
 
@@ -1413,3 +1473,62 @@ class TestDeduplicationComponent:
             sample_artifact, agent, subscription
         )
         assert result2 == ScheduleDecision.SKIP
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_publishes_initialize_components_once():
+    """Two racing first publishes must not run on_initialize twice."""
+    import asyncio
+
+    from pydantic import BaseModel
+
+    from flock.components.orchestrator import OrchestratorComponent
+    from flock.core import Flock
+    from flock.registry import flock_type
+
+    @flock_type(name="ConcurrentInitProbe")
+    class ConcurrentInitProbe(BaseModel):
+        value: str
+
+    calls: list[str] = []
+
+    class SlowInit(OrchestratorComponent):
+        async def on_initialize(self, orch):
+            await asyncio.sleep(0.05)
+            calls.append("init")
+
+    flock = Flock(no_output=True)
+    flock.add_component(SlowInit())
+
+    await asyncio.gather(
+        flock.publish(ConcurrentInitProbe(value="a")),
+        flock.publish(ConcurrentInitProbe(value="b")),
+    )
+    await flock.shutdown()
+
+    assert calls == ["init"]
+
+
+@pytest.mark.asyncio
+async def test_on_initialize_may_publish_without_deadlock():
+    import asyncio
+
+    from pydantic import BaseModel
+
+    from flock.components.orchestrator import OrchestratorComponent
+    from flock.core import Flock
+    from flock.registry import flock_type
+
+    @flock_type(name="InitPublishProbe")
+    class InitPublishProbe(BaseModel):
+        value: str
+
+    class PublishingInit(OrchestratorComponent):
+        async def on_initialize(self, orch):
+            await orch.publish(InitPublishProbe(value="from-init"))
+
+    flock = Flock(no_output=True)
+    flock.add_component(PublishingInit())
+
+    await asyncio.wait_for(flock.publish(InitPublishProbe(value="first")), 5)
+    await flock.shutdown()

@@ -38,7 +38,6 @@ from flock.mcp import (
 from flock.orchestrator import (
     AgentScheduler,
     ArtifactManager,
-    ComponentRunner,
     OrchestratorInitializer,
     ServerManager,
     TracingManager,
@@ -184,6 +183,7 @@ class Flock(metaclass=AutoTracedMeta):
         # Initialize scheduler and artifact manager
         self._scheduler = AgentScheduler(self, self._component_runner)
         self._artifact_manager = ArtifactManager(self, self.store, self._scheduler)
+        self._workflow_scope: str | None = None
 
         # Log initialization
         self._logger.debug("Orchestrator initialized: components=[]")
@@ -442,9 +442,8 @@ class Flock(metaclass=AutoTracedMeta):
         """
         self._components.append(component)
         self._components.sort(key=lambda c: c.priority)
-
-        # Phase 3: Update ComponentRunner with new sorted components
-        self._component_runner = ComponentRunner(self._components, self._logger)
+        # The runner (shared with the scheduler) holds this same list, so the
+        # new component is picked up and initialized exactly once.
 
         # Log component addition
         comp_name = component.name or component.__class__.__name__
@@ -677,10 +676,6 @@ class Flock(metaclass=AutoTracedMeta):
             # Check for pending scheduler tasks
             if self._scheduler.pending_tasks:
                 await asyncio.sleep(0.01)
-                pending = {
-                    task for task in self._scheduler.pending_tasks if not task.done()
-                }
-                self._scheduler._tasks = pending
                 continue  # Not idle due to pending tasks
 
             # Phase 5A: Check for pending work using LifecycleManager properties
@@ -800,10 +795,6 @@ class Flock(metaclass=AutoTracedMeta):
             # Check for pending scheduler tasks
             if self._scheduler.pending_tasks:
                 await asyncio.sleep(0.01)
-                pending = {
-                    task for task in self._scheduler.pending_tasks if not task.done()
-                }
-                self._scheduler._tasks = pending
                 continue  # Work pending, loop again
 
             # Check for pending batches/correlations (passive work)
@@ -919,17 +910,53 @@ class Flock(metaclass=AutoTracedMeta):
         """
         return asyncio.run(self.arun(agent_builder, *inputs))
 
-    async def shutdown(self, *, include_components: bool = True) -> None:
+    async def shutdown(
+        self, *, include_components: bool = True, cancel_grace: float = 5.0
+    ) -> None:
         """Shutdown orchestrator and clean up resources.
 
-        Args:
-            include_components: Whether to invoke component shutdown hooks.
-                Internal callers (e.g., run_until_idle) disable this to avoid
-                tearing down component state between cascades.
-        """
-        if include_components and self._component_runner.is_initialized:
-            await self._component_runner.run_shutdown(self)
+        A full shutdown runs component shutdown hooks (which stop timers), then
+        cancels agent tasks that are still running and waits up to
+        ``cancel_grace`` seconds for them, and only then closes background tasks
+        and MCP connections - so no agent keeps calling models or tools, writes
+        into a torn-down store, or reopens MCP sessions after cleanup.
 
+        Args:
+            include_components: Whether to invoke component shutdown hooks and
+                cancel in-flight agent tasks. Internal callers (e.g.,
+                run_until_idle) disable this to avoid tearing down component
+                state between cascades.
+            cancel_grace: Seconds to wait for cancelled agent tasks. Work that
+                blocks outside the event loop may not stop in time; it is logged.
+
+        While a full shutdown runs, no new agent tasks are scheduled. Afterwards
+        the instance schedules again only if every agent task stopped; a task
+        that outlived ``cancel_grace`` keeps scheduling closed, so it cannot
+        trigger downstream agents after cleanup.
+        """
+        if not include_components:
+            await self._release_resources()
+            return
+
+        reopen = self._scheduler.accepting
+        self._scheduler.close_gate()
+        try:
+            if self._component_runner.is_initialized:
+                await self._component_runner.run_shutdown(self)
+            await self._cancel_agent_tasks(cancel_grace)
+            await self._release_resources()
+        finally:
+            still_running = any(not t.done() for t in self._scheduler.pending_tasks)
+            if reopen and not still_running:
+                self._scheduler.open_gate()
+            elif reopen:
+                self._logger.warning(
+                    "Shutdown: agent tasks are still running; scheduling stays "
+                    "closed on this instance."
+                )
+
+    async def _release_resources(self) -> None:
+        """Stop the background server, lifecycle tasks and MCP connections."""
         # Cancel background server task if running (non-blocking serve)
         if self._server_task and not self._server_task.done():
             self._server_task.cancel()
@@ -944,6 +971,22 @@ class Flock(metaclass=AutoTracedMeta):
 
         # Phase 3: Delegate MCP cleanup to MCPManager
         await self._mcp_manager_instance.cleanup()
+
+    async def _cancel_agent_tasks(self, grace: float) -> None:
+        """Cancel running agent tasks, including ones they scheduled meanwhile."""
+        deadline = asyncio.get_running_loop().time() + grace
+        while self._scheduler.pending_tasks:
+            remaining = deadline - asyncio.get_running_loop().time()
+            leftovers = await self._scheduler.cancel_all(max(remaining, 0))
+            if leftovers or remaining <= 0:
+                if leftovers:
+                    self._logger.warning(
+                        f"Shutdown: {len(leftovers)} agent task(s) did not stop within "
+                        f"{grace}s (work blocked outside the event loop?)"
+                    )
+                return
+            # Give done-callbacks a chance to run before re-checking.
+            await asyncio.sleep(0)
 
     def cli(self) -> Flock:
         # Placeholder for CLI wiring (rich UI in Step 3)
@@ -1126,6 +1169,24 @@ class Flock(metaclass=AutoTracedMeta):
 
         return outputs
 
+    def _set_workflow_scope(self, workflow_id: str | None) -> None:
+        """Scope this instance to one workflow (internal).
+
+        Every persisted artifact gets ``workflow_id`` as correlation id and agent
+        context is restricted to that correlation, whatever store or context
+        provider the instance uses. Used by ``flock.application``.
+        """
+        self._workflow_scope = workflow_id
+        self._artifact_manager.set_workflow_scope(workflow_id)
+        self._context_builder.set_workflow_scope(workflow_id)
+
+    def _add_publication_listener(self, listener: Any) -> Any:
+        """Observe persisted artifacts in store order (internal).
+
+        Returns a callable that removes the listener.
+        """
+        return self._artifact_manager.add_publication_listener(listener)
+
     async def _persist_and_schedule(self, artifact: Artifact) -> None:
         """Delegate to ArtifactManager."""
         await self._artifact_manager.persist_and_schedule(artifact)
@@ -1164,9 +1225,6 @@ class Flock(metaclass=AutoTracedMeta):
             timer_component = TimerComponent()
             self._components.append(timer_component)
             self._components.sort(key=lambda c: c.priority)
-
-            # Update ComponentRunner with new sorted components
-            self._component_runner = ComponentRunner(self._components, self._logger)
 
             self._logger.info(
                 f"TimerComponent registered: priority={timer_component.priority}, "
@@ -1230,7 +1288,7 @@ class Flock(metaclass=AutoTracedMeta):
 
     def _schedule_task(
         self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
-    ) -> Task[Any]:
+    ) -> Task[Any] | None:
         """Delegate to AgentScheduler."""
         return self._scheduler.schedule_task(agent, artifacts, is_batch=is_batch)
 
@@ -1244,7 +1302,11 @@ class Flock(metaclass=AutoTracedMeta):
         return self._scheduler.seen_before(artifact, agent)
 
     async def _run_agent_task(
-        self, agent: Agent, artifacts: list[Artifact], is_batch: bool = False
+        self,
+        agent: Agent,
+        artifacts: list[Artifact],
+        is_batch: bool = False,
+        task_id: str | None = None,
     ) -> None:
         correlation_id = artifacts[0].correlation_id if artifacts else None
 
@@ -1256,6 +1318,7 @@ class Flock(metaclass=AutoTracedMeta):
             artifacts=artifacts,
             correlation_id=correlation_id,
             is_batch=is_batch,
+            task_id=task_id,
         )
         self._record_agent_run(agent)
 

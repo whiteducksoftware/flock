@@ -59,6 +59,17 @@ class ContextBuilder:
         self._store = store
         self._default_context_provider = default_context_provider
         self._logger = logger
+        # Mandatory correlation boundary for a workflow-scoped instance.
+        self._scoped_correlation_id: str | None = None
+
+    def set_workflow_scope(self, correlation_id: str | None) -> None:
+        """Restrict every agent context to artifacts of ``correlation_id``.
+
+        Applied after the resolved provider (like identity binding), so neither
+        a per-agent nor a global provider can widen it - a shared persistent
+        store never leaks other workflows' artifacts into context.
+        """
+        self._scoped_correlation_id = correlation_id
 
     async def build_execution_context(
         self,
@@ -67,6 +78,7 @@ class ContextBuilder:
         artifacts: list[Artifact],
         correlation_id: str | None = None,
         is_batch: bool = False,
+        task_id: str | None = None,
     ) -> Context:
         """Build Context with pre-filtered artifacts (Phase 8 security fix).
 
@@ -85,6 +97,7 @@ class ContextBuilder:
             artifacts: Input artifacts that triggered execution
             correlation_id: Optional correlation ID for grouping related work
             is_batch: Whether this is a batch execution (affects context metadata)
+            task_id: Pre-allocated task id (scheduler-owned); generated if omitted
 
         Returns:
             Context with pre-filtered artifacts and agent identity
@@ -143,6 +156,12 @@ class ContextBuilder:
             exclude_ids={a.id for a in artifacts},  # Exclude input artifacts
         )
         context_artifacts = await provider(request)
+        if self._scoped_correlation_id is not None:
+            context_artifacts = [
+                artifact
+                for artifact in context_artifacts
+                if artifact.correlation_id == self._scoped_correlation_id
+            ]
 
         # Step 4: Create Context with pre-filtered data (no capabilities!)
         # SECURITY: Context is now just data - engines can't query anything
@@ -172,7 +191,7 @@ class ContextBuilder:
         ctx = Context(
             artifacts=context_artifacts,  # Pre-filtered conversation context
             agent_identity=agent.identity,
-            task_id=str(uuid4()),
+            task_id=task_id or str(uuid4()),
             correlation_id=resolved_correlation_id,
             is_batch=is_batch,
             state=state,

@@ -28,7 +28,7 @@ from flock.logging.telemetry_exporter.sqlite_exporter import (
 class TelemetryConfig:
     """This configuration class sets up OpenTelemetry tracing.
 
-      - Export spans to a Jaeger collector using gRPC.
+      - Export spans via OTLP (gRPC or HTTP).
       - Write spans to a file.
       - Save spans in a SQLite database.
 
@@ -119,29 +119,15 @@ class TelemetryConfig:
         # List to collect our span processors.
         span_processors = []
 
-        # If a Jaeger endpoint is specified, add the Jaeger exporter.
+        # The legacy Jaeger exporter packages were removed: they cannot be
+        # installed next to current OpenTelemetry releases. Jaeger ingests
+        # OTLP natively, so point OTEL_EXPORTER_OTLP_ENDPOINT at it instead.
         if self.jaeger_endpoint and self.enable_jaeger:
-            if self.jaeger_transport == "grpc":
-                from opentelemetry.exporter.jaeger.proto.grpc import (
-                    JaegerExporter,
-                )
-
-                jaeger_exporter = JaegerExporter(
-                    endpoint=self.jaeger_endpoint,
-                    insecure=True,
-                )
-            elif self.jaeger_transport == "http":
-                from opentelemetry.exporter.jaeger.thrift import JaegerExporter
-
-                jaeger_exporter = JaegerExporter(
-                    collector_endpoint=self.jaeger_endpoint,
-                )
-            else:
-                raise ValueError(
-                    "Invalid JAEGER_TRANSPORT specified. Use 'grpc' or 'http'."
-                )
-
-            span_processors.append(SimpleSpanProcessor(jaeger_exporter))
+            raise ValueError(
+                "The Jaeger exporter is no longer supported. Jaeger accepts OTLP "
+                "natively: set OTEL_EXPORTER_OTLP_ENDPOINT (enable_otlp=True) to "
+                "your Jaeger collector's OTLP endpoint instead."
+            )
 
         if self.enable_otlp:
             if self.otlp_protocol == "grpc":
@@ -197,6 +183,7 @@ class TelemetryConfig:
             BaggageAttributeSpanProcessor(baggage_keys=["session_id", "run_id"])
         )
         self.global_tracer = trace.get_tracer("flock")
+        self._previous_excepthook = sys.excepthook
         sys.excepthook = self.log_exception_to_otel
         self._configured = True
 
@@ -207,10 +194,13 @@ class TelemetryConfig:
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
 
-        if not self.global_tracer:
-            return
+        if self.global_tracer:
+            # Use OpenTelemetry to record the exception
+            with self.global_tracer.start_as_current_span("UnhandledException") as span:
+                span.record_exception(exc_value)
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc_value)))
 
-        # Use OpenTelemetry to record the exception
-        with self.global_tracer.start_as_current_span("UnhandledException") as span:
-            span.record_exception(exc_value)
-            span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc_value)))
+        # Chain to the hook that was installed before us so tracebacks still print.
+        previous = getattr(self, "_previous_excepthook", None)
+        if previous is not None and previous is not self.log_exception_to_otel:
+            previous(exc_type, exc_value, exc_traceback)

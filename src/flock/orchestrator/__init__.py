@@ -23,13 +23,14 @@ from flock.orchestrator.event_emitter import EventEmitter
 from flock.orchestrator.initialization import OrchestratorInitializer
 from flock.orchestrator.lifecycle_manager import LifecycleManager
 from flock.orchestrator.mcp_manager import MCPManager
-from flock.orchestrator.scheduler import AgentScheduler
+from flock.orchestrator.scheduler import AgentScheduler, AgentTaskOutcome
 from flock.orchestrator.server_manager import ServerManager
 from flock.orchestrator.tracing import TracingManager
 
 
 __all__ = [
     "AgentScheduler",
+    "AgentTaskOutcome",
     "ArtifactCollector",
     "ArtifactManager",
     "BatchAccumulator",

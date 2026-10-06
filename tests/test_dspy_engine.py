@@ -1325,3 +1325,86 @@ class TestDSPyEngineIntegration:
         assert len(result.artifacts) > 0
         # Verify the evaluation succeeded without errors
         assert len(result.logs) >= 0  # Logs should exist (even if empty)
+
+
+class TestCompletionTokenLimit:
+    """max_completion_tokens replaces max_tokens without ever sending both."""
+
+    @pytest.mark.parametrize(
+        "model",
+        ["azure/my-custom-reasoning-deployment", "openai/gpt-5", "azure/o4-mini"],
+    )
+    def test_only_max_completion_tokens_is_sent(self, model):
+        import dspy
+
+        engine = DSPyEngine(max_completion_tokens=4096)
+
+        lm = engine._create_lm(dspy, model, {})
+
+        assert lm.kwargs["max_completion_tokens"] == 4096
+        assert "max_tokens" not in lm.kwargs
+
+    def test_default_keeps_max_tokens(self):
+        import dspy
+
+        engine = DSPyEngine()
+
+        lm = engine._create_lm(dspy, "azure/gpt-4.1", {})
+
+        assert lm.kwargs["max_tokens"] == 32000
+        assert "max_completion_tokens" not in lm.kwargs
+
+    def test_setting_both_limits_is_rejected(self):
+        import dspy
+
+        engine = DSPyEngine(max_tokens=1000, max_completion_tokens=500)
+
+        with pytest.raises(ValueError, match="not both"):
+            engine._create_lm(dspy, "azure/gpt-4.1", {})
+
+    def test_max_completion_tokens_must_be_positive(self):
+        with pytest.raises(ValueError):
+            DSPyEngine(max_completion_tokens=0)
+
+
+class TestNoOutputSuppressesTerminalStreaming:
+    """A user-built engine must honour no_output assigned by its agent."""
+
+    @pytest.mark.asyncio
+    async def test_no_output_assigned_after_construction_skips_rich_streaming(
+        self, mocker
+    ):
+        mock_dspy = MockDSPyModule()
+        mock_dspy.context.return_value = Mock()
+        mocker.patch.object(DSPyEngine, "_import_dspy", return_value=mock_dspy)
+
+        engine = DSPyEngine(model="gpt-4", stream=True)
+        engine.no_output = True  # what Agent._resolve_engines() does
+        streaming = mocker.patch.object(
+            engine._streaming_executor, "execute_streaming", new=AsyncMock()
+        )
+        standard = mocker.patch.object(
+            engine._streaming_executor,
+            "execute_standard",
+            new=AsyncMock(return_value=Mock()),
+        )
+
+        agent = Mock()
+        agent.name = "silent_agent"
+        agent.description = "Silent"
+        agent.outputs = []
+        agent.tools = []
+        agent._get_mcp_tools = AsyncMock(return_value=[])
+        ctx = Mock()
+        ctx.artifacts = []
+        ctx.state = {}
+        inputs = EvalInputs(
+            artifacts=[Artifact(type="TestInput", payload={"prompt": "hi"}, produced_by="t")],
+            state={},
+        )
+
+        await engine.evaluate(agent, ctx, inputs, OutputGroup(outputs=[], group_description=None))
+
+        streaming.assert_not_awaited()
+        standard.assert_awaited_once()
+        assert engine._streaming_executor.no_output is True
