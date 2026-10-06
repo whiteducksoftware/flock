@@ -1248,6 +1248,8 @@ engine = DSPyEngine(
 
 These keys are reserved and must stay out of `lm_kwargs`: `model`, `temperature`, `max_tokens`, `max_completion_tokens`, `cache`, and `num_retries`. Use the dedicated engine field when one exists.
 
+When serializing an engine with `model_dump()` or `model_dump_json()`, known credential fields such as `api_key`, `api_secret`, `token`, `password`, and `authorization` become `<redacted>`, including in nested mappings, sequences, and Pydantic models. Matching uses a fixed set of exact field names, ignoring case. Callable token providers remain descriptive labels such as `<callable:get_bearer_token>`. The original `lm_kwargs` values are preserved for calls to `dspy.LM(...)`.
+
 ### Output-token limit for reasoning models
 
 Reasoning models (o-series, GPT-5.x and similar) reject `max_tokens` and expect

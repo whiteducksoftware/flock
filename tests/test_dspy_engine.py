@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from collections import OrderedDict
 from datetime import UTC
+from enum import Enum
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
@@ -633,6 +634,100 @@ class TestDSPyEngineLmKwargs:
             "api_base": "https://example.test",
             "token_provider": token_provider,
         }
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "api_key",
+            "api_secret",
+            "secret",
+            "token",
+            "access_token",
+            "refresh_token",
+            "client_secret",
+            "password",
+            "authorization",
+            "credential",
+            "credentials",
+            "azure_ad_token",
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "aws_session_token",
+            "api-key",
+            "x-api-key",
+            "Authorization",
+            "API_KEY",
+        ],
+    )
+    def test_model_dump_redacts_sensitive_lm_kwargs(self, key):
+        """Redact known secrets recursively without changing runtime LM arguments."""
+        secret = "synthetic-lm-secret"
+
+        def token_provider():
+            raise AssertionError("Serialization must not invoke token providers")
+
+        kwargs = {
+            key: secret,
+            "settings": {"headers": {key: secret}, "items": [{key: secret}]},
+            "payload_model": ComplexInput(text="safe", items=[], config={key: secret}),
+            "azure_ad_token_provider": token_provider,
+            "max_output_tokens": 128,
+            "api_base": "https://example.test",
+        }
+        engine = DSPyEngine(lm_kwargs=kwargs)
+
+        for dumped in (
+            engine.model_dump(),
+            engine.model_dump(mode="json"),
+            json.loads(engine.model_dump_json()),
+        ):
+            serialized = dumped["lm_kwargs"]
+            assert serialized[key] == "<redacted>"
+            assert serialized["settings"] == {
+                "headers": {key: "<redacted>"},
+                "items": [{key: "<redacted>"}],
+            }
+            assert serialized["payload_model"]["config"] == {key: "<redacted>"}
+            assert serialized["azure_ad_token_provider"] == "<callable:token_provider>"
+            assert serialized["max_output_tokens"] == 128
+            assert serialized["api_base"] == "https://example.test"
+            assert secret not in json.dumps(serialized)
+
+        assert kwargs[key] == engine.lm_kwargs[key] == secret
+        assert kwargs["settings"]["headers"][key] == secret
+        assert kwargs["settings"]["items"][0][key] == secret
+        assert kwargs["payload_model"].config[key] == secret
+        assert engine._build_lm_kwargs() == kwargs
+
+    def test_model_dump_redacts_string_enum_header_keys(self):
+        """String-enum headers keep their wire names and redact credentials."""
+
+        class HeaderName(str, Enum):
+            AUTHORIZATION = "Authorization"
+            CONTENT_TYPE = "Content-Type"
+
+        engine = DSPyEngine(
+            lm_kwargs={
+                "extra_headers": {
+                    HeaderName.AUTHORIZATION: "synthetic-enum-header-secret",
+                    HeaderName.CONTENT_TYPE: "application/json",
+                }
+            }
+        )
+
+        for dumped in (
+            engine.model_dump(),
+            engine.model_dump(mode="json"),
+            json.loads(engine.model_dump_json()),
+        ):
+            assert dumped["lm_kwargs"]["extra_headers"] == {
+                "Authorization": "<redacted>",
+                "Content-Type": "application/json",
+            }
+        assert (
+            engine._build_lm_kwargs()["extra_headers"]["Authorization"]
+            == "synthetic-enum-header-secret"
+        )
 
     def test_model_dump_serializes_lm_kwargs_safely(self):
         """Serialization should sanitize callable and nested non-serializable lm_kwargs."""
