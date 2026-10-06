@@ -48,6 +48,9 @@ class CircuitBreakerComponent(OrchestratorComponent):
         super().__init__(**kwargs)
         self.max_iterations = max_iterations
         self._iteration_counts: dict[str, int] = {}
+        # Agents that hit the limit at least once (not reset on idle), so an
+        # owner can tell a truncated cascade from a complete one.
+        self._tripped_agents: set[str] = set()
 
     async def on_before_schedule(
         self,
@@ -77,11 +80,17 @@ class CircuitBreakerComponent(OrchestratorComponent):
 
         if current_count >= max_limit:
             # Circuit breaker tripped
+            self._tripped_agents.add(agent.name)
             return ScheduleDecision.SKIP
 
         # Increment counter
         self._iteration_counts[agent.name] = current_count + 1
         return ScheduleDecision.CONTINUE
+
+    @property
+    def tripped_agents(self) -> set[str]:
+        """Agents that hit the iteration limit (not cleared on idle)."""
+        return set(self._tripped_agents)
 
     async def on_orchestrator_idle(self, orchestrator: Flock) -> None:
         """Reset iteration counters when orchestrator becomes idle.

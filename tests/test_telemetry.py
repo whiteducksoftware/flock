@@ -274,12 +274,11 @@ class TestTelemetryConfigSetupTracing:
         assert mock_provider.add_span_processor.call_count == 1
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_setup_tracing_with_invalid_jaeger_transport(self, mocker):
-        """Test setup_tracing raises error with invalid Jaeger transport."""
+    def test_setup_tracing_with_jaeger_endpoint_points_to_otlp(self, mocker):
+        """The removed Jaeger exporter fails loudly and points users to OTLP."""
         config = TelemetryConfig(
-            service_name="test-invalid",
+            service_name="test-jaeger-removed",
             jaeger_endpoint="localhost:14250",
-            jaeger_transport="invalid",
             enable_file=False,
             enable_sql=False,
             enable_otlp=False,
@@ -289,8 +288,19 @@ class TestTelemetryConfigSetupTracing:
         mocker.patch("flock.logging.telemetry.TracerProvider")
         mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
 
-        with pytest.raises(ValueError, match="Invalid JAEGER_TRANSPORT specified"):
+        with pytest.raises(ValueError, match="OTEL_EXPORTER_OTLP_ENDPOINT"):
             config.setup_tracing()
+
+    @patch.dict(os.environ, {"FLOCK_DISABLE_TELEMETRY_AUTOSETUP": "1"}, clear=True)
+    def test_disable_autosetup_leaves_host_provider_in_charge(self, mocker):
+        """A host that owns OpenTelemetry can opt Flock out of provider setup."""
+        set_provider = mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        config = TelemetryConfig(service_name="test-host-owned")
+
+        config.setup_tracing()
+
+        set_provider.assert_not_called()
+        assert config._configured is False
 
     @patch.dict(os.environ, {}, clear=True)
     def test_setup_tracing_with_otlp_enabled(self, mocker):
@@ -482,6 +492,19 @@ class TestTelemetryConfigLogException:
 
         # Should call the original excepthook for KeyboardInterrupt
         mock_sys_excepthook.assert_called_once_with(exc_type, exc_value, exc_traceback)
+
+    def test_log_exception_chains_previous_excepthook(self):
+        """Unhandled exceptions still reach the hook installed before Flock's."""
+        config = TelemetryConfig(service_name="test")
+        config.global_tracer = None
+        previous = Mock()
+        config._previous_excepthook = previous
+
+        exc_value = RuntimeError("boom")
+        exc_traceback = Mock()
+        config.log_exception_to_otel(RuntimeError, exc_value, exc_traceback)
+
+        previous.assert_called_once_with(RuntimeError, exc_value, exc_traceback)
 
     def test_log_exception_no_tracer(self):
         """Test log_exception_to_otel does nothing when no tracer is available."""

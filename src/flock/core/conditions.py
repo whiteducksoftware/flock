@@ -490,9 +490,12 @@ class WorkflowErrorCondition:
     Examples:
         >>> # Stop on first error
         >>> condition = WorkflowErrorCondition(correlation_id=cid)
+
+    A ``None`` correlation id is left for :func:`bind_correlation` to fill in
+    (for example by ``FlockApplication``); unbound it matches any error.
     """
 
-    correlation_id: str
+    correlation_id: str | None
 
     async def evaluate(self, orchestrator: Flock) -> bool:
         """Check if workflow has error artifacts.
@@ -503,6 +506,14 @@ class WorkflowErrorCondition:
         Returns:
             True if error_count > 0
         """
+        if self.correlation_id is None:
+            from flock.core.store import FilterConfig
+            from flock.models.system_artifacts import WorkflowError
+            from flock.registry import type_registry
+
+            filters = FilterConfig(type_names={type_registry.name_for(WorkflowError)})
+            _, total = await orchestrator.store.query_artifacts(filters, limit=1)
+            return bool(total > 0)
         status = await orchestrator.get_correlation_status(self.correlation_id)
         error_count: int = status.get("error_count", 0)
         return error_count > 0
@@ -683,14 +694,16 @@ class Until:
         )
 
     @staticmethod
-    def workflow_error(correlation_id: str) -> WorkflowErrorCondition:
+    def workflow_error(correlation_id: str | None = None) -> WorkflowErrorCondition:
         """Create condition that checks for workflow errors.
 
         Uses orchestrator.get_correlation_status() to check
         if any WorkflowError artifacts exist.
 
         Args:
-            correlation_id: Correlation ID to check for errors
+            correlation_id: Correlation ID to check for errors. Omit it inside a
+                ``FlockApplication`` completion policy; the workflow id is bound
+                automatically.
 
         Returns:
             WorkflowErrorCondition instance
@@ -699,6 +712,75 @@ class Until:
             >>> Until.workflow_error(cid)  # Stop on first error
         """
         return WorkflowErrorCondition(correlation_id=correlation_id)
+
+
+# ============================================================================
+# Correlation binding
+# ============================================================================
+
+
+def bind_correlation(  # noqa: PLR0911 - one return per condition kind
+    condition: RunCondition, correlation_id: str | None, *, strict: bool = False
+) -> RunCondition:
+    """Return ``condition`` with ``correlation_id`` bound to its store queries.
+
+    Composite conditions are rebuilt recursively; built-in artifact conditions
+    without a correlation id get ``correlation_id``. Custom conditions are
+    returned unchanged.
+
+    Args:
+        condition: Condition to bind.
+        correlation_id: Correlation (workflow) id to scope queries to.
+        strict: Reject conditions that cannot be scoped to one workflow:
+            ``IdleCondition`` (it only sees scheduler tasks) and conditions that
+            already name a different correlation id.
+
+    Raises:
+        ValueError: In strict mode, for an unscopable condition.
+    """
+    if correlation_id is None:
+        return condition
+
+    if isinstance(condition, AndCondition):
+        return AndCondition(
+            left=bind_correlation(condition.left, correlation_id, strict=strict),
+            right=bind_correlation(condition.right, correlation_id, strict=strict),
+        )
+    if isinstance(condition, OrCondition):
+        return OrCondition(
+            left=bind_correlation(condition.left, correlation_id, strict=strict),
+            right=bind_correlation(condition.right, correlation_id, strict=strict),
+        )
+    if isinstance(condition, NotCondition):
+        return NotCondition(
+            condition=bind_correlation(
+                condition.condition, correlation_id, strict=strict
+            )
+        )
+    if isinstance(condition, IdleCondition):
+        if strict:
+            raise ValueError(
+                "Until.idle() cannot scope to one workflow; completion already "
+                "waits for all of the workflow's work."
+            )
+        return condition
+    if isinstance(
+        condition,
+        (
+            ArtifactCountCondition,
+            ExistsCondition,
+            FieldPredicateCondition,
+            WorkflowErrorCondition,
+        ),
+    ):
+        if condition.correlation_id is None:
+            return replace(condition, correlation_id=correlation_id)
+        if strict and condition.correlation_id != correlation_id:
+            raise ValueError(
+                f"Condition {type(condition).__name__} is bound to another "
+                f"correlation id ({condition.correlation_id!r})."
+            )
+    return condition
 
 
 # ============================================================================
@@ -888,4 +970,5 @@ __all__ = [
     "Until",
     "When",
     "WorkflowErrorCondition",
+    "bind_correlation",
 ]

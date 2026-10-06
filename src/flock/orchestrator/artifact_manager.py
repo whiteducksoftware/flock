@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+import asyncio
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -11,6 +12,9 @@ from pydantic import BaseModel
 from flock.core.artifacts import Artifact
 from flock.core.visibility import PublicVisibility, Visibility
 from flock.registry import type_registry
+
+
+PublicationListener = Callable[[Artifact], None]
 
 
 if TYPE_CHECKING:
@@ -43,6 +47,58 @@ class ArtifactManager:
         self._store = store
         self._scheduler = scheduler
         self._logger = orchestrator._logger
+        self._listeners: list[PublicationListener] = []
+        # Held across store.publish + notify so listeners observe store order.
+        self._publish_lock = asyncio.Lock()
+        # Correlation id forced onto every persisted artifact (workflow scope).
+        self._scoped_correlation_id: str | None = None
+
+    def add_publication_listener(
+        self, listener: PublicationListener
+    ) -> Callable[[], None]:
+        """Observe every artifact right after it was persisted.
+
+        Listeners run synchronously after ``store.publish()`` succeeds and
+        before component hooks and scheduling, so they see exactly what the
+        store holds, in store order. They must not block; exceptions are logged
+        and never propagate into the publishing task.
+
+        Returns:
+            Callable that unregisters the listener.
+        """
+        self._listeners.append(listener)
+
+        def _remove() -> None:
+            if listener in self._listeners:
+                self._listeners.remove(listener)
+
+        return _remove
+
+    def set_workflow_scope(self, correlation_id: str | None) -> None:
+        """Stamp ``correlation_id`` on every artifact persisted from now on."""
+        self._scoped_correlation_id = correlation_id
+
+    async def _persist(self, artifact: Artifact) -> None:
+        scoped = self._scoped_correlation_id
+        if scoped is not None and artifact.correlation_id != scoped:
+            if artifact.correlation_id is not None:
+                self._logger.debug(
+                    f"Workflow scope: correlation_id {artifact.correlation_id} "
+                    f"replaced by {scoped} for artifact {artifact.id}"
+                )
+            artifact.correlation_id = scoped
+
+        if not self._listeners:
+            await self._store.publish(artifact)
+            return
+
+        async with self._publish_lock:
+            await self._store.publish(artifact)
+            for listener in list(self._listeners):
+                try:
+                    listener(artifact)
+                except Exception:
+                    self._logger.exception("Publication listener failed")
 
     async def publish(
         self,
@@ -179,7 +235,7 @@ class ArtifactManager:
         Args:
             artifact: Artifact to publish
         """
-        await self._store.publish(artifact)
+        await self._persist(artifact)
         self._orchestrator.metrics["artifacts_published"] += 1
         await self._scheduler.schedule_artifact(artifact)
 
@@ -189,8 +245,8 @@ class ArtifactManager:
         Args:
             artifact: Artifact to publish
         """
-        await self._store.publish(artifact)
+        await self._persist(artifact)
         self._orchestrator.metrics["artifacts_published"] += 1
 
 
-__all__ = ["ArtifactManager"]
+__all__ = ["ArtifactManager", "PublicationListener"]

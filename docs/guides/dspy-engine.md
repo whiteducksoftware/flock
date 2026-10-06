@@ -1250,6 +1250,25 @@ These keys are reserved and must stay out of `lm_kwargs`: `model`, `temperature`
 
 When serializing an engine with `model_dump()` or `model_dump_json()`, known credential fields such as `api_key`, `api_secret`, `token`, `password`, and `authorization` become `<redacted>`, including in nested mappings, sequences, and Pydantic models. Matching uses a fixed set of exact field names, ignoring case. Callable token providers remain descriptive labels such as `<callable:get_bearer_token>`. The original `lm_kwargs` values are preserved for calls to `dspy.LM(...)`.
 
+### Output-token limit for reasoning models
+
+Reasoning models (o-series, GPT-5.x and similar) reject `max_tokens` and expect
+`max_completion_tokens`. DSPy and LiteLLM only translate automatically when the
+model *name* identifies such a model - an Azure deployment called
+`azure/prod-reasoning` is not recognised. Set the limit explicitly instead:
+
+```python
+engine = DSPyEngine(
+    model="azure/prod-reasoning",
+    max_completion_tokens=8000,   # sent instead of max_tokens, never both
+    lm_kwargs={"azure_ad_token_provider": token_provider},
+)
+```
+
+`max_tokens` and `max_completion_tokens` are mutually exclusive on one engine.
+LiteLLM's `azure/o_series/<deployment>` and `azure/gpt5_series/<deployment>`
+model prefixes are an alternative way to mark a reasoning deployment.
+
 ### Azure OpenAI with API keys
 
 The API-key path remains supported. Set the usual Azure environment variables and either let `DSPyEngine` use `DEFAULT_MODEL`, or pass `model="azure/..."` explicitly:
