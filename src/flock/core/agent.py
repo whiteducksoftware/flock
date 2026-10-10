@@ -849,10 +849,14 @@ class AgentBuilder:
                 "Flock(decision_model=...) or set DEFAULT_DECISION_MODEL."
             )
 
+        provider = resolve_provider(model)
+        budget = self._orchestrator._decision_budget(provider.label)
+        if budget is not None:
+            provider.budget = budget
         self._agent.engines.append(
             DecisionEngine(
                 questions=list(questions),
-                provider=resolve_provider(model),
+                provider=provider,
                 threshold=threshold,
                 instructions=instructions,
                 visibility=visibility,
