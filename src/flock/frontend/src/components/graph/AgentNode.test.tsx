@@ -94,4 +94,56 @@ describe('AgentNode', () => {
     expect(screen.getByText(/↑ 5/)).toBeInTheDocument();
     expect(screen.getByText(/↓ 3/)).toBeInTheDocument();
   });
+
+  it('should render a decision agent with its options and counts', () => {
+    const data: AgentNodeData = {
+      name: 'triage',
+      status: 'idle',
+      subscriptions: ['Ticket'],
+      outputTypes: ['Decision[__main__.Route]'],
+      sentByType: { 'Decision[__main__.Route]': 60 },
+      sentCount: 60,
+      recvCount: 60,
+      decision: {
+        question: 'Route',
+        instructions: 'Which team should handle this ticket?',
+        options: ['billing', 'tech'],
+        threshold: 0.8,
+        model: 'local/clef-flash',
+        counts: { billing: 41, tech: 17, UNSURE: 2 },
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText('◆ Route')).toBeInTheDocument();
+    expect(screen.getByText('billing')).toBeInTheDocument();
+    expect(screen.getByText('41')).toBeInTheDocument();
+    expect(screen.getByText('UNSURE')).toBeInTheDocument();
+    expect(screen.getByText(/local\/clef-flash/)).toBeInTheDocument();
+    expect(screen.queryByText('Decision[__main__.Route]')).not.toBeInTheDocument();
+  });
+
+  it('should label choice subscriptions with their handle', () => {
+    const data: AgentNodeData = {
+      name: 'billing',
+      status: 'idle',
+      subscriptions: ['Decision[__main__.Route]'],
+      receivedByType: { 'Decision[__main__.Route]': 41 },
+      typeLabels: { 'Decision[__main__.Route]': '◆ Route.billing' },
+      sentCount: 41,
+      recvCount: 41,
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText('◆ Route.billing')).toBeInTheDocument();
+    expect(screen.queryByText('Decision[__main__.Route]')).not.toBeInTheDocument();
+  });
 });

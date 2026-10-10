@@ -168,9 +168,15 @@ class DashboardEventCollector(AgentComponent):
         # Record start time for duration calculation
         self._run_start_times[ctx.task_id] = datetime.now(UTC).timestamp()
 
-        # Extract consumed types and artifact IDs
-        consumed_types = list({artifact.type for artifact in inputs})
-        consumed_artifacts = [str(artifact.id) for artifact in inputs]
+        # Extract consumed types and artifact IDs. Choice subscribers run on a
+        # decision's subject; the graph records the decision that triggered them.
+        decisions = ctx.state.get("__decisions__") if ctx else None
+        if decisions:
+            consumed_types = list({decision["type"] for decision in decisions})
+            consumed_artifacts = [decision["id"] for decision in decisions]
+        else:
+            consumed_types = list({artifact.type for artifact in inputs})
+            consumed_artifacts = [str(artifact.id) for artifact in inputs]
 
         # Extract produced types from agent outputs
         produced_types = [output.spec.type_name for output in agent.outputs]

@@ -26,7 +26,11 @@ def is_decision(artifact: Artifact) -> bool:
 def decision_meta(artifacts: list[Artifact]) -> list[dict[str, Any]]:
     """Decision payloads among ``artifacts``, for ``Context.decisions``."""
     return [
-        {"type": artifact.type, "payload": dict(artifact.payload)}
+        {
+            "id": str(artifact.id),
+            "type": artifact.type,
+            "payload": dict(artifact.payload),
+        }
         for artifact in artifacts
         if is_decision(artifact)
     ]
