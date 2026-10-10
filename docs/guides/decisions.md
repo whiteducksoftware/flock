@@ -476,9 +476,28 @@ llama serve -m Clef-Flash-Q8_0.gguf -b 4096 -ub 4096 -ngl 99
 
 The model evaluates the whole prompt in one batch, so `-b` and `-ub` must cover the longest request.
 
+### Rate limits
+
+Hosted decision models limit the requests per period. The Microsoft-Decision-1 deployment used by the examples, for example, allows 100 requests per minute. Two mechanisms keep deciders within such limits:
+
+- **Retries.** A request answered with HTTP 429 (rate limited) or 503 (overloaded) is sent again, up to 7 times.
+    - The response's advice is the shortest wait: `retry-after-ms`, `Retry-After` or `x-ratelimit-reset-requests`, which hold seconds on Azure and durations such as `6m0s` on OpenAI.
+    - On top comes a backoff that doubles from 0.5–1 s, with jitter. Azure advises the time until its next free request, often under half a second. A burst of rejected requests that all came back after exactly that would be rejected together again.
+    - No single wait exceeds 60 s. The shortest waits add up to just over a minute, one full rate-limit window.
+    - Each retry logs a warning, and `max_retries=` on the provider classes changes the count.
+- **A request budget.** `decision_rate_limit` spaces out requests before the limit is reached:
+
+    ```python
+    flock = Flock(decision_model="azure/decision-1", decision_rate_limit="100/min")
+    ```
+
+    Each decision model gets at most this many request starts per period (`"N/s"`, `"N/min"` or `"N/h"`). The budget is shared by every decider of the flock that uses the model, whichever way the model was set. Requests over the budget wait for a free slot in arrival order, and retries count against it. Without `decision_rate_limit`, requests go out at once.
+
+The budget covers one flock. When other clients share the deployment, the retries absorb their share of the limit. Waiting time is part of a decision's `latency_ms`.
+
 ### Errors
 
-Provider failures (unreachable server, HTTP errors, answers with unknown options) fail the decider's execution and publish a `WorkflowError`. Error messages name the provider and the HTTP status only, never the response body, because a body can echo the decided data.
+Provider failures (unreachable server, HTTP errors, answers with unknown options) fail the decider's execution and publish a `WorkflowError`, as does an HTTP 429 or 503 that persists through all retries. Error messages name the provider and the HTTP status only, never the response body, because a body can echo the decided data.
 
 ## Testing
 

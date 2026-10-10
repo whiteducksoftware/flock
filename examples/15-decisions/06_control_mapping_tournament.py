@@ -38,7 +38,9 @@ needs.
 
 Hosted decision models have rate limits: the default Microsoft-Decision-1
 deployment allows 100 requests per minute, and this example sends eight per
-sentence. Decisions that hit the limit fail with HTTP 429.
+sentence. `decision_rate_limit="100/min"` keeps all deciders of the flock
+within that budget together. Requests that still get HTTP 429, because other
+clients share the deployment, are retried after the wait the server asks for.
 
 The evidence sentences and their controls come from
 `data/compliance_documents.json` (see `05_compliance_checklist.py`). The
@@ -52,7 +54,8 @@ deciders only see the sentence.
   decisions are in `ctx.decisions`
 - `.decides(Control, options=passes)`: a final question about a subset of the
   catalog, chosen at runtime
-- `Flock(decision_model=...)`: one decision model for every decider
+- `Flock(decision_model=..., decision_rate_limit="100/min")`: one decision
+  model and one request budget for every decider
 
 🎛️  CONFIGURATION:
 - USE_DASHBOARD = True serves the dashboard and publishes one sentence every
@@ -79,6 +82,7 @@ from flock.registry import flock_type, type_registry
 USE_DASHBOARD = False
 DECISION_MODEL = os.getenv("DEFAULT_DECISION_MODEL", "azure/decision-1")
 SENTENCES = 10  # 8 requests per sentence: flat 1, tournament 2, network 4 + 1
+RATE_LIMIT = "100/min"  # the default Microsoft-Decision-1 deployment's limit
 TOURNAMENT = Tournament(group_size=20, keep=3)
 SCREEN_SIZE = 25
 SCREEN_THRESHOLD = 0.5
@@ -130,14 +134,16 @@ def sample() -> list[dict]:
     return evidence[::step][:SENTENCES]
 
 
-flock = Flock(decision_model=DECISION_MODEL, no_output=True)
+flock = Flock(
+    decision_model=DECISION_MODEL, decision_rate_limit=RATE_LIMIT, no_output=True
+)
 
 flat = (
     flock.agent("flat")
     .description("One choice question with all 100 controls")
     .consumes(EvidenceSentence)
     .decides(Control)
-    .max_concurrency(1)  # one sentence at a time keeps hosted rate limits happy
+    .max_concurrency(1)  # one sentence at a time per node keeps latencies comparable
 )
 tournament = (
     flock.agent("tournament")
