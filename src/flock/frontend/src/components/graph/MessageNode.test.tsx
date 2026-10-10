@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import MessageNode from './MessageNode';
 import { NodeProps } from '@xyflow/react';
@@ -362,6 +362,48 @@ describe('MessageNode', () => {
     expect(options).toHaveLength(8);
     expect(options[0]?.dataset.option).toBe('c_42');
     expect(screen.getByText('+92 more options, each below 1%')).toBeInTheDocument();
+  });
+
+  it('should open the tournament bracket from the decision card', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Control',
+              kind: 'choice',
+              choice: 'c_42',
+              bestGuess: 'c_42',
+              probabilities: { c_42: 0.8, c_07: 0.2 },
+              rounds: [
+                {
+                  candidates: 40,
+                  groups: 2,
+                  group_size: 20,
+                  refused_groups: 0,
+                  survivors: ['c_07', 'c_42'],
+                  group_results: [
+                    { size: 20, refused: false, top: [['c_07', 0.9], ['c_01', 0.1]] },
+                    { size: 20, refused: false, top: [['c_42', 0.8], ['c_33', 0.1]] },
+                  ],
+                },
+              ],
+              confidence: 0.8,
+              threshold: null,
+              model: 'fake',
+              latencyMs: 400,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /bracket/i }));
+    expect(screen.getByRole('dialog', { name: /tournament/i })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 

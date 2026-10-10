@@ -1,4 +1,5 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
+import { TournamentBracket } from './TournamentBracket';
 
 /**
  * Decision models: displays for decision agents (Agent View) and decision
@@ -39,11 +40,19 @@ export interface DeciderInfo {
   tournament?: { groupSize: number; keep: number };
 }
 
+export interface TournamentGroupResult {
+  size: number;
+  refused: boolean;
+  top: [string, number][]; // survivors first, then the strongest eliminated options
+}
+
 export interface TournamentRound {
   candidates: number;
   groups: number;
+  group_size?: number;
   refused_groups?: number; // groups where no option fits (the model refused)
   survivors: string[];
+  group_results?: TournamentGroupResult[];
 }
 
 export interface ImageSummary {
@@ -748,7 +757,7 @@ const NO_CELL = '#d6d3d1';
 const CELL_COLOR: Record<string, string> = { yes: DECISION_COLOR, no: NO_CELL, UNSURE: AMBER };
 
 /** Tournament: the rounds that narrowed the options down to the final question. */
-const TournamentRounds = memo(({ rounds }: { rounds: TournamentRound[] }) => (
+const TournamentRounds = memo(({ rounds, onOpen }: { rounds: TournamentRound[]; onOpen?: () => void }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
     {rounds.map((round, index) => (
       <span key={index} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -765,6 +774,31 @@ const TournamentRounds = memo(({ rounds }: { rounds: TournamentRound[] }) => (
       </span>
     ))}
     <span style={{ color: VIOLET_TEXT, fontWeight: 700 }}>final</span>
+    {onOpen && (
+      <button
+        type="button"
+        className="nodrag nopan"
+        aria-label="Open tournament bracket"
+        title="Show the whole bracket"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen();
+        }}
+        style={{
+          marginLeft: '4px',
+          padding: '1px 7px',
+          borderRadius: '999px',
+          border: `1px solid ${DECISION_COLOR}`,
+          background: 'white',
+          color: VIOLET_TEXT,
+          fontSize: '10px',
+          fontWeight: 700,
+          cursor: 'pointer',
+        }}
+      >
+        ⤢ bracket
+      </button>
+    )}
   </div>
 ));
 TournamentRounds.displayName = 'TournamentRounds';
@@ -827,7 +861,10 @@ ChecklistGrid.displayName = 'ChecklistGrid';
 
 /** One decision: its answer drawn by question kind, with model and threshold. */
 export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
+  const [bracketOpen, setBracketOpen] = useState(false);
   const kind = decision.kind ?? 'choice';
+  const rounds = decision.rounds ?? [];
+  const hasBracket = rounds.some((round) => round.group_results && round.group_results.length > 0);
   const unsure = decision.choice === UNSURE;
   const answer = decision.refused
     ? 'refused'
@@ -857,7 +894,18 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
         <ScaleBars decision={decision} />
       ) : (
         <>
-          {decision.rounds && decision.rounds.length > 0 && <TournamentRounds rounds={decision.rounds} />}
+          {rounds.length > 0 && (
+            <TournamentRounds rounds={rounds} onOpen={hasBracket ? () => setBracketOpen(true) : undefined} />
+          )}
+          {bracketOpen && (
+            <TournamentBracket
+              question={decision.question}
+              rounds={rounds}
+              final={decision.probabilities}
+              champion={decision.choice === UNSURE ? decision.bestGuess : decision.choice}
+              onClose={() => setBracketOpen(false)}
+            />
+          )}
           <ChoiceBars decision={decision} />
         </>
       )}

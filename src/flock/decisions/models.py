@@ -49,7 +49,7 @@ class Decision(BaseModel):
     rounds: list[dict[str, Any]] = Field(
         default_factory=list,
         description="Tournament rounds before the final question: candidates, "
-        "groups and survivors per round",
+        "groups, survivors and the top candidates of every group per round",
     )
     model: str = Field(description="Decision model that answered")
     latency_ms: float | None = Field(
