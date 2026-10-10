@@ -471,3 +471,171 @@ async def test_websocket_only_fallback_to_standard_execution():
 
     finally:
         Agent._websocket_broadcast_global = original_broadcast
+
+
+def _cli_executor(monkeypatch):
+    """A CLI streaming executor whose rich Live display is a recorder."""
+    from unittest.mock import MagicMock
+
+    live = MagicMock()
+    live.__enter__ = MagicMock(return_value=live)
+    live.__exit__ = MagicMock(return_value=None)
+    monkeypatch.setattr("rich.console.Console", lambda: MagicMock())
+    monkeypatch.setattr("rich.live.Live", lambda *args, **kwargs: live)
+    executor = DSPyStreamingExecutor(
+        status_output_field="_status",
+        stream_vertical_overflow="crop",
+        theme="afterglow",
+        no_output=False,
+    )
+    return executor, live
+
+
+async def _run_failing(executor, error: BaseException):
+    from flock.core import Agent
+
+    async def failing_stream():
+        yield FakeDSPyModule.streaming.StatusMessage("Calling the model...")
+        raise error
+
+    original_broadcast = Agent._websocket_broadcast_global
+    Agent._websocket_broadcast_global = None
+    try:
+        await executor.execute_streaming(
+            dspy_mod=FakeDSPyModule,
+            program=lambda **kwargs: failing_stream(),
+            signature=FakeSignature(),
+            description="Make a pizza",
+            payload={"description": "Make a pizza"},
+            agent=SimpleNamespace(name="pizza_master", outputs=[]),
+            ctx=SimpleNamespace(correlation_id=str(uuid4()), task_id="t"),
+            pre_generated_artifact_id=uuid4(),
+            output_group=None,
+        )
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+
+
+@pytest.mark.asyncio
+async def test_a_single_wrapped_failure_surfaces_as_itself(monkeypatch):
+    """DSPy's streamify wraps a failure in an anyio TaskGroup's ExceptionGroup;
+    the real error must reach the log and the WorkflowError."""
+    executor, _live = _cli_executor(monkeypatch)
+    cause = ValueError("Error code: 400 - Use 'max_completion_tokens' instead.")
+    wrapped = ExceptionGroup("unhandled errors in a TaskGroup", [cause])
+
+    with pytest.raises(ValueError, match="max_completion_tokens") as excinfo:
+        await _run_failing(executor, wrapped)
+
+    assert excinfo.value is cause
+
+
+@pytest.mark.asyncio
+async def test_several_failures_stay_a_group(monkeypatch):
+    executor, _live = _cli_executor(monkeypatch)
+    group = ExceptionGroup("two failures", [ValueError("a"), KeyError("b")])
+
+    with pytest.raises(ExceptionGroup):
+        await _run_failing(executor, group)
+
+
+@pytest.mark.asyncio
+async def test_a_failure_replaces_the_placeholder_result_on_the_console(monkeypatch):
+    """The Live display keeps its last frame; it must show the error, not an
+    empty result with created_at 'streaming...'."""
+    executor, live = _cli_executor(monkeypatch)
+    cause = ValueError("Error code: 400 - Use 'max_completion_tokens' instead.")
+
+    with pytest.raises(ValueError):
+        await _run_failing(executor, ExceptionGroup("tg", [cause]))
+
+    last_frame = live.update.call_args.args[0]
+    text = str(getattr(last_frame, "renderable", last_frame))
+    assert "pizza_master" in str(getattr(last_frame, "title", "")) + text
+    assert "max_completion_tokens" in text
+    assert "streaming..." not in text
+
+
+async def _run_failing_websocket_only(error: BaseException):
+    """Drive the dashboard path (WebSocket only) with a stream that fails."""
+    from flock.core import Agent
+
+    async def failing_stream():
+        yield FakeDSPyModule.streaming.StatusMessage("Calling the model...")
+        raise error
+
+    async def broadcast(event: StreamingOutputEvent) -> None:
+        return None
+
+    executor = DSPyStreamingExecutor(
+        status_output_field="_status",
+        stream_vertical_overflow="crop",
+        theme="afterglow",
+        no_output=True,
+    )
+    original_broadcast = Agent._websocket_broadcast_global
+    Agent._websocket_broadcast_global = broadcast
+    try:
+        await executor.execute_streaming_websocket_only(
+            dspy_mod=FakeDSPyModule,
+            program=lambda **kwargs: failing_stream(),
+            signature=FakeSignature(),
+            description="Make a pizza",
+            payload={"description": "Make a pizza"},
+            agent=SimpleNamespace(name="pizza_master", outputs=[]),
+            ctx=SimpleNamespace(correlation_id=str(uuid4()), task_id="t"),
+            pre_generated_artifact_id=uuid4(),
+            output_group=None,
+        )
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+
+
+@pytest.mark.asyncio
+async def test_dashboard_streaming_unwraps_a_single_failure():
+    cause = ValueError("Error code: 400 - Use 'max_completion_tokens' instead.")
+
+    with pytest.raises(ValueError, match="max_completion_tokens") as excinfo:
+        await _run_failing_websocket_only(ExceptionGroup("tg", [cause]))
+
+    assert excinfo.value is cause
+
+
+@pytest.mark.asyncio
+async def test_dashboard_streaming_keeps_several_failures_a_group():
+    with pytest.raises(ExceptionGroup):
+        await _run_failing_websocket_only(
+            ExceptionGroup("two failures", [ValueError("a"), KeyError("b")])
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_stream_without_a_prediction_shows_the_error(monkeypatch):
+    """The 'no final prediction' failure must also replace the placeholder."""
+    from flock.core import Agent
+
+    executor, live = _cli_executor(monkeypatch)
+
+    async def stream_without_prediction():
+        yield FakeDSPyModule.streaming.StatusMessage("Calling the model...")
+
+    original_broadcast = Agent._websocket_broadcast_global
+    Agent._websocket_broadcast_global = None
+    try:
+        with pytest.raises(RuntimeError, match="final prediction"):
+            await executor.execute_streaming(
+                dspy_mod=FakeDSPyModule,
+                program=lambda **kwargs: stream_without_prediction(),
+                signature=FakeSignature(),
+                description="Make a pizza",
+                payload={"description": "Make a pizza"},
+                agent=SimpleNamespace(name="pizza_master", outputs=[]),
+                ctx=SimpleNamespace(correlation_id=str(uuid4()), task_id="t"),
+                pre_generated_artifact_id=uuid4(),
+                output_group=None,
+            )
+    finally:
+        Agent._websocket_broadcast_global = original_broadcast
+
+    last_frame = live.update.call_args.args[0]
+    assert "final prediction" in str(getattr(last_frame, "renderable", last_frame))
