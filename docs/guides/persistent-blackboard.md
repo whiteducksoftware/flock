@@ -96,7 +96,7 @@ Enable the dashboard with `await orchestrator.serve(dashboard=True)` or run `exa
 - **Retention policy** — Use `sqlite-maintenance db.sqlite --delete-before <ISO-8601 timestamp>` to truncate old artifacts. Pair with `--vacuum` to reclaim disk space.
 - **Migrations** — `ensure_schema()` is idempotent and applies schema upgrades automatically. Call it during startup before processing any artifacts.
 - **Backups** — SQLite files can be copied or snapshotted; do this while the orchestrator is idle or after calling `await store.close()`.
-- **Closing** — `await flock.shutdown()` closes the SQLite store (it reconnects if the instance is used again), and so does `await store.close()`. A script that does neither still exits: the connection thread ends with the process, and WAL mode keeps the database consistent.
+- **Closing** — `await flock.shutdown()` closes the SQLite store (it reconnects if the instance is used again), and so does `await store.close()`. If an agent task is still running after the shutdown grace period (`cancel_grace`), `shutdown()` leaves the store open so the task cannot reopen it; call `await store.close()` once it has ended. A script that does neither still exits: the connection thread ends with the process, and WAL mode keeps the database consistent.
 
 Future releases will add configurable retention windows and additional storage backends, but the contract exposed by `BlackboardStore` already supports them.
 

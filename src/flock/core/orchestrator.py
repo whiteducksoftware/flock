@@ -952,7 +952,9 @@ class Flock(metaclass=AutoTracedMeta):
         ``cancel_grace`` seconds for them, and only then closes background tasks
         and MCP connections - so no agent keeps calling models or tools, writes
         into a torn-down store, or reopens MCP sessions after cleanup. A SQLite
-        store is closed last; it reconnects if the instance is used again.
+        store is closed last and reconnects if the instance is used again; it
+        stays open if an agent task outlived ``cancel_grace``, because that
+        task may still publish.
 
         Args:
             include_components: Whether to invoke component shutdown hooks and
