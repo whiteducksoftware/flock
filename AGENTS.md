@@ -43,7 +43,7 @@ A blackboard architecture framework where specialized AI agents collaborate thro
 - **Visibility:** Built-in access control (Public/Private/Tenant/Label-based/Time-based)
 - **Fan-Out Publishing:** Produce multiple artifacts from single agent execution with filtering/validation
 - **Semantic Matching:** AI-powered artifact routing based on meaning, not just keywords
-- **Decision Models:** `Choice`, `YesNo`, `Scale` and `Checklist` questions answered by a decision model (calibrated probabilities, no text), several per request; agents subscribe to an answer (`.consumes(Route.billing)`, `.consumes(Urgent.yes)`, `.consumes(Anger.angry.or_higher)`) and receive the decided artifact ⭐ **NEW in 0.5.720**
+- **Decision Models:** `Choice`, `YesNo`, `Scale` and `Checklist` questions answered by a decision model (calibrated probabilities, no text), several per request; agents subscribe to an answer (`.consumes(Route.billing)`, `.consumes(Urgent.yes)`, `.consumes(Anger.angry.or_higher)`) and receive the decided artifact ⭐ **NEW in 0.5.72x**
 - **Components:** Three levels of extensibility:
   - **Orchestrator Components:** Global lifecycle hooks (monitoring, metrics, coordination, timer scheduling)
   - **Agent Components:** Per-agent behavior (quality gates, retry logic, validation)
