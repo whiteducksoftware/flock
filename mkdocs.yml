@@ -225,6 +225,7 @@ nav:
       - Local Models (Transformers): guides/local-models.md
     - Subscriptions:
       - Semantic Subscriptions: guides/semantic-subscriptions.md
+      - Decision Models: guides/decisions.md
       - Predicates: guides/predicates.md
       - Join Operations: guides/join-operations.md
       - Batch Processing: guides/batch-processing.md

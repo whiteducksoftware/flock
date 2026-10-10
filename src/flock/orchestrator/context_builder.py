@@ -148,12 +148,15 @@ class ContextBuilder:
 
         # Step 3: Evaluate context using provider (orchestrator controls READ capability)
         # Engines will receive pre-filtered artifacts via ctx.artifacts
+        from flock.decisions.routing import decision_meta, subject_ids
+
         request = ContextRequest(
             agent=agent,
             correlation_id=resolved_correlation_id,
             store=self._store,
             agent_identity=agent.identity,
-            exclude_ids={a.id for a in artifacts},  # Exclude input artifacts
+            # Exclude input artifacts and the subjects of input decisions
+            exclude_ids={a.id for a in artifacts} | subject_ids(artifacts),
         )
         context_artifacts = await provider(request)
         if self._scoped_correlation_id is not None:
@@ -187,6 +190,9 @@ class ContextBuilder:
         state: dict[str, Any] = {}
         if timer_meta is not None:
             state["__timer__"] = timer_meta
+        decisions = decision_meta(artifacts)
+        if decisions:
+            state["__decisions__"] = decisions
 
         ctx = Context(
             artifacts=context_artifacts,  # Pre-filtered conversation context

@@ -397,6 +397,27 @@ class Context(BaseModel):
             return fire_time_data
         return None
 
+    @property
+    def decisions(self) -> list[BaseModel]:
+        """Decisions that triggered this execution (choice subscriptions).
+
+        Example:
+            >>> if ctx.decision and ctx.decision.confidence is not None:
+            ...     print(f"routed to {ctx.decision.choice}")
+        """
+        meta = self.state.get("__decisions__") if isinstance(self.state, dict) else None
+        if not meta:
+            return []
+        from flock.registry import type_registry
+
+        return [type_registry.resolve(item["type"])(**item["payload"]) for item in meta]
+
+    @property
+    def decision(self) -> BaseModel | None:
+        """The decision that triggered this execution, if any."""
+        decisions = self.decisions
+        return decisions[0] if decisions else None
+
 
 __all__ = [
     "Context",

@@ -178,9 +178,11 @@ class OutputProcessor:
                     "artifact_id": artifact_from_engine.id,  # Preserve engine's ID
                 }
 
-                # Determine visibility (static or dynamic)
+                # Determine visibility (engine-set, static or dynamic)
                 visibility = output_decl.default_visibility
-                if callable(visibility):
+                if getattr(output_decl, "inherit_visibility", False):
+                    visibility = artifact_from_engine.visibility
+                elif callable(visibility):
                     # Dynamic visibility based on artifact content
                     # Reconstruct Pydantic model from payload dict
                     model_instance = model_cls(**artifact_from_engine.payload)
