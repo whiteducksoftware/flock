@@ -21,9 +21,28 @@ search:
 
 ### ⚠️ Changes
 
+- **PyTorch is no longer a dependency.** Semantic subscriptions (`flock-core[semantic]`) compute the same `all-MiniLM-L6-v2` embeddings with [fastembed](https://github.com/qdrant/fastembed) on ONNX Runtime instead of `sentence-transformers`. Similarity scores are identical (450 query/text pairs: largest difference below 0.00001, no decision changed at thresholds 0.3-0.7), so `semantic_match` thresholds keep their meaning. The model (~90 MB) is downloaded on first use to `~/.cache/flock/fastembed` (override with `FASTEMBED_CACHE_PATH`).
+
+    | Fresh install from `uv.lock`, including downloads | Before | Now |
+    |---|---|---|
+    | `flock-core[semantic]`: environment size | 7.48 GB (140 packages) | 404 MB (117 packages) |
+    | `flock-core[semantic]`: install time | 302 s | 10 s |
+    | The `semantic` extra on its own | +7.16 GB, +295 s | +86 MB, +2.5 s |
+    | Full development environment (all extras and groups) | 8.03 GB, 310 s | 702 MB, 16 s |
+
+    Measured in a fresh `ghcr.io/astral-sh/uv:python3.12-bookworm` container per run (uv 0.9.30, empty cache, same machine and network, one run each). A base install without extras is unchanged (~316 MB, 8 s).
+
+- **Removed: the in-process Hugging Face provider** (`Flock("transformers/<model>")`, extra `flock-core[transformers]`). Run local models in an OpenAI-compatible server (Ollama, llama.cpp, vLLM, LM Studio) and use its model string, e.g. `ollama_chat/qwen3:4b`. See [Local Models](../guides/local-models.md).
+- Starlette 1.3 with FastAPI 0.143, MCP Python SDK 1.28.
+- `requirements.txt` was removed; dependencies are managed with uv (`pyproject.toml`, `uv.lock`).
 - OpenTelemetry now requires `>=1.43` (tested with 1.44; required by the Foundry SDK). The legacy `opentelemetry-exporter-jaeger` packages were removed; `TelemetryConfig(jaeger_endpoint=...)` raises - export to Jaeger via OTLP.
 - `Flock.shutdown()` now cancels in-flight agent tasks (bounded by `cancel_grace`) before closing MCP connections. No new agent work is scheduled during shutdown; if a task outlives the grace period, the instance stays closed for scheduling.
 - Scheduled-agent timers start with the first `publish()` as well as with `run_until*()`.
+
+### 🔒 Security
+
+- Patched vulnerable dependencies: anyio, PyJWT, cryptography, urllib3, python-multipart, Starlette, MCP SDK, tornado, gitpython, fsspec, json-repair, mistune, orjson, pymdown-extensions, soupsieve, virtualenv, bleach, idna, multidict, oauthlib, requests, setuptools, pygments, Jupyter and mkdocs-material dev tooling, and the dashboard's dev tooling (Vitest 4, Vite 7.3.7). Removing PyTorch, Transformers and sentence-transformers closes their advisories as well.
+- How dependency alerts are handled, including LiteLLM advisories that only affect the LiteLLM proxy server, is documented in [CONTRIBUTING.md](https://github.com/whiteducksoftware/flock/blob/main/CONTRIBUTING.md).
 
 ### 🐛 Fixes
 
