@@ -7,8 +7,10 @@ and aggregates what’s on the blackboard into AggregatedData.
 
 Key concepts
 - schedule(every=...) to run aggregation periodically
-- Processor uses consumes(..., mode="direct") so it only triggers on its timer
-- Context contains previously published DataPoint artifacts
+- Processor is triggered by its timer alone
+- with_context(FilteredContextProvider(...)) gives it the DataPoint artifacts
+  published so far as context
+- publishes(..., fan_out=(1, 10)) lets it publish one AggregatedData per sensor
 """
 
 import asyncio
@@ -17,7 +19,9 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.registry import flock_type
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+from flock.registry import flock_type, type_registry
 
 
 USE_DASHBOARD = False
@@ -50,8 +54,9 @@ flock = Flock()
 sensor_simulator = (
     flock.agent("sensor_simulator")
     .description(
-        "Simulate temperature, humidity and pressure sensors. Produce realistic "
-        "values, units and timestamps across several sensor_ids."
+        "Simulate one reading from one of three sensors: temp-1 (celsius), "
+        "humidity-1 (percent) or pressure-1 (hPa). Pick the sensor at random and "
+        "produce a realistic value and timestamp."
     )
     .schedule(every=timedelta(seconds=5))
     .publishes(DataPoint)
@@ -69,8 +74,12 @@ batch_processor = (
         "publish one AggregatedData per sensor."
     )
     .schedule(every=batch_interval)
-    .consumes(DataPoint, mode="direct")
-    .publishes(AggregatedData)
+    .with_context(
+        FilteredContextProvider(
+            FilterConfig(type_names={type_registry.name_for(DataPoint)})
+        )
+    )
+    .publishes(AggregatedData, fan_out=(1, 10))  # one per sensor
 )
 
 

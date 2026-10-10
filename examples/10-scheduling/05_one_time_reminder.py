@@ -5,18 +5,22 @@ Demonstrates datetime-based scheduling that fires exactly once at a specific
 time — perfect for reminders and delayed tasks.
 
 Key concepts
-- schedule(at=datetime(...)) for one-time execution
+- schedule(at=datetime(...)) for one-time execution; a datetime without a
+  timezone is read as UTC, so use timezone-aware datetimes
 - max_repeats=1 is implicit with datetime schedules
+- with_context(...) gives the reminder the published meeting as context
 - Use a quick demo time (now + 30s) so you can observe it locally
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.registry import flock_type
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+from flock.registry import flock_type, type_registry
 
 
 USE_DASHBOARD = False
@@ -45,13 +49,13 @@ flock = Flock()
 # Demo: schedule reminder for 30 seconds from now
 DEMO_MODE = True
 reminder_time = (
-    datetime.now() + timedelta(seconds=30)
+    datetime.now(UTC) + timedelta(seconds=30)
     if DEMO_MODE
-    else datetime(2025, 11, 1, 8, 55)
+    else datetime(2026, 11, 2, 8, 55, tzinfo=UTC)
 )
 
-print(f"\n[Setup] Current time:  {datetime.now().strftime('%H:%M:%S')}")
-print(f"[Setup] Reminder for: {reminder_time.strftime('%H:%M:%S')}\n")
+print(f"\n[Setup] Current time:  {datetime.now(UTC).strftime('%H:%M:%S')} UTC")
+print(f"[Setup] Reminder for: {reminder_time.strftime('%H:%M:%S')} UTC\n")
 
 # Publisher runs once to create a meeting
 meeting_publisher = (
@@ -76,11 +80,15 @@ def print_reminder(rem: Reminder) -> None:
 meeting_reminder = (
     flock.agent("meeting_reminder")
     .description(
-        f"At {reminder_time.strftime('%H:%M:%S')}, send a friendly reminder for the "
+        f"At {reminder_time.strftime('%H:%M:%S')} UTC, send a friendly reminder for the "
         "next meeting in the context. Include minutes-before and a helpful message."
     )
     .schedule(at=reminder_time)
-    .consumes(MeetingSchedule, mode="direct")
+    .with_context(
+        FilteredContextProvider(
+            FilterConfig(type_names={type_registry.name_for(MeetingSchedule)})
+        )
+    )
     .publishes(Reminder)
     .calls(print_reminder)
 )

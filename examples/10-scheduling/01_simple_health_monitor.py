@@ -6,8 +6,7 @@ A health monitor agent runs every 30 seconds to collect system metrics.
 
 KEY CONCEPTS:
 - schedule(every=timedelta(...)) for periodic execution
-- Timer triggers have no input artifacts (ctx.artifacts = [])
-- Access timer metadata: ctx.timer_iteration, ctx.fire_time, ctx.trigger_type
+- A timer run gets a TimerTick as input and the blackboard as context
 - Agent generates metrics declaratively (LLM-powered)
 
 PATTERN: Interval Scheduling

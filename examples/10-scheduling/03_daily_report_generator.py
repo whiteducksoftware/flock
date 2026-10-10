@@ -5,10 +5,10 @@ Demonstrates time-based scheduling — a reporter runs at a scheduled time to
 summarize transactions produced during the day.
 
 Key concepts
-- schedule(at=time(...)) for daily execution (or interval in demo mode)
+- schedule(at=time(...)) for daily execution at a UTC time (or interval in demo mode)
 - Reporter reads context (transactions) and publishes a DailyReport
-- Use consumes(..., mode="direct") so the reporter is only triggered by its
-  timer, not by every Transaction event
+- with_context(FilteredContextProvider(...)) shows the reporter only the
+  Transactions; it is still triggered by its timer alone
 """
 
 import asyncio
@@ -17,7 +17,9 @@ from datetime import date, datetime, time, timedelta
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.registry import flock_type
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+from flock.registry import flock_type, type_registry
 
 
 # Configuration
@@ -51,6 +53,11 @@ class DailyReport(BaseModel):
 # Agents
 flock = Flock()
 
+# The reporter's context: Transactions only
+transactions_only = FilteredContextProvider(
+    FilterConfig(type_names={type_registry.name_for(Transaction)})
+)
+
 # Producer: runs frequently to simulate transactions
 transaction_processor = (
     flock.agent("transaction_processor")
@@ -62,7 +69,7 @@ transaction_processor = (
     .publishes(Transaction)
 )
 
-# Reporter: daily at 17:00 (demo uses 2-minute interval)
+# Reporter: daily at 17:00 UTC (demo uses 2-minute interval)
 DEMO_MODE = True
 if DEMO_MODE:
     daily_reporter = (
@@ -73,18 +80,18 @@ if DEMO_MODE:
             "category. Provide a concise, executive-friendly summary."
         )
         .schedule(every=timedelta(minutes=2))
-        .consumes(Transaction, mode="direct")
+        .with_context(transactions_only)
         .publishes(DailyReport)
     )
 else:
     daily_reporter = (
         flock.agent("daily_reporter")
         .description(
-            "At 5 PM local time, generate an end-of-day financial report from "
+            "At 17:00 UTC, generate an end-of-day financial report from "
             "Transaction artifacts with totals, averages, and key insights."
         )
         .schedule(at=time(hour=17, minute=0))
-        .consumes(Transaction, mode="direct")
+        .with_context(transactions_only)
         .publishes(DailyReport)
     )
 
@@ -98,7 +105,9 @@ async def main_cli() -> None:
     if DEMO_MODE:
         print("Demo: reporter runs every 2 minutes; producer every 15 seconds.")
     else:
-        print("Production: reporter runs daily at 17:00; producer every 15 seconds.")
+        print(
+            "Production: reporter runs daily at 17:00 UTC; producer every 15 seconds."
+        )
     print()
     await flock.run_until_idle(timeout=300)  # 5 minutes
     print("\nDemo complete.")
