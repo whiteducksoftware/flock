@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, create_model
 
-from flock.decisions.choice import UNSURE, Question
+from flock.decisions.choice import FAILED, PASSED, UNSURE, Question
 from flock.registry import type_registry
 
 
@@ -20,7 +20,7 @@ class Decision(BaseModel):
     question: str = Field(
         default="", description="Name of the question class that was decided"
     )
-    kind: str = Field(default="choice", description="choice, yesno or scale")
+    kind: str = Field(default="choice", description="choice, yesno, scale or checklist")
     choice: str = Field(
         description=f"Selected option, or {UNSURE} when below the threshold"
     )
@@ -60,24 +60,51 @@ class Decision(BaseModel):
             and choice.__options__
         ):
             raise TypeError(
-                f"Decision.of() expects a Choice, YesNo or Scale subclass, got {choice!r}"
+                "Decision.of() expects a Choice, YesNo, Scale or Checklist subclass, "
+                f"got {choice!r}"
             )
         cached = choice.__dict__.get("__decision_model__")
         if cached is not None:
             return cached
 
         options = tuple(choice.__options__)
+        if choice.__kind__ == "checklist":
+            fields: dict[str, Any] = {
+                "choice": (
+                    Literal[PASSED, FAILED, UNSURE],
+                    Field(description="Outcome over all items"),
+                ),
+                "best_guess": (
+                    Literal[PASSED, FAILED] | None,
+                    Field(default=None, description="Outcome ignoring the threshold"),
+                ),
+                "results": (
+                    dict[Literal[options], Literal["yes", "no", UNSURE]],
+                    Field(default_factory=dict, description="Answer per item"),
+                ),
+                "refused_items": (
+                    list[str],
+                    Field(default_factory=list, description="Items the model refused"),
+                ),
+            }
+        else:
+            fields = {
+                "choice": (
+                    Literal[(*options, UNSURE)],
+                    Field(description="Selected option"),
+                ),
+                "best_guess": (
+                    Literal[options] | None,
+                    Field(default=None, description="Most probable option"),
+                ),
+            }
         model = create_model(
             f"{choice.__name__}Decision",
             __base__=Decision,
             __module__=choice.__module__,
             question=(str, Field(default=choice.__name__)),
             kind=(str, Field(default=choice.__kind__)),
-            choice=(Literal[(*options, UNSURE)], Field(description="Selected option")),
-            best_guess=(
-                Literal[options] | None,
-                Field(default=None, description="Most probable option"),
-            ),
+            **fields,
         )
         model.__flock_choice__ = choice
         type_registry.register(

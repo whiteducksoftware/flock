@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from flock.core import Flock
 from flock.core.image import Image
-from flock.decisions import Choice, Decision, Scale, YesNo
+from flock.decisions import Checklist, Choice, Decision, Scale, YesNo
 from flock.registry import flock_type, type_registry
 
 
@@ -183,6 +183,57 @@ async def test_live_model_answers_choice_yes_no_and_scale_in_one_call(model):
         assert len({d.latency_ms for d in decisions.values()}) == 1
         for decision in decisions.values():
             assert abs(sum(decision.probabilities.values()) - 1.0) < 0.05
+
+
+LiveControls = Checklist.from_items(
+    "LiveControls",
+    {
+        "mfa": "Multi-factor authentication is required for remote access",
+        "backup": "Backups are performed daily",
+        "restore_test": "Restores from backup are tested",
+        "pentest": "Penetration tests are performed annually",
+        "training": "Employees receive annual security awareness training",
+        "dc_access": "Access to the data centre is logged",
+    },
+    question="Does the policy show that this control is implemented?",
+)
+
+
+@flock_type
+class LivePolicy(BaseModel):
+    text: str
+
+
+@pytest.mark.parametrize("model", TEXT_MODELS)
+async def test_live_model_answers_a_checklist(model):
+    flock = Flock()
+    flock.is_dashboard = True
+    flock.agent("audit").consumes(LivePolicy).decides(LiveControls, model=model)
+
+    await flock.publish(
+        LivePolicy(
+            text="Remote access requires multi-factor authentication. All business "
+            "data is backed up every night. Restoring from backup has never been "
+            "tested. All staff complete security awareness training every year."
+        )
+    )
+    await flock.run_until_idle()
+
+    (artifact,) = [
+        a
+        for a in await flock.store.list()
+        if a.type == type_registry.name_for(Decision.of(LiveControls))
+    ]
+    decision = Decision.of(LiveControls)(**artifact.payload)
+    assert decision.results == {
+        "mfa": "yes",
+        "backup": "yes",
+        "restore_test": "no",
+        "pentest": "no",
+        "training": "yes",
+        "dc_access": "no",
+    }
+    assert decision.choice == "failed"
 
 
 @flock_type

@@ -55,13 +55,22 @@ class DecisionQuestion:
     """One question: instructions plus option name -> description.
 
     ``kind`` is ``choice``, ``yesno`` (options ``yes`` and ``no``) or ``scale``
-    (options are the ordered levels, lowest first).
+    (options are the ordered levels, lowest first). Checklist items are yes/no
+    questions with ``group`` (the checklist) and ``item`` set; ``name`` is
+    then only an identifier on the wire.
     """
 
     name: str
     instructions: str
     options: Mapping[str, str]
     kind: str = "choice"
+    group: str | None = None
+    item: str | None = None
+
+    @property
+    def label(self) -> str:
+        """``Checklist.item`` for checklist items, else the question name."""
+        return f"{self.group}.{self.item}" if self.group else self.name
 
 
 @dataclass(frozen=True)
@@ -148,10 +157,12 @@ class FakeDecider(DecisionProvider):
     """Deterministic provider for tests and examples.
 
     ``probabilities`` is a fixed mapping or a function of the state, used for
-    every question, or a mapping of question name -> either of those. The
-    choice is the most probable option; scale answers get the weighted score.
-    Questions named in ``refuse`` are refused. Every request is recorded in
-    ``requests``, every question in ``calls`` and the images in
+    every question, or a mapping of question name -> either of those. For a
+    checklist, map its name to ``{item: probability of yes}`` (or a function
+    of the state returning that). The choice is the most probable option;
+    scale answers get the weighted score. Questions named in ``refuse`` (for
+    checklist items ``"Checklist.item"``) are refused. Every request is
+    recorded in ``requests``, every question in ``calls`` and the images in
     ``received_images``.
     """
 
@@ -171,12 +182,22 @@ class FakeDecider(DecisionProvider):
         self.calls: list[tuple[str, DecisionQuestion]] = []
         self.received_images: list[list[Image]] = []
 
-    def _source(self, question: DecisionQuestion) -> Probabilities:
+    def _source(self, question: DecisionQuestion, state: str) -> Probabilities:
         source = self._probabilities
         if callable(source) or not any(
             isinstance(value, Mapping) or callable(value) for value in source.values()
         ):
             return source
+        if question.group is not None and question.group in source:
+            items = source[question.group]
+            items = items(state) if callable(items) else items
+            if question.item not in items:
+                raise DecisionProviderError(
+                    f"Decision provider '{self.label}' has no answer for "
+                    f"'{question.label}'"
+                )
+            p = float(items[question.item])
+            return {"yes": p, "no": 1.0 - p}
         if question.name not in source:
             raise DecisionProviderError(
                 f"Decision provider '{self.label}' has no answer for '{question.name}'"
@@ -184,9 +205,9 @@ class FakeDecider(DecisionProvider):
         return source[question.name]
 
     def _answer(self, state: str, question: DecisionQuestion) -> DecisionAnswer:
-        if question.name in self.refuse:
+        if question.label in self.refuse:
             return DecisionAnswer(choice=None, probabilities={}, refused=True)
-        source = self._source(question)
+        source = self._source(question, state)
         probabilities = dict(source(state) if callable(source) else source)
         if not probabilities:
             raise DecisionProviderError(
