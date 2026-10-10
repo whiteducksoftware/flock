@@ -1479,6 +1479,25 @@ class TestCompletionTokenLimit:
         assert lm.kwargs["max_completion_tokens"] == 2000
         assert "max_tokens" not in lm.kwargs
 
+    @pytest.mark.parametrize(
+        ("base_url", "openai_api"),
+        [
+            ("https://API.OpenAI.com/v1/", True),  # hostnames are case-insensitive
+            ("https://api.openai.com.proxy.example/v1", False),  # another host
+            ("http://localhost:8080/v1?via=api.openai.com", False),  # host, not text
+        ],
+    )
+    def test_only_the_openai_host_counts(self, base_url, openai_api, monkeypatch):
+        import dspy
+
+        monkeypatch.delenv("OPENAI_API_BASE", raising=False)
+        monkeypatch.setenv("OPENAI_BASE_URL", base_url)
+
+        lm = DSPyEngine()._create_lm(dspy, "openai/gpt-6-luna", {})
+
+        assert ("max_completion_tokens" in lm.kwargs) is openai_api
+        assert ("max_tokens" in lm.kwargs) is not openai_api
+
     @pytest.mark.parametrize("variable", ["OPENAI_BASE_URL", "OPENAI_API_BASE"])
     def test_openai_compatible_servers_keep_max_tokens(self, variable, monkeypatch):
         """llama.cpp, vLLM or LM Studio behind openai/ may not know the new name."""

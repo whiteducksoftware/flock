@@ -6,6 +6,7 @@ import json
 import os
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -151,7 +152,10 @@ def _targets_openai_api(model_name: str, lm_kwargs: dict[str, Any]) -> bool:
         or os.getenv("OPENAI_BASE_URL")
         or os.getenv("OPENAI_API_BASE")
     )
-    return not base_url or _OPENAI_API_HOST in base_url
+    if not base_url:
+        return True
+    host = urlparse(base_url if "://" in base_url else f"//{base_url}").hostname
+    return host == _OPENAI_API_HOST  # urlparse lower-cases the hostname
 
 
 class DSPyEngine(EngineComponent):
