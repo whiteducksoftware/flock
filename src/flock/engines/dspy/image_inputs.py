@@ -86,6 +86,10 @@ def dspy_input_model(model: type[BaseModel]) -> type[BaseModel]:
             field_copy = copy.copy(field)
             field_copy.annotation = _to_dspy(field.annotation)
             fields[name] = (field_copy.annotation, field_copy)
+        # Computed values are in the payload (model_dump); keep them as plain
+        # fields so the model sees the same data as for a model without images
+        for name, computed in model.model_computed_fields.items():
+            fields[name] = (_to_dspy(computed.return_type), None)
         copied = create_model(
             model.__name__,
             __config__=model.model_config,
@@ -193,13 +197,13 @@ def ensure_vision_support(
     """
     if not openai_api:
         return
-    fields = _image_fields(inputs)
-    if not fields:
-        return
     import litellm
 
     info = litellm.model_cost.get(model_name.split("/", 1)[-1])
     if info is None or info.get("supports_vision"):
+        return
+    fields = _image_fields(inputs)  # validates payloads: only for text-only models
+    if not fields:
         return
     raise ValueError(
         f"Model {model_name} does not accept images, but the input "

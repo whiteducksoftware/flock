@@ -6,7 +6,7 @@ import typing
 
 import dspy
 import pytest
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from flock.core.agent import AgentOutput, OutputGroup
 from flock.core.artifacts import Artifact, ArtifactSpec
@@ -67,6 +67,20 @@ class ImgAliased(BaseModel):
 
     caption_text: str = Field(alias="captionText")
     picture: Image
+
+
+@flock_type
+class ImgMeasured(BaseModel):
+    """A computed field ends up in the payload and should reach the model too."""
+
+    width: int
+    height: int
+    picture: Image
+
+    @computed_field
+    @property
+    def area(self) -> int:
+        return self.width * self.height
 
 
 class ImgTextData(BaseModel):
@@ -158,6 +172,29 @@ def test_the_copy_keeps_the_model_configuration_and_aliases():
     assert dspy_input_model(ImgAliased).model_config["str_strip_whitespace"] is True
     assert copied.caption_text == "a red square"
     assert copied.picture.url == picture.url
+
+
+def test_computed_fields_are_kept():
+    value = ImgMeasured(width=3, height=4, picture=_png())
+
+    copied = to_dspy_input(value, ImgMeasured)
+
+    assert copied.model_dump()["area"] == 12
+
+
+def test_vision_models_skip_the_payload_scan(monkeypatch):
+    """A model with vision support never needs the (decoding) payload scan."""
+    from flock.engines.dspy import image_inputs
+
+    def fail(_inputs):
+        raise AssertionError("payload scanned")
+
+    monkeypatch.setattr(image_inputs, "_image_fields", fail)
+    inputs = EvalInputs(
+        artifacts=[_artifact(ImgCaption(text="x", picture=_png()))], state={}
+    )
+
+    ensure_vision_support("openai/gpt-4.1", inputs, openai_api=True)
 
 
 def _formatted(payload_inputs: EvalInputs, *, batched: bool = False):
