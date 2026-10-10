@@ -64,3 +64,19 @@ uv run examples/15-decisions/02_arxiv_race.py
 | Decision jev/jev-latest | 25.0 s | 250 ms | 88/100 |
 
 Hosted latencies include the network round trip from the caller. arXiv's primary category is one label per paper; many disagreements are papers that sit between two fields.
+
+## 03_color_sorter.py
+
+A decision agent sorts generated shapes into color bins by looking at their images. Orange and purple shapes sit between two bins: `gpt-6-luna` returns p = 1.00 for pure colors and 0.85-0.95 for the in-between ones, so a threshold of 0.97 sends those to an `inspector` (UNSURE).
+
+**Key Concepts:**
+- `flock.Image` fields (`Image.from_pil`, `Image.from_file`, `Image.from_bytes`)
+- An image-capable decision model (`IMAGE_DECISION_MODEL`, default `openai/gpt-6-luna`; Microsoft-Decision-1 and Jev accept text only)
+- Bin agents without an LLM; only the decision model is called
+
+**Run:**
+```bash
+uv run examples/15-decisions/03_color_sorter.py
+```
+
+Set `USE_DASHBOARD = True` to watch the decider's option lanes fill with thumbnails, one shape per second.
