@@ -1269,6 +1269,13 @@ engine = DSPyEngine(
 LiteLLM's `azure/o_series/<deployment>` and `azure/gpt5_series/<deployment>`
 model prefixes are an alternative way to mark a reasoning deployment.
 
+For the OpenAI API itself (`openai/` models without a custom `OPENAI_BASE_URL`,
+`OPENAI_API_BASE` or `api_base`), Flock always sends the limit as
+`max_completion_tokens`, using `max_tokens` (default 32000) as its value. OpenAI
+has deprecated `max_tokens`, and newer models such as `gpt-6-luna` reject it.
+OpenAI-compatible servers behind `openai/` (llama.cpp, vLLM, LM Studio) keep
+receiving `max_tokens`.
+
 ### Azure OpenAI with API keys
 
 The API-key path remains supported. Set the usual Azure environment variables and either let `DSPyEngine` use `DEFAULT_MODEL`, or pass `model="azure/..."` explicitly:
