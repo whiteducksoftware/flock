@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { fetchArtifactTypes, publishArtifact, ArtifactType } from '../../services/api';
 import { useFilterStore } from '../../store/filterStore';
 import { useSettingsStore } from '../../store/settingsStore';
-import { IMAGE_ACCEPT, fileToImageUrl, imageFieldKind } from '../../utils/imageFields';
+import { IMAGE_ACCEPT, fileToImageUrl, imageFieldKind, isNullable } from '../../utils/imageFields';
 import './PublishControl.css';
 
 interface ValidationErrors {
@@ -34,7 +34,12 @@ const PublishControl: React.FC = () => {
   // only if no newer choice (or another artifact type) replaced it meanwhile
   const typeGeneration = useRef(0);
   const fieldGeneration = useRef<Record<string, number>>({});
-  const [pendingPictures, setPendingPictures] = useState(0); // conversions in progress
+  // Conversions in progress, per field; a replaced or abandoned one drops out at once
+  const [pendingConversions, setPendingConversions] = useState<Record<string, number[]>>({});
+  const pendingPictures = Object.values(pendingConversions).reduce(
+    (count, tokens) => count + tokens.length,
+    0
+  );
 
   const setShowControls = useSettingsStore((state) => state.setShowControls);
 
@@ -64,6 +69,7 @@ const PublishControl: React.FC = () => {
   useEffect(() => {
     typeGeneration.current += 1;
     fieldGeneration.current = {};
+    setPendingConversions({});
     if (selectedType) {
       const artifactType = artifactTypes.find((t) => t.name === selectedType);
       if (artifactType && artifactType.schema.properties) {
@@ -132,7 +138,9 @@ const PublishControl: React.FC = () => {
         const imageKind = imageFieldKind(prop, artifactType.schema);
         if (imageKind) {
           const missing = imageKind === 'many' ? !(value?.length > 0) : !value;
-          if (missing && (isExplicitlyRequired || (!hasDefault && imageKind === 'one'))) {
+          const required = isExplicitlyRequired || (!hasDefault && imageKind === 'one');
+          // A required field that may be None is valid without a picture (null)
+          if (missing && required && !(imageKind === 'one' && isNullable(prop))) {
             newErrors[key] = `${key} is required`;
           }
           return;
@@ -220,8 +228,11 @@ const PublishControl: React.FC = () => {
               processedData[key] = images.map((image) => ({ url: image.url }));
             }
           } else if (imageKind === 'one') {
-            // An optional picture that was not chosen keeps the schema default
-            if (value) processedData[key] = { url: (value as PickedImage).url };
+            if (value) {
+              processedData[key] = { url: (value as PickedImage).url };
+            } else if (isNullable(prop) && prop.default === undefined) {
+              processedData[key] = null; // required, but may be None
+            } // otherwise the schema default applies
           } else if (prop.type === 'number' || prop.type === 'integer') {
             processedData[key] = Number(value);
           } else if (prop.type === 'boolean') {
@@ -325,7 +336,12 @@ const PublishControl: React.FC = () => {
         const isStale = () =>
           typeGeneration.current !== typeAtStart ||
           (imageKind === 'one' && fieldGeneration.current[key] !== fieldAtStart);
-        setPendingPictures((count) => count + 1);
+        const token = fieldAtStart;
+        setPendingConversions((previous) => ({
+          ...previous,
+          // A single picture: the newer choice replaces the pending older one
+          [key]: imageKind === 'one' ? [token] : [...(previous[key] ?? []), token],
+        }));
         try {
           const picked = await Promise.all(
             files.map(async (file) => ({ name: file.name, url: await fileToImageUrl(file) }))
@@ -344,7 +360,12 @@ const PublishControl: React.FC = () => {
           if (isStale()) return;
           setErrors((previous) => ({ ...previous, [key]: `Could not read the picture for ${key}` }));
         } finally {
-          setPendingPictures((count) => count - 1);
+          if (typeGeneration.current === typeAtStart) {
+            setPendingConversions((previous) => ({
+              ...previous,
+              [key]: (previous[key] ?? []).filter((pending) => pending !== token),
+            }));
+          }
         }
       };
 

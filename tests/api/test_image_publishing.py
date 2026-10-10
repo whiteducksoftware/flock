@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 
@@ -37,6 +38,14 @@ class UploadAlbum(BaseModel):
 class UploadAliased(BaseModel):
     caption: str
     picture: Image = Field(alias="photo")
+
+
+@flock_type
+class UploadControlNames(BaseModel):
+    """A field may be called like a form control part."""
+
+    type: Image
+    note: str
 
 
 def _png_bytes(color: str = "red", size: tuple[int, int] = (32, 24)) -> bytes:
@@ -287,3 +296,54 @@ def test_a_field_name_and_its_alias_count_as_one_field(setup):
 
     assert response.status_code == 400
     assert "one image" in response.text
+
+
+async def test_a_file_part_may_share_a_name_with_a_control_part(setup):
+    flock, client = setup
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        data={"type": "UploadControlNames", "payload": json.dumps({"note": "x"})},
+        files={"type": ("red.png", _png_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200, response.text
+    (artifact,) = await flock.store.list()
+    assert artifact.payload["type"]["url"].startswith("data:image/jpeg;base64,")
+
+
+@pytest.fixture
+def dashboard():
+    from flock.api.websocket import WebSocketManager
+    from flock.components.server.control.control_routes_component import (
+        ControlRoutesComponent,
+        ControlRoutesComponentConfig,
+    )
+
+    flock = Flock()
+    app = FastAPI()
+    ControlRoutesComponent(
+        name="control",
+        config=ControlRoutesComponentConfig(prefix="/api/"),
+        websocket_manager=WebSocketManager(),
+    ).register_routes(app, flock)
+    return flock, TestClient(app)
+
+
+async def test_dashboard_publishes_are_reencoded_on_the_server(dashboard):
+    """The browser scales and re-encodes, but the server does not rely on it."""
+    flock, client = dashboard
+    wide = base64.b64encode(_png_bytes(size=(2000, 100))).decode()
+
+    response = client.post(
+        "/api/control/publish",
+        json={
+            "artifact_type": type_registry.name_for(UploadPhoto),
+            "content": {"caption": "wide", "picture": {"url": f"data:image/png;base64,{wide}"}},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    (photo,) = await _stored(flock, UploadPhoto)
+    with PILImage.open(io.BytesIO(photo.picture.to_bytes())) as stored:
+        assert stored.size == (1024, 51)

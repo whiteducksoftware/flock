@@ -127,4 +127,30 @@ describe('PublishControl image conversions that finish late', () => {
 
     expect(screen.queryByText(/could not read/i)).not.toBeInTheDocument();
   });
+
+  it('does not stay disabled for a stalled conversion that a newer picture replaced', async () => {
+    vi.mocked(fileToImageUrl)
+      .mockReturnValueOnce(new Promise<string>(() => {})) // never settles
+      .mockResolvedValueOnce('data:image/png;base64,TkVX');
+    await openForm('Photo');
+    const picker = screen.getByLabelText(/picture/i);
+
+    fireEvent.change(picker, { target: { files: [file('stalled.png')] } });
+    fireEvent.change(picker, { target: { files: [file('new.png')] } });
+
+    await waitFor(() => expect(screen.getByAltText('new.png')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /publish artifact/i })).toBeEnabled();
+  });
+
+  it('does not stay disabled for a stalled conversion after the type changed', async () => {
+    vi.mocked(fileToImageUrl).mockReturnValueOnce(new Promise<string>(() => {}));
+    await openForm('Photo');
+    fireEvent.change(screen.getByLabelText(/picture/i), { target: { files: [file('stalled.png')] } });
+
+    fireEvent.change(screen.getByLabelText(/artifact type/i), { target: { value: 'Note' } });
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /publish artifact/i })).toBeEnabled()
+    );
+  });
 });

@@ -240,6 +240,56 @@ class ArtifactsComponent(ServerComponent):
         # No - op
         pass
 
+    async def _publish_upload(self, form, orchestrator) -> ArtifactPublishResponse:
+        # Control values come from text parts only: a file part may be named
+        # like them (an artifact can have a field called "type" or "payload")
+        controls = {
+            name: value
+            for name, value in form.multi_items()
+            if isinstance(value, str) and name in ("type", "payload")
+        }
+        artifact_type = controls.get("type")
+        if not artifact_type:
+            raise HTTPException(status_code=400, detail="'type' is required.")
+        try:
+            payload = json.loads(controls.get("payload") or "{}")
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=400, detail=f"'payload' is not valid JSON: {exc}"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(
+                status_code=400, detail="'payload' must be a JSON object."
+            )
+        try:
+            model = type_registry.resolve(type_registry.resolve_name(artifact_type))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        try:
+            # Each file is checked and re-encoded as it is read, so raw uploads
+            # are not held all at once.
+            images: dict[str, list] = {}
+            for name, value in form.multi_items():
+                if not isinstance(value, StarletteUploadFile):
+                    continue
+                image_uploads.check_image_field(model, name)
+                data = await value.read(image_uploads.MAX_IMAGE_BYTES + 1)
+                key = image_uploads.payload_key(model, name)  # name or alias
+                images.setdefault(key, []).append(
+                    image_uploads.image_from_upload(name, data)
+                )
+            payload = image_uploads.place_images(model, payload, images)
+            await orchestrator.publish(
+                {"type": artifact_type, "payload": payload},
+                correlation_id=str(uuid4()),
+            )
+        except image_uploads.UploadError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return ArtifactPublishResponse(status="accepted")
+
     def register_routes(self, app, orchestrator):
         @app.post(
             self._join_path(self.config.prefix, "artifacts"),
@@ -299,50 +349,10 @@ class ArtifactsComponent(ServerComponent):
             form = await request.form(
                 max_files=image_uploads.MAX_UPLOAD_FILES, max_fields=20
             )
-            artifact_type = form.get("type")
-            if not isinstance(artifact_type, str) or not artifact_type:
-                raise HTTPException(status_code=400, detail="'type' is required.")
             try:
-                payload = json.loads(str(form.get("payload") or "{}"))
-            except json.JSONDecodeError as exc:
-                raise HTTPException(
-                    status_code=400, detail=f"'payload' is not valid JSON: {exc}"
-                ) from exc
-            if not isinstance(payload, dict):
-                raise HTTPException(
-                    status_code=400, detail="'payload' must be a JSON object."
-                )
-            try:
-                model = type_registry.resolve(type_registry.resolve_name(artifact_type))
-            except Exception as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-            try:
-                # Each file is checked and re-encoded as it is read, so raw
-                # uploads are not held all at once.
-                images: dict[str, list] = {}
-                for name, value in form.multi_items():
-                    if not isinstance(value, StarletteUploadFile):
-                        continue
-                    image_uploads.check_image_field(model, name)
-                    data = await value.read(image_uploads.MAX_IMAGE_BYTES + 1)
-                    await value.close()
-                    key = image_uploads.payload_key(model, name)  # name or alias
-                    images.setdefault(key, []).append(
-                        image_uploads.image_from_upload(name, data)
-                    )
-                payload = image_uploads.place_images(model, payload, images)
-                await orchestrator.publish(
-                    {"type": artifact_type, "payload": payload},
-                    correlation_id=str(uuid4()),
-                )
-            except image_uploads.UploadError as exc:
-                raise HTTPException(
-                    status_code=exc.status_code, detail=str(exc)
-                ) from exc
-            except Exception as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-            return ArtifactPublishResponse(status="accepted")
+                return await self._publish_upload(form, orchestrator)
+            finally:
+                await form.close()  # spooled uploads, also after an error
 
         @app.get(
             self._join_path(self.config.prefix, "artifacts"),

@@ -35,6 +35,11 @@ export function imageFieldKind(prop: any, schema: any): ImageFieldKind | null {
   return null;
 }
 
+/** True if the field accepts null (`X | None` gives an `anyOf` with a null branch). */
+export function isNullable(prop: any): boolean {
+  return Array.isArray(prop?.anyOf) && prop.anyOf.some((option: any) => option?.type === 'null');
+}
+
 /** PNG for formats that can be transparent (as `Image.from_pil` keeps alpha), else JPEG. */
 export function outputType(fileType: string): 'image/png' | 'image/jpeg' {
   return ['image/png', 'image/gif', 'image/webp'].includes(fileType) ? 'image/png' : 'image/jpeg';

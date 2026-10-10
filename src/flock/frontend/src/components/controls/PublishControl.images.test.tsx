@@ -54,6 +54,18 @@ const photoTypes = [
       required: ['title'],
     },
   },
+  {
+    name: 'Maybe',
+    schema: {
+      $defs: { Image: imageDef },
+      type: 'object',
+      properties: {
+        note: { type: 'string', title: 'Note' },
+        picture: { anyOf: [{ $ref: '#/$defs/Image' }, { type: 'null' }] },
+      },
+      required: ['note', 'picture'],
+    },
+  },
 ];
 
 const png = (name: string) =>
@@ -143,5 +155,16 @@ describe('PublishControl image fields', () => {
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect(publishedContent()).toEqual({ title: 'empty' });
+  });
+
+  it('sends null for a required field that may be None', async () => {
+    await openForm('Maybe');
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correlation_id: 'c-4' }) });
+
+    fireEvent.change(screen.getByLabelText(/note/i), { target: { value: 'no picture' } });
+    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    expect(publishedContent()).toEqual({ note: 'no picture', picture: null });
   });
 });

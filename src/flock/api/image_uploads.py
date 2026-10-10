@@ -106,6 +106,37 @@ def image_from_upload(field_name: str, data: bytes) -> Image:
         ) from exc
 
 
+def reencode_images(value: Any, name: str = "image") -> Any:
+    """``value`` with every ``Image`` re-encoded like an upload (checked, scaled,
+    metadata dropped). Used for images that arrive as data URLs from the
+    dashboard, so the server does not rely on the browser for it."""
+    from pydantic import BaseModel
+
+    if isinstance(value, Image):
+        return image_from_upload(name, value.to_bytes())
+    if isinstance(value, BaseModel):
+        changed = {
+            field_name: new
+            for field_name in type(value).model_fields
+            if (new := reencode_images(getattr(value, field_name), field_name))
+            is not getattr(value, field_name)
+        }
+        return value.model_copy(update=changed) if changed else value
+    if isinstance(value, list | tuple | dict):
+        return _reencode_items(value, name)
+    return value
+
+
+def _reencode_items(value: list | tuple | dict, name: str) -> Any:
+    if isinstance(value, dict):
+        items = {key: reencode_images(item, name) for key, item in value.items()}
+        unchanged = all(items[key] is value[key] for key in value)
+    else:
+        items = type(value)(reencode_images(item, name) for item in value)
+        unchanged = all(new is old for new, old in zip(items, value, strict=True))
+    return value if unchanged else items
+
+
 def place_images(
     model: type[BaseModel], payload: dict[str, Any], images: dict[str, list[Image]]
 ) -> dict[str, Any]:
@@ -144,4 +175,5 @@ __all__ = [
     "max_request_bytes",
     "payload_key",
     "place_images",
+    "reencode_images",
 ]
