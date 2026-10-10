@@ -25,6 +25,18 @@ from flock.logging.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _unwrap_single_failure(error: BaseException) -> BaseException:
+    """The exception inside (nested) exception groups with exactly one member.
+
+    DSPy's ``streamify`` runs the program in an anyio TaskGroup, so a failure
+    such as an HTTP 400 arrives as "unhandled errors in a TaskGroup (1
+    sub-exception)". Groups with several exceptions stay groups.
+    """
+    while isinstance(error, BaseExceptionGroup) and len(error.exceptions) == 1:
+        error = error.exceptions[0]
+    return error
+
+
 class DSPyStreamingExecutor:
     """Executes DSPy programs in streaming mode with Rich or WebSocket output.
 
@@ -359,6 +371,23 @@ class DSPyStreamingExecutor:
         return formatter, display_data, theme_dict, styles, agent_label
 
     @staticmethod
+    def _show_failure(live: Any, agent_label: str, error: BaseException) -> None:
+        """End the live display with the error instead of the placeholder result
+        (the display is not transient, so its last frame stays on the console)."""
+        if live is None or not isinstance(error, Exception):
+            return  # no console, or a cancellation
+        from rich.panel import Panel
+        from rich.text import Text
+
+        live.update(
+            Panel(
+                Text(f"{type(error).__name__}: {error}"),
+                title=f"❌ {agent_label} failed",
+                border_style="red",
+            )
+        )
+
+    @staticmethod
     async def _close_stream_generator(stream_generator: Any) -> None:
         aclose = getattr(stream_generator, "aclose", None)
         if callable(aclose):
@@ -547,25 +576,31 @@ class DSPyStreamingExecutor:
         final_result = None
         tokens_emitted = 0
 
-        async for value in stream_generator:
-            kind, text, signature_field, prediction = self._normalize_value(
-                value, dspy_mod
-            )
+        try:
+            async for value in stream_generator:
+                kind, text, signature_field, prediction = self._normalize_value(
+                    value, dspy_mod
+                )
 
-            if kind == "status" and text:
-                await sink.on_status(text)
-                continue
+                if kind == "status" and text:
+                    await sink.on_status(text)
+                    continue
 
-            if kind == "token" and text:
-                tokens_emitted += 1
-                await sink.on_token(text, signature_field)
-                continue
+                if kind == "token" and text:
+                    tokens_emitted += 1
+                    await sink.on_token(text, signature_field)
+                    continue
 
-            if kind == "prediction":
-                final_result = prediction
-                await sink.on_final(prediction, tokens_emitted)
-                await self._close_stream_generator(stream_generator)
-                break
+                if kind == "prediction":
+                    final_result = prediction
+                    await sink.on_final(prediction, tokens_emitted)
+                    await self._close_stream_generator(stream_generator)
+                    break
+        except BaseExceptionGroup as failure:
+            error = _unwrap_single_failure(failure)
+            if error is failure:
+                raise
+            raise error from None
 
         await sink.flush()
 
@@ -678,9 +713,16 @@ class DSPyStreamingExecutor:
             )
 
             sinks = self._collect_sinks(rich_sink=rich_sink, ws_sink=ws_sink)
-            final_result, tokens_emitted = await self._consume_stream(
-                stream_generator, sinks, dspy_mod
-            )
+            try:
+                final_result, tokens_emitted = await self._consume_stream(
+                    stream_generator, sinks, dspy_mod
+                )
+            except BaseException as failure:
+                error = _unwrap_single_failure(failure)
+                self._show_failure(live, agent_label or agent.name, error)
+                if error is failure:
+                    raise
+                raise error from None
 
         await self._flush_sinks(sinks)
 
