@@ -10,6 +10,8 @@ from flock.registry import RegistryError, type_registry
 
 
 if TYPE_CHECKING:
+    from pydantic import BaseModel
+
     from flock.core.agent import Agent
     from flock.core.artifacts import Artifact
     from flock.core.store import BlackboardStore
@@ -57,20 +59,21 @@ async def resolve_subjects(
     a silently smaller input.
     """
     routed_types = {
-        name
-        for subscription in agent.subscriptions
-        if subscription.choice is not None
-        for name in subscription.type_names
+        name for subscription in agent.subscriptions for name in subscription.choices
     }
     if not routed_types:
         return artifacts
 
     resolved: list[Artifact] = []
+    seen: set[str] = set()  # several decisions about one subject deliver it once
     for artifact in artifacts:
         if artifact.type not in routed_types:
             resolved.append(artifact)
             continue
         for sid in artifact.payload.get("subject_ids", []):
+            if sid in seen:
+                continue
+            seen.add(sid)
             subject = await store.get(UUID(sid))
             if subject is None or not subject.visibility.allows(agent.identity):
                 raise LookupError(
@@ -81,4 +84,15 @@ async def resolve_subjects(
     return resolved
 
 
-__all__ = ["decision_meta", "is_decision", "resolve_subjects", "subject_ids"]
+def same_subject(decision: BaseModel) -> tuple[str, ...]:
+    """Join key of decisions about the same artifacts (their ``subject_ids``)."""
+    return tuple(getattr(decision, "subject_ids", ()))
+
+
+__all__ = [
+    "decision_meta",
+    "is_decision",
+    "resolve_subjects",
+    "same_subject",
+    "subject_ids",
+]

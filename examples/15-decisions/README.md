@@ -148,12 +148,25 @@ Every document fails some controls: a single policy or procedure never covers th
 
 ## 06_control_mapping_tournament.py
 
-Maps evidence sentences from the compliance documents to the one control they implement, out of 100. Two deciders answer the same sentences: one choice question with all 100 controls, and a tournament (groups of 20, the 3 most probable controls of each group survive, then a final question about the 15 survivors). Decision models accept at most 255 options per question, so catalogs such as the BSI IT-Grundschutz-Kompendium can only be asked as a tournament; with 100 controls both fit and the example shows what the tournament costs.
+Maps evidence sentences from the compliance documents to the one control they implement, out of 100, in three ways:
+
+1. **`flat`:** one choice question with all 100 controls.
+2. **`tournament`:** one node. Groups of 20 go out in one request, the 3 most probable controls of each group survive, then a final question.
+3. **A screening network:** four separate `screen_*` nodes check 25 controls each with yes/no checklists, in parallel. The `ranker` waits for all four, receives the sentence and asks a final choice question about the controls that passed.
+
+```
+                  ┌── screen_001_025 ──┐
+EvidenceSentence ─┼── screen_026_050 ──┼──> ranker ──> Decision[Control]
+                  ├── screen_051_075 ──┤
+                  └── screen_076_100 ──┘
+```
 
 **Key Concepts:**
-- `Choice.from_options(...)` from a catalog
+- `Choice.from_options(...)` and `Checklist.from_items(...)` from a catalog
 - `.decides(Control, tournament=Tournament(group_size=20, keep=3))`
-- `Flock(decision_model=...)` for both deciders; the decision's `rounds` records each round
+- `.consumes(*(screen.ANY for screen in SCREENS))`: wait for every screen's decision about the same sentence
+- `.decides(Control, options=passes)`: a final question about the passes only
+- `Flock(decision_model=...)` for every decider
 
 **Run:**
 ```bash
@@ -162,16 +175,17 @@ uv run examples/15-decisions/06_control_mapping_tournament.py
 
 **What You'll See (Microsoft-Decision-1):**
 ```
-decider        right    median  requests
-flat          25/25     180 ms         1
-tournament    25/25     419 ms         2
+contender      right    median  requests
+flat          10/10     182 ms         1
+tournament    10/10     388 ms         2
+network       10/10     441 ms         5
 
-Right control among the 15 finalists: 25/25
+Right control among the tournament's finalists: 10/10
+Right control among the network's passes: 10/10 (median 5 passes per sentence)
 ```
 
-The default Microsoft-Decision-1 deployment allows 100 requests per minute; this example sends three per sentence.
+The default Microsoft-Decision-1 deployment allows 100 requests per minute; this example sends eight per sentence.
 
 <p align="center">
-  <img alt="Flat choice and tournament decisions for the same evidence sentence" src="../../docs/assets/images/decisions/decision-tournament-blackboard.png" width="800">
+  <img alt="A screening network: four screens and a ranker" src="../../docs/assets/images/decisions/decision-network-agent-view.png" width="800">
 </p>
-

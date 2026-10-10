@@ -129,10 +129,8 @@ def choice_type_labels(agent: Agent) -> dict[str, str]:
     """Readable labels for the decision types an agent consumes via choice handles."""
     handles: dict[str, list[str]] = {}
     for subscription in agent.subscriptions:
-        if subscription.choice is None:
-            continue
-        for type_name in subscription.type_names:
-            handles.setdefault(type_name, []).append(repr(subscription.choice))
+        for type_name, ref in subscription.choices.items():
+            handles.setdefault(type_name, []).append(repr(ref))
     return {name: "◆ " + " | ".join(refs) for name, refs in handles.items()}
 
 
@@ -170,6 +168,8 @@ def decision_view(
     }
     if payload.get("rounds"):
         view["rounds"] = list(payload["rounds"])
+    if payload.get("candidates") is not None:
+        view["candidates"] = list(payload["candidates"])
     if view["kind"] == "checklist":
         view["items"] = levels or list(payload.get("results") or {})
         view["results"] = dict(payload.get("results") or {})

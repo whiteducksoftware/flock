@@ -75,6 +75,7 @@ export interface DecisionInfo {
   results?: Record<string, string>; // checklist: yes | no | UNSURE per item
   refusedItems?: string[];
   rounds?: TournamentRound[]; // tournament: rounds before the final question
+  candidates?: string[]; // options= restricted the question to these options
   confidence: number | null;
   threshold: number | null;
   model: string;
@@ -913,6 +914,9 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
         {decision.model}
         {decision.latencyMs !== null ? ` · ${Math.round(decision.latencyMs)} ms` : ''}
         {decision.threshold !== null ? ` · threshold ${decision.threshold.toFixed(2)}` : ''}
+        {decision.candidates ? (
+          <span title={decision.candidates.join(', ')}>{` · among ${decision.candidates.length} candidates`}</span>
+        ) : null}
       </div>
     </div>
   );
