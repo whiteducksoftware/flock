@@ -18,8 +18,12 @@ for every contender, plus the papers where anyone disagreed with arXiv.
 Before the race every decision model gets one warm-up request. Models whose
 keys are missing or whose server does not answer are skipped.
 
-Each paper is published with its own correlation id, and the LLM agent runs
-without conversation context, so no contender sees another one's answer.
+Each paper is published with its own correlation id, which the report uses to
+match every answer to its paper. Flock's default context is everything on the
+blackboard an agent may read, so the LLM agent would get all papers and every
+contender's answers so far in its prompt. `DSPyEngine(enable_context=False)`
+keeps its prompt to the paper it consumes; decision agents decide on their
+input only.
 
 🎛️  CONFIGURATION:
 - LLM_MODEL (DEFAULT_MODEL, default openai/gpt-4.1)
@@ -156,8 +160,9 @@ def build_flock(models: list[str]) -> Flock:
             "Classify the arXiv paper into its primary research field.\n" + FIELD_GUIDE
         )
         .consumes(Paper)
-        # No conversation context: the LLM must not see the decision models'
-        # answers about the same paper (they share its correlation id).
+        # The default context is the whole visible blackboard (all papers and
+        # every contender's answers so far); without it the prompt holds only
+        # the consumed paper.
         .with_engines(DSPyEngine(model=LLM_MODEL, enable_context=False))
         .publishes(LLMField)
         .max_concurrency(CONCURRENCY)

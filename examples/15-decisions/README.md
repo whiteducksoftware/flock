@@ -46,7 +46,7 @@ By default the LLM races Microsoft-Decision-1 on Azure AI Foundry (`AZURE_API_BA
 
 **Key Concepts:**
 - The same `Choice` drives several deciders; each publishes its own `Decision`
-- `DSPyEngine(enable_context=False)` keeps the LLM from seeing the other contenders' answers, which share the paper's correlation id
+- `DSPyEngine(enable_context=False)`: Flock's default context is everything on the blackboard an agent may read, here all papers and every contender's answers so far. The flag keeps the LLM's prompt to the paper it consumes; decision agents decide on their input only
 
 **Run:**
 ```bash
