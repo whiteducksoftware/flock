@@ -84,9 +84,11 @@ class Image(BaseModel):
                 "Image.url must be a base64 data URL (data:image/<type>;base64,...); "
                 "use Image.from_file() or Image.from_bytes() to create one."
             )
-        if len(match.group(2)) * 3 // 4 > MAX_IMAGE_BYTES:  # checked before decoding
+        encoded = match.group(2)
+        padding = len(encoded) - len(encoded.rstrip("="))
+        if len(encoded) * 3 // 4 - padding > MAX_IMAGE_BYTES:  # before decoding
             raise ValueError(
-                f"Image data is larger than {MAX_IMAGE_BYTES // (1024 * 1024)} MB; "
+                f"Image data is larger than {MAX_IMAGE_BYTES / (1024 * 1024):g} MB; "
                 "downscale it, e.g. with Image.from_file()."
             )
         try:

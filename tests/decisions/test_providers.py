@@ -195,6 +195,61 @@ async def test_answers_with_impossible_probabilities_are_rejected(probabilities)
         await provider.decide("state", QUESTION)
 
 
+def _raw_provider(body: str) -> SystemOneProvider:
+    return SystemOneProvider(
+        "http://127.0.0.1:8080/v1/systemone",
+        label="local/clef-flash",
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, content=body, headers={"Content-Type": "application/json"}
+            )
+        ),
+    )
+
+
+async def test_rounding_just_outside_zero_to_one_is_clamped():
+    provider = _raw_provider(
+        '{"answers": {"route": {"type": "choice", "choice": "billing", '
+        '"confidence": 1.0000004, '
+        '"probabilities": {"billing": 1.0000004, "tech": -0.0000004}}}}'
+    )
+
+    answer = await provider.decide("state", QUESTION)
+
+    assert answer.probabilities == {"billing": 1.0, "tech": 0.0}
+    assert answer.confidence == 1.0
+
+
+SCALE = DecisionQuestion(
+    name="anger",
+    instructions="How angry is the customer?",
+    options={"calm": "Calm", "angry": "Angry", "furious": "Furious"},
+    kind="scale",
+)
+
+
+@pytest.mark.parametrize("score", ["Infinity", "NaN", "7.0", "-1.0"])
+async def test_scale_scores_outside_the_levels_are_rejected(score):
+    provider = _raw_provider(
+        '{"answers": {"anger": {"type": "score", '
+        '"probabilities": {"0": 0.2, "1": 0.3, "2": 0.5}, "score": ' + score + "}}}"
+    )
+
+    with pytest.raises(DecisionProviderError, match="score"):
+        await provider.decide("state", SCALE)
+
+
+async def test_scale_scores_within_rounding_are_clamped():
+    provider = _raw_provider(
+        '{"answers": {"anger": {"type": "score", '
+        '"probabilities": {"0": 0.0, "1": 0.0, "2": 1.0}, "score": 2.0000003}}}'
+    )
+
+    answer = await provider.decide("state", SCALE)
+
+    assert answer.score == 2.0
+
+
 async def test_yes_no_answers_outside_zero_to_one_are_rejected():
     question = DecisionQuestion(
         name="urgent",

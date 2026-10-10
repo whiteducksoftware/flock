@@ -164,7 +164,7 @@ def _check_options(
             f"{', '.join(sorted(unknown))}"
         )
     # Probabilities drive thresholds and routing; impossible values must not
-    # turn into firm decisions.
+    # turn into firm decisions, and rounding just outside 0-1 is clamped.
     invalid = sorted(
         option for option, p in answer.probabilities.items() if not _is_probability(p)
     )
@@ -175,7 +175,25 @@ def _check_options(
             f"Decision provider '{label}' answered with impossible probabilities "
             f"for: {', '.join(invalid)}"
         )
-    return answer
+    score = answer.score
+    if score is not None:  # .or_higher / .or_lower route on it
+        top = float(len(question.options) - 1)
+        if not (math.isfinite(score) and -1e-6 <= score <= top + 1e-6):
+            raise DecisionProviderError(
+                f"Decision provider '{label}' answered with an impossible score "
+                f"for {question.label}: outside 0-{top:g}"
+            )
+        score = min(max(score, 0.0), top)
+    return replace(
+        answer,
+        probabilities={o: _clamp(p) for o, p in answer.probabilities.items()},
+        confidence=None if answer.confidence is None else _clamp(answer.confidence),
+        score=score,
+    )
+
+
+def _clamp(probability: float) -> float:
+    return min(max(probability, 0.0), 1.0)
 
 
 def _yes_no_answer(probability_yes: float, **extra: Any) -> DecisionAnswer:

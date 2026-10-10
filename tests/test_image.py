@@ -148,3 +148,17 @@ def test_base64_that_is_no_readable_image_is_still_accepted():
     data = base64.b64encode(b"not an image Pillow knows").decode()
 
     assert Image(url=f"data:image/heic;base64,{data}").mime_type == "image/heic"
+
+
+def test_data_exactly_at_the_limit_is_accepted(monkeypatch):
+    """The size check ignores base64 padding: a file of exactly the limit passes."""
+    from flock.core import image as image_module
+
+    data = png_bytes()
+    while len(data) % 3 == 0:  # make sure the encoding carries padding
+        data += b"\0"
+    monkeypatch.setattr(image_module, "MAX_IMAGE_BYTES", len(data))
+    encoded = base64.b64encode(data).decode()
+    assert encoded.endswith("=")
+
+    assert Image(url=f"data:image/png;base64,{encoded}").to_bytes() == data
