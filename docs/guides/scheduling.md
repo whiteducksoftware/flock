@@ -882,7 +882,7 @@ def schedule(
 ## Next Steps
 
 - **Tutorial:** See [Scheduled Agents Tutorial](../tutorials/scheduled-agents.md) for step-by-step examples
-- **Examples:** Check `examples/09-scheduling/` for working code
+- **Examples:** Check `examples/10-scheduling/` for working code
 - **Design:** Read `.flock/schedule/DESIGN.md` for implementation details
 - **AGENTS.md:** Quick reference for `.schedule()` API
 

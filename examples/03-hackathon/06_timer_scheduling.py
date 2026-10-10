@@ -282,15 +282,16 @@ if __name__ == "__main__":
 #
 # EXPERIMENT 7: Access Timer Metadata
 # ------------------------------------
-# Use timer context in agent logic:
-#   from flock.core.runtime import AgentContext
+# Use timer context in a custom engine (flock.Context):
+#   from flock.components.agent import EngineComponent
 #
-#   async def my_agent(ctx: AgentContext) -> SystemMetrics:
+#   class MetricsEngine(EngineComponent):
+#     async def evaluate(self, agent, ctx, inputs, output_group):
 #       if ctx.trigger_type == "timer":
 #           iteration = ctx.timer_iteration  # 0, 1, 2, ...
 #           fire_time = ctx.fire_time        # datetime when fired
 #           # Generate metrics based on iteration
-#       return SystemMetrics(...)
+#       return EvalResult.from_object(SystemMetrics(...), agent=agent)
 #
 # How can you use iteration to vary metrics?
 #

@@ -47,9 +47,9 @@ class ServerComponent(BaseModel):
         1. __init__() Component creation
         2. configure(app, orchestrator) - Configure FastAPI app (middleware, etc.)
         3. register_routes(app, orchestrator) - Add endpoints to FastAPI app
-        4. on_startup(orchestrator) - Async startup tasks
+        4. on_startup_async(orchestrator) - Async startup tasks
         5. ...service runs...
-        6. on_shutdown(orchestrator) - Async cleanup tasks
+        6. on_shutdown_async(orchestrator) - Async cleanup tasks
 
     Priority System:
         - Lower priority numbers register first
@@ -122,7 +122,7 @@ class ServerComponent(BaseModel):
             orchestrator: Flock orchestrator instance
 
         Example:
-            >>> async def on_startup(self, orchestrator):
+            >>> async def on_startup_async(self, orchestrator):
             >>>     self.websocket_manager = WebSocketManager()
             >>>     self.launcher = DashboardLauncher()
             >>>     self.launcher.start()
@@ -142,7 +142,7 @@ class ServerComponent(BaseModel):
             orchestrator: Flock orchestrator instance
 
         Example:
-            >>> async def on_shutdown(self, orchestrator):
+            >>> async def on_shutdown_async(self, orchestrator):
             >>>     if self.websocket_manager:
             >>>         await self.websocket_manager.shutdown()
             >>>     if self.launcher:
