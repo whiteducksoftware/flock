@@ -1,6 +1,7 @@
 """Tests for TimerComponent lifecycle hooks and structure."""
 
 import asyncio
+import gc
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
@@ -9,6 +10,32 @@ import pytest
 from flock.components.orchestrator.scheduling.timer import TimerComponent
 from flock.core.subscription import ScheduleSpec
 from flock.models.system_artifacts import TimerTick
+
+
+@pytest.fixture(autouse=True)
+async def no_leaked_timer_loops():
+    """Fail a test that leaves TimerComponent loops running or crashed.
+
+    A leaked loop fires against a mocked orchestrator; its exception surfaces
+    later as "Task exception was never retrieved" in unrelated tests.
+    """
+    loop = asyncio.get_running_loop()
+    errors: list[dict] = []
+    previous = loop.get_exception_handler()
+    loop.set_exception_handler(lambda _loop, context: errors.append(context))
+    yield
+    leaked = [
+        task
+        for task in asyncio.all_tasks()
+        if not task.done() and task.get_coro().__qualname__.endswith("_timer_loop")
+    ]
+    for task in leaked:
+        task.cancel()
+    await asyncio.sleep(0)
+    gc.collect()
+    loop.set_exception_handler(previous)
+    assert not leaked, "test left TimerComponent loops running; call on_shutdown()"
+    assert not errors, f"background task failed: {errors[0].get('exception')!r}"
 
 
 class TestTimerComponentCreation:
@@ -69,6 +96,7 @@ class TestTimerComponentInitialize:
         """Test on_initialize creates tasks for scheduled agents."""
         # Create mock orchestrator with scheduled agents
         orchestrator = MagicMock()
+        orchestrator.publish = AsyncMock()
 
         # Agent with schedule_spec
         agent1 = MagicMock()
@@ -104,10 +132,13 @@ class TestTimerComponentInitialize:
         assert timer_state.is_stopped is False
         assert timer_state.next_fire_time is not None
 
+        await component.on_shutdown(orchestrator)
+
     @pytest.mark.asyncio
     async def test_on_initialize_initializes_timer_states(self):
         """Test on_initialize initializes timer states for scheduled agents."""
         orchestrator = MagicMock()
+        orchestrator.publish = AsyncMock()
 
         agent1 = MagicMock()
         agent1.name = "agent1"
@@ -138,6 +169,8 @@ class TestTimerComponentInitialize:
         assert state2.iteration == 0
         assert state2.is_active is True
 
+        await component.on_shutdown(orchestrator)
+
     @pytest.mark.asyncio
     async def test_on_initialize_no_scheduled_agents(self):
         """Test on_initialize handles orchestrator with no scheduled agents."""
@@ -154,6 +187,7 @@ class TestTimerComponentInitialize:
     async def test_on_initialize_multiple_scheduled_agents(self):
         """Test on_initialize creates tasks for multiple scheduled agents."""
         orchestrator = MagicMock()
+        orchestrator.publish = AsyncMock()
 
         agent1 = MagicMock()
         agent1.name = "timer1"
@@ -172,6 +206,8 @@ class TestTimerComponentInitialize:
         assert len(component._timer_tasks) == 2
         assert "timer1" in component._timer_tasks
         assert "timer2" in component._timer_tasks
+
+        await component.on_shutdown(orchestrator)
 
 
 class TestTimerComponentShutdown:
