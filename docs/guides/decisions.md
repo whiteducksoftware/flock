@@ -170,6 +170,16 @@ await flock.publish(ProductPhoto(sku="A-17", photo=Image.from_file("a17.jpg")))
 
 In the dashboard, a decider's options show lanes with thumbnails of the latest images sorted into each option, and a decision artifact shows the decided image next to its probabilities. Image fields render as thumbnails instead of base64 text.
 
+<p align="center">
+  <img alt="A decider's option lanes filling with sorted images" src="../../assets/images/decisions/decision-lanes.gif" width="360">
+</p>
+
+In the Blackboard View every image artifact shows its thumbnail, and each decision shows the image it decided on, its probabilities and the threshold:
+
+<p align="center">
+  <img alt="Image artifacts, decisions with the decided image, and the bins they routed to" src="../../assets/images/decisions/decision-blackboard.png" width="900">
+</p>
+
 ## Providers
 
 | Model string | Protocol | Configuration |

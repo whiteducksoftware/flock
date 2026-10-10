@@ -80,3 +80,7 @@ uv run examples/15-decisions/03_color_sorter.py
 ```
 
 Set `USE_DASHBOARD = True` to watch the decider's option lanes fill with thumbnails, one shape per second.
+
+<p align="center">
+  <img alt="The color sorter's option lanes filling in the dashboard" src="../../docs/assets/images/decisions/decision-lanes.gif" width="360">
+</p>
