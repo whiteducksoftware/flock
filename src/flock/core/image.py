@@ -29,6 +29,20 @@ DEFAULT_MAX_SIDE = 1024
 _DATA_URL = re.compile(r"^data:(image/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$")
 
 
+def describe_image_data(value: str) -> str | None:
+    """``🖼 image/jpeg · 42 KB`` for an image data URL, else None.
+
+    Logs, traces and the dashboard use this instead of copying image data.
+    """
+    if not value.startswith("data:image/"):
+        return None
+    match = _DATA_URL.match(value)
+    if match is None:
+        return None
+    size_kb = max(1, round(len(match.group(2)) * 3 / 4 / 1024))
+    return f"🖼 {match.group(1)} · {size_kb} KB"
+
+
 class Image(BaseModel):
     """An image stored inline as a base64 data URL."""
 
@@ -109,4 +123,4 @@ class Image(BaseModel):
         return f"Image({self.mime_type}, {len(self.base64_data)} base64 chars)"
 
 
-__all__ = ["DEFAULT_MAX_SIDE", "Image"]
+__all__ = ["DEFAULT_MAX_SIDE", "Image", "describe_image_data"]

@@ -13,7 +13,7 @@ import hashlib
 from collections import OrderedDict
 from typing import Any
 
-from flock.core.image import Image
+from flock.core.image import Image, describe_image_data
 
 
 THUMB_SIDE = 160
@@ -47,9 +47,7 @@ def find_images(value: Any, path: str = "") -> list[tuple[str, str]]:
 
 def describe(url: str) -> str:
     """Short text for an image in the JSON view, e.g. ``🖼 image/jpeg · 42 KB``."""
-    mime = url[5 : url.index(";")]
-    size_kb = max(1, round(len(url.split(",", 1)[1]) * 3 / 4 / 1024))
-    return f"🖼 {mime} · {size_kb} KB"
+    return describe_image_data(url) or "🖼 image"
 
 
 def compact(value: Any) -> Any:
