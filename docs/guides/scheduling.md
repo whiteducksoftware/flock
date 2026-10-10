@@ -1,6 +1,6 @@
 ---
 title: Timer-Based Agent Scheduling
-description: Schedule agents to execute periodically or at specific times without requiring artifact triggers
+description: Schedule agents to run periodically or at specific times without an artifact trigger
 tags:
   - scheduling
   - timers
@@ -12,880 +12,314 @@ search:
 
 # Timer-Based Agent Scheduling
 
-Timer-based scheduling enables agents to execute periodically or at specific times **without requiring artifact triggers**. This is perfect for health checks, periodic reports, batch processing, and scheduled maintenance tasks.
+A scheduled agent runs on a timer instead of waiting for an artifact. Use it for health checks, periodic reports, aggregation of accumulated data, cleanup jobs and reminders.
 
-**Think of scheduled agents like cron jobs:** They run automatically on a timer while maintaining full access to the blackboard for context.
-
----
-
-## When to Use Timer Scheduling
-
-### Use Timers For:
-
-- **Periodic monitoring** - Health checks, system status, resource monitoring
-- **Scheduled reports** - Daily summaries, weekly analytics, monthly aggregations
-- **Batch processing** - Process accumulated data at regular intervals
-- **Cleanup tasks** - Delete old records, archive data, vacuum databases
-- **Time-based alerts** - Check for stale data, missed deadlines, expired items
-
-### Use Artifact Triggers For:
-
-- **Event-driven workflows** - Process orders, handle user requests, respond to events
-- **Real-time processing** - Immediate reaction to data changes
-- **Dependent workflows** - Agent B waits for Agent A's output
-
-### Hybrid Pattern (Powerful!):
-
-Combine timers with context filtering to create **periodic processors that analyze accumulated data**:
-
-```python
-# Runs every 5 minutes, but ONLY sees ERROR-level logs
-error_analyzer = (
-    flock.agent("error_analyzer")
-    .schedule(every=timedelta(minutes=5))
-    .consumes(LogEntry, where=lambda log: log.level == "ERROR")
-    .publishes(ErrorReport)
-)
-```
+A scheduled agent is an ordinary Flock agent: it runs its engine (the LLM-backed `DSPyEngine` by default, or your own engine), reads blackboard context and publishes typed artifacts. Only the trigger is different.
 
 ---
 
 ## Quick Start
 
-### Simple Periodic Execution
-
 ```python
-from datetime import timedelta
-from flock import Flock
+from datetime import datetime, timedelta
+
+from pydantic import BaseModel, Field
+
+from flock import Flock, flock_type
+
+
+@flock_type
+class HealthStatus(BaseModel):
+    cpu_percent: float = Field(description="CPU usage percentage (0-100)")
+    memory_percent: float = Field(description="Memory usage percentage (0-100)")
+    status: str = Field(description="healthy, warning or critical")
+    timestamp: datetime
+
 
 flock = Flock("openai/gpt-4.1")
 
-# Execute every 30 seconds
 health_monitor = (
     flock.agent("health_monitor")
-    .description("Monitors system health")
+    .description("Report realistic CPU and memory usage and an overall status.")
     .schedule(every=timedelta(seconds=30))
     .publishes(HealthStatus)
 )
 
-# Agent implementation receives empty input
-async def check_health(ctx: AgentContext) -> HealthStatus:
-    # ctx.artifacts = []  (no input artifact)
-    # ctx.trigger_type = "timer"
-    # ctx.timer_iteration = 0, 1, 2, ...
-
-    import psutil
-    return HealthStatus(
-        cpu_percent=psutil.cpu_percent(),
-        memory_percent=psutil.virtual_memory().percent,
-        timestamp=datetime.now()
-    )
+await flock.serve(dashboard=True)  # timers run until the server stops
 ```
 
-**Key Points:**
-- Timer-triggered agents receive **empty input** (`ctx.artifacts = []`)
-- Access blackboard context via `ctx.get_artifacts(Type)`
-- Timer metadata available via `ctx.timer_iteration`, `ctx.fire_time`
-- Timers start automatically when orchestrator starts
+Every 30 seconds the agent runs and publishes a `HealthStatus`. A scheduled agent must declare `.publishes()`; otherwise the first run fails with `ValueError: Scheduled agent 'health_monitor' must declare .publishes()`.
 
 ---
 
-## Scheduling Modes
+## Schedules
 
-### 1. Interval-Based (Periodic)
+`.schedule()` takes exactly one of `every`, `at` or `cron`, plus the options `after` and `max_repeats`.
 
-Execute at regular intervals:
+| Schedule | Fires | Example |
+|---|---|---|
+| `every=timedelta(...)` | Immediately, then after each interval | `.schedule(every=timedelta(minutes=5))` |
+| `at=time(...)` | Daily at that time, **in UTC** | `.schedule(at=time(hour=17))` |
+| `at=datetime(...)` | Once, at that moment | `.schedule(at=datetime(2026, 11, 2, 9, 0, tzinfo=UTC))` |
+| `cron="..."` | On a 5-field cron expression, **in UTC** | `.schedule(cron="0 9 * * 1-5")` |
 
-```python
-# Every 10 seconds
-agent.schedule(every=timedelta(seconds=10))
-
-# Every 5 minutes
-agent.schedule(every=timedelta(minutes=5))
-
-# Every hour
-agent.schedule(every=timedelta(hours=1))
-
-# Every day
-agent.schedule(every=timedelta(days=1))
-```
-
-**Use Cases:**
-- System health monitoring (every 30s)
-- Log aggregation (every 5 min)
-- Batch processing (every hour)
-- Daily backups (every day)
-
-### 2. Time-Based (Daily Execution)
-
-Execute daily at a specific time:
+| Option | Effect |
+|---|---|
+| `after=timedelta(...)` | Waits this long before the schedule starts |
+| `max_repeats=n` | Stops after `n` runs (a `datetime` schedule runs once unless you set it) |
 
 ```python
-from datetime import time
+from datetime import UTC, datetime, time, timedelta
 
-# Every day at 5 PM
-daily_report = (
-    flock.agent("daily_report")
-    .schedule(at=time(hour=17, minute=0))
-    .publishes(DailyReport)
-)
-
-# Every day at midnight
-cleanup = (
-    flock.agent("cleanup")
-    .schedule(at=time(hour=0, minute=0))
-    .publishes(CleanupResult)
-)
-```
-
-**Use Cases:**
-- End-of-day reports (5 PM)
-- Nightly cleanup (2 AM)
-- Morning data refresh (6 AM)
-
-### 3. DateTime-Based (One-Time Execution)
-
-Execute once at a specific datetime:
-
-```python
-from datetime import datetime
-
-# Execute once on November 1, 2025 at 9 AM
-reminder = (
-    flock.agent("meeting_reminder")
-    .schedule(at=datetime(2025, 11, 1, 9, 0))
-    .publishes(Reminder)
-)
-
-# Execute once in 1 hour
-delayed_task = (
-    flock.agent("delayed")
-    .schedule(at=datetime.now() + timedelta(hours=1))
-    .publishes(Result)
-)
-```
-
-**Use Cases:**
-- Future reminders
-- Delayed notifications
-- Scheduled one-time tasks
-
-### 4. Cron (UTC, 5-field)
-
-Run on a cron schedule in UTC. Supported syntax: `*`, lists (`,`), ranges (`-`), and steps (`/`). Sunday may be `0` or `7`.
-
-```python
-# Every 5 minutes (UTC)
-agent.schedule(cron="*/5 * * * *")
+# Every 10 seconds, at most 5 times, starting after 60 seconds
+agent.schedule(every=timedelta(seconds=10), after=timedelta(seconds=60), max_repeats=5)
 
 # Every day at 17:00 UTC
-agent.schedule(cron="0 17 * * *")
+agent.schedule(at=time(hour=17, minute=0))
 
-# Weekdays at 9,11,13,15,17 UTC
-agent.schedule(cron="0 9-17/2 * * 1-5")
+# Once, 30 seconds from now
+agent.schedule(at=datetime.now(UTC) + timedelta(seconds=30))
+
+# Weekdays at 09:00 UTC
+agent.schedule(cron="0 9 * * 1-5")
 ```
 
-Notes:
-- Cron expressions are evaluated in UTC.
-- Day-of-month and day-of-week follow standard cron OR logic (if both are set, matches when either matches).
+Details that matter in practice:
 
-### 5. With Initial Delay
-
-Add a delay before the first execution:
-
-```python
-# Wait 60 seconds before starting, then every 5 minutes
-warmup_agent = (
-    flock.agent("warmup")
-    .schedule(
-        every=timedelta(minutes=5),
-        after=timedelta(seconds=60)
-    )
-    .publishes(WarmupResult)
-)
-```
-
-**Use Cases:**
-- Wait for system warmup
-- Stagger multiple timers
-- Delayed start after initialization
-
-### 6. With Repeat Limit
-
-Limit the number of executions:
-
-```python
-# Execute exactly 10 times, then stop
-limited_agent = (
-    flock.agent("reminder")
-    .schedule(
-        every=timedelta(hours=1),
-        max_repeats=10
-    )
-    .publishes(Reminder)
-)
-```
-
-**Use Cases:**
-- Limited reminder series
-- Trial period monitoring
-- Temporary scheduled tasks
+- **Times are UTC.** `at=time(17, 0)` means 17:00 UTC, whatever the time zone of the machine. A `datetime` without `tzinfo` is read as UTC, so `datetime.now() + timedelta(...)` is off by your UTC offset. Use `datetime.now(UTC)`.
+- **A `datetime` in the past fires immediately**, once.
+- **Intervals are not aligned to the clock.** The next tick is one interval after the previous one. Use `at=` or `cron=` for wall-clock times.
+- **An invalid cron expression is not rejected.** The timer then fires every minute, so check expressions before you deploy them.
+- **Iterations start at 0 on every start.** Timer state is not persisted; after a restart, `ctx.timer_iteration` counts from 0 again.
 
 ---
 
-## Context Filtering with Timers
+## What a Timer Run Receives
 
-This is where timer scheduling becomes **incredibly powerful**. Use `.consumes()` to filter what the timer agent sees on the blackboard.
+When the timer fires, Flock publishes a `TimerTick` system artifact (tagged `system` and `timer`) that only this agent subscribes to. The agent then runs like any other:
 
-### Key Insight: Dual Purpose of `.consumes()`
+| What | Where | Content on a timer run |
+|---|---|---|
+| Input | `inputs.artifacts` (custom engines) | One `TimerTick` |
+| Context | `ctx.artifacts` | The artifacts the context provider returns (see below) |
+| Trigger | `ctx.trigger_type` | `"timer"` (`"artifact"` for normal runs) |
+| Iteration | `ctx.timer_iteration` | `0`, `1`, `2`, ... |
+| Fire time | `ctx.fire_time` | The tick's `datetime`, in UTC |
 
-With artifact-triggered agents:
-- `.consumes()` defines **what triggers** the agent
+**LLM agents** (the default `DSPyEngine`) get the agent description and the context artifacts in the prompt and produce the declared output type. You don't write code for them: describe the job in `.description()` and control the context, as shown in the next section.
 
-With timer-triggered agents:
-- `.consumes()` defines **what context** the agent sees (filtering, not triggering)
+**By default the context is the whole blackboard** the agent may see (visibility still applies): all other agents' artifacts, earlier `TimerTick`s and the agent's own earlier outputs. For anything beyond a demo, give the agent a context provider.
 
-### Filter by Artifact Type
+---
 
-```python
-# Runs every 5 minutes, ONLY sees LogEntry artifacts
-log_analyzer = (
-    flock.agent("log_analyzer")
-    .schedule(every=timedelta(minutes=5))
-    .consumes(LogEntry)  # Context filter
-    .publishes(LogReport)
-)
+## Choosing What a Timer Agent Sees
 
-# In agent:
-async def analyze(ctx: AgentContext) -> LogReport:
-    logs = ctx.get_artifacts(LogEntry)  # Only LogEntry, no other types
-    return LogReport(log_count=len(logs))
-```
+Context is controlled by [context providers](context-providers.md), set per agent with `.with_context(...)`.
 
-### Filter by Predicate
+### By type, tag or producer
 
 ```python
-# Runs every 5 minutes, ONLY sees ERROR-level logs
-error_analyzer = (
-    flock.agent("error_analyzer")
-    .schedule(every=timedelta(minutes=5))
-    .consumes(LogEntry, where=lambda log: log.level == "ERROR")
-    .publishes(ErrorReport)
-)
+from flock.core.context_provider import FilteredContextProvider
+from flock.core.store import FilterConfig
+from flock.registry import type_registry
 
-# In agent:
-async def analyze(ctx: AgentContext) -> ErrorReport:
-    errors = ctx.get_artifacts(LogEntry)  # ONLY ERROR logs
-    return ErrorReport(
-        error_count=len(errors),
-        errors=errors
-    )
-```
-
-### Filter by Tags
-
-```python
-# Runs hourly, ONLY sees artifacts tagged "critical"
-critical_monitor = (
-    flock.agent("critical_monitor")
+spending_reporter = (
+    flock.agent("spending_reporter")
+    .description("Summarize all transactions so far: totals, averages, top category.")
     .schedule(every=timedelta(hours=1))
-    .consumes(Metric, Alert, tags={"critical"})
-    .publishes(CriticalReport)
-)
-
-# In agent:
-async def monitor(ctx: AgentContext) -> CriticalReport:
-    metrics = ctx.get_artifacts(Metric)  # Only critical metrics
-    alerts = ctx.get_artifacts(Alert)    # Only critical alerts
-    return CriticalReport(metrics=metrics, alerts=alerts)
-```
-
-### Filter by Source Agent
-
-```python
-# Runs every 10 minutes, ONLY sees data from specific agents
-processor = (
-    flock.agent("processor")
-    .schedule(every=timedelta(minutes=10))
-    .consumes(DataPoint, from_agents=["collector_a", "collector_b"])
-    .publishes(ProcessedData)
-)
-```
-
-### Filter by Semantic Match
-
-```python
-# Runs every 5 minutes, ONLY sees billing-related tickets
-billing_handler = (
-    flock.agent("billing_handler")
-    .schedule(every=timedelta(minutes=5))
-    .consumes(Ticket, semantic_match="billing payment refund")
-    .publishes(BillingResponse)
-)
-```
-
-### Multiple Type Filters
-
-```python
-# See both Metrics AND Alerts (filtered by same tag)
-aggregator = (
-    flock.agent("aggregator")
-    .schedule(every=timedelta(hours=1))
-    .consumes(Metric, Alert, tags={"critical"})
-    .publishes(AggregatedReport)
-)
-
-# In agent:
-async def aggregate(ctx: AgentContext) -> AggregatedReport:
-    metrics = ctx.get_artifacts(Metric)  # Critical metrics
-    alerts = ctx.get_artifacts(Alert)    # Critical alerts
-    # Both filtered by "critical" tag
-```
-
----
-
-## Timer Metadata Access
-
-Timer-triggered agents have access to special metadata in their context:
-
-### Context Properties
-
-```python
-async def my_agent(ctx: AgentContext) -> Result:
-    # Check if timer-triggered
-    if ctx.trigger_type == "timer":
-        print("Timer-triggered!")
-
-    # Get iteration count (0-indexed)
-    iteration = ctx.timer_iteration  # 0, 1, 2, 3, ...
-
-    # Get fire time
-    fire_time = ctx.fire_time  # datetime when timer fired
-
-    # Input is always empty for timer triggers (internal TimerTick is hidden)
-    assert ctx.artifacts == []
-
-    # Access blackboard context (filtered by .consumes())
-    logs = ctx.get_artifacts(LogEntry)
-
-    return Result(
-        iteration=iteration,
-        processed_at=fire_time,
-        log_count=len(logs)
-    )
-```
-
-### Available Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `ctx.trigger_type` | `str` | `"timer"` for timer-triggered, `"artifact"` for normal |
-| `ctx.timer_iteration` | `int \| None` | Iteration count (0-indexed), `None` if not timer |
-| `ctx.fire_time` | `datetime \| None` | When timer fired, `None` if not timer |
-| `ctx.artifacts` | `list` | Always `[]` for timer triggers |
-
----
-
-## Best Practices
-
-### 1. Use Descriptive Agent Names
-
-```python
-# Good: Clear purpose
-health_monitor = flock.agent("health_monitor").schedule(...)
-daily_report = flock.agent("daily_report").schedule(...)
-
-# Bad: Generic names
-agent1 = flock.agent("agent1").schedule(...)
-timer = flock.agent("timer").schedule(...)
-```
-
-### 2. Add Clear Descriptions
-
-```python
-agent = (
-    flock.agent("error_analyzer")
-    .description("Analyzes ERROR-level logs every 5 minutes")
-    .schedule(every=timedelta(minutes=5))
-    .consumes(LogEntry, where=lambda log: log.level == "ERROR")
-    .publishes(ErrorReport)
-)
-```
-
-### 3. Choose Appropriate Intervals
-
-```python
-# Too frequent: Wastes resources
-agent.schedule(every=timedelta(seconds=1))  # Usually overkill
-
-# Good: Balances freshness and cost
-agent.schedule(every=timedelta(seconds=30))  # Health checks
-agent.schedule(every=timedelta(minutes=5))   # Log analysis
-agent.schedule(every=timedelta(hours=1))     # Aggregation
-```
-
-### 4. Use Context Filtering
-
-```python
-# Good: Filter to reduce context size and cost
-agent = (
-    flock.agent("analyzer")
-    .schedule(every=timedelta(minutes=5))
-    .consumes(LogEntry, where=lambda log: log.level == "ERROR")
-    .publishes(Report)
-)
-
-# Bad: Process all artifacts (expensive, slow)
-agent = (
-    flock.agent("analyzer")
-    .schedule(every=timedelta(minutes=5))
-    .publishes(Report)
-)
-# Agent sees ALL artifacts on blackboard!
-```
-
-### 5. Stagger Multiple Timers
-
-```python
-# Good: Stagger to avoid resource spikes
-agent1.schedule(every=timedelta(minutes=5), after=timedelta(seconds=0))
-agent2.schedule(every=timedelta(minutes=5), after=timedelta(seconds=60))
-agent3.schedule(every=timedelta(minutes=5), after=timedelta(seconds=120))
-
-# Bad: All fire simultaneously
-agent1.schedule(every=timedelta(minutes=5))
-agent2.schedule(every=timedelta(minutes=5))
-agent3.schedule(every=timedelta(minutes=5))
-```
-
-### 6. Use `.publishes()` - Always Define Output
-
-```python
-# Good: Clear output type
-agent = (
-    flock.agent("health")
-    .schedule(every=timedelta(seconds=30))
-    .publishes(HealthStatus)
-)
-
-# Bad: No output type (validation error)
-agent = (
-    flock.agent("health")
-    .schedule(every=timedelta(seconds=30))
-)
-# Raises: "Scheduled agents must have .publishes()"
-```
-
-### 7. Use `serve()` for Long-Running Orchestrators
-
-```python
-# Good: For orchestrators with timers
-await flock.serve()  # Runs until interrupted
-
-# Bad: run_until_idle() never completes with timers
-await flock.run_until_idle()  # Blocks forever!
-```
-
----
-
-## Common Pitfalls
-
-### 1. Timer + Batch = Error
-
-```python
-# WRONG: Cannot combine .schedule() with .batch()
-agent = (
-    flock.agent("processor")
-    .schedule(every=timedelta(minutes=5))
-    .consumes(Order, batch=BatchSpec(size=100))  # ERROR!
-    .publishes(Report)
-)
-# Raises: "Cannot combine .schedule() with .batch() - mutually exclusive"
-```
-
-**Why?** Timers and batching are different trigger mechanisms. Use one or the other.
-
-### 2. Timers Don't Persist Across Restarts
-
-```python
-# First run:  iteration = 0, 1, 2, 3
-# [Restart orchestrator]
-# Second run: iteration = 0, 1, 2, 3  (not 4, 5, 6...)
-```
-
-**Solution:** If you need persistent state, use external storage (database, file system).
-
-### 3. Slow Agents Can Queue Up
-
-**Problem:** Timer fires every 10 seconds, but agent takes 15 seconds to execute.
-
-**Result:** Executions queue up (T=0, T=10, T=20 all pending).
-
-**Solution:** Use `max_concurrency` to prevent queue buildup:
-
-```python
-agent = (
-    flock.agent("slow_agent")
-    .schedule(every=timedelta(seconds=10))
-    .max_concurrency(1)  # Only 1 execution at a time
-    .publishes(Result)
-)
-```
-
-### 4. Timer Precision ±1 Second
-
-**Reality:** Timers use `asyncio.sleep()`, which has ~1 second resolution.
-
-**Impact:** Timer may drift slightly over time due to:
-- Agent execution time
-- System load
-- Python GIL contention
-
-**Solution:** For high-precision timing, use dedicated scheduler components.
-
-### 5. Context Providers Apply to Timers
-
-Timer-triggered agents respect global and per-agent context providers:
-
-### 6. Datetime Without max_repeats Is One-Time
-
-When you schedule with a specific `datetime` and do not provide `max_repeats`, the timer fires once and stops automatically.
-
-```python
-# Global filter: Only urgent items
-urgent_provider = FilteredContextProvider(FilterConfig(tags={"urgent"}))
-flock = Flock("openai/gpt-4.1", context_provider=urgent_provider)
-
-# Timer agent ONLY sees urgent artifacts
-agent = (
-    flock.agent("processor")
-    .schedule(every=timedelta(minutes=5))
-    .publishes(Report)
-)
-# ctx.get_artifacts() returns ONLY urgent-tagged artifacts
-```
-
----
-
-## Execution Semantics
-
-### Timer-Triggered vs Artifact-Triggered
-
-| Property | Artifact-Triggered | Timer-Triggered |
-|----------|-------------------|-----------------|
-| **Trigger** | Artifact published matching `.consumes()` | Timer fires based on `.schedule()` |
-| **Input** | `ctx.artifacts = [TriggerArtifact]` | `ctx.artifacts = []` |
-| **Context** | All blackboard artifacts | All blackboard artifacts |
-| **Filtering** | `.consumes()` filters TRIGGERS | `.consumes()` filters CONTEXT |
-| **Metadata** | `ctx.trigger_type = "artifact"` | `ctx.trigger_type = "timer"` |
-| **Special Props** | N/A | `ctx.timer_iteration`, `ctx.fire_time` |
-
-### Timer Lifecycle
-
-```
-1. Orchestrator Startup
-   ↓
-2. TimerComponent.on_initialize()
-   - Create background task per scheduled agent
-   ↓
-3. Timer Loop (per agent)
-   - Wait for initial delay (if configured)
-   - Loop:
-     - Wait for next fire time
-     - Publish TimerTick artifact (internal)
-     - Increment iteration counter
-     - Check max_repeats limit
-   ↓
-4. Subscription Matching
-   - Agent auto-subscribed to own TimerTicks
-   - Filter: tick.timer_name == agent.name
-   ↓
-5. Agent Execution
-   - ctx.artifacts presented as []
-   - ctx.timer_iteration = N
-   - ctx.trigger_type = "timer"
-   ↓
-6. Output Publishing
-   - Outputs cascade normally to other agents
-   ↓
-7. Orchestrator Shutdown
-   - TimerComponent.on_shutdown()
-   - Cancel all timer tasks
-   - Wait for graceful completion
-```
-
----
-
-## Advanced Patterns
-
-### Pattern 1: Periodic Batch Processing
-
-Process accumulated data at regular intervals:
-
-```python
-# Continuous data collection (from external source)
-for data_point in stream:
-    await flock.publish(DataPoint(value=data_point))
-
-# Periodic aggregation
-batch_processor = (
-    flock.agent("batch_processor")
-    .description("Process sensor data every 10 minutes")
-    .schedule(every=timedelta(minutes=10))
-    .consumes(DataPoint)
-    .publishes(AggregatedData)
-)
-
-# Implementation
-async def process_batch(ctx: AgentContext) -> list[AggregatedData]:
-    data_points = ctx.get_artifacts(DataPoint)
-
-    # Group by sensor_id
-    by_sensor = defaultdict(list)
-    for point in data_points:
-        by_sensor[point.sensor_id].append(point)
-
-    # Aggregate each sensor
-    return [
-        AggregatedData(
-            sensor_id=sensor_id,
-            avg_value=mean(p.value for p in points),
-            count=len(points)
+    .with_context(
+        FilteredContextProvider(
+            FilterConfig(type_names={type_registry.name_for(Transaction)}), limit=-1
         )
-        for sensor_id, points in by_sensor.items()
-    ]
+    )
+    .publishes(SpendingReport)
+)
 ```
 
-### Pattern 2: Time-Window Analysis
+`FilteredContextProvider` returns at most `limit` artifacts, oldest first, and `limit` defaults to 50. A timer agent that should see everything so far needs `limit=-1`.
 
-Analyze data within specific time windows:
+`FilterConfig` also takes `produced_by`, `correlation_id` and `tags`; criteria combine with AND, and an artifact must carry all the given tags. Tags are set when publishing, for example `await flock.publish(entry, tags={"error"})`.
+
+### By time
+
+`FilterConfig` holds fixed values, so a window that moves with each run needs a small provider. Every artifact has a `created_at` timestamp (UTC), and `FilterConfig(start=...)` selects on it. This provider returns today's artifacts of the given types:
 
 ```python
-# Daily report analyzes last 24 hours
-daily_report = (
-    flock.agent("daily_report")
-    .description("Generate end-of-day financial report")
-    .schedule(at=time(hour=17, minute=0))  # 5 PM daily
-    .consumes(Transaction)
+from datetime import UTC, datetime
+
+from pydantic import BaseModel
+
+from flock.core.artifacts import Artifact
+from flock.core.context_provider import BaseContextProvider, ContextRequest
+
+
+class Today(BaseContextProvider):
+    """Artifacts of the given types published since 00:00 UTC today."""
+
+    def __init__(self, *types: type[BaseModel]):
+        self.type_names = {type_registry.name_for(t) for t in types}
+
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        midnight = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        artifacts, _ = await request.store.query_artifacts(
+            FilterConfig(type_names=self.type_names, start=midnight), limit=-1
+        )
+        return artifacts
+
+
+daily_reporter = (
+    flock.agent("daily_reporter")
+    .description("Summarize today's transactions: totals, averages, top category.")
+    .schedule(at=time(hour=17, minute=0))
+    .with_context(Today(Transaction))
     .publishes(DailyReport)
 )
-
-async def generate_report(ctx: AgentContext) -> DailyReport:
-    transactions = ctx.get_artifacts(Transaction)
-    today = datetime.now().date()
-
-    # Filter to today's transactions
-    today_txns = [
-        t for t in transactions
-        if t.timestamp.date() == today
-    ]
-
-    return DailyReport(
-        date=today,
-        total_transactions=len(today_txns),
-        total_revenue=sum(t.amount for t in today_txns)
-    )
 ```
 
-### Pattern 3: Multi-Stage Timer Pipeline
+`BaseContextProvider` still applies visibility to whatever `get_artifacts` returns.
 
-Chain timer-triggered agents:
+### By payload content
+
+For conditions on the payload, filter in the provider:
 
 ```python
-# Stage 1: Collect metrics every 30s
+class ErrorLogs(BaseContextProvider):
+    """Only ERROR-level log entries."""
+
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        logs, _ = await request.store.query_artifacts(
+            FilterConfig(type_names={type_registry.name_for(LogEntry)}), limit=-1
+        )
+        return [log for log in logs if log.payload.get("level") == "ERROR"]
+
+
+error_analyzer = (
+    flock.agent("error_analyzer")
+    .description("Find patterns in the ERROR logs and suggest fixes.")
+    .schedule(every=timedelta(minutes=5))
+    .with_context(ErrorLogs())
+    .publishes(ErrorReport)
+)
+```
+
+### `.consumes()` adds triggers, it does not filter context
+
+`.consumes()` on a scheduled agent subscribes it to artifacts *in addition to* the timer:
+
+```python
+# Runs every 5 minutes AND on every ERROR LogEntry
+watcher = (
+    flock.agent("watcher")
+    .schedule(every=timedelta(minutes=5))
+    .consumes(LogEntry, where=lambda log: log.level == "ERROR")
+    .publishes(ErrorReport)
+)
+```
+
+Use this only when you want both triggers. To choose what the agent *sees* on a timer run, use `.with_context(...)`.
+
+---
+
+## Custom Logic: Engines
+
+When a timer agent should compute something instead of asking an LLM, give it an engine. The engine reads the context from `ctx.artifacts` and returns its output:
+
+```python
+from flock.components.agent import EngineComponent
+from flock.utils.runtime import EvalResult
+
+
+class ErrorReportEngine(EngineComponent):
+    async def evaluate(self, agent, ctx, inputs, output_group):
+        logs = [LogEntry(**artifact.payload) for artifact in ctx.artifacts]
+        report = ErrorReport(
+            error_count=len(logs),
+            error_messages=[log.message for log in logs],
+            iteration=ctx.timer_iteration,
+        )
+        return EvalResult.from_object(report, agent=agent)
+
+
+error_counter = (
+    flock.agent("error_counter")
+    .schedule(every=timedelta(minutes=5))
+    .with_context(ErrorLogs())
+    .with_engines(ErrorReportEngine())
+    .publishes(ErrorReport)
+)
+```
+
+`ctx.trigger_type` tells an engine whether it was started by the timer or by an artifact, which is useful when an agent has both triggers.
+
+---
+
+## Timers and Reactive Agents
+
+A timer agent's output is an ordinary artifact, so other agents can react to it:
+
+```python
+# Timer: collect a metric every 30 seconds
 collector = (
     flock.agent("collector")
     .schedule(every=timedelta(seconds=30))
-    .publishes(HealthMetric)
+    .publishes(Metric)
 )
 
-# Stage 2: Alert on high usage (reactive, not scheduled)
-monitor = (
-    flock.agent("monitor")
-    .consumes(HealthMetric, where=lambda m: m.cpu > 80)
-    .publishes(HealthAlert)
+# Reactive: alert on high values as soon as they appear
+alerter = (
+    flock.agent("alerter")
+    .consumes(Metric, where=lambda m: m.value > 90)
+    .publishes(Alert)
 )
-
-# Stage 3: Daily summary at midnight
-summarizer = (
-    flock.agent("summarizer")
-    .schedule(at=time(hour=0, minute=0))
-    .consumes(HealthMetric, HealthAlert)
-    .publishes(DailyHealthSummary)
-)
-```
-
-### Pattern 4: Conditional Timer Logic
-
-Use timer metadata to implement conditional behavior:
-
-```python
-async def periodic_cleanup(ctx: AgentContext) -> CleanupResult:
-    # Every 10th iteration, do full cleanup
-    if ctx.timer_iteration % 10 == 0:
-        return await full_cleanup()
-    else:
-        return await quick_cleanup()
-```
-
-### Pattern 5: Dynamic Filtering Based on Time
-
-```python
-async def time_based_analysis(ctx: AgentContext) -> Report:
-    current_hour = datetime.now().hour
-
-    # Different filters based on time of day
-    if current_hour < 6:  # Night (12 AM - 6 AM)
-        logs = ctx.get_artifacts(LogEntry, where=lambda l: l.level == "ERROR")
-    elif current_hour < 18:  # Day (6 AM - 6 PM)
-        logs = ctx.get_artifacts(LogEntry, where=lambda l: l.level in ["WARN", "ERROR"])
-    else:  # Evening (6 PM - 12 AM)
-        logs = ctx.get_artifacts(LogEntry)  # All logs
-
-    return Report(logs=logs)
 ```
 
 ---
 
-## Comparison with Other Patterns
+## Running and Stopping
 
-### vs. Batching
-
-```python
-# Batching: Wait for N artifacts, then process
-batch_agent = (
-    flock.agent("batch")
-    .consumes(Order, batch=BatchSpec(size=100, timeout=timedelta(minutes=5)))
-    .publishes(Report)
-)
-# Triggers when: 100 Orders collected OR 5 minutes elapsed
-
-# Timer: Process every N time units
-timer_agent = (
-    flock.agent("timer")
-    .schedule(every=timedelta(minutes=5))
-    .consumes(Order)
-    .publishes(Report)
-)
-# Triggers every: 5 minutes (regardless of Order count)
-```
-
-**Use Batching When:** You want to process a specific number of items
-**Use Timers When:** You want to process on a schedule
-
-### vs. Join Operations
+Timers start when the orchestrator starts and stop when it stops.
 
 ```python
-# Join: Wait for correlated artifacts, then process
-join_agent = (
-    flock.agent("join")
-    .consumes(
-        UserProfile, OrderHistory,
-        join=JoinSpec(
-            on=lambda u, o: u.user_id == o.user_id,
-            timeout=timedelta(seconds=30)
-        )
-    )
-    .publishes(Recommendation)
-)
-# Triggers when: UserProfile + OrderHistory match on user_id
+# Long-running service: timers run until the server stops
+await flock.serve(dashboard=True)
 
-# Timer: Periodic processing with context
-timer_agent = (
-    flock.agent("timer")
-    .schedule(every=timedelta(minutes=5))
-    .consumes(UserProfile, OrderHistory)
-    .publishes(Report)
-)
-# Triggers every: 5 minutes, sees all UserProfiles and OrderHistories
+# Script or demo: run for a fixed time, then stop the timers
+await flock.run_until_idle(timeout=120)
+
+# Finite schedules: returns once every timer reached max_repeats
+await flock.run_until_idle()
 ```
 
-**Use Joins When:** You need to correlate related artifacts
-**Use Timers When:** You want periodic aggregation
+`run_until_idle()` counts running timers as work, so without `timeout` it never returns while an unlimited timer is active. With `timeout` it returns after that many seconds and cancels the timers.
 
 ---
 
-## Troubleshooting
+## Rules and Limits
 
-### Timer Not Firing
-
-**Problem:** Agent never executes.
-
-**Check:**
-1. Is orchestrator running? (`await flock.serve()`)
-2. Is schedule valid? (check validation errors)
-3. Is timer name unique? (agent names must be unique)
-
-### Agent Executes Too Frequently
-
-**Problem:** Agent running more often than expected.
-
-**Check:**
-1. Verify `every=` interval is correct
-2. Check for multiple timer definitions
-3. Ensure no duplicate agents with same name
-
-### Context is Empty
-
-**Problem:** `ctx.get_artifacts()` returns empty list.
-
-**Check:**
-1. Are artifacts actually on the blackboard?
-2. Is context provider filtering them out?
-3. Is `.consumes()` filter too restrictive?
-
-### run_until_idle() Never Completes
-
-**Problem:** `await flock.run_until_idle()` hangs.
-
-**Cause:** Timers keep orchestrator busy indefinitely.
-
-**Solution:** Use `await flock.serve()` instead for long-running orchestrators.
+| Rule | What happens otherwise |
+|---|---|
+| A scheduled agent needs `.publishes()` | `ValueError` on the first run |
+| Do not combine `.schedule()` with a batch subscription | `.schedule()` raises `ValueError` if the agent already has one; the reverse order is not checked yet |
+| Times are UTC | Local times are shifted by the UTC offset |
+| Timer state is not persisted | Iterations restart at 0 after a restart |
 
 ---
 
-## API Reference
+## Examples
 
-### `.schedule()` Method
+Runnable examples live in [`examples/10-scheduling/`](https://github.com/whiteducksoftware/flock/tree/main/examples/10-scheduling):
 
-```python
-def schedule(
-    self,
-    every: timedelta | None = None,
-    at: time | datetime | None = None,
-    after: timedelta | None = None,
-    max_repeats: int | None = None,
-) -> "AgentBuilder":
-    """Schedule periodic agent execution.
+| Example | Shows |
+|---|---|
+| `01_simple_health_monitor.py` | Interval schedule, LLM agent |
+| `02_error_log_analyzer.py` | Two timers; a custom context provider for ERROR logs |
+| `03_daily_report_generator.py` | Daily `at=time(...)` schedule; today's transactions as context |
+| `04_batch_data_processor.py` | Periodic aggregation with dynamic fan-out |
+| `05_one_time_reminder.py` | One-time `at=datetime(...)` schedule |
+| `06_cron_demo.py` | Cron schedule |
 
-    Args:
-        every: Execute at regular intervals
-        at: Execute at specific time (daily if `time`, once if `datetime`)
-        after: Initial delay before first execution
-        max_repeats: Maximum executions (None = infinite)
+## See Also
 
-    Returns:
-        AgentBuilder for method chaining
-    """
-```
-
-### Validation Rules
-
-1. **Exactly one trigger type:** Must specify `every=` OR `at=` (not both, not neither)
-2. **Mutually exclusive:** Cannot combine `.schedule()` with `.batch()`
-3. **Output required:** Must have `.publishes()` type
-4. **Positive values:** `after` and `max_repeats` must be positive
-5. **Unique names:** Timer names (agent names) must be unique
-
----
-
-## Next Steps
-
-- **Tutorial:** See [Scheduled Agents Tutorial](../tutorials/scheduled-agents.md) for step-by-step examples
-- **Examples:** Check `examples/10-scheduling/` for working code
-- **Design:** Read `.flock/schedule/DESIGN.md` for implementation details
-- **AGENTS.md:** Quick reference for `.schedule()` API
-
----
-
-**Timer scheduling is available in Flock v0.6.0 and later.**
+- [Scheduled Agents Tutorial](../tutorials/scheduled-agents.md): step-by-step from a single timer to a multi-agent system
+- [Context Providers](context-providers.md): everything about controlling agent context
+- [Custom Engines](../tutorials/custom-engines.md): writing your own engine
