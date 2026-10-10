@@ -166,7 +166,7 @@ EvidenceSentence ─┼── screen_026_050 ──┼──> ranker ──> Dec
 - `.decides(Control, tournament=Tournament(group_size=20, keep=3))`
 - `.consumes(*(screen.ANY for screen in SCREENS))`: wait for every screen's decision about the same sentence
 - `.decides(Control, options=passes)`: a final question about the passes only
-- `Flock(decision_model=...)` for every decider
+- `Flock(decision_model=..., decision_rate_limit="100/min")`: one model and one request budget for every decider (eight requests per sentence stay within the deployment's 100 per minute; HTTP 429s from other clients are retried)
 
 **Run:**
 ```bash

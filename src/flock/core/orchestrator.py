@@ -27,6 +27,7 @@ from flock.core.artifacts import Artifact
 from flock.core.store import BlackboardStore, ConsumptionRecord
 from flock.core.subscription import Subscription
 from flock.core.visibility import PublicVisibility, Visibility
+from flock.decisions.budget import RequestBudget
 from flock.decisions.routing import resolve_subjects
 from flock.integrations.openclaw import OpenClawConfig, OpenClawEngine
 from flock.logging.auto_trace import AutoTracedMeta
@@ -102,6 +103,7 @@ class Flock(metaclass=AutoTracedMeta):
         no_output: bool = False,
         openclaw: OpenClawConfig | None = None,
         decision_model: str | Any | None = None,
+        decision_rate_limit: str | None = None,
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
@@ -119,12 +121,19 @@ class Flock(metaclass=AutoTracedMeta):
                 model string (``"azure/decision-1"``) or a ``DecisionProvider``.
                 ``model=`` on ``.decides()`` overrides it; without either,
                 ``DEFAULT_DECISION_MODEL`` applies.
+            decision_rate_limit: Request budget per decision model, ``"N/s"``,
+                ``"N/min"`` or ``"N/h"`` (e.g. ``"100/min"``). All deciders
+                that use the same model share it; requests over the budget
+                wait for a free slot. Without it, requests are not spaced out.
 
         Examples:
             >>> flock = Flock("openai/gpt-4.1")
             >>> flock = Flock("openai/gpt-4o", store=CustomStore())
             >>> flock = Flock("openai/gpt-4.1", no_output=True)  # Silent mode
             >>> flock = Flock("openai/gpt-4.1", decision_model="jev/jev-latest")
+            >>> flock = Flock(
+            ...     decision_model="azure/decision-1", decision_rate_limit="100/min"
+            ... )
         """
         # Patch litellm imports and setup logger
         self._patch_litellm_proxy_imports()
@@ -133,6 +142,10 @@ class Flock(metaclass=AutoTracedMeta):
         self.no_output = no_output
         self.openclaw = openclaw
         self.decision_model = decision_model
+        if decision_rate_limit is not None:
+            RequestBudget.parse(decision_rate_limit)  # fail early on a bad value
+        self.decision_rate_limit = decision_rate_limit
+        self._decision_budgets: dict[str, RequestBudget] = {}
 
         # Phase 3: Initialize all components using OrchestratorInitializer
         components = OrchestratorInitializer.initialize_components(
@@ -220,6 +233,17 @@ class Flock(metaclass=AutoTracedMeta):
         return self
 
     # Agent management -----------------------------------------------------
+
+    def _decision_budget(self, model: str) -> RequestBudget | None:
+        """The request budget shared by every decider of ``model`` (a provider
+        label), or ``None`` without ``decision_rate_limit``."""
+        if self.decision_rate_limit is None:
+            return None
+        if model not in self._decision_budgets:
+            self._decision_budgets[model] = RequestBudget.parse(
+                self.decision_rate_limit
+            )
+        return self._decision_budgets[model]
 
     def agent(self, name: str) -> AgentBuilder:
         """Create a new agent using the fluent builder API.

@@ -1904,7 +1904,7 @@ ranker = orchestrator.agent("ranker").consumes(*(s.ANY for s in screens)).decide
 #   several questions: FakeDecider({"Route": {...}, "Urgent": {"yes": 0.8, "no": 0.2}})
 #   checklist: FakeDecider({"Controls": {"mfa": 0.9, "bcm_06": 0.1}})  # probability of yes per item
 ```
-Providers: `azure/<deployment>` (Microsoft-Decision-1), `openai/<model>`, `jev/<model>`, `local/<name>` (`DECISION_API_BASE`). Default model: `Flock("openai/gpt-4.1", decision_model="azure/decision-1")` for every decider, else `DEFAULT_DECISION_MODEL`; `model=` on `.decides()` wins. Guide: [docs/guides/decisions.md](docs/guides/decisions.md).
+Providers: `azure/<deployment>` (Microsoft-Decision-1), `openai/<model>`, `jev/<model>`, `local/<name>` (`DECISION_API_BASE`). Default model: `Flock("openai/gpt-4.1", decision_model="azure/decision-1")` for every decider, else `DEFAULT_DECISION_MODEL`; `model=` on `.decides()` wins. HTTP 429/503 are retried after the provider's `Retry-After`; `Flock(..., decision_rate_limit="100/min")` shares a request budget per decision model across deciders. Guide: [docs/guides/decisions.md](docs/guides/decisions.md).
 
 **Timer-based scheduling (periodic execution):**
 ```python

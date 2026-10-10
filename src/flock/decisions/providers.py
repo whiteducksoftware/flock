@@ -19,6 +19,10 @@ Model strings select the provider:
   the path or URL; an empty deployment reads ``AZURE_DECISION_DEPLOYMENT``)
 - ``openai/<model>``: OpenAI Decisions, ``POST /v1/decisions`` (``OPENAI_API_KEY``)
 
+HTTP providers retry HTTP 429 and 503 after the wait the response asks for
+(see ``retry_wait``). A ``RequestBudget`` set as ``provider.budget`` (from
+``Flock(decision_rate_limit=...)``) spaces out all requests to one model.
+
 Error messages name the provider and the HTTP status only. Response bodies
 can echo the state, so they never end up in exceptions.
 """
@@ -27,16 +31,25 @@ from __future__ import annotations
 
 import asyncio
 import os
+import random
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from flock.logging.logging import get_logger
+
 
 if TYPE_CHECKING:
     from flock.core.image import Image
+    from flock.decisions.budget import RequestBudget
+
+logger = get_logger(__name__)
 
 
 JEV_DEFAULT_URL = "https://api.typesafe.ai/v1/systemone"
@@ -44,6 +57,18 @@ LOCAL_DEFAULT_BASE = "http://127.0.0.1:8080"
 SYSTEMONE_PATH = "/v1/systemone"
 AZURE_DECISION_PATH = "/providers/microsoft/v1/systemone"
 OPENAI_DECISIONS_URL = "https://api.openai.com/v1/decisions"
+
+RETRY_STATUSES = frozenset({429, 503})  # rate limited, overloaded
+MAX_RETRIES = 7  # the shortest waits add up to more than a one-minute limit window
+MAX_RETRY_WAIT = 60.0  # seconds, for a single wait
+# Headers that say when to retry, most precise first, with their unit in seconds
+_RETRY_HEADERS = (
+    ("retry-after-ms", 0.001),
+    ("retry-after", 1.0),
+    ("x-ratelimit-reset-requests", 1.0),
+)
+_DURATION = re.compile(r"(\d+(?:\.\d+)?)(ms|h|m|s)")
+_DURATION_UNITS = {"ms": 0.001, "s": 1.0, "m": 60.0, "h": 3600.0}
 
 
 class DecisionProviderError(RuntimeError):
@@ -98,6 +123,9 @@ class DecisionProvider(ABC):
 
     label: str
     supports_images: bool = False
+    # Request budget shared by every decider of this model; providers that
+    # send requests wait for a slot before each one.
+    budget: RequestBudget | None = None
 
     @abstractmethod
     async def decide_many(
@@ -261,6 +289,48 @@ class FakeDecider(DecisionProvider):
         }
 
 
+def _header_seconds(value: str) -> float | None:
+    """A number, a duration (``1m30s``, ``250ms``) or an HTTP date, in seconds
+    from now."""
+    value = value.strip()
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    parts = _DURATION.findall(value)
+    if parts and "".join(number + unit for number, unit in parts) == value:
+        return sum(float(number) * _DURATION_UNITS[unit] for number, unit in parts)
+    try:
+        moment = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return (moment - datetime.now(UTC)).total_seconds()
+
+
+def retry_wait(response: httpx.Response, attempt: int) -> float:
+    """Seconds to wait before retrying ``response`` (``attempt`` counts from 0).
+
+    The response's advice is the floor: ``retry-after-ms``, ``Retry-After`` or
+    ``x-ratelimit-reset-requests`` (seconds on Azure, durations such as
+    ``6m0s`` on OpenAI), whichever comes first. On top comes an exponential
+    backoff with jitter (0.5-1 s, then 1-2 s, ...): Azure advises the time to
+    its next free request, a fraction of a second, and a burst of requests
+    retrying after exactly that would be rejected together again. No wait is
+    longer than ``MAX_RETRY_WAIT``.
+    """
+    advice = 0.0
+    for name, unit in _RETRY_HEADERS:
+        raw = response.headers.get(name)
+        seconds = _header_seconds(raw) if raw is not None else None
+        if seconds is not None and seconds > 0:
+            advice = seconds * unit
+            break
+    backoff = 2.0**attempt * random.uniform(0.5, 1.0)
+    return min(advice + backoff, MAX_RETRY_WAIT)
+
+
 class _HttpDecisionProvider(DecisionProvider):
     """Shared transport for HTTP decision protocols (one request per decision)."""
 
@@ -275,10 +345,13 @@ class _HttpDecisionProvider(DecisionProvider):
         transport: httpx.AsyncBaseTransport | None = None,
         report_server_model: bool = True,
         supports_images: bool | None = None,
+        max_retries: int = MAX_RETRIES,
     ) -> None:
         self.url = url
         self.label = label
         self.model = model
+        # Retries after HTTP 429 or 503; 0 fails on the first one
+        self.max_retries = max_retries
         if supports_images is not None:
             self.supports_images = supports_images
         # Local servers report their model file path; decisions then carry the label
@@ -327,17 +400,35 @@ class _HttpDecisionProvider(DecisionProvider):
         headers = {"Content-Type": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
-        try:
-            response = await self._http().post(
-                self.url, json=self._body(state, questions, images), headers=headers
+        body = self._body(state, questions, images)
+        attempt = 0
+        while True:
+            if self.budget is not None:
+                await self.budget.acquire()
+            try:
+                response = await self._http().post(self.url, json=body, headers=headers)
+            except httpx.HTTPError as exc:
+                raise DecisionProviderError(
+                    f"Decision provider '{self.label}' is unreachable ({type(exc).__name__})"
+                ) from None
+            if (
+                response.status_code not in RETRY_STATUSES
+                or attempt >= self.max_retries
+            ):
+                break
+            wait = retry_wait(response, attempt)
+            attempt += 1
+            logger.warning(
+                f"Decision provider '{self.label}' returned HTTP "
+                f"{response.status_code}; retry {attempt} of {self.max_retries} "
+                f"in {wait:.1f}s"
             )
-        except httpx.HTTPError as exc:
-            raise DecisionProviderError(
-                f"Decision provider '{self.label}' is unreachable ({type(exc).__name__})"
-            ) from None
+            await asyncio.sleep(wait)
         if response.status_code != 200:
+            attempts = f" after {attempt + 1} attempts" if attempt else ""
             raise DecisionProviderError(
-                f"Decision provider '{self.label}' returned HTTP {response.status_code}"
+                f"Decision provider '{self.label}' returned HTTP "
+                f"{response.status_code}{attempts}"
             )
         try:
             data = response.json()
@@ -608,6 +699,9 @@ def resolve_provider(model: str | DecisionProvider) -> DecisionProvider:
 
 
 __all__ = [
+    "MAX_RETRIES",
+    "MAX_RETRY_WAIT",
+    "RETRY_STATUSES",
     "DecisionAnswer",
     "DecisionProvider",
     "DecisionProviderError",
@@ -616,4 +710,5 @@ __all__ = [
     "OpenAIDecisionsProvider",
     "SystemOneProvider",
     "resolve_provider",
+    "retry_wait",
 ]
