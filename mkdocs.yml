@@ -222,7 +222,7 @@ nav:
       - Server Components: guides/server-components.md
     - Engines:
       - DSPy Engine Deep Dive: guides/dspy-engine.md
-      - Local Models (Transformers): guides/local-models.md
+      - Local Models: guides/local-models.md
     - Subscriptions:
       - Semantic Subscriptions: guides/semantic-subscriptions.md
       - Predicates: guides/predicates.md

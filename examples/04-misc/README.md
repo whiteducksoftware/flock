@@ -251,27 +251,6 @@ configure_logging(
 
 ---
 
-### 08 - Local Transformers 🤗
-**Feature:** Running Flock directly on local Hugging Face Transformers
-
-Use a local Transformers backend when you want:
-- No hosted API dependency
-- Local execution on your own hardware
-- Support for quantized Hugging Face models
-- A reproducible offline workflow
-
-```bash
-uv run 04-misc/08_local_transformers.py
-```
-
-**Key Features:**
-- **Transformers provider** - Run via `transformers/...` model names
-- **Local inference** - Keep prompts and outputs on your own hardware
-- **Quantized models** - Demonstrates a practical 4-bit model choice
-- **No API keys** - Ideal for fully local testing
-
----
-
 ### 09 - Azure DefaultAzureCredential ☁️
 **Feature:** Azure OpenAI auth with Entra ID / Managed Identity
 

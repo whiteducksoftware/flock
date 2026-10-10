@@ -111,7 +111,7 @@ agent = (
 ```
 
 [:octicons-arrow-right-24: DSPy Engine Deep Dive](dspy-engine.md){ .md-button }
-[:octicons-arrow-right-24: Local Models (Transformers)](local-models.md){ .md-button }
+[:octicons-arrow-right-24: Local Models](local-models.md){ .md-button }
 
 ---
 

@@ -6,10 +6,10 @@ import pytest
 
 @pytest.fixture
 def mock_embedding_model():
-    """Mock sentence-transformers model for fast tests."""
+    """Mock embedding model (sentence-transformers style encode) for fast tests."""
 
     class MockModel:
-        """Mock SentenceTransformer model."""
+        """Mock model with an encode() like the fastembed adapter."""
 
         def __init__(self):
             self.max_seq_length = 256
@@ -49,10 +49,6 @@ def embedding_service(mock_embedding_model, monkeypatch):
         def mock_load_model():
             return mock_embedding_model
 
-        monkeypatch.setattr(
-            "sentence_transformers.SentenceTransformer",
-            lambda model_name: mock_embedding_model,
-        )
 
         service = EmbeddingService.get_instance()
         service._model = mock_embedding_model  # Inject mock directly

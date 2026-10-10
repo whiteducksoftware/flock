@@ -8,7 +8,7 @@ import pytest
 
 
 # Skip all tests if sentence-transformers not available
-pytest.importorskip("sentence_transformers")
+pytest.importorskip("fastembed")
 
 from flock.semantic.embedding_service import EmbeddingService
 
