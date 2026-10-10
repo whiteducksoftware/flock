@@ -69,8 +69,11 @@ class DecisionQuestion:
 
     @property
     def label(self) -> str:
-        """``Checklist.item`` for checklist items, else the question name."""
-        return f"{self.group}.{self.item}" if self.group else self.name
+        """``Checklist.item`` for checklist items, the question class for
+        tournament groups, else the question name."""
+        if self.group and self.item:
+            return f"{self.group}.{self.item}"
+        return self.group or self.name
 
 
 @dataclass(frozen=True)
@@ -188,6 +191,19 @@ class FakeDecider(DecisionProvider):
             isinstance(value, Mapping) or callable(value) for value in source.values()
         ):
             return source
+        if (
+            question.group is not None
+            and question.group in source
+            and not question.item
+        ):
+            # Tournament group: the question's options out of the full distribution
+            full = source[question.group]
+            full = full(state) if callable(full) else full
+            subset = {
+                option: float(full.get(option, 0.0)) for option in question.options
+            }
+            total = sum(subset.values()) or 1.0
+            return {option: p / total for option, p in subset.items()}
         if question.group is not None and question.group in source:
             items = source[question.group]
             items = items(state) if callable(items) else items

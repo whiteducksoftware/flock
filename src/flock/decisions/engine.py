@@ -20,6 +20,7 @@ from flock.decisions.providers import (
     DecisionProvider,
     DecisionQuestion,
 )
+from flock.decisions.tournament import Tournament
 from flock.registry import RegistryError, type_registry
 from flock.utils.runtime import EvalResult
 
@@ -87,7 +88,9 @@ class DecisionEngine(EngineComponent):
     ``UNSURE``; ``best_guess`` keeps the model's pick either way. A refused
     question is ``UNSURE`` with ``refused=True``. Decisions inherit their
     inputs' visibility unless ``visibility`` is set. ``instructions`` replaces
-    the docstring of a single question.
+    the docstring of a single question. With ``tournament`` set, the single
+    Choice question is asked in rounds of groups (see :class:`Tournament`);
+    the decision's ``rounds`` records them.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -98,6 +101,7 @@ class DecisionEngine(EngineComponent):
     instructions: str | None = None
     visibility: Visibility | None = None
     questions_per_request: int = Field(default=100, ge=1)
+    tournament: Tournament | None = None
     enable_context: bool = Field(
         default=False, description="Decisions are made on the inputs only"
     )
@@ -125,14 +129,14 @@ class DecisionEngine(EngineComponent):
                 "model) for inputs with Image fields."
             )
 
-        size = self.questions_per_request
-        chunks = [wire[i : i + size] for i in range(0, len(wire), size)]
         started = time.perf_counter()
-        replies = await asyncio.gather(
-            *(self.provider.decide_many(state, chunk, images) for chunk in chunks)
-        )
+        rounds: list[dict[str, Any]] = []
+        if self.tournament is not None:
+            answer, rounds = await self._run_tournament(state, images)
+            answers = {self.questions[0].__name__: answer}
+        else:
+            answers = await self._ask(state, wire, images)
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
-        answers = {name: answer for reply in replies for name, answer in reply.items()}
 
         subject_ids = [str(a.id) for a in inputs.artifacts]
         artifacts = []
@@ -161,6 +165,7 @@ class DecisionEngine(EngineComponent):
                 score=answer.score,
                 refused=answer.refused,
                 subject_ids=subject_ids,
+                rounds=rounds,
                 model=answer.model or self.provider.label,
                 latency_ms=latency_ms,
             )
@@ -173,6 +178,72 @@ class DecisionEngine(EngineComponent):
                 )
             )
         return EvalResult(artifacts=artifacts)
+
+    async def _ask(
+        self, state: str, wire: list[DecisionQuestion], images: list[Image]
+    ) -> dict[str, DecisionAnswer]:
+        """Ask ``wire`` in concurrent requests of at most ``questions_per_request``."""
+        size = self.questions_per_request
+        chunks = [wire[i : i + size] for i in range(0, len(wire), size)]
+        replies = await asyncio.gather(
+            *(self.provider.decide_many(state, chunk, images) for chunk in chunks)
+        )
+        return {name: answer for reply in replies for name, answer in reply.items()}
+
+    async def _run_tournament(
+        self, state: str, images: list[Image]
+    ) -> tuple[DecisionAnswer, list[dict[str, Any]]]:
+        """Narrow a large Choice down in rounds of groups, then ask the final question."""
+        question = self.questions[0]
+        name = question.__name__
+        prompt = self.instructions or question.__question__
+        options = question.__options__
+        group_size, keep = self.tournament.group_size, self.tournament.keep
+
+        def ask_about(label: str, candidates: list[str]) -> DecisionQuestion:
+            return DecisionQuestion(
+                name=label,
+                instructions=prompt,
+                options={option: options[option] for option in candidates},
+                group=name,
+            )
+
+        candidates = list(options)
+        rounds: list[dict[str, Any]] = []
+        while len(candidates) > group_size:
+            groups = [
+                candidates[i : i + group_size]
+                for i in range(0, len(candidates), group_size)
+            ]
+            wire = [
+                ask_about(f"{name}_r{len(rounds)}_g{index}", group)
+                for index, group in enumerate(groups)
+            ]
+            answers = await self._ask(state, wire, images)
+            survivors: list[str] = []
+            refused = 0
+            for group, group_question in zip(groups, wire, strict=True):
+                answer = answers[group_question.name]
+                if answer.refused or answer.choice is None:
+                    refused += 1  # no option of the group fits
+                    continue
+                ranked = sorted(group, key=lambda o: -answer.probabilities.get(o, 0.0))
+                survivors.extend(ranked[:keep])
+            rounds.append({
+                "candidates": len(candidates),
+                "groups": len(groups),
+                "refused_groups": refused,
+                "survivors": survivors,
+            })
+            candidates = survivors
+
+        if not candidates:  # every group was refused
+            return DecisionAnswer(choice=None, probabilities={}, refused=True), rounds
+        if len(candidates) == 1:
+            only = candidates[0]
+            return DecisionAnswer(only, {only: 1.0}, confidence=1.0), rounds
+        final = ask_about(name, candidates)
+        return (await self._ask(state, [final], images))[name], rounds
 
     def _wire_questions(self) -> list[DecisionQuestion]:
         """The questions sent to the provider; a checklist becomes one yes/no

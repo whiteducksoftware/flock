@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from flock.core import Flock
 from flock.core.image import Image
-from flock.decisions import Checklist, Choice, Decision, Scale, YesNo
+from flock.decisions import Checklist, Choice, Decision, Scale, Tournament, YesNo
 from flock.registry import flock_type, type_registry
 
 
@@ -234,6 +234,75 @@ async def test_live_model_answers_a_checklist(model):
         "dc_access": "no",
     }
     assert decision.choice == "failed"
+
+
+ANIMALS = [
+    "ant",
+    "bear",
+    "camel",
+    "cat",
+    "cow",
+    "crocodile",
+    "dog",
+    "dolphin",
+    "eagle",
+    "elephant",
+    "falcon",
+    "frog",
+    "giraffe",
+    "goat",
+    "horse",
+    "kangaroo",
+    "lion",
+    "monkey",
+    "octopus",
+    "owl",
+    "parrot",
+    "penguin",
+    "rabbit",
+    "shark",
+    "sheep",
+    "snake",
+    "spider",
+    "tiger",
+    "turtle",
+    "zebra",
+]
+LiveAnimal = Choice.from_options(
+    "LiveAnimal",
+    {name: name.capitalize() for name in ANIMALS},
+    question="Which animal is described?",
+)
+
+
+@flock_type
+class LiveRiddle(BaseModel):
+    text: str
+
+
+@pytest.mark.parametrize("model", TEXT_MODELS)
+async def test_live_model_runs_a_tournament(model):
+    flock = Flock(decision_model=model)
+    flock.agent("guess").consumes(LiveRiddle).decides(
+        LiveAnimal, tournament=Tournament(group_size=10, keep=2)
+    )
+
+    await flock.publish(
+        LiveRiddle(text="A huge grey animal with a trunk and big ears.")
+    )
+    await flock.run_until_idle()
+
+    (artifact,) = [
+        a
+        for a in await flock.store.list()
+        if a.type == type_registry.name_for(Decision.of(LiveAnimal))
+    ]
+    assert artifact.payload["choice"] == "elephant"
+    (round_one,) = artifact.payload["rounds"]
+    assert round_one["candidates"] == 30
+    assert "elephant" in round_one["survivors"]
+    # OpenAI refuses groups in which no option fits; they keep no survivors
+    assert len(round_one["survivors"]) == 2 * (3 - round_one["refused_groups"])
 
 
 @flock_type

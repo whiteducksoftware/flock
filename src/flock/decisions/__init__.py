@@ -16,6 +16,7 @@ from flock.decisions.providers import (
     DecisionProviderError,
     FakeDecider,
 )
+from flock.decisions.tournament import Tournament
 
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "FakeDecider",
     "Question",
     "Scale",
+    "Tournament",
     "YesNo",
     "choice_of",
 ]
