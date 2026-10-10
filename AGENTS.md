@@ -1850,7 +1850,7 @@ billing_agent = (
 
 **Decision models (route on calibrated decisions):**
 ```python
-from flock import Checklist, Choice, Decision, Scale, YesNo
+from flock import Checklist, Choice, Decision, Scale, Tournament, YesNo
 
 class Route(Choice):
     """Which team should handle this support ticket?"""  # the question
@@ -1887,6 +1887,11 @@ Controls = Checklist.from_items("Controls", {c["id"]: c["text"] for c in catalog
 audit = orchestrator.agent("audit").consumes(Document).decides(Controls, threshold=0.8)
 fix = orchestrator.agent("fix").consumes(Controls.failed).publishes(Finding)        # any item "no"
 owner = orchestrator.agent("owner").consumes(Controls.bcm_06.no).publishes(Finding)  # one item
+
+# Tournaments: a Choice with more than 255 options (e.g. a requirement catalog), asked in rounds
+Requirement = Choice.from_options("Requirement", catalog, question="Which requirement does this implement?")
+mapper = orchestrator.agent("mapper").consumes(Paragraph).decides(
+    Requirement, tournament=Tournament(group_size=20, keep=3))  # groups of 20, top 3 each, then a final
 
 # In tests, pass a FakeDecider (fixed probabilities, no network call):
 #   .decides(Route, model=FakeDecider({"billing": 0.9, "tech": 0.1}))  # from flock.decisions
