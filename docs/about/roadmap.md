@@ -39,7 +39,7 @@ Flock 0.5 is the current release line (`flock-core` on PyPI). The planned work b
 
 ### Runs: history, interruption and control
 - Run history in SQLite that survives restarts, interrupted runs shown after a restart without auto-resume, terminal outcomes preserved ([#433](https://github.com/whiteducksoftware/flock/issues/433), [#443](https://github.com/whiteducksoftware/flock/issues/443), [#444](https://github.com/whiteducksoftware/flock/issues/444)).
-- Run cancellation, pause of new starts and workflow lifecycle controls ([#446](https://github.com/whiteducksoftware/flock/issues/446), [#294](https://github.com/whiteducksoftware/flock/issues/294)).
+- Run cancellation and a global pause of new starts ([#446](https://github.com/whiteducksoftware/flock/issues/446)).
 - Correlation status from actual work, connected run views with per-run live output ([#434](https://github.com/whiteducksoftware/flock/issues/434), [#445](https://github.com/whiteducksoftware/flock/issues/445)).
 
 ### Dashboard and API
@@ -67,6 +67,7 @@ The 1.0 release is qualified for a single process with the SQLite store. Interru
 These are planned for the same time frame but are not part of the 1.0 release scope; each is qualified on its own.
 
 - **Reliability:** advanced retries and dead-letter queues ([#277](https://github.com/whiteducksoftware/flock/issues/277)).
+- **Workflow lifecycle controls:** pause, resume and cancel per correlation, with durable control decisions ([#294](https://github.com/whiteducksoftware/flock/issues/294)).
 - **Deployment:** Dapr store hardening, Kafka event backbone, Kubernetes deployment tooling ([#415](https://github.com/whiteducksoftware/flock/issues/415), [#278](https://github.com/whiteducksoftware/flock/issues/278), [#279](https://github.com/whiteducksoftware/flock/issues/279)).
 - **Production pilots** with launch partners ([#285](https://github.com/whiteducksoftware/flock/issues/285)): a program goal, not a release gate.
 
