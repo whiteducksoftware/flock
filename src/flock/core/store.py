@@ -21,6 +21,7 @@ from uuid import UUID
 
 import aiosqlite
 from opentelemetry import trace
+from pydantic_core import to_jsonable_python
 
 from flock.core.artifacts import Artifact
 from flock.registry import type_registry
@@ -379,7 +380,9 @@ class SQLiteBlackboardStore(BlackboardStore):
         with tracer.start_as_current_span("sqlite_store.publish"):
             conn = await self._get_connection()
 
-            payload_json = json.dumps(artifact.payload)
+            # Payloads hold model_dump() values (datetime, UUID, ...); encode them
+            # as Pydantic does, like the Dapr store's model_dump_json().
+            payload_json = json.dumps(to_jsonable_python(artifact.payload))
             visibility_json = json.dumps(artifact.visibility.model_dump(mode="json"))
             tags_json = json.dumps(sorted(artifact.tags))
             created_at = as_utc(artifact.created_at).isoformat()
