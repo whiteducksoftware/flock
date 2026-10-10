@@ -13,6 +13,23 @@ search:
 
 ## [Unreleased]
 
+### 🎉 New Features
+
+- **Decision models** - an agent answers a typed `Choice` question with a decision model (calibrated probabilities over a closed option set, no generated text) and publishes a `Decision`; other agents subscribe to an option and receive the artifact that was decided on:
+
+    ```python
+    class Route(Choice):
+        """Which team should handle this support ticket?"""
+        billing = "Charges, invoices, refunds"
+        tech = "Bugs, crashes, login problems"
+
+    flock.agent("triage").consumes(Ticket).decides(Route, model="azure/decision-1", threshold=0.8)
+    flock.agent("billing").consumes(Route.billing).publishes(Reply)
+    flock.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)
+    ```
+
+    Providers: Microsoft-Decision-1 on Azure AI Foundry (`azure/`), OpenAI Decisions (`openai/`), TypeSafe Jev (`jev/`) and any local `/v1/systemone` server such as llama.cpp with a Clef model (`local/`). Decisions inherit their subject's visibility. The dashboard shows decision agents with their options and counts, labels edges by option and renders decision artifacts as probability bars. In `examples/15-decisions/02_arxiv_race.py`, Microsoft-Decision-1 sorts 100 arXiv abstracts into research fields at 169 ms per paper against 598 ms for `gpt-4.1`, agreeing with arXiv's category on 90 papers against 85. See [Decision Models](../guides/decisions.md).
+
 ### ⚠️ Changes
 
 - **PyTorch is no longer a dependency.** Semantic subscriptions (`flock-core[semantic]`) compute the same `all-MiniLM-L6-v2` embeddings with [fastembed](https://github.com/qdrant/fastembed) on ONNX Runtime instead of `sentence-transformers`. Similarity scores are identical (450 query/text pairs: largest difference below 0.00001, no decision changed at thresholds 0.3-0.7), so `semantic_match` thresholds keep their meaning. The model (~90 MB) is downloaded on first use to `~/.cache/flock/fastembed` (override with `FASTEMBED_CACHE_PATH`).
