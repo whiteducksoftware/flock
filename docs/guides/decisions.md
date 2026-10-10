@@ -201,7 +201,7 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `score` | Scale only: the probability-weighted level, 0 = lowest |
 | `refused` | The model refused to answer this question |
 | `results`, `refused_items` | Checklist only: answer per item, items the model refused |
-| `rounds` | Tournament only: candidates, groups, refused groups and survivors per round |
+| `rounds` | Tournament only: candidates, groups, refused groups, survivors and the top candidates of every group per round |
 | `confidence` | Confidence as reported by the model |
 | `threshold` | The threshold that applied |
 | `subject_ids` | Ids of the artifacts the decision is about |
@@ -226,7 +226,7 @@ flock.agent("mapper").consumes(Paragraph).decides(
 2. The `keep` most probable options of each group survive. The tournament keeps a top-k per group instead of applying a threshold, because probabilities are normalized within each group and cannot be compared across groups.
 3. Rounds repeat until the survivors fit into one final question. Its answer is the decision: probabilities over the finalists, threshold and `UNSURE` as usual, subscriptions and handles unchanged.
 
-The decision's `rounds` lists every round's candidates, groups, `refused_groups` and survivors. OpenAI's Decisions API refuses a group in which no option fits; such a group keeps no survivors. A Choice with more than 255 options must be asked as a tournament, and `.decides()` without `tournament=` rejects it.
+The decision's `rounds` lists every round's candidates, groups, `group_size`, `refused_groups` and survivors, and per group (`group_results`) its size and its top candidates with their probabilities: the survivors plus the two strongest eliminated options. OpenAI's Decisions API refuses a group in which no option fits; such a group keeps no survivors. A Choice with more than 255 options must be asked as a tournament, and `.decides()` without `tournament=` rejects it.
 
 A tournament costs one round trip per round, and an option that drops out early cannot win. On the example below (25 evidence sentences, 100 controls, Microsoft-Decision-1), both fit:
 
@@ -239,6 +239,12 @@ Use a single choice whenever the options fit into one question, and a tournament
 
 <p align="center">
   <img alt="A tournament decision: 100 options in 5 groups, 15 finalists, final probabilities" src="../../assets/images/decisions/decision-tournament-card.png" width="300">
+</p>
+
+**⤢ bracket** on a tournament decision opens the whole tournament: one column per round and the final, group boxes with their top candidates, lines from every survivor to its place in the next round, and the winner's path highlighted. Hovering an option traces its path through all rounds:
+
+<p align="center">
+  <img alt="Tournament bracket: 100 options, 10 groups, 3 groups, final, the winner's path highlighted and a runner-up traced" src="../../assets/images/decisions/decision-tournament-bracket-trace.png" width="900">
 </p>
 
 ## Routing: choice subscriptions
