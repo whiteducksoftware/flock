@@ -559,6 +559,31 @@ npm install --save-dev package-name
 git diff package-lock.json
 ```
 
+### Handle Dependency Security Alerts
+
+Dependencies are managed with uv (`pyproject.toml`, `uv.lock`) and npm (`src/flock/frontend/package-lock.json`). There is no `requirements.txt`; do not add pip exports, they only duplicate alerts.
+
+```bash
+# Python: refresh one vulnerable transitive package within the existing pins
+uv lock --upgrade-package package-name
+
+# Python: direct dependencies are pinned in pyproject.toml; bump the pin, then
+uv lock
+
+# Frontend: fixes within the declared ranges
+cd src/flock/frontend && npm audit fix
+```
+
+Run the full backend and frontend test suites after every bump, and bump the backend or frontend version as for any other change.
+
+**LiteLLM alerts.** Flock uses the LiteLLM SDK (through DSPy) and never runs the LiteLLM proxy server. Many LiteLLM advisories only affect the proxy (its auth, admin and MCP endpoints). For each LiteLLM alert:
+
+1. Read the advisory and check which component is affected.
+2. Proxy-only: dismiss the alert in GitHub as "Vulnerable code is not used" with a one-line note naming the proxy component, and still update the `litellm` pin with the next routine dependency bump.
+3. SDK code paths (completion calls, client-side parsing): treat it like any other runtime vulnerability and bump the pin right away.
+
+Never depend on `litellm[proxy]`; the proxy extras are not part of Flock.
+
 ### Run Dashboard Locally
 
 ```bash
