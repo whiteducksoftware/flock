@@ -241,7 +241,10 @@ class OpenAIDecisionsProvider(_HttpDecisionProvider):
                     "name": question.name,
                     "instructions": question.instructions,
                     "choices": [
-                        {"value": option, "description": description or None}
+                        {
+                            "value": option,
+                            **({"description": description} if description else {}),
+                        }
                         for option, description in question.options.items()
                     ],
                 }

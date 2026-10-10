@@ -350,3 +350,44 @@ async def test_local_provider_reports_its_label_not_the_server_model_path(monkey
     answer = await provider.decide("state", QUESTION)
 
     assert answer.model is None
+
+
+async def test_openai_omits_empty_option_descriptions():
+    """OpenAI rejects `description: null`; options without a description omit the key."""
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "answers": [
+                    {
+                        "name": "route",
+                        "choice": "tech",
+                        "probabilities": [
+                            {"value": "billing", "probability": 0.1},
+                            {"value": "tech", "probability": 0.9},
+                        ],
+                    }
+                ]
+            },
+        )
+
+    provider = OpenAIDecisionsProvider(
+        "https://api.openai.com/v1/decisions",
+        model="gpt-6-luna",
+        api_key="sk-test",
+        label="openai/gpt-6-luna",
+        transport=httpx.MockTransport(handler),
+    )
+    question = DecisionQuestion(
+        name="route",
+        instructions="Which team?",
+        options={"billing": "", "tech": "Bugs"},
+    )
+
+    await provider.decide("state", question)
+
+    choices = json.loads(captured[0].content)["questions"][0]["choices"]
+    assert choices == [{"value": "billing"}, {"value": "tech", "description": "Bugs"}]
