@@ -1538,6 +1538,106 @@ class TestCompletionTokenLimit:
             DSPyEngine(max_completion_tokens=0)
 
 
+_MAX_TOKENS_REJECTION = (
+    "AzureException BadRequestError - Unsupported parameter: 'max_tokens' is not "
+    "supported with this model. Use 'max_completion_tokens' instead."
+)
+
+
+def _fake_litellm(
+    requests: list[dict], *, rejection: str | None = _MAX_TOKENS_REJECTION
+):
+    """A litellm completion that rejects max_tokens like newer OpenAI models."""
+    import litellm
+
+    def completion(request, num_retries, cache):
+        requests.append(dict(request))
+        if rejection is not None and "max_tokens" in request:
+            raise litellm.BadRequestError(
+                message=rejection, model=request["model"], llm_provider="azure"
+            )
+        return litellm.ModelResponse(
+            choices=[
+                {
+                    "message": {"content": "ok", "role": "assistant"},
+                    "finish_reason": "stop",
+                }
+            ]
+        )
+
+    async def acompletion(request, num_retries, cache):
+        return completion(request, num_retries, cache)
+
+    return completion, acompletion
+
+
+class TestMaxTokensFallback:
+    """A request rejected for max_tokens is retried once with max_completion_tokens (#516)."""
+
+    @pytest.fixture(autouse=True)
+    def _fresh_session_memory(self, monkeypatch):
+        from flock.engines import dspy_engine
+
+        monkeypatch.setattr(dspy_engine, "_MAX_COMPLETION_TOKENS_ENDPOINTS", set())
+
+    @pytest.fixture
+    def requests(self, monkeypatch):
+        sent: list[dict] = []
+        completion, acompletion = _fake_litellm(sent)
+        monkeypatch.setattr("dspy.clients.lm.litellm_completion", completion)
+        monkeypatch.setattr("dspy.clients.lm.alitellm_completion", acompletion)
+        return sent
+
+    @staticmethod
+    def _lm(model="azure/new-model-deployment", **lm_kwargs):
+        import dspy
+
+        return DSPyEngine(enable_cache=False)._create_lm(dspy, model, lm_kwargs)
+
+    def test_rejected_max_tokens_is_retried_with_max_completion_tokens(self, requests):
+        outputs = self._lm()(messages=[{"role": "user", "content": "hi"}])
+
+        assert outputs == ["ok"]
+        assert [
+            ("max_tokens" in r, r.get("max_completion_tokens")) for r in requests
+        ] == [
+            (True, None),
+            (False, 32000),
+        ]
+
+    async def test_async_requests_fall_back_too(self, requests):
+        outputs = await self._lm().acall(messages=[{"role": "user", "content": "hi"}])
+
+        assert outputs == ["ok"]
+        assert requests[-1].get("max_completion_tokens") == 32000
+        assert "max_tokens" not in requests[-1]
+
+    def test_the_switch_is_remembered_per_model_and_endpoint(self, requests):
+        self._lm()(messages=[{"role": "user", "content": "hi"}])
+        requests.clear()
+
+        self._lm()(messages=[{"role": "user", "content": "again"}])
+        assert len(requests) == 1
+        assert requests[0].get("max_completion_tokens") == 32000
+
+        requests.clear()
+        self._lm(api_base="https://other.example")(
+            messages=[{"role": "user", "content": "elsewhere"}]
+        )
+        assert "max_tokens" in requests[0]
+
+    def test_other_bad_requests_are_not_retried(self, monkeypatch):
+        import litellm
+
+        sent: list[dict] = []
+        completion, _ = _fake_litellm(sent, rejection="Invalid value for 'temperature'")
+        monkeypatch.setattr("dspy.clients.lm.litellm_completion", completion)
+
+        with pytest.raises(litellm.BadRequestError):
+            self._lm()(messages=[{"role": "user", "content": "hi"}])
+        assert len(sent) == 1
+
+
 class TestNoOutputSuppressesTerminalStreaming:
     """A user-built engine must honour no_output assigned by its agent."""
 
@@ -1570,11 +1670,15 @@ class TestNoOutputSuppressesTerminalStreaming:
         ctx.artifacts = []
         ctx.state = {}
         inputs = EvalInputs(
-            artifacts=[Artifact(type="TestInput", payload={"prompt": "hi"}, produced_by="t")],
+            artifacts=[
+                Artifact(type="TestInput", payload={"prompt": "hi"}, produced_by="t")
+            ],
             state={},
         )
 
-        await engine.evaluate(agent, ctx, inputs, OutputGroup(outputs=[], group_description=None))
+        await engine.evaluate(
+            agent, ctx, inputs, OutputGroup(outputs=[], group_description=None)
+        )
 
         streaming.assert_not_awaited()
         standard.assert_awaited_once()

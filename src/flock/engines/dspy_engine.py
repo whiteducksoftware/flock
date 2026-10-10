@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 from collections.abc import Iterable, Mapping, Sequence
@@ -156,6 +157,70 @@ def _targets_openai_api(model_name: str, lm_kwargs: dict[str, Any]) -> bool:
         return True
     host = urlparse(base_url if "://" in base_url else f"//{base_url}").hostname
     return host == _OPENAI_API_HOST  # urlparse lower-cases the hostname
+
+
+# (model, api_base) pairs whose API rejected max_tokens in this process. Their
+# later LMs send max_completion_tokens directly instead of failing first.
+_MAX_COMPLETION_TOKENS_ENDPOINTS: set[tuple[str, str | None]] = set()
+
+
+def _endpoint(model_name: str, lm_kwargs: Mapping[str, Any]) -> tuple[str, str | None]:
+    return model_name, lm_kwargs.get("api_base") or lm_kwargs.get("base_url")
+
+
+def _rejects_max_tokens(error: Exception) -> bool:
+    """The API's 400 for models that only accept max_completion_tokens."""
+    import litellm
+
+    message = str(error)
+    return (
+        isinstance(error, litellm.BadRequestError)
+        and "max_tokens" in message
+        and "max_completion_tokens" in message
+    )
+
+
+@functools.cache
+def _max_tokens_fallback_lm(lm_class: type) -> type:
+    """``lm_class`` that retries a request rejected for max_tokens once (#516).
+
+    Newer OpenAI models reject ``max_tokens`` on every route (Azure deployments,
+    gateways), and deployment names do not reveal the model. The retry sends
+    ``max_completion_tokens`` instead and remembers the switch for the endpoint.
+    It happens per LM request, so the DSPy program, its adapter fallbacks and
+    streaming are not re-run.
+    """
+
+    class MaxTokensFallbackLM(lm_class):
+        def _switch_to_completion_tokens(self, error: Exception) -> bool:
+            if "max_tokens" not in self.kwargs or not _rejects_max_tokens(error):
+                return False
+            self.kwargs["max_completion_tokens"] = self.kwargs.pop("max_tokens")
+            _MAX_COMPLETION_TOKENS_ENDPOINTS.add(_endpoint(self.model, self.kwargs))
+            logger.info(
+                "Model %s rejected max_tokens; using max_completion_tokens for it "
+                "from now on.",
+                self.model,
+            )
+            return True
+
+        def forward(self, *args: Any, **kwargs: Any) -> Any:
+            try:
+                return super().forward(*args, **kwargs)
+            except Exception as error:
+                if not self._switch_to_completion_tokens(error):
+                    raise
+                return super().forward(*args, **kwargs)
+
+        async def aforward(self, *args: Any, **kwargs: Any) -> Any:
+            try:
+                return await super().aforward(*args, **kwargs)
+            except Exception as error:
+                if not self._switch_to_completion_tokens(error):
+                    raise
+                return await super().aforward(*args, **kwargs)
+
+    return MaxTokensFallbackLM
 
 
 class DSPyEngine(EngineComponent):
@@ -535,13 +600,21 @@ class DSPyEngine(EngineComponent):
         The OpenAI API itself gets ``max_completion_tokens``: OpenAI deprecated
         ``max_tokens`` and newer models reject it, while DSPy only renames it for
         model names it knows. OpenAI-compatible servers (``openai/`` with another
-        base URL) keep ``max_tokens``.
+        base URL) keep ``max_tokens``; if an endpoint rejects it (an Azure
+        deployment of a new model, for example), the request is retried with
+        ``max_completion_tokens`` and the endpoint is remembered.
         """
         completion_limit = self.max_completion_tokens
-        if completion_limit is None and _targets_openai_api(model_name, extra_kwargs):
+        if completion_limit is None and (
+            _targets_openai_api(model_name, extra_kwargs)
+            or _endpoint(model_name, extra_kwargs) in _MAX_COMPLETION_TOKENS_ENDPOINTS
+        ):
             completion_limit = self.max_tokens
         if completion_limit is None:
-            return dspy_mod.LM(
+            lm_class = dspy_mod.LM
+            if isinstance(lm_class, type):  # test doubles may replace dspy.LM
+                lm_class = _max_tokens_fallback_lm(lm_class)
+            return lm_class(
                 model=model_name,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
