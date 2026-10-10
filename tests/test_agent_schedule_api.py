@@ -170,6 +170,34 @@ def test_schedule_with_batch_raises_error():
         )
 
 
+def test_batch_after_schedule_raises_error():
+    """The rule holds in the other order too: batch after schedule() (#509)."""
+    from flock.core.subscription import BatchSpec
+
+    flock = Flock("openai/gpt-4")
+
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        (
+            flock.agent("invalid_agent")
+            .schedule(every=timedelta(seconds=30))
+            .consumes(MockArtifact, batch=BatchSpec(size=10))
+        )
+
+
+def test_plain_consumes_after_schedule_is_allowed():
+    """Only batch subscriptions conflict with a schedule; other triggers are fine."""
+    flock = Flock("openai/gpt-4")
+
+    builder = (
+        flock.agent("hybrid_agent")
+        .schedule(every=timedelta(seconds=30))
+        .consumes(MockArtifact)
+        .publishes(Result)
+    )
+
+    assert builder.agent.schedule_spec is not None
+
+
 # ============================================================================
 # Test 6: Fluent API chaining
 # ============================================================================

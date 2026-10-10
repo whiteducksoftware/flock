@@ -39,6 +39,11 @@ SUBJECT_JOIN_WINDOW = timedelta(minutes=10)
 
 logger = get_logger(__name__)
 
+_SCHEDULE_BATCH_CONFLICT = (
+    "schedule() and batch processing are mutually exclusive. "
+    "Timer-based agents cannot use batch processing."
+)
+
 if TYPE_CHECKING:  # pragma: no cover - type hints only
     from collections.abc import Callable, Iterable, Sequence
 
@@ -585,7 +590,8 @@ class AgentBuilder:
             from_agents: Only consume artifacts from specific agents
             tags: Only consume artifacts with matching tags
             join: Join specification for coordinating multiple artifact types
-            batch: Batch specification for processing multiple artifacts together
+            batch: Batch specification for processing multiple artifacts together;
+                not allowed on a scheduled agent (``ValueError``)
             mode: Processing mode - "both", "direct", or "events"
             priority: Execution priority (higher = executes first)
             activation: Optional RunCondition that must be satisfied before agent
@@ -675,6 +681,8 @@ class AgentBuilder:
         # Phase 5B: Use BuilderValidator for normalization
         join_spec = BuilderValidator.normalize_join(join)
         batch_spec = BuilderValidator.normalize_batch(batch)
+        if batch_spec is not None and self._agent.schedule_spec is not None:
+            raise ValueError(_SCHEDULE_BATCH_CONFLICT)
 
         # Handle semantic_threshold parameter to control semantic matching threshold
         # If semantic_threshold is provided and semantic_match is simple, convert to dict
@@ -977,10 +985,7 @@ class AgentBuilder:
         # Check if any existing subscriptions have batch configuration
         for subscription in self._agent.subscriptions:
             if subscription.batch is not None:
-                raise ValueError(
-                    "schedule() and batch processing are mutually exclusive. "
-                    "Timer-based agents cannot use batch processing."
-                )
+                raise ValueError(_SCHEDULE_BATCH_CONFLICT)
 
         # Create schedule specification
         self._agent.schedule_spec = ScheduleSpec(
