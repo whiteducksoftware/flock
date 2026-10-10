@@ -1345,8 +1345,8 @@ class TestDSPyEngineIntegration:
         payload = mock_execute.await_args.kwargs["payload"]
         # Phase 7: Semantic field naming - "SampleInput" becomes "sample_inputs" (pluralized)
         assert isinstance(payload.get("sample_inputs"), list)
-        assert payload["sample_inputs"][0]["prompt"] == "one"
-        assert payload["sample_inputs"][1]["prompt"] == "two"
+        assert payload["sample_inputs"][0].prompt == "one"
+        assert payload["sample_inputs"][1].prompt == "two"
         assert payload.get("context", []) == []
 
     @pytest.mark.asyncio

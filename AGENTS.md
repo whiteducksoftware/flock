@@ -267,15 +267,15 @@ for name, service, ms, status, error in conn.execute(
 
 ## Versions and pull requests
 
-- **Bump versions with every code change:**
-  - backend (`pyproject.toml` and `uv.lock`) for anything in `src/flock/`;
+- **Bump versions for features and addendums:**
+  - backend (`pyproject.toml` and `uv.lock`) for changes in `src/flock/`;
   - frontend (`src/flock/frontend/package.json` and `package-lock.json`) for dashboard changes;
-  - docs-only changes need no bump.
+  - bug fixes and docs-only changes need no bump (a changelog entry under *Fixes* is enough).
 - **Version scheme:** plain `X.Y.Z`, no beta tags, and the last segment never has more than three digits. New features start a series (0.5.720, 0.5.730); follow-ups count up within it (0.5.721 … 0.5.729), and after 0.5.729 comes 0.5.730.
 - **One issue per pull request.** PRs target `main`. A stacked PR targets the PR below it; GitHub retargets the next PR to `main` as the stack merges ([stacked PRs](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs)).
 - **Before a PR:**
   - `uv run poe test` and `uv run poe lint` pass, and the frontend tests pass if the UI changed;
-  - versions are bumped;
+  - versions are bumped for features and addendums (not for bug fixes);
   - the changelog (`docs/about/changelog.md`) is updated;
   - screenshots are included for UI changes.
 

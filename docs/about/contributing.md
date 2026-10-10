@@ -239,7 +239,7 @@ Flock uses **smart versioning** that only bumps versions for components that act
 poe version-check
 
 # Bump versions
-poe version-patch   # 0.1.18 → 0.1.19 (bug fixes)
+poe version-patch   # 0.1.18 → 0.1.19 (addendums, small additions)
 poe version-minor   # 0.1.18 → 0.2.0 (new features)
 poe version-major   # 0.1.18 → 1.0.0 (breaking changes)
 ```
@@ -249,11 +249,12 @@ poe version-major   # 0.1.18 → 1.0.0 (breaking changes)
 - ✅ **Backend changes** (`src/`, `tests/`) → Bump `pyproject.toml`
 - ✅ **Frontend changes** (`frontend/`) → Bump `package.json`
 - ❌ **Docs changes** (`docs/`, `README.md`) → No version bump
+- ❌ **Bug fixes** → No version bump; add an entry under *Fixes* in `docs/about/changelog.md`
 
 ### Semantic Versioning Guidelines
 
 **Patch (0.1.18 → 0.1.19)**:
-- Bug fixes
+- Addendums to a feature
 - Performance improvements
 - Documentation updates (if code also changed)
 - Internal refactoring
