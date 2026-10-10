@@ -72,6 +72,11 @@ from flock.core.artifacts import Artifact
 from flock.core.conditions import Until, When
 
 # =============================================================================
+# Images - inline image data for artifacts
+# =============================================================================
+from flock.core.image import Image
+
+# =============================================================================
 # Store - Filtering and storage
 # =============================================================================
 from flock.core.store import FilterConfig
@@ -158,6 +163,8 @@ __all__ = [
     # Core
     "Flock",
     "FlockApplication",
+    # Images
+    "Image",
     # Integrations - OpenClaw
     "GatewayConfig",
     "JSONAdapter",
