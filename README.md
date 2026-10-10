@@ -402,6 +402,7 @@ flock.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)  # below the t
 - ✅ **Yes/no and scales** - `YesNo` and `Scale` questions next to `Choice`, several per request: `.decides(Route, Urgent, Anger)`, then `.consumes(Urgent.yes)` or `.consumes(Anger.angry.or_higher)`
 - ✅ **Checklists** - check a document against 100 controls in one decision: `Checklist.from_items("Controls", catalog)`, then `.consumes(Controls.failed)` or `.consumes(Controls.backup.no)`
 - ✅ **Tournaments** - pick one of 1,000+ options in rounds of groups: `.decides(Requirement, tournament=Tournament(group_size=20, keep=3))`
+- ✅ **Decision networks** - `.consumes(Route.billing, Urgent.yes)` is AND about one ticket; parallel screen nodes plus a ranker: `.consumes(*(s.ANY for s in screens)).decides(Control, options=passes)`
 
 <p align="center">
   <img alt="A decider sorting images into option lanes in the dashboard" src="docs/assets/images/decisions/decision-lanes.gif" width="340">

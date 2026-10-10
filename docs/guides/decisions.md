@@ -166,6 +166,7 @@ Many items are cheap, because the artifact is sent once as the state and each it
     visibility=None,            # optional; overrides visibility inheritance
     questions_per_request=100,  # optional; larger sets are split into concurrent requests
     tournament=None,            # optional; Tournament(...) asks one large Choice in rounds
+    options=None,               # optional; callable(ctx) -> option names asked this time
 )
 ```
 
@@ -202,6 +203,7 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `refused` | The model refused to answer this question |
 | `results`, `refused_items` | Checklist only: answer per item, items the model refused |
 | `rounds` | Tournament only: candidates, groups, refused groups, survivors and the top candidates of every group per round |
+| `candidates` | The options the decision was asked about when `options=` restricted them |
 | `confidence` | Confidence as reported by the model |
 | `threshold` | The threshold that applied |
 | `subject_ids` | Ids of the artifacts the decision is about |
@@ -235,7 +237,7 @@ A tournament costs one round trip per round, and an option that drops out early 
 | one choice over all 100 controls | 25/25 | 180 ms | 1 |
 | tournament, groups of 20, keep 3 | 25/25 | 419 ms | 2 |
 
-Use a single choice whenever the options fit into one question, and a tournament when they do not.
+Use a single choice whenever the options fit into one question, and a tournament or a [screening network](#decision-networks) when they do not.
 
 <p align="center">
   <img alt="A tournament decision: 100 options in 5 groups, 15 finalists, final probabilities" src="../../assets/images/decisions/decision-tournament-card.png" width="300">
@@ -274,7 +276,84 @@ To work with the decision itself (for an audit log, for example), consume its ty
 flock.agent("auditor").consumes(Decision.of(Route)).publishes(AuditEntry)
 ```
 
-A choice handle must be the only type in its `.consumes()` call. `where=` predicates on a choice subscription receive the decision.
+Handles cannot be mixed with plain types in one `.consumes()` call; several handles mean AND (see [Decision networks](#decision-networks)). `where=` predicates on a choice subscription receive the decision.
+
+## Decision networks
+
+Decisions compose: several handles in one `.consumes()` mean **AND about the same subject**, and `.decides(..., options=...)` asks about a subset of a question's options chosen at runtime. Together they build networks of deciders.
+
+### AND across questions and deciders
+
+```python
+# Both questions of one decider
+flock.agent("urgent_billing").consumes(Route.billing, Urgent.yes).publishes(Page)
+
+# Decisions of separate deciders about the same ticket
+flock.agent("review").consumes(Route.ANY, Sentiment.ANY, Risk.ANY).publishes(Review)
+```
+
+The agent runs once a matching decision for every handle has arrived about the same subject. It receives the subject once, and `ctx.decisions` holds all the decisions. Internally this is a join on the decisions' `subject_ids` with a 10-minute window; pass `join=JoinSpec(...)` to change it. Handles of the same question cannot be combined (there is one decision per subject), and handles cannot be mixed with plain types.
+
+### Options at runtime
+
+```python
+def passes(ctx):
+    return [item for d in ctx.decisions for item, result in d.results.items() if result == "yes"]
+
+flock.agent("ranker").consumes(...).decides(Control, options=passes)
+```
+
+`options=` restricts a single Choice or Checklist to some of its options for each execution. The callable receives the context and returns option names. The decision type, its handles and routing stay as declared, and the decision records the `candidates` in declared order.
+
+- Names that are not options of the question fail the execution.
+- No candidates give an `UNSURE` decision without a request.
+- A single candidate wins without a request.
+
+### A screening network
+
+Separate screen nodes each check a slice of a catalog in parallel. A ranker waits for all screens of a document, receives the document itself and ranks the controls that passed:
+
+```
+                  ┌── screen_001_025 ──┐
+EvidenceSentence ─┼── screen_026_050 ──┼──> ranker ──> Decision[Control]
+                  ├── screen_051_075 ──┤
+                  └── screen_076_100 ──┘
+```
+
+```python
+SCREENS = [
+    Checklist.from_items(f"Screen_{s + 1:03d}_{s + 25:03d}",
+                         {c["id"]: c["text"] for c in catalog[s : s + 25]},
+                         question="Does this statement show that this control is implemented?")
+    for s in range(0, 100, 25)
+]
+for screen in SCREENS:
+    flock.agent(screen.__name__.lower()).consumes(EvidenceSentence).decides(screen, threshold=0.5)
+
+flock.agent("ranker").consumes(*(s.ANY for s in SCREENS)).decides(Control, options=passes)
+```
+
+Screens are yes/no checklists rather than choices. A choice spreads its probability over its own slice, so an unrelated screen would still pass some option; yes/no answers are comparable across screens, which a threshold needs. Every screen is its own node, with its own model, threshold and scaling, and the dashboard shows each step:
+
+<p align="center">
+  <img alt="Agent view: an evidence sentence goes to four screens, a ranker gathers them" src="../../assets/images/decisions/decision-network-agent-view.png" width="900">
+</p>
+
+<p align="center">
+  <img alt="Blackboard view: one sentence, four screen decisions with their passes, the ranker's decision among nine candidates" src="../../assets/images/decisions/decision-network-blackboard.png" width="900">
+</p>
+
+### Choosing one of many options: three ways
+
+[`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) runs all three on the same 10 evidence sentences and 100 controls (Microsoft-Decision-1):
+
+| Way | Right | Median latency | Requests per sentence | When to use it |
+|---|---|---|---|---|
+| One choice | 10/10 | 182 ms | 1 | The options fit into one question (up to 255) |
+| Tournament in one node | 10/10 | 388 ms | 2 | A large catalog, as one decision with a bracket |
+| Screening network | 10/10 | 441 ms | 5 | Separate steps, each with its own model, threshold and scaling; screens that are useful on their own |
+
+The network's latency is its slowest screen plus the ranker. The right control was among the network's passes for every sentence, with a median of 5 passes per sentence.
 
 ## Thresholds and the UNSURE branch
 
@@ -454,4 +533,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls with a single choice and with a tournament.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network.

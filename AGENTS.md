@@ -1893,6 +1893,12 @@ Requirement = Choice.from_options("Requirement", catalog, question="Which requir
 mapper = orchestrator.agent("mapper").consumes(Paragraph).decides(
     Requirement, tournament=Tournament(group_size=20, keep=3))  # groups of 20, top 3 each, then a final
 
+# Decision networks: several handles = AND about the same subject (subject delivered once,
+# decisions in ctx.decisions); options= asks about a subset of the catalog chosen at runtime
+both = orchestrator.agent("both").consumes(Route.billing, Urgent.yes).publishes(Page)
+ranker = orchestrator.agent("ranker").consumes(*(s.ANY for s in screens)).decides(
+    Control, options=lambda ctx: [i for d in ctx.decisions for i, r in d.results.items() if r == "yes"])
+
 # In tests, pass a FakeDecider (fixed probabilities, no network call):
 #   .decides(Route, model=FakeDecider({"billing": 0.9, "tech": 0.1}))  # from flock.decisions
 #   several questions: FakeDecider({"Route": {...}, "Urgent": {"yes": 0.8, "no": 0.2}})
