@@ -400,6 +400,52 @@ async def test_batchspec_timeout_resets_after_flush():
     assert executed[1] == 1, "Partial batch"
 
 
+def _wall_clock_shifted(monkeypatch, shift: timedelta) -> None:
+    """Step the wall clock the batch accumulator sees by ``shift``."""
+    from datetime import datetime
+
+    from flock.orchestrator import batch_accumulator
+
+    class Shifted(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.now(tz) + shift
+
+    monkeypatch.setattr(batch_accumulator, "datetime", Shifted)
+
+
+def _accumulator(timeout: timedelta):
+    from datetime import UTC, datetime
+
+    from flock.orchestrator.batch_accumulator import BatchAccumulator
+
+    return BatchAccumulator(
+        batch_spec=BatchSpec(timeout=timeout), created_at=datetime.now(UTC)
+    )
+
+
+def test_batch_timeout_survives_a_wall_clock_stepped_back(monkeypatch):
+    """GIVEN a 50 ms batch timeout WHEN the wall clock steps back an hour
+    (VM time sync, NTP, daylight saving) THEN the batch still expires on time."""
+    import time
+
+    accumulator = _accumulator(timedelta(milliseconds=50))
+    _wall_clock_shifted(monkeypatch, -timedelta(hours=1))
+
+    time.sleep(0.06)
+
+    assert accumulator.is_timeout_expired()
+
+
+def test_batch_timeout_ignores_a_wall_clock_stepped_forward(monkeypatch):
+    """GIVEN a 60 s batch timeout WHEN the wall clock jumps an hour ahead
+    THEN the batch does not expire early."""
+    accumulator = _accumulator(timedelta(seconds=60))
+    _wall_clock_shifted(monkeypatch, timedelta(hours=1))
+
+    assert not accumulator.is_timeout_expired()
+
+
 @pytest.mark.asyncio
 async def test_batchspec_shutdown_flushes_partial_batch():
     """
