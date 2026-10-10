@@ -166,6 +166,52 @@ async def test_a_refused_question_goes_to_unsure(flock):
     assert pager.seen == []
 
 
+class RefusingWithScore(FakeDecider):
+    """A provider that refuses but still reports a score (it must not count)."""
+
+    async def decide_many(self, state, questions, images=()):
+        from flock.decisions.providers import DecisionAnswer
+
+        return {
+            q.name: DecisionAnswer(
+                choice=None, probabilities={}, refused=True, score=float("inf")
+            )
+            for q in questions
+        }
+
+
+async def test_a_refused_scale_question_has_no_score_and_triggers_no_level(flock):
+    flock.agent("triage").consumes(SupportTicket).decides(
+        Anger, model=RefusingWithScore({})
+    )
+    angry = listener(flock, "angry", Anger.angry.or_higher)
+    calm = listener(flock, "calm", Anger.annoyed.or_lower)
+    unsure = listener(flock, "unsure", Anger.UNSURE)
+
+    await flock.publish(TICKET)
+    await flock.run_until_idle()
+
+    (anger,) = await decisions_of(flock, Anger)
+    assert anger.payload["refused"] is True
+    assert anger.payload["score"] is None
+    assert angry.seen == []
+    assert calm.seen == []
+    assert len(unsure.seen) == 1
+
+
+def test_refused_decisions_never_match_scale_levels():
+    refused = Decision.of(Anger)(
+        choice=UNSURE,
+        best_guess=None,
+        probabilities={},
+        score=3.0,
+        refused=True,
+        model="fake",
+    )
+    assert not Anger.angry.or_higher.matches(refused)
+    assert not Anger.furious.or_lower.matches(refused)
+
+
 def test_decides_needs_at_least_one_question(flock):
     with pytest.raises(TypeError, match="at least one"):
         flock.agent("triage").consumes(SupportTicket).decides(model=FakeDecider({}))

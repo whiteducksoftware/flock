@@ -86,8 +86,8 @@ class ChoiceRef:
             results = getattr(decision, "results", None) or {}
             return results.get(self.option) == _ITEM_RESULT[self.mode]
         score = getattr(decision, "score", None)
-        if score is None:
-            return False
+        if score is None or getattr(decision, "refused", False):
+            return False  # a refused question has no level
         level = list(self.choice.__options__).index(self.option)
         return score >= level if self.mode == "at_least" else score <= level
 

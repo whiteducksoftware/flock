@@ -162,3 +162,16 @@ def test_data_exactly_at_the_limit_is_accepted(monkeypatch):
     assert encoded.endswith("=")
 
     assert Image(url=f"data:image/png;base64,{encoded}").to_bytes() == data
+
+
+@pytest.mark.parametrize("suffix", ["====", "=" * 10_000], ids=["four", "ten-thousand"])
+def test_non_canonical_base64_padding_is_rejected(monkeypatch, suffix):
+    """Padding must not shrink the size estimate: extra '=' would let any amount
+    of data past the limit."""
+    data = png_bytes()
+    while len(data) % 3:  # an encoding without padding of its own
+        data += b"\0"
+    encoded = base64.b64encode(data).decode() + suffix
+
+    with pytest.raises(ValidationError, match="base64"):
+        Image(url=f"data:image/png;base64,{encoded}")

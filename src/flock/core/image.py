@@ -86,6 +86,10 @@ class Image(BaseModel):
             )
         encoded = match.group(2)
         padding = len(encoded) - len(encoded.rstrip("="))
+        # Canonical base64 only: extra "=" would shrink the size estimate below
+        # and Python's decoder accepts them after complete groups.
+        if len(encoded) % 4 or padding > 2 or "=" in encoded.rstrip("="):
+            raise ValueError("Image.url contains invalid base64 data")
         if len(encoded) * 3 // 4 - padding > MAX_IMAGE_BYTES:  # before decoding
             raise ValueError(
                 f"Image data is larger than {MAX_IMAGE_BYTES / (1024 * 1024):g} MB; "

@@ -155,8 +155,8 @@ def _is_probability(value: float) -> bool:
 def _check_options(
     label: str, question: DecisionQuestion, answer: DecisionAnswer
 ) -> DecisionAnswer:
-    if answer.refused:
-        return answer
+    if answer.refused:  # a refusal carries no answer, also no score to route on
+        return replace(answer, score=None)
     unknown = ({answer.choice} | set(answer.probabilities)) - set(question.options)
     if unknown:
         raise DecisionProviderError(

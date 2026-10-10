@@ -191,7 +191,7 @@ class DecisionEngine(EngineComponent):
                 probabilities=answer.probabilities,
                 confidence=answer.confidence,
                 threshold=self.threshold,
-                score=answer.score,
+                score=None if answer.refused else answer.score,
                 refused=answer.refused,
                 subject_ids=subject_ids,
                 candidates=None if candidates is None else list(candidates),
