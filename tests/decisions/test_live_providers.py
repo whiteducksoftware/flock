@@ -19,6 +19,7 @@ import pytest
 from pydantic import BaseModel
 
 from flock.core import Flock
+from flock.core.image import Image
 from flock.decisions import Choice, Decision
 from flock.registry import flock_type, type_registry
 
@@ -116,3 +117,66 @@ async def test_live_model_routes_clear_tickets(model):
     for decision in decisions:
         assert abs(sum(decision.probabilities.values()) - 1.0) < 0.05
         assert decision.latency_ms is not None
+
+
+@flock_type
+class LiveSwatch(BaseModel):
+    photo: Image
+
+
+class LiveColor(Choice):
+    """What is the color of the square in the image?"""
+
+    red = "Red"
+    green = "Green"
+    blue = "Blue"
+
+
+def _square(rgb: tuple[int, int, int]) -> Image:
+    from PIL import Image as PILImage
+
+    return Image.from_pil(PILImage.new("RGB", (128, 128), rgb))
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        pytest.param(
+            "openai/gpt-6-luna",
+            marks=pytest.mark.skipif(
+                not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
+            ),
+        ),
+        pytest.param(
+            "local/clef",
+            marks=pytest.mark.skipif(
+                not os.getenv("DECISION_API_BASE"),
+                reason="DECISION_API_BASE not set (no local decision server)",
+            ),
+        ),
+    ],
+)
+async def test_live_model_sorts_images(model):
+    flock = Flock()
+    flock.is_dashboard = True
+    flock.agent("painter").consumes(LiveSwatch).decides(LiveColor, model=model)
+    squares = {"red": (220, 30, 30), "green": (30, 180, 60), "blue": (30, 60, 220)}
+
+    for rgb in squares.values():
+        await flock.publish(LiveSwatch(photo=_square(rgb)))
+    await flock.run_until_idle()
+
+    by_id = {
+        str(a.id): a.payload["photo"]["url"]
+        for a in await flock.store.list()
+        if a.type == type_registry.name_for(LiveSwatch)
+    }
+    expected = {_square(rgb).url: color for color, rgb in squares.items()}
+    decisions = [
+        a.payload
+        for a in await flock.store.list()
+        if a.type == type_registry.name_for(Decision.of(LiveColor))
+    ]
+    assert len(decisions) == 3
+    for decision in decisions:
+        assert decision["choice"] == expected[by_id[decision["subject_ids"][0]]]

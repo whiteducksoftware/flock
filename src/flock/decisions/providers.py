@@ -21,11 +21,15 @@ from __future__ import annotations
 import asyncio
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
+
+
+if TYPE_CHECKING:
+    from flock.core.image import Image
 
 
 JEV_DEFAULT_URL = "https://api.typesafe.ai/v1/systemone"
@@ -60,13 +64,19 @@ class DecisionAnswer:
 
 
 class DecisionProvider(ABC):
-    """Answers choice questions about a state."""
+    """Answers choice questions about a state (and, if supported, images)."""
 
     label: str
+    supports_images: bool = False
 
     @abstractmethod
-    async def decide(self, state: str, question: DecisionQuestion) -> DecisionAnswer:
-        """Return the answer to ``question`` about ``state``."""
+    async def decide(
+        self,
+        state: str,
+        question: DecisionQuestion,
+        images: Sequence[Image] = (),
+    ) -> DecisionAnswer:
+        """Return the answer to ``question`` about ``state`` and ``images``."""
 
 
 def _check_options(
@@ -85,7 +95,8 @@ class FakeDecider(DecisionProvider):
     """Deterministic provider for tests and examples.
 
     ``probabilities`` is either a fixed mapping or a function of the state.
-    The choice is the most probable option. Every call is recorded in ``calls``.
+    The choice is the most probable option. Every call is recorded in ``calls``
+    and its images in ``received_images``.
     """
 
     def __init__(
@@ -93,13 +104,22 @@ class FakeDecider(DecisionProvider):
         probabilities: Mapping[str, float] | Callable[[str], Mapping[str, float]],
         *,
         label: str = "fake",
+        supports_images: bool = True,
     ) -> None:
         self._probabilities = probabilities
         self.label = label
+        self.supports_images = supports_images
         self.calls: list[tuple[str, DecisionQuestion]] = []
+        self.received_images: list[list[Image]] = []
 
-    async def decide(self, state: str, question: DecisionQuestion) -> DecisionAnswer:
+    async def decide(
+        self,
+        state: str,
+        question: DecisionQuestion,
+        images: Sequence[Image] = (),
+    ) -> DecisionAnswer:
         self.calls.append((state, question))
+        self.received_images.append(list(images))
         source = self._probabilities
         probabilities = dict(source(state) if callable(source) else source)
         if not probabilities:
@@ -129,10 +149,13 @@ class _HttpDecisionProvider(DecisionProvider):
         timeout: float = 60.0,
         transport: httpx.AsyncBaseTransport | None = None,
         report_server_model: bool = True,
+        supports_images: bool | None = None,
     ) -> None:
         self.url = url
         self.label = label
         self.model = model
+        if supports_images is not None:
+            self.supports_images = supports_images
         # Local servers report their model file path; decisions then carry the label
         self.report_server_model = report_server_model
         self._api_key = api_key
@@ -152,7 +175,9 @@ class _HttpDecisionProvider(DecisionProvider):
         return self._client
 
     @abstractmethod
-    def _body(self, state: str, question: DecisionQuestion) -> dict[str, Any]:
+    def _body(
+        self, state: str, question: DecisionQuestion, images: Sequence[Image]
+    ) -> dict[str, Any]:
         """Request body for one choice question."""
 
     @abstractmethod
@@ -161,13 +186,22 @@ class _HttpDecisionProvider(DecisionProvider):
     ) -> DecisionAnswer:
         """Answer from a decoded response body."""
 
-    async def decide(self, state: str, question: DecisionQuestion) -> DecisionAnswer:
+    async def decide(
+        self,
+        state: str,
+        question: DecisionQuestion,
+        images: Sequence[Image] = (),
+    ) -> DecisionAnswer:
+        if images and not self.supports_images:
+            raise DecisionProviderError(
+                f"Decision model '{self.label}' does not accept images."
+            )
         headers = {"Content-Type": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
         try:
             response = await self._http().post(
-                self.url, json=self._body(state, question), headers=headers
+                self.url, json=self._body(state, question, images), headers=headers
             )
         except httpx.HTTPError as exc:
             raise DecisionProviderError(
@@ -195,7 +229,9 @@ def _float_or_none(value: Any) -> float | None:
 class SystemOneProvider(_HttpDecisionProvider):
     """Client for the ``POST /v1/systemone`` protocol (Jev, Clef, Decision-1)."""
 
-    def _body(self, state: str, question: DecisionQuestion) -> dict[str, Any]:
+    def _body(
+        self, state: str, question: DecisionQuestion, images: Sequence[Image]
+    ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "state": state,
             "questions": {
@@ -209,6 +245,8 @@ class SystemOneProvider(_HttpDecisionProvider):
                 }
             },
         }
+        if images:
+            body["images"] = [image.base64_data for image in images]
         if self.model is not None:
             body = {"model": self.model, **body}
         return body
@@ -231,10 +269,28 @@ class SystemOneProvider(_HttpDecisionProvider):
 class OpenAIDecisionsProvider(_HttpDecisionProvider):
     """Client for OpenAI's ``POST /v1/decisions`` protocol."""
 
-    def _body(self, state: str, question: DecisionQuestion) -> dict[str, Any]:
+    supports_images = True
+
+    def _body(
+        self, state: str, question: DecisionQuestion, images: Sequence[Image]
+    ) -> dict[str, Any]:
+        content: str | list[dict[str, Any]] = state
+        if images:
+            content = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": state},
+                        *(
+                            {"type": "input_image", "image_url": image.url}
+                            for image in images
+                        ),
+                    ],
+                }
+            ]
         return {
             "model": self.model,
-            "input": state,
+            "input": content,
             "questions": [
                 {
                     "type": "choice",
@@ -285,7 +341,10 @@ def resolve_provider(model: str | DecisionProvider) -> DecisionProvider:
     if prefix == "local" and name:
         base = os.getenv("DECISION_API_BASE", LOCAL_DEFAULT_BASE).rstrip("/")
         return SystemOneProvider(
-            f"{base}{SYSTEMONE_PATH}", label=model, report_server_model=False
+            f"{base}{SYSTEMONE_PATH}",
+            label=model,
+            report_server_model=False,
+            supports_images=True,
         )
     if prefix == "azure":
         base = _required_env("AZURE_API_BASE", model).rstrip("/")
