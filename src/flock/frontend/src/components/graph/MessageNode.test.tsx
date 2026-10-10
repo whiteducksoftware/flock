@@ -267,4 +267,37 @@ describe('MessageNode', () => {
     expect(screen.queryByTestId('decision-yesno')).not.toBeInTheDocument();
     expect(screen.queryAllByTestId('decision-option')).toHaveLength(0);
   });
+
+  it('should render a checklist decision as a grid of item results', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Controls',
+              kind: 'checklist',
+              choice: 'failed',
+              bestGuess: 'failed',
+              probabilities: { mfa: 0.98, review: 0.04, leaver: 0.7 },
+              items: ['mfa', 'review', 'leaver', 'backup'],
+              results: { mfa: 'yes', review: 'no', leaver: 'UNSURE', backup: 'UNSURE' },
+              refusedItems: ['backup'],
+              confidence: null,
+              threshold: 0.9,
+              model: 'azure/decision-1',
+              latencyMs: 560,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText('◆ Controls: failed · 1 yes · 1 no · 2 unsure')).toBeInTheDocument();
+    const cells = screen.getAllByTestId('checklist-cell');
+    expect(cells.map((c) => c.dataset.result)).toEqual(['yes', 'no', 'UNSURE', 'UNSURE']);
+    expect(cells[0]).toHaveAttribute('title', 'mfa · yes · p 0.98');
+    expect(cells[3]).toHaveAttribute('title', 'backup · refused');
+  });
 });
+

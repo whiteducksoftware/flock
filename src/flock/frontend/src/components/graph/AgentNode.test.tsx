@@ -246,4 +246,49 @@ describe('AgentNode', () => {
     expect(levels[2]?.dataset.count).toBe('6');
     expect(screen.getByTestId('scale-mean')).toHaveAttribute('title', 'mean score 1.90');
   });
+
+  it('should render a checklist decider with outcomes, item strip and top gaps', () => {
+    const data: AgentNodeData = {
+      name: 'audit',
+      status: 'idle',
+      subscriptions: ['Document'],
+      outputTypes: ['Decision[__main__.Controls]'],
+      sentCount: 4,
+      recvCount: 4,
+      decision: {
+        model: 'azure/decision-1',
+        threshold: 0.8,
+        questions: [
+          {
+            name: 'Controls',
+            kind: 'checklist',
+            options: ['mfa', 'review', 'leaver', 'backup'],
+            counts: { passed: 1, failed: 2, UNSURE: 1 },
+            itemStats: [
+              [3, 1, 0],
+              [1, 3, 0],
+              [2, 1, 1],
+              [0, 4, 0],
+            ],
+            descriptions: { mfa: 'MFA for remote access', review: 'Access reviews', leaver: 'Leavers lose access', backup: 'Daily backups' },
+          },
+        ],
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    const outcomes = screen.getAllByTestId('checklist-outcome');
+    expect(outcomes.map((o) => o.dataset.option)).toEqual(['passed', 'failed', 'UNSURE']);
+    const items = screen.getAllByTestId('checklist-item-stat');
+    expect(items).toHaveLength(4);
+    expect(items[0]).toHaveAttribute('title', 'mfa: 3 yes · 1 no · 0 unsure — MFA for remote access');
+    // Items answered "no" most often
+    const gaps = screen.getAllByTestId('checklist-gap');
+    expect(gaps.map((g) => g.dataset.item)).toEqual(['backup', 'review', 'mfa']);
+  });
 });
+
