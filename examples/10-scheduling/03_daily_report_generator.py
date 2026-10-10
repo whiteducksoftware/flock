@@ -7,17 +7,18 @@ summarize transactions produced during the day.
 Key concepts
 - schedule(at=time(...)) for daily execution at a UTC time (or interval in demo mode)
 - Reporter reads context (transactions) and publishes a DailyReport
-- with_context(FilteredContextProvider(...)) shows the reporter only the
-  Transactions; it is still triggered by its timer alone
+- with_context(TodaysTransactions()) shows the reporter only the Transactions
+  published since 00:00 UTC today; it is still triggered by its timer alone
 """
 
 import asyncio
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from pydantic import BaseModel, Field
 
 from flock import Flock
-from flock.core.context_provider import FilteredContextProvider
+from flock.core.artifacts import Artifact
+from flock.core.context_provider import BaseContextProvider, ContextRequest
 from flock.core.store import FilterConfig
 from flock.registry import flock_type, type_registry
 
@@ -53,10 +54,19 @@ class DailyReport(BaseModel):
 # Agents
 flock = Flock()
 
-# The reporter's context: Transactions only
-transactions_only = FilteredContextProvider(
-    FilterConfig(type_names={type_registry.name_for(Transaction)})
-)
+
+# The reporter's context: today's Transactions (all of them, not the default 50)
+class TodaysTransactions(BaseContextProvider):
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        midnight = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        transactions, _ = await request.store.query_artifacts(
+            FilterConfig(
+                type_names={type_registry.name_for(Transaction)}, start=midnight
+            ),
+            limit=-1,
+        )
+        return transactions
+
 
 # Producer: runs frequently to simulate transactions
 transaction_processor = (
@@ -80,7 +90,7 @@ if DEMO_MODE:
             "category. Provide a concise, executive-friendly summary."
         )
         .schedule(every=timedelta(minutes=2))
-        .with_context(transactions_only)
+        .with_context(TodaysTransactions())
         .publishes(DailyReport)
     )
 else:
@@ -91,7 +101,7 @@ else:
             "Transaction artifacts with totals, averages, and key insights."
         )
         .schedule(at=time(hour=17, minute=0))
-        .with_context(transactions_only)
+        .with_context(TodaysTransactions())
         .publishes(DailyReport)
     )
 

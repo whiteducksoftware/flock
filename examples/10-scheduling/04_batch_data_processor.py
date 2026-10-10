@@ -76,7 +76,7 @@ batch_processor = (
     .schedule(every=batch_interval)
     .with_context(
         FilteredContextProvider(
-            FilterConfig(type_names={type_registry.name_for(DataPoint)})
+            FilterConfig(type_names={type_registry.name_for(DataPoint)}), limit=-1
         )
     )
     .publishes(AggregatedData, fan_out=(1, 10))  # one per sensor

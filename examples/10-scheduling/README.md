@@ -23,7 +23,7 @@ uv run python examples/10-scheduling/01_simple_health_monitor.py
 |---|---|---|---|
 | `01_simple_health_monitor.py` | `every=30s` | The basic interval timer | 2 min |
 | `02_error_log_analyzer.py` | `every=30s` and `every=2min` | A custom context provider: the analyzer sees ERROR logs only | 6 min |
-| `03_daily_report_generator.py` | `every=15s` and `every=2min` (production: `at=time(17, 0)` UTC) | Daily schedule; context filtered to `Transaction` | 5 min |
+| `03_daily_report_generator.py` | `every=15s` and `every=2min` (production: `at=time(17, 0)` UTC) | Daily schedule; a provider that returns today's `Transaction`s | 5 min |
 | `04_batch_data_processor.py` | `every=5s` and `every=1min` (production: 10 min) | Periodic aggregation; one `AggregatedData` per sensor via `fan_out=(1, 10)` | 3 min |
 | `05_one_time_reminder.py` | `at=datetime.now(UTC) + 30s` | One-time schedule; the reminder reads the published meeting | 45 s |
 | `06_cron_demo.py` | `cron="*/1 * * * *"` | Cron schedule (UTC) | 70 s |
@@ -62,17 +62,23 @@ error_analyzer = (
 
 ### 03. Daily report generator
 
-The reporter runs on its timer only and sees only `Transaction` artifacts:
+The reporter runs on its timer only and sees the `Transaction` artifacts published since 00:00 UTC today. The window moves every day, so a small provider computes it on each run; `FilterConfig(start=...)` selects on the artifacts' `created_at`:
 
 ```python
-transactions_only = FilteredContextProvider(
-    FilterConfig(type_names={type_registry.name_for(Transaction)})
-)
+class TodaysTransactions(BaseContextProvider):
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        midnight = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        transactions, _ = await request.store.query_artifacts(
+            FilterConfig(type_names={type_registry.name_for(Transaction)}, start=midnight),
+            limit=-1,
+        )
+        return transactions
+
 
 daily_reporter = (
     flock.agent("daily_reporter")
     .schedule(at=time(hour=17, minute=0))  # 17:00 UTC
-    .with_context(transactions_only)
+    .with_context(TodaysTransactions())
     .publishes(DailyReport)
 )
 ```
@@ -88,13 +94,15 @@ batch_processor = (
     flock.agent("batch_processor")
     .schedule(every=timedelta(minutes=1))
     .with_context(
-        FilteredContextProvider(FilterConfig(type_names={type_registry.name_for(DataPoint)}))
+        FilteredContextProvider(
+            FilterConfig(type_names={type_registry.name_for(DataPoint)}), limit=-1
+        )
     )
     .publishes(AggregatedData, fan_out=(1, 10))
 )
 ```
 
-The context holds all readings published so far, not only those since the last run.
+The context holds all readings published so far, not only those since the last run. `limit=-1` matters: `FilteredContextProvider` returns the oldest 50 artifacts by default.
 
 ### 05. One-time reminder
 

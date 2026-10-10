@@ -123,32 +123,66 @@ from flock.core.context_provider import FilteredContextProvider
 from flock.core.store import FilterConfig
 from flock.registry import type_registry
 
-daily_reporter = (
-    flock.agent("daily_reporter")
-    .description("Summarize the day's transactions: totals, averages, top category.")
-    .schedule(at=time(hour=17, minute=0))
+spending_reporter = (
+    flock.agent("spending_reporter")
+    .description("Summarize all transactions so far: totals, averages, top category.")
+    .schedule(every=timedelta(hours=1))
     .with_context(
         FilteredContextProvider(
-            FilterConfig(type_names={type_registry.name_for(Transaction)})
+            FilterConfig(type_names={type_registry.name_for(Transaction)}), limit=-1
         )
     )
+    .publishes(SpendingReport)
+)
+```
+
+`FilteredContextProvider` returns at most `limit` artifacts, oldest first, and `limit` defaults to 50. A timer agent that should see everything so far needs `limit=-1`.
+
+`FilterConfig` also takes `produced_by`, `correlation_id` and `tags`; criteria combine with AND, and an artifact must carry all the given tags. Tags are set when publishing, for example `await flock.publish(entry, tags={"error"})`.
+
+### By time
+
+`FilterConfig` holds fixed values, so a window that moves with each run needs a small provider. Every artifact has a `created_at` timestamp (UTC), and `FilterConfig(start=...)` selects on it. This provider returns today's artifacts of the given types:
+
+```python
+from datetime import UTC, datetime
+
+from pydantic import BaseModel
+
+from flock.core.artifacts import Artifact
+from flock.core.context_provider import BaseContextProvider, ContextRequest
+
+
+class Today(BaseContextProvider):
+    """Artifacts of the given types published since 00:00 UTC today."""
+
+    def __init__(self, *types: type[BaseModel]):
+        self.type_names = {type_registry.name_for(t) for t in types}
+
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        midnight = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        artifacts, _ = await request.store.query_artifacts(
+            FilterConfig(type_names=self.type_names, start=midnight), limit=-1
+        )
+        return artifacts
+
+
+daily_reporter = (
+    flock.agent("daily_reporter")
+    .description("Summarize today's transactions: totals, averages, top category.")
+    .schedule(at=time(hour=17, minute=0))
+    .with_context(Today(Transaction))
     .publishes(DailyReport)
 )
 ```
 
-`FilterConfig` also takes `produced_by`, `correlation_id` and `tags`; criteria combine with AND, and an artifact must carry all the given tags. Tags are set when publishing, for example `await flock.publish(entry, tags={"error"})`.
+`BaseContextProvider` still applies visibility to whatever `get_artifacts` returns.
 
 ### By payload content
 
-For conditions on the payload, write a small provider. Visibility is still enforced by `BaseContextProvider`:
+For conditions on the payload, filter in the provider:
 
 ```python
-from flock.core.artifacts import Artifact
-from flock.core.context_provider import BaseContextProvider, ContextRequest
-from flock.core.store import FilterConfig
-from flock.registry import type_registry
-
-
 class ErrorLogs(BaseContextProvider):
     """Only ERROR-level log entries."""
 
@@ -265,7 +299,7 @@ await flock.run_until_idle()
 | Rule | What happens otherwise |
 |---|---|
 | A scheduled agent needs `.publishes()` | `ValueError` on the first run |
-| `.schedule()` cannot be combined with a batch subscription | `ValueError` when `.schedule()` is called after `.consumes(..., batch=...)` |
+| Do not combine `.schedule()` with a batch subscription | `.schedule()` raises `ValueError` if the agent already has one; the reverse order is not checked yet |
 | Times are UTC | Local times are shifted by the UTC offset |
 | Timer state is not persisted | Iterations restart at 0 after a restart |
 
@@ -279,7 +313,7 @@ Runnable examples live in [`examples/10-scheduling/`](https://github.com/whitedu
 |---|---|
 | `01_simple_health_monitor.py` | Interval schedule, LLM agent |
 | `02_error_log_analyzer.py` | Two timers; a custom context provider for ERROR logs |
-| `03_daily_report_generator.py` | Daily `at=time(...)` schedule; context filtered by type |
+| `03_daily_report_generator.py` | Daily `at=time(...)` schedule; today's transactions as context |
 | `04_batch_data_processor.py` | Periodic aggregation with dynamic fan-out |
 | `05_one_time_reminder.py` | One-time `at=datetime(...)` schedule |
 | `06_cron_demo.py` | Cron schedule |

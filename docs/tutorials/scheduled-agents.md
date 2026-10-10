@@ -217,17 +217,31 @@ class DailyReport(BaseModel):
     run: int
 ```
 
-### Step 2: Only transactions in context
+### Step 2: Only today's transactions
 
-For filters on type, tags or producer, the built-in `FilteredContextProvider` is enough:
+A daily report should see today's transactions, not every transaction ever published. Every artifact carries a `created_at` timestamp (UTC), and `FilterConfig(start=...)` selects on it. Because the window moves every day, it is computed in a small provider on each run:
 
 ```python
-from flock.core.context_provider import FilteredContextProvider
+from datetime import UTC
 
-transactions_only = FilteredContextProvider(
-    FilterConfig(type_names={type_registry.name_for(Transaction)})
-)
+
+class Today(BaseContextProvider):
+    """Artifacts of the given types published since 00:00 UTC today."""
+
+    def __init__(self, *types: type[BaseModel]):
+        self.type_names = {type_registry.name_for(t) for t in types}
+
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        midnight = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        artifacts, _ = await request.store.query_artifacts(
+            FilterConfig(type_names=self.type_names, start=midnight), limit=-1
+        )
+        return artifacts
 ```
+
+`limit=-1` returns all matches. Without it, store queries return the oldest 50.
+
+For fixed filters on type, tags or producer, the built-in `FilteredContextProvider(FilterConfig(...), limit=-1)` needs no code.
 
 ### Step 3: A custom engine
 
@@ -265,7 +279,7 @@ from datetime import time
 daily_reporter = (
     flock.agent("daily_reporter")
     .schedule(at=time(hour=17, minute=0))  # 17:00 UTC, every day
-    .with_context(transactions_only)
+    .with_context(Today(Transaction))
     .with_engines(DailyReportEngine())
     .publishes(DailyReport)
 )
@@ -284,7 +298,8 @@ async def main():
 ### What you learned
 
 - `at=time(...)` runs daily in UTC; `at=datetime(...)` runs once.
-- `FilteredContextProvider` covers type, tag and producer filters.
+- A provider can compute its filter on each run, for example today's artifacts via `FilterConfig(start=...)`.
+- `FilteredContextProvider` covers fixed type, tag and producer filters; pass `limit=-1` to get more than 50 artifacts.
 - A custom engine reads `ctx.artifacts` and `ctx.timer_iteration` and returns an `EvalResult`.
 
 ---
@@ -296,7 +311,7 @@ async def main():
 ```
 collector (every 10 s) ──Metric──▶ alerter (reacts when value > 90) ──Alert──▶ blackboard
                                                                                   │
-daily_summary (23:55 UTC) ◀──────────── context: Alerts only ─────────────────────┘
+daily_summary (23:55 UTC) ◀──────────── context: today's Alerts ──────────────────┘
 ```
 
 ### Step 1: Types
@@ -351,9 +366,7 @@ daily_summary = (
     flock.agent("daily_summary")
     .description("Summarize today's alerts: count, critical count and the most affected metric.")
     .schedule(at=time(hour=23, minute=55))
-    .with_context(
-        FilteredContextProvider(FilterConfig(type_names={type_registry.name_for(Alert)}))
-    )
+    .with_context(Today(Alert))  # the provider from tutorial 3
     .publishes(DailySummary)
 )
 ```
