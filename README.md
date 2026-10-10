@@ -367,6 +367,40 @@ billing_team = (
 
 **📖 [Full Semantic Guide →](docs/semantic-subscriptions.md)**
 
+### ⚖️ Decision Models (New in 0.5.720!)
+
+**Route on calibrated decisions instead of LLM text:** decision models (Microsoft-Decision-1, OpenAI Decisions, TypeSafe Jev, Cloudflare Clef) answer a typed question with a probability for every option, in one forward pass and without generating text.
+
+```python
+from flock import Choice
+
+class Route(Choice):
+    """Which team should handle this support ticket?"""
+    billing = "Charges, invoices, refunds"
+    tech = "Bugs, crashes, login problems"
+
+# One agent decides, the decision is a shared fact on the blackboard
+triage = (
+    flock.agent("triage")
+    .consumes(SupportTicket)
+    .decides(Route, model="azure/decision-1", threshold=0.8)
+)
+
+# Other agents subscribe to an option - and receive the ticket itself
+flock.agent("billing").consumes(Route.billing).publishes(Reply)
+flock.agent("tech").consumes(Route.tech).publishes(Reply)
+flock.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)  # below the threshold
+```
+
+**Why it matters:**
+- ✅ **Cheap and fast** - sorting 100 arXiv abstracts: 169 ms per paper with Microsoft-Decision-1 vs 598 ms with `gpt-4.1`, at higher agreement with arXiv (90 vs 85 of 100)
+- ✅ **Calibrated** - every decision carries per-option probabilities; `Route.UNSURE` turns low confidence into its own branch
+- ✅ **Safe by default** - decisions inherit the visibility of what they decided on
+- ✅ **Visible** - the dashboard labels edges by option and shows each decision's probabilities
+- ✅ **Pluggable** - `azure/`, `openai/`, `jev/` or any local `/v1/systemone` server (`local/`)
+
+**📖 [Decision Models Guide →](docs/guides/decisions.md)**
+
 ### Advanced Subscription Patterns
 
 <p align="center">

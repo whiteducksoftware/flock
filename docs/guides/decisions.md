@@ -223,6 +223,18 @@ await flock.run_until_idle()
 state, question = decider.calls[0]
 ```
 
+## Decision models or semantic subscriptions?
+
+Both route artifacts by meaning, at different costs and guarantees:
+
+| | Semantic subscriptions (`semantic_match=`) | Decision models (`.decides()`) |
+|---|---|---|
+| How | Embedding similarity of the artifact text to a query, per subscriber | One model call per artifact answers a question with a probability per option |
+| Runs | Locally (`all-MiniLM-L6-v2`), no API | Hosted (`azure/`, `openai/`, `jev/`) or a local server (`local/`) |
+| Output | A similarity score per subscriber, not shared | A `Decision` artifact on the blackboard: probabilities, confidence, audit trail |
+| Mutually exclusive branches | No: several subscribers can match one artifact | Yes: exactly one option, or `UNSURE` |
+| Good for | Cheap relevance filters, "is this about X?" | Routing and classification you want to audit, threshold and replay |
+
 ## What decision models are good at
 
 They judge well when the answer can be read off the supplied state: routing, intent and topic classification, policy checks against given text. They are weak at reference-free judgments of taste or quality, where their confidence stops predicting their errors. They give no reasons, so let an LLM explain the low-confidence and failing cases. A decision model should not be the only gate that allows a risky action; let it deny or escalate, and let allowlists or people allow.
