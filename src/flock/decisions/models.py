@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, create_model
 
-from flock.decisions.choice import UNSURE, Choice
+from flock.decisions.choice import UNSURE, Question
 from flock.registry import type_registry
 
 
@@ -18,12 +18,15 @@ class Decision(BaseModel):
     """
 
     question: str = Field(
-        default="", description="Name of the Choice class that was decided"
+        default="", description="Name of the question class that was decided"
     )
+    kind: str = Field(default="choice", description="choice, yesno or scale")
     choice: str = Field(
         description=f"Selected option, or {UNSURE} when below the threshold"
     )
-    best_guess: str = Field(description="Most probable option, even when unsure")
+    best_guess: str | None = Field(
+        default=None, description="Most probable option, even when unsure"
+    )
     probabilities: dict[str, float] = Field(
         default_factory=dict, description="Probability per option"
     )
@@ -32,6 +35,13 @@ class Decision(BaseModel):
     )
     threshold: float | None = Field(
         default=None, description="Minimum top probability for a firm choice"
+    )
+    score: float | None = Field(
+        default=None,
+        description="Scale questions: probability-weighted level (0 = lowest)",
+    )
+    refused: bool = Field(
+        default=False, description="The model refused to answer (choice is UNSURE)"
     )
     subject_ids: list[str] = Field(
         default_factory=list, description="Ids of the artifacts that were decided on"
@@ -42,10 +52,16 @@ class Decision(BaseModel):
     )
 
     @classmethod
-    def of(cls, choice: type[Choice]) -> type[Decision]:
-        """Return the registered Decision model for ``choice`` (cached)."""
-        if not (isinstance(choice, type) and issubclass(choice, Choice)):
-            raise TypeError(f"Decision.of() expects a Choice subclass, got {choice!r}")
+    def of(cls, choice: type[Question]) -> type[Decision]:
+        """Return the registered Decision model for a question class (cached)."""
+        if not (
+            isinstance(choice, type)
+            and issubclass(choice, Question)
+            and choice.__options__
+        ):
+            raise TypeError(
+                f"Decision.of() expects a Choice, YesNo or Scale subclass, got {choice!r}"
+            )
         cached = choice.__dict__.get("__decision_model__")
         if cached is not None:
             return cached
@@ -56,8 +72,12 @@ class Decision(BaseModel):
             __base__=Decision,
             __module__=choice.__module__,
             question=(str, Field(default=choice.__name__)),
+            kind=(str, Field(default=choice.__kind__)),
             choice=(Literal[(*options, UNSURE)], Field(description="Selected option")),
-            best_guess=(Literal[options], Field(description="Most probable option")),
+            best_guess=(
+                Literal[options] | None,
+                Field(default=None, description="Most probable option"),
+            ),
         )
         model.__flock_choice__ = choice
         type_registry.register(
@@ -67,7 +87,7 @@ class Decision(BaseModel):
         return model
 
 
-def choice_of(model: type[BaseModel]) -> type[Choice] | None:
+def choice_of(model: type[BaseModel]) -> type[Question] | None:
     """Return the Choice behind a Decision model, or None for other models."""
     return getattr(model, "__flock_choice__", None)
 

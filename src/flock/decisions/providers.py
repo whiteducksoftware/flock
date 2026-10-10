@@ -1,7 +1,14 @@
 """Clients for decision models.
 
-A provider answers one choice question about a state with a probability per
-option. Model strings select the provider:
+A provider answers questions about a state with a probability per option,
+all questions of one decision in a single request. Question kinds map to the
+protocols' native question types:
+
+- ``choice``: systemone ``choice`` / OpenAI ``choice``
+- ``yesno``: systemone ``noul`` / OpenAI ``predicate`` (options ``yes`` and ``no``)
+- ``scale``: systemone ``score`` / OpenAI ``score`` (ordered levels)
+
+Model strings select the provider:
 
 - ``jev/<model>``: TypeSafe Jev (``JEV_API_KEY``; ``JEV_API_BASE`` overrides the endpoint)
 - ``local/<name>``: any server speaking ``POST /v1/systemone``, for example
@@ -21,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
@@ -45,43 +52,65 @@ class DecisionProviderError(RuntimeError):
 
 @dataclass(frozen=True)
 class DecisionQuestion:
-    """One choice question: instructions plus option name -> description."""
+    """One question: instructions plus option name -> description.
+
+    ``kind`` is ``choice``, ``yesno`` (options ``yes`` and ``no``) or ``scale``
+    (options are the ordered levels, lowest first).
+    """
 
     name: str
     instructions: str
     options: Mapping[str, str]
+    kind: str = "choice"
 
 
 @dataclass(frozen=True)
 class DecisionAnswer:
-    """A decision model's answer to one choice question."""
+    """A decision model's answer to one question.
 
-    choice: str
+    ``choice`` is the most probable option, or None when the model refused.
+    Scale answers also carry the probability-weighted ``score`` (0 = lowest level).
+    """
+
+    choice: str | None
     probabilities: dict[str, float]
     confidence: float | None = None
     model: str | None = None
     input_tokens: int | None = None
+    score: float | None = None
+    refused: bool = False
 
 
 class DecisionProvider(ABC):
-    """Answers choice questions about a state (and, if supported, images)."""
+    """Answers questions about a state (and, if supported, images)."""
 
     label: str
     supports_images: bool = False
 
     @abstractmethod
+    async def decide_many(
+        self,
+        state: str,
+        questions: Sequence[DecisionQuestion],
+        images: Sequence[Image] = (),
+    ) -> dict[str, DecisionAnswer]:
+        """Answer all ``questions`` about ``state`` and ``images``, keyed by name."""
+
     async def decide(
         self,
         state: str,
         question: DecisionQuestion,
         images: Sequence[Image] = (),
     ) -> DecisionAnswer:
-        """Return the answer to ``question`` about ``state`` and ``images``."""
+        """Return the answer to one ``question`` about ``state`` and ``images``."""
+        return (await self.decide_many(state, [question], images))[question.name]
 
 
 def _check_options(
     label: str, question: DecisionQuestion, answer: DecisionAnswer
 ) -> DecisionAnswer:
+    if answer.refused:
+        return answer
     unknown = ({answer.choice} | set(answer.probabilities)) - set(question.options)
     if unknown:
         raise DecisionProviderError(
@@ -91,49 +120,108 @@ def _check_options(
     return answer
 
 
+def _yes_no_answer(probability_yes: float, **extra: Any) -> DecisionAnswer:
+    p = float(probability_yes)
+    probabilities = {"yes": p, "no": 1.0 - p}
+    choice = "yes" if p >= 0.5 else "no"
+    return DecisionAnswer(
+        choice=choice,
+        probabilities=probabilities,
+        confidence=probabilities[choice],
+        **extra,
+    )
+
+
+def _weighted_score(
+    question: DecisionQuestion, probabilities: Mapping[str, float]
+) -> float:
+    return sum(
+        level * probabilities.get(option, 0.0)
+        for level, option in enumerate(question.options)
+    )
+
+
+Probabilities = Mapping[str, float] | Callable[[str], Mapping[str, float]]
+
+
 class FakeDecider(DecisionProvider):
     """Deterministic provider for tests and examples.
 
-    ``probabilities`` is either a fixed mapping or a function of the state.
-    The choice is the most probable option. Every call is recorded in ``calls``
-    and its images in ``received_images``.
+    ``probabilities`` is a fixed mapping or a function of the state, used for
+    every question, or a mapping of question name -> either of those. The
+    choice is the most probable option; scale answers get the weighted score.
+    Questions named in ``refuse`` are refused. Every request is recorded in
+    ``requests``, every question in ``calls`` and the images in
+    ``received_images``.
     """
 
     def __init__(
         self,
-        probabilities: Mapping[str, float] | Callable[[str], Mapping[str, float]],
+        probabilities: Probabilities | Mapping[str, Probabilities],
         *,
         label: str = "fake",
         supports_images: bool = True,
+        refuse: Collection[str] = (),
     ) -> None:
         self._probabilities = probabilities
         self.label = label
         self.supports_images = supports_images
+        self.refuse = set(refuse)
+        self.requests: list[tuple[str, list[DecisionQuestion]]] = []
         self.calls: list[tuple[str, DecisionQuestion]] = []
         self.received_images: list[list[Image]] = []
 
-    async def decide(
-        self,
-        state: str,
-        question: DecisionQuestion,
-        images: Sequence[Image] = (),
-    ) -> DecisionAnswer:
-        self.calls.append((state, question))
-        self.received_images.append(list(images))
+    def _source(self, question: DecisionQuestion) -> Probabilities:
         source = self._probabilities
+        if callable(source) or not any(
+            isinstance(value, Mapping) or callable(value) for value in source.values()
+        ):
+            return source
+        if question.name not in source:
+            raise DecisionProviderError(
+                f"Decision provider '{self.label}' has no answer for '{question.name}'"
+            )
+        return source[question.name]
+
+    def _answer(self, state: str, question: DecisionQuestion) -> DecisionAnswer:
+        if question.name in self.refuse:
+            return DecisionAnswer(choice=None, probabilities={}, refused=True)
+        source = self._source(question)
         probabilities = dict(source(state) if callable(source) else source)
         if not probabilities:
             raise DecisionProviderError(
                 f"Decision provider '{self.label}' returned no probabilities"
             )
         choice = max(probabilities, key=probabilities.__getitem__)
-        answer = DecisionAnswer(
+        score = (
+            _weighted_score(question, probabilities)
+            if question.kind == "scale"
+            else None
+        )
+        return DecisionAnswer(
             choice=choice,
             probabilities=probabilities,
             confidence=probabilities[choice],
-            model=self.label,
+            score=score,
         )
-        return _check_options(self.label, question, answer)
+
+    async def decide_many(
+        self,
+        state: str,
+        questions: Sequence[DecisionQuestion],
+        images: Sequence[Image] = (),
+    ) -> dict[str, DecisionAnswer]:
+        self.requests.append((state, list(questions)))
+        self.calls.extend((state, question) for question in questions)
+        self.received_images.append(list(images))
+        return {
+            question.name: _check_options(
+                self.label,
+                question,
+                replace(self._answer(state, question), model=self.label),
+            )
+            for question in questions
+        }
 
 
 class _HttpDecisionProvider(DecisionProvider):
@@ -176,22 +264,25 @@ class _HttpDecisionProvider(DecisionProvider):
 
     @abstractmethod
     def _body(
-        self, state: str, question: DecisionQuestion, images: Sequence[Image]
+        self,
+        state: str,
+        questions: Sequence[DecisionQuestion],
+        images: Sequence[Image],
     ) -> dict[str, Any]:
-        """Request body for one choice question."""
+        """Request body asking all ``questions``."""
 
     @abstractmethod
     def _parse(
-        self, data: dict[str, Any], question: DecisionQuestion
-    ) -> DecisionAnswer:
-        """Answer from a decoded response body."""
+        self, data: dict[str, Any], questions: Sequence[DecisionQuestion]
+    ) -> dict[str, DecisionAnswer]:
+        """Answers by question name from a decoded response body."""
 
-    async def decide(
+    async def decide_many(
         self,
         state: str,
-        question: DecisionQuestion,
+        questions: Sequence[DecisionQuestion],
         images: Sequence[Image] = (),
-    ) -> DecisionAnswer:
+    ) -> dict[str, DecisionAnswer]:
         if images and not self.supports_images:
             raise DecisionProviderError(
                 f"Decision model '{self.label}' does not accept images."
@@ -201,7 +292,7 @@ class _HttpDecisionProvider(DecisionProvider):
             headers["Authorization"] = f"Bearer {self._api_key}"
         try:
             response = await self._http().post(
-                self.url, json=self._body(state, question, images), headers=headers
+                self.url, json=self._body(state, questions, images), headers=headers
             )
         except httpx.HTTPError as exc:
             raise DecisionProviderError(
@@ -212,14 +303,29 @@ class _HttpDecisionProvider(DecisionProvider):
                 f"Decision provider '{self.label}' returned HTTP {response.status_code}"
             )
         try:
-            answer = self._parse(response.json(), question)
-        except (ValueError, KeyError, TypeError, AttributeError, StopIteration):
+            data = response.json()
+            answers = self._parse(data, questions)
+        except (
+            ValueError,
+            KeyError,
+            IndexError,
+            TypeError,
+            AttributeError,
+            StopIteration,
+        ):
             raise DecisionProviderError(
                 f"Decision provider '{self.label}' returned an unexpected answer shape"
             ) from None
-        if not self.report_server_model:
-            answer = replace(answer, model=None)
-        return _check_options(self.label, question, answer)
+        model = data.get("model") if self.report_server_model else None
+        input_tokens = (data.get("usage") or {}).get("input_tokens")
+        return {
+            question.name: _check_options(
+                self.label,
+                question,
+                replace(answers[question.name], model=model, input_tokens=input_tokens),
+            )
+            for question in questions
+        }
 
 
 def _float_or_none(value: Any) -> float | None:
@@ -229,20 +335,49 @@ def _float_or_none(value: Any) -> float | None:
 class SystemOneProvider(_HttpDecisionProvider):
     """Client for the ``POST /v1/systemone`` protocol (Jev, Clef, Decision-1)."""
 
+    @staticmethod
+    def _question(question: DecisionQuestion) -> dict[str, Any]:
+        if question.kind == "yesno":
+            body: dict[str, Any] = {
+                "type": "noul",
+                "instructions": question.instructions,
+            }
+            criteria = {
+                option: description
+                for option, description in question.options.items()
+                if description
+            }
+            if criteria:
+                body["criteria"] = criteria
+            return body
+        if question.kind == "scale":
+            return {
+                "type": "score",
+                "instructions": question.instructions,
+                "criteria": [
+                    description or option
+                    for option, description in question.options.items()
+                ],
+            }
+        return {
+            "type": "choice",
+            "instructions": question.instructions,
+            "criteria": {
+                option: description or None
+                for option, description in question.options.items()
+            },
+        }
+
     def _body(
-        self, state: str, question: DecisionQuestion, images: Sequence[Image]
+        self,
+        state: str,
+        questions: Sequence[DecisionQuestion],
+        images: Sequence[Image],
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "state": state,
             "questions": {
-                question.name: {
-                    "type": "choice",
-                    "instructions": question.instructions,
-                    "criteria": {
-                        option: description or None
-                        for option, description in question.options.items()
-                    },
-                }
+                question.name: self._question(question) for question in questions
             },
         }
         if images:
@@ -251,19 +386,37 @@ class SystemOneProvider(_HttpDecisionProvider):
             body = {"model": self.model, **body}
         return body
 
-    def _parse(
-        self, data: dict[str, Any], question: DecisionQuestion
-    ) -> DecisionAnswer:
-        raw = data["answers"][question.name]
+    @staticmethod
+    def _answer(question: DecisionQuestion, raw: dict[str, Any]) -> DecisionAnswer:
+        if question.kind == "yesno":
+            return _yes_no_answer(raw["noul"])
+        if question.kind == "scale":
+            levels = list(question.options)
+            probabilities = {
+                levels[int(index)]: float(p)
+                for index, p in raw["probabilities"].items()
+            }
+            return DecisionAnswer(
+                choice=max(probabilities, key=probabilities.__getitem__),
+                probabilities=probabilities,
+                confidence=_float_or_none(raw.get("confidence")),
+                score=float(raw["score"]),
+            )
         return DecisionAnswer(
             choice=str(raw["choice"]),
             probabilities={
                 str(option): float(p) for option, p in raw["probabilities"].items()
             },
             confidence=_float_or_none(raw.get("confidence")),
-            model=data.get("model"),
-            input_tokens=(data.get("usage") or {}).get("input_tokens"),
         )
+
+    def _parse(
+        self, data: dict[str, Any], questions: Sequence[DecisionQuestion]
+    ) -> dict[str, DecisionAnswer]:
+        return {
+            question.name: self._answer(question, data["answers"][question.name])
+            for question in questions
+        }
 
 
 class OpenAIDecisionsProvider(_HttpDecisionProvider):
@@ -271,8 +424,51 @@ class OpenAIDecisionsProvider(_HttpDecisionProvider):
 
     supports_images = True
 
+    @staticmethod
+    def _question(question: DecisionQuestion) -> dict[str, Any]:
+        if question.kind == "yesno":
+            # Predicates take no descriptions; they become part of the instructions
+            described = [
+                f"{option.capitalize()}: {description}"
+                for option, description in question.options.items()
+                if description
+            ]
+            return {
+                "type": "predicate",
+                "name": question.name,
+                "instructions": "\n".join([question.instructions, *described]),
+            }
+        if question.kind == "scale":
+            return {
+                "type": "score",
+                "name": question.name,
+                "instructions": question.instructions,
+                "levels": [
+                    {
+                        "label": option,
+                        **({"description": description} if description else {}),
+                    }
+                    for option, description in question.options.items()
+                ],
+            }
+        return {
+            "type": "choice",
+            "name": question.name,
+            "instructions": question.instructions,
+            "choices": [
+                {
+                    "value": option,
+                    **({"description": description} if description else {}),
+                }
+                for option, description in question.options.items()
+            ],
+        }
+
     def _body(
-        self, state: str, question: DecisionQuestion, images: Sequence[Image]
+        self,
+        state: str,
+        questions: Sequence[DecisionQuestion],
+        images: Sequence[Image],
     ) -> dict[str, Any]:
         content: str | list[dict[str, Any]] = state
         if images:
@@ -291,35 +487,43 @@ class OpenAIDecisionsProvider(_HttpDecisionProvider):
         return {
             "model": self.model,
             "input": content,
-            "questions": [
-                {
-                    "type": "choice",
-                    "name": question.name,
-                    "instructions": question.instructions,
-                    "choices": [
-                        {
-                            "value": option,
-                            **({"description": description} if description else {}),
-                        }
-                        for option, description in question.options.items()
-                    ],
-                }
-            ],
+            "questions": [self._question(question) for question in questions],
         }
 
-    def _parse(
-        self, data: dict[str, Any], question: DecisionQuestion
-    ) -> DecisionAnswer:
-        raw = next(a for a in data["answers"] if a["name"] == question.name)
+    @staticmethod
+    def _answer(question: DecisionQuestion, raw: dict[str, Any]) -> DecisionAnswer:
+        if raw.get("type") == "refusal":
+            return DecisionAnswer(choice=None, probabilities={}, refused=True)
+        if question.kind == "yesno":
+            return _yes_no_answer(raw["probability"])
+        if question.kind == "scale":
+            levels = list(question.options)
+            probabilities = {
+                levels[int(p["value"])]: float(p["probability"])
+                for p in raw["probabilities"]
+            }
+            return DecisionAnswer(
+                choice=max(probabilities, key=probabilities.__getitem__),
+                probabilities=probabilities,
+                confidence=_float_or_none(raw.get("confidence")),
+                score=float(raw["score"]),
+            )
         return DecisionAnswer(
             choice=str(raw["choice"]),
             probabilities={
                 str(p["value"]): float(p["probability"]) for p in raw["probabilities"]
             },
             confidence=_float_or_none(raw.get("confidence")),
-            model=data.get("model"),
-            input_tokens=(data.get("usage") or {}).get("input_tokens"),
         )
+
+    def _parse(
+        self, data: dict[str, Any], questions: Sequence[DecisionQuestion]
+    ) -> dict[str, DecisionAnswer]:
+        by_name = {raw["name"]: raw for raw in data["answers"]}
+        return {
+            question.name: self._answer(question, by_name[question.name])
+            for question in questions
+        }
 
 
 def _required_env(name: str, model: str) -> str:

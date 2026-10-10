@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from flock.core import Flock
 from flock.core.image import Image
-from flock.decisions import Choice, Decision
+from flock.decisions import Choice, Decision, Scale, YesNo
 from flock.registry import flock_type, type_registry
 
 
@@ -57,37 +57,37 @@ TICKETS = {
 }
 
 
-@pytest.mark.parametrize(
-    "model",
-    [
-        pytest.param(
-            "azure/decision-1",
-            marks=pytest.mark.skipif(
-                not (os.getenv("AZURE_API_BASE") and os.getenv("AZURE_API_KEY")),
-                reason="AZURE_API_BASE / AZURE_API_KEY not set",
-            ),
+TEXT_MODELS = [
+    pytest.param(
+        "azure/decision-1",
+        marks=pytest.mark.skipif(
+            not (os.getenv("AZURE_API_BASE") and os.getenv("AZURE_API_KEY")),
+            reason="AZURE_API_BASE / AZURE_API_KEY not set",
         ),
-        pytest.param(
-            "openai/gpt-6-luna",
-            marks=pytest.mark.skipif(
-                not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
-            ),
+    ),
+    pytest.param(
+        "openai/gpt-6-luna",
+        marks=pytest.mark.skipif(
+            not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
         ),
-        pytest.param(
-            "jev/jev-latest",
-            marks=pytest.mark.skipif(
-                not os.getenv("JEV_API_KEY"), reason="JEV_API_KEY not set"
-            ),
+    ),
+    pytest.param(
+        "jev/jev-latest",
+        marks=pytest.mark.skipif(
+            not os.getenv("JEV_API_KEY"), reason="JEV_API_KEY not set"
         ),
-        pytest.param(
-            "local/clef-flash",
-            marks=pytest.mark.skipif(
-                not os.getenv("DECISION_API_BASE"),
-                reason="DECISION_API_BASE not set (no local decision server)",
-            ),
+    ),
+    pytest.param(
+        "local/clef-flash",
+        marks=pytest.mark.skipif(
+            not os.getenv("DECISION_API_BASE"),
+            reason="DECISION_API_BASE not set (no local decision server)",
         ),
-    ],
-)
+    ),
+]
+
+
+@pytest.mark.parametrize("model", TEXT_MODELS)
 async def test_live_model_routes_clear_tickets(model):
     flock = Flock()
     flock.is_dashboard = True
@@ -117,6 +117,72 @@ async def test_live_model_routes_clear_tickets(model):
     for decision in decisions:
         assert abs(sum(decision.probabilities.values()) - 1.0) < 0.05
         assert decision.latency_ms is not None
+
+
+class LiveUrgent(YesNo):
+    """Does the customer need an answer today?"""
+
+    yes = "A deadline today or money at stake right now"
+
+
+class LiveAnger(Scale):
+    """How angry is the customer?"""
+
+    calm = "Calm and polite"
+    annoyed = "Annoyed but civil"
+    angry = "Angry, complaining strongly"
+    furious = "Furious, threatening to leave"
+
+
+FURIOUS = LiveTicket(
+    subject="Charged twice AGAIN",
+    body="Third time this month my card was charged twice. Refund it today or I "
+    "cancel and tell everyone.",
+)
+FRIENDLY = LiveTicket(
+    subject="Dark mode",
+    body="Hi! It would be lovely to have a dark mode some day. Thanks for the app!",
+)
+
+
+@pytest.mark.parametrize("model", TEXT_MODELS)
+async def test_live_model_answers_choice_yes_no_and_scale_in_one_call(model):
+    flock = Flock()
+    flock.is_dashboard = True
+    flock.agent("triage").consumes(LiveTicket).decides(
+        LiveRoute, LiveUrgent, LiveAnger, model=model
+    )
+
+    await flock.publish(FURIOUS)
+    await flock.publish(FRIENDLY)
+    await flock.run_until_idle()
+
+    artifacts = await flock.store.list()
+    subjects = {
+        str(a.id): a.payload["subject"]
+        for a in artifacts
+        if a.type == type_registry.name_for(LiveTicket)
+    }
+    answers: dict[str, dict] = {}
+    for question in (LiveRoute, LiveUrgent, LiveAnger):
+        name = type_registry.name_for(Decision.of(question))
+        for artifact in artifacts:
+            if artifact.type == name:
+                decision = Decision.of(question)(**artifact.payload)
+                subject = subjects[decision.subject_ids[0]]
+                answers.setdefault(subject, {})[question.__name__] = decision
+
+    furious, friendly = answers[FURIOUS.subject], answers[FRIENDLY.subject]
+    assert furious["LiveRoute"].choice == "billing"
+    assert furious["LiveUrgent"].choice == "yes"
+    assert friendly["LiveUrgent"].choice == "no"
+    assert furious["LiveAnger"].score >= 2.0
+    assert friendly["LiveAnger"].score <= 1.0
+    for decisions in answers.values():
+        # One request per ticket: all three decisions carry its latency
+        assert len({d.latency_ms for d in decisions.values()}) == 1
+        for decision in decisions.values():
+            assert abs(sum(decision.probabilities.values()) - 1.0) < 0.05
 
 
 @flock_type

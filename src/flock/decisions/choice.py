@@ -35,65 +35,118 @@ ANY_OPTION = "ANY"
 
 _RESERVED = frozenset({UNSURE, ANY_OPTION})
 
-# The systemone protocol accepts at most 255 options per choice question.
+# The systemone protocol accepts at most 255 options per choice question
+# and 2-10 levels per score question.
 MAX_OPTIONS = 255
+MAX_LEVELS = 10
+
+
+_MODE_SUFFIX = {"exact": "", "at_least": ".or_higher", "at_most": ".or_lower"}
 
 
 @dataclass(frozen=True)
 class ChoiceRef:
-    """Subscription handle for one option of a :class:`Choice`."""
+    """Subscription handle for one option of a question.
 
-    choice: type[Choice]
+    ``mode`` is ``exact`` (the decision chose this option) or, for
+    :class:`Scale` levels, ``at_least`` / ``at_most`` (the decision's weighted
+    score is at or above / at or below this level).
+    """
+
+    choice: type[Question]
     option: str
+    mode: str = "exact"
 
     def matches(self, decision: BaseModel) -> bool:
-        """Return True if ``decision`` selects this handle's option."""
+        """Return True if ``decision`` satisfies this handle."""
         if self.option == ANY_OPTION:
             return True
-        return getattr(decision, "choice", None) == self.option
+        if self.mode == "exact":
+            return getattr(decision, "choice", None) == self.option
+        score = getattr(decision, "score", None)
+        if score is None:
+            return False
+        level = list(self.choice.__options__).index(self.option)
+        return score >= level if self.mode == "at_least" else score <= level
+
+    def _scale_level(self, mode: str) -> ChoiceRef:
+        if (
+            self.choice.__kind__ != "scale"
+            or self.mode != "exact"
+            or self.option in _RESERVED
+        ):
+            raise AttributeError(
+                f"{self!r} has no {_MODE_SUFFIX[mode][1:]}: only Scale levels do."
+            )
+        return ChoiceRef(self.choice, self.option, mode)
+
+    @property
+    def or_higher(self) -> ChoiceRef:
+        """Scale handle: the weighted score is at or above this level."""
+        return self._scale_level("at_least")
+
+    @property
+    def or_lower(self) -> ChoiceRef:
+        """Scale handle: the weighted score is at or below this level."""
+        return self._scale_level("at_most")
 
     def __repr__(self) -> str:
-        return f"{self.choice.__name__}.{self.option}"
+        return f"{self.choice.__name__}.{self.option}{_MODE_SUFFIX[self.mode]}"
 
 
-class ChoiceMeta(type):
+class _QuestionMeta(type):
     """Collects option attributes and replaces them with :class:`ChoiceRef`."""
 
     def __new__(
         mcls, name: str, bases: tuple[type, ...], namespace: dict[str, Any]
-    ) -> ChoiceMeta:
+    ) -> _QuestionMeta:
         options: dict[str, str] = {}
         for key, value in namespace.items():
             if key.startswith("_") or not isinstance(value, str):
                 continue
             if key in _RESERVED:
                 raise TypeError(
-                    f"Choice '{name}' cannot declare an option named '{key}': "
+                    f"'{name}' cannot declare an option named '{key}': "
                     f"{key} is reserved for {name}.{key}."
                 )
             options[key] = value
 
         cls = super().__new__(mcls, name, bases, namespace)
-        if not bases:  # The Choice base class itself declares no options.
+        if namespace.get("__root__", False):  # Question, Choice, YesNo, Scale
             cls.__options__ = {}
             cls.__question__ = ""
             return cls
 
-        if len(options) < 2:
-            raise TypeError(
-                f"Choice '{name}' must declare at least two options, got {len(options)}."
-            )
-        if len(options) > MAX_OPTIONS:
-            raise TypeError(
-                f"Choice '{name}' declares {len(options)} options; "
-                f"decision models accept at most {MAX_OPTIONS}."
-            )
+        kind = cls.__kind__
+        if kind == "yesno":
+            extra = sorted(set(options) - {"yes", "no"})
+            if extra:
+                raise TypeError(
+                    f"YesNo '{name}' accepts only 'yes' and 'no' descriptions, "
+                    f"got: {', '.join(extra)}."
+                )
+            options = {"yes": options.get("yes", ""), "no": options.get("no", "")}
+        elif kind == "scale":
+            if not 2 <= len(options) <= MAX_LEVELS:
+                raise TypeError(
+                    f"Scale '{name}' must declare between 2 and {MAX_LEVELS} levels, "
+                    f"got {len(options)}."
+                )
+        else:
+            if len(options) < 2:
+                raise TypeError(
+                    f"Choice '{name}' must declare at least two options, got {len(options)}."
+                )
+            if len(options) > MAX_OPTIONS:
+                raise TypeError(
+                    f"Choice '{name}' declares {len(options)} options; "
+                    f"decision models accept at most {MAX_OPTIONS}."
+                )
 
         cls.__options__ = options
         doc = namespace.get("__doc__")
-        cls.__question__ = (
-            inspect.cleandoc(doc) if doc else f"Which {name} option applies?"
-        )
+        default = f"{name}?" if kind == "yesno" else f"Which {name} option applies?"
+        cls.__question__ = inspect.cleandoc(doc) if doc else default
         for option in options:
             setattr(cls, option, ChoiceRef(cls, option))
         cls.UNSURE = ChoiceRef(cls, UNSURE)
@@ -101,16 +154,62 @@ class ChoiceMeta(type):
         return cls
 
 
-class Choice(metaclass=ChoiceMeta):
-    """Base class for a closed option set (see module docstring)."""
+# Backwards-compatible name
+ChoiceMeta = _QuestionMeta
 
+
+class Question(metaclass=_QuestionMeta):
+    """Base of all decision questions: :class:`Choice`, :class:`YesNo`, :class:`Scale`."""
+
+    __root__ = True
+    __kind__ = "choice"
     __options__: dict[str, str]
     __question__: str
 
     def __init__(self) -> None:
         raise TypeError(
-            "Choice classes are not instantiated; use their options as handles."
+            "Question classes are not instantiated; use their options as handles."
         )
 
 
-__all__ = ["ANY_OPTION", "MAX_OPTIONS", "UNSURE", "Choice", "ChoiceRef"]
+class Choice(Question):
+    """One option out of a closed set (see module docstring)."""
+
+    __root__ = True
+    __kind__ = "choice"
+
+
+class YesNo(Question):
+    """A yes/no question; optional ``yes = "..."`` / ``no = "..."`` describe the answers.
+
+    Asked natively (systemone ``noul``, OpenAI ``predicate``). Handles:
+    ``.yes``, ``.no``, ``.UNSURE``, ``.ANY``.
+    """
+
+    __root__ = True
+    __kind__ = "yesno"
+
+
+class Scale(Question):
+    """Ordered levels, lowest first (2-10). The decision carries the most probable
+    level and the probability-weighted ``score`` (0 = lowest level).
+
+    Handles: ``.<level>`` (most probable level), ``.<level>.or_higher`` and
+    ``.<level>.or_lower`` (weighted score at or above / below the level).
+    """
+
+    __root__ = True
+    __kind__ = "scale"
+
+
+__all__ = [
+    "ANY_OPTION",
+    "MAX_LEVELS",
+    "MAX_OPTIONS",
+    "UNSURE",
+    "Choice",
+    "ChoiceRef",
+    "Question",
+    "Scale",
+    "YesNo",
+]

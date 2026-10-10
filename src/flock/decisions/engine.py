@@ -12,9 +12,13 @@ from flock.components.agent import EngineComponent
 from flock.core.artifacts import Artifact
 from flock.core.image import Image
 from flock.core.visibility import Visibility, ensure_visibility
-from flock.decisions.choice import UNSURE, Choice
+from flock.decisions.choice import UNSURE, Question
 from flock.decisions.models import Decision
-from flock.decisions.providers import DecisionProvider, DecisionQuestion
+from flock.decisions.providers import (
+    DecisionAnswer,
+    DecisionProvider,
+    DecisionQuestion,
+)
 from flock.registry import RegistryError, type_registry
 from flock.utils.runtime import EvalResult
 
@@ -72,17 +76,20 @@ def inherited_visibility(artifacts: list[Artifact]) -> Visibility:
 
 
 class DecisionEngine(EngineComponent):
-    """Answers a :class:`Choice` question about the agent's inputs.
+    """Answers :class:`Choice`, :class:`YesNo` and :class:`Scale` questions
+    about the agent's inputs, all in one provider request.
 
-    Publishes one ``Decision.of(choice)`` artifact per execution. Below
-    ``threshold`` the decision's ``choice`` is ``UNSURE``; ``best_guess`` keeps
-    the model's pick either way. The decision inherits its inputs' visibility
-    unless ``visibility`` is set.
+    Publishes one ``Decision.of(question)`` artifact per question and
+    execution. Below ``threshold`` a decision's ``choice`` is ``UNSURE``;
+    ``best_guess`` keeps the model's pick either way. A refused question is
+    ``UNSURE`` with ``refused=True``. Decisions inherit their inputs'
+    visibility unless ``visibility`` is set. ``instructions`` replaces the
+    docstring of a single question.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    choice: type[Choice]
+    questions: list[type[Question]]
     provider: DecisionProvider
     threshold: float | None = None
     instructions: str | None = None
@@ -104,11 +111,15 @@ class DecisionEngine(EngineComponent):
             if self.visibility is not None
             else inherited_visibility(inputs.artifacts)
         )
-        question = DecisionQuestion(
-            name=self.choice.__name__,
-            instructions=self.instructions or self.choice.__question__,
-            options=self.choice.__options__,
-        )
+        questions = [
+            DecisionQuestion(
+                name=question.__name__,
+                instructions=self.instructions or question.__question__,
+                options=question.__options__,
+                kind=question.__kind__,
+            )
+            for question in self.questions
+        ]
 
         state, images = prepare_state(inputs.artifacts)
         if images and not self.provider.supports_images:
@@ -119,29 +130,43 @@ class DecisionEngine(EngineComponent):
             )
 
         started = time.perf_counter()
-        answer = await self.provider.decide(state, question, images)
-        latency_ms = (time.perf_counter() - started) * 1000
+        answers = await self.provider.decide_many(state, questions, images)
+        latency_ms = round((time.perf_counter() - started) * 1000, 3)
 
+        subject_ids = [str(a.id) for a in inputs.artifacts]
+        artifacts = []
+        for question in self.questions:
+            model = Decision.of(question)
+            answer = answers[question.__name__]
+            decision = model(
+                choice=answer.choice if self._firm(answer) else UNSURE,
+                best_guess=answer.choice,
+                probabilities=answer.probabilities,
+                confidence=answer.confidence,
+                threshold=self.threshold,
+                score=answer.score,
+                refused=answer.refused,
+                subject_ids=subject_ids,
+                model=answer.model or self.provider.label,
+                latency_ms=latency_ms,
+            )
+            artifacts.append(
+                Artifact(
+                    type=type_registry.name_for(model),
+                    payload=decision.model_dump(mode="json"),
+                    produced_by=agent.name,
+                    visibility=visibility.model_copy(deep=True),
+                )
+            )
+        return EvalResult(artifacts=artifacts)
+
+    def _firm(self, answer: DecisionAnswer) -> bool:
+        if answer.refused or answer.choice is None:
+            return False
+        if self.threshold is None:
+            return True
         top = answer.probabilities.get(answer.choice, answer.confidence)
-        firm = self.threshold is None or (top is not None and top >= self.threshold)
-        model = Decision.of(self.choice)
-        decision = model(
-            choice=answer.choice if firm else UNSURE,
-            best_guess=answer.choice,
-            probabilities=answer.probabilities,
-            confidence=answer.confidence,
-            threshold=self.threshold,
-            subject_ids=[str(a.id) for a in inputs.artifacts],
-            model=answer.model or self.provider.label,
-            latency_ms=round(latency_ms, 3),
-        )
-        artifact = Artifact(
-            type=type_registry.name_for(model),
-            payload=decision.model_dump(mode="json"),
-            produced_by=agent.name,
-            visibility=visibility,
-        )
-        return EvalResult(artifacts=[artifact])
+        return top is not None and top >= self.threshold
 
 
 __all__ = ["DecisionEngine", "inherited_visibility", "prepare_state", "render_state"]
