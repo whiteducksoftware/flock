@@ -111,6 +111,12 @@ Replace the body of `main()` with `await flock.serve(dashboard=True)` to watch t
 
 Many agent steps are decisions, not writing tasks: which team handles a ticket, is it urgent, which of 100 controls does a sentence implement. Flock asks **decision models** for them (Microsoft-Decision-1, OpenAI Decisions, TypeSafe Jev or a local Clef model). They answer a typed question with a calibrated probability for every option in one forward pass, without generating text. The decision is an artifact on the blackboard, and agents subscribe to its answers.
 
+<p align="center">
+  <img alt="Option lanes in the dashboard filling up with shapes sorted by color" src="docs/assets/images/decisions/decision-lanes.gif" width="380">
+  <img alt="Close-up of the color sorter with all 24 shapes sorted" src="docs/assets/images/decisions/decision-sorter.png" width="380">
+</p>
+<p align="center"><i>A decision model looks at each shape's image and sorts it into a color lane, live in the dashboard. In-between colors stay below the threshold and land in the <code>UNSURE</code> lane for an inspector (<a href="examples/15-decisions/03_color_sorter.py">03_color_sorter.py</a>).</i></p>
+
 ```python
 from flock import Choice, Flock, YesNo
 
@@ -148,10 +154,6 @@ Measured with Microsoft-Decision-1 on the repository's examples:
 
 - **Routing:** 100 arXiv abstracts sorted into research fields at 169 ms per paper, against 598 ms for `gpt-4.1`; the decision model agreed with arXiv's category on 90 papers, `gpt-4.1` on 85.
 - **Compliance:** 24 documents checked against 100 controls with one checklist decision each, about 600 ms per document, recall 1.00 at precision 0.75 against ground truth.
-
-<p align="center">
-  <img alt="A decider sorting images into option lanes in the dashboard" src="docs/assets/images/decisions/decision-lanes.gif" width="340">
-</p>
 
 📖 [Decision models guide](https://whiteducksoftware.github.io/flock/guides/decisions/) · [Examples](examples/15-decisions/)
 
