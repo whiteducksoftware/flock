@@ -140,65 +140,44 @@ def describe_context_images(items: Iterable[Any]) -> list[Any]:
     return described
 
 
-def _is_image_data(value: Any) -> bool:
-    if isinstance(value, Image):
+def _sends_image(value: Any) -> bool:
+    """True if a value of a DSPy input copy holds a ``dspy.Image``."""
+    import dspy
+
+    if isinstance(value, dspy.Image):
         return True
-    return (
-        isinstance(value, dict)
-        and isinstance(value.get("url"), str)
-        and describe_image_data(value["url"]) is not None
-    )
-
-
-def _holds_image(annotation: Any, value: Any) -> bool:
-    """True if ``value`` has image data where ``annotation`` declares an Image."""
-    if value is None:
-        return False
-    if annotation is Image:
-        return _is_image_data(value)
-    if _is_model(annotation):
-        return _model_holds_image(annotation, value)
-    if not typing.get_args(annotation) or not _contains_image(annotation):
-        return False
-    return _container_holds_image(annotation, value)
-
-
-def _model_holds_image(model: type[BaseModel], value: Any) -> bool:
     if isinstance(value, BaseModel):
-        value = value.model_dump()
-    return isinstance(value, dict) and any(
-        _holds_image(field.annotation, value.get(name))
-        for name, field in model.model_fields.items()
-    )
-
-
-def _container_holds_image(annotation: Any, value: Any) -> bool:
-    origin, args = typing.get_origin(annotation), typing.get_args(annotation)
-    if origin in (types.UnionType, typing.Union):
-        return any(_holds_image(arg, value) for arg in args)
-    if origin is dict:
-        items = value.values() if isinstance(value, dict) else []
-        return any(_holds_image(args[-1], item) for item in items)
-    if not isinstance(value, list | tuple | set | frozenset):
-        return False
-    if origin is tuple and len(args) > 1 and args[-1] is not Ellipsis:
-        pairs = zip(args, value, strict=False)  # a short payload is just short
-        return any(_holds_image(arg, item) for arg, item in pairs)
-    return any(_holds_image(args[0], item) for item in value)
+        return any(
+            _sends_image(getattr(value, name)) for name in type(value).model_fields
+        )
+    if isinstance(value, dict):
+        return any(_sends_image(item) for item in value.values())
+    if isinstance(value, list | tuple | set | frozenset):
+        return any(_sends_image(item) for item in value)
+    return False
 
 
 def _image_fields(inputs: EvalInputs) -> list[str]:
-    """``Type.field`` for every input field that holds a picture."""
+    """``Type.field`` for every input field that is sent to the model as an image.
+
+    Checks the DSPy input copy itself, so it agrees with what the engine sends
+    (including the branch Pydantic picks for a union).
+    """
     fields: list[str] = []
     for artifact in inputs.artifacts:
         try:
             model = type_registry.resolve(artifact.type)
         except KeyError:
             continue
-        payload = artifact.payload or {}
-        for name, field in model.model_fields.items():
+        if dspy_input_model(model) is model:
+            continue
+        try:
+            sent = to_dspy_input(model.model_validate(artifact.payload or {}), model)
+        except Exception:  # noqa: S112 - invalid payloads are passed on as data
+            continue
+        for name in model.model_fields:
             path = f"{model.__name__}.{name}"
-            if _holds_image(field.annotation, payload.get(name)) and path not in fields:
+            if _sends_image(getattr(sent, name)) and path not in fields:
                 fields.append(path)
     return fields
 

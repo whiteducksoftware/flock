@@ -69,6 +69,21 @@ class ImgAliased(BaseModel):
     picture: Image
 
 
+class ImgTextData(BaseModel):
+    data: dict[str, str]
+
+
+class ImgPhotoData(BaseModel):
+    data: Image
+
+
+@flock_type
+class ImgAmbiguous(BaseModel):
+    """Pydantic picks the first union branch that validates: the text one."""
+
+    item: ImgTextData | ImgPhotoData
+
+
 @flock_type
 class ImgDataUrlText(BaseModel):
     """A text field that happens to hold a data URL: not an image input."""
@@ -313,6 +328,7 @@ def test_vision_and_unknown_models_pass(model, openai_api):
         ImgPlain(text="x"),
         ImgAlbum(title="empty"),  # image fields, but no picture in the payload
         ImgDataUrlText(raw=_png().url),  # a data URL in a str field stays text
+        ImgAmbiguous(item=ImgTextData(data={"url": _png().url})),  # sent as text
     ],
 )
 def test_inputs_without_pictures_are_never_rejected(value):
