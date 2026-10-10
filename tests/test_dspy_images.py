@@ -43,6 +43,19 @@ class ImgPlain(BaseModel):
 
 
 @flock_type
+class ImgNode(BaseModel):
+    """A tree of pictures: the model refers to itself."""
+
+    picture: Image | None = None
+    children: list[ImgNode] = []
+
+
+@flock_type
+class ImgPair(BaseModel):
+    pictures: tuple[Image, Image]
+
+
+@flock_type
 class ImgVerdict(BaseModel):
     summary: str
 
@@ -86,6 +99,65 @@ def test_image_fields_become_dspy_images_at_any_depth():
         "captions": list[caption],
     }
     assert dspy_input_model(ImgAlbum) is album  # built once per model
+
+
+def test_recursive_models_with_images_are_built():
+    node = dspy_input_model(ImgNode)
+
+    assert _annotations(node)["picture"] == dspy.Image | None
+    assert _annotations(node)["children"] == list[node]
+    tree = node.model_validate({
+        "picture": None,
+        "children": [{"picture": _png().model_dump(), "children": []}],
+    })
+    assert isinstance(tree.children[0].picture, dspy.Image)
+
+
+def _formatted(payload_inputs: EvalInputs, *, batched: bool = False):
+    builder = DSPySignatureBuilder()
+    signature = builder.prepare_signature_for_output_group(
+        dspy,
+        agent=Agent(),
+        inputs=payload_inputs,
+        output_group=_output_group(),
+        batched=batched,
+    )
+    payload = builder.prepare_execution_payload_for_output_group(
+        payload_inputs,
+        _output_group(),
+        batched=batched,
+        has_context=False,
+        context_history=None,
+        sys_desc="Describe the pictures",
+    )
+    messages = dspy.ChatAdapter().format(signature, demos=[], inputs=payload)
+    image_parts, text = [], []
+    for message in messages:
+        content = message["content"]
+        for part in content if isinstance(content, list) else [content]:
+            if isinstance(part, dict) and part.get("type") == "image_url":
+                image_parts.append(part["image_url"]["url"])
+            else:
+                text.append(part["text"] if isinstance(part, dict) else str(part))
+    return image_parts, " ".join(text)
+
+
+def test_joined_inputs_send_every_picture():
+    caption_picture, cover = _png("red"), _png("green")
+    inputs = EvalInputs(
+        artifacts=[
+            _artifact(ImgCaption(text="a red square", picture=caption_picture)),
+            _artifact(ImgAlbum(title="greens", cover=cover)),
+        ],
+        state={},
+    )
+
+    image_parts, text = _formatted(inputs)
+
+    assert caption_picture.url in image_parts
+    assert cover.url in image_parts
+    assert caption_picture.base64_data not in text
+    assert cover.base64_data not in text
 
 
 @pytest.mark.parametrize("batched", [False, True])
@@ -156,34 +228,68 @@ def test_context_images_are_described_not_inlined():
     assert earlier.payload["picture"]["url"] == picture.url  # the artifact is untouched
 
 
+def test_context_images_inside_tuples_are_described():
+    first, second = _png("red"), _png("blue")
+    pair = Artifact(
+        type=type_registry.name_for(ImgPair),
+        payload={"pictures": (first.model_dump(), second.model_dump())},
+        produced_by="external",
+    )
+
+    payload = DSPySignatureBuilder().prepare_execution_payload_for_output_group(
+        EvalInputs(artifacts=[_artifact(ImgPlain(text="now"))], state={}),
+        _output_group(),
+        batched=False,
+        has_context=True,
+        context_history=[pair],
+        sys_desc="Answer",
+    )
+
+    described = payload["context"][0].payload["pictures"]
+    assert all(item["url"].startswith("🖼 image/") for item in described)
+
+
 def test_a_known_text_only_model_fails_with_a_clear_error():
     inputs = EvalInputs(
         artifacts=[_artifact(ImgCaption(text="x", picture=_png()))], state={}
     )
 
     with pytest.raises(ValueError, match=r"openai/gpt-3\.5-turbo.*ImgCaption\.picture"):
-        ensure_vision_support("openai/gpt-3.5-turbo", inputs)
+        ensure_vision_support("openai/gpt-3.5-turbo", inputs, openai_api=True)
 
 
 @pytest.mark.parametrize(
-    "model", ["openai/gpt-4.1", "azure/any-deployment-name", "local/unknown"]
+    ("model", "openai_api"),
+    [
+        ("openai/gpt-4.1", True),
+        ("openai/gpt-3.5-turbo", False),  # an OpenAI-compatible server: not checked
+        ("azure/gpt-3.5-turbo", False),  # a deployment name, not a model
+        ("local/unknown", False),
+    ],
 )
-def test_vision_and_unknown_models_pass(model):
+def test_vision_and_unknown_models_pass(model, openai_api):
     inputs = EvalInputs(
         artifacts=[_artifact(ImgCaption(text="x", picture=_png()))], state={}
     )
 
-    ensure_vision_support(model, inputs)  # unknown models: the provider decides
+    ensure_vision_support(model, inputs, openai_api=openai_api)
 
 
-def test_inputs_without_images_are_never_checked():
-    inputs = EvalInputs(artifacts=[_artifact(ImgPlain(text="x"))], state={})
+@pytest.mark.parametrize(
+    "value",
+    [ImgPlain(text="x"), ImgAlbum(title="empty")],  # no picture in the payload
+)
+def test_inputs_without_pictures_are_never_rejected(value):
+    inputs = EvalInputs(artifacts=[_artifact(value)], state={})
 
-    ensure_vision_support("openai/gpt-3.5-turbo", inputs)
+    ensure_vision_support("openai/gpt-3.5-turbo", inputs, openai_api=True)
 
 
-async def test_the_engine_rejects_images_for_a_text_only_model():
+async def test_the_engine_rejects_images_for_a_text_only_model(monkeypatch):
     from flock.engines.dspy_engine import DSPyEngine
+
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENAI_API_BASE", raising=False)
 
     engine = DSPyEngine(model="openai/gpt-3.5-turbo")
     inputs = EvalInputs(

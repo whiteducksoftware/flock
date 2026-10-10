@@ -1250,10 +1250,10 @@ flock.agent("fact_checker").description(
 await flock.publish(Drawing(caption="a red circle", picture=Image.from_file("circle.png")))
 ```
 
-- **How it works:** DSPy turns a field into image content only when the signature types it as `dspy.Image`. For each input model that contains images, the engine builds a copy whose `Image` fields are `dspy.Image` and passes the inputs as instances of it. Images may sit at any depth: `Image`, `Image | None`, `list[Image]` and nested models. Models without images are passed on unchanged.
+- **How it works:** DSPy turns a field into image content only when the signature types it as `dspy.Image`. For each input model that contains images, the engine builds a copy whose `Image` fields are `dspy.Image` and passes the inputs as instances of it. Images may sit at any depth: `Image`, `Image | None`, `list[Image]`, tuples and nested models, including models that refer to themselves. Models without images are passed on unchanged.
 - **Batches and joins:** every input field is converted, so batched agents (`list[Drawing]`) and joins with several input types receive their images as well.
 - **Context:** images in conversation context (`ctx.artifacts`) are described, for example `🖼 image/jpeg · 42 KB`, instead of being inlined. Each image would otherwise add its full base64 text to every prompt.
-- **Vision support:** if LiteLLM knows the model and lists it as text-only (for example `openai/gpt-3.5-turbo`), the agent fails before any request, with an error that names the model and the image fields. Unknown models, such as Azure deployment names, are not checked; the provider decides.
+- **Vision support:** if an input actually contains a picture and the model is an OpenAI API model that LiteLLM lists as text-only (for example `openai/gpt-3.5-turbo`), the agent fails before any request. The error names the model and the image fields. Elsewhere a model name can be a deployment alias (Azure, gateways, local servers), so the provider decides.
 - **Creating images:** `Image.from_file()`, `from_bytes()` and `from_pil()` scale pictures down to 1024 px by default. The [decision models guide](decisions.md#images) covers the limits.
 
 Example: [`examples/01-getting-started/19_image_agent.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/01-getting-started/19_image_agent.py).

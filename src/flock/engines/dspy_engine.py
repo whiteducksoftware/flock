@@ -394,9 +394,13 @@ class DSPyEngine(EngineComponent):
             return EvalResult(artifacts=[], state=dict(inputs.state))
 
         model_name = self._resolve_model_name()
-        ensure_vision_support(model_name, inputs)
-        dspy_mod = self._import_dspy()
         extra_kwargs = self._build_lm_kwargs()
+        ensure_vision_support(
+            model_name,
+            inputs,
+            openai_api=_targets_openai_api(model_name, extra_kwargs),
+        )
+        dspy_mod = self._import_dspy()
 
         lm = self._create_lm(dspy_mod, model_name, extra_kwargs)
 
