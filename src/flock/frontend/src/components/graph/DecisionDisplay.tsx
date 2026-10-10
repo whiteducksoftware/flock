@@ -49,7 +49,7 @@ export interface DecisionInfo {
 // Hover zoom for thumbnails (inline styles cannot express :hover)
 const THUMB_CSS = `
   .decision-thumb { transition: transform 0.15s ease, box-shadow 0.15s ease; transform-origin: center; }
-  .decision-thumb:hover { transform: scale(3.2); z-index: 50; position: relative; box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
+  .decision-thumb:hover { transform: scale(3.2); z-index: 1000; position: relative; opacity: 1 !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.6), 0 8px 24px rgba(0,0,0,0.55); }
 `;
 
 /** The latest images that landed in one option, newest first. */
