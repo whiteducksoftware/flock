@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 from collections.abc import Iterable, Mapping, Sequence
@@ -156,6 +157,99 @@ def _targets_openai_api(model_name: str, lm_kwargs: dict[str, Any]) -> bool:
         return True
     host = urlparse(base_url if "://" in base_url else f"//{base_url}").hostname
     return host == _OPENAI_API_HOST  # urlparse lower-cases the hostname
+
+
+# (model, api_base) pairs whose API rejected max_tokens in this process. Their
+# later LMs send max_completion_tokens directly instead of failing first.
+_MAX_COMPLETION_TOKENS_ENDPOINTS: set[tuple[str, str | None]] = set()
+
+
+def _endpoint(model_name: str, lm_kwargs: Mapping[str, Any]) -> tuple[str, str | None]:
+    """The model and the base URL its requests go to.
+
+    The URL comes from ``lm_kwargs`` or, as LiteLLM resolves it, from the
+    provider's environment (``AZURE_API_BASE``, ``OPENAI_BASE_URL``, ...), so two
+    resources with the same deployment name stay apart.
+    """
+    provider = model_name.split("/", 1)[0].upper()
+    base_url = (
+        lm_kwargs.get("api_base")
+        or lm_kwargs.get("base_url")
+        or os.getenv(f"{provider}_API_BASE")
+        or os.getenv(f"{provider}_BASE_URL")
+    )
+    return model_name, base_url
+
+
+def _rejects_max_tokens(error: Exception) -> bool:
+    """The API's 400 for models that only accept max_completion_tokens."""
+    import litellm
+
+    message = str(error)
+    return (
+        isinstance(error, litellm.BadRequestError)
+        and "max_tokens" in message
+        and "max_completion_tokens" in message
+    )
+
+
+@functools.cache
+def _token_limit_lm(lm_class: type) -> type:
+    """``lm_class`` that works with either output-token parameter (#516).
+
+    Newer OpenAI models reject ``max_tokens`` on every route (Azure deployments,
+    gateways), and deployment names do not reveal the model. A request rejected
+    for it is retried once with ``max_completion_tokens``, and the switch is
+    remembered for the endpoint. The retry happens per LM request, so the DSPy
+    program, its adapter fallbacks and streaming are not re-run.
+
+    DSPy's truncation warning reads ``kwargs["max_tokens"]``; for an LM that sends
+    ``max_completion_tokens`` it would raise ``KeyError`` on a truncated answer.
+    """
+
+    class TokenLimitLM(lm_class):
+        def _switch_to_completion_tokens(self, error: Exception) -> bool:
+            if "max_tokens" not in self.kwargs or not _rejects_max_tokens(error):
+                return False
+            self.kwargs["max_completion_tokens"] = self.kwargs.pop("max_tokens")
+            _MAX_COMPLETION_TOKENS_ENDPOINTS.add(_endpoint(self.model, self.kwargs))
+            logger.info(
+                "Model %s rejected max_tokens; using max_completion_tokens for it "
+                "from now on.",
+                self.model,
+            )
+            return True
+
+        def _check_truncation(self, results: Any) -> None:
+            if "max_tokens" in self.kwargs:
+                super()._check_truncation(results)
+                return
+            if self.model_type != "responses" and any(
+                choice.finish_reason == "length" for choice in results["choices"]
+            ):
+                logger.warning(
+                    "LM response from %s was truncated at max_completion_tokens=%s.",
+                    self.model,
+                    self.kwargs.get("max_completion_tokens"),
+                )
+
+        def forward(self, *args: Any, **kwargs: Any) -> Any:
+            try:
+                return super().forward(*args, **kwargs)
+            except Exception as error:
+                if not self._switch_to_completion_tokens(error):
+                    raise
+                return super().forward(*args, **kwargs)
+
+        async def aforward(self, *args: Any, **kwargs: Any) -> Any:
+            try:
+                return await super().aforward(*args, **kwargs)
+            except Exception as error:
+                if not self._switch_to_completion_tokens(error):
+                    raise
+                return await super().aforward(*args, **kwargs)
+
+    return TokenLimitLM
 
 
 class DSPyEngine(EngineComponent):
@@ -535,13 +629,21 @@ class DSPyEngine(EngineComponent):
         The OpenAI API itself gets ``max_completion_tokens``: OpenAI deprecated
         ``max_tokens`` and newer models reject it, while DSPy only renames it for
         model names it knows. OpenAI-compatible servers (``openai/`` with another
-        base URL) keep ``max_tokens``.
+        base URL) keep ``max_tokens``; if an endpoint rejects it (an Azure
+        deployment of a new model, for example), the request is retried with
+        ``max_completion_tokens`` and the endpoint is remembered.
         """
         completion_limit = self.max_completion_tokens
-        if completion_limit is None and _targets_openai_api(model_name, extra_kwargs):
+        if completion_limit is None and (
+            _targets_openai_api(model_name, extra_kwargs)
+            or _endpoint(model_name, extra_kwargs) in _MAX_COMPLETION_TOKENS_ENDPOINTS
+        ):
             completion_limit = self.max_tokens
+        lm_class = dspy_mod.LM
+        if isinstance(lm_class, type):  # test doubles may replace dspy.LM
+            lm_class = _token_limit_lm(lm_class)
         if completion_limit is None:
-            return dspy_mod.LM(
+            return lm_class(
                 model=model_name,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
@@ -556,7 +658,7 @@ class DSPyEngine(EngineComponent):
             raise ValueError(
                 "Set either max_tokens or max_completion_tokens on DSPyEngine, not both."
             )
-        lm = dspy_mod.LM(
+        lm = lm_class(
             model=model_name,
             temperature=self.temperature,
             max_tokens=None,

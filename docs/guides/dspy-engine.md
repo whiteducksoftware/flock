@@ -1276,6 +1276,14 @@ has deprecated `max_tokens`, and newer models such as `gpt-6-luna` reject it.
 OpenAI-compatible servers behind `openai/` (llama.cpp, vLLM, LM Studio) keep
 receiving `max_tokens`.
 
+Everywhere else, a rejection is handled at runtime. If an API answers a request
+with HTTP 400 because `max_tokens` is unsupported and `max_completion_tokens` is
+expected (an Azure deployment of `gpt-6-luna`, for example), the engine sends that
+request again with `max_completion_tokens` and remembers the model and endpoint
+for the rest of the process, so later requests use it directly. Other errors are
+not retried. Setting `max_completion_tokens` explicitly avoids the first rejected
+request.
+
 ### Azure OpenAI with API keys
 
 The API-key path remains supported. Set the usual Azure environment variables and either let `DSPyEngine` use `DEFAULT_MODEL`, or pass `model="azure/..."` explicitly:
