@@ -255,7 +255,7 @@ for name, service, ms, status, error in conn.execute(
 
 ## Dashboard development and manual testing
 
-- **Build flow:** `serve(dashboard=True)` builds the frontend (`npm run build` in `src/flock/frontend`) into `src/flock/api/static/`, which is gitignored, and serves it on port 8344. `src/flock/api/static_files/` holds a committed build that the server does not read.
+- **Build flow:** the first `serve(dashboard=True)` builds the frontend (`npm run build` in `src/flock/frontend`) into `src/flock/api/static/`, which is gitignored, and serves it on port 8344. Never commit a frontend build: a UI change consists of the source in `src/flock/frontend/src`, tests and the version bump.
 - **Manual check:** run `uv run python examples/04-misc/02-dashboard-edge-cases.py` and open `http://localhost:8344` with a browser tool such as playwright-mcp.
   1. The title is "🦆🐓 Flock 🐤🐧", the WebSocket status is "Connected", and the views are "Agent View" and "Blackboard View".
   2. Publish an artifact from the publish panel. Agents should go from idle to running to idle, and counters and edges should update live.
