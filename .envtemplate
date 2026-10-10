@@ -37,6 +37,23 @@
 ; DEFAULT_MODEL="openrouter/polaris-alpha"
 
 # ============================================================================
+# Decision Models (.decides())
+# ============================================================================
+# Default for .decides() without model=:
+; DEFAULT_DECISION_MODEL="azure/decision-1"
+# Microsoft-Decision-1 on Azure AI Foundry uses AZURE_API_BASE and AZURE_API_KEY.
+# Optional: path or full URL of the decision endpoint, and the deployment for "azure/":
+; AZURE_DECISION=/providers/microsoft/v1/systemone
+; AZURE_DECISION_DEPLOYMENT=decision-1
+# OpenAI Decisions ("openai/gpt-6-luna") uses OPENAI_API_KEY.
+# TypeSafe Jev ("jev/jev-latest"):
+; JEV_API_KEY=xxx
+# Local /v1/systemone server ("local/<name>"), e.g. llama.cpp with a Clef model:
+; DECISION_API_BASE=http://127.0.0.1:8080
+# Run the opt-in live tests in tests/decisions/test_live_providers.py:
+; FLOCK_LIVE_DECISIONS=1
+
+# ============================================================================
 # OpenTelemetry Tracing Configuration
 # ============================================================================
 

@@ -43,6 +43,7 @@ A blackboard architecture framework where specialized AI agents collaborate thro
 - **Visibility:** Built-in access control (Public/Private/Tenant/Label-based/Time-based)
 - **Fan-Out Publishing:** Produce multiple artifacts from single agent execution with filtering/validation
 - **Semantic Matching:** AI-powered artifact routing based on meaning, not just keywords
+- **Decision Models:** A `Choice` question answered by a decision model (calibrated probabilities, no text); agents subscribe to an option (`.consumes(Route.billing)`) and receive the decided artifact ⭐ **NEW in 0.5.720**
 - **Components:** Three levels of extensibility:
   - **Orchestrator Components:** Global lifecycle hooks (monitoring, metrics, coordination, timer scheduling)
   - **Agent Components:** Per-agent behavior (quality gates, retry logic, validation)
@@ -1846,6 +1847,30 @@ billing_agent = (
     .publishes(BillingResponse)
 )
 ```
+
+**Decision models (route on calibrated decisions):**
+```python
+from flock import Choice, Decision
+
+class Route(Choice):
+    """Which team should handle this support ticket?"""  # the question
+    billing = "Charges, invoices, refunds"               # option + criteria
+    tech = "Bugs, crashes, login problems"
+
+triage = (
+    orchestrator.agent("triage")
+    .consumes(Ticket)
+    .decides(Route, model="azure/decision-1", threshold=0.8)  # publishes Decision.of(Route)
+)
+
+# Option subscriptions deliver the Ticket; the decision is on ctx.decision
+billing = orchestrator.agent("billing").consumes(Route.billing).publishes(Reply)
+supervisor = orchestrator.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)
+
+# In tests, pass a FakeDecider (fixed probabilities, no network call):
+#   .decides(Route, model=FakeDecider({"billing": 0.9, "tech": 0.1}))  # from flock.decisions
+```
+Providers: `azure/<deployment>` (Microsoft-Decision-1), `openai/<model>`, `jev/<model>`, `local/<name>` (`DECISION_API_BASE`). Default model: `DEFAULT_DECISION_MODEL`. Guide: [docs/guides/decisions.md](docs/guides/decisions.md).
 
 **Timer-based scheduling (periodic execution):**
 ```python

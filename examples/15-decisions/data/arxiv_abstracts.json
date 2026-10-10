@@ -1,0 +1,702 @@
+[
+  {
+    "arxiv_id": "2610.12449v1",
+    "title": "Bi-FORK: Generative Modeling of High-Dimensional Bifurcating Systems",
+    "abstract": "Bifurcations are ubiquitous in physical systems, from structural buckling to fluid and climate dynamics, yet they remain largely unexplored in deep learning. At a symmetry-breaking bifurcation, a single input admits multiple equally valid solutions, violating the one-to-one assumption underlying most learned physical surrogates. We introduce Bi-FORK, a generative framework for learning these one-to-many solution maps in high-dimensional systems. Bi-FORK generates complete trajectories through latent flow matching, preserving space and time coherence, and uses repulsion-guided sampling to recover distinct solution branches in a single amortized pass. We evaluate Bi-FORK on buckling beams, mechanical metamaterials, and Allen-Cahn phase separation, spanning continuous, discrete, and field-valued bifurcations with discretizations up to 260,000 points. Bi-FORK recovers the multimodal solution structure while scaling several orders of magnitude beyond prior approaches, opening generative modeling to high-dimensional bifurcating physical systems.",
+    "primary_category": "cs.LG",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12445v1",
+    "title": "Caught in the Act: Probes Effectively Detect Sabotage and Catch Unverbalized Deception",
+    "abstract": "Recent incidents have highlighted the challenge of monitoring LLM agents and the danger of models deceiving people. We show that white-box deception detection via probes can be scaled up to frontier monitoring settings by collecting the largest deception dataset to date for training probes and introducing a novel probe architecture which can aggregate information across many layers and tokens. Our probes achieve 98.8% AUC in SHADE-Arena, surpassing an Opus 5.5 text-monitoring baseline, and show improved efficacy as the underlying model is scaled up. To push our probes to their limit, we test them on several cases where deception cannot be determined from the context alone. In these cases, which we refer to as introspective deception, the ground truth can only be determined through careful elicitation or thorough knowledge of a model's training data. In one such evaluation, we show that probes can distinguish transcripts containing a model's true hidden goal from other goals with an AUC of up to 99.7%. Our probes also readily detect deception on prominent open-weight models which lie about politically sensitive topics, and about their beliefs when put under pressure. We release our training dataset, dubbed FIBS, to help drive frontier deployment of effective probes, and encourage the community to expand upon it with further examples of deception and sabotage.",
+    "primary_category": "cs.LG",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12420v1",
+    "title": "A Unified Bellman Operator for Safety-Critical Reinforcement Learning",
+    "abstract": "Reinforcement learning in safety-critical domains requires maximizing task performance while strictly adhering to safety constraints. Existing safe reinforcement learning paradigms typically force a trade-off: they either require a priori knowledge to provide strict safety guarantees (e.g., safety filters), or they enable joint learning but only satisfy safety constraints on average. In this work, we propose a novel Bellman operator that unifies performance and safety objectives into a joint value function. We show that temporal difference learning with the joint Bellman operator converges under a two-timescale stochastic approximation framework. On the fast timescale, the safety value of the learning joint policy is estimated, while the joint value is estimated on the slow timescale. Convergence is ensured by formulating the limiting dynamics as an occupation-averaged differential inclusion, and showing that it asymptotically converges to a set of limiting optimal safety-constrained task value functions. Theoretically, once converged, the resulting optimal policy maximizes task return while maintaining safety at all times. Empirical evaluations on continuous control tasks with neural approximations demonstrate stable convergence with near-zero safety violations at test time.",
+    "primary_category": "cs.LG",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12397v1",
+    "title": "Prospective Prediction of OOD Degradation from Source-Side Training Dynamics",
+    "abstract": "We study whether persistent out-of-distribution (OOD) degradation can be predicted before it is directly observed using only source-side training dynamics. In a controlled shortcut-learning setting, a simple logistic regression predictor develops a clear prospective signal, while training time alone does not. Temporal summaries of the source-side quantities are substantially more informative than their current values. When transferred without additional training from a CNN to an MLP, confidence and entropy dynamics retain substantial predictive information. These results provide a proof of principle that source-side training dynamics can contain an early warning signal for future OOD failure.",
+    "primary_category": "cs.LG",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12379v1",
+    "title": "Marformer: A Transformer for Predicting Missing Data Distributions",
+    "abstract": "Real decisions are made under incomplete information. If we observe only some of the random variables we need, we can predict the others. The \\textbf{conditional marginals} over the missing variables are the key ingredient for computing Bayes risk and Value of Information (VOI), the expected gain from acquiring one more observation before deciding. We present the Marformer, a Transformer trained to directly predict conditional marginals given any set of observed values. Like BERT, which is trained to predict missing words from context, the Marformer constructs a hidden-vector representation for each distribution $p(X_i)$ and iteratively refines it through attention to other distributions $p(X_j)$. Unlike generative approaches, the Marformer does not model the full joint distribution, requires no domain knowledge of the data-generating process, and makes all predictions in a single forward pass. We evaluate across three synthetic domains with missing data---Bayesian networks, discretized multivariate Gaussians, and structured annotation data. The Marformer can match or outperform classical missing-data methods, even when those methods are given the true model family and prior that generated the synthetic data. We also evaluate on a real annotation dataset, where the Marformer outperforms the evaluated baselines at the largest training size. In both cases, the Marformer is substantially faster than the evaluated generative baselines.",
+    "primary_category": "cs.LG",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12370v1",
+    "title": "Bilevel optimization for data-driven learning of Koopman embeddings using kernel-based autoencoders",
+    "abstract": "Koopman operator theory provides a linear framework for analyzing nonlinear dynamical systems and has become a major tool for data-driven modeling. A central challenge, however, is that finite-dimensional approximations computed by methods such as extended dynamic mode decomposition (EDMD) require the dictionary to be specified a priori. Recent machine-learning approaches address this limitation by learning the dictionary from data, predominantly using artificial neural network (ANN) autoencoder architectures. Although kernel methods offer an alternative with greater interpretability and tractability for theoretical analysis, they have received little attention in this setting. We introduce extended dynamic mode decomposition with kernel-based dictionary learning (EDMD-kDL), a kernel-based method for learning finite-dimensional Koopman embeddings directly from data. The method combines ideas from collocation methods and bilevel optimization to simultaneously learn a kernel dictionary and the corresponding Koopman approximation. We evaluate EDMD-kDL against state-of-the-art ANN-based approaches on a range of numerical experiments, including global sea-surface-temperature forecasting and learning directly from video data. Across all tested settings, EDMD-kDL achieves performance comparable to or better than the ANN-based methods. Moreover, in contrast to standard kernel methods, the proposed approach is scalable to large datasets by design since the size of the required kernel matrices depends on the number of collocation points rather than the size of the training dataset.",
+    "primary_category": "cs.LG",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12362v1",
+    "title": "Closing the Horizon Gap in Policy Optimization for Adversarial MDPs",
+    "abstract": "We consider policy optimization for online episodic tabular Markov decision processes (MDPs) with adversarial losses and bandit feedback. Policy optimization updates the policy locally at each state and avoids optimization over the occupancy-measure polytope, but its existing regret bounds are larger by a factor of the horizon $H$ than those of occupancy-measure-based algorithms. We close this gap by using regularized $Q$-functions, which allow us to control the stability of the local updates jointly over all state-action pairs rather than separately at each state. The resulting algorithm attains high-probability regret bounds of $\\widetilde O(\\sqrt{HS(H+A)T})$ for known transitions and $\\widetilde O(HS\\sqrt{AT})$ for unknown transitions, where $S$ is the number of states, $A$ the number of actions, and $T$ the number of episodes. Both bounds improve the horizon dependence of existing policy optimization bounds, and the latter matches the best-known bound. We further extend the algorithm to adversarial linear-mixture MDPs and obtain the same improvement in the horizon dependence.",
+    "primary_category": "cs.LG",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12340v1",
+    "title": "Ambient Discrete Diffusion: Using the Wrong Data at the Right Time for Data Efficient Learning",
+    "abstract": "We introduce RefineMix, a framework for training discrete diffusion models under severe data scarcity, a common constraint in scientific applications. RefineMix uses out-of-distribution data at selected diffusion times to improve generalization without biasing the sampling distribution. Although this strategy has been explored in continuous diffusion, discrete diffusion presents a distinct challenge: unlike Gaussian noise, masking preserves domain information in surviving tokens, limiting the use of related data at high noise levels. At low noise levels, however, the domains effectively disjoint supports become an advantage, allowing the model to learn from both in-domain and out-of-distribution data without biasing the sampler. We formalize these intuitions and provide a theoretical analysis for the proposed method. Experimentally, across five domain-shift settings, RefineMix matches or outperforms in-domain finetuning and data mixing. For protein sequence generation, finetuning with just 197 in-domain examples nearly doubles the fraction of generated proteins that are simultaneously novel, foldable, and in-family compared to standard finetuning.",
+    "primary_category": "cs.LG",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12437v1",
+    "title": "Density Ratio Estimation with Stein Displacement Fields",
+    "abstract": "Density ratios quantify distribution shift from a probability-mass point of view, whereas displacement fields describe, from a dynamical point of view, how one distribution is transported onto another. Although both offer complementary insights, they are usually estimated separately, and converting one into the other requires post-processing. In this paper, we estimate the density ratio between a target and a base distribution by parametrizing it through a displacement field acting on the base: the log-ratio is modeled as minus the Stein operator of the base applied to the field, up to a normalizing constant. This gives both statistical and dynamical descriptions of the distribution shift through a single convex optimization problem. Iterating this estimate-and-move step gives two inference algorithms: push-forward moves the model and corrects a pretrained sampler without retraining it, whereas pull-back moves the data closer to the base and fits a transformation model one layer at a time. Applications to distribution shift in simulation-based inference and to nonlinear independent component analysis illustrate the benefits and limitations of the approach.",
+    "primary_category": "stat.ML",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12332v1",
+    "title": "Prediction-Powered Data Fusion for Treatment Effect Estimation",
+    "abstract": "Randomized controlled trials (RCTs) identify treatment effects without confounding but are often small, whereas observational studies (OBS) are large but may be confounded. Many estimators combining a small RCT with a large OBS have been developed for the average treatment effect (ATE) and the conditional ATE (CATE). However, existing ATE estimators either make assumptions on the OBS or do not borrow enough power from them. The CATE has been studied less than the ATE. Existing CATE methods either assume the OBS are unconfounded, rely on a model of the confounding function, or accept bias in exchange for lower variance. We therefore propose a framework that, without special assumptions on the OBS, fuses the OBS and the RCT by preserving the unbiasedness of RCT-based estimation while borrowing power from the large OBS to boost precision. Applying this principle, we build an ATE estimator, AIPW-Fusion, with closed-form weights and confidence intervals, and two CATE learners, DR-Fusion and R-Fusion. Experiments corroborate our findings.",
+    "primary_category": "stat.ML",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12288v1",
+    "title": "Testing Algebraic Complete Intersections",
+    "abstract": "Given independent and identically distributed samples samples from a probability distribution in a potentially high-dimensional real space, we study the problem of testing whether the distribution is concentrated near a real algebraic complete intersection of prescribed dimension, bounded degree, and bounded condition number. We design an explicit and effective learning procedure which either certifies the nonexistence of such a manifold, up to a controlled relaxation of the approximation threshold, or returns a candidate regression manifold with controlled geometric complexity. Equivalently, the procedure tests the manifold hypothesis within this hypothesis class. The proposed procedure relies on quantitative geometric estimates for regular polynomial systems, which lead to a tractable auxiliary optimization problem. We then develop a data-driven algorithm to solve this auxiliary optimization problem, establishing explicit bounds on its sample and arithmetic complexity.",
+    "primary_category": "stat.ML",
+    "field": "machine_learning"
+  },
+  {
+    "arxiv_id": "2610.12464v1",
+    "title": "What 30,000 Hours of Ego-centric Video Does Not Teach",
+    "abstract": "World models offer a promising alternative to physics-based simulators, yet remain far from practical deployment. We ask how far scaling ego-centric human video takes them, using a dataset of 30,000 hours spanning over 1,000 scene types and 14,000 contributors. Rather than relying on opaque downstream metrics, we directly evaluate agent and object-interaction fidelity on a challenging out-of-distribution benchmark. Increasing training data by 100x improves both, but unevenly: the agent is modeled well, while object fidelity remains far lower and improves slowly. We show that the agent gains need not come from data, and a careful visual conditioning design saturates fidelity with a fraction of it, which lets us measure object fidelity on its own and discover its saturation point. We then introduce a supervision scheme that shifts capacity from scene appearance toward object dynamics, improving object fidelity though a substantial gap remains. Finally, our conclusions transfer to downstream humanoid modeling. Overall, our results suggest that scaling ego-centric data brings agent modeling close to its limit while leaving its effects on the world far behind, and that closing this gap will depend on how models are trained, not only on how much data they see.",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12461v1",
+    "title": "OuroWorld: Bringing Any 3D World Alive as Diverse, Endlessly Looping 3D Cinemagraphs",
+    "abstract": "Recent 3D world models generate photorealistic, explorable scenes that remain frozen in time. OuroWorld is a mask-free framework that turns any static 3D Gaussian Splatting scene into a 3D cinemagraph: a dynamic scene with vivid, diverse motion looping seamlessly from any viewpoint. A vision-language model infers plausible dynamics and guides a video model to synthesize a reference video, which we lift and complete into multi-view videos. To learn from this imperfect supervision, we propose Inconsistency-Robust Periodic 4DGS: a Fourier-series deformation field guarantees looping by construction, while a Grounded Drift Field anchored at the reference view absorbs cross-view inconsistency. Unlike prior Eulerian methods limited to fluid-like motion, we capture general deformation, object motion, and illumination change. We introduce a ground-truth-free evaluation covering vividness, naturalness, loop seam coherence, and scene quality. On 39 reconstructed and generated scenes, OuroWorld outperforms all baselines and wins 70.8%-99.0% of user-study comparisons. Project page: https://ouroworld.userwei.com",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12458v1",
+    "title": "OmniCapBench: A Deep-Structured Evaluation Framework for Fine-Grained Audio-Visual Captioning",
+    "abstract": "Multimodal large language models (MLLMs) are rapidly evolving toward continuous audio--visual reasoning, creating an urgent need for evaluations that expose their capability limits. Audio--visual captioning is an ideal diagnostic task, yet current benchmarks face a coupled trade-off: whole-caption scores provide coverage without localization, local probes provide localization without coverage, and unconstrained LLM judges introduce instability. We introduce OmniCapBench (Omni-Video Caption Benchmark), a benchmark that reframes audio--visual caption evaluation as a deep-structured diagnostic framework. OmniCapBench shifts the prediction target from free-form text to sets of atomic, verifiable evaluation units across three tracks: entity references, visual shots, and audio events, enabling reliable scoring with deterministic constraint checks and localized LLM-based semantic comparisons. With 786 densely annotated videos, OmniCapBench effectively distinguishes MLLM perception errors, including temporal grounding failures, identity drift, cross-modal misalignment, and hallucinated descriptions. Evaluating frontier MLLMs reveals strong local perception but weak long-horizon audio--visual reasoning, particularly in identity drift and cross-modal misalignment, providing a fine-grained roadmap for omnimodal development.",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12451v1",
+    "title": "VersaCamVLA: Camera-Configurable VLA Policies for Robotic Manipulation",
+    "abstract": "Vision-Language-Action (VLA) models have emerged as powerful foundations for robotic manipulation, but their reliance on fixed camera configurations during training makes them brittle to changes in camera count or pose during deployment. To overcome these limitations, we propose VersaCamVLA, a camera-configurable framework that decouples camera-set representation from action learning. VersaCamVLA learns a unified scene-token interface that maps an arbitrary, variable set of posed RGB views into fixed-size latent scene tokens. This is achieved via multi-signal target-view prediction and Wrist-Augmented Pose Sampling (WAPS), which leverages natural wrist-camera motion for free pose diversity. At deployment, a lightweight spatial encoder injects these compact scene tokens into a pretrained base VLA as a supplementary visual condition, requiring no explicit 3D sensing or novel-view rendering. Experiments on RoboTwin, LIBERO, and a real-robot platform demonstrate that VersaCamVLA consistently outperforms prior VLA methods and direct multi-view baselines, maintaining robust performance across varying camera counts and unseen camera poses.",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12448v1",
+    "title": "One Block, Multiple Depths: Recurrent Vision Transformers with Depth-Programmed Experts",
+    "abstract": "In this work, we show that a single Transformer block, applied recurrently, can match the accuracy of a full-depth vision encoder at comparable inference FLOPs without intermediate feature distillation. reViT restores depth-specific transformations by representing the FFN at each recurrent depth as a convex combination of a small shared expert bank. A continuous normalized-depth coordinate programs this mixture, defining a resampleable trajectory through FFN parameter space. We evaluate this design in two regimes: supervised ImageNet-1k training and distillation from a DINOv2 teacher. Across both regimes, controlled adaptations identify weight-space merging as the strongest tested MoE family at a matching one-FFN budget, ahead of the token-dispatch and output-mixture alternatives. Trained from scratch, reViT-B/16 attains DeiT III accuracy with about 70\\% fewer stored parameters. An 8-experts model distilled using only the teacher's output features retains nearly all of its DINOv2 teacher's linear-probe accuracy and transfers across classification, segmentation, and depth prediction. Elastic-depth training allows one checkpoint (trained model) to operate at multiple tested depths by resampling the same normalized coordinate interval. For fixed-depth deployment, the recurrent block can be materialized as a conventional dense graph, removing online routing and merging without changing the one-FFN-per-depth compute but expanding deployment storage.",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12427v1",
+    "title": "FastBench: Can Streaming VLMs Perceive High-Dynamic Real-World Streams?",
+    "abstract": "Streaming Video Large Language Models (VLMs) enable continuous video understanding, yet existing benchmarks focus on low-dynamic scenarios. Under bounded context budgets, models must balance temporal history, spatial resolution, and temporal granularity; sparse sampling at 1--2 FPS misses fast events. We introduce FastBench to evaluate high-dynamic perception in real-world video streams. Its trajectory-grounded pipeline combines QA generation from high-FPS clips, filtering of questions answerable at 2 FPS, answer verification using SAM3 and CoTracker3 trajectories, and three rounds of human inspection. FastBench contains 306 QA pairs across eight domains, six capabilities, and forward, instant, and backward temporal scopes, with human-annotated evidence intervals. We also present ProactiveFrame, a training-free baseline that adjusts incoming frame rates through text tokens. A dual-tier sliding window retains recent high-FPS observations while downsampling older ones into sparse history. Experiments reveal substantial limitations: the strongest model, Gemini-3.5-Flash, scores only 50.7%. Denser sampling improves Qwen3-VL-8B from 32.9% at 2 FPS to 44.6% at 24 FPS, but gains saturate as history is compressed. ProactiveFrame outperforms sparse uniform sampling by 5.4 and 1.5 percentage points, yet remains well below oracle-guided focusing, showing that current VLMs struggle to determine from the stream alone when finer temporal perception is needed. FastBench provides a testbed for high-dynamic streaming video understanding. Code and data: https://github.com/Ashone3/FastBench.",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12423v1",
+    "title": "Pumpire: Unified Benchmark for Metric Distance Estimation",
+    "abstract": "We present Pumpire, a unified benchmark for evaluating metric point-pair distance estimation capability of both image- and video-level 3D foundation models, with or without depth priors. In contrast to previous approaches that normally evaluate depth and camera intrinsics separately or evaluate point-clouds with geometric similarity metrics, which cannot directly reflect models' point-to-point distance estimation capability, Pumpire directly assesses point-to-point distances from the reconstructed geometry. To this end, we collect a large-scale and diverse dataset (pumpire-6k) comprising 100 real-world scenes, each annotated with physically measured point-pair distances and containing 64 frames, for a total of 6,400 frames. Building on this dataset, we establish a holistic evaluation protocol that covers both image- and video-level 3D foundation models and enables direct assessment of point-pair distance errors and cross-setting comparison. We conduct extensive experiments across 29 baseline configurations of representative 3D foundation models and provide a comprehensive analysis of the results. By offering this benchmark, we target the more fundamental ability to perceive and estimate physical scale in the reconstructed 3D space, which prior evaluation protocols have largely overlooked. The project page can be found at https://pumpire.github.io/",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12421v1",
+    "title": "Beyond Spatio-Temporal Priors: A Generalizable Approach for Dense Correspondence Matching",
+    "abstract": "Dense correspondence matching has historically been bounded by simplifying spatio-temporal priors, such as smooth motion and rigid geometry. While effective for classical tasks, these assumptions break down in image editing and reference-guided generation (IEG), where transformations can preserve visual identity while breaking physical continuity. To establish identity-preserving correspondence across such transformations, we introduce FreeMatching, a generalizable framework combining generative and semantic foundation representations with heterogeneous supervision from classical datasets, tracked videos, and synthetic scenes. Teacher-guided iterative refinement further improves correspondence in IEG without dense correspondence annotations. Experimentally, a single FreeMatching model substantially improves correspondence quality on challenging IEG image pairs while retaining competitive performance on classical benchmarks. Furthermore, we demonstrate its utility as a quantitative metric for evaluating identity preservation, with scores that correlate with human judgment. The code is available at https://github.com/luping-liu/FreeMatching.",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12419v1",
+    "title": "OneSearch-VL: Unified Multimodal Deep Research Agent for Image and Video",
+    "abstract": "Single-image, multi-image, and video deep research require different visual operations but share a workflow of visual grounding, external retrieval, and fact composition. A key challenge is to preserve the dependencies linking localized visual anchors, entity relations, source-supported facts, and answer-producing operations. We introduce OneSearch-VL, a unified agent centered on the Visually Grounded Evidence Graph (VGEG), which encodes these dependencies as a shared task-level reference for data construction, process supervision, and operation-level evaluation. Our VGEG-based data engine constructs and verifies multi-image and video questions and filters expert trajectories. Using these data, we assemble OneSearch-VL-SFT-110K and OneSearch-VL-RL-10K for SFT and RL, respectively. We further derive the Evidence-aware Visual-Grounded Rubric reward (EVGR) from VGEG annotations to supervise evidence traceability and visual grounding during RL. For fine-grained evaluation, we construct OneSearch-MI-Bench and OneSearch-Video-Bench, organizing questions by the research operations encoded in their VGEGs. Experiments show that OneSearch-VL-8B improves over Qwen3-VL-8B with tool access by 20.2 and 17.6 percentage points on the two new benchmarks, respectively, while also achieving substantial gains across 7 image benchmarks and VideoDR. Project repository: https://github.com/appletea233/OneSearch-VL",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12416v1",
+    "title": "MAMHOI: Factorizing Scene-Aware Human-Object Interaction through Affordances",
+    "abstract": "Generating realistic human-object interactions (HOI) in complex 3D scenes requires two complementary capabilities: reasoning about interaction feasibility in the environment and synthesizing realistic human-object motion. However, supervision for these capabilities is rarely available jointly at scale. Human-scene datasets provide rich information about environment-aware motion, while human-object datasets capture detailed interaction dynamics, yet paired human-object-scene data remain scarce. We present MAMHOI, an affordance-mediated factorization for scene-aware human-object interaction generation. MAMHOI factorizes scene-aware HOI generation through an explicit motion-affordance interface between scene understanding and motion synthesis: a scene-conditioned model first predicts where and how an interaction can be feasibly executed, and an affordance-conditioned HOI model then generates the corresponding human-object motion. This factorization allows scene understanding and interaction dynamics to be learned from complementary sources of supervision without requiring paired human-object-scene data. Experiments in complex indoor environments show that MAMHOI reduces object--scene penetration while better preserving human--object interaction quality, yielding more realistic and physically feasible scene-aware interactions. Project page: https://leimingyuan.github.io/MAMHOI-project-page/",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12412v1",
+    "title": "WorldCast: Distributed Multiplayer World Models",
+    "abstract": "Multiplayer world models must generate independently controlled views with consistent representations of both players and their shared environment. Most existing approaches coordinate multiple players through joint multi-view generation, whose cost grows with each additional player. We present WorldCast, a distributed multiplayer world model in which each player runs a local client comprising a video generator and a state model. Using recorded player positions and map geometry during training, the state model estimates the player's position from generated video and control inputs. Clients exchange player states and project them into camera-aligned player state fields that guide where and how other players are rendered. Shared scene state enables clients to reuse one another's generated observations to maintain consistent scene appearance across views. Experiments on Counter-Strike 2 demonstrate WorldCast's consistency, real-time performance, and distributed scalability. The camera-aligned player state field improves player rendering rates by over an order of magnitude over joint-generation methods, while shared scene state improves visual consistency over whole rounds. Each client runs in real time and exchanges only player and scene states, enabling scalable multiplayer generation without a centralized computational bottleneck. Image quality remains stable over hour-long rollouts.",
+    "primary_category": "cs.CV",
+    "field": "computer_vision"
+  },
+  {
+    "arxiv_id": "2610.12376v1",
+    "title": "Latent Core Tokenizer: Compress, but Meaningfully",
+    "abstract": "Tokenizers are commonly optimized for compression, but a compact vocabulary does not necessarily distribute its capacity evenly across languages. We introduce the Latent Core Tokenizer (LCT), a language-agnostic approach that separates structural discovery from vocabulary construction. LCT uses Minimum Description Length, entropy-based boundary signals, and morphotactic constraints to identify reusable linguistic units before constructing a shared vocabulary. Across 104 languages with a 200K-token vocabulary, LCT achieves lower fertility and higher MorphScore than BPE, Unigram, and parity-aware BPE, while maintaining comparable cross-lingual disparity in tokenization cost. Across four multilingual downstream benchmarks, LCT improves aggregate score by 1.48, 1.83, and 2.00 points over BPE, Unigram, and parity-aware BPE, respectively. Our findings show that compression alone does not predict representation quality and highlight the importance of morphology-driven structural discovery and how frequency is used to allocate the final vocabulary across languages.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.12338v1",
+    "title": "VFold: Symmetry-Aware Cross-Layer Value Cache Compression",
+    "abstract": "While caching key-value (KV) states accelerates Large Language Model (LLM) decoding, this cache can dominate memory usage at long context lengths. One solution is to compress this memory by exploiting inter-layer cache similarities. However, most existing techniques necessitate architectural changes to LLMs and incur substantial overhead. In this work, we propose a symmetry-aware value cache merging strategy that reduces cache memory while avoiding both harmful performance degradation and architectural overhead during decoding. Furthermore, we show that this approach can be exploited alongside existing cache compression techniques, composing with high-ratio quantization or key cache pruning to reach compression ratios that neither method reaches alone, with minimal additional cost. Ultimately, our findings reveal a major source of underutilized capacity in the value cache, offering a simple yet highly effective direction for scaling context windows under memory constraints.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.12274v1",
+    "title": "HarnessSQL: Harness-Native Training for SQL Agents in Realistic Database Environments",
+    "abstract": "Text-to-SQL models are commonly trained to map questions directly to static queries, whereas real-world database agents operate through stateful, multi-turn interaction with live databases -- inspecting schemas, executing probe queries, diagnosing errors, and revising hypotheses. This creates a critical train-deploy mismatch, as the execution harness that mediates this interaction is introduced only at inference time. To bridge this gap, we propose HarnessSQL, a harness-native post-training framework that preserves the full interaction structure throughout both supervised fine-tuning and reinforcement learning. HarnessSQL builds isolated, executable database environments paired with hidden execution oracles, rolls out teachers directly inside the target SQL harness, and retains only verified trajectories for full-sequence SFT, followed by execution-reward RL. Across Spider 2.0-SQLite, HarnessSQL dramatically boosts the execution accuracy of compact models, raising Qwen3-8B from 15.5% to 45.2% and Qwen3-14B from 22.2% to 54.8%, while transferring effectively to out-of-distribution interactive benchmarks such as BIRD-Interact and LiveSQLBench. Our findings demonstrate that training database agents directly within their execution harness is essential for mastering complex, long-horizon database workflows.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.12248v1",
+    "title": "EgoVoice: Proactive Spoken Assistance from Egocentric Multimodal Streams",
+    "abstract": "Wearable augmented reality (AR) assistants are moving toward continuous real-world interaction, where they perceive the user's activity through first-person video and audio and provide timely spoken guidance without being explicitly asked. While proactive video assistants, spoken dialog systems, and egocentric task understanding have each advanced rapidly, existing systems do not address the joint problem of deciding when to speak and what to say from continuous first-person streams. We introduce EgoVoice, a framework for training and evaluating proactive egocentric spoken assistants. From HoloAssist video recordings of real human instructors, we construct clean audio streams through source separation and speech resynthesis, and convert each video session into a format where the model must decide at each moment whether to remain silent or provide spoken guidance. We fine-tune an omni-modal LLM with our data, and further improve its proactive intervention behavior with direct preference optimization. Experiments across closed and open-source models show that existing systems rarely produce well-timed, meaningful proactive interventions, while EgoVoice yields clear improvements in intervention timing, content relevance, and human preference over the zero-shot backbone.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.12242v1",
+    "title": "TokenRouter: Efficient Serving System for Token-Level LLM Routing",
+    "abstract": "Large language model (LLM) routing distributes inference work across different models, advancing the cost-quality Pareto frontier of LLM serving. While coarse-grained routing at the session or query level has been widely adopted in production systems, recent algorithmic work shows that fine-grained token-level routing can yield substantial efficiency and quality gains. However, efficiently serving token-level routed inference poses significant challenges to existing systems. Built on single-LLM assumptions, current systems suffer from severe step desynchronization and frequent batch admission delays under token-level routing, and they also impose high implementation complexity on developers. To address these challenges, we design TokenRouter, an efficient and developer-friendly serving system for token-level routed LLM inference. TokenRouter follows the principle of request-centric programming, model-centric execution: developers describe routing logic from the perspective of a single request, while the runtime launches a subserver for each LLM and dispatches requests asynchronously. Each subserver employs a delayed-batching scheduler, whose optimal hyperparameters are derived from a mathematical throughput model of the system. Across diverse routing algorithms, workloads, and model pairs, TokenRouter achieves 2.01-64.15x higher decoding throughput than existing systems, substantially advancing the serving efficiency of token-level LLM routing. Our code is available at https://github.com/thu-nics/TokenRouter.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.12235v1",
+    "title": "Language Models as AI Research World Models",
+    "abstract": "AI research agents automate the cycle of proposing, implementing, and evaluating experiments, opening a path toward recursive self-improvement. Yet their ability to propose experiments outpaces their capacity to execute them in real environments, making outcome prediction a key capability for sustained self-improvement under limited experimental budgets. We investigate language models as Research World Models (RWMs), which predict the outcomes of candidate interventions across research environments. Our evaluation draws on over 2,600 experimental records from nine research environments spanning pretraining, post-training, and inference, representing more than 171,000 H100 GPU-hours of experimentation. Research knowledge acquired from real experimental experience improves RWM predictions of unseen interventions within the same environment (Spearman +0.27), and can be reused across environments. For example, using only pretraining experience from OLMo3, Marin, and Nanochat, an RWM reduces selection regret in the Qwen3 environment by 78% compared with zero-experience setting. These benefits extend to multi-round Autoresearch under a fixed selection budget: RWMs with in-env and cross-env research knowledge increase the best gain achieved by 15.8% and 11.6%, respectively. Ablations across 13 language models used as RWMs show that adding research knowledge can improve intervention ranking more than changing models or increasing reasoning effort alone. These findings support language models as RWMs and motivate accumulating experimental data for future RWM training.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.12118v1",
+    "title": "A persistent accuracy ceiling in automated verbal deception detection",
+    "abstract": "Automated methods have been proposed to overcome the limitations of human verbal deception detection, but evidence remains fragmented across disciplines. We systematically reviewed 25 years of research (289 reports, 6,136 classification models) and meta-analyzed 3,653 models nested within 97 datasets. Pooled accuracy was 74.4% (95% CI: 71.2%-77.4%) with substantial heterogeneity. Accuracy was driven by methodological quality (ground truth, data source, class balance, evaluation procedure) more than by model complexity: the adoption of embeddings and large language models has not translated into improved predictive performance. Only 12.46% of reports used data with verifiable ground-truth, and only 23.96% of models were evaluated on independent data. The pooled accuracy aligns with meta-analyses of manual approaches, suggesting a ceiling of 70-75%, unlikely to be lifted by current research conventions.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.12083v1",
+    "title": "All Verdicts are Not Equal: Rethinking LLM Judge Reliability",
+    "abstract": "LLM-as-a-Judge is the standard paradigm for NLP evaluation, yet its systemic reliability remains poorly understood despite being widely treated as a deterministic ground truth. We present a comprehensive reliability audit, stresstesting six frontier models across four benchmarks, five prompt formats, two presentation orders, three sampling temperatures, and ten repetitions per condition. Our empirical analysis reveals severe vulnerabilities: verdicts change across identical replications at temperature zero, position-order swaps flip the majority of verdicts on challenging tasks, and the most deterministic judge achieves perfect consistency by trivially repeating incorrect verdicts, agreeing with ground truth only 51% of the time. To formalize these multi-faceted failure modes, we introduce the trustworthy verdict rate (T ), a unified metric capturing the joint probability that an evaluation is reproducible, order-invariant, and accurate. UsingT , we derive a theoretical upper bound on accuracy imposed by position bias and show that reliability is item-specific rather than modellevel. Finally, we demonstrate that shifting from pairwise win-rate to holistic rubric scoring improves trustworthiness more than any single-format prompting intervention, offering an actionable framework for robust NLP evaluation.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.12030v1",
+    "title": "Natural Language to First-Order Logic LLM-based Autoformalization",
+    "abstract": "Large Language Models (LLMs) have renewed interest in autoformalization. Yet, when First-Order Logic (FOL) is considered as the target formalism, the field still lacks a unified task formulation and a systematic survey. This paper addresses this gap: we first provide a principled definition for the FOL-autoformalization task by distinguishing Ontology Extraction from Logical Translation, showing how their conflation obscures (cross-study) evaluation; we review existing datasets, evaluation metrics, and LLM-based methods, including fine-tuning, prompting, and verification-based refinement; we identify open challenges in benchmarking, semantic evaluation, ontology-aware methods, and end-to-end applications.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.11978v1",
+    "title": "Specialized Decision Models vs. General-Purpose LLMs: Benchmarking Jev Across Knowledge, Reasoning, and Multilingual Tasks",
+    "abstract": "Jev is a \"System One\" model that returns a choice among given options instead of generating text. We study how such a specialized decision model compares with general-purpose large language models (LLMs). We evaluate Jev on 13 multiple-choice benchmarks covering knowledge, reasoning, and multilingual understanding, and compare it with 19 LLMs in three tiers: frontier, representative, and small. Jev is competitive with frontier LLMs on knowledge and commonsense benchmarks and obtains the best score on MMLU-Redux and ARC-Challenge. Outside mathematics, it also outperforms most representative LLMs and all small LLMs. However, it falls behind on mathematical word problems: on MathQA, it is 17.7 points below the frontier median and scores lower than all 19 LLMs. These results indicate that a specialized decision model can match general-purpose LLMs on decisions that rely mainly on knowledge, but not on decisions that require multi-step calculation.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.11959v1",
+    "title": "MiMo-V2.6: Scaling Reinforcement Learning Towards Self-Improvement",
+    "abstract": "Reinforcement learning (RL) is the central training paradigm for advancing large foundation models towards self-improvement. This report introduces the MiMo-V2.6 series, an omni-modal family that pushes the frontier of model intelligence by scaling RL compute. Prior to RL, we conduct mid-training on a broad multimodal corpus to provide ample exploration space, and build a solid infrastructure on the pretrained hybrid-SWA architecture to support subsequent scale-up. We scale RL compute along three dimensions: (1) larger batches and higher throughput, with an asynchronous training that consumes 1,568 samples and 2.7-3.7B tokens per step at context lengths of up to 1M; (2) more diverse and complex environments, spanning code, general, visual, and cyber domains under a mixture of agent harnesses; and (3) more grader compute, via groupwise agentic grading that yields more accurate reward signals for long-horizon tasks and steers the model towards shorter, more token-efficient solutions. To keep training stable at scale, we freeze the MoE router and establish a multi-layer defense against reward hacking. We further build infrastructure for mixed-task agentic RL, including a unified trajectory representation, high-concurrency multi-framework rollout, decoupled control and data planes, and training-inference consistency. We open-source the training dynamics, RL environments, and RL framework to facilitate reproduction and further research on scaled RL and model self-improvement.",
+    "primary_category": "cs.CL",
+    "field": "language"
+  },
+  {
+    "arxiv_id": "2610.12470v1",
+    "title": "Dex-One2Many: Learning Dexterous Manipulation from a Single Human Demonstration",
+    "abstract": "While learning dexterous manipulation from a single human video offers a promising alternative to costly robot demonstrations, many recent methods predominantly imitate demonstrated motions. Such strict motion matching often limits generalization to initial object poses, goal poses, and grasps not shown in the video. Alternatively, discovering a policy via reinforcement learning (RL) allows for broad generalization, but without prior guidance, it struggles with high-dimensional exploration in complex, multi-stage tasks. To address these coupled generalization and exploration challenges, we present Dex-One2Many, a real-to-sim-to-real framework that learns a generalizable dexterous manipulation policy from a single human video. Our key insight is to abstract the video into sequential scene graphs that guide RL, enabling efficient exploration while preserving broad generalizability. The graphs serve as generative constraints for sampling diverse reset states and provide dense rewards for each stage. Because the graphs constrain relations rather than exact poses, these reset states cover object poses and grasps beyond the video, while initializing each stage from them with dense rewards keeps exploration short and guided. Trained entirely in simulation, Dex-One2Many transfers zero-shot to a real multi-fingered hand. Across five tool-use and manipulation tasks, Dex-One2Many exceeds baselines by 6.5% in seen configurations, while its robust generalization widens this gap to 71% in unseen scenarios.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12468v1",
+    "title": "DreamTrue: Action-Faithful Robot World Model with Counterfactual Post-Training",
+    "abstract": "We present DreamTrue, a multi-view, cross-embodiment robot world model for action-faithful and physically plausible video prediction. Training such a model on existing robot datasets faces two obstacles: imprecise calibration can impair action following, while limited coverage of unsuccessful interactions can bias predictions toward successful outcomes. To improve action following across embodiments, we render action trajectories into image-space conditions and introduce offline geometric calibration to align these conditions with the target videos. To broaden interaction coverage, we introduce counterfactual post-training, modifying recorded action trajectories and generating future videos under a wider range of actions and contact configurations. To provide feedback on these predictions without paired ground-truth futures, we construct a human-annotated video dataset covering robot, object, and interaction defects and use it to train an embodied video reward model. Its scores guide reinforcement-learning post-training toward more physically plausible interaction outcomes. On AgiBot, DreamTrue attains state-of-the-art action following, while reducing the human-assessed interaction defect rate from from 48.12% to 6.25%. Notably, our model ranks first in the world model track of the AgiBot World Challenge 2026. The project page can be found at https://brave-eai.github.io/DreamTrue.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12467v1",
+    "title": "CSF: Contextual Safety Filtering for Motion Generators",
+    "abstract": "Text-conditioned motion generators produce trackable whole-body motion, but they have no notion of scene-dependent safety: the same action may target an object or a person. Existing safeguards either inspect the prompt, require labeled motion data, or enforce geometric constraints; therefore, they do not directly account for how scene context changes a motion's meaning. We introduce contextual safety filtering (CSF), a training-free filter that grounds natural-language safety rules in safe and unsafe reference trajectories produced by the generator. For each active rule, safe and unsafe reference trajectories define an affine safety value that a safe reference tracking CBF-QP enforces. Across four pretrained generators with different architectures, CSF activates the intended rules in all explicit and scene-triggered unsafe cases and reduces the danger-event rate by up to 90%, while preserving 88-100% of benign motions. We demonstrate the complete system on a real-world Unitree G1, where it successfully prevents unsafe motions in a variety of scenarios, including interactions with humans and objects.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12457v1",
+    "title": "SpatialHarness: Test-Time Spatial Scaffolding for Fine Robotic Manipulation",
+    "abstract": "Frontier multimodal foundation models (e.g., GPT-6 Astra) have recently shown strong potential for direct robotic control, yet their performance on fine manipulation remains limited. We argue that an important source of failure is not necessarily insufficient policy capability, but insufficient spatial observability, where task-critical spatial relationships may be poorly revealed by the existing physical camera setup. We introduce SpatialHarness, a test-time embodied harness that provides test-time spatial scaffolding for fine robotic manipulation without policy fine-tuning or changes to the physical sensing setup. SpatialHarness maintains an online simulated scene synchronized with real-world execution, identifies task-critical spatial relationships, and renders complementary virtual views that expose them to a frozen multimodal policy. To keep the simulated scene aligned during interaction, we develop interaction-aware scene synchronization that distinguishes static, held, and transition modes. We evaluate SpatialHarness on four real-robot manipulation tasks spanning precise geometric alignment, object-relative placement, and articulated-object interaction. Using the same frozen GPT-6 Astra policy, SpatialHarness substantially improves task success, including from 26.7% to 66.7% on plug insertion and from 0% to 100% on Tower of Hanoi. These results indicate that improving spatial observability at test time can unlock fine-manipulation capabilities already present in strong multimodal foundation models. Project website: https://emilia113.github.io/SpatialHarness/.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12435v1",
+    "title": "VioLA: Learning Generalist Humanoid Control Policies from Human Data",
+    "abstract": "Teaching a humanoid to follow instructions with its whole body runs into two obstacles. Its action space is large and tightly coupled: legs, arms, and fingers must move together while the robot keeps its balance, which makes joint-level actions hard to learn. And humanoid demonstrations are scarce, so current humanoid generalist policies do not follow new instructions out of the box and are fine-tuned on teleoperated demonstrations of each task before deployment. Human demonstrations exist in far larger numbers, but a person's motion is not a robot command. We remove both obstacles by changing what the generalist policy predicts. We introduce VioLA, a generalist humanoid policy that predicts body and hand motion latents instead of joint commands. A pretrained body- and hand-controller execute these latents on the robot. Their corresponding motion encoders map human and robot motion into the same latent spaces. A human recording is therefore labeled in the policy's action space, and the training demonstration pool contains 140.6 million frames, 93.2% of them human. As a result, VioLA follows locomotion instructions on the real robot zero-shot, without task-specific fine-tuning, reaching 100% success where GR00T N1.7 and $Ψ_0$ reach 16.7% and 0%, respectively. It also reaches 88.6% manipulation success without task-specific fine-tuning. The same approach works across two VLA and one world-action model backbones. A generalist policy trained on human demonstrations alone performs locomotion tasks on the real robot zero-shot. Code and checkpoints will be released.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12432v1",
+    "title": "FAITH: Feasibility-Aware Safety-Filtered RL for High-Dimensional Systems",
+    "abstract": "Safe reinforcement learning commonly places safety and task performance in the same policy objective, where they can introduce competing updates. Safety filters separate them at action execution, but classical designs require an analytic safety function and dynamics model, and standard minimal-intervention filters are myopic to long-horizon task return because they minimize only instantaneous action deviation. Hard projections are also undefined when no safe action exists. We present FAITH, a feasibility-aware, model-free framework that approximates the optimal state-action safety value and amortizes minimal-intervention filtering with a feedforward network. The task policy optimizes the task return through the filtered dynamics, which recovers the feasible constrained problem without a competing safety term in the task-policy update. When no action satisfies the learned safety condition, the same filter approaches the action with minimum predicted peak harm. On a double integrator example and a Safety Gym environment, FAITH achieves the highest return among methods with no feasible-start violations and matches the lowest harm from infeasible starts. On a 29-DoF humanoid, it reaches a 99.95% safety rate while retaining 97% of the unfiltered return in Walking-Avoid, and obtains the highest measured safety rate in Push-Avoid by learning to sacrifice balancing and fall away from the protected region. The same policies are also demonstrated on a real-world Unitree G1 humanoid.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12431v1",
+    "title": "Control-Ready Uncertainty for Trajectory Diffusion",
+    "abstract": "Diffusion models can represent complex, multimodal trajectory distributions, but extracting uncertainty from them typically requires costly Monte Carlo sampling. This limits their use in real-time control, where robots must rapidly assess risk and maintain safety margins. We introduce Score-Curvature for Online Precision Estimation (SCOPE), a lightweight module that augments diffusion trajectory models with control-ready uncertainty. SCOPE learns a structured precision matrix around each nominal trajectory by distilling score-curvature information and producing calibrated Gaussian tubes with low overhead and without repeated Monte Carlo sampling. These tubes provide per-timestep covariance estimates that can be used both as predicted occupancy for moving agents and as adaptive exploration guides for robot control. We evaluate SCOPE with mode-conditioned multimodal diffusion backbones in pedestrian forecasting, crowd navigation, Maze2D control, and real-world Franka Panda manipulation. Across these settings, SCOPE provides fast uncertainty estimation, which leads to better closed-loop performance. Project page: https://zackaxue.github.io/SCOPE-project-page/",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12424v1",
+    "title": "RoboRSI: Stable, efficient, and reusable robot self-evolution in complex real-world environments",
+    "abstract": "A generalist robot should not only perform diverse tasks but also improve through experience, turning what it learns during execution into capabilities that later tasks can reuse. Robot agents that act through code can already repair programs from execution feedback, yet it remains a central challenge to organize this experience around the task structure that gives it meaning, so that each repair is attributed to the responsible capability, supported by execution evidence, and validated before it is reused. We introduce RoboRSI, a robot self-improvement system built on Top-Down Skill Refinement (TSR). TSR decomposes tasks into compound, atomic, and base skills with scoped responsibilities and explicit input--output contracts, attributes each execution outcome to the responsible branch, and confines revision to that branch. Building upon this structure, a Manager, Planner, Engineer, and Reviewer coordinate planning, execution, diagnosis, and the validated release of new skills, while people steer the process through objectives and corrections; stable skill sequences are further consolidated into reusable compound skills. On a mobile manipulator, RoboRSI develops multi-object household cleanup over 104 rounds. In simulation, it achieves the highest success rate on LIBERO, LIBERO-PRO, LIBERO-Plus, and RoboTwin, exceeding the strongest baseline by 2.7 to 11.0 percentage points.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12407v1",
+    "title": "LeWAM: A JEPA World Action Model with Diffusion-Steering-Based MPC",
+    "abstract": "World action models (WAMs) predict actions and future observations, typically from a reconstruction-based representation that carries noisy, redundant information which can complicate downstream predictions. We introduce LeWAM, a bidirectional transformer for forward, backward, inverse dynamics and policy prediction, on a decoder-free JEPA latent trained end-to-end through all four modes. We see the following benefits: 1) Alignment: linear probes read robot and object state from LeWAM's latent better than from a regular Le World Model (a forward-only JEPA world model), while the latent ignores visual distractors as well as LeWM does and far better than a reconstruction-based WAM. 2) Acting: Closed-loop evaluations of LeWAM match a regular flow-matching policy trained on the same encoder at matched size, while also providing a world model. 3) Planning: Sampling raw actions when planning with WAMs lets MPC exploit dynamics-model inaccuracies; planning in the noise space of the policy head instead improves the closed-loop performance of these WAMs.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12404v1",
+    "title": "A Physics-Informed Collision Learning Framework for Collaborative Robot Motion Generation",
+    "abstract": "Close-proximity multi-arm manipulation requires collision models that are both geometrically accurate and differentiable enough for real-time optimization. Classical geometry checkers provide reliable distances but are difficult to use inside gradient-based model predictive control, while conservative proxy models can restrict tightly coupled motion. We present PI-UDF, a physics-informed unified differentiable framework for body-to-body collision distance prediction between articulated robots. PI-UDF combines analytical forward kinematics with learnable link-geometry embeddings and a shared residual network to predict pairwise inter-arm distances directly from robot configurations. To improve safety-critical fidelity, we combine quota-driven boundary mining with an asymmetric boundary-crossing penalty that emphasizes false-safe sign errors near the collision boundary. The learned distance field is integrated into nonlinear MPC as a differentiable inter-arm clearance term. We validate the framework on a real dual-Franka platform through high-speed close-proximity 14-DoF dual-arm swapping, sustained single-arm dynamic evasion, and dynamic-evasion planning configurations with frozen, predicted, and target-switching treatments of the moving arm. Hardware experiments and offline Drake/FCL replay show that PI-UDF provides a differentiable inter-arm clearance estimate suitable for closed-loop collision-aware collaborative robot motion generation.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12368v1",
+    "title": "LiteNWM: Efficient Latent World Models for Onboard Visual Navigation in the Wild",
+    "abstract": "Direct visual navigation policies generate trajectories efficiently but do not explicitly evaluate their future consequences. Generative navigation world models provide this foresight through visual rollouts, which are costly when evaluating multiple candidates. We present LiteNWM, a latent navigation world model that shares visual encoding across candidates and jointly predicts their action-conditioned future representations at multiple horizons, while a learned scorer uses these predictions to select trajectories. In offline evaluations on RECON, SCAND, and SACSoN, LiteNWM reduces macro-averaged trajectory error by 17.56% relative to NoMaD+NWM-XL and achieves a 128.00-fold end-to-end speedup on an RTX 5090. The same evaluator transfers from NoMaD to MBRA without proposer-specific retraining, reducing MBRA's macro-averaged trajectory error by 16.2%. In real-robot experiments in unseen indoor and outdoor environments, LiteNWM improves navigation success from 43.3% to 83.3% relative to NoMaD. These results demonstrate that LiteNWM can be deployed for future-aware planning and closed-loop navigation on a physical robot.",
+    "primary_category": "cs.RO",
+    "field": "robotics"
+  },
+  {
+    "arxiv_id": "2610.12322v1",
+    "title": "JWST CAPERS: Spectroscopic evaluation of very high redshift galaxy candidates",
+    "abstract": "JWST/NIRCam imaging has enabled efficient selection of a large number of galaxy candidates at very high redshifts. Accurate and robust selection is crucial for statistical analyses, such as measurement of the ultraviolet luminosity function (UV LF). A variety of selection methods and criteria have been proposed in the literature. We evaluate the selection methodology of galaxy candidates at $z\\geq8.5$ using 183 candidates with secure spectroscopic redshifts obtained from the CAPERS JWST/NIRSpec PRISM program. The success of high-$z$ confirmation is strongly correlated with the photometric signal-to-noise ratio (SNR) in the detection filter, the strength of the Lyman-$α$ break, and the $Δχ^2$ between the best-fitting low-redshift and high-redshift spectral energy distribution model. However, the most efficient selection method is the use of a UV LF prior on the inferred $p(z)$ of a source, raising the success rate from $\\simeq 35\\%$ to $\\simeq 77\\%$ while achieving greater completeness than conservative SNR and $Δχ^2$ cuts. Out of the 183 candidates we spectroscopically confirm 48 sources at $z\\geq8.5$ via detections of emission lines and/or the Lyman-$α$ break (particularly important for those with no emission line detection). We report the highest-redshift source in CAPERS as UDS-111893 at $z_{\\mathrm{spec}}=12.98$, with no sources confirmed at $z>13$. This work provides spectroscopic quantification of JWST/NIRCam photometric selection at $z\\geq8.5$, and demonstrates the effectiveness of a UV LF prior for high-redshift photometric selection.",
+    "primary_category": "astro-ph.GA",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.12055v1",
+    "title": "Binding Energies of Astrophysically Relevant Molecules on CO$_2$ Clusters: Benchmarking and the Donor-Acceptor Origin of Surface-Dependent Binding",
+    "abstract": "Carbon dioxide (CO$_2$) is among the most abundant interstellar ices and has been observed by JWST in water-rich mixtures and pure CO$_2$ environments. Astrochemical models adopt binding energies (BEs) measured on water ice because few BEs are available for CO$_2$ ice. We calculate BE distributions for twelve adsorbates (N$_2$, CH$_4$, HCl, C$_2$H$_2$, H$_2$S, HF, HCN, H$_2$CO, HCOOH, HNC, CH$_3$OH, H$_2$O) on CO$_2$ clusters containing two to five molecules using DFT calibrated against CCSD(T)/CBS, a coupled-cluster treatment extrapolated to the complete-basis-set limit. Binding strength depends on whether the adsorbate requires the surface to donate a hydrogen bond (H-bond). CO$_2$ can accept an H-bond but cannot donate one, and all six species compared with water ice from Ahmad et al. (2026) bind more weakly on CO$_2$. The ratio of the BE on CO$_2$ to water ice ranges from 0.66 for H$_2$CO and 0.75 for H$_2$O to 0.87 for CH$_3$OH, 0.89 for HCOOH and 0.92 for C$_2$H$_2$. Formaldehyde is predicted to desorb near 57 K from CO$_2$-rich ice, compared with 85 K from water-rich ice, and could contribute to cold gas-phase H$_2$CO. Although the mean binding energies are changing with cluster size for several species, the differences can be traced to local binding interactions likely to remain important in larger ice models. The BEs vary by more than 500 K between sites, while the desorption peaks range from 11 K for CH$_4$ to 132 K for HCOOH. The limited H-bonding capacity of CO$_2$ may favour separation of mixed H$_2$O:CO$_2$ ice into CO$_2$-rich domains.",
+    "primary_category": "astro-ph.GA",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.11541v1",
+    "title": "Isotopic ratios as probes of star formation and the origin of molecular gas in the Central Molecular Zone",
+    "abstract": "The Central Molecular Zone (CMZ) contains most of the dense molecular gas in the Milky Way but forms stars at a surprisingly low rate. Isotopic ratios provide a unique tool to investigate both the local physical conditions and the nucleosynthetic history of this gas. I summarize recent isotopic studies toward the molecular cloud G$+$0.693$-$0.027. Deuterium fractionation (D/H ratios) reveals a cold ($T_{\\rm kin}\\lesssim30$ K), relatively quiescent gas component embedded within the otherwise warm and turbulent CMZ, indicating that the earliest stages of star formation can survive in this extreme environment. I also present new $^{12}$C/$^{13}$C measurements from HC$_3$N and HC$_5$N, including the first constraints from doubly substituted $^{13}$C isotopologues. After accounting for isotopic fractionation with astrochemical models, the inferred elemental ratio ($\\sim37$--48) exceeds the canonical CMZ assumed value ($\\sim$20), supporting a scenario in which the Galactic center is replenished by less chemically processed gas flowing inward along the Galactic bar.",
+    "primary_category": "astro-ph.GA",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.11102v1",
+    "title": "The Binary Fraction of Milky Way Field Stars in DESI: Dependence on Chemical Abundance",
+    "abstract": "Binary populations encode information about the physical conditions of star formation and the subsequent evolution of stellar populations. Adopting a statistical method based on multi-epoch line-of-sight velocity variations, we constrain the binary fraction, $f_b$, of field main-sequence turn-off stars in the Milky Way using data from the second data release of the DESI Milky Way Survey. $f_b$ is found to primarily increase with lower [Fe/H]. At $[\\mathrm{Fe}/\\mathrm{H}]\\gtrsim -1.3$, $f_b$ shows a modest increase with increasing [Mg/Fe], whereas no clear trend is detected at lower [Fe/H]. The apparent variations of $f_b$ with angular momentum and Galactic height are largely explained by their underlying [Fe/H] distributions, while the remaining variations broadly follow differences in [Mg/Fe]. Within overlapping regions of the [Fe/H]--[Mg/Fe] plane, the thin disk, thick disk, stellar halo and GSE populations exhibit no significant differences in their binary fractions. Thus, our measurements indicate that the variation in $f_b$ is dominated by chemical abundance, which could be explained by the metallicity-dependent gas cooling efficiency and fragmentation. The weaker [Mg/Fe] dependence at fixed [Fe/H] might be associated with the formation conditions of stars, with higher [Mg/Fe] stars generally forming earlier under a more gas-rich and turbulent environment.",
+    "primary_category": "astro-ph.GA",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.12100v1",
+    "title": "A New Era for Supernova Science with the James Webb Space Telescope",
+    "abstract": "Supernovae (SNe) are excellent probes of the physical, chemical, and cosmological context of galaxies across the history of the Universe. The James Webb Space Telescope (JWST ) has a truly unique combination of wavelength, sensitivity, and resolution, providing a new window into SN physics, progenitors, dust production, redshift evolving stellar populations, and cosmology since its launch. Here we summarize the astounding observations JWST has made of SNe in its first few years of operations, as well as the corresponding advancements in our understanding of the Universe. This includes detailed views of nearby SNe, the first spectroscopic samples of high-z SNe, and a significant number of gravitationally lensed SNe valuable for both cosmological inference and high signal-to-noise (S/N) spectroscopy. While the upcoming Nancy Grace Roman Space Telescope is expected to revolutionize space-based time-domain astronomy, JWST and its unique capabilities will continue to play a complementary role by providing high-precision spectroscopic and photometric data for a broad range of SN science cases.",
+    "primary_category": "astro-ph.CO",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.11045v1",
+    "title": "Galaxy Clustering Can Reveal Host-Galaxy Properties of Binary Black Hole Mergers",
+    "abstract": "Galaxy clustering encodes information about the host galaxies of binary black hole (BBH) mergers even when individual hosts remain unidentified, because the distribution of neighboring galaxies depends statistically on the host-galaxy population. We construct event-level host-type likelihoods from host-conditioned galaxy-count distributions within gravitational-wave localization regions and combine them to infer the fractions of BBH mergers hosted by different galaxy populations. The framework applies to common and rare galaxy populations without prescribing formation efficiencies or merger delay-time distributions. Using measured star-forming and quenched galaxy clustering, idealized one-year forecasts assuming all mergers occur in quenched galaxies yield median one-sided 90% lower credible limits of 0.19, 0.48, and 0.92 on the quenched-host fraction for O5, post-O5, and third-generation networks. These forecasts illustrate the potential for host-galaxy population inference before the third-generation detector era.",
+    "primary_category": "astro-ph.CO",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.10750v1",
+    "title": "Primordial black holes",
+    "abstract": "Primordial black holes, whose formation in the early Universe was first hypothesized by Ya.B.~Zel'dovich and I.D.~Novikov in 1966 (the text of this pioneering article is provided in Appendix II to this review), have attracted increasing attention in recent years. Modern astronomical data across the electromagnetic spectrum, together with observations of gravitational waves and cosmic neutrinos, have revealed a number of unique astrophysical phenomena that may be related to primordial black holes formed in the pre-stellar cosmological epoch. This review describes various models of primordial black hole formation, as well as methods for testing these models with astronomical and astrophysical observations. In particular, we discuss in detail the formation of primordial black holes and their clusters through the collapse of closed domain walls and through effects associated with extra spatial dimensions of the Universe.",
+    "primary_category": "astro-ph.CO",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.10741v1",
+    "title": "Feedback-Conditional 3D Reconstruction of Cosmic Baryons with Flow Matching",
+    "abstract": "The complex relationship between galaxies and diffuse gas at large scales depends strongly on astrophysical feedback and cosmology. The dispersion measure (DM) of Fast Radio Bursts (FRBs) is a column of cosmic baryon density and is dominated by the intergalactic medium, which is not necessarily captured by traditional halo model prescriptions. We introduce a generative model to reconstruct 3D gas density fields from galaxy surveys, including redshift space distortions. The probabilistic model is trained on the CAMELS50 simulation suite (IllustrisTNG) and learns to predict the posterior distribution of gas fields conditioned on stellar mass-weighted galaxy density, cosmological parameters, the minimum stellar mass threshold for the galaxy sample, and the baryon suppression power spectrum as a measure of baryonic feedback. Our method uses the 3D gas reconstruction to estimate per-sightline FRB DMs and their posteriors. We validate the model on test boxes by showing agreement between predicted and true DM across individual lines of sight and the overall DM distribution. The model generalizes to a box size $\\sim$\\,4$^3$ times larger in volume than the training boxes and can cover the volumes spanned by cosmological FRB sightlines. The model's 3D gas density predictions vary with input power spectrum and feedback scenarios, offering an inference path to constrain feedback models from FRBs and other probes such as X-rays, the SZ effect, and weak lensing.",
+    "primary_category": "astro-ph.CO",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.12043v1",
+    "title": "Volume Dependence of Helicity-based Eruption Diagnostics in Recurrent Coronal Jets",
+    "abstract": "Recurrent solar coronal jets originate from the same source region, providing a useful setting for studying the buildup, redistribution, and release of magnetic energy and helicity. However, how these quantities can characterize magnetic evolution and the onset conditions of the eruptions remains unclear. We perform a full three-dimensional (3D) thermodynamic magnetohydrodynamic simulation of recurrent jets driven by converging motions imposed at the bottom boundary. The simulation naturally produces two successive eruptions. The current-carrying helicity $H_J$ decreases during the first jet and gradually recovers between the two jets. In contrast, the free magnetic energy $E_{\\mathrm{free}}$ shows no clear accumulation after its first release. This difference indicates that $H_J$ provides information on magnetic evolution beyond that provided by $E_{\\mathrm{free}}$. Furthermore, the commonly used helicity ratio $H_J/H_V$ reaches different peaks near the onset of the two jets and is sensitive to the integration volume. By comparison, the locally normalized quantity $H_J/Φ_{\\mathrm{closed}}^2$ reaches similar peaks near the onset of both jets and is relatively insensitive to the choice among the tested integration volumes, where $Φ_{\\mathrm{closed}}$ is the single-polarity magnetic flux of the closed-field domain. These results reveal the local nature of the eruptions and suggest that $H_J$ normalized by the square of the closed magnetic flux may be a useful diagnostic of eruptive conditions.",
+    "primary_category": "astro-ph.SR",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.11983v1",
+    "title": "Magnetic flux cancellation in a 3D magnetohydrodynamic simulation of an emerging flux tube with a non-uniform twist",
+    "abstract": "Flux emergence is often accompanied by flux cancellation, which may drive dynamic phenomena in the solar atmosphere. We studied magnetic flux cancellation in a three-dimensional resistive magnetohydrodynamic (MHD) simulation of an emerging flux tube with a non-uniform twist profile. We solved time-dependent resistive MHD equations to model flux emergence into a magnetised background atmosphere. We identified several cancellation sites, estimated their cancellation rates, and examined the magnetic topology and associated jet activity. The non-uniform twist produced multiple opposite photospheric polarities, leading to a complex multipolar magnetic configuration rather than a simple dipolar structure. Interactions between inner secondary magnetic patches resulted in flux cancellation of the photospheric $B_z$ along their polarity inversion line (PIL). These interactions led to the formation of concave-up loops and a cancellation rate of $1.1 \\times 10^{19}$ Mx hr$^{-1}$. During cancellation, magnetic reconnection between converging opposite polarities progressively created a coherent magnetic flux rope above the cancellation region. The evolution of the rope was associated with a blowout jet, as the rope expanded and released part of its stored twist into the overlying corona. We also examined two smaller secondary cancellation events at photospheric heights. Our results highlight the role of internal flux cancellation in restructuring the magnetic field and driving blowout-jet activity in emerging regions.",
+    "primary_category": "astro-ph.SR",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.11530v1",
+    "title": "Gaseous SiO and Silicate Clouds in Three Benchmark Early-L Dwarfs",
+    "abstract": "Tracing silicon from gaseous SiO into silicate condensates provides a direct view of the condensation process that forms silicate clouds in L-dwarf atmospheres. Here we present evidence for gaseous SiO in three benchmark early-L dwarfs, HD 89744B, GJ 1048B, and LSPM J0632+5053B, using JWST/NIRSpec and MIRI spectroscopy. Atmospheric retrievals with and without SiO under multiple cloud prescriptions identify the strongest SiO signatures at 4.0--4.2 and 7.7--8.2 $μ$m, with the local likelihood diagnostic reaching $4.6σ$. In the physical cloud retrievals, the 8 $μ$m band probes lower pressures than the 4 $μ$m overtone, reaching atmospheric layers where equilibrium SiO is more strongly depleted by silicate condensation. All three objects also show compact Fe opacity at pressures of a few bar. Their inferred gas-phase C/O ratios are consistent with expectations from the host-star compositions after accounting for refractory oxygen sequestration. Within the adopted Mie treatment of amorphous silicate grains, the silicate mineralogies favor Mg$_2$SiO$_4$ for HD 89744B and a mixed Mg$_2$SiO$_4$+MgSiO$_3$ cloud for GJ 1048B. Extending this framework to cooler L dwarfs will trace the coupled evolution of gaseous SiO depletion and silicate-cloud formation along the L-dwarf sequence.",
+    "primary_category": "astro-ph.SR",
+    "field": "astrophysics"
+  },
+  {
+    "arxiv_id": "2610.12454v1",
+    "title": "On PPT entanglement distillation",
+    "abstract": "We study entanglement distillation under operations that remain completely positive under partial-transpose conjugation, a.k.a. PPT channels, in the standard quantum Shannon theory regime of asymptotically vanishing but non-zero error. Our main results are: (a) a regularised formula for the PPT distillable entanglement in terms of a measured-relative-entropy-like quantity; and (b) two different single-letter converses, one based on operator quadratic forms and the other on Hirschman's strengthening of the Hadamard three-line theorem. As an immediate application of (b), we show that the PPT distillable entanglement can be strictly smaller than the regularised Rains bound, thereby resolving an open problem in the theory of entanglement manipulation [Regula et al., NJP 21:103017, 2019]. A gap appears already for $3\\times 3$ Werner states: at antisymmetric weight $25/26$, a certified upper bound of $0.62107$ ebits lies below the (regularised) Rains bound, which equals $\\frac{25}{26} \\log_2 5 - \\log_2 3 \\approx 0.64766$ ebits. On a different note, (a) implies a faithful lower bound on the PPT distillable entanglement in terms of the entanglement negativity, which provides a quantitative counterpart to the qualitatively known fact that any NPT state is PPT distillable [Eggeling et al., PRL 87:257902, 2001].",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12447v1",
+    "title": "Entanglement entropy and magic of ZX-diagrams",
+    "abstract": "Entanglement and non-stabilizerness are complementary resources underlying the complexity of quantum states, yet extracting either quantity from large quantum circuits generally requires exponentially scaling resources. In diagrammatic approaches to quantum computation, such as the ZX-calculus, both quantities likewise typically require expensive tensor contractions that are not native to graphical rewriting. Here we show that both entanglement and magic can be efficiently estimated directly from ZX-diagrams. Flow enables efficient extraction of a normal form separating a potentially extensively entangled graph-state backbone from non-Clifford Pauli gadgets. This structure yields additive upper and lower bounds on bipartite entanglement entropy, which we further tighten through a preprocessing procedure that removes or merges redundant non-Clifford contributions. The same normal form gives an upper bound on logarithmic stabilizer extent. We benchmark these methods in random unitary and monitored circuits, and a circuit combining Trotterized Hamiltonian evolution with Clifford layers, finding that the resulting bounds remain informative even at large qubit numbers, circuit depths, and internal spider counts. Our results provide scalable probes of entanglement and non-stabilizerness of ZX-diagrams and establish a bridge between ZX-calculus and quantum many-body resource characterization, with applications across quantum computing, quantum information, and condensed-matter physics.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12365v1",
+    "title": "Energy-constrained two-way capacities of the pure-loss channel",
+    "abstract": "We determine the two-way quantum and secret-key capacities of the pure-loss channel under an average input photon-number constraint. For transmissivity $η$ and photon budget $N$, both capacities equal $g(N)-g((1-η)N)$, where $g$ is the entropy of a thermal state. This coincides with the rate achieved by the known reverse coherent information of a two-mode squeezed vacuum. Our result provides the last missing capacity formula for the celebrated pure-loss channel, completing the picture of bosonic quantum communication under pure loss.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12334v1",
+    "title": "Quantum Co-Design of Inhomogeneous Many-Body Neutrino Fast Flavor Transformation",
+    "abstract": "Dense-neutrino flavor evolution is a quantum many-body problem whose fully correlated treatment becomes rapidly more expensive with increasing particle number and spatial structure. We develop a \\texttt{QCNO} quantum simulation code that maps a inhomogeneous forward-scattering neutrino Hamiltonian with advection and finite-range interactions to TEBD2 product-formula quantum circuits, and connects ideal many-body simulation, backend-aware execution, and fault-tolerant resource estimation within the same physical model. We reproduce the exact many-body evolution of the suppressed mean-field-like transverse fast flavor instability through $N=30$ and show that even a single open-boundary interaction generates Rënyi entanglement and non-stabilizer magic, although noisy backends still produce polarization RMSEs of order $0.1$--$0.3$. The restricted active interaction graph of this problem allows us to estimate the circuit depth and $T$ gate cost through $N=50$ for both NISQ and fault-tolerant approaches. The measured TEBD2 error in our fiducial ideal simulation of order $10^{-3}$ motivates a synthesis tolerance $\\varepsilon_{\\rm syn}\\sim10^{-7}$, corresponding to about $70$ $T$ gates per $R_Z$ rotation. The generated circuit contains $1.4\\times10^4$ $T$ gates per qubit for open boundaries (twice that for closed boundaries), requiring an application-level logical-$T$ error target of order $10^{-7}$ for early fault-tolerant architectures.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12320v1",
+    "title": "Quartic Certificates for Pure-State Tomography with Pauli Measurements",
+    "abstract": "Full Pauli-basis tomography of an arbitrary $n$-qubit state uses the expectation values of all nonidentity Pauli observables. For multiqubit systems, prior knowledge that the state is pure allows some of these observables to be omitted while retaining uniqueness. We study two resulting notions of uniqueness: whether every pure state is uniquely determined among pure states (UDP), and whether every pure state is uniquely determined among all states, including mixed states (UDA). We derive quartic uniqueness certificates from the fourth elementary symmetric polynomial of operators in the real span of the omitted Pauli observables. An exact quartic identity shows that, for $n$-qubit systems with $n\\geq 3$, every pure state is UDA whenever the omitted Pauli observables contain no four distinct operators that commute pairwise and multiply to $\\pm I$. For three qubits, this condition is also necessary for UDP, yielding an exact characterization of both UDP and UDA. We further prove that UDP and UDA coincide for any number of qubits whenever the omitted Pauli observables commute pairwise. These results provide directly checkable structural criteria for certifying pure-state tomography from restricted Pauli measurements.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12314v1",
+    "title": "Residual-Guided Global-Drive Design in Trapped-Ion Quantum Simulators",
+    "abstract": "Trapped-ion quantum simulators are powerful platforms for exploring many-body physics, yet engineering of arbitrary interaction graphs remains a central challenge. To leverage the intrinsic structure of native motional modes and thereby enhance programmability, a residual-guided optimization protocol is introduced for the systematic design of multi-tone global drive spectra. While the achievable interaction fidelity is fundamentally bounded by the available motional modes, this adaptive strategy converges on the theoretical limit using a number of laser tones that scales nearly linearly with system size. The versatility of this method enables the synthesis of both long-range and traditionally difficult short-range coupling topologies. Additionally, by incorporating a penalty for residual motional excitation, the algorithm effectively mitigates errors associated with incomplete closure of phase-space trajectories. Overall, this scalable framework significantly expands the programmable capabilities of trapped-ion architectures while maintaining low computational overhead and high potential for experimental implementation.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12227v1",
+    "title": "A quasiparticle-protected superconducting qubit",
+    "abstract": "Superconducting quantum circuits underpin large-scale quantum processors and are increasingly interfaced with optical systems, yet they are vulnerable to quasiparticle poisoning from high-energy radiation and optical fields. Gap engineering of Josephson junctions suppresses quasiparticle-induced relaxation, but quasiparticles near the junction can still shift the qubit frequency and cause phase errors. Here, we extend gap engineering beyond the junction using a flux-tunable transmon with a gold-on-niobium ground plane and island and strongly gap-engineered aluminum junctions designed to keep quasiparticles away from the junction leads. Compared with an all-aluminum transmon with nominally identical junctions, we demonstrate that the niobium device withstands more than an order of magnitude higher near-infrared optical power before excess relaxation appears. The Nb transmon shows no resolvable quasiparticle-induced frequency shift over the same power range. At the same time, we observe that dephasing and state-preparation-and-measurement infidelity increase with optical power even while relaxation remains protected. These results suggest that engineering the quasiparticle energy landscape beyond the junction can substantially increase qubit resilience, not only to radiation-induced error bursts, but also to nearby optical fields.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12209v1",
+    "title": "Secure Quantum Handshakes: Quantum Network Verification Via Simon's Algorithm",
+    "abstract": "Quantum networking represents the future of secure communication, enabling fundamentally new capabilities through quantum information exchange. However, these networks require secure, high-fidelity quantum communication channels, and they require every participating node to be a genuine quantum device. Currently, there is no reliable method to verify whether clients entering a quantum network truly possess quantum computational capability and are connecting over robust channels. In this work, we introduce a client-validation protocol that functions as a proof-of-quantum-capability handshake. Our protocol secures a quantum network against classical spoofers, noisy quantum computers, and genuine quantum devices connecting with the network over noisy or insecure channels. We validate the efficacy of this protocol through numerical simulations under erasure, dephasing, and depolarizing noise models.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12112v1",
+    "title": "The Imaginary Component of the Weak Momentum: Spectral Vanishing and Gauge Invariance",
+    "abstract": "We establish a rigorous functional-analytic framework for the imaginary component $p_I$ of the complex weak momentum $p_Q = p_R + ip_I = \\frac{\\hbar}{i}\\nabla\\lnψ$. For every wavefunction in the Sobolev space $H^1(Ω)$, including those with nodal sets, we prove that the expectation value of $p_I$ vanishes identically, as a consequence of the regularity of $ρ= |ψ|^2$ and without appeal to the polar form $ψ= Re^{iS/\\hbar}$. We further show that \\textnormal{(i)} the Bohm quantum potential arises entirely from $p_I$ and satisfies $\\langle V_{\\mathrm{qu}}\\rangle = \\langle p_I^2\\rangle/2m$, from which the known Fisher information relation follows as a corollary; \\textnormal{(ii)} the group velocity of a Bloch band is the density-weighted average of $p_R/m$, with no contribution from $p_I$; \\textnormal{(iii)} the decomposition is gauge-invariant under magnetic minimal coupling, the vector potential acting only on $p_R$; and \\textnormal{(iv)} the results extend to curved Riemannian manifolds.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12098v1",
+    "title": "Nearly Optimal T-Count for Symmetry-Based Quantum State Purification",
+    "abstract": "Protecting quantum information from noise is essential for reliable quantum computation and quantum memories. Quantum state purification addresses this challenge by processing multiple noisy copies of an unknown quantum state to produce an output state of higher fidelity. Here we establish nearly tight upper and lower bounds on the non-Clifford resources required to implement the symmetric-projection purification protocol. For $n$ copies of a $d$-dimensional system, we construct a Clifford+T circuit that block-encodes the symmetric projector with operator-norm error at most $ε$ using $\\widetilde{O}(n)$ T gates, where the tilde-$O$ notation suppresses polylogarithmic factors in $n$, $d$, and $1/ε$. Conversely, using stabilizer nullity, we prove that any Clifford+T implementation of such a block encoding with error $ε<\\frac{1}{2}\\sqrt{1-1/n}$ requires at least $2n-2$ T gates, even allowing arbitrary positive normalization and clean stabilizer ancillas. Taken together, these results establish the nearly optimal scaling of non-Clifford cost with the number of copies and uncover the fundamental resource requirements for coherent symmetry projection in quantum state purification.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.12070v1",
+    "title": "A deterministic polynomial chaos Galerkin method for non-Markovian quantum state diffusion",
+    "abstract": "Developing general-purpose numerical methods for non-Markovian quantum state diffusion has long been a challenge in the simulation of open quantum systems. This paper proposes a deterministic polynomial chaos Galerkin method, which is easy to implement, accurate, and efficient. By combining a low-rank decomposition of bath correlations with Galerkin projection onto a polynomial chaos basis, the method yields a deterministic formulation compatible with standard numerical solvers for partial differential equations. The reduced density matrix is obtained from a single deterministic solve at a cost comparable to that of computing one stochastic hierarchy trajectory. Replacing an ensemble of $N_{\\mathrm{traj}}$ trajectories therefore reduces the computational cost by approximately a factor of $N_{\\mathrm{traj}}$ and eliminates statistical sampling error. Benchmark comparisons show that the proposed method achieves smaller errors at lower computational cost than the tested stochastic hierarchy methods. Applications involving nonquadratic potentials, diffraction and interference, and coupled three-dimensional dynamics demonstrate its ability to handle challenging problems.",
+    "primary_category": "quant-ph",
+    "field": "quantum_physics"
+  },
+  {
+    "arxiv_id": "2610.11923v1",
+    "title": "Neural Decoding as Cognitive Inference",
+    "abstract": "The brain maintains stable cognition despite continuously changing neural activity. How to extract stable cognitive states from variable neural observations remains a central problem in neural decoding. Existing neural decoding methods map neural observations to predefined external labels based on the stimulus-response principle, often capturing recording-specific spurious correlations. Inspired by how the brain infers the world, and specifically by Bayesian brain theory, we recast neural decoding as cognitive inference constrained by brain-intrinsic priors, yielding high-level meta-neural semantic representations. In decoding experiments spanning five neural recording modalities and three cognitive domains (motor, perception and internal mentation), our cognitive inference method reorganized the geometry of neural observation representations, yielding meta-neural semantic representations that exhibited consistent geometric relationships across cognitive tasks and enabled the recovery of stable cognitive states from variable neural observations. Our work provides an account of how the brain maintains relatively stable cognition despite continual changes in the external environment. Cognitive stability is sustained through cognitive inference from changing neural activity, without requiring fixed neural activity patterns.",
+    "primary_category": "q-bio.NC",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.10023v1",
+    "title": "Structure alone supports efficient visual computation in the Drosophila visual system",
+    "abstract": "Understanding the extent to which measured synaptic wiring determines computation remains a central challenge. Here, we couple the proofread adult Drosophila melanogaster connectome to an anatomically faithful model of its eye. Visual information is inputted in the eye model, then passed to the connectome, and finally read from a Kenyon-cell-centered linear decoder. This creates a connectome-only model in which the anatomical graph and eye geometry are fixed and only scalar synaptic gains and neuronal thresholds may be learned. The model supports multitask vision, including color discrimination, shape classification, and numerical discrimination that follows a ratio-dependent scaling characteristic of approximate number perception. To test whether precise connectivity is consequential under wiring economy, we compare the biological graph to randomized ensembles that increasingly preserve biological synaptic constraints. At matched wiring cost, the biological network consistently yields higher accuracy, whereas less constrained rewiring surpasses it at the cost of inflated wiring. These findings indicate that the measured connectivity and eye geometry jointly set efficient operating points for visual computation.",
+    "primary_category": "q-bio.NC",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.09983v1",
+    "title": "Feedback to the primary visual cortex is highly concentrated on the central visual field representation",
+    "abstract": "Retrograde tracer injections in marmoset monkeys revealed a striking feature of neural circuitry in primate visual system: among neurons projecting to the primary visual cortex (striate cortex, V1), the proportion of extrastriate feedback neurons relative to thalamic feedforward neurons decreases markedly with visual field eccentricity. This supports the Central-Peripheral Dichotomy theory, which proposes fundamentally distinct computational specializations --- visual recognition and attentional selection, respectively --- in the central and peripheral visual fields.",
+    "primary_category": "q-bio.NC",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.09287v1",
+    "title": "Scaling subjects in cross-modal alignment: video decoding with EEG foundation model",
+    "abstract": "Naturalistic visual decoding from EEG has long been constrained by cohort size: existing scaling literature caps out at a few dozen subjects, leading prior work to conclude that scaling subject cohorts yields minimal performance gains. Training a cross-modal EEG--video contrastive encoder on a cohort larger by more than an order of magnitude, we find the axis is productive but has an onset. Below $S\\approx50$ --- the entirety of the range prior work occupies --- no model improves meaningfully over an untrained encoder; above it, decoding rises log-linearly in subject count with no saturation at the top of our ladder, on a fitted stimulus-feature probe and on fit-free movie-moment retrieval alike, and the gain transfers to a second, unseen film. How far the axis carries then depends on initialisation more than on capacity: an encoder initialised from an EEG foundation model scales ${\\sim}1.6\\times$ faster per doubling of the cohort than randomly initialised encoders at two depths, is the only one still converting subjects into retrieval accuracy at the top of the ladder, and converges on a fraction of the alignment compute. Subject scaling on shared naturalistic stimuli is thus an effective and currently unsaturated frontier for scaling EEG foundation models.",
+    "primary_category": "q-bio.NC",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.12319v1",
+    "title": "A minimal model for rate-induced tipping to extinction",
+    "abstract": "Rate-induced tipping (\"R-tipping\") in ecological modelling is characterised by too-rapid change of an environmental parameter causing collapse of a population without any bifurcation being crossed (\"B-tipping\"). A well-known example of a slow-fast predator-prey model in which R-tipping is observed [Vanselow, Wieczorek, Feudel, Journal of Theoretical Biology, 479, 64-72 (2019)] suffers from unecological \"resurgence\", whereby populations driven to functional extinction recover towards stable coexistence. We propose an analytically tractable model, incorporating a strong Allee effect into the prey dynamics in a slow-fast Lotka-Volterra-type predator-prey system, which induces bistability and thus renders the extinction state a genuine attractor. Applying geometric singular perturbation theory (GSPT), we describe the dynamics of the extended model that is obtained by \"ramping\" of the inverse prey carrying capacity. We show the presence of a parabolic-shaped, folded critical manifold which admits a folded saddle singularity, the strong canard of which separates solutions that track the moving coexistence state from those that tip to extinction. The analytical simplicity of our model allows us to derive explicit expressions for the critical rate that separates \"tracking\" from \"tipping\" dynamics. Finally, we argue that our system represents a minimal model for rate-induced tipping to extinction, in that it incorporates three essential ingredients: bistability, a folded critical manifold, and a folded-saddle-type canard.",
+    "primary_category": "q-bio.PE",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.10825v1",
+    "title": "The Hill numbers synthesize and generalize measures of trait polygenicity",
+    "abstract": "Characterizing the genetic architecture of phenotypic variation is central to human genetics, yet trait polygenicity---the diversity of genetic variants responsible for a heritable trait's variation in a sample---is rarely quantified formally. O'Connor and Sella (2026) addressed this need by proposing four polygenicity measures that are quasi-arithmetic means and therefore satisfy a set of principles they argue are desirable for polygenicity measures. Here, I show that these four measures are points on a continuum corresponding to the Hill numbers, a family of ecological diversity statistics offering a tunable emphasis on variants with small versus large contributions. I further show that the Hill numbers are the only quasi-arithmetic means suitable for measuring polygenicity because they are the only ones that are \"effective numbers\" of variants. The connection to the Hill numbers clarifies the relationships among O'Connor and Sella's four polygenicity measures: all four are effective numbers of variants, and those that give greater weight to variants with small contributions yield higher estimates of polygenicity. It also connects polygenicity to results in the ecological diversity literature, including the replication principle, a criterion for how such measures should behave when independent sets of variants are combined. Together, these results offer a unified framework for interpreting, comparing, and selecting measures of trait polygenicity.",
+    "primary_category": "q-bio.PE",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.09744v1",
+    "title": "Mathematical statistics of wild mammal biomass",
+    "abstract": "Using the recently published global census of the biomass of wild terrestrial mammals, we perform a detailed mathematical statistical analysis of its distribution over $N_s=4795$ species, drawing on tools developed in economics to characterize wealth inequality. We show that the Lorenz curve of the mammal biomass distribution is characterized by a large Gini coefficient $G=0.944$ exceeding the inequality reported for wealth distribution among world countries. This distribution is compared to the predictions of the Wealth Thermalization Hypothesis (WTH), in which species biomass values are treated as energy levels populated according to a Rayleigh-Jeans (RJ) steady-state distribution. We show that an RJ extended spectral model reproduces the real Lorenz and Pareto curves over four orders of magnitude of biomass variation, capturing the strong condensation of biomass among the rare, heavy-bodied species and its near-absence among the vast majority of light-bodied ones. These results extend the WTH framework, previously validated on distributions of human economic origin, to a biological distribution shaped by ecological and evolutionary constraints, and place the extreme rarity of large-bodied mammal species within the same statistical mathematical description as the oligarchic concentration of wealth in human societies. We finally discuss possible ecological mechanisms that may contribute to the observed distribution, including interspecific interactions, food availability, and competition.",
+    "primary_category": "q-bio.PE",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.07855v1",
+    "title": "Encoding level-3 semi-directed phylogenetic networks by quarnets and quinnets",
+    "abstract": "Phylogenetic networks generalize phylogenetic trees as models of evolutionary history, allowing lineages to merge as well as to diverge. For many types of genetic data the root position of such a network cannot be recovered, so that only a semi-directed network can be inferred: a mixed graph in which only the edges entering a reticulation vertex are directed. A common strategy for inferring such a network is to first infer the subnetwork it induces on each set of $k\\geq 3$ of its leaves, called a $k$-net, and then to assemble these pieces. This can only succeed if the $k$-nets determine the network, in which case that network is said to be encoded by its $k$-nets. Semi-directed networks of level-1 and 2, those whose biconnected components contain at most one, respectively two, reticulations, are known to be encoded by their $4$-nets, or quarnets, whereas level-3 networks are not. Even so, in this paper we show that level-3 semi-directed networks are encoded by their $5$-nets, or quinnets, and we characterize the limitation of quarnets exactly: we show that a single previously reported counterexample captures the only obstruction, every other level-3 network being encoded by its quarnets. Our proofs rest on a collection of encoding results for individual structural features of a network, which we establish for networks of arbitrary level and which are of independent interest.",
+    "primary_category": "q-bio.PE",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.10482v1",
+    "title": "Truecell reproduces R Seurat's single-cell analysis outputs natively in the Python ecosystem",
+    "abstract": "Single-cell RNA-sequencing analyses predominantly use either Seurat (R) or Scanpy (Python), with the choice often driven by programming language preference. However, by default, these tools produce divergent variable features, neighbour graphs, clusters, and marker genes. Laboratories requiring Python, which supports most deep-learning, foundation-model, and agent tools, must re-implement Seurat analyses in a framework that does not replicate Seurat's results. Truecell was developed as a Python implementation of the Seurat interface, preserving function names, arguments, default settings, and the object model to facilitate seamless transfer of analyses. In eighteen paired end-to-end evaluations against R Seurat, deterministic outputs matched to floating-point precision, and fold-change order was identical across all nine differential expression tests. In a three-arm benchmark on three datasets, with fixed user parameters and 20 seeds per tool, Truecell more closely reproduced Seurat's clustering than a Seurat-configured Scanpy in all 12 combinations of dataset and resolution settings. Truecell's marker genes and enriched pathways were also closer to Seurat's than Scanpy's were, and pseudobulk DESeq2 reproduced Seurat's gene lists with a Jaccard index ranging from 0.95 to 1.00. This agreement reflects fidelity to Seurat rather than biological correctness.",
+    "primary_category": "q-bio.GN",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.08376v1",
+    "title": "HRPv2: an automated and enhanced method for full-length homology-based R-gene prediction",
+    "abstract": "Motivation: Plant disease resistance genes, particularly those encoding NB-LRR proteins, are important targets for crop improvement. Proteome-based domain or motif searches can only identify NB-LRRs among existing gene models, meaning they cannot recover loci that have been missed or incorrectly predicted by the reference annotation. The full-length, homology-based R-gene prediction (HRP) method circumvents this issue by reconstructing gene models directly on the genome. However, the original implementation of this method requires several separate phases of classification, comparison and filtering operations. Results: HRPv2 is an automated, enhanced version of the original strategy. The labour-intensive, step-by-step curation process used in HRP has been replaced by a reproducible filtering framework. Enhancing two steps of the homology search process has enabled HRPv2 to better account for the specific NB-LRR variability of the genome. Performance validation confirmed that the number of full-length NB-LRRs annotated in both the automatically predicted gene set of the respective genome assembly and the final NB-LRR repertoire has increased in HRPv2 compared to HRP. Availability and implementation: HRPv2 and its associated documentation and reproducible test data are available at https://github.com/AndolfoG/HRPv2. Detailed installation and dependency information is provided in the repository README. A version-pinned Conda package has also been developed and locally validated to provide a reproducible execution environment.",
+    "primary_category": "q-bio.GN",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.04763v1",
+    "title": "Tracing model-generated DNA with position-independent watermarking",
+    "abstract": "Genomic language models can write synthetic DNA that carries no record of its origin. A generation-time watermark could provide a provenance signal, if a verifier can detect it using only the DNA sequence, a key, and published detector settings, without knowing where the generated region starts, which strand it lies on, or how it was divided into six-base tokens. We embed the SynthID tournament watermark in two genomic language models, Carbon and GENERator-v2. The verifier searches both strands, every start position, and four window lengths, and corrects its decision for the whole search. In a detection cohort of 1,544 held-out prompts, it found all 3,088 marked sequences per model, unedited and after one substituted, inserted, or deleted base. For ordinary sequences, the one-sided 95% upper confidence bound on the false-positive rate was at most 0.850%; one bound for the wrong-key control reached 1.015% (Carbon, after a deletion). In a development cohort, neither model showed a detectable change in likelihood or in predefined sequence measures. Under random edits placed without reference to the detector, detection stayed complete or nearly complete up to a 2% per-base edit rate. These results show statistical detection, not biological function, secret-key security, or robustness to an editor who sees the detector.",
+    "primary_category": "q-bio.GN",
+    "field": "biology"
+  },
+  {
+    "arxiv_id": "2610.12186v1",
+    "title": "Microfinance Competition in the Presence of Moneylenders: Theory and Evidence",
+    "abstract": "After decades of microfinance expansion and despite charging higher interest rates, moneylenders continue to exist alongside microfinance institutions (MFIs). We develop a dynamic model with ex post moral hazard, in which borrowers use MFI loans for production and can rely on moneylenders for bridge loans after shocks to repay MFIs and preserve future access to MFI credit. We then study how MFI competition shapes the coexistence between MFIs and moneylenders. The effect of competition on MFI credit is ambiguous: it may weaken repayment incentives or replace moneylenders as bridge lenders. By contrast, competition unambiguously reduces moneylender credit. In a village-level randomized expansion in Bangladesh, stratified by baseline MFI presence, one additional MFI reduces the number of moneylender loans by roughly 30-40% two to three years later, with no detectable effect on MFI or overall borrowing. This suggests that, in markets where MFIs rely primarily on the threat of exclusion to induce repayment and moneylenders provide emergency finance, gains from additional MFI entry may be greater in less saturated areas.",
+    "primary_category": "econ.GN",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2610.12049v1",
+    "title": "The Myth of Restrictive Working-Time Agreements: Firms' Working-Time Adjustment after Exit from Collective Bargaining",
+    "abstract": "Employers in Germany argue that collective agreements restrict their flexibility concerning working hours. Using data from the IAB Establishment Panel for the years 2008 to 2024, we investigate working-time adjustments after exit from collective bargaining. We find that exit is associated with only a modest increase in weekly working hours of around 0.3 to 0.6 per cent using fixed-effects and event-study models, corresponding to eight to thirteen additional minutes per week. This adjustment occurs shortly after leaving collective bargaining coverage. We further find no evidence that other margins of working-time adjustment, such as Saturday or Sunday work, are used more extensively after exit. In contrast to previous survey evidence, our findings call into question that working-hours constraints are one of the main drivers of exit from collective bargaining coverage.",
+    "primary_category": "econ.GN",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2610.11256v1",
+    "title": "Who Leads and Who Collects:Algorithmic Collusion in Markets of Heterogeneous Language Models",
+    "abstract": "Evidence that pricing algorithms collude comes from markets in which every seller runs the same algorithm. We ask what happens when they do not. Four language models from four providers, each at its cheapest tier, price in a four-firm logit Bertrand market without communication, in every homogeneous, two-by-two and fully mixed composi- tion (11 cells, 20 runs, 200 periods). Collusion is a property of the model: Claude and Gemini markets reach 72 to 79 percent of the monopoly rent, DeepSeek markets 24 percent, and GPT markets none, though GPT prices drift above the monopoly level rather than toward competition. Mixing does not reduce collusion by itself. Markets containing Gemini, which opens at the highest price and settles highest, are more col- lusive than the homogeneous markets they are built from; markets containing Claude, which opens lower and follows its rivals down, are less so; and only the fully mixed market is significantly less collusive than the average homogeneous one. Stability de- pends on the least stable participant: two GPT firms suffice to keep any market from converging. Inside mixed markets the rent is shared in a transitive order, DeepSeek over Claude over Gemini over GPT, that inverts the anchor ranking. The model that raises the price collects the least of the rent, as the price-leadership model predicts.",
+    "primary_category": "econ.GN",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2610.11093v1",
+    "title": "Risk Ceilings and Development Deadlines: Pacing AI under Uncertain Safety Productivity",
+    "abstract": "Can a regulator promise both a risk ceiling and a development deadline when safety productivity is unknown? A ceiling below the final model's unprotected hazard requires a minimum stock of safety knowledge, so both promises hold only if weak research can be ruled out. Learning first and then replaying development, with spare compute in safety, comes close to that minimum. In a calibration with only state risk, constant safety yield, and full knowledge transfer, it needs only 3.3 percent more productivity than the necessary bound. Customer services pay for the guarantee. Rules that fix compute allocation fix dates, not risk.",
+    "primary_category": "econ.GN",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2610.12350v1",
+    "title": "The Panel Information Matrix Test",
+    "abstract": "The Information Matrix (IM) test is a natural specification check for likelihood-based models, yet cross-sectional implementations are often badly sized, confound neglected heterogeneity with distributional misspecification, and require third derivatives. We develop the panel information matrix (PIM) test for models with fixed effects. Explicit fixed effects isolate functional-form misspecification from time-invariant unobserved heterogeneity. Although the profile maximum likelihood estimator inherits incidental-parameter bias of order $O(1/T)$, the leading bias of the profile PIM is of order $\\sqrt{n}/T$, so it is asymptotically negligible whenever $n/T^2\\to 0$, which includes the rectangular regime $n/T\\to\\mathrm{const}$, and stabilizes under parabolic asymptotics $n/T^2\\toρ\\in(0,\\infty)$. This robustness arises because the indicator fluctuates at rate $\\sqrt{n}$ rather than $\\sqrt{nT}$. The same rate argument makes third-derivative corrections asymptotically unnecessary, so the test uses only first- and second-order likelihood derivatives. Simulations confirm that asymptotic PIM critical values suffice in moderately long panels, even when Wald tests for $θ$ are badly sized, while a parametric bootstrap largely removes size distortions when $ρ>0$.",
+    "primary_category": "econ.EM",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2610.12025v1",
+    "title": "Rolling Window Selection in FAR Models with Structural Instabilities",
+    "abstract": "The paper develops a theory for selecting the rolling window when generating out-of-sample forecasts with factor-augmented regression (FAR) models in the presence of structural instabilities. It shows how to select a rolling window by minimizing the conditional mean squared forecast error (MSFE) while accounting for uncertainty in factor estimation. Because the conditional MSFE is unobserved and the factors are latent, this paper proposes a feasible version of the criterion and derives conditions under which the new method is asymptotically loss-efficient. A simulation experiment documents the procedure's performance.",
+    "primary_category": "econ.EM",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2610.11898v1",
+    "title": "Inference in Panel SVARs with Two-Way Dependence",
+    "abstract": "We develop inference for heterogeneous panel vector autoregressive (VAR) models and their structural impulse response functions, where the error terms are dependent in the cross-sectional and time dimensions (two-way dependence). For proxy-identified structural VARs, we first adapt mean-group estimation and construct a closed-form pooled identification. Considering the reduced-form VAR dynamics, residual covariances, and structural parameters, we derive a joint central limit theorem under joint limits in the cross-sectional and time dimensions. We then propose a recursive-design panel moving-block bootstrap that resamples the estimated error terms in (i) the temporal, (ii) the cross-sectional, or (iii) both dimensions jointly, and prove consistency of the joint panel-block scheme under two-way dependence. Simulations show coverage close to the nominal level for the joint scheme but severe undercoverage for cross-sectional resampling.",
+    "primary_category": "econ.EM",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2610.10476v1",
+    "title": "From a Hierarchy of Stochastic Differential Equations to a Hierarchy of Generalized Beta Distributions",
+    "abstract": "We introduce a mean-reverting stochastic differential equation with a three-component stochastic term and show that it generates a hierarchy of steady-state (stationary) distributions. At the top level, the hierarchy is described by a modified-Beta distribution, while one- and two-parameter reductions produce compact-support, power-law-tailed, and exponential-type limiting families within a single stochastic framework. We then construct two generalized extensions of this hierarchy. In the first, the power transformation is applied directly at the level of the stochastic differential equation; in the second, the same transformation is applied only after the stationary modified-Beta hierarchy has been obtained. While these two procedures agree on important lower branches and limiting cases they generally differ at the top level. The generalized hierarchy is therefore not unique: nonlinear transformation and stationary-state reduction do not commute. For both routes, we derive the probability density and cumulative distribution functions, express their parameters in terms of the underlying stochastic dynamics, clarify the relations among their limiting cases, and compare the resulting families with the traditional Generalized Beta framework.",
+    "primary_category": "econ.EM",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2609.27632v2",
+    "title": "Compliant AI Infrastructure for Regulated Finance: A tiered multi-agent framework with DLT audit trails for financial operations in DACH",
+    "abstract": "We present a compliance-first architecture for AI in regulated finance that treats regulation as an orientation layer rather than a deterministic ruleset. A matrix of regulatory intent and exposure provides a compact classification handle, which a governed policy compiler then maps into concrete prohibitions, obligations and runtime budgets. Prohibitions constrain feasibility and block externalisation, while obligations extend tasks with artefacts that must meet explicit admissibility criteria. Committee activation remains policy-driven and proportionate, preserving efficiency while ensuring supervisory oversight. Evidence, decisions and reason codes are bound to a permissioned DAG with deterministic timestamping, enabling replay, provenance checks and clear attribution of failure. Clause-level legal indexing with effective dates and capability-based agent routing ensure portability across DACH and the wider EU. The result is assurance by construction: compliance is embedded in execution and verifiable by auditors without sacrificing proportionality or transparency.",
+    "primary_category": "q-fin.GN",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2609.24181v2",
+    "title": "Firm Valuation When AI Shapes the Business Model: A Milestone-Based Real-Options Framework for the AI Valuation Uncertainty Problem",
+    "abstract": "Standard valuation methods, including discounted cash flow, the income approach standard IDW S 1 of the Institute of Public Auditors in Germany, and market multiples, compress milestone probabilities, continuation options, and risk shifts into opaque aggregate parameters; none provides a structured protocol for decomposing AI integration into auditable option-level assumptions. We propose an industry-agnostic taxonomy separating AI Integrators from AI Providers. AI Integrators are further classified by their Integration Depth Level, ranging from no integration to AI at the core of the product or process. A milestone-gated real-options overlay decomposes milestone state value into five components, and an Analytic Hierarchy Process-based Success Readiness Index derives per-option probabilities from structured pairwise comparisons for scenario analysis. Applied to an AI-native energy software-as-a-service firm, the framework yields a coherent valuation band traceable to identifiable option-level assumptions. Risk concentrates in later-stage continuation options, matching the structural prediction for AI Providers. The protocol applies across the firm lifecycle, including mergers and acquisitions due diligence. The case is a single-firm demonstration of protocol coherence, not empirical validation; multi-case testing against realised post-exit valuations is left to future research.",
+    "primary_category": "q-fin.GN",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2609.23969v1",
+    "title": "Prediction Markets Beat the Weather Forecast on Tomorrow's High Temperature",
+    "abstract": "The sooner we receive information, and the more accurate it is, the better planning decisions we can make. Every day, prediction markets let anyone bet on tomorrow's high temperature in cities around the world, creating a market-implied forecast built on dispersed information. We use the past five years of market data from the Kalshi exchange for seven American cities to extract, hour by hour, the market-implied forecast. We use this forecast as a measuring instrument to see how much information about the temperature the market makes public before the public forecasting system does. We race it against the leading American and European weather forecasts. In six of the seven cities we study, the market beats the most accurate single public forecast, the National Blend of Models (NBM). Aggregating every city-day, at the end of the market's first hour of trading it beats the best single public product by about 10 percent in root-mean-square error, and holds its lead through the day, overnight, and into the target day. Looking at how the forecasts move over time, we find the National Blend travels four times further toward the market between its postings than the market travels toward the NBM. The market does not react to new weather forecast updates; instead, the forecast slowly publishes information that the market had already shared publicly.",
+    "primary_category": "q-fin.GN",
+    "field": "economics"
+  },
+  {
+    "arxiv_id": "2610.12344v1",
+    "title": "Geometrically Abelian Sections on Higher-Dimensional Varieties",
+    "abstract": "We investigate how much arithmetic information about a variety can be detected by sections of the geometrically abelian fundamental groups of sufficiently small open subvarieties. Over a \\(p\\)-adic field, such a section determines a rational point on the Albanese torsor, and, under a conjectural assumption, this point is represented by a \\(0\\)-cycle of degree \\(1\\) on the original variety if the variety has index \\(1\\). For curves, the latter statement holds unconditionally. Over finitely generated fields, such sections still force the relative Brauer group to vanish away from the characteristic. The key input is an identification of the Chern class obstruction attached to a section with the obstruction arising from local Tate duality. As a byproduct, we give a new proof of an open-subvariety strengthening of a theorem of Esnault and Wittenberg.",
+    "primary_category": "math.NT",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12291v1",
+    "title": "Two Primes and Five Mixed Fibonacci-Lucas Summands",
+    "abstract": "Using the circle method, we prove that every sufficiently large positive integer is a sum of two primes, $u$ Fibonacci numbers and $5-u$ Lucas numbers for each $u\\in\\{1,2,3,4\\}$. All recurrence indices are positive, and terms may be repeated.",
+    "primary_category": "math.NT",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12234v1",
+    "title": "Slightly improved zero-free half-planes for the quasi-Riemann hypothesis",
+    "abstract": "Recently, a uniform $\\frac{7}{8}$ zero-free half-plane for finite-order Hecke $L$-functions over $\\mathbb Q(\\sqrt{-3})$ and its transfer to Dirichlet $L$-functions was given by OpenAI in [1]. In its proof, there are two chosen parameters $b=\\frac{1}{8}, \\ell=\\frac{1}{6}$. In this note, via varying $b$ and $\\ell$, following the same strategy, we slightly improve the bound $\\frac{7}{8}=0.875$ to be $$B_{\\mathrm r}=\\frac{34999}{40000}=0.874975, (\\text{when }b_{\\mathrm r}=\\frac{1}{8}, \\ell_{\\mathrm r}=\\frac{1}{6} + \\frac{1}{10000});$$ and \\[ \\begin{gathered} B_{\\mathrm{new}}=\\frac{1507-2\\sqrt{921}}{1653} =0.874957069799\\ldots, (\\text{when }b_{\\mathrm{new}}=-\\frac{4}{29}+\\frac{230\\sqrt{921}}{26709}, \\ell_{\\mathrm{new}}=\\frac{33+8\\sqrt{921}}{1653}). \\end{gathered} \\] This result has been formalized by Lean ([15]).",
+    "primary_category": "math.NT",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12222v1",
+    "title": "On Igusa's conjectures for weighted homogeneous polynomials with isolated singularities",
+    "abstract": "In 1991, Denef introduced an explicit formula for Igusa's local zeta functions in terms of embedded resolutions of singularities over $p$-adic fields with good reduction. In this paper, by slightly generalizing the $p$-adic McKay correspondence given by the second author in 2017, we extend Denef's result to the setting of $\\mathbb{Q}$-embedded resolutions of singularities. Consequently, the strong monodromy conjecture with respect to Igusa's local zeta functions holds for weighted homogeneous polynomials with isolated singularities. Moreover, we use our formula to prove Igusa's conjecture for exponential sums in the case of non-degenerate weighted homogeneous polynomials with isolated singularities.",
+    "primary_category": "math.NT",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12384v1",
+    "title": "Local Constancy of the Betti Automorphic Category over the Moduli of Curves",
+    "abstract": "Nadler and Yun conjectured that the automorphic side of the Betti geomet- ric Langlands correspondence forms a local system of categories over the moduli of curves. We prove this local constancy conjecture using purely microlocal methods, independent of the recently estab- lished Betti geometric Langlands conjecture. In particular, it follows that the Betti automorphic category depends only on the genus of the curve, verifying a conjecture of Ben-Zvi and Nadler.",
+    "primary_category": "math.AG",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12364v1",
+    "title": "The moduli space of curves of genus 16 is uniruled",
+    "abstract": "Using in a novel way non-abelian Brill-Noether theory, we show that the moduli space of curves of genus 16 is uniruled. This is the highest genus for which such a result is known.",
+    "primary_category": "math.AG",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12330v1",
+    "title": "Characteristic cycles and the Gevrey filtration of irregularity in hypergeometric families",
+    "abstract": "We show that the characteristic cycle multiplicities of $A$-hypergeometric systems are upper semicontinuous in the parameter for every rational projective weight, thereby proving a conjecture of Schulze and Walther [Duke Math. J. 142 (2008), 465--509]. The proof uses a specialization formula for filtered families satisfying a fixed product support condition, expressing the difference between the special and generic characteristic cycles as the characteristic cycle of the first Tor module. Combined with the Gevrey index theorem, this yields upper semicontinuity of generic Gevrey irregularity and of each of its graded dimensions. We also construct non-Cohen--Macaulay semigroup rings whose Gevrey dimensions are constant in the parameter despite the presence of a genuine irregular slope, showing that the Gevrey jump locus need not coincide with the full exceptional arrangement defined by Ext.",
+    "primary_category": "math.AG",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12277v1",
+    "title": "Hyperkähler SYZ conjecture",
+    "abstract": "We prove the hyperkähler SYZ conjecture: the sections of some power of a non-trivial nef isotropic line bundle define a Lagrangian fibration.",
+    "primary_category": "math.AG",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12433v1",
+    "title": "The Hilton-Milner theorem in the $\\ell_2$-norm",
+    "abstract": "The Hilton-Milner theorem is a classical theorem in extremal set theory which determines the maximum size of a nontrivial $k$-uniform intersecting family. In this paper, we prove an exact version of the Hilton-Milner theorem in the $\\ell_2$-norm. Our method also gives an asymptotic version of the Hilton-Milner theorem in the $(j, p)$-norm.",
+    "primary_category": "math.CO",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12326v1",
+    "title": "On the Nazarov-Sklyanin Lax operator for Macdonald functions",
+    "abstract": "We study the Lax operator for Macdonald symmetric functions introduced by Nazarov and Sklyanin in 2015, extending the spectral theory developed by Mickler-Moll in the Jack case. We extend the NS operator to a Lax operator acting on symmetric functions with coefficients in polynomials in an auxiliary variable, and prove it has an orthogonal eigenbasis indexed by partitions and their addable corners, with the corner contents as eigenvalues, and leading terms given by Macdonald symmetric functions. We obtain the Macdonald analogue of the author's earlier Jack box-sum identity for Littlewood-Richardson coefficients. We then strengthen this box-sum identity to a two-parameter formula, proved using a finite-rank product formula of Warnaar. Its residues give explicit linear relations among Macdonald Littlewood-Richardson coefficients.",
+    "primary_category": "math.CO",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12237v1",
+    "title": "A unified approach to infinite log-concavity of combinatorial sequences",
+    "abstract": "We establish a sufficient condition for infinite log-concavity and apply it to five families of combinatorial sequences. We give a new proof of infinite log-concavity for the Boros--Moll coefficient sequences $(d_k(n))_{k=0}^n$ for fixed $n$. For the transposed sequences $(d_\\ell(\\ell+k))_{k\\ge0}$, we prove Zhao's conjecture on infinite log-concavity for every fixed integer $\\ell\\ge3$. For the normalized sequences in Euler's difference table, we confirm the infinite log-concavity conjecture of Chen, Gu, Ma and Wang under essential iteration, in which both endpoints are discarded after each step. We also confirm a conjecture of Medina, Moll and Rowland on the infinite log-concavity of the coefficient sequences of polynomials arising from iterated primitives of $\\log(1+x)$. Finally, we answer a question of Brändén and Chasse by showing that, for positive integers $d$, the sequence $(k^d)_{k\\ge0}$ is infinitely log-concave if and only if $d\\ne2$. For every real $d\\ge3$, all its iterates are positive at every index $k\\ge1$. The proofs combine holomorphic estimates with finite computer-assisted verification.",
+    "primary_category": "math.CO",
+    "field": "mathematics"
+  },
+  {
+    "arxiv_id": "2610.12122v1",
+    "title": "Lower bounds for Ramsey numbers: $\\mathrm{R}(6,8)\\ge 135$ and $\\mathrm{R}(8,10)\\ge 345$",
+    "abstract": "We prove the lower bounds $\\mathrm{R}(6,8)\\ge 135$ and $\\mathrm{R}(8,10)\\ge 345$, improving the bounds 134 and 343 listed in the April 2026 revision of Radziszowski's dynamic survey. We give explicit red/blue colorings of $K_{134}$ with no red $K_6$ or blue $K_8$, and of $K_{344}$ with no red $K_8$ or blue $K_{10}$, and verify them with two independently written exhaustive clique checkers. Starting from published colorings, we find these witnesses by adding vertices and repairing the resulting monochromatic cliques through local search. The search uses exact conflict counts, preparation moves aimed at making remaining cliques cheaper to break, and mutations followed by repair. A loss based on the largest monochromatic clique containing each edge yielded a useful intermediate state for the $\\mathrm{R}(6,8)$ construction. Guided by the author, an AI coding agent wrote and ran the search code; we describe the methods and document the ancestry of the resulting colorings.",
+    "primary_category": "math.CO",
+    "field": "mathematics"
+  }
+]

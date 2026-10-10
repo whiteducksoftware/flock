@@ -4,6 +4,7 @@ import { useUIStore } from '../../store/uiStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import LogicOperationsDisplay from './LogicOperationsDisplay';
 import ScheduledAgentDisplay from './ScheduledAgentDisplay';
+import { DeciderInfo, DeciderOptions, DecisionBadge } from './DecisionDisplay';
 import { ScheduleSpecDisplay, TimerStateDisplay } from '../../types/graph';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
@@ -23,6 +24,8 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   const logicOperations = nodeData.logicOperations || []; // Phase 1.4: Logic operations state
   const scheduleSpec = nodeData.scheduleSpec as ScheduleSpecDisplay | undefined; // Phase 1.6: Schedule spec
   const timerState = nodeData.timerState as TimerStateDisplay | undefined; // Phase 1.6: Timer state
+  const decider = nodeData.decision as DeciderInfo | undefined; // Decision agent: question + option counts
+  const typeLabels = (nodeData.typeLabels || {}) as Record<string, string>; // Choice handles, e.g. "◆ Route.billing"
 
   // Merge known types with actual counts - show all types even with 0 count
   // Start with actual counts, then add known types that haven't happened yet
@@ -39,6 +42,14 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
       displaySentByType[type] = 0;
     }
   });
+  // A decision agent shows its options instead of the generic Decision output row
+  if (decider) {
+    Object.keys(displaySentByType).forEach((type) => {
+      if (type.startsWith('Decision[')) {
+        delete displaySentByType[type];
+      }
+    });
+  }
 
   const isOpenClawAgent = Boolean(nodeData.isOpenClawAgent)
     || nodeData.engineKind === 'openclaw'
@@ -190,6 +201,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
               🦞 OpenClaw
             </span>
           )}
+          {decider && <DecisionBadge question={decider.question} compact={compactNodeView} />}
           {scheduleSpec && (
             <span
               style={{
@@ -289,7 +301,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}>
-                  {type}
+                  {typeLabels[type] ?? type}
                 </div>
               </div>
             );
@@ -357,8 +369,10 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
               </div>
             );
           })}
+          {/* Decision agent: options and how often each was chosen */}
+          {decider && <DeciderOptions decider={decider} />}
           {/* Fallback to totals if no per-type data yet */}
-          {Object.keys(displayReceivedByType).length === 0 && Object.keys(displaySentByType).length === 0 && (
+          {!decider && Object.keys(displayReceivedByType).length === 0 && Object.keys(displaySentByType).length === 0 && (
             <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', opacity: 0.6 }}>
               <span>↓ {recvCount} in</span>
               <span style={{ marginLeft: 'var(--spacing-2)' }}>↑ {sentCount} out</span>

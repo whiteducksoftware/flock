@@ -9,6 +9,7 @@ import {
   EdgeLabelRenderer
 } from '@xyflow/react';
 import { useSettingsStore } from '../../store/settingsStore';
+import { DECISION_COLOR } from './DecisionDisplay';
 
 /**
  * Phase 4: Graph Visualization & Dual Views - MessageFlowEdge Component
@@ -28,6 +29,8 @@ export interface MessageFlowEdgeData {
   artifactIds: string[];
   latestTimestamp: string;
   labelOffset?: number; // Phase 11: Vertical offset to prevent label overlap
+  decisionChoice?: string; // Decision edges: the option this edge carries
+  decisionUnsure?: boolean; // Decision edges: below-threshold (UNSURE) branch
 }
 
 const MessageFlowEdge: React.FC<EdgeProps> = ({
@@ -70,6 +73,11 @@ const MessageFlowEdge: React.FC<EdgeProps> = ({
   // Phase 11 Bug Fix: Apply label offset to prevent overlap when multiple edges exist
   const edgeData = data as MessageFlowEdgeData | undefined;
   const labelOffset = edgeData?.labelOffset || 0;
+  // Decision edges: violet per option; the UNSURE branch is faded with an amber label
+  const isDecision = edgeData?.decisionChoice !== undefined;
+  const isUnsure = Boolean(edgeData?.decisionUnsure);
+  const edgeColor = isDecision ? DECISION_COLOR : 'var(--color-edge-message)';
+  const labelColor = isUnsure ? 'var(--color-warning)' : edgeColor;
 
   const [isHovered, setIsHovered] = React.useState(false);
 
@@ -80,11 +88,12 @@ const MessageFlowEdge: React.FC<EdgeProps> = ({
         path={edgePath}
         style={{
           ...style,
-          stroke: 'var(--color-edge-message)',
+          stroke: edgeColor,
           strokeWidth: isHovered ? edgeStrokeWidth + 1 : edgeStrokeWidth,
+          ...(isUnsure ? { opacity: 0.5 } : {}),
           animation: edgeAnimation ? 'dash 20s linear infinite' : 'none',
           transition: 'var(--transition-all)',
-          filter: isHovered ? 'drop-shadow(0 0 4px var(--color-edge-message))' : 'none',
+          filter: isHovered ? `drop-shadow(0 0 4px ${edgeColor})` : 'none',
         }}
         markerEnd={markerEnd}
       />
@@ -100,7 +109,8 @@ const MessageFlowEdge: React.FC<EdgeProps> = ({
               color: 'var(--color-edge-label-text)',
               padding: 'var(--spacing-1) var(--spacing-2)',
               borderRadius: 'var(--radius-sm)',
-              border: 'var(--border-width-1) solid var(--color-edge-message)',
+              border: `var(--border-width-1) solid ${labelColor}`,
+              ...(isUnsure ? { color: 'var(--color-warning-light)' } : {}),
               pointerEvents: 'all',
               backdropFilter: 'blur(var(--blur-sm))',
               boxShadow: 'var(--shadow-sm)',
@@ -110,7 +120,7 @@ const MessageFlowEdge: React.FC<EdgeProps> = ({
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
           >
-            {label}
+            {isDecision ? `◆ ${label}` : label}
           </div>
         </EdgeLabelRenderer>
       )}

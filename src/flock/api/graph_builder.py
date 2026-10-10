@@ -31,6 +31,13 @@ from flock.core.store import (
 from flock.core.store import (
     ArtifactEnvelope as StoreArtifactEnvelope,
 )
+from flock.decisions.choice import UNSURE
+from flock.decisions.graph import (
+    choice_type_labels,
+    decider_info,
+    decision_view,
+    is_decision_type,
+)
 from flock.logging.auto_trace import AutoTracedMeta
 
 
@@ -255,6 +262,21 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "isOpenClawAgent": is_openclaw_agent,
             }
 
+            # Decision agents and choice subscribers
+            decision = decider_info(
+                agent,
+                (
+                    (artifact.artifact_type, artifact.payload)
+                    for artifact in artifacts.values()
+                    if artifact.produced_by == agent.name
+                ),
+            )
+            if decision:
+                node_data["decision"] = decision
+            type_labels = choice_type_labels(agent)
+            if type_labels:
+                node_data["typeLabels"] = type_labels
+
             # Add schedule data if present
             if schedule_spec_data:
                 node_data["scheduleSpec"] = schedule_spec_data
@@ -390,6 +412,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "visibilityKind": artifact.visibility_kind or "Unknown",
                 "correlationId": artifact.correlation_id,
             }
+            if is_decision_type(artifact.artifact_type):
+                node_data["decision"] = decision_view(artifact.payload)
 
             nodes.append(
                 GraphNode(
@@ -413,14 +437,23 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         for artifact in artifacts.values():
             producer = artifact.produced_by or "external"
             message_type = artifact.artifact_type
+            # Decisions get one edge per chosen option, labelled by the option
+            choice = (
+                artifact.payload.get("choice")
+                if is_decision_type(message_type)
+                else None
+            )
             for consumer in artifact.consumed_by:
                 edge_id = f"{producer}__{consumer}__{message_type}"
+                if choice is not None:
+                    edge_id = f"{edge_id}__{choice}"
                 payload = edge_payloads.setdefault(
                     edge_id,
                     {
                         "source": producer,
                         "target": consumer,
                         "message_type": message_type,
+                        "choice": choice,
                         "artifact_ids": [],
                         "latest_timestamp": artifact.published_at,
                     },
@@ -438,7 +471,18 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         for edge_id, payload in edge_payloads.items():
             message_type = payload["message_type"]
             artifact_ids = payload["artifact_ids"]
-            label = f"{message_type} ({len(artifact_ids)})"
+            choice = payload["choice"]
+            label = f"{choice or message_type} ({len(artifact_ids)})"
+            data = {
+                "messageType": message_type,
+                "messageCount": len(artifact_ids),
+                "artifactIds": artifact_ids,
+                "latestTimestamp": payload["latest_timestamp"].isoformat(),
+                "labelOffset": offsets.get(edge_id, 0.0),
+            }
+            if choice is not None:
+                data["decisionChoice"] = choice
+                data["decisionUnsure"] = choice == UNSURE
             edges.append(
                 GraphEdge(
                     id=edge_id,
@@ -446,13 +490,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     target=payload["target"],
                     type="message_flow",
                     label=label,
-                    data={
-                        "messageType": message_type,
-                        "messageCount": len(artifact_ids),
-                        "artifactIds": artifact_ids,
-                        "latestTimestamp": payload["latest_timestamp"].isoformat(),
-                        "labelOffset": offsets.get(edge_id, 0.0),
-                    },
+                    data=data,
                     marker_end=GraphMarker(),
                     hidden=False,
                 )

@@ -24,6 +24,7 @@ from flock.core.artifacts import Artifact, ArtifactSpec
 from flock.core.fan_out import FanOutRange, FanOutSpec, normalize_fan_out
 from flock.core.subscription import BatchSpec, JoinSpec, ScheduleSpec, Subscription
 from flock.core.visibility import AgentIdentity, Visibility, ensure_visibility
+from flock.decisions import Choice, ChoiceRef, Decision
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
 from flock.models.system_artifacts import TimerTick
@@ -52,6 +53,8 @@ class AgentOutput:
         Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None
     ) = None  # Validation logic
     group_description: str | None = None  # Group description override
+    # Keep the visibility the engine set (decisions inherit their subject's)
+    inherit_visibility: bool = False
 
     def __post_init__(self):
         """Validate field constraints and normalize fan-out."""
@@ -534,7 +537,7 @@ class AgentBuilder:
 
     def consumes(
         self,
-        *types: type[BaseModel],
+        *types: type[BaseModel] | ChoiceRef,
         where: Callable[[BaseModel], bool]
         | Sequence[Callable[[BaseModel], bool]]
         | None = None,
@@ -558,7 +561,10 @@ class AgentBuilder:
         Supports type-based matching, conditional filters, batching, and joins.
 
         Args:
-            *types: Artifact types (Pydantic models) to consume
+            *types: Artifact types (Pydantic models) to consume, or exactly one
+                Choice handle (``Route.billing``, ``Route.UNSURE``, ``Route.ANY``).
+                A Choice handle triggers on matching decisions and delivers the
+                decision's subject; the decision is available as ``ctx.decision``.
             where: Optional filter predicate(s). Agent only executes if predicate returns True.
                 Can be a single callable or sequence of callables (all must pass).
             semantic_match: Optional semantic similarity filter. Matches artifacts based on
@@ -621,7 +627,21 @@ class AgentBuilder:
             ...     UserStory,
             ...     activation=When.correlation(UserStory).count_at_least(5),
             ... )
+
+            >>> # Decision routing: run on tickets the triage agent routed to billing
+            >>> agent.consumes(Route.billing)
         """
+        choice_ref: ChoiceRef | None = None
+        if any(isinstance(t, ChoiceRef) for t in types):
+            if len(types) != 1:
+                raise ValueError(
+                    "A choice subscription takes exactly one option handle; chain "
+                    ".consumes() calls for OR, e.g. "
+                    ".consumes(Route.billing).consumes(Route.shipping)."
+                )
+            choice_ref = types[0]
+            types = (Decision.of(choice_ref.choice),)
+
         predicates: Sequence[Callable[[BaseModel], bool]] | None
         if where is None:
             predicates = None
@@ -670,8 +690,78 @@ class AgentBuilder:
             mode=mode,
             priority=priority,
             activation=activation,
+            choice=choice_ref,
         )
         self._agent.subscriptions.append(subscription)
+        return self
+
+    def decides(
+        self,
+        choice: type[Choice],
+        *,
+        model: str | Any | None = None,
+        threshold: float | None = None,
+        instructions: str | None = None,
+        visibility: Visibility | None = None,
+    ) -> AgentBuilder:
+        """Answer a Choice question about each input with a decision model.
+
+        Publishes one ``Decision.of(choice)`` artifact per execution. Other
+        agents subscribe to an option with ``.consumes(choice.<option>)``.
+
+        Args:
+            choice: Choice subclass whose options the model picks from
+            model: Decision model string (``"jev/jev-latest"``,
+                ``"local/clef-flash"``) or a ``DecisionProvider``. Defaults to
+                the ``DEFAULT_DECISION_MODEL`` environment variable.
+            threshold: Minimum probability of the chosen option; below it the
+                decision is ``UNSURE`` and routes to ``choice.UNSURE``.
+            instructions: Question text; defaults to the Choice docstring.
+            visibility: Readership of the decision. By default it inherits the
+                inputs' visibility, and inputs with different visibilities fail.
+
+        Returns:
+            self for method chaining
+
+        Examples:
+            >>> triage = (
+            ...     flock.agent("triage")
+            ...     .consumes(Ticket)
+            ...     .decides(Route, model="jev/jev-latest", threshold=0.8)
+            ... )
+            >>> flock.agent("billing").consumes(Route.billing).publishes(Reply)
+        """
+        from flock.decisions.engine import DecisionEngine
+        from flock.decisions.providers import resolve_provider
+
+        if not (isinstance(choice, type) and issubclass(choice, Choice)):
+            raise TypeError(f".decides() expects a Choice subclass, got {choice!r}")
+        if threshold is not None and not 0.0 < threshold <= 1.0:
+            raise ValueError(f"threshold must be in (0, 1], got {threshold}")
+        if self._agent.engines:
+            raise ValueError(
+                f"Agent '{self._agent.name}': .decides() sets the agent's engine; "
+                "it cannot be combined with .with_engines()."
+            )
+        model = model or os.getenv("DEFAULT_DECISION_MODEL")
+        if not model:
+            raise ValueError(
+                f"Agent '{self._agent.name}': pass model= to .decides() or set "
+                "DEFAULT_DECISION_MODEL."
+            )
+
+        self._agent.engines.append(
+            DecisionEngine(
+                choice=choice,
+                provider=resolve_provider(model),
+                threshold=threshold,
+                instructions=instructions,
+                visibility=visibility,
+            )
+        )
+        self.publishes(Decision.of(choice))
+        for output in self._agent.output_groups[-1].outputs:
+            output.inherit_visibility = True
         return self
 
     def schedule(

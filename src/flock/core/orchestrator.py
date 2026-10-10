@@ -27,6 +27,7 @@ from flock.core.artifacts import Artifact
 from flock.core.store import BlackboardStore, ConsumptionRecord
 from flock.core.subscription import Subscription
 from flock.core.visibility import PublicVisibility, Visibility
+from flock.decisions.routing import resolve_subjects
 from flock.integrations.openclaw import OpenClawConfig, OpenClawEngine
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
@@ -1325,7 +1326,9 @@ class Flock(metaclass=AutoTracedMeta):
         # Phase 6: Execute agent (returns artifacts, doesn't publish)
         # Wrap in try/catch to handle agent failures gracefully
         try:
-            outputs = await agent.execute(ctx, artifacts)
+            # Choice subscriptions work on the decided subject, not the decision
+            inputs = await resolve_subjects(self.store, agent, artifacts)
+            outputs = await agent.execute(ctx, inputs)
         except asyncio.CancelledError:
             # Re-raise cancellations immediately (shutdown, user cancellation)
             # Do NOT treat these as errors - they're intentional interruptions

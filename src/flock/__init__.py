@@ -95,6 +95,11 @@ from flock.core.visibility import (
 )
 
 # =============================================================================
+# Decisions - Typed choices answered by decision models
+# =============================================================================
+from flock.decisions import Choice, Decision
+
+# =============================================================================
 # Engines - DSPy engine and adapters
 # =============================================================================
 from flock.engines import (
@@ -139,9 +144,12 @@ __all__ = [
     # Subscriptions
     "BatchSpec",
     "ChatAdapter",
+    # Decisions
+    "Choice",
     # Runtime
     "Context",
     "DSPyEngine",
+    "Decision",
     "EngineComponent",
     "EvalInputs",
     "EvalResult",

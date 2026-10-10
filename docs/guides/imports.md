@@ -293,6 +293,30 @@ agent.schedule(every=timedelta(minutes=5))
 
 ---
 
+### Decisions
+
+| Import | Description | Learn More |
+|--------|-------------|------------|
+| `Choice` | A closed option set (the question); options become subscription handles | [Decision Models Guide](decisions.md) |
+| `Decision` | Decision artifact base; `Decision.of(Route)` is the artifact type of one Choice | [Decision Models Guide](decisions.md) |
+
+```python
+from flock import Choice, Decision
+
+class Route(Choice):
+    """Which team should handle this ticket?"""
+    billing = "Charges, invoices, refunds"
+    tech = "Bugs, crashes, login problems"
+
+agent.consumes(Ticket).decides(Route, model="azure/decision-1", threshold=0.8)
+other.consumes(Route.billing)          # receives the Ticket
+auditor.consumes(Decision.of(Route))   # receives every decision itself
+```
+
+[:octicons-arrow-right-24: Decision Models](decisions.md){ .md-button }
+
+---
+
 ### Filtering
 
 | Import | Description | Learn More |
