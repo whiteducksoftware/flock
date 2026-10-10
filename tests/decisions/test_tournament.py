@@ -228,3 +228,31 @@ async def test_refused_groups_keep_no_survivors(flock):
     assert round_one["refused_groups"] == 1
     assert len(round_one["survivors"]) == 12
     assert not any(s < "req_020" for s in round_one["survivors"])
+
+
+async def test_rounds_record_the_top_candidates_of_every_group(flock):
+    decider = FakeDecider({"Requirement": peaked("req_057", Requirement.__options__)})
+    flock.agent("mapper").consumes(Statement).decides(
+        Requirement, model=decider, tournament=Tournament(group_size=20, keep=3)
+    )
+
+    await flock.publish(Statement(text="..."))
+    await flock.run_until_idle()
+
+    (decision,) = await decisions_of(flock, Requirement)
+    (round_one,) = decision["rounds"]
+    assert round_one["group_size"] == 20
+    groups = round_one["group_results"]
+    assert [g["size"] for g in groups] == [20] * 5
+    assert all(not g["refused"] for g in groups)
+    for group, start in zip(groups, range(0, 15, 3), strict=True):
+        # Survivors first, then the two strongest eliminated options
+        assert len(group["top"]) == 5
+        probabilities = [p for _option, p in group["top"]]
+        assert probabilities == sorted(probabilities, reverse=True)
+        assert [o for o, _p in group["top"][:3]] == round_one["survivors"][
+            start : start + 3
+        ]
+    winner_group = groups[2]  # req_040 .. req_059
+    assert winner_group["top"][0][0] == "req_057"
+    assert winner_group["top"][0][1] == pytest.approx(0.6 / (0.6 + 19 * 0.4 / 99))

@@ -77,6 +77,10 @@ def inherited_visibility(artifacts: list[Artifact]) -> Visibility:
     return first.model_copy(deep=True)
 
 
+# Eliminated options recorded per tournament group, next to the survivors
+TOP_ELIMINATED = 2
+
+
 class DecisionEngine(EngineComponent):
     """Answers :class:`Choice`, :class:`YesNo`, :class:`Scale` and
     :class:`Checklist` questions about the agent's inputs.
@@ -222,18 +226,33 @@ class DecisionEngine(EngineComponent):
             answers = await self._ask(state, wire, images)
             survivors: list[str] = []
             refused = 0
+            group_results: list[dict[str, Any]] = []
             for group, group_question in zip(groups, wire, strict=True):
                 answer = answers[group_question.name]
                 if answer.refused or answer.choice is None:
                     refused += 1  # no option of the group fits
+                    group_results.append({
+                        "size": len(group),
+                        "refused": True,
+                        "top": [],
+                    })
                     continue
                 ranked = sorted(group, key=lambda o: -answer.probabilities.get(o, 0.0))
                 survivors.extend(ranked[:keep])
+                # Survivors plus the strongest eliminated options show the margin
+                top = ranked[: keep + TOP_ELIMINATED]
+                group_results.append({
+                    "size": len(group),
+                    "refused": False,
+                    "top": [[o, answer.probabilities.get(o, 0.0)] for o in top],
+                })
             rounds.append({
                 "candidates": len(candidates),
                 "groups": len(groups),
+                "group_size": group_size,
                 "refused_groups": refused,
                 "survivors": survivors,
+                "group_results": group_results,
             })
             candidates = survivors
 
