@@ -105,12 +105,17 @@ describe('AgentNode', () => {
       sentCount: 60,
       recvCount: 60,
       decision: {
-        question: 'Route',
-        instructions: 'Which team should handle this ticket?',
-        options: ['billing', 'tech'],
-        threshold: 0.8,
         model: 'local/clef-flash',
-        counts: { billing: 41, tech: 17, UNSURE: 2 },
+        threshold: 0.8,
+        questions: [
+          {
+            name: 'Route',
+            kind: 'choice',
+            instructions: 'Which team should handle this ticket?',
+            options: ['billing', 'tech'],
+            counts: { billing: 41, tech: 17, UNSURE: 2 },
+          },
+        ],
       },
     };
 
@@ -156,15 +161,20 @@ describe('AgentNode', () => {
       sentCount: 4,
       recvCount: 4,
       decision: {
-        question: 'Color',
-        options: ['red', 'blue'],
-        threshold: 0.8,
         model: 'openai/gpt-6-luna',
-        counts: { red: 9, blue: 1, UNSURE: 1 },
-        samples: {
-          red: [{ thumb, p: 0.97 }, { thumb, p: 0.95 }],
-          UNSURE: [{ thumb, p: 0.5 }],
-        },
+        threshold: 0.8,
+        questions: [
+          {
+            name: 'Color',
+            kind: 'choice',
+            options: ['red', 'blue'],
+            counts: { red: 9, blue: 1, UNSURE: 1 },
+            samples: {
+              red: [{ thumb, p: 0.97 }, { thumb, p: 0.95 }],
+              UNSURE: [{ thumb, p: 0.5 }],
+            },
+          },
+        ],
       },
     };
 
@@ -177,5 +187,63 @@ describe('AgentNode', () => {
     expect(screen.getByAltText('UNSURE · p 0.50')).toBeInTheDocument();
     expect(screen.getByText('+7')).toBeInTheDocument();
     expect(screen.queryAllByAltText(/^blue/)).toHaveLength(0);
+  });
+
+  it('should render every question of a decider by its kind', () => {
+    const data: AgentNodeData = {
+      name: 'triage',
+      status: 'idle',
+      subscriptions: ['Ticket'],
+      outputTypes: ['Decision[__main__.Route]', 'Decision[__main__.Urgent]', 'Decision[__main__.Anger]'],
+      sentCount: 33,
+      recvCount: 11,
+      decision: {
+        model: 'azure/decision-1',
+        threshold: 0.8,
+        questions: [
+          {
+            name: 'Route',
+            kind: 'choice',
+            options: ['billing', 'tech'],
+            counts: { billing: 7, tech: 3, UNSURE: 1 },
+          },
+          {
+            name: 'Urgent',
+            kind: 'yesno',
+            instructions: 'Does the customer need an answer today?',
+            options: ['yes', 'no'],
+            counts: { yes: 7, no: 3, UNSURE: 1 },
+            refused: 1,
+          },
+          {
+            name: 'Anger',
+            kind: 'scale',
+            options: ['calm', 'annoyed', 'angry', 'furious'],
+            counts: { calm: 1, annoyed: 2, angry: 6, furious: 2, UNSURE: 0 },
+            meanScore: 1.9,
+          },
+        ],
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    // Header badge: first question plus how many more
+    expect(screen.getByText('◆ Route +2')).toBeInTheDocument();
+    expect(screen.getByText('Urgent')).toBeInTheDocument();
+    expect(screen.getByText('Anger')).toBeInTheDocument();
+
+    const split = screen.getAllByTestId('yesno-segment');
+    expect(split.map((s) => s.dataset.option)).toEqual(['yes', 'no', 'UNSURE']);
+    expect(split[0]?.style.width).toBe(`${(7 / 11) * 100}%`);
+    expect(screen.getByText('1 refused')).toBeInTheDocument();
+
+    const levels = screen.getAllByTestId('scale-level');
+    expect(levels.map((l) => l.dataset.option)).toEqual(['calm', 'annoyed', 'angry', 'furious']);
+    expect(levels[2]?.dataset.count).toBe('6');
+    expect(screen.getByTestId('scale-mean')).toHaveAttribute('title', 'mean score 1.90');
   });
 });

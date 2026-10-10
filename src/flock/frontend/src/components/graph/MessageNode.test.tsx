@@ -171,4 +171,100 @@ describe('MessageNode', () => {
     expect(screen.getByAltText('decided image')).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
     expect(screen.getAllByTestId('decision-option')).toHaveLength(2);
   });
+
+  const decisionNode = (decision: Record<string, unknown>): MessageNodeData => ({
+    artifactType: `Decision[__main__.${decision.question}]`,
+    payload: { choice: decision.choice },
+    producedBy: 'triage',
+    consumedBy: [],
+    timestamp: Date.now(),
+    decision,
+  });
+
+  it('should render a yes/no decision as one split bar with the unsure zone', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Urgent',
+              kind: 'yesno',
+              choice: 'yes',
+              bestGuess: 'yes',
+              probabilities: { yes: 0.9, no: 0.1 },
+              confidence: 0.9,
+              threshold: 0.8,
+              model: 'azure/decision-1',
+              latencyMs: 170,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText('◆ Urgent: yes')).toBeInTheDocument();
+    const bar = screen.getByTestId('decision-yesno');
+    expect(bar.dataset.yes).toBe('0.9');
+    expect(screen.getByText('yes 90%')).toBeInTheDocument();
+    expect(screen.getByText('no 10%')).toBeInTheDocument();
+    expect(screen.getByTestId('decision-unsure-zone').style.left).toBe('20%');
+  });
+
+  it('should render a scale decision as ordered levels with the weighted score', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Anger',
+              kind: 'scale',
+              choice: 'angry',
+              bestGuess: 'angry',
+              probabilities: { furious: 0.3, angry: 0.6, annoyed: 0.1, calm: 0.0 },
+              levels: ['calm', 'annoyed', 'angry', 'furious'],
+              confidence: 0.6,
+              threshold: null,
+              model: 'openai/gpt-6-luna',
+              latencyMs: 300,
+              score: 2.2,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    const options = screen.getAllByTestId('decision-option');
+    expect(options.map((o) => o.dataset.option)).toEqual(['calm', 'annoyed', 'angry', 'furious']);
+    expect(options[2]?.dataset.chosen).toBe('true');
+    expect(screen.getByText('◆ Anger: angry · score 2.20')).toBeInTheDocument();
+    expect(screen.getByTestId('decision-score').style.left).toBe(`${((2.2 + 0.5) / 4) * 100}%`);
+  });
+
+  it('should show a refused decision without bars', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Urgent',
+              kind: 'yesno',
+              choice: 'UNSURE',
+              bestGuess: null,
+              probabilities: {},
+              confidence: null,
+              threshold: null,
+              model: 'openai/gpt-6-luna',
+              latencyMs: 250,
+              score: null,
+              refused: true,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText('◆ Urgent: refused')).toBeInTheDocument();
+    expect(screen.queryByTestId('decision-yesno')).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId('decision-option')).toHaveLength(0);
+  });
 });

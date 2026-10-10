@@ -24,7 +24,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   const logicOperations = nodeData.logicOperations || []; // Phase 1.4: Logic operations state
   const scheduleSpec = nodeData.scheduleSpec as ScheduleSpecDisplay | undefined; // Phase 1.6: Schedule spec
   const timerState = nodeData.timerState as TimerStateDisplay | undefined; // Phase 1.6: Timer state
-  const decider = nodeData.decision as DeciderInfo | undefined; // Decision agent: question + option counts
+  const decider = nodeData.decision as DeciderInfo | undefined; // Decision agent: questions + answer counts
   const typeLabels = (nodeData.typeLabels || {}) as Record<string, string>; // Choice handles, e.g. "◆ Route.billing"
 
   // Merge known types with actual counts - show all types even with 0 count
@@ -201,7 +201,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
               🦞 OpenClaw
             </span>
           )}
-          {decider && <DecisionBadge question={decider.question} compact={compactNodeView} />}
+          {decider && <DecisionBadge questions={decider.questions.map((q) => q.name)} compact={compactNodeView} />}
           {scheduleSpec && (
             <span
               style={{
