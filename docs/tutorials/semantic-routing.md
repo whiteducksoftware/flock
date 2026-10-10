@@ -24,7 +24,7 @@ All without writing complex keyword matching logic!
   pip install flock-core[semantic]
   ```
 
-This installs `sentence-transformers` with the `all-MiniLM-L6-v2` model (~90MB) for local semantic matching.
+This installs `fastembed`, which runs the `all-MiniLM-L6-v2` model (~90MB, ONNX Runtime) for local semantic matching.
 
 ## Step 1: Define Your Data Models
 
@@ -371,7 +371,7 @@ if __name__ == "__main__":
 ## Common Questions
 
 **Q: Does this require an API key or internet connection?**
-A: No! The AI model runs locally on your machine using `sentence-transformers`.
+A: No! The AI model runs locally on your machine using `fastembed` (ONNX Runtime).
 
 **Q: How fast is semantic matching?**
 A: ~15ms per embedding (CPU), with 10,000-entry LRU cache for instant lookups on repeated text.

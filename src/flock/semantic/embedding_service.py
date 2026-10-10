@@ -1,10 +1,12 @@
 """Embedding service for semantic matching.
 
-This module provides a singleton service for generating and caching embeddings
-using sentence-transformers.
+This module provides a singleton service for generating and caching
+all-MiniLM-L6-v2 embeddings with fastembed (ONNX Runtime, no torch).
 """
 
+import os
 from collections import OrderedDict
+from pathlib import Path
 
 import numpy as np
 
@@ -12,6 +14,30 @@ from flock.logging.logging import get_logger
 
 
 logger = get_logger(__name__)
+
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+
+
+def model_cache_dir() -> str:
+    """Where the ONNX model is stored: FASTEMBED_CACHE_PATH or ~/.cache/flock/fastembed."""
+    return os.getenv("FASTEMBED_CACHE_PATH") or str(
+        Path.home() / ".cache" / "flock" / "fastembed"
+    )
+
+
+class _FastEmbedModel:
+    """sentence-transformers style ``encode()`` on top of fastembed."""
+
+    def __init__(self, model_name: str) -> None:
+        from fastembed import TextEmbedding
+
+        self._model = TextEmbedding(model_name, cache_dir=model_cache_dir())
+
+    def encode(self, sentences, convert_to_numpy=True, show_progress_bar=False):
+        single = isinstance(sentences, str)
+        texts = [sentences] if single else list(sentences)
+        vectors = np.asarray(list(self._model.embed(texts)), dtype=np.float32)
+        return vectors[0] if single else vectors
 
 
 class LRUCache:
@@ -55,7 +81,7 @@ class LRUCache:
 
 
 class EmbeddingService:
-    """Singleton service for text embeddings using sentence-transformers.
+    """Singleton service for text embeddings (all-MiniLM-L6-v2 via fastembed).
 
     This class manages the lifecycle of the embedding model and provides
     efficient caching of embeddings.
@@ -90,12 +116,10 @@ class EmbeddingService:
         return EmbeddingService._instance
 
     def _load_model(self):
-        """Lazy load the sentence-transformers model."""
+        """Lazy load the embedding model."""
         if self._model is None:
-            from sentence_transformers import SentenceTransformer
-
-            logger.info("Loading sentence-transformers model: all-MiniLM-L6-v2")
-            self._model = SentenceTransformer("all-MiniLM-L6-v2")
+            logger.info(f"Loading embedding model: {MODEL_NAME} (fastembed)")
+            self._model = _FastEmbedModel(MODEL_NAME)
             logger.info("Model loaded successfully")
 
     def embed(self, text: str) -> np.ndarray:

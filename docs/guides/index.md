@@ -112,11 +112,11 @@ Comprehensive guides for building production-ready multi-agent systems with Floc
 
     [:octicons-arrow-right-24: DSPy Engine Guide](dspy-engine.md)
 
--   **🏠 Local Models (Transformers)**
+-   **🏠 Local Models**
 
     ---
 
-    Run Flock agents entirely locally using Hugging Face models — no API keys required.
+    Run Flock agents on local models served by Ollama, llama.cpp, vLLM or LM Studio — no API keys required.
 
     [:octicons-arrow-right-24: Local Models Guide](local-models.md)
 

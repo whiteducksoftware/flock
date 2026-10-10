@@ -11,7 +11,7 @@ uv add flock-core[semantic]
 pip install flock-core[semantic]
 ```
 
-This installs `sentence-transformers` with the `all-MiniLM-L6-v2` model (~90MB).
+This installs `fastembed`, which runs the `all-MiniLM-L6-v2` model (~90MB) on ONNX Runtime, without PyTorch.
 
 ## 📖 Examples
 

@@ -13,6 +13,30 @@ search:
 
 ## [Unreleased]
 
+### ⚠️ Changes
+
+- **PyTorch is no longer a dependency.** Semantic subscriptions (`flock-core[semantic]`) compute the same `all-MiniLM-L6-v2` embeddings with [fastembed](https://github.com/qdrant/fastembed) on ONNX Runtime instead of `sentence-transformers`. Similarity scores are identical (450 query/text pairs: largest difference below 0.00001, no decision changed at thresholds 0.3-0.7), so `semantic_match` thresholds keep their meaning. The model (~90 MB) is downloaded on first use to `~/.cache/flock/fastembed` (override with `FASTEMBED_CACHE_PATH`).
+
+    | Fresh install from `uv.lock`, including downloads | Before | Now |
+    |---|---|---|
+    | `flock-core[semantic]`: environment size | 7.48 GB (140 packages) | 404 MB (117 packages) |
+    | `flock-core[semantic]`: install time | 302 s | 10 s |
+    | The `semantic` extra on its own | +7.16 GB, +295 s | +86 MB, +2.5 s |
+    | Full development environment (all extras and groups) | 8.03 GB, 310 s | 702 MB, 16 s |
+
+    Measured in a fresh `ghcr.io/astral-sh/uv:python3.12-bookworm` container per run (uv 0.9.30, empty cache, same machine and network, one run each). A base install without extras is unchanged (~316 MB, 8 s).
+
+- **Removed: the in-process Hugging Face provider** (`Flock("transformers/<model>")`, extra `flock-core[transformers]`). Run local models in an OpenAI-compatible server (Ollama, llama.cpp, vLLM, LM Studio) and use its model string, e.g. `ollama_chat/qwen3:4b`. See [Local Models](../guides/local-models.md).
+- Starlette 1.3 with FastAPI 0.143, MCP Python SDK 1.28.
+- `requirements.txt` was removed; dependencies are managed with uv (`pyproject.toml`, `uv.lock`).
+
+### 🔒 Security
+
+- Patched vulnerable dependencies: anyio, PyJWT, cryptography, urllib3, python-multipart, Starlette, MCP SDK, tornado, gitpython, fsspec, json-repair, mistune, orjson, pymdown-extensions, soupsieve, virtualenv, bleach, idna, multidict, oauthlib, requests, setuptools, pygments, Jupyter and mkdocs-material dev tooling, and the dashboard's dev tooling (Vitest 4, Vite 7.3.7). Removing PyTorch, Transformers and sentence-transformers closes their advisories as well.
+- How dependency alerts are handled, including LiteLLM advisories that only affect the LiteLLM proxy server, is documented in [CONTRIBUTING.md](https://github.com/whiteducksoftware/flock/blob/main/CONTRIBUTING.md).
+
+## [0.5.700] - 2026-10-06
+
 ### 🎉 New Features
 
 - **`FlockApplication`** (`flock.application`) - transport-independent execution for hosts: typed input, explicit output contract, one isolated `Flock` per workflow, incremental outputs, one terminal `WorkflowResult` (`succeeded`/`failed`/`cancelled`/`timed_out`), deadlines, cancellation, admission and id-retry protection. See [Applications](../guides/applications.md).
@@ -21,9 +45,15 @@ search:
 
 ### ⚠️ Changes
 
-- OpenTelemetry now requires `>=1.43` (tested with 1.44; required by the Foundry SDK). The legacy `opentelemetry-exporter-jaeger` packages were removed; `TelemetryConfig(jaeger_endpoint=...)` raises - export to Jaeger via OTLP.
+- OpenTelemetry now requires `>=1.43` (tested with 1.44; required by the Foundry SDK). The legacy `opentelemetry-exporter-jaeger` packages were removed; a `TelemetryConfig` with `jaeger_endpoint` (and the default `enable_jaeger=True`) raises in `setup_tracing()` - export to Jaeger via OTLP.
 - `Flock.shutdown()` now cancels in-flight agent tasks (bounded by `cancel_grace`) before closing MCP connections. No new agent work is scheduled during shutdown; if a task outlives the grace period, the instance stays closed for scheduling.
 - Scheduled-agent timers start with the first `publish()` as well as with `run_until*()`.
+- The trace SQL query endpoint no longer exists; use the remaining trace read endpoints or local DuckDB analysis.
+
+### 🔒 Security
+
+- Removed arbitrary SQL execution from the trace HTTP API and the dashboard: a `SELECT` could read server files through DuckDB table functions despite `read_only=True`. The dashboard keeps Timeline, Statistics, RED Metrics, Dependencies, Configuration and Guide; the SQL tab, editor and CSV export are gone.
+- `DSPyEngine` serialization (`model_dump()`, `model_dump_json()`) redacts known credential fields in `lm_kwargs` (`api_key`, `token`, `password`, `authorization`, ...) as `<redacted>`, also in nested values. The original values are still passed to `dspy.LM(...)`.
 
 ### 🐛 Fixes
 
@@ -31,7 +61,8 @@ search:
 - Agent tasks that fail outside the agent run (context building, output persistence) are recorded instead of lost; an agent whose inputs were all deferred is no longer run with empty input.
 - `no_output=True` now also silences user-built `DSPyEngine` instances.
 - Flock chains to a previously installed `sys.excepthook`.
-- Dashboard publish form now receives list defaults for artifact fields backed by Pydantic `default_factory` (array defaults are hydrated in artifact type schema responses), so list textareas prefill correctly.
+
+Releases 0.5.500 to 0.5.610 are described in the [GitHub release notes](https://github.com/whiteducksoftware/flock/releases).
 
 ## [0.5.400] - 2026-02-11
 
@@ -61,6 +92,10 @@ pizza_master = flock.openclaw_agent("codex").consumes(MyPizzaIdea).publishes(Piz
 - `examples/11-openclaw/` — Three example scripts + README
 - `docs/guides/openclaw.md` — Comprehensive integration guide
 - `docs/specs/004-openclaw-integration/concept.md` — Full design spec (Phases 1–4)
+
+### 🐛 Fixes
+
+- Dashboard publish form now receives list defaults for artifact fields backed by Pydantic `default_factory` (array defaults are hydrated in artifact type schema responses), so list textareas prefill correctly.
 
 ---
 

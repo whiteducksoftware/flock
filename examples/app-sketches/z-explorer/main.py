@@ -17,7 +17,8 @@ class VarList(BaseModel):
     values: list[str] = Field(default_factory=list, min_length=10)
 
 
-flock = Flock("transformers/unsloth/Qwen3-4B-Instruct-2507-bnb-4bit")
+# Local model served by Ollama (ollama pull qwen3:4b); any OpenAI-compatible server works
+flock = Flock("ollama_chat/qwen3:4b")
 
 z = flock.agent("z").consumes(Prompt).publishes(VarList)
 

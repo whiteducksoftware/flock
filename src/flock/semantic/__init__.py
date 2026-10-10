@@ -1,17 +1,18 @@
 """Semantic subscriptions for Flock.
 
-This module provides semantic matching capabilities using sentence-transformers.
-It's an optional feature that requires installing the [semantic] extra:
+This module provides semantic matching capabilities using all-MiniLM-L6-v2
+embeddings computed with fastembed (ONNX Runtime). It's an optional feature
+that requires installing the [semantic] extra:
 
     uv add flock-core[semantic]
 
-If sentence-transformers is not installed, semantic features will gracefully
+If fastembed is not installed, semantic features will gracefully
 degrade and core Flock functionality remains unaffected.
 """
 
 # Try to import semantic features
 try:
-    from sentence_transformers import SentenceTransformer  # noqa: F401
+    import fastembed  # noqa: F401
 
     from .context_provider import SemanticContextProvider
     from .embedding_service import EmbeddingService
@@ -28,7 +29,7 @@ except ImportError as e:
         @staticmethod
         def get_instance(*args, **kwargs):
             raise ImportError(
-                "Semantic features require sentence-transformers. "
+                "Semantic features require fastembed. "
                 "Install with: uv add flock-core[semantic]"
             ) from _import_error
 
@@ -37,7 +38,7 @@ except ImportError as e:
 
         def __init__(self, *args, **kwargs):
             raise ImportError(
-                "Semantic features require sentence-transformers. "
+                "Semantic features require fastembed. "
                 "Install with: uv add flock-core[semantic]"
             ) from _import_error
 
