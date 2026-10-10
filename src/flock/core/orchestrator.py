@@ -24,7 +24,7 @@ from flock.components.orchestrator import (
 )
 from flock.core.agent import Agent, AgentBuilder
 from flock.core.artifacts import Artifact
-from flock.core.store import BlackboardStore, ConsumptionRecord
+from flock.core.store import BlackboardStore, ConsumptionRecord, SQLiteBlackboardStore
 from flock.core.subscription import Subscription
 from flock.core.visibility import PublicVisibility, Visibility
 from flock.decisions.budget import RequestBudget
@@ -951,7 +951,10 @@ class Flock(metaclass=AutoTracedMeta):
         cancels agent tasks that are still running and waits up to
         ``cancel_grace`` seconds for them, and only then closes background tasks
         and MCP connections - so no agent keeps calling models or tools, writes
-        into a torn-down store, or reopens MCP sessions after cleanup.
+        into a torn-down store, or reopens MCP sessions after cleanup. A SQLite
+        store is closed last and reconnects if the instance is used again; it
+        stays open if an agent task outlived ``cancel_grace``, because that
+        task may still publish.
 
         Args:
             include_components: Whether to invoke component shutdown hooks and
@@ -977,6 +980,13 @@ class Flock(metaclass=AutoTracedMeta):
                 await self._component_runner.run_shutdown(self)
             await self._cancel_agent_tasks(cancel_grace)
             await self._release_resources()
+            # Reconnects on the next use; Dapr's close() is final, so only SQLite.
+            # A task that outlived the grace period may still publish and would
+            # reopen the store, so it stays open then.
+            if isinstance(self.store, SQLiteBlackboardStore) and all(
+                task.done() for task in self._scheduler.pending_tasks
+            ):
+                await self.store.close()
         finally:
             still_running = any(not t.done() for t in self._scheduler.pending_tasks)
             if reopen and not still_running:
