@@ -46,13 +46,15 @@ class Reminder(BaseModel):
 
 flock = Flock()
 
-# Demo: schedule reminder for 30 seconds from now
+# Demo: reminder 30 seconds from now. Otherwise: the next 08:55 UTC.
 DEMO_MODE = True
-reminder_time = (
-    datetime.now(UTC) + timedelta(seconds=30)
-    if DEMO_MODE
-    else datetime(2026, 11, 2, 8, 55, tzinfo=UTC)
-)
+now = datetime.now(UTC)
+if DEMO_MODE:
+    reminder_time = now + timedelta(seconds=30)
+else:
+    reminder_time = now.replace(hour=8, minute=55, second=0, microsecond=0)
+    if reminder_time <= now:
+        reminder_time += timedelta(days=1)
 
 print(f"\n[Setup] Current time:  {datetime.now(UTC).strftime('%H:%M:%S')} UTC")
 print(f"[Setup] Reminder for: {reminder_time.strftime('%H:%M:%S')} UTC\n")
@@ -98,9 +100,11 @@ async def main_cli() -> None:
     print("=" * 70)
     print("ONE-TIME REMINDER – Datetime Scheduling Demo")
     print("=" * 70)
-    print("Waiting ~45s so the reminder can fire in demo mode…")
-    timeout = 45 if DEMO_MODE else 3600
-    await flock.run_until_idle(timeout=timeout)
+    # The timer stops after its single run, so this returns once the reminder
+    # fired; the timeout is only a safety net.
+    wait = (reminder_time - datetime.now(UTC)).total_seconds()
+    print(f"Waiting ~{wait:.0f}s for the reminder…")
+    await flock.run_until_idle(timeout=wait + 60)
     print("\nDemo complete.")
 
 

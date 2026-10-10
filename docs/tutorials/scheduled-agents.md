@@ -22,7 +22,7 @@ This tutorial builds four scheduled systems, each adding one idea:
 
 **Time:** about 30 minutes.
 
-The finished versions of systems 1–3 are in [`examples/10-scheduling/`](https://github.com/whiteducksoftware/flock/tree/main/examples/10-scheduling).
+Related runnable examples are in [`examples/10-scheduling/`](https://github.com/whiteducksoftware/flock/tree/main/examples/10-scheduling): `01` is the health monitor, `02` the error log analyzer, and `03` a daily report that uses the LLM engine instead of the custom engine built here.
 
 ---
 
