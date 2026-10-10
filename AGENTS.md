@@ -1893,7 +1893,7 @@ owner = orchestrator.agent("owner").consumes(Controls.bcm_06.no).publishes(Findi
 #   several questions: FakeDecider({"Route": {...}, "Urgent": {"yes": 0.8, "no": 0.2}})
 #   checklist: FakeDecider({"Controls": {"mfa": 0.9, "bcm_06": 0.1}})  # probability of yes per item
 ```
-Providers: `azure/<deployment>` (Microsoft-Decision-1), `openai/<model>`, `jev/<model>`, `local/<name>` (`DECISION_API_BASE`). Default model: `DEFAULT_DECISION_MODEL`. Guide: [docs/guides/decisions.md](docs/guides/decisions.md).
+Providers: `azure/<deployment>` (Microsoft-Decision-1), `openai/<model>`, `jev/<model>`, `local/<name>` (`DECISION_API_BASE`). Default model: `Flock("openai/gpt-4.1", decision_model="azure/decision-1")` for every decider, else `DEFAULT_DECISION_MODEL`; `model=` on `.decides()` wins. Guide: [docs/guides/decisions.md](docs/guides/decisions.md).
 
 **Timer-based scheduling (periodic execution):**
 ```python

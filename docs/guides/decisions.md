@@ -160,7 +160,7 @@ Many items are cheap, because the artifact is sent once as the state and each it
 ```python
 .decides(
     Route, Urgent, Anger,       # one or more question classes, asked in one request
-    model="azure/decision-1",   # or a DecisionProvider; default: DEFAULT_DECISION_MODEL
+    model="azure/decision-1",   # or a DecisionProvider; default: Flock(decision_model=...)
     threshold=0.8,              # optional, for every question; below it a decision is UNSURE
     instructions=None,          # optional, single question only; overrides the docstring
     visibility=None,            # optional; overrides visibility inheritance
@@ -332,7 +332,17 @@ In the Blackboard View every image artifact shows its thumbnail, and each decisi
 | `azure/<deployment>` | `POST /v1/systemone` on Azure AI Foundry (Microsoft-Decision-1) | `AZURE_API_BASE`, `AZURE_API_KEY`; `AZURE_DECISION` overrides the path (default `/providers/microsoft/v1/systemone`) or sets a full URL; `azure/` alone uses `AZURE_DECISION_DEPLOYMENT` |
 | `openai/<model>` | `POST /v1/decisions` | `OPENAI_API_KEY` |
 
-Set `DEFAULT_DECISION_MODEL` to use a model string without passing `model=`.
+Set the decision model once for the whole flock instead of on every decider:
+
+```python
+flock = Flock("openai/gpt-4.1", decision_model="azure/decision-1")
+
+flock.agent("triage").consumes(Ticket).decides(Route)               # azure/decision-1
+flock.agent("audit").consumes(Document).decides(Controls)           # azure/decision-1
+flock.agent("painter").consumes(Swatch).decides(Color, model="openai/gpt-6-luna")  # explicit wins
+```
+
+The order is `model=` on `.decides()`, then `Flock(decision_model=...)` (a model string or a `DecisionProvider`), then the `DEFAULT_DECISION_MODEL` environment variable.
 
 The live tests (`FLOCK_LIVE_DECISIONS=1 uv run pytest tests/decisions/test_live_providers.py`) run against `azure/decision-1` by default and add the other providers when their configuration is present.
 

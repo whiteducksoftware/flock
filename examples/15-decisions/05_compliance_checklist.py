@@ -108,13 +108,16 @@ class LogHandler(EngineComponent):
         )
 
 
-flock = Flock(no_output=True)  # the handlers print one line each
+# decision_model= is the default for every .decides() in this flock
+flock = Flock(
+    decision_model=DECISION_MODEL, no_output=True
+)  # handlers print one line each
 
 audit = (
     flock.agent("audit")
     .description("Checks every document against the control catalog")
     .consumes(ComplianceDocument)
-    .decides(Controls, model=DECISION_MODEL, threshold=THRESHOLD)
+    .decides(Controls, threshold=THRESHOLD)
 )
 
 
