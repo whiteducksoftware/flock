@@ -1,15 +1,16 @@
 """DSPy input payloads match the signature's field types (#496).
 
-DSPy 3.2+ checks every input value against its signature type with typeguard
-and logs "Type mismatch for field ..." when they differ.
+DSPy 3.2+ checks every input value against its signature type and logs
+"Type mismatch for field ..." when they differ.
 """
 
 from __future__ import annotations
 
+import typing
+
 import dspy
 import pytest
 from pydantic import BaseModel
-from typeguard import check_type
 
 from flock.core.agent import AgentOutput, OutputGroup
 from flock.core.artifacts import Artifact, ArtifactSpec
@@ -33,6 +34,14 @@ class PayloadIdea(BaseModel):
 @flock_type
 class PayloadPizza(BaseModel):
     name: str
+
+
+def _matches(value, annotation) -> bool:
+    """A value of the annotated type: a model, or a list of models for batches."""
+    if typing.get_origin(annotation) is list:
+        (item_type,) = typing.get_args(annotation)
+        return isinstance(value, list) and all(_matches(v, item_type) for v in value)
+    return isinstance(value, annotation)
 
 
 class Agent:
@@ -74,7 +83,7 @@ def test_payload_values_match_the_signature_types(batched):
     )
 
     for name, field in signature.input_fields.items():
-        check_type(payload[name], field.annotation)  # what DSPy's Predict checks
+        assert _matches(payload[name], field.annotation), (name, payload[name])
 
 
 def test_invalid_payloads_still_pass_through_as_data():
