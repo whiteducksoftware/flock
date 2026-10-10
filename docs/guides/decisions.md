@@ -422,6 +422,7 @@ await flock.publish(ProductPhoto(sku="A-17", photo=Image.from_file("a17.jpg")))
 - `Image` holds the picture as a base64 `data:image/...` URL, so it round-trips through stores, the REST API and the dashboard. Only inline data is accepted: Flock never fetches an image from a URL or a file path named in an artifact. Images over 20 MB or 50 million pixels are rejected when the artifact is created.
 - `Image.from_file()`, `Image.from_bytes()` and `Image.from_pil()` scale the picture down to `max_side` (default 1024 px) and re-encode it as JPEG (PNG when it has transparency). Re-encoding drops EXIF metadata such as GPS positions. Smaller images are faster: a local Clef model took 1.3 s for a 108 KB photo and 11 s for 1 MB.
 - The decider sends every `Image` in its inputs (also nested, in order) to the model; the text state shows `<image 1>`, `<image 2>`, ... in their place.
+- LLM agents receive `Image` fields as pictures too; see [image inputs](dspy-engine.md#image-inputs).
 - A text-only provider refuses image inputs with a clear error instead of dropping the images.
 
 | Provider | Images |

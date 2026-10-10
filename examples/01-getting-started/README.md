@@ -61,6 +61,12 @@ USE_DASHBOARD = False  # Set to True for dashboard mode, False for CLI mode
 | **15_iot_sensor_batching.py** | JoinSpec + BatchSpec | Combining features for complex real-world scenarios |
 | **16_news_batching.py** | Parallel + Batch | Multiple agents in parallel with batch aggregation |
 
+### Images (19)
+
+| Example | Focus | What You'll Learn |
+|---------|-------|-------------------|
+| **19_image_agent.py** | Image inputs | `flock.Image` fields reach vision models as pictures; a fact checker compares drawings with their captions |
+
 ## 🚀 Quick Start
 
 ### 1. Run in CLI Mode (Recommended for First Time)
