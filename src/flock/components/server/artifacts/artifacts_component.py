@@ -281,7 +281,24 @@ class ArtifactsComponent(ServerComponent):
             ``list[Image]`` field. Files must be JPEG, PNG, GIF, WebP or BMP; they
             are re-encoded like ``Image.from_bytes``.
             """
-            form = await request.form()
+            # Bound the request before Starlette spools it: per-file checks only
+            # happen after parsing.
+            content_length = request.headers.get("content-length")
+            if content_length is None:
+                raise HTTPException(
+                    status_code=411, detail="Uploads need a Content-Length header."
+                )
+            if int(content_length) > image_uploads.max_request_bytes():
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        "Upload request is too large: at most "
+                        f"{image_uploads.MAX_UPLOAD_FILES} images per request."
+                    ),
+                )
+            form = await request.form(
+                max_files=image_uploads.MAX_UPLOAD_FILES, max_fields=20
+            )
             artifact_type = form.get("type")
             if not isinstance(artifact_type, str) or not artifact_type:
                 raise HTTPException(status_code=400, detail="'type' is required.")
@@ -300,13 +317,20 @@ class ArtifactsComponent(ServerComponent):
             except Exception as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-            files: dict[str, list[bytes]] = {}
-            for field_name, value in form.multi_items():
-                if isinstance(value, StarletteUploadFile):
-                    data = await value.read(image_uploads.MAX_IMAGE_BYTES + 1)
-                    files.setdefault(field_name, []).append(data)
             try:
-                payload = image_uploads.apply_uploads(model, payload, files)
+                # Each file is checked and re-encoded as it is read, so raw
+                # uploads are not held all at once.
+                images: dict[str, list] = {}
+                for name, value in form.multi_items():
+                    if not isinstance(value, StarletteUploadFile):
+                        continue
+                    image_uploads.check_image_field(model, name)
+                    data = await value.read(image_uploads.MAX_IMAGE_BYTES + 1)
+                    await value.close()
+                    images.setdefault(name, []).append(
+                        image_uploads.image_from_upload(name, data)
+                    )
+                payload = image_uploads.place_images(model, payload, images)
                 await orchestrator.publish(
                     {"type": artifact_type, "payload": payload},
                     correlation_id=str(uuid4()),

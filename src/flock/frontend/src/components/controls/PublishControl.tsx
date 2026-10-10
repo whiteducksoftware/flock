@@ -201,7 +201,11 @@ const PublishControl: React.FC = () => {
           const prop = artifactType.schema.properties[key];
           const imageKind = imageFieldKind(prop, artifactType.schema);
           if (imageKind === 'many') {
-            processedData[key] = (value as PickedImage[]).map((image) => ({ url: image.url }));
+            const images = value as PickedImage[];
+            // No pictures chosen: keep the schema default (e.g. None or a preset list)
+            if (images.length > 0 || prop.default === undefined) {
+              processedData[key] = images.map((image) => ({ url: image.url }));
+            }
           } else if (imageKind === 'one') {
             // An optional picture that was not chosen keeps the schema default
             if (value) processedData[key] = { url: (value as PickedImage).url };

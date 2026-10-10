@@ -38,6 +38,22 @@ const photoTypes = [
       required: ['title'],
     },
   },
+  {
+    name: 'Gallery',
+    schema: {
+      $defs: { Image: imageDef },
+      type: 'object',
+      properties: {
+        title: { type: 'string', title: 'Title' },
+        pages: {
+          anyOf: [{ type: 'array', items: { $ref: '#/$defs/Image' } }, { type: 'null' }],
+          default: null,
+          title: 'Pages',
+        },
+      },
+      required: ['title'],
+    },
+  },
 ];
 
 const png = (name: string) =>
@@ -115,5 +131,17 @@ describe('PublishControl image fields', () => {
     const content = publishedContent();
     expect(content.pages).toHaveLength(2);
     expect(content.pages.every((p: { url: string }) => p.url.startsWith('data:image/'))).toBe(true);
+  });
+
+  it('leaves an untouched optional list of images to its default', async () => {
+    await openForm('Gallery');
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correlation_id: 'c-3' }) });
+
+    expect((screen.getByLabelText(/pages/i) as HTMLInputElement).multiple).toBe(true);
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'empty' } });
+    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    expect(publishedContent()).toEqual({ title: 'empty' });
   });
 });

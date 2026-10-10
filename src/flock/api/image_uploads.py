@@ -13,14 +13,23 @@ from __future__ import annotations
 import io
 import types
 import typing
-from typing import Any, Literal
-
-from pydantic import BaseModel
+from typing import TYPE_CHECKING, Any, Literal
 
 from flock.core.image import MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, Image
 
 
+if TYPE_CHECKING:
+    from pydantic import BaseModel
+
+
 UPLOAD_FORMATS = ("JPEG", "PNG", "GIF", "WEBP", "BMP")
+MAX_UPLOAD_FILES = 20  # files per request
+MAX_FORM_BYTES = 1024 * 1024  # the other form fields and the multipart framing
+
+
+def max_request_bytes() -> int:
+    """The largest upload request accepted, checked before it is parsed."""
+    return MAX_UPLOAD_FILES * MAX_IMAGE_BYTES + MAX_FORM_BYTES
 
 
 class UploadError(ValueError):
@@ -31,11 +40,17 @@ class UploadError(ValueError):
         self.status_code = status_code
 
 
-def image_slot(
-    model: type[BaseModel], field_name: str
-) -> Literal["one", "many"] | None:
+def _field(model: type[BaseModel], name: str) -> Any:
+    """The field a form part names: by field name or by its alias."""
+    for field_name, field in model.model_fields.items():
+        if name in (field_name, field.alias, field.validation_alias):
+            return field
+    return None
+
+
+def image_slot(model: type[BaseModel], name: str) -> Literal["one", "many"] | None:
     """How many images a field takes: ``Image`` (optional or not) or ``list[Image]``."""
-    field = model.model_fields.get(field_name)
+    field = _field(model, name)
     if field is None:
         return None
     annotation = field.annotation
@@ -51,6 +66,15 @@ def image_slot(
     ):
         return "many"
     return None
+
+
+def check_image_field(model: type[BaseModel], name: str) -> None:
+    """Reject a file part for a field that takes no images, before reading it."""
+    if image_slot(model, name) is None:
+        raise UploadError(
+            f"'{name}' is not an Image field of {model.__name__}; "
+            "files can only be uploaded into Image or list[Image] fields."
+        )
 
 
 def image_from_upload(field_name: str, data: bytes) -> Image:
@@ -82,29 +106,27 @@ def image_from_upload(field_name: str, data: bytes) -> Image:
         ) from exc
 
 
-def apply_uploads(
-    model: type[BaseModel], payload: dict[str, Any], files: dict[str, list[bytes]]
+def place_images(
+    model: type[BaseModel], payload: dict[str, Any], images: dict[str, list[Image]]
 ) -> dict[str, Any]:
-    """``payload`` with the uploaded files placed into their ``Image`` fields."""
+    """``payload`` with the uploaded images in their fields (under the part name)."""
     result = dict(payload)
-    for field_name, contents in files.items():
-        slot = image_slot(model, field_name)
-        if slot is None:
-            raise UploadError(
-                f"'{field_name}' is not an Image field of {model.__name__}; "
-                "files can only be uploaded into Image or list[Image] fields."
-            )
-        if slot == "one" and len(contents) != 1:
-            raise UploadError(f"'{field_name}' takes one image, got {len(contents)}.")
-        images = [image_from_upload(field_name, data).model_dump() for data in contents]
-        result[field_name] = images if slot == "many" else images[0]
+    for name, uploaded in images.items():
+        slot = image_slot(model, name)
+        if slot == "one" and len(uploaded) != 1:
+            raise UploadError(f"'{name}' takes one image, got {len(uploaded)}.")
+        dumped = [image.model_dump() for image in uploaded]
+        result[name] = dumped if slot == "many" else dumped[0]
     return result
 
 
 __all__ = [
+    "MAX_UPLOAD_FILES",
     "UPLOAD_FORMATS",
     "UploadError",
-    "apply_uploads",
+    "check_image_field",
     "image_from_upload",
     "image_slot",
+    "max_request_bytes",
+    "place_images",
 ]

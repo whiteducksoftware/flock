@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image as PILImage
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from flock import Flock
 from flock.components.server.artifacts.artifacts_component import (
@@ -31,6 +31,12 @@ class UploadAlbum(BaseModel):
     title: str
     pages: list[Image] = []
     cover: Image | None = None
+
+
+@flock_type
+class UploadAliased(BaseModel):
+    caption: str
+    picture: Image = Field(alias="photo")
 
 
 def _png_bytes(color: str = "red", size: tuple[int, int] = (32, 24)) -> bytes:
@@ -202,3 +208,65 @@ def test_two_files_for_a_single_image_field_are_rejected(setup):
     )
 
     assert response.status_code == 400
+
+
+async def test_files_can_use_a_field_alias(setup):
+    flock, client = setup
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        data={"type": "UploadAliased", "payload": json.dumps({"caption": "x"})},
+        files={"photo": ("red.png", _png_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200, response.text
+    (artifact,) = await flock.store.list()
+    assert artifact.payload["picture"]["url"].startswith("data:image/jpeg;base64,")
+
+
+def test_too_many_files_are_rejected(setup, monkeypatch):
+    from flock.api import image_uploads
+
+    monkeypatch.setattr(image_uploads, "MAX_UPLOAD_FILES", 2)
+    _, client = setup
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        data={"type": "UploadAlbum", "payload": json.dumps({"title": "x"})},
+        files=[("pages", (f"{i}.png", _png_bytes(), "image/png")) for i in range(3)],
+    )
+
+    assert response.status_code in (400, 413)
+
+
+def test_an_oversized_request_is_rejected_before_parsing(setup, monkeypatch):
+    from flock.api import image_uploads
+
+    monkeypatch.setattr(image_uploads, "MAX_IMAGE_BYTES", 100)
+    monkeypatch.setattr(image_uploads, "MAX_UPLOAD_FILES", 2)
+    monkeypatch.setattr(image_uploads, "MAX_FORM_BYTES", 1000)
+    _, client = setup
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        data={"type": "UploadAlbum", "payload": json.dumps({"title": "x"})},
+        files=[("pages", ("big.png", b"x" * 5000, "image/png"))],
+    )
+
+    assert response.status_code == 413
+    assert "request" in response.text.lower()
+
+
+def test_a_request_without_content_length_is_refused(setup):
+    _, client = setup
+
+    def body():
+        yield b"--b\r\nContent-Disposition: form-data; name=type\r\n\r\nUploadPhoto\r\n--b--\r\n"
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        content=body(),
+        headers={"content-type": "multipart/form-data; boundary=b"},
+    )
+
+    assert response.status_code == 411
