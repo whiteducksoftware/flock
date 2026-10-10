@@ -298,6 +298,9 @@ describe('MessageNode', () => {
     expect(cells.map((c) => c.dataset.result)).toEqual(['yes', 'no', 'UNSURE', 'UNSURE']);
     expect(cells[0]).toHaveAttribute('title', 'mfa · yes · p 0.98');
     expect(cells[3]).toHaveAttribute('title', 'backup · refused');
+    // Screen readers get each item's result as text, not only as a color
+    expect(screen.getByRole('img', { name: 'mfa · yes · p 0.98' })).toBe(cells[0]);
+    expect(screen.getByRole('group', { name: 'Controls items' })).toBeInTheDocument();
   });
 
   it('should show tournament rounds above the final probabilities', () => {

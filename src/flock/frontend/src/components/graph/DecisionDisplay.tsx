@@ -816,7 +816,7 @@ const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
   ];
   return (
     <>
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+    <div role="group" aria-label={`${decision.question} items`} style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
       {items.map((item) => {
         const result = results[item] ?? UNSURE;
         const p = decision.probabilities[item];
@@ -828,6 +828,8 @@ const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
             key={item}
             data-testid="checklist-cell"
             data-result={result}
+            role="img"
+            aria-label={title}
             title={title}
             style={{
               width: '13px',

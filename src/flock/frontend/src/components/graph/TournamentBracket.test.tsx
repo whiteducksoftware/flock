@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { TournamentBracket } from './TournamentBracket';
 import type { TournamentRound } from './DecisionDisplay';
@@ -69,6 +69,56 @@ describe('TournamentBracket', () => {
       .filter((o) => o.dataset.winner === 'true')
       .map((o) => o.dataset.column);
     expect(path).toEqual(['0', '1', '2']);
+  });
+
+  it('should be a modal that takes, keeps and returns keyboard focus', () => {
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const { unmount } = renderBracket();
+    const close = screen.getByRole('button', { name: /close/i });
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    expect(close).toHaveFocus();
+
+    trigger.focus(); // Tab must not reach the graph behind the overlay
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(close).toHaveFocus();
+
+    unmount();
+    expect(trigger).toHaveFocus();
+    trigger.remove();
+  });
+
+  describe('connectors', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('should draw survivor lines between columns and turn a hovered option amber', () => {
+      // Columns 300 px apart: option chips report their column's position
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: HTMLElement
+      ) {
+        const column = Number(this.dataset.column ?? 0);
+        const left = column * 300;
+        return { left, right: left + 200, top: 10, bottom: 20, height: 10, width: 200, x: left, y: 10 } as DOMRect;
+      });
+      renderBracket();
+
+      const paths = Array.from(document.querySelectorAll<SVGPathElement>('svg path'));
+      // round 1: a, b, e, f survive; round 2: a, e reach the final
+      expect(paths.map((path) => path.dataset.option)).toEqual(['a', 'b', 'e', 'f', 'a', 'e']);
+      const b = paths.find((path) => path.dataset.option === 'b')!;
+      // relative to the container (also at top 10): y = 10 + 10 / 2 - 10
+      expect(b.getAttribute('d')).toBe('M 200 5 C 250 5, 250 5, 300 5');
+      expect(paths.filter((path) => path.dataset.option === 'a').map((path) => path.getAttribute('stroke'))).toEqual([
+        'rgb(139, 92, 246)',
+        'rgb(139, 92, 246)',
+      ]);
+
+      const chip = screen.getAllByTestId('bracket-option').find((o) => o.dataset.option === 'b' && o.dataset.column === '0')!;
+      fireEvent.mouseEnter(chip);
+      expect(b.getAttribute('stroke')).toBe('#f59e0b');
+    });
   });
 
   it('should close with Escape and with the close button', () => {
