@@ -978,8 +978,12 @@ class Flock(metaclass=AutoTracedMeta):
                 await self._component_runner.run_shutdown(self)
             await self._cancel_agent_tasks(cancel_grace)
             await self._release_resources()
-            if isinstance(self.store, SQLiteBlackboardStore):
-                # Reconnects on the next use; Dapr's close() is final, so only SQLite
+            # Reconnects on the next use; Dapr's close() is final, so only SQLite.
+            # A task that outlived the grace period may still publish and would
+            # reopen the store, so it stays open then.
+            if isinstance(self.store, SQLiteBlackboardStore) and all(
+                task.done() for task in self._scheduler.pending_tasks
+            ):
                 await self.store.close()
         finally:
             still_running = any(not t.done() for t in self._scheduler.pending_tasks)
