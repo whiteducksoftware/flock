@@ -57,6 +57,7 @@ search:
 
 ### 🐛 Fixes
 
+- **Timers and batches conflict in either order.** `.schedule()` rejected an existing batch subscription, but `.schedule().consumes(..., batch=...)` was accepted. Both orders now raise the same `ValueError`.
 - **`TimeWindowContextProvider` works.** It compared a naive local `datetime.now()` with the UTC `created_at` of artifacts, so every agent using it failed with `TypeError: can't compare offset-naive and offset-aware datetimes`. The window is now computed in UTC and filtered by the store (`FilterConfig(start=...)`) instead of loading every artifact.
 - **SQLite store persists artifacts with datetime fields.** `SQLiteBlackboardStore` wrote payloads with plain `json.dumps`, so any artifact with a `datetime`, `date`, `UUID` or `Decimal` field failed to publish, and scheduled agents never ran because every timer tick carries a `datetime`. Payloads are now encoded the way Pydantic does, as in the Dapr store; such values read back in their JSON form and validate into the model again.
 - **Roadmap matches the backlog.** `ROADMAP.md` and the docs roadmap still promised 1.0 for Q4 2025 and listed shipped features as in flight. Both now list what 0.5 offers and summarize the planned work for Q4 2026: the 1.0 release scope and the separately qualified integrations.

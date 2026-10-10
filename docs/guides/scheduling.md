@@ -299,7 +299,7 @@ await flock.run_until_idle()
 | Rule | What happens otherwise |
 |---|---|
 | A scheduled agent needs `.publishes()` | `ValueError` on the first run |
-| Do not combine `.schedule()` with a batch subscription | `.schedule()` raises `ValueError` if the agent already has one; the reverse order is not checked yet |
+| `.schedule()` cannot be combined with a batch subscription | `ValueError`, in either order |
 | Times are UTC | Local times are shifted by the UTC offset |
 | Timer state is not persisted | Iterations restart at 0 after a restart |
 
