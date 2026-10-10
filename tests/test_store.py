@@ -1,7 +1,8 @@
 """Tests for Store functionality."""
 
-from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic import BaseModel
@@ -461,3 +462,32 @@ async def test_in_memory_get_by_type_with_correlation_filter():
     assert len(results) == 1
     assert isinstance(results[0], StoreTypeAForCorrelation)
     assert results[0].data == "keep-me"
+
+
+@flock_type(name="StoreRichPayload")
+class StoreRichPayload(BaseModel):
+    at: datetime
+    day: date
+    ref: UUID
+    amount: Decimal
+
+
+@pytest.mark.asyncio
+async def test_store_persists_payloads_with_non_json_values(store):
+    """Payloads hold model_dump() values such as datetimes; every store keeps them (#507)."""
+    original = StoreRichPayload(
+        at=datetime(2026, 10, 10, 20, 0, tzinfo=UTC),
+        day=date(2026, 10, 10),
+        ref=uuid4(),
+        amount=Decimal("12.50"),
+    )
+    await store.publish(
+        Artifact(
+            type=type_registry.name_for(StoreRichPayload),
+            payload=original.model_dump(),
+            produced_by="agent1",
+        )
+    )
+
+    (restored,) = await store.get_by_type(StoreRichPayload)
+    assert restored == original

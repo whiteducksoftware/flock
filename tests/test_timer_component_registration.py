@@ -11,9 +11,13 @@ from datetime import timedelta
 import pytest
 from pydantic import BaseModel
 
+from flock.components.agent import EngineComponent
 from flock.components.orchestrator.scheduling.timer import TimerComponent
 from flock.core import Flock
+from flock.core.store import SQLiteBlackboardStore
 from flock.core.subscription import ScheduleSpec
+from flock.registry import flock_type
+from flock.utils.runtime import EvalResult
 
 
 class DummyInput(BaseModel):
@@ -26,6 +30,13 @@ class DummyOutput(BaseModel):
     """Test output for scheduled agents."""
 
     result: str
+
+
+@flock_type
+class SqliteTimerResult(BaseModel):
+    """Output of the SQLite timer test."""
+
+    iteration: int
 
 
 class TestTimerComponentAutoRegistration:
@@ -378,3 +389,29 @@ class TestTimerComponentIntegration:
 
         # Cleanup
         await orchestrator.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_scheduled_agent_runs_with_sqlite_store(self, tmp_path):
+        """Timer ticks carry a datetime; the SQLite store persists them (#507)."""
+
+        class TickCount(EngineComponent):
+            async def evaluate(self, agent, ctx, inputs, output_group):
+                return EvalResult.from_object(
+                    SqliteTimerResult(iteration=ctx.timer_iteration), agent=agent
+                )
+
+        store = SQLiteBlackboardStore(str(tmp_path / "timers.db"))
+        orchestrator = Flock(store=store)
+        (
+            orchestrator.agent("sqlite_ticker")
+            .schedule(every=timedelta(seconds=0.05), max_repeats=2)
+            .with_engines(TickCount())
+            .publishes(SqliteTimerResult)
+        )
+        try:
+            await orchestrator.run_until_idle(timeout=5)
+            results = await store.get_by_type(SqliteTimerResult)
+        finally:
+            await store.close()
+
+        assert sorted(r.iteration for r in results) == [0, 1]
