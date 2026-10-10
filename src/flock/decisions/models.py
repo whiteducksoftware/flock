@@ -46,6 +46,11 @@ class Decision(BaseModel):
     subject_ids: list[str] = Field(
         default_factory=list, description="Ids of the artifacts that were decided on"
     )
+    rounds: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Tournament rounds before the final question: candidates, "
+        "groups and survivors per round",
+    )
     model: str = Field(description="Decision model that answered")
     latency_ms: float | None = Field(
         default=None, description="Round trip of the decision request"

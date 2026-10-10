@@ -290,5 +290,37 @@ describe('AgentNode', () => {
     const gaps = screen.getAllByTestId('checklist-gap');
     expect(gaps.map((g) => g.dataset.item)).toEqual(['backup', 'review', 'mfa']);
   });
+
+  it('should compact deciders with many options and show the tournament', () => {
+    const options = Array.from({ length: 60 }, (_, i) => `c_${String(i).padStart(2, '0')}`);
+    const counts: Record<string, number> = Object.fromEntries(options.map((o) => [o, 0]));
+    counts.c_42 = 5;
+    counts.c_07 = 2;
+    counts.c_13 = 1;
+    const data: AgentNodeData = {
+      name: 'mapper',
+      status: 'idle',
+      subscriptions: ['Evidence'],
+      sentCount: 8,
+      recvCount: 8,
+      decision: {
+        model: 'azure/decision-1',
+        threshold: null,
+        tournament: { groupSize: 20, keep: 2 },
+        questions: [{ name: 'Control', kind: 'choice', options, counts }],
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText('c_42')).toBeInTheDocument();
+    expect(screen.getByText('c_13')).toBeInTheDocument();
+    expect(screen.queryByText('c_00')).not.toBeInTheDocument();
+    expect(screen.getByText('+57 more options')).toBeInTheDocument();
+    expect(screen.getByText(/tournament: groups of 20, keep 2/)).toBeInTheDocument();
+  });
 });
 

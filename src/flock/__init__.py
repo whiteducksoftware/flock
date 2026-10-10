@@ -102,7 +102,7 @@ from flock.core.visibility import (
 # =============================================================================
 # Decisions - Typed choices answered by decision models
 # =============================================================================
-from flock.decisions import Checklist, Choice, Decision, Scale, YesNo
+from flock.decisions import Checklist, Choice, Decision, Scale, Tournament, YesNo
 
 # =============================================================================
 # Engines - DSPy engine and adapters
@@ -182,6 +182,7 @@ __all__ = [
     "ServerComponent",
     "ServerComponentConfig",
     "TenantVisibility",
+    "Tournament",
     "TwoStepAdapter",
     # Conditions
     "Until",

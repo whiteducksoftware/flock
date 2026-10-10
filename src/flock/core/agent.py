@@ -703,6 +703,7 @@ class AgentBuilder:
         instructions: str | None = None,
         visibility: Visibility | None = None,
         questions_per_request: int = 100,
+        tournament: Any | None = None,
     ) -> AgentBuilder:
         """Answer questions about each input with a decision model.
 
@@ -728,6 +729,8 @@ class AgentBuilder:
             visibility: Readership of the decisions. By default they inherit the
                 inputs' visibility, and inputs with different visibilities fail.
             questions_per_request: Most questions sent in one provider request.
+            tournament: A ``Tournament`` to ask one large Choice in rounds of
+                groups; required for choices with more than 255 options.
 
         Returns:
             self for method chaining
@@ -764,6 +767,26 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': questions of one decider need distinct "
                 f"class names; {', '.join(duplicates)} appears more than once."
             )
+        from flock.decisions.choice import MAX_OPTIONS
+
+        if tournament is not None:
+            if len(questions) != 1 or questions[0].__kind__ != "choice":
+                raise ValueError(
+                    f"Agent '{self._agent.name}': tournament= asks exactly one Choice "
+                    "question; use a separate decider for other questions."
+                )
+        else:
+            for question in questions:
+                if (
+                    question.__kind__ == "choice"
+                    and len(question.__options__) > MAX_OPTIONS
+                ):
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': {question.__name__} has "
+                        f"{len(question.__options__)} options; decision models accept "
+                        f"at most {MAX_OPTIONS} options per question. Pass "
+                        "tournament=Tournament(...) to ask it in rounds."
+                    )
         if instructions is not None and len(questions) > 1:
             raise ValueError(
                 f"Agent '{self._agent.name}': instructions= replaces the text of a "
@@ -800,6 +823,7 @@ class AgentBuilder:
                 instructions=instructions,
                 visibility=visibility,
                 questions_per_request=questions_per_request,
+                tournament=tournament,
             )
         )
         self.publishes(*(Decision.of(question) for question in questions))

@@ -67,7 +67,7 @@ A question class is the question and its answers; its **docstring** is the quest
 ### Choice
 
 - Every **string attribute** is an option. Its value describes the option and is sent as the option's criteria. Good descriptions matter as much as good prompts.
-- Options are static. A Choice needs at least two and at most 255 options.
+- Options are static. A Choice needs at least two options. Decision models accept at most 255 options per question; a larger Choice is asked as a [tournament](#tournaments-for-large-choices).
 - `Choice.from_options("Route", {"billing": "...", "tech": "..."}, question="...")` builds a Choice from data, for example a catalog loaded at startup.
 
 ### YesNo
@@ -165,6 +165,7 @@ Many items are cheap, because the artifact is sent once as the state and each it
     instructions=None,          # optional, single question only; overrides the docstring
     visibility=None,            # optional; overrides visibility inheritance
     questions_per_request=100,  # optional; larger sets are split into concurrent requests
+    tournament=None,            # optional; Tournament(...) asks one large Choice in rounds
 )
 ```
 
@@ -200,11 +201,45 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `score` | Scale only: the probability-weighted level, 0 = lowest |
 | `refused` | The model refused to answer this question |
 | `results`, `refused_items` | Checklist only: answer per item, items the model refused |
+| `rounds` | Tournament only: candidates, groups, refused groups and survivors per round |
 | `confidence` | Confidence as reported by the model |
 | `threshold` | The threshold that applied |
 | `subject_ids` | Ids of the artifacts the decision is about |
 | `model` | The model that answered (as reported by the provider) |
 | `latency_ms` | Round trip of the decision request (shared by all questions of the request) |
+
+### Tournaments for large choices
+
+Some decisions pick one option out of a large catalog: mapping a paragraph to the requirement it implements, with well over 1,000 requirements in the BSI IT-Grundschutz-Kompendium. A tournament asks such a Choice in rounds:
+
+```python
+from flock import Choice, Tournament
+
+Requirement = Choice.from_options("Requirement", catalog, question="Which requirement does this paragraph implement?")
+
+flock.agent("mapper").consumes(Paragraph).decides(
+    Requirement, tournament=Tournament(group_size=20, keep=3), threshold=0.6
+)
+```
+
+1. The options are split into groups of `group_size`; every group is one choice question, and all groups of a round go out together (in requests of at most `questions_per_request` questions).
+2. The `keep` most probable options of each group survive. The tournament keeps a top-k per group instead of applying a threshold, because probabilities are normalized within each group and cannot be compared across groups.
+3. Rounds repeat until the survivors fit into one final question. Its answer is the decision: probabilities over the finalists, threshold and `UNSURE` as usual, subscriptions and handles unchanged.
+
+The decision's `rounds` lists every round's candidates, groups, `refused_groups` and survivors. OpenAI's Decisions API refuses a group in which no option fits; such a group keeps no survivors. A Choice with more than 255 options must be asked as a tournament, and `.decides()` without `tournament=` rejects it.
+
+A tournament costs one round trip per round, and an option that drops out early cannot win. On the example below (25 evidence sentences, 100 controls, Microsoft-Decision-1), both fit:
+
+| Decider | Right | Median latency | Requests |
+|---|---|---|---|
+| one choice over all 100 controls | 25/25 | 180 ms | 1 |
+| tournament, groups of 20, keep 3 | 25/25 | 419 ms | 2 |
+
+Use a single choice whenever the options fit into one question, and a tournament when they do not.
+
+<p align="center">
+  <img alt="A tournament decision: 100 options in 5 groups, 15 finalists, final probabilities" src="../../assets/images/decisions/decision-tournament-card.png" width="300">
+</p>
 
 ## Routing: choice subscriptions
 
@@ -413,4 +448,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls with a single choice and with a tournament.

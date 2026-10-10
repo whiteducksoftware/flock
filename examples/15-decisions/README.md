@@ -146,3 +146,32 @@ Every document fails some controls: a single policy or procedure never covers th
   <img alt="A checklist decision: one cell per control" src="../../docs/assets/images/decisions/decision-checklist-card.png" width="460">
 </p>
 
+## 06_control_mapping_tournament.py
+
+Maps evidence sentences from the compliance documents to the one control they implement, out of 100. Two deciders answer the same sentences: one choice question with all 100 controls, and a tournament (groups of 20, the 3 most probable controls of each group survive, then a final question about the 15 survivors). Decision models accept at most 255 options per question, so catalogs such as the BSI IT-Grundschutz-Kompendium can only be asked as a tournament; with 100 controls both fit and the example shows what the tournament costs.
+
+**Key Concepts:**
+- `Choice.from_options(...)` from a catalog
+- `.decides(Control, tournament=Tournament(group_size=20, keep=3))`
+- `Flock(decision_model=...)` for both deciders; the decision's `rounds` records each round
+
+**Run:**
+```bash
+uv run examples/15-decisions/06_control_mapping_tournament.py
+```
+
+**What You'll See (Microsoft-Decision-1):**
+```
+decider        right    median  requests
+flat          25/25     180 ms         1
+tournament    25/25     419 ms         2
+
+Right control among the 15 finalists: 25/25
+```
+
+The default Microsoft-Decision-1 deployment allows 100 requests per minute; this example sends three per sentence.
+
+<p align="center">
+  <img alt="Flat choice and tournament decisions for the same evidence sentence" src="../../docs/assets/images/decisions/decision-tournament-blackboard.png" width="800">
+</p>
+

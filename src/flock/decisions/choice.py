@@ -184,16 +184,12 @@ class _QuestionMeta(type):
                     f"Scale '{name}' must declare between 2 and {MAX_LEVELS} levels, "
                     f"got {len(options)}."
                 )
-        else:
-            if len(options) < 2:
-                raise TypeError(
-                    f"Choice '{name}' must declare at least two options, got {len(options)}."
-                )
-            if len(options) > MAX_OPTIONS:
-                raise TypeError(
-                    f"Choice '{name}' declares {len(options)} options; "
-                    f"decision models accept at most {MAX_OPTIONS}."
-                )
+        elif len(options) < 2:
+            # More than MAX_OPTIONS options are allowed here; they can only be
+            # asked as a tournament, which .decides() checks.
+            raise TypeError(
+                f"Choice '{name}' must declare at least two options, got {len(options)}."
+            )
 
         cls.__options__ = options
         doc = namespace.get("__doc__")

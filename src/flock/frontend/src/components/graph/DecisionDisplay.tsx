@@ -36,6 +36,14 @@ export interface DeciderInfo {
   model: string;
   threshold: number | null;
   questions: DeciderQuestion[];
+  tournament?: { groupSize: number; keep: number };
+}
+
+export interface TournamentRound {
+  candidates: number;
+  groups: number;
+  refused_groups?: number; // groups where no option fits (the model refused)
+  survivors: string[];
 }
 
 export interface ImageSummary {
@@ -57,6 +65,7 @@ export interface DecisionInfo {
   items?: string[]; // checklist: items in order
   results?: Record<string, string>; // checklist: yes | no | UNSURE per item
   refusedItems?: string[];
+  rounds?: TournamentRound[]; // tournament: rounds before the final question
   confidence: number | null;
   threshold: number | null;
   model: string;
@@ -164,9 +173,20 @@ const SampleLanes = memo(({ question }: { question: DeciderQuestion }) => {
 });
 SampleLanes.displayName = 'SampleLanes';
 
-/** Choice: one row per option with how often it was chosen (and its image lane). */
+const MAX_OPTION_ROWS = 8;
+
+/** Choice: one row per option with how often it was chosen (and its image lane).
+ * Choices with many options show the most frequent ones. */
 const ChoiceCounts = memo(({ question }: { question: DeciderQuestion }) => {
-  const rows = [...question.options];
+  let rows = [...question.options];
+  let hidden = 0;
+  if (rows.length > MAX_OPTION_ROWS) {
+    rows = rows
+      .filter((option) => (question.counts[option] ?? 0) > 0)
+      .sort((a, b) => (question.counts[b] ?? 0) - (question.counts[a] ?? 0))
+      .slice(0, MAX_OPTION_ROWS);
+    hidden = question.options.length - rows.length;
+  }
   if (UNSURE in question.counts) rows.push(UNSURE);
   const max = Math.max(1, ...rows.map((option) => question.counts[option] ?? 0));
   return (
@@ -212,6 +232,11 @@ const ChoiceCounts = memo(({ question }: { question: DeciderQuestion }) => {
           </div>
         );
       })}
+      {hidden > 0 && (
+        <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
+          +{hidden} more options
+        </span>
+      )}
     </>
   );
 });
@@ -478,6 +503,9 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
       <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
         {decider.model}
         {decider.threshold !== null ? ` · threshold ${decider.threshold.toFixed(2)}` : ''}
+        {decider.tournament
+          ? ` · tournament: groups of ${decider.tournament.groupSize}, keep ${decider.tournament.keep}`
+          : ''}
       </div>
     </div>
   );
@@ -488,9 +516,13 @@ const STONE = '#a8a29e';
 const AMBER = '#f59e0b';
 const VIOLET_TEXT = '#6d28d9';
 
-/** Choice: probability per option, most probable first, with the threshold marker. */
+/** Choice: probability per option, most probable first, with the threshold marker.
+ * Large choices show their most probable options. */
 const ChoiceBars = memo(({ decision }: { decision: DecisionInfo }) => {
-  const options = Object.entries(decision.probabilities).sort((a, b) => b[1] - a[1]);
+  const sorted = Object.entries(decision.probabilities).sort((a, b) => b[1] - a[1]);
+  const options = sorted.slice(0, MAX_OPTION_ROWS);
+  const rest = sorted.slice(MAX_OPTION_ROWS);
+  const restMax = rest.length > 0 ? (rest[0]?.[1] ?? 0) : 0;
   return (
     <>
       {options.map(([option, probability]) => {
@@ -551,6 +583,11 @@ const ChoiceBars = memo(({ decision }: { decision: DecisionInfo }) => {
           </div>
         );
       })}
+      {rest.length > 0 && (
+        <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>
+          {`+${rest.length} more options, each ${restMax < 0.01 ? 'below 1%' : `at most ${Math.round(restMax * 100)}%`}`}
+        </div>
+      )}
     </>
   );
 });
@@ -710,6 +747,28 @@ ScaleBars.displayName = 'ScaleBars';
 const NO_CELL = '#d6d3d1';
 const CELL_COLOR: Record<string, string> = { yes: DECISION_COLOR, no: NO_CELL, UNSURE: AMBER };
 
+/** Tournament: the rounds that narrowed the options down to the final question. */
+const TournamentRounds = memo(({ rounds }: { rounds: TournamentRound[] }) => (
+  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
+    {rounds.map((round, index) => (
+      <span key={index} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+        <span
+          data-testid="tournament-round"
+          title={`Round ${index + 1}: the ${round.survivors.length} survivors are the most probable options of each group${
+            round.refused_groups ? `; ${round.refused_groups} group(s) refused, no option fit` : ''
+          }`}
+          style={{ padding: '1px 6px', borderRadius: '999px', background: '#ede9fe', color: VIOLET_TEXT, fontWeight: 600 }}
+        >
+          {`${round.candidates} options · ${round.groups} groups → ${round.survivors.length}`}
+        </span>
+        <span style={{ color: STONE }}>›</span>
+      </span>
+    ))}
+    <span style={{ color: VIOLET_TEXT, fontWeight: 700 }}>final</span>
+  </div>
+));
+TournamentRounds.displayName = 'TournamentRounds';
+
 /** Checklist: one cell per item, in item order. */
 const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
   const results = decision.results ?? {};
@@ -797,7 +856,10 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
       ) : kind === 'scale' ? (
         <ScaleBars decision={decision} />
       ) : (
-        <ChoiceBars decision={decision} />
+        <>
+          {decision.rounds && decision.rounds.length > 0 && <TournamentRounds rounds={decision.rounds} />}
+          <ChoiceBars decision={decision} />
+        </>
       )}
       <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>
         {decision.model}
