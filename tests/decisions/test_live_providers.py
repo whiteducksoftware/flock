@@ -1,10 +1,14 @@
 """Live decision models (opt-in): FLOCK_LIVE_DECISIONS=1.
 
-- local: a systemone server at DECISION_API_BASE (default http://127.0.0.1:8080),
-  e.g. ``llama serve -m Clef-Flash-Q8_0.gguf -b 4096 -ub 4096``
-- jev: needs JEV_API_KEY
-- azure: needs AZURE_API_BASE and AZURE_API_KEY (deployment decision-1)
-- openai: needs OPENAI_API_KEY
+The default live target is Microsoft-Decision-1 on Azure AI Foundry, which the
+team can reach with the shared Azure settings. The others run only when their
+configuration is present.
+
+- azure: AZURE_API_BASE and AZURE_API_KEY (deployment decision-1)
+- openai: OPENAI_API_KEY
+- jev: JEV_API_KEY
+- local: DECISION_API_BASE pointing at a systemone server, e.g.
+  ``llama serve -m Clef-Flash-Q8_0.gguf -b 4096 -ub 4096``
 """
 
 from __future__ import annotations
@@ -55,13 +59,6 @@ TICKETS = {
 @pytest.mark.parametrize(
     "model",
     [
-        "local/clef-flash",
-        pytest.param(
-            "jev/jev-latest",
-            marks=pytest.mark.skipif(
-                not os.getenv("JEV_API_KEY"), reason="JEV_API_KEY not set"
-            ),
-        ),
         pytest.param(
             "azure/decision-1",
             marks=pytest.mark.skipif(
@@ -73,6 +70,19 @@ TICKETS = {
             "openai/gpt-6-luna",
             marks=pytest.mark.skipif(
                 not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
+            ),
+        ),
+        pytest.param(
+            "jev/jev-latest",
+            marks=pytest.mark.skipif(
+                not os.getenv("JEV_API_KEY"), reason="JEV_API_KEY not set"
+            ),
+        ),
+        pytest.param(
+            "local/clef-flash",
+            marks=pytest.mark.skipif(
+                not os.getenv("DECISION_API_BASE"),
+                reason="DECISION_API_BASE not set (no local decision server)",
             ),
         ),
     ],

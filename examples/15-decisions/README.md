@@ -13,16 +13,19 @@ Routes support tickets to billing, shipping or tech support. Tickets the decisio
 - `.decides(Route, model=..., threshold=0.8)` on the deciding agent
 - `.consumes(Route.billing)` and `.consumes(Route.UNSURE)` downstream; the team agents receive the ticket itself
 
-**Run with a local Clef model:**
+**Run with Microsoft-Decision-1 on Azure AI Foundry (default):**
 ```bash
-llama serve -m Clef-Flash-Q8_0.gguf -b 4096 -ub 4096 -ngl 99   # separate terminal
+# AZURE_API_BASE and AZURE_API_KEY set (deployment decision-1)
 uv run examples/15-decisions/01_ticket_triage.py
 ```
 
-**Run with Jev:**
+**Run with another decision model:**
 ```bash
-export JEV_API_KEY=...
-DEFAULT_DECISION_MODEL=jev/jev-latest uv run examples/15-decisions/01_ticket_triage.py
+DEFAULT_DECISION_MODEL=openai/gpt-6-luna uv run examples/15-decisions/01_ticket_triage.py
+DEFAULT_DECISION_MODEL=jev/jev-latest uv run examples/15-decisions/01_ticket_triage.py   # JEV_API_KEY
+
+# local Clef model via llama.cpp (separate terminal: llama serve -m Clef-Flash-Q8_0.gguf -b 4096 -ub 4096 -ngl 99)
+DEFAULT_DECISION_MODEL=local/clef-flash uv run examples/15-decisions/01_ticket_triage.py
 ```
 
 The team agents write their replies with `DEFAULT_MODEL`.
@@ -39,7 +42,7 @@ Refund for broken item   → UNSURE   [billing 0.53  shipping 0.31  tech 0.16]
 
 A race on 100 recent arXiv abstracts (`data/arxiv_abstracts.json`, 18 categories, arXiv metadata under CC0): one LLM agent and one decision agent per configured decision model sort every paper into one of nine research fields at the same time. Every agent works one paper at a time. Live progress bars show the race; the report shows total time, time per paper and agreement with arXiv's primary category, plus the papers where anyone disagreed with arXiv.
 
-Decision models without keys or without a reachable server are skipped after a warm-up request.
+By default the LLM races Microsoft-Decision-1 on Azure AI Foundry (`AZURE_API_BASE`, `AZURE_API_KEY`). Uncomment more entries in `DECISION_MODELS` to add OpenAI Decisions, Jev or a local Clef model; models without keys or without a reachable server are skipped after a warm-up request.
 
 **Key Concepts:**
 - The same `Choice` drives several deciders; each publishes its own `Decision`
@@ -50,7 +53,7 @@ Decision models without keys or without a reachable server are skipped after a w
 uv run examples/15-decisions/02_arxiv_race.py
 ```
 
-**One run (2026-10-10, local model on an RTX 4090):**
+**One run with every contender enabled (2026-10-10, local model on an RTX 4090):**
 
 | Contender | Total | Per paper | Agrees with arXiv |
 |---|---|---|---|

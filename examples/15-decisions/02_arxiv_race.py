@@ -5,7 +5,8 @@ Several agents sort the same 100 arXiv abstracts into research fields at the
 same time:
 
 - `llm_sorter`: a normal LLM agent that publishes `LLMField` (LLM_MODEL)
-- one decision agent per entry in DECISION_MODELS, each `.decides(ResearchField)`
+- one decision agent per entry in DECISION_MODELS, each `.decides(ResearchField)`;
+  by default Microsoft-Decision-1 on Azure AI Foundry, more can be enabled
 
 Every agent works through the papers one at a time (CONCURRENCY = 1), so the
 race compares time per paper rather than how well a backend absorbs parallel
@@ -23,10 +24,10 @@ without conversation context, so no contender sees another one's answer.
 🎛️  CONFIGURATION:
 - LLM_MODEL (DEFAULT_MODEL, default openai/gpt-4.1)
 - DECISION_MODELS: which decision models race
-  - local/clef-flash: see 01_ticket_triage.py for serving it with llama.cpp
-  - jev/jev-latest: JEV_API_KEY
   - azure/decision-1: AZURE_API_BASE, AZURE_API_KEY
   - openai/gpt-6-luna: OPENAI_API_KEY
+  - jev/jev-latest: JEV_API_KEY
+  - local/clef-flash: see 01_ticket_triage.py for serving it with llama.cpp
 - CONCURRENCY: parallel runs per agent (same for every contender)
 
 Data: data/arxiv_abstracts.json, 100 recent abstracts from 18 arXiv categories
@@ -56,10 +57,11 @@ from flock.registry import flock_type, type_registry
 # ============================================================================
 LLM_MODEL = os.getenv("DEFAULT_MODEL", "openai/gpt-4.1")
 DECISION_MODELS = [
-    "local/clef-flash",
-    "jev/jev-latest",
     "azure/decision-1",
-    "openai/gpt-6-luna",
+    # More contenders (each needs its configuration, see the docstring):
+    # "openai/gpt-6-luna",
+    # "jev/jev-latest",
+    # "local/clef-flash",
 ]
 CONCURRENCY = 1
 DATA = Path(__file__).parent / "data" / "arxiv_abstracts.json"
@@ -151,8 +153,7 @@ def build_flock(models: list[str]) -> Flock:
     (
         flock.agent("llm_sorter")
         .description(
-            "Classify the arXiv paper into its primary research field.\n"
-            + FIELD_GUIDE
+            "Classify the arXiv paper into its primary research field.\n" + FIELD_GUIDE
         )
         .consumes(Paper)
         # No conversation context: the LLM must not see the decision models'
@@ -254,9 +255,7 @@ async def report(
         finish_times[label] = total
         hits = sum(pick_of(a) == truth[cid] for cid, a in outputs.items())
         latencies = [a.payload.get("latency_ms") for a in outputs.values()]
-        request_p50 = (
-            f"{statistics.median(latencies):.0f}" if all(latencies) else "—"
-        )
+        request_p50 = f"{statistics.median(latencies):.0f}" if all(latencies) else "—"
         summary.add_row(
             label,
             f"{len(outputs)}",

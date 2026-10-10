@@ -21,10 +21,13 @@ This example routes support tickets:
 
 🎛️  CONFIGURATION:
 - DECISION_MODEL below, or DEFAULT_DECISION_MODEL in your environment:
+  - "azure/decision-1" (default): Microsoft-Decision-1 on Azure AI Foundry
+    (AZURE_API_BASE, AZURE_API_KEY)
+  - "openai/gpt-6-luna": OpenAI Decisions (OPENAI_API_KEY)
+  - "jev/jev-latest": TypeSafe Jev (JEV_API_KEY)
   - "local/clef-flash": a local systemone server, e.g.
         llama serve -m Clef-Flash-Q8_0.gguf -b 4096 -ub 4096 -ngl 99
     (DECISION_API_BASE, default http://127.0.0.1:8080)
-  - "jev/jev-latest": TypeSafe Jev (JEV_API_KEY)
 - DEFAULT_MODEL: the LLM the team agents use to write their replies
 """
 
@@ -41,7 +44,7 @@ from flock.registry import flock_type, type_registry
 # 🎛️  CONFIGURATION
 # ============================================================================
 USE_DASHBOARD = False
-DECISION_MODEL = os.getenv("DEFAULT_DECISION_MODEL", "local/clef-flash")
+DECISION_MODEL = os.getenv("DEFAULT_DECISION_MODEL", "azure/decision-1")
 THRESHOLD = 0.8
 # ============================================================================
 

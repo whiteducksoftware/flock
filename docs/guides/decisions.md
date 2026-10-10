@@ -43,7 +43,7 @@ flock = Flock("openai/gpt-4.1")
 triage = (
     flock.agent("triage")
     .consumes(Ticket)
-    .decides(Route, model="jev/jev-latest", threshold=0.8)
+    .decides(Route, model="azure/decision-1", threshold=0.8)
 )
 
 flock.agent("billing").consumes(Route.billing).publishes(Reply)
@@ -67,7 +67,7 @@ After class creation each option is a subscription handle: `Route.billing`, `Rou
 ```python
 .decides(
     Route,
-    model="local/clef-flash",   # or a DecisionProvider; default: DEFAULT_DECISION_MODEL
+    model="azure/decision-1",   # or a DecisionProvider; default: DEFAULT_DECISION_MODEL
     threshold=0.8,              # optional; below it the decision is UNSURE
     instructions=None,          # optional; overrides the Choice docstring
     visibility=None,            # optional; overrides visibility inheritance
@@ -141,6 +141,8 @@ A decision inherits the visibility of its subject, so routing never widens who c
 
 Set `DEFAULT_DECISION_MODEL` to use a model string without passing `model=`.
 
+The live tests (`FLOCK_LIVE_DECISIONS=1 uv run pytest tests/decisions/test_live_providers.py`) run against `azure/decision-1` by default and add the other providers when their configuration is present.
+
 ### Local models
 
 Any server that speaks `POST /v1/systemone` works with `local/`. llama.cpp's server runs Clef GGUF files with the decision head:
@@ -177,4 +179,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with a local Clef model or Jev and sends ambiguous tickets to a supervisor.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts.

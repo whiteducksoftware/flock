@@ -329,3 +329,24 @@ def test_resolve_openai_without_key_fails_early(monkeypatch):
 
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):
         resolve_provider("openai/gpt-6-luna")
+
+
+async def test_local_provider_reports_its_label_not_the_server_model_path(monkeypatch):
+    monkeypatch.delenv("DECISION_API_BASE", raising=False)
+    provider = resolve_provider("local/clef-flash")
+    provider._transport = _systemone_transport(
+        [],
+        response={
+            "model": "/home/someone/models/Clef-Flash-Q8_0.gguf",
+            "answers": {
+                "route": {
+                    "choice": "tech",
+                    "probabilities": {"billing": 0.1, "tech": 0.9},
+                }
+            },
+        },
+    )
+
+    answer = await provider.decide("state", QUESTION)
+
+    assert answer.model is None

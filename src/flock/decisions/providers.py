@@ -22,7 +22,7 @@ import asyncio
 import os
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import httpx
@@ -128,10 +128,13 @@ class _HttpDecisionProvider(DecisionProvider):
         api_key: str | None = None,
         timeout: float = 60.0,
         transport: httpx.AsyncBaseTransport | None = None,
+        report_server_model: bool = True,
     ) -> None:
         self.url = url
         self.label = label
         self.model = model
+        # Local servers report their model file path; decisions then carry the label
+        self.report_server_model = report_server_model
         self._api_key = api_key
         self._timeout = timeout
         self._transport = transport
@@ -180,6 +183,8 @@ class _HttpDecisionProvider(DecisionProvider):
             raise DecisionProviderError(
                 f"Decision provider '{self.label}' returned an unexpected answer shape"
             ) from None
+        if not self.report_server_model:
+            answer = replace(answer, model=None)
         return _check_options(self.label, question, answer)
 
 
@@ -276,7 +281,9 @@ def resolve_provider(model: str | DecisionProvider) -> DecisionProvider:
         return SystemOneProvider(url, label=model, model=name, api_key=api_key)
     if prefix == "local" and name:
         base = os.getenv("DECISION_API_BASE", LOCAL_DEFAULT_BASE).rstrip("/")
-        return SystemOneProvider(f"{base}{SYSTEMONE_PATH}", label=model)
+        return SystemOneProvider(
+            f"{base}{SYSTEMONE_PATH}", label=model, report_server_model=False
+        )
     if prefix == "azure":
         base = _required_env("AZURE_API_BASE", model).rstrip("/")
         api_key = _required_env("AZURE_API_KEY", model)
