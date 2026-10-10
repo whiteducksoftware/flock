@@ -7,6 +7,10 @@ option. Model strings select the provider:
 - ``local/<name>``: any server speaking ``POST /v1/systemone``, for example
   llama.cpp's ``llama-server`` with a Clef GGUF (``DECISION_API_BASE``,
   default ``http://127.0.0.1:8080``)
+- ``azure/<deployment>``: Microsoft-Decision-1 on Azure AI Foundry, systemone
+  protocol (``AZURE_API_BASE``, ``AZURE_API_KEY``; ``AZURE_DECISION`` overrides
+  the path or URL; an empty deployment reads ``AZURE_DECISION_DEPLOYMENT``)
+- ``openai/<model>``: OpenAI Decisions, ``POST /v1/decisions`` (``OPENAI_API_KEY``)
 
 Error messages name the provider and the HTTP status only. Response bodies
 can echo the state, so they never end up in exceptions.
@@ -27,6 +31,8 @@ import httpx
 JEV_DEFAULT_URL = "https://api.typesafe.ai/v1/systemone"
 LOCAL_DEFAULT_BASE = "http://127.0.0.1:8080"
 SYSTEMONE_PATH = "/v1/systemone"
+AZURE_DECISION_PATH = "/providers/microsoft/v1/systemone"
+OPENAI_DECISIONS_URL = "https://api.openai.com/v1/decisions"
 
 
 class DecisionProviderError(RuntimeError):
@@ -110,8 +116,8 @@ class FakeDecider(DecisionProvider):
         return _check_options(self.label, question, answer)
 
 
-class SystemOneProvider(DecisionProvider):
-    """Client for the ``POST /v1/systemone`` decision protocol."""
+class _HttpDecisionProvider(DecisionProvider):
+    """Shared transport for HTTP decision protocols (one request per decision)."""
 
     def __init__(
         self,
@@ -142,23 +148,15 @@ class SystemOneProvider(DecisionProvider):
             self._client_loop = loop
         return self._client
 
+    @abstractmethod
     def _body(self, state: str, question: DecisionQuestion) -> dict[str, Any]:
-        body: dict[str, Any] = {
-            "state": state,
-            "questions": {
-                question.name: {
-                    "type": "choice",
-                    "instructions": question.instructions,
-                    "criteria": {
-                        option: description or None
-                        for option, description in question.options.items()
-                    },
-                }
-            },
-        }
-        if self.model is not None:
-            body = {"model": self.model, **body}
-        return body
+        """Request body for one choice question."""
+
+    @abstractmethod
+    def _parse(
+        self, data: dict[str, Any], question: DecisionQuestion
+    ) -> DecisionAnswer:
+        """Answer from a decoded response body."""
 
     async def decide(self, state: str, question: DecisionQuestion) -> DecisionAnswer:
         headers = {"Content-Type": "application/json"}
@@ -177,27 +175,94 @@ class SystemOneProvider(DecisionProvider):
                 f"Decision provider '{self.label}' returned HTTP {response.status_code}"
             )
         try:
-            data = response.json()
-            raw = data["answers"][question.name]
-            probabilities = {
-                str(option): float(p) for option, p in raw["probabilities"].items()
-            }
-            answer = DecisionAnswer(
-                choice=str(raw["choice"]),
-                probabilities=probabilities,
-                confidence=(
-                    float(raw["confidence"])
-                    if raw.get("confidence") is not None
-                    else None
-                ),
-                model=data.get("model"),
-                input_tokens=(data.get("usage") or {}).get("input_tokens"),
-            )
-        except (ValueError, KeyError, TypeError, AttributeError):
+            answer = self._parse(response.json(), question)
+        except (ValueError, KeyError, TypeError, AttributeError, StopIteration):
             raise DecisionProviderError(
                 f"Decision provider '{self.label}' returned an unexpected answer shape"
             ) from None
         return _check_options(self.label, question, answer)
+
+
+def _float_or_none(value: Any) -> float | None:
+    return float(value) if value is not None else None
+
+
+class SystemOneProvider(_HttpDecisionProvider):
+    """Client for the ``POST /v1/systemone`` protocol (Jev, Clef, Decision-1)."""
+
+    def _body(self, state: str, question: DecisionQuestion) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "state": state,
+            "questions": {
+                question.name: {
+                    "type": "choice",
+                    "instructions": question.instructions,
+                    "criteria": {
+                        option: description or None
+                        for option, description in question.options.items()
+                    },
+                }
+            },
+        }
+        if self.model is not None:
+            body = {"model": self.model, **body}
+        return body
+
+    def _parse(
+        self, data: dict[str, Any], question: DecisionQuestion
+    ) -> DecisionAnswer:
+        raw = data["answers"][question.name]
+        return DecisionAnswer(
+            choice=str(raw["choice"]),
+            probabilities={
+                str(option): float(p) for option, p in raw["probabilities"].items()
+            },
+            confidence=_float_or_none(raw.get("confidence")),
+            model=data.get("model"),
+            input_tokens=(data.get("usage") or {}).get("input_tokens"),
+        )
+
+
+class OpenAIDecisionsProvider(_HttpDecisionProvider):
+    """Client for OpenAI's ``POST /v1/decisions`` protocol."""
+
+    def _body(self, state: str, question: DecisionQuestion) -> dict[str, Any]:
+        return {
+            "model": self.model,
+            "input": state,
+            "questions": [
+                {
+                    "type": "choice",
+                    "name": question.name,
+                    "instructions": question.instructions,
+                    "choices": [
+                        {"value": option, "description": description or None}
+                        for option, description in question.options.items()
+                    ],
+                }
+            ],
+        }
+
+    def _parse(
+        self, data: dict[str, Any], question: DecisionQuestion
+    ) -> DecisionAnswer:
+        raw = next(a for a in data["answers"] if a["name"] == question.name)
+        return DecisionAnswer(
+            choice=str(raw["choice"]),
+            probabilities={
+                str(p["value"]): float(p["probability"]) for p in raw["probabilities"]
+            },
+            confidence=_float_or_none(raw.get("confidence")),
+            model=data.get("model"),
+            input_tokens=(data.get("usage") or {}).get("input_tokens"),
+        )
+
+
+def _required_env(name: str, model: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise ValueError(f"Decision model '{model}' needs {name} to be set.")
+    return value
 
 
 def resolve_provider(model: str | DecisionProvider) -> DecisionProvider:
@@ -206,17 +271,29 @@ def resolve_provider(model: str | DecisionProvider) -> DecisionProvider:
         return model
     prefix, _, name = model.partition("/")
     if prefix == "jev" and name:
-        api_key = os.getenv("JEV_API_KEY")
-        if not api_key:
-            raise ValueError(f"Decision model '{model}' needs JEV_API_KEY to be set.")
+        api_key = _required_env("JEV_API_KEY", model)
         url = os.getenv("JEV_API_BASE", JEV_DEFAULT_URL)
         return SystemOneProvider(url, label=model, model=name, api_key=api_key)
     if prefix == "local" and name:
         base = os.getenv("DECISION_API_BASE", LOCAL_DEFAULT_BASE).rstrip("/")
         return SystemOneProvider(f"{base}{SYSTEMONE_PATH}", label=model)
+    if prefix == "azure":
+        base = _required_env("AZURE_API_BASE", model).rstrip("/")
+        api_key = _required_env("AZURE_API_KEY", model)
+        deployment = name or _required_env("AZURE_DECISION_DEPLOYMENT", model)
+        endpoint = os.getenv("AZURE_DECISION", AZURE_DECISION_PATH)
+        url = endpoint if endpoint.startswith("http") else f"{base}{endpoint}"
+        return SystemOneProvider(
+            url, label=f"azure/{deployment}", model=deployment, api_key=api_key
+        )
+    if prefix == "openai" and name:
+        api_key = _required_env("OPENAI_API_KEY", model)
+        return OpenAIDecisionsProvider(
+            OPENAI_DECISIONS_URL, label=model, model=name, api_key=api_key
+        )
     raise ValueError(
-        f"Unknown decision model '{model}'. Use 'jev/<model>', 'local/<name>' "
-        "or a DecisionProvider instance."
+        f"Unknown decision model '{model}'. Use 'jev/<model>', 'local/<name>', "
+        "'azure/<deployment>', 'openai/<model>' or a DecisionProvider instance."
     )
 
 
@@ -226,6 +303,7 @@ __all__ = [
     "DecisionProviderError",
     "DecisionQuestion",
     "FakeDecider",
+    "OpenAIDecisionsProvider",
     "SystemOneProvider",
     "resolve_provider",
 ]

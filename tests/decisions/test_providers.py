@@ -11,6 +11,7 @@ from flock.decisions.providers import (
     DecisionProviderError,
     DecisionQuestion,
     FakeDecider,
+    OpenAIDecisionsProvider,
     SystemOneProvider,
     resolve_provider,
 )
@@ -207,3 +208,124 @@ def test_resolve_passes_provider_instances_through():
 def test_resolve_rejects_unknown_prefixes():
     with pytest.raises(ValueError, match="jev/"):
         resolve_provider("anthropic/claude")
+
+
+def test_resolve_azure_appends_the_decision_path_to_the_resource(monkeypatch):
+    monkeypatch.setenv("AZURE_API_BASE", "https://res.example.com/")
+    monkeypatch.setenv("AZURE_API_KEY", "azure-key")
+    monkeypatch.delenv("AZURE_DECISION", raising=False)
+
+    provider = resolve_provider("azure/decision-1")
+
+    assert isinstance(provider, SystemOneProvider)
+    assert provider.url == ("https://res.example.com/providers/microsoft/v1/systemone")
+    assert provider.model == "decision-1"
+    assert provider.label == "azure/decision-1"
+
+
+def test_resolve_azure_decision_accepts_a_path_or_a_full_url(monkeypatch):
+    monkeypatch.setenv("AZURE_API_BASE", "https://res.example.com")
+    monkeypatch.setenv("AZURE_API_KEY", "azure-key")
+
+    monkeypatch.setenv("AZURE_DECISION", "/custom/v1/systemone")
+    assert resolve_provider("azure/decision-1").url == (
+        "https://res.example.com/custom/v1/systemone"
+    )
+
+    monkeypatch.setenv("AZURE_DECISION", "https://other.example/v1/systemone")
+    assert resolve_provider("azure/decision-1").url == (
+        "https://other.example/v1/systemone"
+    )
+
+
+def test_resolve_azure_without_deployment_uses_the_configured_one(monkeypatch):
+    monkeypatch.setenv("AZURE_API_BASE", "https://res.example.com")
+    monkeypatch.setenv("AZURE_API_KEY", "azure-key")
+    monkeypatch.setenv("AZURE_DECISION_DEPLOYMENT", "decision-1")
+
+    assert resolve_provider("azure/").model == "decision-1"
+
+
+@pytest.mark.parametrize("missing", ["AZURE_API_BASE", "AZURE_API_KEY"])
+def test_resolve_azure_needs_resource_and_key(monkeypatch, missing):
+    monkeypatch.setenv("AZURE_API_BASE", "https://res.example.com")
+    monkeypatch.setenv("AZURE_API_KEY", "azure-key")
+    monkeypatch.delenv(missing)
+
+    with pytest.raises(ValueError, match=missing):
+        resolve_provider("azure/decision-1")
+
+
+async def test_openai_decisions_request_and_answer_mapping():
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "model": "gpt-6-luna-2026-09",
+                "answers": [
+                    {
+                        "name": "route",
+                        "type": "choice",
+                        "choice": "tech",
+                        "confidence": 0.7,
+                        "probabilities": [
+                            {"value": "billing", "probability": 0.2},
+                            {"value": "tech", "probability": 0.8},
+                        ],
+                    }
+                ],
+                "usage": {"input_tokens": 17},
+            },
+        )
+
+    provider = OpenAIDecisionsProvider(
+        "https://api.openai.com/v1/decisions",
+        model="gpt-6-luna",
+        api_key="sk-test",
+        label="openai/gpt-6-luna",
+        transport=httpx.MockTransport(handler),
+    )
+
+    answer = await provider.decide("Ticket: app crashes", QUESTION)
+
+    assert captured[0].headers["Authorization"] == "Bearer sk-test"
+    assert json.loads(captured[0].content) == {
+        "model": "gpt-6-luna",
+        "input": "Ticket: app crashes",
+        "questions": [
+            {
+                "type": "choice",
+                "name": "route",
+                "instructions": "Which team should handle this support ticket?",
+                "choices": [
+                    {"value": "billing", "description": "Charges, invoices, refunds"},
+                    {"value": "tech", "description": "Bugs, crashes, login problems"},
+                ],
+            }
+        ],
+    }
+    assert answer.choice == "tech"
+    assert answer.probabilities == {"billing": 0.2, "tech": 0.8}
+    assert answer.confidence == 0.7
+    assert answer.model == "gpt-6-luna-2026-09"
+    assert answer.input_tokens == 17
+
+
+def test_resolve_openai_uses_the_decisions_endpoint(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    provider = resolve_provider("openai/gpt-6-luna")
+
+    assert isinstance(provider, OpenAIDecisionsProvider)
+    assert provider.url == "https://api.openai.com/v1/decisions"
+    assert provider.model == "gpt-6-luna"
+
+
+def test_resolve_openai_without_key_fails_early(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+        resolve_provider("openai/gpt-6-luna")

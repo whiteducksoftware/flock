@@ -3,6 +3,8 @@
 - local: a systemone server at DECISION_API_BASE (default http://127.0.0.1:8080),
   e.g. ``llama serve -m Clef-Flash-Q8_0.gguf -b 4096 -ub 4096``
 - jev: needs JEV_API_KEY
+- azure: needs AZURE_API_BASE and AZURE_API_KEY (deployment decision-1)
+- openai: needs OPENAI_API_KEY
 """
 
 from __future__ import annotations
@@ -58,6 +60,19 @@ TICKETS = {
             "jev/jev-latest",
             marks=pytest.mark.skipif(
                 not os.getenv("JEV_API_KEY"), reason="JEV_API_KEY not set"
+            ),
+        ),
+        pytest.param(
+            "azure/decision-1",
+            marks=pytest.mark.skipif(
+                not (os.getenv("AZURE_API_BASE") and os.getenv("AZURE_API_KEY")),
+                reason="AZURE_API_BASE / AZURE_API_KEY not set",
+            ),
+        ),
+        pytest.param(
+            "openai/gpt-6-luna",
+            marks=pytest.mark.skipif(
+                not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
             ),
         ),
     ],

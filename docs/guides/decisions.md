@@ -136,6 +136,8 @@ A decision inherits the visibility of its subject, so routing never widens who c
 |---|---|---|
 | `jev/<model>` | `POST /v1/systemone` | `JEV_API_KEY` (`JEV_API_BASE` overrides the endpoint) |
 | `local/<name>` | `POST /v1/systemone` | `DECISION_API_BASE`, default `http://127.0.0.1:8080` |
+| `azure/<deployment>` | `POST /v1/systemone` on Azure AI Foundry (Microsoft-Decision-1) | `AZURE_API_BASE`, `AZURE_API_KEY`; `AZURE_DECISION` overrides the path (default `/providers/microsoft/v1/systemone`) or sets a full URL; `azure/` alone uses `AZURE_DECISION_DEPLOYMENT` |
+| `openai/<model>` | `POST /v1/decisions` | `OPENAI_API_KEY` |
 
 Set `DEFAULT_DECISION_MODEL` to use a model string without passing `model=`.
 
