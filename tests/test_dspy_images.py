@@ -6,12 +6,16 @@ import typing
 
 import dspy
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from flock.core.agent import AgentOutput, OutputGroup
 from flock.core.artifacts import Artifact, ArtifactSpec
 from flock.core.image import Image
-from flock.engines.dspy.image_inputs import dspy_input_model, ensure_vision_support
+from flock.engines.dspy.image_inputs import (
+    dspy_input_model,
+    ensure_vision_support,
+    to_dspy_input,
+)
 from flock.engines.dspy.signature_builder import DSPySignatureBuilder
 from flock.registry import flock_type, type_registry
 from flock.utils.runtime import EvalInputs
@@ -53,6 +57,23 @@ class ImgNode(BaseModel):
 @flock_type
 class ImgPair(BaseModel):
     pictures: tuple[Image, Image]
+
+
+@flock_type
+class ImgAliased(BaseModel):
+    """Aliased fields, validated by alias only (pydantic's default)."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    caption_text: str = Field(alias="captionText")
+    picture: Image
+
+
+@flock_type
+class ImgDataUrlText(BaseModel):
+    """A text field that happens to hold a data URL: not an image input."""
+
+    raw: str
 
 
 @flock_type
@@ -111,6 +132,17 @@ def test_recursive_models_with_images_are_built():
         "children": [{"picture": _png().model_dump(), "children": []}],
     })
     assert isinstance(tree.children[0].picture, dspy.Image)
+
+
+def test_the_copy_keeps_the_model_configuration_and_aliases():
+    picture = _png()
+    value = ImgAliased(captionText="  a red square  ", picture=picture)
+
+    copied = to_dspy_input(value, ImgAliased)
+
+    assert dspy_input_model(ImgAliased).model_config["str_strip_whitespace"] is True
+    assert copied.caption_text == "a red square"
+    assert copied.picture.url == picture.url
 
 
 def _formatted(payload_inputs: EvalInputs, *, batched: bool = False):
@@ -277,7 +309,11 @@ def test_vision_and_unknown_models_pass(model, openai_api):
 
 @pytest.mark.parametrize(
     "value",
-    [ImgPlain(text="x"), ImgAlbum(title="empty")],  # no picture in the payload
+    [
+        ImgPlain(text="x"),
+        ImgAlbum(title="empty"),  # image fields, but no picture in the payload
+        ImgDataUrlText(raw=_png().url),  # a data URL in a str field stays text
+    ],
 )
 def test_inputs_without_pictures_are_never_rejected(value):
     inputs = EvalInputs(artifacts=[_artifact(value)], state={})

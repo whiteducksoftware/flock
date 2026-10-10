@@ -23,6 +23,7 @@ from pydantic import BaseModel, create_model
 
 from flock.core.artifacts import Artifact
 from flock.core.image import Image, describe_image_data
+from flock.registry import type_registry
 from flock.utils.runtime import EvalInputs
 
 
@@ -86,7 +87,11 @@ def dspy_input_model(model: type[BaseModel]) -> type[BaseModel]:
             field_copy.annotation = _to_dspy(field.annotation)
             fields[name] = (field_copy.annotation, field_copy)
         copied = create_model(
-            model.__name__, __doc__=model.__doc__, __module__=__name__, **fields
+            model.__name__,
+            __config__=model.model_config,
+            __doc__=model.__doc__,
+            __module__=__name__,
+            **fields,
         )
     finally:
         del _in_progress[model]
@@ -104,7 +109,8 @@ def to_dspy_input(value: Any, model: type[BaseModel]) -> Any:
     target = dspy_input_model(model)
     if target is model or not isinstance(value, model):
         return value
-    return target.model_validate(value.model_dump())
+    # Field names, whatever the model's alias settings
+    return target.model_validate(value.model_dump(), by_name=True)
 
 
 def _describe_images(value: Any) -> Any:
@@ -134,25 +140,65 @@ def describe_context_images(items: Iterable[Any]) -> list[Any]:
     return described
 
 
-def _has_image(value: Any) -> bool:
-    """True if a payload value holds image data (an ``Image`` dumps to a dict)."""
-    if isinstance(value, str):
-        return describe_image_data(value) is not None
-    if isinstance(value, dict):
-        return any(_has_image(item) for item in value.values())
-    if isinstance(value, list | tuple):
-        return any(_has_image(item) for item in value)
-    return False
+def _is_image_data(value: Any) -> bool:
+    if isinstance(value, Image):
+        return True
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("url"), str)
+        and describe_image_data(value["url"]) is not None
+    )
+
+
+def _holds_image(annotation: Any, value: Any) -> bool:
+    """True if ``value`` has image data where ``annotation`` declares an Image."""
+    if value is None:
+        return False
+    if annotation is Image:
+        return _is_image_data(value)
+    if _is_model(annotation):
+        return _model_holds_image(annotation, value)
+    if not typing.get_args(annotation) or not _contains_image(annotation):
+        return False
+    return _container_holds_image(annotation, value)
+
+
+def _model_holds_image(model: type[BaseModel], value: Any) -> bool:
+    if isinstance(value, BaseModel):
+        value = value.model_dump()
+    return isinstance(value, dict) and any(
+        _holds_image(field.annotation, value.get(name))
+        for name, field in model.model_fields.items()
+    )
+
+
+def _container_holds_image(annotation: Any, value: Any) -> bool:
+    origin, args = typing.get_origin(annotation), typing.get_args(annotation)
+    if origin in (types.UnionType, typing.Union):
+        return any(_holds_image(arg, value) for arg in args)
+    if origin is dict:
+        items = value.values() if isinstance(value, dict) else []
+        return any(_holds_image(args[-1], item) for item in items)
+    if not isinstance(value, list | tuple | set | frozenset):
+        return False
+    if origin is tuple and len(args) > 1 and args[-1] is not Ellipsis:
+        pairs = zip(args, value, strict=False)  # a short payload is just short
+        return any(_holds_image(arg, item) for arg, item in pairs)
+    return any(_holds_image(args[0], item) for item in value)
 
 
 def _image_fields(inputs: EvalInputs) -> list[str]:
-    """``Type.field`` for every input field whose payload holds an image."""
+    """``Type.field`` for every input field that holds a picture."""
     fields: list[str] = []
     for artifact in inputs.artifacts:
-        type_name = artifact.type.rsplit(".", 1)[-1]
-        for name, value in (artifact.payload or {}).items():
-            path = f"{type_name}.{name}"
-            if _has_image(value) and path not in fields:
+        try:
+            model = type_registry.resolve(artifact.type)
+        except KeyError:
+            continue
+        payload = artifact.payload or {}
+        for name, field in model.model_fields.items():
+            path = f"{model.__name__}.{name}"
+            if _holds_image(field.annotation, payload.get(name)) and path not in fields:
                 fields.append(path)
     return fields
 

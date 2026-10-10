@@ -1233,6 +1233,8 @@ agent = (
 An agent that consumes an artifact with `flock.Image` fields sends the pictures to the model as images:
 
 ```python
+from pydantic import BaseModel
+
 from flock import Flock, Image, flock_type
 
 
@@ -1240,6 +1242,12 @@ from flock import Flock, Image, flock_type
 class Drawing(BaseModel):
     caption: str
     picture: Image
+
+
+@flock_type
+class CaptionCheck(BaseModel):
+    seen: str
+    caption_is_correct: bool
 
 
 flock = Flock("openai/gpt-4.1")  # a model with vision support
