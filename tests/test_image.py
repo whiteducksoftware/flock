@@ -121,3 +121,30 @@ def test_image_fields_round_trip_through_artifacts():
 
     assert artifact.payload["photo"] == {"url": image.url}
     assert restored.photo == image
+
+
+def test_oversized_image_data_is_rejected_before_decoding(monkeypatch):
+    from flock.core import image as image_module
+
+    monkeypatch.setattr(image_module, "MAX_IMAGE_BYTES", 1_000)
+    data = base64.b64encode(png_bytes(size=(400, 400), color=(1, 2, 3)) * 2).decode()
+
+    with pytest.raises(ValidationError, match="larger than"):
+        Image(url=f"data:image/png;base64,{data}")
+
+
+def test_images_with_too_many_pixels_are_rejected(monkeypatch):
+    from flock.core import image as image_module
+
+    monkeypatch.setattr(image_module, "MAX_IMAGE_PIXELS", 10_000)
+    data = base64.b64encode(png_bytes(size=(200, 200))).decode()
+
+    with pytest.raises(ValidationError, match="pixels"):
+        Image(url=f"data:image/png;base64,{data}")
+
+
+def test_base64_that_is_no_readable_image_is_still_accepted():
+    """Formats Pillow cannot read may still be readable by a provider."""
+    data = base64.b64encode(b"not an image Pillow knows").decode()
+
+    assert Image(url=f"data:image/heic;base64,{data}").mime_type == "image/heic"

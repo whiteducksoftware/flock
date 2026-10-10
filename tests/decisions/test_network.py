@@ -299,3 +299,61 @@ async def test_decision_views_show_the_candidates(flock):
     (view,) = [n.data["decision"] for n in graph.nodes if "decision" in n.data]
     assert view["candidates"] == ["b", "c"]
 
+
+# --- review fixes ---------------------------------------------------------------
+
+Catalog = Choice.from_options(
+    "Catalog", {f"c{i:03d}": f"Control {i}" for i in range(300)}, question="Which?"
+)
+
+
+async def test_options_let_a_catalog_over_255_rank_a_subset(flock):
+    decider = FakeDecider({"Catalog": {"c003": 0.9, "c250": 0.1}})
+    flock.agent("rank").consumes(Case).decides(
+        Catalog, model=decider, options=lambda ctx: ["c250", "c003"]
+    )
+
+    await flock.publish(Case(text="..."))
+    await flock.run_until_idle()
+
+    (decision,) = await decisions_of(flock, Catalog)
+    assert decision.payload["choice"] == "c003"
+    assert decision.payload["candidates"] == ["c003", "c250"]
+
+
+async def test_more_than_255_runtime_candidates_need_a_tournament(flock):
+    flock.agent("rank").consumes(Case).decides(
+        Catalog,
+        model=FakeDecider({"Catalog": {"c000": 1.0}}),
+        options=lambda ctx: [f"c{i:03d}" for i in range(256)],
+    )
+
+    await flock.publish(Case(text="..."))
+    await flock.run_until_idle()
+
+    assert await decisions_of(flock, Catalog) == []
+    errors = [
+        a
+        for a in await flock.store.list()
+        if a.type == type_registry.name_for(WorkflowError)
+    ]
+    assert "255" in errors[0].payload["error_message"]
+
+
+def test_catalogs_over_255_without_options_still_need_a_tournament(flock):
+    with pytest.raises(ValueError, match="tournament"):
+        flock.agent("rank").consumes(Case).decides(Catalog, model=FakeDecider({}))
+
+
+async def test_an_empty_runtime_checklist_is_unsure_but_not_refused(flock):
+    decider = FakeDecider({"FirstHalf": {"a": 1.0}})
+    flock.agent("check").consumes(Case).decides(
+        FirstHalf, model=decider, options=lambda ctx: []
+    )
+
+    await flock.publish(Case(text="..."))
+    await flock.run_until_idle()
+
+    (decision,) = await decisions_of(flock, FirstHalf)
+    assert decision.payload["choice"] == UNSURE
+    assert decision.payload["refused"] is False

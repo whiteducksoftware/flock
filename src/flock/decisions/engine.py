@@ -14,7 +14,7 @@ from flock.components.agent import EngineComponent
 from flock.core.artifacts import Artifact
 from flock.core.image import Image
 from flock.core.visibility import Visibility, ensure_visibility
-from flock.decisions.choice import FAILED, PASSED, UNSURE, Question
+from flock.decisions.choice import FAILED, MAX_OPTIONS, PASSED, UNSURE, Question
 from flock.decisions.models import Decision
 from flock.decisions.providers import (
     DecisionAnswer,
@@ -232,6 +232,16 @@ class DecisionEngine(EngineComponent):
                 f"options= returned names that are not options of "
                 f"{question.__name__}: {', '.join(map(str, unknown))}"
             )
+        if (
+            question.__kind__ == "choice"
+            and self.tournament is None
+            and len(names) > MAX_OPTIONS
+        ):
+            raise ValueError(
+                f"options= returned {len(names)} options of {question.__name__}; "
+                f"decision models accept at most {MAX_OPTIONS} options per question. "
+                "Pass tournament=Tournament(...) to ask them in rounds."
+            )
         # In declared order, so a decision does not depend on arrival order
         chosen = set(names)
         return {
@@ -266,16 +276,26 @@ class DecisionEngine(EngineComponent):
                 candidates[i : i + group_size]
                 for i in range(0, len(candidates), group_size)
             ]
-            wire = [
-                ask_about(f"{name}_r{len(rounds)}_g{index}", group)
+            # A group of one (a leftover) cannot be asked as a choice: it is a bye
+            wire = {
+                index: ask_about(f"{name}_r{len(rounds)}_g{index}", group)
                 for index, group in enumerate(groups)
-            ]
-            answers = await self._ask(state, wire, images)
+                if len(group) > 1
+            }
+            answers = await self._ask(state, list(wire.values()), images)
             survivors: list[str] = []
             refused = 0
             group_results: list[dict[str, Any]] = []
-            for group, group_question in zip(groups, wire, strict=True):
-                answer = answers[group_question.name]
+            for index, group in enumerate(groups):
+                if index not in wire:
+                    survivors.extend(group)
+                    group_results.append({
+                        "size": 1,
+                        "refused": False,
+                        "top": [[group[0], 1.0]],
+                    })
+                    continue
+                answer = answers[wire[index].name]
                 if answer.refused or answer.choice is None:
                     refused += 1  # no option of the group fits
                     group_results.append({
@@ -348,12 +368,11 @@ class DecisionEngine(EngineComponent):
         return wire
 
     def _item_result(self, p_yes: float) -> str:
-        if self.threshold is None:
-            return "yes" if p_yes >= 0.5 else "no"
-        if p_yes >= self.threshold:
-            return "yes"
-        if p_yes <= 1.0 - self.threshold:
-            return "no"
+        # The more probable answer, firm if it reaches the threshold (as for a
+        # YesNo question; below 0.5 the yes and no regions would overlap)
+        answer, probability = ("yes", p_yes) if p_yes >= 0.5 else ("no", 1.0 - p_yes)
+        if self.threshold is None or probability >= self.threshold:
+            return answer
         return UNSURE
 
     def _checklist_decision(
@@ -401,7 +420,7 @@ class DecisionEngine(EngineComponent):
             probabilities=probabilities,
             results=results,
             refused_items=refused,
-            refused=len(refused) == len(results),
+            refused=bool(results) and len(refused) == len(results),
             threshold=self.threshold,
             subject_ids=subject_ids,
             model=models[0] if models else self.provider.label,

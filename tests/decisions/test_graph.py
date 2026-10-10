@@ -161,3 +161,66 @@ async def test_blackboard_links_decisions_to_what_the_subscriber_produced(routed
         (types[e.source], types[e.target]) for e in graph.edges if e.label == "billing"
     }
     assert from_billing == {(decision_type, type_registry.name_for(GraphReply))}
+
+
+@flock_type
+class GraphNote(BaseModel):
+    text: str
+
+
+async def test_direct_decision_consumers_keep_their_other_inputs():
+    """An agent that consumes the decision type itself, together with another
+    artifact, records both inputs, not only the decision."""
+    flock = Flock()
+    flock.is_dashboard = True
+    flock.agent("triage").consumes(GraphTicket).decides(
+        GraphRoute, model=FakeDecider(probabilities), threshold=0.8
+    )
+    flock.agent("auditor").consumes(Decision.of(GraphRoute), GraphNote).with_engines(
+        ReplyEngine()
+    ).publishes(GraphReply)
+    collector = DashboardEventCollector(store=flock.store)
+    for agent in flock.agents:
+        agent._add_utilities([collector])
+    flock._test_collector = collector
+    await flock.publish(GraphTicket(text="card charged twice"))
+    await flock.publish(GraphNote(text="VIP customer"))
+    await flock.run_until_idle()
+
+    graph = await snapshot(flock, "blackboard")
+    types = {node.id: node.data["artifactType"] for node in graph.nodes}
+    reply = type_registry.name_for(GraphReply)
+    into_reply = {types[e.source] for e in graph.edges if types[e.target] == reply}
+    assert into_reply == {
+        type_registry.name_for(Decision.of(GraphRoute)),
+        type_registry.name_for(GraphNote),
+    }
+
+
+class Verdict(Choice):
+    """Is the claim settled?"""
+
+    NOT_UNSURE = "Settled"
+    open = "Still open"
+
+
+async def test_options_ending_in_unsure_are_not_the_unsure_branch():
+    flock = Flock()
+    flock.is_dashboard = True
+    flock.agent("judge").consumes(GraphTicket).decides(
+        Verdict, model=FakeDecider({"NOT_UNSURE": 0.9, "open": 0.1})
+    )
+    flock.agent("closer").consumes(Verdict.NOT_UNSURE).with_engines(
+        ReplyEngine()
+    ).publishes(GraphReply)
+    collector = DashboardEventCollector(store=flock.store)
+    for agent in flock.agents:
+        agent._add_utilities([collector])
+    flock._test_collector = collector
+    await flock.publish(GraphTicket(text="settled"))
+    await flock.run_until_idle()
+
+    graph = await snapshot(flock, "agent")
+    (edge,) = [e for e in graph.edges if e.target == "closer"]
+    assert edge.data["decisionChoice"] == "NOT_UNSURE"
+    assert edge.data["decisionUnsure"] is False

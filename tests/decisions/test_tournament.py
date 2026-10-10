@@ -256,3 +256,43 @@ async def test_rounds_record_the_top_candidates_of_every_group(flock):
     winner_group = groups[2]  # req_040 .. req_059
     assert winner_group["top"][0][0] == "req_057"
     assert winner_group["top"][0][1] == pytest.approx(0.6 / (0.6 + 19 * 0.4 / 99))
+
+
+# --- groups of one ------------------------------------------------------------
+
+Odd = Choice.from_options(
+    "Odd", {f"odd_{i:02d}": f"Option {i}" for i in range(21)}, question="Which one?"
+)
+
+
+@pytest.mark.parametrize(
+    ("question", "tournament"),
+    [
+        (Odd, Tournament(group_size=20, keep=3)),  # groups of 20 and 1
+        (Odd, Tournament(group_size=2, keep=1)),  # odd counts in every round
+        (Huge, Tournament(group_size=111, keep=2)),  # 9 groups of 111 and 1
+    ],
+)
+async def test_a_leftover_option_advances_without_a_request(
+    flock, question, tournament
+):
+    """Choices need at least two options; a group of one is a bye."""
+    options = list(question.__options__)
+    decider = FakeDecider({question.__name__: peaked(options[-1], options)})
+    flock.agent("mapper").consumes(Statement).decides(
+        question, model=decider, tournament=tournament
+    )
+
+    await flock.publish(Statement(text="..."))
+    await flock.run_until_idle()
+
+    asked = [q for _state, questions in decider.requests for q in questions]
+    assert all(len(q.options) >= 2 for q in asked)
+    (decision,) = await decisions_of(flock, question)
+    assert decision["choice"] == options[-1]
+    first = decision["rounds"][0]
+    assert first["group_results"][-1] == {
+        "size": 1,
+        "refused": False,
+        "top": [[options[-1], 1.0]],
+    }

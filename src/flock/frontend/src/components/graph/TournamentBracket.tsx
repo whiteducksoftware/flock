@@ -99,6 +99,7 @@ export const TournamentBracket = ({ question, rounds, final, champion, onClose }
   const [lines, setLines] = useState<Line[]>([]);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [hovered, setHovered] = useState<string | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
 
   const anchor = useCallback(
     (key: string) => (element: HTMLElement | null) => {
@@ -114,11 +115,22 @@ export const TournamentBracket = ({ question, rounds, final, champion, onClose }
         event.preventDefault();
         event.stopPropagation();
         onClose();
+      } else if (event.key === 'Tab') {
+        // Modal: the close button is the only control, keep focus on it
+        event.preventDefault();
+        closeRef.current?.focus();
       }
     };
     window.addEventListener('keydown', onKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
   }, [onClose]);
+
+  // Take focus from the button that opened the bracket and give it back on close
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
+    return () => opener?.focus();
+  }, []);
 
   // Lines from every survivor to its chip (or group) in the next column
   const measure = useCallback(() => {
@@ -166,6 +178,7 @@ export const TournamentBracket = ({ question, rounds, final, champion, onClose }
   return createPortal(
     <div
       role="dialog"
+      aria-modal="true"
       aria-label={`Tournament bracket: ${question}`}
       onClick={onClose}
       style={{
@@ -200,6 +213,7 @@ export const TournamentBracket = ({ question, rounds, final, champion, onClose }
             {champion ? `winner: ${champion}` : 'no winner'} · hover an option to trace it
           </span>
           <button
+            ref={closeRef}
             type="button"
             aria-label="Close bracket"
             onClick={onClose}
@@ -226,6 +240,7 @@ export const TournamentBracket = ({ question, rounds, final, champion, onClose }
             {lines.map((line) => (
               <path
                 key={line.key}
+                data-option={line.option}
                 d={line.d}
                 fill="none"
                 stroke={lineColor(line.option)}

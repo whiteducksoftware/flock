@@ -84,6 +84,17 @@ def test_from_items_accepts_ids_that_are_not_identifiers():
     assert getattr(Bsi, "ORP.1.A1").option == "ORP.1.A1"
 
 
+@pytest.mark.parametrize("name", ["__kind__", "__options__", "_private", "from_items"])
+def test_item_names_cannot_shadow_question_internals(name):
+    with pytest.raises(TypeError, match="cannot declare"):
+        Checklist.from_items("Shadow", {name: "An item"})
+
+
+def test_option_names_cannot_shadow_choice_methods():
+    with pytest.raises(TypeError, match="cannot declare"):
+        Choice.from_options("Shadow", {"from_options": "A", "other": "B"})
+
+
 def test_choice_from_options():
     Team = Choice.from_options(
         "Team", {"billing": "Charges", "tech": "Bugs"}, question="Which team?"
@@ -234,6 +245,30 @@ async def test_threshold_leaves_uncertain_items_unsure(flock):
     }
     assert decision["choice"] == UNSURE
     assert decision["best_guess"] == "passed"
+
+
+async def test_low_thresholds_keep_the_more_probable_answer(flock):
+    """Below 0.5 the yes and no regions overlap; the more probable answer wins."""
+    answers = {"Controls": {"mfa": 0.45, "backup": 0.55, "restore_test": 0.65}}
+    flock.agent("audit").consumes(Policy).decides(
+        Controls, model=FakeDecider(answers), threshold=0.4
+    )
+
+    await flock.publish(Policy(text="..."))
+    await flock.run_until_idle()
+
+    (decision,) = await decisions_of(flock, Controls)
+    assert decision["results"] == {"mfa": "no", "backup": "yes", "restore_test": "yes"}
+
+
+def test_item_questions_cannot_collide_with_other_questions(flock):
+    """Checklist items go out as <Checklist>_<index>; a question of that name
+    would overwrite one of their answers."""
+    clash = type("Controls_0", (YesNo,), {"__doc__": "Is it urgent?"})
+    with pytest.raises(ValueError, match="Controls_0"):
+        flock.agent("audit").consumes(Policy).decides(
+            Controls, clash, model=FakeDecider({})
+        )
 
 
 async def test_refused_items_are_unsure(flock):

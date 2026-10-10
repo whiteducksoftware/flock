@@ -26,6 +26,10 @@ if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
 
 DEFAULT_MAX_SIDE = 1024
+# Ingestion limits: artifacts can come from the REST API, and every image is
+# decoded again for providers and thumbnails.
+MAX_IMAGE_BYTES = 20 * 1024 * 1024  # decoded file size
+MAX_IMAGE_PIXELS = 50_000_000  # width x height, e.g. 8660 x 5773
 _DATA_URL = re.compile(r"^data:(image/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$")
 
 
@@ -43,6 +47,29 @@ def describe_image_data(value: str) -> str | None:
     return f"🖼 {match.group(1)} · {size_kb} KB"
 
 
+def _check_pixels(data: bytes) -> None:
+    """Reject images whose header announces more than ``MAX_IMAGE_PIXELS``.
+
+    Only the header is read. Data Pillow cannot identify passes: a provider may
+    still read formats Pillow does not know.
+    """
+    from PIL import Image as PILImageModule
+    from PIL import UnidentifiedImageError
+
+    try:
+        with PILImageModule.open(io.BytesIO(data)) as picture:
+            width, height = picture.size
+    except (UnidentifiedImageError, OSError, ValueError):
+        return
+    except PILImageModule.DecompressionBombError as exc:
+        raise ValueError(f"Image has too many pixels ({exc})") from None
+    if width * height > MAX_IMAGE_PIXELS:
+        raise ValueError(
+            f"Image has {width} x {height} pixels; at most {MAX_IMAGE_PIXELS:,} "
+            "are accepted. Downscale it, e.g. with Image.from_file()."
+        )
+
+
 class Image(BaseModel):
     """An image stored inline as a base64 data URL."""
 
@@ -57,10 +84,16 @@ class Image(BaseModel):
                 "Image.url must be a base64 data URL (data:image/<type>;base64,...); "
                 "use Image.from_file() or Image.from_bytes() to create one."
             )
+        if len(match.group(2)) * 3 // 4 > MAX_IMAGE_BYTES:  # checked before decoding
+            raise ValueError(
+                f"Image data is larger than {MAX_IMAGE_BYTES // (1024 * 1024)} MB; "
+                "downscale it, e.g. with Image.from_file()."
+            )
         try:
-            base64.b64decode(match.group(2), validate=True)
+            data = base64.b64decode(match.group(2), validate=True)
         except (binascii.Error, ValueError) as exc:
             raise ValueError("Image.url contains invalid base64 data") from exc
+        _check_pixels(data)
         return value
 
     @property

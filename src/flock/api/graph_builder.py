@@ -407,9 +407,10 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         nodes: list[GraphNode] = []
 
         for artifact in artifacts.values():
-            # Image data is shipped as thumbnails; the JSON view gets a description
+            # Image data is shipped as thumbnails; the JSON view gets a description,
+            # also for images that yield no thumbnail
             images = image_summaries(artifact.payload)
-            payload = compact(artifact.payload) if images else artifact.payload
+            payload = compact(artifact.payload)
             payload_preview = self._payload_preview(payload)
             timestamp_ms = int(artifact.published_at.timestamp() * 1000)
 
@@ -524,7 +525,11 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             }
             if choice is not None:
                 data["decisionChoice"] = choice
-                data["decisionUnsure"] = choice.endswith(UNSURE)
+                # "UNSURE", "Anger.UNSURE" or "Controls.mfa.UNSURE", not an
+                # option that merely ends in UNSURE
+                data["decisionUnsure"] = choice == UNSURE or choice.endswith(
+                    f".{UNSURE}"
+                )
             edges.append(
                 GraphEdge(
                     id=edge_id,

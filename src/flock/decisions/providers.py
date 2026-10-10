@@ -30,6 +30,7 @@ can echo the state, so they never end up in exceptions.
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import random
 import re
@@ -146,6 +147,11 @@ class DecisionProvider(ABC):
         return (await self.decide_many(state, [question], images))[question.name]
 
 
+def _is_probability(value: float) -> bool:
+    """Finite and within [0, 1], allowing for float rounding."""
+    return math.isfinite(value) and -1e-6 <= value <= 1 + 1e-6
+
+
 def _check_options(
     label: str, question: DecisionQuestion, answer: DecisionAnswer
 ) -> DecisionAnswer:
@@ -156,6 +162,18 @@ def _check_options(
         raise DecisionProviderError(
             f"Decision provider '{label}' answered with unknown option(s): "
             f"{', '.join(sorted(unknown))}"
+        )
+    # Probabilities drive thresholds and routing; impossible values must not
+    # turn into firm decisions.
+    invalid = sorted(
+        option for option, p in answer.probabilities.items() if not _is_probability(p)
+    )
+    if answer.confidence is not None and not _is_probability(answer.confidence):
+        invalid.append("confidence")
+    if invalid:
+        raise DecisionProviderError(
+            f"Decision provider '{label}' answered with impossible probabilities "
+            f"for: {', '.join(invalid)}"
         )
     return answer
 

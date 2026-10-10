@@ -302,6 +302,37 @@ def test_decides_owns_the_engine(flock):
         )
 
 
+def test_engines_cannot_be_added_after_decides(flock):
+    with pytest.raises(ValueError, match="engine"):
+        (
+            flock.agent("triage")
+            .consumes(Ticket)
+            .decides(Route, model=FakeDecider({"billing": 1.0, "tech": 0.0}))
+            .with_engines(ReplyEngine())
+        )
+
+
+def test_decision_agents_publish_only_their_decisions(flock):
+    decider = FakeDecider({"billing": 1.0, "tech": 0.0})
+    with pytest.raises(ValueError, match="publishes"):
+        flock.agent("after").consumes(Ticket).decides(Route, model=decider).publishes(
+            Reply
+        )
+    with pytest.raises(ValueError, match="publishes"):
+        flock.agent("before").consumes(Ticket).publishes(Reply).decides(
+            Route, model=decider
+        )
+
+
+def test_handles_and_the_decision_type_cannot_share_an_agent(flock):
+    """A decision consumed directly would otherwise be swapped for its subject
+    as well, because the agent also routes on that question."""
+    with pytest.raises(ValueError, match="same agent"):
+        flock.agent("a").consumes(Route.billing).consumes(Decision.of(Route))
+    with pytest.raises(ValueError, match="same agent"):
+        flock.agent("b").consumes(Decision.of(Route), CustomerNote).consumes(Route.tech)
+
+
 def test_decides_expects_a_choice(flock):
     with pytest.raises(TypeError, match="Choice"):
         flock.agent("triage").consumes(Ticket).decides(

@@ -135,7 +135,7 @@ Controls = Checklist.from_items(
 )
 ```
 
-Every item becomes a yes/no question whose instructions are the docstring plus the item text. With `threshold=0.8` an item is `yes` at a probability of yes of at least 0.8, `no` at 0.2 or below, and `UNSURE` in between. The decision carries:
+Every item becomes a yes/no question whose instructions are the docstring plus the item text. The more probable answer counts, firm when its probability reaches the threshold: with `threshold=0.8` an item is `yes` at a probability of yes of at least 0.8, `no` at 0.2 or below, and `UNSURE` in between. The decision carries:
 
 - `results`: `yes`, `no` or `UNSURE` per item; `probabilities`: the probability of yes per item;
 - `choice`, the outcome: `failed` as soon as one item is `no`, `UNSURE` if no item is `no` but some are unsure, `passed` if every item is `yes`;
@@ -170,7 +170,7 @@ Many items are cheap, because the artifact is sent once as the state and each it
 )
 ```
 
-`.decides()` sets the agent's engine to a `DecisionEngine` and makes the agent publish one `Decision.of(<question>)` per question. Utilities, guards and tracing work as for any other agent. It cannot be combined with `.with_engines()`, and batch subscriptions are not supported.
+`.decides()` sets the agent's engine to a `DecisionEngine` and makes the agent publish one `Decision.of(<question>)` per question. Utilities, guards and tracing work as for any other agent. A decision agent publishes only its decisions: `.decides()` cannot be combined with `.with_engines()` or `.publishes()`, in either order, and batch subscriptions are not supported.
 
 The model sees the agent's inputs as its state, one line per input: `Ticket: {"subject": "...", "body": "..."}`.
 
@@ -224,11 +224,11 @@ flock.agent("mapper").consumes(Paragraph).decides(
 )
 ```
 
-1. The options are split into groups of `group_size`; every group is one choice question, and all groups of a round go out together (in requests of at most `questions_per_request` questions).
+1. The options are split into groups of `group_size`; every group is one choice question, and all groups of a round go out together (in requests of at most `questions_per_request` questions). A leftover group of one option cannot be asked as a choice and advances without a request.
 2. The `keep` most probable options of each group survive. The tournament keeps a top-k per group instead of applying a threshold, because probabilities are normalized within each group and cannot be compared across groups.
 3. Rounds repeat until the survivors fit into one final question. Its answer is the decision: probabilities over the finalists, threshold and `UNSURE` as usual, subscriptions and handles unchanged.
 
-The decision's `rounds` lists every round's candidates, groups, `group_size`, `refused_groups` and survivors, and per group (`group_results`) its size and its top candidates with their probabilities: the survivors plus the two strongest eliminated options. OpenAI's Decisions API refuses a group in which no option fits; such a group keeps no survivors. A Choice with more than 255 options must be asked as a tournament, and `.decides()` without `tournament=` rejects it.
+The decision's `rounds` lists every round's candidates, groups, `group_size`, `refused_groups` and survivors, and per group (`group_results`) its size and its top candidates with their probabilities: the survivors plus the two strongest eliminated options. OpenAI's Decisions API refuses a group in which no option fits; such a group keeps no survivors. A Choice with more than 255 options must be asked as a tournament or restricted with `options=`; `.decides()` without either rejects it.
 
 A tournament costs one round trip per round, and an option that drops out early cannot win. On the example below (25 evidence sentences, 100 controls, Microsoft-Decision-1), both fit:
 
@@ -276,7 +276,7 @@ To work with the decision itself (for an audit log, for example), consume its ty
 flock.agent("auditor").consumes(Decision.of(Route)).publishes(AuditEntry)
 ```
 
-Handles cannot be mixed with plain types in one `.consumes()` call; several handles mean AND (see [Decision networks](#decision-networks)). `where=` predicates on a choice subscription receive the decision.
+Handles cannot be mixed with plain types in one `.consumes()` call; several handles mean AND (see [Decision networks](#decision-networks)). One agent cannot consume both a question's handles and its decision type, because a handle delivers the subject and the type delivers the decision; use two agents. `where=` predicates on a choice subscription receive the decision.
 
 ## Decision networks
 
@@ -305,8 +305,8 @@ flock.agent("ranker").consumes(...).decides(Control, options=passes)
 
 `options=` restricts a single Choice or Checklist to some of its options for each execution. The callable receives the context and returns option names. The decision type, its handles and routing stay as declared, and the decision records the `candidates` in declared order.
 
-- Names that are not options of the question fail the execution.
-- No candidates give an `UNSURE` decision without a request.
+- Names that are not options of the question fail the execution, and so do more than 255 candidates of a Choice without `tournament=`.
+- No candidates give an `UNSURE` decision without a request (not marked as refused).
 - A single candidate wins without a request.
 
 ### A screening network
@@ -419,7 +419,7 @@ flock.agent("inspector").consumes(ProductPhoto).decides(Condition, model="openai
 await flock.publish(ProductPhoto(sku="A-17", photo=Image.from_file("a17.jpg")))
 ```
 
-- `Image` holds the picture as a base64 `data:image/...` URL, so it round-trips through stores, the REST API and the dashboard. Only inline data is accepted: Flock never fetches an image from a URL or a file path named in an artifact.
+- `Image` holds the picture as a base64 `data:image/...` URL, so it round-trips through stores, the REST API and the dashboard. Only inline data is accepted: Flock never fetches an image from a URL or a file path named in an artifact. Images over 20 MB or 50 million pixels are rejected when the artifact is created.
 - `Image.from_file()`, `Image.from_bytes()` and `Image.from_pil()` scale the picture down to `max_side` (default 1024 px) and re-encode it as JPEG (PNG when it has transparency). Re-encoding drops EXIF metadata such as GPS positions. Smaller images are faster: a local Clef model took 1.3 s for a 108 KB photo and 11 s for 1 MB.
 - The decider sends every `Image` in its inputs (also nested, in order) to the model; the text state shows `<image 1>`, `<image 2>`, ... in their place.
 - A text-only provider refuses image inputs with a clear error instead of dropping the images.

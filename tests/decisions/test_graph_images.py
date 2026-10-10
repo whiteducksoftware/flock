@@ -113,3 +113,19 @@ async def test_decision_artifacts_show_their_subject_image(sorted_swatches):
     ]
     assert len(decisions) == 4
     assert all(d["subjectThumb"].startswith("data:image/") for d in decisions)
+
+
+async def test_unreadable_images_are_compacted_too():
+    """Without a thumbnail the payload must still not carry the image data."""
+    flock = Flock()
+    flock.is_dashboard = True
+    collector = DashboardEventCollector(store=flock.store)
+    flock._test_collector = collector
+    data = "data:image/heic;base64," + "QUJD" * 2000  # valid base64, not a picture
+    await flock.publish(GraphSwatch(name="odd", photo=Image(url=data)))
+
+    graph = await snapshot(flock, "blackboard")
+
+    (node,) = graph.nodes
+    assert node.data["payload"]["photo"].startswith("🖼 image/heic")
+    assert "base64" not in str(node.data["payload"])
