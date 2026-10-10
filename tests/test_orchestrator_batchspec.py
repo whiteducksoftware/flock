@@ -639,43 +639,51 @@ async def test_batch_spec_with_non_batch_engine_logs_error(caplog):
     assert outputs == []
 
 
-@pytest.mark.asyncio
-async def test_batchspec_performance_batching_overhead():
-    """
-    GIVEN: Agent with BatchSpec
-    WHEN: 100 artifacts published in 10 batches
-    THEN: Batching overhead <100ms total
-
-    Performance target: Batching should add minimal latency.
-    """
+async def _publish_100_events(batch: BatchSpec | None) -> tuple[list[int], float]:
+    """Publish 100 events to one agent; return its batch sizes and the time in ms."""
     import time
 
     orchestrator = Flock()
-    executed = []
+    executed: list[int] = []
 
     class TrackingEngine(EngineComponent):
         async def evaluate(self, agent, ctx, inputs, output_group):
             executed.append(len(inputs.artifacts))
             return EvalResult(artifacts=[])
 
-    agent = (
-        orchestrator.agent("performance_batch")
-        .consumes(Event, batch=BatchSpec(size=10))
-        .with_engines(TrackingEngine())
+    orchestrator.agent("performance_batch").consumes(Event, batch=batch).with_engines(
+        TrackingEngine()
     )
 
-    # Publish 100 artifacts → 10 batches
-    start = time.time()
+    start = time.perf_counter()
     for i in range(1, 101):
         await orchestrator.publish(Event(id=i, data=f"e{i}"))
-    await orchestrator.run_until_idle(timeout=5.0)
-    end = time.time()
+    await orchestrator.run_until_idle(timeout=10.0)
+    return executed, (time.perf_counter() - start) * 1000
 
-    # Verify all batches triggered
+
+@pytest.mark.asyncio
+async def test_batchspec_performance_batching_overhead():
+    """
+    GIVEN: Agent with BatchSpec
+    WHEN: 100 artifacts published in 10 batches
+    THEN: Batching is not clearly slower than handling the artifacts one by one
+          (at most 1.5x the one-by-one time; in practice it is faster)
+
+    Measured against an unbatched run in the same process rather than an
+    absolute limit: branch coverage triples the time and CI runners are slower
+    again, so a fixed millisecond limit measured the environment (#498).
+    """
+    executed, batched_ms = await _publish_100_events(BatchSpec(size=10))
     assert len(executed) == 10, "10 batches"
     assert all(size == 10 for size in executed), "All batches size 10"
 
-    # Performance check: <3000ms overhead (relaxed for slow CI VMs)
-    elapsed_ms = (end - start) * 1000
-    print(f"\nBatching performance: {elapsed_ms:.2f}ms for 100 artifacts in 10 batches")
-    assert elapsed_ms < 3000, f"Performance target: <3000ms (got {elapsed_ms:.2f}ms)"
+    one_by_one, unbatched_ms = await _publish_100_events(None)
+    assert len(one_by_one) == 100
+
+    # Ten executions instead of a hundred: batching is faster (1.3-2.5x locally,
+    # with and without coverage). Fail only if it becomes clearly slower.
+    print(f"\nBatching: {batched_ms:.0f} ms batched, {unbatched_ms:.0f} ms one by one")
+    assert batched_ms < unbatched_ms * 1.5, (
+        f"Batching overhead: {batched_ms:.0f} ms batched vs {unbatched_ms:.0f} ms one by one"
+    )
