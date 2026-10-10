@@ -57,6 +57,7 @@ search:
 
 ### 🐛 Fixes
 
+- **`TimeWindowContextProvider` works.** It compared a naive local `datetime.now()` with the UTC `created_at` of artifacts, so every agent using it failed with `TypeError: can't compare offset-naive and offset-aware datetimes`. The window is now computed in UTC and filtered by the store (`FilterConfig(start=...)`) instead of loading every artifact.
 - **Roadmap matches the backlog.** `ROADMAP.md` and the docs roadmap still promised 1.0 for Q4 2025 and listed shipped features as in flight. Both now list what 0.5 offers and summarize the planned work for Q4 2026: the 1.0 release scope and the separately qualified integrations.
 - **Scheduling docs and examples match the API.** The scheduling guide, tutorial and example README described timer agents as functions with an `AgentContext` and `ctx.get_artifacts()`, which do not exist, and used `.consumes()` as a context filter. They now show LLM agents, custom engines and `.with_context(...)` for choosing what a timer run sees, and state that times are UTC. Examples 02-05 use context providers instead of `.consumes()`; the one-time reminder uses a UTC datetime (a naive local time fired off by the UTC offset), and the batch processor publishes one aggregate per sensor.
 - **New OpenAI models work with the default DSPy engine.** For the OpenAI API (`openai/` without a custom base URL) the engine now sends its token limit as `max_completion_tokens`; `gpt-6-luna` and other new models rejected `max_tokens` with HTTP 400. OpenAI-compatible servers behind `openai/` keep `max_tokens`.

@@ -61,6 +61,12 @@ class MockStore:
             if filters.produced_by:
                 results = [a for a in results if a.produced_by in filters.produced_by]
 
+            # Filter by creation time
+            if filters.start:
+                results = [a for a in results if a.created_at >= filters.start]
+            if filters.end:
+                results = [a for a in results if a.created_at <= filters.end]
+
         # Apply limit
         if limit > 0:
             results = results[:limit]
@@ -1101,7 +1107,7 @@ class TestTimeWindowContextProvider:
 
     async def test_time_window_provider_filters_by_time(self):
         """TimeWindowContextProvider must return only artifacts within time window."""
-        from datetime import datetime, timedelta
+        from datetime import UTC, datetime, timedelta
 
         from flock.core.context_provider import (
             ContextRequest,
@@ -1109,7 +1115,7 @@ class TestTimeWindowContextProvider:
         )
 
         correlation = str(uuid4())
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         # Create artifacts at different times
         recent_artifact = Artifact(
@@ -1152,7 +1158,7 @@ class TestTimeWindowContextProvider:
 
     async def test_time_window_provider_enforces_visibility(self):
         """SECURITY: TimeWindowContextProvider MUST enforce visibility."""
-        from datetime import datetime, timedelta
+        from datetime import UTC, datetime, timedelta
 
         from flock.core.context_provider import (
             ContextRequest,
@@ -1160,7 +1166,7 @@ class TestTimeWindowContextProvider:
         )
 
         correlation = str(uuid4())
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         # Recent public and private artifacts
         public_artifact = Artifact(
@@ -1200,6 +1206,87 @@ class TestTimeWindowContextProvider:
         assert len(context) == 1
         assert context[0].type == "Task"
         assert not any(item.type == "Secret" for item in context)
+
+    @pytest.mark.parametrize("backend", ["memory", "sqlite"])
+    async def test_time_window_provider_with_real_stores(self, backend, tmp_path):
+        """Artifacts carry UTC timestamps; the window is UTC too (#508)."""
+        from datetime import UTC, datetime, timedelta
+
+        from flock.core.context_provider import (
+            ContextRequest,
+            TimeWindowContextProvider,
+        )
+        from flock.core.store import InMemoryBlackboardStore, SQLiteBlackboardStore
+
+        store = (
+            InMemoryBlackboardStore()
+            if backend == "memory"
+            else SQLiteBlackboardStore(str(tmp_path / "window.db"))
+        )
+        now = datetime.now(UTC)
+        for title, age in [
+            ("recent", timedelta(minutes=30)),
+            ("old", timedelta(hours=2)),
+        ]:
+            await store.publish(
+                Artifact(
+                    type="Task",
+                    payload={"title": title},
+                    produced_by="system",
+                    created_at=now - age,
+                )
+            )
+        agent = MockAgent("worker")
+        request = ContextRequest(
+            agent=agent, correlation_id=None, store=store, agent_identity=agent.identity
+        )
+        try:
+            context = await TimeWindowContextProvider(hours=1)(request)
+        finally:
+            if backend == "sqlite":
+                await store.close()
+
+        assert [item.payload["title"] for item in context] == ["recent"]
+
+    async def test_agent_with_time_window_provider_runs(self):
+        """An agent using the provider runs and sees recent artifacts (#508)."""
+        from pydantic import BaseModel
+
+        from flock import Flock
+        from flock.components.agent import EngineComponent
+        from flock.core.context_provider import TimeWindowContextProvider
+        from flock.registry import flock_type
+        from flock.utils.runtime import EvalResult
+
+        @flock_type
+        class WindowNote(BaseModel):
+            text: str
+
+        @flock_type
+        class WindowCount(BaseModel):
+            seen: int
+
+        class CountContext(EngineComponent):
+            async def evaluate(self, agent, ctx, inputs, output_group):
+                return EvalResult.from_object(
+                    WindowCount(seen=len(ctx.artifacts)), agent=agent
+                )
+
+        flock = Flock()
+        (
+            flock.agent("window_counter")
+            .consumes(WindowNote)
+            .with_context(TimeWindowContextProvider(hours=1))
+            .with_engines(CountContext())
+            .publishes(WindowCount)
+        )
+        await flock.publish(WindowNote(text="first"))
+        await flock.publish(WindowNote(text="second"))
+        await flock.run_until_idle(timeout=10)
+
+        counts = await flock.store.get_by_type(WindowCount)
+        assert len(counts) == 2
+        assert all(count.seen >= 1 for count in counts)
 
 
 @pytest.mark.asyncio
