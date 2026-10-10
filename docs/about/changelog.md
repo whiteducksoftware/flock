@@ -57,6 +57,15 @@ search:
 
 ### 🐛 Fixes
 
+- **Decision models, review fixes** (found in code review of the decision model PRs before release):
+    - Providers reject answers with probabilities that are not finite or outside 0-1, instead of turning them into firm decisions.
+    - A decision agent publishes only its decisions: `.decides()` with `.with_engines()` or `.publishes()` fails in either order. One agent cannot consume a question's handles and its decision type.
+    - The dashboard keeps the other inputs of an agent that consumes a decision type directly, and only `UNSURE` (or `X.UNSURE`) edges count as the unsure branch.
+    - Checklist items take the more probable answer before the threshold (thresholds below 0.5 no longer turn a 0.45 into `yes`). Option names from catalogs cannot shadow the question class (`__kind__`, `from_items`), and checklist item requests cannot collide with other question names.
+    - Tournaments advance a leftover group of one option without a request. `options=` works for catalogs over 255 options (more than 255 runtime candidates without `tournament=` fail), and an empty runtime checklist is not marked refused.
+    - Request budgets book a start when it happens (a late wake-up cannot let several requests through) and stay per flock when a provider instance is shared.
+    - Images over 20 MB or 50 million pixels are rejected when the artifact is created; the dashboard compacts image data also when no thumbnail can be made.
+    - The bracket view is a modal that takes, keeps and returns keyboard focus; checklist cells carry their result as an accessible label.
 - **Batch timeouts no longer depend on the wall clock.** `BatchSpec(timeout=...)` measured the elapsed time with `datetime.now()`. When the wall clock stepped back (VM time sync, NTP), batches flushed late and `run_until_idle()` could return before the flush; when it stepped forward (daylight saving), they flushed early. Timeouts now run on the monotonic clock. The timer tests check the waits they ask for instead of elapsed wall time. Both fix intermittent failures of four timing tests.
 
 ### 🔒 Security
