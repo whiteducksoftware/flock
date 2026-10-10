@@ -194,17 +194,20 @@ def _rejects_max_tokens(error: Exception) -> bool:
 
 
 @functools.cache
-def _max_tokens_fallback_lm(lm_class: type) -> type:
-    """``lm_class`` that retries a request rejected for max_tokens once (#516).
+def _token_limit_lm(lm_class: type) -> type:
+    """``lm_class`` that works with either output-token parameter (#516).
 
     Newer OpenAI models reject ``max_tokens`` on every route (Azure deployments,
-    gateways), and deployment names do not reveal the model. The retry sends
-    ``max_completion_tokens`` instead and remembers the switch for the endpoint.
-    It happens per LM request, so the DSPy program, its adapter fallbacks and
-    streaming are not re-run.
+    gateways), and deployment names do not reveal the model. A request rejected
+    for it is retried once with ``max_completion_tokens``, and the switch is
+    remembered for the endpoint. The retry happens per LM request, so the DSPy
+    program, its adapter fallbacks and streaming are not re-run.
+
+    DSPy's truncation warning reads ``kwargs["max_tokens"]``; for an LM that sends
+    ``max_completion_tokens`` it would raise ``KeyError`` on a truncated answer.
     """
 
-    class MaxTokensFallbackLM(lm_class):
+    class TokenLimitLM(lm_class):
         def _switch_to_completion_tokens(self, error: Exception) -> bool:
             if "max_tokens" not in self.kwargs or not _rejects_max_tokens(error):
                 return False
@@ -216,6 +219,19 @@ def _max_tokens_fallback_lm(lm_class: type) -> type:
                 self.model,
             )
             return True
+
+        def _check_truncation(self, results: Any) -> None:
+            if "max_tokens" in self.kwargs:
+                super()._check_truncation(results)
+                return
+            if self.model_type != "responses" and any(
+                choice.finish_reason == "length" for choice in results["choices"]
+            ):
+                logger.warning(
+                    "LM response from %s was truncated at max_completion_tokens=%s.",
+                    self.model,
+                    self.kwargs.get("max_completion_tokens"),
+                )
 
         def forward(self, *args: Any, **kwargs: Any) -> Any:
             try:
@@ -233,7 +249,7 @@ def _max_tokens_fallback_lm(lm_class: type) -> type:
                     raise
                 return await super().aforward(*args, **kwargs)
 
-    return MaxTokensFallbackLM
+    return TokenLimitLM
 
 
 class DSPyEngine(EngineComponent):
@@ -623,10 +639,10 @@ class DSPyEngine(EngineComponent):
             or _endpoint(model_name, extra_kwargs) in _MAX_COMPLETION_TOKENS_ENDPOINTS
         ):
             completion_limit = self.max_tokens
+        lm_class = dspy_mod.LM
+        if isinstance(lm_class, type):  # test doubles may replace dspy.LM
+            lm_class = _token_limit_lm(lm_class)
         if completion_limit is None:
-            lm_class = dspy_mod.LM
-            if isinstance(lm_class, type):  # test doubles may replace dspy.LM
-                lm_class = _max_tokens_fallback_lm(lm_class)
             return lm_class(
                 model=model_name,
                 temperature=self.temperature,
@@ -642,7 +658,7 @@ class DSPyEngine(EngineComponent):
             raise ValueError(
                 "Set either max_tokens or max_completion_tokens on DSPyEngine, not both."
             )
-        lm = dspy_mod.LM(
+        lm = lm_class(
             model=model_name,
             temperature=self.temperature,
             max_tokens=None,

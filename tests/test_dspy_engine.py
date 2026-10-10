@@ -1545,7 +1545,10 @@ _MAX_TOKENS_REJECTION = (
 
 
 def _fake_litellm(
-    requests: list[dict], *, rejection: str | None = _MAX_TOKENS_REJECTION
+    requests: list[dict],
+    *,
+    rejection: str | None = _MAX_TOKENS_REJECTION,
+    finish_reason: str = "stop",
 ):
     """A litellm completion that rejects max_tokens like newer OpenAI models."""
     import litellm
@@ -1560,7 +1563,7 @@ def _fake_litellm(
             choices=[
                 {
                     "message": {"content": "ok", "role": "assistant"},
-                    "finish_reason": "stop",
+                    "finish_reason": finish_reason,
                 }
             ]
         )
@@ -1637,6 +1640,25 @@ class TestMaxTokensFallback:
 
         assert "max_tokens" in lm.kwargs
         assert "max_completion_tokens" not in lm.kwargs
+
+    @pytest.mark.parametrize(
+        "model", ["azure/new-model-deployment", "openai/gpt-6-luna"]
+    )
+    async def test_a_truncated_answer_without_max_tokens_is_returned(
+        self, model, monkeypatch
+    ):
+        """DSPy's truncation warning reads kwargs["max_tokens"], which these LMs lack."""
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+        monkeypatch.delenv("OPENAI_API_BASE", raising=False)
+        sent: list[dict] = []
+        completion, acompletion = _fake_litellm(sent, finish_reason="length")
+        monkeypatch.setattr("dspy.clients.lm.litellm_completion", completion)
+        monkeypatch.setattr("dspy.clients.lm.alitellm_completion", acompletion)
+
+        messages = [{"role": "user", "content": "hi"}]
+        assert self._lm(model)(messages=messages) == ["ok"]
+        assert await self._lm(model).acall(messages=messages) == ["ok"]
+        assert all("max_tokens" not in r for r in sent[-2:])
 
     def test_other_bad_requests_are_not_retried(self, monkeypatch):
         import litellm
