@@ -521,7 +521,7 @@ class MyCustomProvider(ContextProvider):
 - Audit logging
 - Custom security policies
 
-**See Production Example:** [PasswordRedactorProvider](../../examples/08-context-provider/05_password_redactor.py) - production-ready password and secret filtering you can steal!
+**See the example:** [password redaction](#example-password-redaction), a custom provider that masks secrets in an agent's context.
 
 ---
 
@@ -667,74 +667,47 @@ flock = Flock("openai/gpt-4.1", context_provider=provider)
 
 ---
 
-## Production Example: Password Redaction
+## Example: Password Redaction
 
-The [PasswordRedactorProvider](../../examples/08-context-provider/05_password_redactor.py) is a **production-ready** custom provider that automatically redacts sensitive data.
-
-**What it catches:**
-- 🔒 Passwords and secrets
-- 🔑 API keys (OpenAI, AWS, GitHub, GitLab, Stripe, Google)
-- 🎫 Bearer tokens and JWT
-- 💳 Credit card numbers (Visa, MC, Amex, Discover)
-- 🆔 Social Security Numbers
-- 🔐 Private keys (RSA, EC, OpenSSH)
-- 📧 Email addresses (optional)
-- 🎨 Custom patterns (add your own!)
-
-**Quick Start:**
+Flock does not ship a redaction provider, but one takes a few lines. This provider masks secrets in the context an agent sees; the stored artifacts stay unchanged, and `BaseContextProvider` still enforces visibility:
 
 ```python
-from examples.context_provider import PasswordRedactorProvider
+import re
 
-# Basic usage - production defaults
-provider = PasswordRedactorProvider()
-flock = Flock("openai/gpt-4.1", context_provider=provider)
+from flock import FilterConfig, Flock
+from flock.core.artifacts import Artifact
+from flock.core.context_provider import BaseContextProvider, ContextRequest
 
-# With customization
-provider = PasswordRedactorProvider(
-    redaction_text="[SECURITY_REDACTED]",
-    redact_emails=True,
-    custom_patterns={
-        "bitcoin": r"\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b",
-        "employee_id": r"EMP-\d{6}"
-    },
-    log_redactions=True  # Audit trail
-)
+SECRET_KEYS = re.compile(r"password|secret|token|api[_-]?key", re.IGNORECASE)
+SECRET_VALUES = re.compile(r"\bsk-[A-Za-z0-9]{16,}\b|\bBearer\s+\S+")
+
+
+def redact(value):
+    if isinstance(value, dict):
+        return {
+            key: "[REDACTED]" if SECRET_KEYS.search(key) else redact(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact(item) for item in value]
+    if isinstance(value, str):
+        return SECRET_VALUES.sub("[REDACTED]", value)
+    return value
+
+
+class RedactingContextProvider(BaseContextProvider):
+    """Context with secrets masked; visibility is still enforced by the base class."""
+
+    async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
+        # Everything, as the default provider does (visibility is applied afterwards)
+        artifacts, _ = await request.store.query_artifacts(FilterConfig(), limit=-1)
+        return [a.model_copy(update={"payload": redact(a.payload)}) for a in artifacts]
+
+
+flock = Flock("openai/gpt-4.1", context_provider=RedactingContextProvider())
 ```
 
-**What gets redacted:**
-
-```python
-# Input artifacts
-{
-    "user_data": {
-        "password": "MySecretPass123",      # → [REDACTED]
-        "api_key": "sk-1234567890abcdef",   # → [REDACTED]
-        "email": "user@example.com"         # → [REDACTED] (if enabled)
-    },
-    "payment": {
-        "card": "4532-1234-5678-9010",      # → [REDACTED]
-        "cvv": "123"                        # Preserved (not in patterns)
-    },
-    "auth_header": "Bearer eyJhbGci..."     # → [REDACTED]
-}
-
-# Agents see
-{
-    "user_data": {
-        "password": "[REDACTED]",
-        "api_key": "[REDACTED]",
-        "email": "[REDACTED]"
-    },
-    "payment": {
-        "card": "[REDACTED]",
-        "cvv": "123"
-    },
-    "auth_header": "[REDACTED]"
-}
-```
-
-**💡 This is production code you can copy!** See [examples/08-context-provider/05_password_redactor.py](../../examples/08-context-provider/05_password_redactor.py) for the full implementation (391 lines).
+An artifact `{"name": "ada", "password": "hunter2", "note": "key sk-ABCDEFGHIJKLMNOPQRS"}` reaches the agent's context as `{"name": "ada", "password": "[REDACTED]", "note": "key [REDACTED]"}`. Extend the patterns for your data (card numbers, private keys, e-mail addresses), and keep in mind that redaction applies to the context, not to an agent's trigger input.
 
 ---
 
@@ -1484,21 +1457,8 @@ asyncio.run(main())
 
 ## Learn By Example
 
-We've created a comprehensive learning path with 5 progressive examples:
-
-**📚 [examples/08-context-provider/](../../examples/08-context-provider/)**
-
-| Example | Complexity | What You'll Learn |
-|---------|-----------|-------------------|
-| [01_basic_visibility.py](../../examples/08-context-provider/01_basic_visibility.py) | Beginner | PublicVisibility vs PrivateVisibility |
-| [02_global_provider.py](../../examples/08-context-provider/02_global_provider.py) | Beginner | Global FilteredContextProvider configuration |
-| [03_per_agent_provider.py](../../examples/08-context-provider/03_per_agent_provider.py) | Intermediate | Per-agent overrides and priority |
-| [04_custom_filtering.py](../../examples/08-context-provider/04_custom_filtering.py) | Intermediate | Advanced FilterConfig with multiple criteria |
-| [05_password_redactor.py](../../examples/08-context-provider/05_password_redactor.py) | Expert | **Production-ready password filtering** ⭐ |
-
-**🎁 Grand Finale:** Example 05 is production code you can copy directly into your projects! It catches passwords, API keys, JWT tokens, credit cards, SSN, and more.
-
-**Start here:** [examples/08-context-provider/README.md](../../examples/08-context-provider/README.md)
+- [examples/02-patterns/visibility/01_basic_visibility.py](https://github.com/whiteducksoftware/flock/blob/main/examples/02-patterns/visibility/01_basic_visibility.py) shows `PublicVisibility` and `PrivateVisibility`, the boundary every context provider enforces.
+- The code in this guide runs as shown: global and per-agent `FilteredContextProvider`, custom providers on `BaseContextProvider`, and the [password redaction example](#example-password-redaction).
 
 ---
 
@@ -1508,8 +1468,7 @@ We've created a comprehensive learning path with 5 progressive examples:
 - **[Agents Guide](agents.md)** - How agents interact with Context Providers
 - **[Blackboard Architecture](blackboard.md)** - The store Context Providers query
 - **[Dashboard](dashboard.md)** - Visualize context filtering in action
-- **[Complete Examples](../../examples/08-context-provider/)** - Progressive learning path + production code
 
 ---
 
-**Ready to build secure, performant multi-agent systems?** Start with the [examples](../../examples/08-context-provider/) and steal the [PasswordRedactorProvider](../../examples/08-context-provider/05_password_redactor.py) for your production system! 🚀
+**Ready to build secure, performant multi-agent systems?** Start with a `FilteredContextProvider`, then write your own on `BaseContextProvider` when the filters are not enough. 🚀

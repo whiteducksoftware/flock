@@ -36,6 +36,8 @@ MANIFEST
 *.manifest
 *.spec
 static/
+# Dashboard builds are made locally on the first serve(dashboard=True); never commit them
+src/flock/api/static_files/
 .flock/
 # Installer logs
 pip-log.txt

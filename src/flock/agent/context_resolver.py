@@ -95,7 +95,7 @@ class ContextResolver:
 
         NOTE: Currently returns a basic Context. Future phases will:
         - Use provider to fetch additional context artifacts
-        - Build AgentContext with trigger + context artifacts
+        - Build the Context with trigger + context artifacts
         - Apply visibility filtering at security boundary
 
         Args:
@@ -121,7 +121,7 @@ class ContextResolver:
         # Future implementation will:
         # 1. Build context request from subscription
         # 2. Call provider.get_artifacts(request)
-        # 3. Return AgentContext with both trigger + context artifacts
+        # 3. Return the Context with both trigger + context artifacts
 
         # For now, return a minimal context structure
         # (actual Context building is orchestrator-level in current architecture)

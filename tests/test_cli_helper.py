@@ -1,7 +1,28 @@
 """Tests for the CLI helper module."""
 
 import sys
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
+
+
+@contextmanager
+def _fresh_rich_imports():
+    """Drop rich from sys.modules for the block, then restore the originals.
+
+    Without the restore, rich modules imported during the block replace the
+    originals for the rest of the run, and two copies of rich's classes coexist.
+    """
+    saved = {
+        name: module for name, module in sys.modules.items() if name.startswith("rich")
+    }
+    for name in saved:
+        del sys.modules[name]
+    try:
+        yield
+    finally:
+        for name in [name for name in sys.modules if name.startswith("rich")]:
+            del sys.modules[name]
+        sys.modules.update(saved)
 
 
 class TestVersionHandling:
@@ -321,26 +342,33 @@ class TestImportBehavior:
         """Test that Rich modules are imported lazily within functions."""
         # This is important for performance - Rich shouldn't be imported
         # at module level, only when functions are called
-
-        # Remove Rich from sys.modules to simulate fresh import
-        rich_modules = [m for m in sys.modules.keys() if m.startswith("rich")]
-        for module in rich_modules:
-            del sys.modules[module]
-
-        # Import our module
         import importlib
 
         import flock.utils.cli_helper
 
-        importlib.reload(flock.utils.cli_helper)
+        with _fresh_rich_imports():  # simulate a fresh import, restore afterwards
+            importlib.reload(flock.utils.cli_helper)
 
-        # Rich shouldn't be imported yet
-        assert "rich.console" not in sys.modules
-        assert "rich.syntax" not in sys.modules
+            # Rich shouldn't be imported yet
+            assert "rich.console" not in sys.modules
+            assert "rich.syntax" not in sys.modules
 
-        # Now call a function that uses Rich
-        with patch("rich.console.Console"):
-            flock.utils.cli_helper.init_console(show_banner=False)
+            # Now call a function that uses Rich
+            with patch("rich.console.Console"):
+                flock.utils.cli_helper.init_console(show_banner=False)
 
-        # Now Rich should be imported
-        assert "rich.console" in sys.modules
+            # Now Rich should be imported
+            assert "rich.console" in sys.modules
+
+
+def test_lazy_import_check_leaves_rich_intact():
+    """test_rich_imports_lazy drops rich from sys.modules; it must restore the
+    original modules, or two copies of rich's classes coexist and rich's own
+    isinstance checks fail in later tests (Text.assemble then crashes panels)."""
+    import rich.text  # noqa: F401 - make sure it is loaded
+
+    before = sys.modules["rich.text"]
+
+    TestImportBehavior().test_rich_imports_lazy()
+
+    assert sys.modules["rich.text"] is before
