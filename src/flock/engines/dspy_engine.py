@@ -165,7 +165,20 @@ _MAX_COMPLETION_TOKENS_ENDPOINTS: set[tuple[str, str | None]] = set()
 
 
 def _endpoint(model_name: str, lm_kwargs: Mapping[str, Any]) -> tuple[str, str | None]:
-    return model_name, lm_kwargs.get("api_base") or lm_kwargs.get("base_url")
+    """The model and the base URL its requests go to.
+
+    The URL comes from ``lm_kwargs`` or, as LiteLLM resolves it, from the
+    provider's environment (``AZURE_API_BASE``, ``OPENAI_BASE_URL``, ...), so two
+    resources with the same deployment name stay apart.
+    """
+    provider = model_name.split("/", 1)[0].upper()
+    base_url = (
+        lm_kwargs.get("api_base")
+        or lm_kwargs.get("base_url")
+        or os.getenv(f"{provider}_API_BASE")
+        or os.getenv(f"{provider}_BASE_URL")
+    )
+    return model_name, base_url
 
 
 def _rejects_max_tokens(error: Exception) -> bool:

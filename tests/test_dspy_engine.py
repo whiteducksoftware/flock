@@ -1626,6 +1626,18 @@ class TestMaxTokensFallback:
         )
         assert "max_tokens" in requests[0]
 
+    def test_environment_endpoints_are_kept_apart(self, requests, monkeypatch):
+        """Two Azure resources with the same deployment name, set via AZURE_API_BASE."""
+        monkeypatch.setenv("AZURE_API_BASE", "https://resource-a.example")
+        self._lm()(messages=[{"role": "user", "content": "hi"}])
+
+        monkeypatch.setenv("AZURE_API_BASE", "https://resource-b.example")
+        requests.clear()
+        lm = self._lm()
+
+        assert "max_tokens" in lm.kwargs
+        assert "max_completion_tokens" not in lm.kwargs
+
     def test_other_bad_requests_are_not_retried(self, monkeypatch):
         import litellm
 
