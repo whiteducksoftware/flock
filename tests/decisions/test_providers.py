@@ -168,6 +168,53 @@ async def test_systemone_answer_for_unknown_option_is_rejected():
         await provider.decide("state", QUESTION)
 
 
+@pytest.mark.parametrize(
+    "probabilities",
+    [
+        '{"billing": 2.0, "tech": -1.0}',
+        '{"billing": NaN, "tech": 0.1}',  # Python's JSON parser accepts these
+        '{"billing": Infinity, "tech": 0.0}',
+    ],
+)
+async def test_answers_with_impossible_probabilities_are_rejected(probabilities):
+    body = (
+        '{"answers": {"route": {"type": "choice", "choice": "billing", '
+        '"probabilities": ' + probabilities + "}}}"
+    )
+    provider = SystemOneProvider(
+        "http://127.0.0.1:8080/v1/systemone",
+        label="local/clef-flash",
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, content=body, headers={"Content-Type": "application/json"}
+            )
+        ),
+    )
+
+    with pytest.raises(DecisionProviderError, match="probabilit"):
+        await provider.decide("state", QUESTION)
+
+
+async def test_yes_no_answers_outside_zero_to_one_are_rejected():
+    question = DecisionQuestion(
+        name="urgent",
+        instructions="Urgent?",
+        options={"yes": "", "no": ""},
+        kind="yesno",
+    )
+    captured: list[httpx.Request] = []
+    provider = SystemOneProvider(
+        "http://127.0.0.1:8080/v1/systemone",
+        label="local/clef-flash",
+        transport=_systemone_transport(
+            captured, response={"answers": {"urgent": {"type": "noul", "noul": 1.4}}}
+        ),
+    )
+
+    with pytest.raises(DecisionProviderError, match="probabilit"):
+        await provider.decide("state", question)
+
+
 def test_resolve_jev_uses_the_official_endpoint_and_key(monkeypatch):
     monkeypatch.setenv("JEV_API_KEY", "jev-key")
     monkeypatch.delenv("JEV_API_BASE", raising=False)

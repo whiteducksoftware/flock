@@ -159,6 +159,13 @@ class _QuestionMeta(type):
                     f"'{name}' cannot declare an option named '{key}': "
                     f"{key} is reserved for {name}.{key}."
                 )
+            # Options become class attributes; catalog keys such as "__kind__"
+            # or "from_items" would replace the question's own machinery.
+            if key.startswith("_") or any(hasattr(base, key) for base in bases):
+                raise TypeError(
+                    f"'{name}' cannot declare an option named '{key}': the name "
+                    "is used by the question class itself."
+                )
 
         cls = super().__new__(mcls, name, bases, namespace)
         if namespace.get("__root__", False):  # Question, Choice, YesNo, Scale

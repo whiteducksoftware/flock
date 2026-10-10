@@ -22,8 +22,8 @@ _RATE = re.compile(r"^\s*(\d+)\s*/\s*(s|min|h)\s*$")
 class RequestBudget:
     """At most ``limit`` requests start within any ``period`` seconds.
 
-    Callers reserve the earliest free slot before they wait, so concurrent
-    callers never exceed the budget and are served in arrival order.
+    Callers wait in arrival order. A start is booked when it happens, after
+    any wait, so a late wake-up cannot let several requests through at once.
     """
 
     def __init__(
@@ -43,8 +43,11 @@ class RequestBudget:
         self.period = period
         self._clock = clock
         self._sleep = sleep
-        # Start times of the last ``limit`` requests, reserved ones included
+        # Start times of the last ``limit`` requests
         self._starts: deque[float] = deque(maxlen=limit)
+        # One queue per event loop (an asyncio.Lock belongs to one loop)
+        self._lock: asyncio.Lock | None = None
+        self._lock_loop: asyncio.AbstractEventLoop | None = None
 
     @classmethod
     def parse(cls, rate: str) -> RequestBudget:
@@ -57,15 +60,22 @@ class RequestBudget:
             )
         return cls(int(match.group(1)), PERIODS[match.group(2)])
 
+    def _queue(self) -> asyncio.Lock:
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._lock_loop is not loop:
+            self._lock = asyncio.Lock()
+            self._lock_loop = loop
+        return self._lock
+
     async def acquire(self) -> None:
         """Wait until a request may start."""
-        now = self._clock()
-        start = now
-        if len(self._starts) == self.limit:
-            start = max(now, self._starts[0] + self.period)
-        self._starts.append(start)
-        if start > now:
-            await self._sleep(start - now)
+        async with self._queue():
+            while len(self._starts) == self.limit:
+                wait = self._starts[0] + self.period - self._clock()
+                if wait <= 0:
+                    break
+                await self._sleep(wait)
+            self._starts.append(self._clock())
 
     def __repr__(self) -> str:
         return f"RequestBudget({self.limit}, {self.period})"

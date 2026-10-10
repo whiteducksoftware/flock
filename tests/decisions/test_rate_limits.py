@@ -116,18 +116,42 @@ async def test_requests_over_the_budget_wait_for_the_oldest_slot():
 
 
 async def test_concurrent_requests_never_exceed_the_budget():
-    waits: list[float] = []
+    clock = FakeClock()
+    budget = RequestBudget(2, 10.0, clock=clock, sleep=clock.sleep)
+    starts: list[float] = []
 
-    async def sleep(seconds: float) -> None:  # all callers arrive at t=0
-        waits.append(seconds)
-        await asyncio.sleep(0)
+    async def request() -> None:
+        await budget.acquire()
+        starts.append(clock.now)
 
-    budget = RequestBudget(2, 10.0, clock=lambda: 0.0, sleep=sleep)
+    await asyncio.gather(*(request() for _ in range(5)))
 
-    await asyncio.gather(*(budget.acquire() for _ in range(5)))
+    # Callers queue in arrival order: 2 now, 2 after 10 s, 1 after 20 s
+    assert starts == [0.0, 0.0, 10.0, 10.0, 20.0]
 
-    # Each caller reserves its slot before waiting: 2 now, 2 after 10 s, 1 after 20 s
-    assert sorted(waits) == [10.0, 10.0, 20.0]
+
+async def test_late_wake_ups_never_exceed_the_budget():
+    """A busy event loop that wakes waiters 100 s late must not let them all
+    start at once: each start is booked when it happens."""
+    clock = FakeClock()
+
+    async def oversleep(seconds: float) -> None:
+        await clock.sleep(seconds + 100.0)
+
+    budget = RequestBudget(2, 10.0, clock=clock, sleep=oversleep)
+    starts: list[float] = []
+
+    async def request() -> None:
+        await budget.acquire()
+        starts.append(clock.now)
+
+    await asyncio.gather(*(request() for _ in range(5)))
+
+    assert starts == [0.0, 0.0, 110.0, 110.0, 220.0]
+    assert all(
+        later - earlier >= 10.0
+        for earlier, later in zip(starts, starts[2:], strict=False)
+    )
 
 
 async def test_slots_free_up_as_time_passes():
@@ -324,8 +348,21 @@ def test_provider_instances_get_the_budget_of_their_label():
     decider = FakeDecider({"billing": 1.0, "tech": 0.0}, label="fake/one")
     flock.agent("a").consumes(RateTicket).decides(Route, model=decider)
 
-    assert decider.budget is not None
-    assert decider.budget.limit == 10
+    budget = _provider_of(flock, "a").budget
+    assert budget is not None
+    assert budget.limit == 10
+
+
+def test_a_provider_shared_by_two_flocks_keeps_their_budgets_apart():
+    decider = FakeDecider({"billing": 1.0, "tech": 0.0}, label="fake/shared")
+    limited = Flock(decision_rate_limit="10/s")
+    unlimited = Flock()
+    limited.agent("a").consumes(RateTicket).decides(Route, model=decider)
+    unlimited.agent("b").consumes(RateTicket).decides(Route, model=decider)
+
+    assert _provider_of(limited, "a").budget.limit == 10
+    assert _provider_of(unlimited, "b").budget is None
+    assert decider.budget is None  # the caller's instance is left alone
 
 
 def test_invalid_rate_limits_fail_when_the_flock_is_created():

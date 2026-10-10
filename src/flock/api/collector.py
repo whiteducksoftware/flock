@@ -169,14 +169,28 @@ class DashboardEventCollector(AgentComponent):
         self._run_start_times[ctx.task_id] = datetime.now(UTC).timestamp()
 
         # Extract consumed types and artifact IDs. Choice subscribers run on a
-        # decision's subject; the graph records the decision that triggered them.
-        decisions = ctx.state.get("__decisions__") if ctx else None
-        if decisions:
-            consumed_types = list({decision["type"] for decision in decisions})
-            consumed_artifacts = [decision["id"] for decision in decisions]
-        else:
-            consumed_types = list({artifact.type for artifact in inputs})
-            consumed_artifacts = [str(artifact.id) for artifact in inputs]
+        # decision's subject; the graph records the decision that triggered them
+        # in place of that subject. Decisions consumed directly are inputs
+        # themselves, and every other input stays as it is.
+        input_ids = {str(artifact.id) for artifact in inputs}
+        routed = [
+            decision
+            for decision in (ctx.state.get("__decisions__") or [] if ctx else [])
+            if decision["id"] not in input_ids
+        ]
+        subjects = {
+            sid
+            for decision in routed
+            for sid in decision["payload"].get("subject_ids", [])
+        }
+        kept = [artifact for artifact in inputs if str(artifact.id) not in subjects]
+        consumed_types = list(
+            {decision["type"] for decision in routed}
+            | {artifact.type for artifact in kept}
+        )
+        consumed_artifacts = [decision["id"] for decision in routed] + [
+            str(artifact.id) for artifact in kept
+        ]
 
         # Extract produced types from agent outputs
         produced_types = [output.spec.type_name for output in agent.outputs]

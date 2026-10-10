@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -713,6 +714,23 @@ class AgentBuilder:
             activation=activation,
             choices=choice_refs,
         )
+        # A decision consumed directly must not be swapped for its subject just
+        # because the same agent also routes on that question.
+        subscriptions = self._agent.subscriptions
+        routed = {name for s in subscriptions for name in s.choices}
+        direct = {name for s in subscriptions if not s.choices for name in s.type_names}
+        clash = (
+            set(subscription.choices) & direct
+            if subscription.choices
+            else subscription.type_names & routed
+        )
+        if clash:
+            raise ValueError(
+                f"Agent '{self._agent.name}': choice handles and their decision type "
+                f"({', '.join(sorted(clash))}) cannot be consumed by the same agent. "
+                "A handle delivers the decided artifact, the type delivers the "
+                "decision; use separate agents."
+            )
         self._agent.subscriptions.append(subscription)
         return self
 
@@ -802,7 +820,7 @@ class AgentBuilder:
                     f"Agent '{self._agent.name}': tournament= asks exactly one Choice "
                     "question; use a separate decider for other questions."
                 )
-        else:
+        elif options is None:  # with options=, the runtime subset is checked
             for question in questions:
                 if (
                     question.__kind__ == "choice"
@@ -821,6 +839,20 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': options= restricts a single Choice or "
                 "Checklist question."
             )
+        # Checklist items go to the provider as <Checklist>_<index>
+        item_names = {
+            f"{question.__name__}_{index}"
+            for question in questions
+            if question.__kind__ == "checklist"
+            for index in range(len(question.__options__))
+        }
+        clashes = sorted(item_names & {question.__name__ for question in questions})
+        if clashes:
+            raise ValueError(
+                f"Agent '{self._agent.name}': {', '.join(clashes)} is also the name "
+                "of a checklist item's request; rename the question or ask it in a "
+                "separate decider."
+            )
         if instructions is not None and len(questions) > 1:
             raise ValueError(
                 f"Agent '{self._agent.name}': instructions= replaces the text of a "
@@ -838,6 +870,11 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': .decides() sets the agent's engine; "
                 "it cannot be combined with .with_engines()."
             )
+        if self._agent.output_groups:
+            raise ValueError(
+                f"Agent '{self._agent.name}': a decision agent publishes only its "
+                "decisions; .decides() cannot be combined with .publishes()."
+            )
         model = (
             model
             or getattr(self._orchestrator, "decision_model", None)
@@ -852,23 +889,29 @@ class AgentBuilder:
         provider = resolve_provider(model)
         budget = self._orchestrator._decision_budget(provider.label)
         if budget is not None:
+            # A copy: a provider instance may be shared by several flocks
+            provider = copy.copy(provider)
             provider.budget = budget
-        self._agent.engines.append(
-            DecisionEngine(
-                questions=list(questions),
-                provider=provider,
-                threshold=threshold,
-                instructions=instructions,
-                visibility=visibility,
-                questions_per_request=questions_per_request,
-                tournament=tournament,
-                options=options,
-            )
+        engine = DecisionEngine(
+            questions=list(questions),
+            provider=provider,
+            threshold=threshold,
+            instructions=instructions,
+            visibility=visibility,
+            questions_per_request=questions_per_request,
+            tournament=tournament,
+            options=options,
         )
         self.publishes(*(Decision.of(question) for question in questions))
         for output in self._agent.output_groups[-1].outputs:
             output.inherit_visibility = True
+        self._agent.engines.append(engine)  # last: later .publishes() checks it
         return self
+
+    def _is_decider(self) -> bool:
+        from flock.decisions.engine import DecisionEngine
+
+        return any(isinstance(e, DecisionEngine) for e in self._agent.engines)
 
     def schedule(
         self,
@@ -1006,6 +1049,11 @@ class AgentBuilder:
             - TenantVisibility: Multi-tenant isolation
             - LabelledVisibility: Role-based access control
         """
+        if self._is_decider():
+            raise ValueError(
+                f"Agent '{self._agent.name}': a decision agent publishes only its "
+                "decisions; .decides() cannot be combined with .publishes()."
+            )
         # Normalize fan_out specification to FanOutRange (or None)
         fan_out_range = normalize_fan_out(fan_out) if fan_out is not None else None
 
@@ -1127,6 +1175,11 @@ class AgentBuilder:
             - DSPyEngine: Default LLM-based evaluation
             - EngineComponent: Base class for custom engines
         """
+        if self._is_decider():
+            raise ValueError(
+                f"Agent '{self._agent.name}': .decides() sets the agent's engine; "
+                "it cannot be combined with .with_engines()."
+            )
         self._agent.engines.extend(engines)
         return self
 
