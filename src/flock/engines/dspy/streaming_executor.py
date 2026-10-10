@@ -717,6 +717,8 @@ class DSPyStreamingExecutor:
                 final_result, tokens_emitted = await self._consume_stream(
                     stream_generator, sinks, dspy_mod
                 )
+                if final_result is None:
+                    raise RuntimeError("Streaming did not yield a final prediction.")
             except BaseException as failure:
                 error = _unwrap_single_failure(failure)
                 self._show_failure(live, agent_label or agent.name, error)
@@ -725,9 +727,6 @@ class DSPyStreamingExecutor:
                 raise error from None
 
         await self._flush_sinks(sinks)
-
-        if final_result is None:
-            raise RuntimeError("Streaming did not yield a final prediction.")
 
         stream_display = self._finalize_stream_display(
             rich_sink=rich_sink,
