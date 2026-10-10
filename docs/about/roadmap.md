@@ -11,7 +11,7 @@ search:
 
 # 🗺️ Flock Roadmap to 1.0
 
-Flock 0.5 is the current release line (`flock-core` on PyPI). The open backlog below is planned for **Q4 2026**: the Flock 1.0 release scope, and integrations that are qualified separately from it. Every item links to its GitHub issue, which holds the scope and the current state.
+Flock 0.5 is the current release line (`flock-core` on PyPI). The planned work below is scheduled for **Q4 2026**: the Flock 1.0 release scope, and integrations that are qualified separately from it. Every item links to its GitHub issue, which holds the scope and the current state.
 
 ---
 
@@ -72,4 +72,4 @@ These are planned for the same time frame but are not part of the 1.0 release sc
 
 ---
 
-The [issue tracker](https://github.com/whiteducksoftware/flock/issues) is the source of truth; this page summarizes it. Release notes are in the [changelog](changelog.md). For enterprise questions, contact [support@whiteduck.de](mailto:support@whiteduck.de).
+The [issue tracker](https://github.com/whiteducksoftware/flock/issues) is the source of truth; this page summarizes the planned issues (research topics and questions are not listed). Release notes are in the [changelog](changelog.md). For enterprise questions, contact [support@whiteduck.de](mailto:support@whiteduck.de).

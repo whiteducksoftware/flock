@@ -57,7 +57,7 @@ search:
 
 ### 🐛 Fixes
 
-- **Roadmap matches the backlog.** `ROADMAP.md` and the docs roadmap still promised 1.0 for Q4 2025 and listed shipped features as in flight. Both now list what 0.5 offers and summarize the open backlog, planned for Q4 2026: the 1.0 release scope and the separately qualified integrations.
+- **Roadmap matches the backlog.** `ROADMAP.md` and the docs roadmap still promised 1.0 for Q4 2025 and listed shipped features as in flight. Both now list what 0.5 offers and summarize the planned work for Q4 2026: the 1.0 release scope and the separately qualified integrations.
 - **New OpenAI models work with the default DSPy engine.** For the OpenAI API (`openai/` without a custom base URL) the engine now sends its token limit as `max_completion_tokens`; `gpt-6-luna` and other new models rejected `max_tokens` with HTTP 400. OpenAI-compatible servers behind `openai/` keep `max_tokens`.
 - **Streaming agents report the real error.** DSPy's `streamify` wraps a failure in an anyio TaskGroup, so logs and `WorkflowError` only said "unhandled errors in a TaskGroup (1 sub-exception)". A single wrapped failure is now unwrapped (CLI and dashboard streaming), and the console ends with a red error panel instead of an empty placeholder result.
 - **Batching performance test no longer fails on slow CI runners.** It compared the time of 100 batched publishes with a fixed 3,000 ms limit, which branch coverage and slower runners exceeded; it now compares against the same publishes handled one by one in the same run.
