@@ -426,7 +426,7 @@ The work toward 1.0 is tracked in [issues labelled `[1.0]`](https://github.com/w
 - explanations for why a subscription did not trigger;
 - agent skills.
 
-[ROADMAP.md](ROADMAP.md) is being updated to match ([#451](https://github.com/whiteducksoftware/flock/issues/451)).
+[ROADMAP.md](ROADMAP.md) summarizes the whole backlog; Flock 1.0 is planned for Q4 2026.
 
 ## Contributing
 

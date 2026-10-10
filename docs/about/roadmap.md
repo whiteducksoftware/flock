@@ -1,6 +1,6 @@
 ---
 title: Product Roadmap
-description: Flock's path from v0.5.0 to v1.0 - enterprise features, production readiness, and future vision
+description: What Flock 0.5 offers today and the backlog planned for Flock 1.0 in Q4 2026
 tags:
   - roadmap
   - future
@@ -11,97 +11,57 @@ search:
 
 # 🗺️ Flock Roadmap to 1.0
 
-**Building Enterprise Infrastructure for AI Agents**
-
-This roadmap outlines Flock's path from v0.5.0 (production-ready core) to v1.0 (enterprise-complete) by Q4 2025. We're confident we can deliver the remaining enterprise features by **Q4 2025**.
+Flock 0.5 is the current release line (`flock-core` on PyPI). The open backlog below is planned for **Flock 1.0 in Q4 2026**. Every item links to its GitHub issue, which holds the scope and the current state.
 
 ---
 
-## ✅ What's Already Production-Ready (v0.5.0)
+## ✅ Available in 0.5
 
-### Core Framework
-- Blackboard orchestrator with typed artifacts
-- Declarative agent subscriptions (no graph wiring)
-- Automatic parallel + sequential execution
-- Zero-trust visibility model (5 visibility types)
-- Circuit breakers and self-trigger prevention
-- 743 tests with 77.65% coverage (86-100% on critical paths)
-- Type-safe retrieval API (`get_by_type()`)
-
-### Observability
-- OpenTelemetry distributed tracing
-- DuckDB trace storage (AI-queryable)
-- Real-time dashboard with WebSocket streaming
-- 7-mode trace viewer (Timeline, RED metrics, Dependencies, SQL)
-- Service filtering and CSV export
-- Full I/O capture with JSON viewer
-
-### Developer Experience
-- MCP integration (Model Context Protocol)
-- Best-of-N execution
-- Batch processing and join operations
-- Conditional consumption (`where=lambda`)
-- Rich console output and FastAPI service
-- Keyboard shortcuts (WCAG 2.1 AA compliant)
+- **Blackboard core:** typed artifacts, declarative subscriptions with predicates, joins, batches and semantic matching, fan-out publishing, visibility (public, private, tenant, label and time based), circuit breakers.
+- **Decision models:** `Choice`, `YesNo`, `Scale` and `Checklist` questions with calibrated probabilities, tournaments for large choices, decision networks, rate limits per provider.
+- **Storage:** in-memory, SQLite and Dapr blackboard stores with history queries and retention.
+- **Scheduling:** interval, daily, one-time and cron timers.
+- **REST API:** publish (sync and async), artifact listing, schema discovery, correlation status, idempotency keys, OpenAPI, custom endpoints and webhooks.
+- **Hosting:** application hosting, including Microsoft Foundry.
+- **Observability:** real-time dashboard, OpenTelemetry tracing with DuckDB storage.
+- **Tools and media:** MCP tools, images in artifacts and decisions.
 
 ---
 
-## 🧱 0.5.0 Beta Initiatives (In Flight)
+## 🚀 Flock 1.0 (Q4 2026)
 
-These are the features we are actively building for the 0.5.0 beta. Follow the linked GitHub issues to track progress:
+### Safe access and data protection
+- Authenticated API, dashboard and WebSocket access with per-recipient visibility ([#280](https://github.com/whiteducksoftware/flock/issues/280), [#430](https://github.com/whiteducksoftware/flock/issues/430), [#431](https://github.com/whiteducksoftware/flock/issues/431), [#432](https://github.com/whiteducksoftware/flock/issues/432)).
+- Private input data kept out of error artifacts, trace data minimized and redacted before export ([#428](https://github.com/whiteducksoftware/flock/issues/428), [#429](https://github.com/whiteducksoftware/flock/issues/429)).
 
-### Core data & governance
-- [#271](https://github.com/whiteducksoftware/flock/issues/271) — Durable blackboard persistence backends.
-- [#274](https://github.com/whiteducksoftware/flock/issues/274) — Serialization/export of blackboard state and registered agents.
-- [#273](https://github.com/whiteducksoftware/flock/issues/273) — Structured feedback channel for agent outputs.
-- [#281](https://github.com/whiteducksoftware/flock/issues/281) — Human-in-the-loop approval flow.
+### Bounded execution
+- Bounded admission and global concurrency, bounded AND/batch/join collections, context and execution budgets ([#440](https://github.com/whiteducksoftware/flock/issues/440), [#441](https://github.com/whiteducksoftware/flock/issues/441), [#442](https://github.com/whiteducksoftware/flock/issues/442)).
 
-### Execution patterns & scheduling
-- [#282](https://github.com/whiteducksoftware/flock/issues/282) — Fan-out / fan-in workflow helpers.
-- [#283](https://github.com/whiteducksoftware/flock/issues/283) — Time-based scheduling primitives.
+### Runs: history, interruption and control
+- Run history in SQLite that survives restarts, interrupted runs shown after a restart without auto-resume, terminal outcomes preserved ([#433](https://github.com/whiteducksoftware/flock/issues/433), [#443](https://github.com/whiteducksoftware/flock/issues/443), [#444](https://github.com/whiteducksoftware/flock/issues/444)).
+- Run cancellation, pause of new starts and workflow lifecycle controls ([#446](https://github.com/whiteducksoftware/flock/issues/446), [#294](https://github.com/whiteducksoftware/flock/issues/294)).
+- Correlation status from actual work, connected run views with per-run live output ([#434](https://github.com/whiteducksoftware/flock/issues/434), [#445](https://github.com/whiteducksoftware/flock/issues/445)).
 
-### REST access & integrations
-- [#286](https://github.com/whiteducksoftware/flock/issues/286) — Custom REST endpoint DSL.
-- [#287](https://github.com/whiteducksoftware/flock/issues/287) — Synchronous publish endpoint (single and batch).
-- [#288](https://github.com/whiteducksoftware/flock/issues/288) — Correlation-aware status endpoint.
-- [#289](https://github.com/whiteducksoftware/flock/issues/289) — Webhook notifications for published artifacts.
-- [#290](https://github.com/whiteducksoftware/flock/issues/290) — Schema discovery endpoints.
-- [#291](https://github.com/whiteducksoftware/flock/issues/291) — REST idempotency keys and error model.
-- [#292](https://github.com/whiteducksoftware/flock/issues/292) — Artifact listing and filtering API.
-- [#293](https://github.com/whiteducksoftware/flock/issues/293) — OpenAPI specification generation.
+### Dashboard and API
+- UI rework, dashboard state reconciled after reconnects, image support across the dashboard ([#374](https://github.com/whiteducksoftware/flock/issues/374), [#447](https://github.com/whiteducksoftware/flock/issues/447), [#464](https://github.com/whiteducksoftware/flock/issues/464)).
+- Fixes for CLI `serve`, read-only tracing settings, history pagination and complex publish inputs ([#435](https://github.com/whiteducksoftware/flock/issues/435), [#436](https://github.com/whiteducksoftware/flock/issues/436), [#437](https://github.com/whiteducksoftware/flock/issues/437), [#438](https://github.com/whiteducksoftware/flock/issues/438)).
+- Explanations for why a subscription is waiting or did not trigger ([#448](https://github.com/whiteducksoftware/flock/issues/448)).
 
-### Documentation & onboarding
-- [#270](https://github.com/whiteducksoftware/flock/issues/270) — MkDocs-powered documentation site.
-- [#269](https://github.com/whiteducksoftware/flock/issues/269) — Revamped example catalog.
+### Agents and decisions
+- Agent skills: instruction skills and bounded reference tools ([#449](https://github.com/whiteducksoftware/flock/issues/449), [#450](https://github.com/whiteducksoftware/flock/issues/450)).
+- Decision networks: escalation, ensembles, aggregation, calibration, shadow mode and human review ([#474](https://github.com/whiteducksoftware/flock/issues/474)).
+- Serialization of blackboard state and agents ([#274](https://github.com/whiteducksoftware/flock/issues/274)).
 
----
+### Reliability and deployment
+- Advanced retries and dead-letter queues, Dapr store hardening ([#277](https://github.com/whiteducksoftware/flock/issues/277), [#415](https://github.com/whiteducksoftware/flock/issues/415)).
+- Kafka event backbone and Kubernetes deployment tooling ([#278](https://github.com/whiteducksoftware/flock/issues/278), [#279](https://github.com/whiteducksoftware/flock/issues/279)).
 
-## 🚀 Flock 1.0 (Target Q4 2025)
-
-Once the 0.5.0 beta ships, we will focus on the remaining enterprise capabilities before the 1.0 release.
-
-### Reliability & operations
-- [#277](https://github.com/whiteducksoftware/flock/issues/277) — Advanced retry strategy, dead-letter queues, per-agent circuit breakers.
-- [#278](https://github.com/whiteducksoftware/flock/issues/278) — Kafka-backed event backbone with replay and time-travel debugging.
-- [#279](https://github.com/whiteducksoftware/flock/issues/279) — Kubernetes deployment tooling (Helm charts, auto-scaling).
-- [#294](https://github.com/whiteducksoftware/flock/issues/294) — Workflow lifecycle controls (pause, resume, cancel).
-
-### Platform validation & quality
-- [#275](https://github.com/whiteducksoftware/flock/issues/275) — Benchmarking suite against industry workloads.
-- [#276](https://github.com/whiteducksoftware/flock/issues/276) — Automated evaluation harness for datasets/metrics.
-- [#284](https://github.com/whiteducksoftware/flock/issues/284) — Test coverage expansion to 85%+ with 1,000 tests.
-- [#285](https://github.com/whiteducksoftware/flock/issues/285) — Production validation pilots with launch partners.
-
-### Security & access
-- [#280](https://github.com/whiteducksoftware/flock/issues/280) — Authentication & authorization (OAuth/OIDC, API keys).
+### Quality and release
+- Application-factory entry point and deterministic onboarding ([#439](https://github.com/whiteducksoftware/flock/issues/439)).
+- Benchmarking suite, evaluation harness and production pilots ([#275](https://github.com/whiteducksoftware/flock/issues/275), [#276](https://github.com/whiteducksoftware/flock/issues/276), [#285](https://github.com/whiteducksoftware/flock/issues/285)).
+- Release qualification and operating guidance ([#451](https://github.com/whiteducksoftware/flock/issues/451), [#452](https://github.com/whiteducksoftware/flock/issues/452)).
+- DSPy 3.4 upgrade once the upstream fix is released ([#499](https://github.com/whiteducksoftware/flock/issues/499)).
 
 ---
 
-## 📌 Staying in the Loop
-
-- ⭐ Star the [GitHub repository](https://github.com/whiteducksoftware/flock)
-- 🗓️ Join community calls and roadmap discussions (announced in Discord/Slack)
-- 💬 Open issues or discussions to influence priorities
-- 📨 Contact [support@whiteduck.de](mailto:support@whiteduck.de) for enterprise questions
-
-We’ll publish release notes as each milestone lands and keep this document in sync with the public issue tracker.
+The [issue tracker](https://github.com/whiteducksoftware/flock/issues) is the source of truth; this page summarizes it. Release notes are in the [changelog](changelog.md). For enterprise questions, contact [support@whiteduck.de](mailto:support@whiteduck.de).
