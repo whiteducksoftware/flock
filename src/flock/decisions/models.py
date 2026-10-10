@@ -46,6 +46,11 @@ class Decision(BaseModel):
     subject_ids: list[str] = Field(
         default_factory=list, description="Ids of the artifacts that were decided on"
     )
+    candidates: list[str] | None = Field(
+        default=None,
+        description="Options the decision was asked about when they were "
+        "restricted at runtime (options=)",
+    )
     rounds: list[dict[str, Any]] = Field(
         default_factory=list,
         description="Tournament rounds before the final question: candidates, "

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ConfigDict, Field
@@ -81,6 +82,13 @@ def inherited_visibility(artifacts: list[Artifact]) -> Visibility:
 TOP_ELIMINATED = 2
 
 
+def _trivial_answer(candidates: dict[str, str]) -> DecisionAnswer:
+    if not candidates:
+        return DecisionAnswer(choice=None, probabilities={})
+    (only,) = candidates
+    return DecisionAnswer(only, {only: 1.0}, confidence=1.0)
+
+
 class DecisionEngine(EngineComponent):
     """Answers :class:`Choice`, :class:`YesNo`, :class:`Scale` and
     :class:`Checklist` questions about the agent's inputs.
@@ -106,6 +114,11 @@ class DecisionEngine(EngineComponent):
     visibility: Visibility | None = None
     questions_per_request: int = Field(default=100, ge=1)
     tournament: Tournament | None = None
+    options: Callable[[Any], Iterable[str]] | None = Field(
+        default=None,
+        description="Restricts the single Choice or Checklist to these options "
+        "for each execution",
+    )
     enable_context: bool = Field(
         default=False, description="Decisions are made on the inputs only"
     )
@@ -123,7 +136,8 @@ class DecisionEngine(EngineComponent):
             if self.visibility is not None
             else inherited_visibility(inputs.artifacts)
         )
-        wire = self._wire_questions()
+        candidates = self._candidates(ctx)
+        wire = self._wire_questions(candidates)
 
         state, images = prepare_state(inputs.artifacts)
         if images and not self.provider.supports_images:
@@ -135,11 +149,20 @@ class DecisionEngine(EngineComponent):
 
         started = time.perf_counter()
         rounds: list[dict[str, Any]] = []
-        if self.tournament is not None:
-            answer, rounds = await self._run_tournament(state, images)
+        if (
+            candidates is not None
+            and self.questions[0].__kind__ == "choice"
+            and (len(candidates) < 2)
+        ):
+            # Nothing to rank: no candidates is UNSURE, a single one wins
+            answers = {self.questions[0].__name__: _trivial_answer(candidates)}
+        elif self.tournament is not None:
+            answer, rounds = await self._run_tournament(state, images, candidates)
             answers = {self.questions[0].__name__: answer}
-        else:
+        elif wire:
             answers = await self._ask(state, wire, images)
+        else:
+            answers = {}
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
 
         subject_ids = [str(a.id) for a in inputs.artifacts]
@@ -150,6 +173,8 @@ class DecisionEngine(EngineComponent):
                 decision = self._checklist_decision(
                     question, wire, answers, subject_ids, latency_ms
                 )
+                if candidates is not None:
+                    decision.candidates = list(candidates)
                 artifacts.append(
                     Artifact(
                         type=type_registry.name_for(model),
@@ -169,6 +194,7 @@ class DecisionEngine(EngineComponent):
                 score=answer.score,
                 refused=answer.refused,
                 subject_ids=subject_ids,
+                candidates=None if candidates is None else list(candidates),
                 rounds=rounds,
                 model=answer.model or self.provider.label,
                 latency_ms=latency_ms,
@@ -194,14 +220,35 @@ class DecisionEngine(EngineComponent):
         )
         return {name: answer for reply in replies for name, answer in reply.items()}
 
+    def _candidates(self, ctx: Context) -> dict[str, str] | None:
+        """The options of the single question for this execution (options=)."""
+        if self.options is None:
+            return None
+        question = self.questions[0]
+        names = list(dict.fromkeys(self.options(ctx)))
+        unknown = [name for name in names if name not in question.__options__]
+        if unknown:
+            raise ValueError(
+                f"options= returned names that are not options of "
+                f"{question.__name__}: {', '.join(map(str, unknown))}"
+            )
+        # In declared order, so a decision does not depend on arrival order
+        chosen = set(names)
+        return {
+            name: text for name, text in question.__options__.items() if name in chosen
+        }
+
     async def _run_tournament(
-        self, state: str, images: list[Image]
+        self,
+        state: str,
+        images: list[Image],
+        candidates: dict[str, str] | None = None,
     ) -> tuple[DecisionAnswer, list[dict[str, Any]]]:
         """Narrow a large Choice down in rounds of groups, then ask the final question."""
         question = self.questions[0]
         name = question.__name__
         prompt = self.instructions or question.__question__
-        options = question.__options__
+        options = candidates if candidates is not None else question.__options__
         group_size, keep = self.tournament.group_size, self.tournament.keep
 
         def ask_about(label: str, candidates: list[str]) -> DecisionQuestion:
@@ -264,23 +311,30 @@ class DecisionEngine(EngineComponent):
         final = ask_about(name, candidates)
         return (await self._ask(state, [final], images))[name], rounds
 
-    def _wire_questions(self) -> list[DecisionQuestion]:
+    def _wire_questions(
+        self, candidates: dict[str, str] | None = None
+    ) -> list[DecisionQuestion]:
         """The questions sent to the provider; a checklist becomes one yes/no
-        question per item."""
+        question per item. ``candidates`` restricts the single question."""
         wire = []
         for question in self.questions:
             prompt = self.instructions or question.__question__
+            options = candidates if candidates is not None else question.__options__
             if question.__kind__ != "checklist":
+                if candidates is not None and len(candidates) < 2:
+                    continue  # decided without a request
                 wire.append(
                     DecisionQuestion(
                         name=question.__name__,
                         instructions=prompt,
-                        options=question.__options__,
+                        options=options,
                         kind=question.__kind__,
+                        # a restricted choice is a subset of the declared options
+                        group=question.__name__ if candidates is not None else None,
                     )
                 )
                 continue
-            for index, (item, text) in enumerate(question.__options__.items()):
+            for index, (item, text) in enumerate(options.items()):
                 wire.append(
                     DecisionQuestion(
                         name=f"{question.__name__}_{index}",
@@ -328,7 +382,9 @@ class DecisionEngine(EngineComponent):
             probabilities[item] = answer.probabilities.get("yes", 0.0)
             results[item] = self._item_result(probabilities[item])
 
-        if "no" in results.values():
+        if not results:
+            outcome = UNSURE  # no items to check
+        elif "no" in results.values():
             outcome = FAILED
         elif UNSURE in results.values():
             outcome = UNSURE

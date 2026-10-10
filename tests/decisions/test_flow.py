@@ -261,10 +261,10 @@ async def test_provider_failure_becomes_a_workflow_error(flock):
     assert error.payload["failed_agent"] == "triage"
 
 
-def test_choice_subscription_takes_exactly_one_handle(flock):
-    with pytest.raises(ValueError, match="one option"):
+def test_choice_handles_combine_only_across_questions(flock):
+    with pytest.raises(ValueError, match="mixed with types"):
         flock.agent("x").consumes(Route.billing, Ticket)
-    with pytest.raises(ValueError, match="one option"):
+    with pytest.raises(ValueError, match="same question"):
         flock.agent("y").consumes(Route.billing, Route.tech)
 
 

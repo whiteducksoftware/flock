@@ -236,6 +236,64 @@ async def test_live_model_answers_a_checklist(model):
     assert decision.choice == "failed"
 
 
+LIVE_CONTROL_TEXTS = {
+    "mfa": "Multi-factor authentication is required for remote access",
+    "backup": "Backups are performed daily",
+    "restore_test": "Restores from backup are tested",
+    "pentest": "Penetration tests are performed annually",
+    "training": "Employees receive annual security awareness training",
+    "dc_access": "Access to the data centre is logged",
+}
+LiveControl = Choice.from_options(
+    "LiveControl",
+    LIVE_CONTROL_TEXTS,
+    question="Which control does the statement show to be implemented?",
+)
+LiveScreenA = Checklist.from_items(
+    "LiveScreenA",
+    {k: LIVE_CONTROL_TEXTS[k] for k in ("mfa", "backup", "restore_test")},
+    question="Does the statement show that this control is implemented?",
+)
+LiveScreenB = Checklist.from_items(
+    "LiveScreenB",
+    {k: LIVE_CONTROL_TEXTS[k] for k in ("pentest", "training", "dc_access")},
+    question="Does the statement show that this control is implemented?",
+)
+
+
+@pytest.mark.parametrize("model", TEXT_MODELS)
+async def test_live_screening_network(model):
+    flock = Flock(decision_model=model)
+    for screen in (LiveScreenA, LiveScreenB):
+        flock.agent(screen.__name__).consumes(LivePolicy).decides(screen, threshold=0.5)
+
+    def passes(ctx):
+        return [
+            item
+            for decision in ctx.decisions
+            for item, result in decision.results.items()
+            if result == "yes"
+        ]
+
+    flock.agent("ranker").consumes(LiveScreenA.ANY, LiveScreenB.ANY).decides(
+        LiveControl, options=passes
+    )
+
+    await flock.publish(
+        LivePolicy(text="Remote access requires multi-factor authentication.")
+    )
+    await flock.run_until_idle()
+
+    (artifact,) = [
+        a
+        for a in await flock.store.list()
+        if a.type == type_registry.name_for(Decision.of(LiveControl))
+    ]
+    assert artifact.produced_by == "ranker"
+    assert "mfa" in artifact.payload["candidates"]
+    assert artifact.payload["choice"] == "mfa"
+
+
 ANIMALS = [
     "ant",
     "bear",

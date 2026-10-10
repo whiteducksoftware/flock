@@ -32,6 +32,10 @@ from flock.registry import function_registry, type_registry
 from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 
+# How long several choice handles wait for decisions about the same subject
+SUBJECT_JOIN_WINDOW = timedelta(minutes=10)
+
+
 logger = get_logger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover - type hints only
@@ -630,17 +634,34 @@ class AgentBuilder:
 
             >>> # Decision routing: run on tickets the triage agent routed to billing
             >>> agent.consumes(Route.billing)
+
+            >>> # Several handles: AND about the same subject (the ticket is delivered
+            >>> # once, all decisions are in ctx.decisions)
+            >>> agent.consumes(Route.billing, Urgent.yes)
         """
-        choice_ref: ChoiceRef | None = None
+        choice_refs: list[ChoiceRef] = []
         if any(isinstance(t, ChoiceRef) for t in types):
-            if len(types) != 1:
+            if not all(isinstance(t, ChoiceRef) for t in types):
                 raise ValueError(
-                    "A choice subscription takes exactly one option handle; chain "
+                    "Choice handles cannot be mixed with types in one .consumes(); "
+                    "a handle delivers the decided artifact itself. Use separate "
+                    ".consumes() calls."
+                )
+            choice_refs = list(types)
+            questions = [ref.choice for ref in choice_refs]
+            if len(set(questions)) != len(questions):
+                raise ValueError(
+                    "Handles of the same question cannot be combined in one "
+                    ".consumes(): there is one decision per subject. Chain "
                     ".consumes() calls for OR, e.g. "
                     ".consumes(Route.billing).consumes(Route.shipping)."
                 )
-            choice_ref = types[0]
-            types = (Decision.of(choice_ref.choice),)
+            types = tuple(Decision.of(question) for question in questions)
+            if len(choice_refs) > 1 and join is None:
+                # AND about the same subject: join the decisions on their subjects
+                from flock.decisions.routing import same_subject
+
+                join = JoinSpec(by=same_subject, within=SUBJECT_JOIN_WINDOW)
 
         predicates: Sequence[Callable[[BaseModel], bool]] | None
         if where is None:
@@ -690,7 +711,7 @@ class AgentBuilder:
             mode=mode,
             priority=priority,
             activation=activation,
-            choice=choice_ref,
+            choices=choice_refs,
         )
         self._agent.subscriptions.append(subscription)
         return self
@@ -704,6 +725,7 @@ class AgentBuilder:
         visibility: Visibility | None = None,
         questions_per_request: int = 100,
         tournament: Any | None = None,
+        options: Callable[[Context], Iterable[str]] | None = None,
     ) -> AgentBuilder:
         """Answer questions about each input with a decision model.
 
@@ -731,6 +753,11 @@ class AgentBuilder:
             questions_per_request: Most questions sent in one provider request.
             tournament: A ``Tournament`` to ask one large Choice in rounds of
                 groups; required for choices with more than 255 options.
+            options: Restricts the single Choice or Checklist to a subset of its
+                options for each execution: a callable that receives the
+                context (``ctx.decisions`` holds the decisions that triggered
+                the agent) and returns option names. The decision records them,
+                in declared order, as ``candidates``.
 
         Returns:
             self for method chaining
@@ -787,6 +814,13 @@ class AgentBuilder:
                         f"at most {MAX_OPTIONS} options per question. Pass "
                         "tournament=Tournament(...) to ask it in rounds."
                     )
+        if options is not None and (
+            len(questions) != 1 or questions[0].__kind__ not in ("choice", "checklist")
+        ):
+            raise ValueError(
+                f"Agent '{self._agent.name}': options= restricts a single Choice or "
+                "Checklist question."
+            )
         if instructions is not None and len(questions) > 1:
             raise ValueError(
                 f"Agent '{self._agent.name}': instructions= replaces the text of a "
@@ -824,6 +858,7 @@ class AgentBuilder:
                 visibility=visibility,
                 questions_per_request=questions_per_request,
                 tournament=tournament,
+                options=options,
             )
         )
         self.publishes(*(Decision.of(question) for question in questions))
