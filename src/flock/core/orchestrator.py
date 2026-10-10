@@ -101,6 +101,7 @@ class Flock(metaclass=AutoTracedMeta):
         context_provider: Any = None,
         no_output: bool = False,
         openclaw: OpenClawConfig | None = None,
+        decision_model: str | Any | None = None,
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
@@ -114,11 +115,16 @@ class Flock(metaclass=AutoTracedMeta):
             no_output: Suppress all terminal output (banners, result tables, streaming).
                 Logging is preserved. Useful when running Flock as a service.
             openclaw: Optional OpenClaw integration configuration.
+            decision_model: Default decision model for ``.decides()`` agents: a
+                model string (``"azure/decision-1"``) or a ``DecisionProvider``.
+                ``model=`` on ``.decides()`` overrides it; without either,
+                ``DEFAULT_DECISION_MODEL`` applies.
 
         Examples:
             >>> flock = Flock("openai/gpt-4.1")
             >>> flock = Flock("openai/gpt-4o", store=CustomStore())
             >>> flock = Flock("openai/gpt-4.1", no_output=True)  # Silent mode
+            >>> flock = Flock("openai/gpt-4.1", decision_model="jev/jev-latest")
         """
         # Patch litellm imports and setup logger
         self._patch_litellm_proxy_imports()
@@ -126,6 +132,7 @@ class Flock(metaclass=AutoTracedMeta):
         self.model = model or os.getenv("DEFAULT_MODEL")
         self.no_output = no_output
         self.openclaw = openclaw
+        self.decision_model = decision_model
 
         # Phase 3: Initialize all components using OrchestratorInitializer
         components = OrchestratorInitializer.initialize_components(

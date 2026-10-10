@@ -718,7 +718,8 @@ class AgentBuilder:
             *questions: Question classes to answer about each input
             model: Decision model string (``"jev/jev-latest"``,
                 ``"local/clef-flash"``) or a ``DecisionProvider``. Defaults to
-                the ``DEFAULT_DECISION_MODEL`` environment variable.
+                ``Flock(decision_model=...)``, then to the
+                ``DEFAULT_DECISION_MODEL`` environment variable.
             threshold: Minimum probability of the chosen option, for every
                 question; below it the decision is ``UNSURE`` and routes to
                 ``<Question>.UNSURE``.
@@ -780,11 +781,15 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': .decides() sets the agent's engine; "
                 "it cannot be combined with .with_engines()."
             )
-        model = model or os.getenv("DEFAULT_DECISION_MODEL")
+        model = (
+            model
+            or getattr(self._orchestrator, "decision_model", None)
+            or os.getenv("DEFAULT_DECISION_MODEL")
+        )
         if not model:
             raise ValueError(
-                f"Agent '{self._agent.name}': pass model= to .decides() or set "
-                "DEFAULT_DECISION_MODEL."
+                f"Agent '{self._agent.name}': pass model= to .decides(), set "
+                "Flock(decision_model=...) or set DEFAULT_DECISION_MODEL."
             )
 
         self._agent.engines.append(
