@@ -41,6 +41,9 @@ def _contains_image(annotation: Any, seen: frozenset[type] = frozenset()) -> boo
         return any(
             _contains_image(field.annotation, inner)
             for field in annotation.model_fields.values()
+        ) or any(
+            _contains_image(computed.return_type, inner)
+            for computed in annotation.model_computed_fields.values()
         )
     return any(_contains_image(arg, seen) for arg in typing.get_args(annotation))
 
@@ -179,7 +182,7 @@ def _image_fields(inputs: EvalInputs) -> list[str]:
             sent = to_dspy_input(model.model_validate(artifact.payload or {}), model)
         except Exception:  # noqa: S112 - invalid payloads are passed on as data
             continue
-        for name in model.model_fields:
+        for name in [*model.model_fields, *model.model_computed_fields]:
             path = f"{model.__name__}.{name}"
             if _sends_image(getattr(sent, name)) and path not in fields:
                 fields.append(path)

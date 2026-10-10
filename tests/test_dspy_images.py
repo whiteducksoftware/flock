@@ -83,6 +83,18 @@ class ImgMeasured(BaseModel):
         return self.width * self.height
 
 
+@flock_type
+class ImgDerived(BaseModel):
+    """The only picture is computed."""
+
+    encoded: str
+
+    @computed_field
+    @property
+    def picture(self) -> Image:
+        return Image(url=self.encoded)
+
+
 class ImgTextData(BaseModel):
     data: dict[str, str]
 
@@ -180,6 +192,22 @@ def test_computed_fields_are_kept():
     copied = to_dspy_input(value, ImgMeasured)
 
     assert copied.model_dump()["area"] == 12
+
+
+def test_a_computed_picture_is_sent_as_an_image():
+    picture = _png()
+    copied = to_dspy_input(ImgDerived(encoded=picture.url), ImgDerived)
+
+    assert dspy_input_model(ImgDerived) is not ImgDerived
+    assert isinstance(copied.picture, dspy.Image)
+    with pytest.raises(ValueError, match=r"ImgDerived\.picture"):
+        ensure_vision_support(
+            "openai/gpt-3.5-turbo",
+            EvalInputs(
+                artifacts=[_artifact(ImgDerived(encoded=picture.url))], state={}
+            ),
+            openai_api=True,
+        )
 
 
 def test_vision_models_skip_the_payload_scan(monkeypatch):
