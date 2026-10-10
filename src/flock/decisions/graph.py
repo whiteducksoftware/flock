@@ -107,7 +107,7 @@ def decider_info(
     if engine is None:
         return None
     produced = list(produced)
-    return {
+    info: dict[str, Any] = {
         "model": engine.provider.label,
         "threshold": engine.threshold,
         "questions": [
@@ -117,6 +117,12 @@ def decider_info(
             for question in engine.questions
         ],
     }
+    if engine.tournament is not None:
+        info["tournament"] = {
+            "groupSize": engine.tournament.group_size,
+            "keep": engine.tournament.keep,
+        }
+    return info
 
 
 def choice_type_labels(agent: Agent) -> dict[str, str]:
@@ -162,6 +168,8 @@ def decision_view(
         "score": payload.get("score"),
         "refused": bool(payload.get("refused")),
     }
+    if payload.get("rounds"):
+        view["rounds"] = list(payload["rounds"])
     if view["kind"] == "checklist":
         view["items"] = levels or list(payload.get("results") or {})
         view["results"] = dict(payload.get("results") or {})

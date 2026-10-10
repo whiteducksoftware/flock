@@ -299,5 +299,69 @@ describe('MessageNode', () => {
     expect(cells[0]).toHaveAttribute('title', 'mfa · yes · p 0.98');
     expect(cells[3]).toHaveAttribute('title', 'backup · refused');
   });
+
+  it('should show tournament rounds above the final probabilities', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Control',
+              kind: 'choice',
+              choice: 'c_42',
+              bestGuess: 'c_42',
+              probabilities: { c_42: 0.8, c_41: 0.1, c_07: 0.05, c_13: 0.05 },
+              rounds: [
+                { candidates: 1000, groups: 50, survivors: Array.from({ length: 100 }, (_, i) => `s${i}`) },
+                { candidates: 100, groups: 5, survivors: ['c_42', 'c_41', 'c_07', 'c_13'] },
+              ],
+              confidence: 0.8,
+              threshold: null,
+              model: 'azure/decision-1',
+              latencyMs: 900,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    const rounds = screen.getAllByTestId('tournament-round');
+    expect(rounds.map((r) => r.textContent)).toEqual([
+      '1000 options · 50 groups → 100',
+      '100 options · 5 groups → 4',
+    ]);
+    expect(screen.getAllByTestId('decision-option')).toHaveLength(4);
+  });
+
+  it('should show the most probable options of a large choice', () => {
+    const probabilities: Record<string, number> = { c_42: 0.9, c_07: 0.05 };
+    for (let i = 0; i < 98; i++) probabilities[`x_${i}`] = 0.05 / 98;
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Control',
+              kind: 'choice',
+              choice: 'c_42',
+              bestGuess: 'c_42',
+              probabilities,
+              confidence: 0.9,
+              threshold: null,
+              model: 'azure/decision-1',
+              latencyMs: 180,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    const options = screen.getAllByTestId('decision-option');
+    expect(options).toHaveLength(8);
+    expect(options[0]?.dataset.option).toBe('c_42');
+    expect(screen.getByText('+92 more options, each below 1%')).toBeInTheDocument();
+  });
 });
 
