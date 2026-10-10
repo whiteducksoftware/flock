@@ -24,7 +24,7 @@ from flock.core.artifacts import Artifact, ArtifactSpec
 from flock.core.fan_out import FanOutRange, FanOutSpec, normalize_fan_out
 from flock.core.subscription import BatchSpec, JoinSpec, ScheduleSpec, Subscription
 from flock.core.visibility import AgentIdentity, Visibility, ensure_visibility
-from flock.decisions import Choice, ChoiceRef, Decision
+from flock.decisions import ChoiceRef, Decision, Question
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
 from flock.models.system_artifacts import TimerTick
@@ -697,27 +697,31 @@ class AgentBuilder:
 
     def decides(
         self,
-        choice: type[Choice],
-        *,
+        *questions: type[Question],
         model: str | Any | None = None,
         threshold: float | None = None,
         instructions: str | None = None,
         visibility: Visibility | None = None,
     ) -> AgentBuilder:
-        """Answer a Choice question about each input with a decision model.
+        """Answer questions about each input with a decision model.
 
-        Publishes one ``Decision.of(choice)`` artifact per execution. Other
-        agents subscribe to an option with ``.consumes(choice.<option>)``.
+        Every question is a ``Choice``, ``YesNo`` or ``Scale`` subclass; all of
+        them go to the model in one request. Publishes one
+        ``Decision.of(question)`` artifact per question and execution. Other
+        agents subscribe with ``.consumes(Route.billing)``,
+        ``.consumes(Urgent.yes)`` or ``.consumes(Anger.angry.or_higher)``.
 
         Args:
-            choice: Choice subclass whose options the model picks from
+            *questions: Question classes to answer about each input
             model: Decision model string (``"jev/jev-latest"``,
                 ``"local/clef-flash"``) or a ``DecisionProvider``. Defaults to
                 the ``DEFAULT_DECISION_MODEL`` environment variable.
-            threshold: Minimum probability of the chosen option; below it the
-                decision is ``UNSURE`` and routes to ``choice.UNSURE``.
-            instructions: Question text; defaults to the Choice docstring.
-            visibility: Readership of the decision. By default it inherits the
+            threshold: Minimum probability of the chosen option, for every
+                question; below it the decision is ``UNSURE`` and routes to
+                ``<Question>.UNSURE``.
+            instructions: Question text of a single question; defaults to its
+                docstring.
+            visibility: Readership of the decisions. By default they inherit the
                 inputs' visibility, and inputs with different visibilities fail.
 
         Returns:
@@ -730,12 +734,37 @@ class AgentBuilder:
             ...     .decides(Route, model="jev/jev-latest", threshold=0.8)
             ... )
             >>> flock.agent("billing").consumes(Route.billing).publishes(Reply)
+            >>> # Several questions, one request
+            >>> triage.decides(Route, Urgent, Anger, model="azure/decision-1")
         """
         from flock.decisions.engine import DecisionEngine
         from flock.decisions.providers import resolve_provider
 
-        if not (isinstance(choice, type) and issubclass(choice, Choice)):
-            raise TypeError(f".decides() expects a Choice subclass, got {choice!r}")
+        if not questions:
+            raise TypeError(".decides() needs at least one question class.")
+        for question in questions:
+            if not (
+                isinstance(question, type)
+                and issubclass(question, Question)
+                and question.__options__
+            ):
+                raise TypeError(
+                    ".decides() expects Choice, YesNo or Scale subclasses, "
+                    f"got {question!r}"
+                )
+        names = [question.__name__ for question in questions]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(
+                f"Agent '{self._agent.name}': questions of one decider need distinct "
+                f"class names; {', '.join(duplicates)} appears more than once."
+            )
+        if instructions is not None and len(questions) > 1:
+            raise ValueError(
+                f"Agent '{self._agent.name}': instructions= replaces the text of a "
+                "single question; with several questions, put each question in "
+                "its class docstring."
+            )
         if threshold is not None and not 0.0 < threshold <= 1.0:
             raise ValueError(f"threshold must be in (0, 1], got {threshold}")
         if self._agent.engines:
@@ -752,14 +781,14 @@ class AgentBuilder:
 
         self._agent.engines.append(
             DecisionEngine(
-                choice=choice,
+                questions=list(questions),
                 provider=resolve_provider(model),
                 threshold=threshold,
                 instructions=instructions,
                 visibility=visibility,
             )
         )
-        self.publishes(Decision.of(choice))
+        self.publishes(*(Decision.of(question) for question in questions))
         for output in self._agent.output_groups[-1].outputs:
             output.inherit_visibility = True
         return self

@@ -1070,7 +1070,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.5.721"
+version = "0.5.722"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },

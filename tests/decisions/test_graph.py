@@ -78,12 +78,17 @@ async def test_decider_node_describes_its_question_and_counts(routed):
 
     triage = next(node for node in graph.nodes if node.id == "triage")
     assert triage.data["decision"] == {
-        "question": "GraphRoute",
-        "instructions": "Which team should handle this ticket?",
-        "options": ["billing", "tech"],
-        "threshold": 0.8,
         "model": "fake",
-        "counts": {"billing": 2, "tech": 0, "UNSURE": 1},
+        "threshold": 0.8,
+        "questions": [
+            {
+                "name": "GraphRoute",
+                "kind": "choice",
+                "instructions": "Which team should handle this ticket?",
+                "options": ["billing", "tech"],
+                "counts": {"billing": 2, "tech": 0, "UNSURE": 1},
+            }
+        ],
     }
 
 

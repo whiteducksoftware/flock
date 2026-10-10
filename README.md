@@ -369,7 +369,7 @@ billing_team = (
 
 ### ⚖️ Decision Models (New in 0.5.720!)
 
-**Route on calibrated decisions instead of LLM text:** decision models (Microsoft-Decision-1, OpenAI Decisions, TypeSafe Jev, Cloudflare Clef) answer a typed question with a probability for every option, in one forward pass and without generating text.
+**Route on calibrated decisions instead of LLM text:** decision models (Microsoft-Decision-1, OpenAI Decisions, TypeSafe Jev, Cloudflare Clef) answer typed questions with a probability for every answer, in one forward pass and without generating text.
 
 ```python
 from flock import Choice
@@ -399,6 +399,7 @@ flock.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)  # below the t
 - ✅ **Visible** - the dashboard labels edges by option and shows each decision's probabilities
 - ✅ **Pluggable** - `azure/`, `openai/`, `jev/` or any local `/v1/systemone` server (`local/`)
 - ✅ **Images too** - put a `flock.Image` field into an artifact and image-capable models (`openai/`, vision `local/` servers) decide about the picture
+- ✅ **Yes/no and scales** - `YesNo` and `Scale` questions next to `Choice`, several per request: `.decides(Route, Urgent, Anger)`, then `.consumes(Urgent.yes)` or `.consumes(Anger.angry.or_higher)`
 
 <p align="center">
   <img alt="A decider sorting images into option lanes in the dashboard" src="docs/assets/images/decisions/decision-lanes.gif" width="340">

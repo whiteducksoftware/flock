@@ -1,6 +1,6 @@
 # 15-decisions: Decision Models
 
-Decision models (TypeSafe Jev, Cloudflare Clef, Microsoft-Decision-1) answer a typed question with a probability for every option of a closed set, without generating text. Flock uses them to route workflows: one agent decides, other agents subscribe to an option.
+Decision models (TypeSafe Jev, Cloudflare Clef, Microsoft-Decision-1, OpenAI Decisions) answer typed questions (one of N options, yes/no, ordered scales) with a probability for every answer, without generating text. Flock uses them to route workflows: one agent decides, other agents subscribe to an option.
 
 Guide: [docs/guides/decisions.md](../../docs/guides/decisions.md)
 
@@ -83,4 +83,35 @@ Set `USE_DASHBOARD = True` to watch the decider's option lanes fill with thumbna
 
 <p align="center">
   <img alt="The color sorter's option lanes filling in the dashboard" src="../../docs/assets/images/decisions/decision-lanes.gif" width="360">
+</p>
+
+## 04_question_types.py
+
+One decider asks three questions about every support ticket in a single request: which team (`Choice`), is it urgent (`YesNo`) and how angry is the customer (`Scale`). Handlers subscribe to the answers they need; they only log, so the decision model is the only model called.
+
+**Key Concepts:**
+- `class Urgent(YesNo)` and `class Anger(Scale)` (levels lowest first)
+- `.decides(Team, Urgent, Anger)`: one request, one decision per question
+- `.consumes(Urgent.yes)` and `.consumes(Anger.angry.or_higher)` (probability-weighted score at least "angry")
+
+**Run:**
+```bash
+uv run examples/15-decisions/04_question_types.py
+```
+
+**What You'll See (Microsoft-Decision-1):**
+```
+ticket                               Team      Urgent   Anger
+Charged twice AGAIN                  billing   yes      furious (3.0)
+Dark mode request                    tech      no       calm (0.0)
+Can't log in before my demo          tech      yes      UNSURE (1.7)
+Invoice address                      billing   no       calm (0.0)
+App deleted my notes                 tech      yes      angry (2.0)
+Weird charge after the app crashed   billing   yes      UNSURE (0.7)
+```
+
+Set `USE_DASHBOARD = True` to watch the decider fill its three questions in the dashboard.
+
+<p align="center">
+  <img alt="A decider asking a choice, a yes/no and a scale question" src="../../docs/assets/images/decisions/decision-types-agent-view.png" width="800">
 </p>

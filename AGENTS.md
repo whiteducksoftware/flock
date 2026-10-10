@@ -43,7 +43,7 @@ A blackboard architecture framework where specialized AI agents collaborate thro
 - **Visibility:** Built-in access control (Public/Private/Tenant/Label-based/Time-based)
 - **Fan-Out Publishing:** Produce multiple artifacts from single agent execution with filtering/validation
 - **Semantic Matching:** AI-powered artifact routing based on meaning, not just keywords
-- **Decision Models:** A `Choice` question answered by a decision model (calibrated probabilities, no text); agents subscribe to an option (`.consumes(Route.billing)`) and receive the decided artifact ⭐ **NEW in 0.5.720**
+- **Decision Models:** `Choice`, `YesNo` and `Scale` questions answered by a decision model (calibrated probabilities, no text), several per request; agents subscribe to an answer (`.consumes(Route.billing)`, `.consumes(Urgent.yes)`, `.consumes(Anger.angry.or_higher)`) and receive the decided artifact ⭐ **NEW in 0.5.720**
 - **Components:** Three levels of extensibility:
   - **Orchestrator Components:** Global lifecycle hooks (monitoring, metrics, coordination, timer scheduling)
   - **Agent Components:** Per-agent behavior (quality gates, retry logic, validation)
@@ -1850,7 +1850,7 @@ billing_agent = (
 
 **Decision models (route on calibrated decisions):**
 ```python
-from flock import Choice, Decision
+from flock import Choice, Decision, Scale, YesNo
 
 class Route(Choice):
     """Which team should handle this support ticket?"""  # the question
@@ -1867,8 +1867,23 @@ triage = (
 billing = orchestrator.agent("billing").consumes(Route.billing).publishes(Reply)
 supervisor = orchestrator.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)
 
+# Yes/no and ordered scales; several questions go to the model in one request
+class Urgent(YesNo):
+    """Does the customer need an answer today?"""
+
+class Anger(Scale):                      # levels, lowest first (2-10)
+    """How angry is the customer?"""
+    calm = "Calm"
+    angry = "Angry"
+    furious = "Furious"
+
+triage.decides(Route, Urgent, Anger)    # instead of .decides(Route): one decision per question
+pager = orchestrator.agent("pager").consumes(Urgent.yes).publishes(Page)
+calm_down = orchestrator.agent("calm_down").consumes(Anger.angry.or_higher).publishes(Reply)  # weighted score
+
 # In tests, pass a FakeDecider (fixed probabilities, no network call):
 #   .decides(Route, model=FakeDecider({"billing": 0.9, "tech": 0.1}))  # from flock.decisions
+#   several questions: FakeDecider({"Route": {...}, "Urgent": {"yes": 0.8, "no": 0.2}})
 ```
 Providers: `azure/<deployment>` (Microsoft-Decision-1), `openai/<model>`, `jev/<model>`, `local/<name>` (`DECISION_API_BASE`). Default model: `DEFAULT_DECISION_MODEL`. Guide: [docs/guides/decisions.md](docs/guides/decisions.md).
 

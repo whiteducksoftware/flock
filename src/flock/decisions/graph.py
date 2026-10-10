@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
-from flock.decisions.choice import UNSURE
+from flock.decisions.choice import UNSURE, Question
 from flock.decisions.models import Decision
 from flock.registry import RegistryError, type_registry
 
@@ -25,34 +25,28 @@ def is_decision_type(type_name: str) -> bool:
 SAMPLES_PER_OPTION = 6
 
 
-def decider_info(
-    agent: Agent,
-    produced: Iterable[tuple[str, Mapping[str, Any]]],
-    subject_thumb: Callable[[Mapping[str, Any]], str | None] | None = None,
-) -> dict[str, Any] | None:
-    """Question, options and per-option counts of a decision agent, else None.
-
-    ``produced`` yields ``(type_name, payload)`` of the artifacts in view,
-    oldest first. With ``subject_thumb`` (decision payload -> thumbnail of the
-    decided image), the result also holds ``samples``: the latest image
-    thumbnails per option with the chosen option's probability.
-    """
-    from flock.decisions.engine import DecisionEngine
-
-    engine = next((e for e in agent.engines if isinstance(e, DecisionEngine)), None)
-    if engine is None:
-        return None
-    choice = engine.choice
-    type_name = type_registry.name_for(Decision.of(choice))
-    counts = dict.fromkeys(choice.__options__, 0)
-    if engine.threshold is not None:
+def _question_info(
+    question: type[Question],
+    instructions: str | None,
+    threshold: float | None,
+    produced: list[tuple[str, Mapping[str, Any]]],
+    subject_thumb: Callable[[Mapping[str, Any]], str | None] | None,
+) -> dict[str, Any]:
+    type_name = type_registry.name_for(Decision.of(question))
+    counts = dict.fromkeys(question.__options__, 0)
+    if threshold is not None:
         counts[UNSURE] = 0
+    refused = 0
+    scores: list[float] = []
     samples: dict[str, list[dict[str, Any]]] = {}
     for produced_type, payload in produced:
         if produced_type != type_name:
             continue
         option = payload.get("choice")
         counts[option] = counts.get(option, 0) + 1
+        refused += bool(payload.get("refused"))
+        if payload.get("score") is not None:
+            scores.append(payload["score"])
         thumb = subject_thumb(payload) if subject_thumb else None
         if thumb:
             probabilities = payload.get("probabilities") or {}
@@ -60,20 +54,56 @@ def decider_info(
                 "thumb": thumb,
                 "p": probabilities.get(payload.get("best_guess"), 0.0),
             })
-    info = {
-        "question": choice.__name__,
-        "instructions": engine.instructions or choice.__question__,
-        "options": list(choice.__options__),
-        "threshold": engine.threshold,
-        "model": engine.provider.label,
+    info: dict[str, Any] = {
+        "name": question.__name__,
+        "kind": question.__kind__,
+        "instructions": instructions or question.__question__,
+        "options": list(question.__options__),
         "counts": counts,
     }
+    if refused:
+        info["refused"] = refused
+    if question.__kind__ == "scale" and scores:
+        info["meanScore"] = sum(scores) / len(scores)
     if samples:
         info["samples"] = {
             option: items[-SAMPLES_PER_OPTION:][::-1]
             for option, items in samples.items()
         }
     return info
+
+
+def decider_info(
+    agent: Agent,
+    produced: Iterable[tuple[str, Mapping[str, Any]]],
+    subject_thumb: Callable[[Mapping[str, Any]], str | None] | None = None,
+) -> dict[str, Any] | None:
+    """Model, threshold and per-question data of a decision agent, else None.
+
+    Each question lists its kind, options and how often each option was
+    chosen. ``produced`` yields ``(type_name, payload)`` of the artifacts in
+    view, oldest first. With ``subject_thumb`` (decision payload -> thumbnail
+    of the decided image), a question also holds ``samples``: the latest image
+    thumbnails per option with the chosen option's probability. Scale
+    questions carry the ``meanScore`` of their decisions, questions with
+    refusals their ``refused`` count.
+    """
+    from flock.decisions.engine import DecisionEngine
+
+    engine = next((e for e in agent.engines if isinstance(e, DecisionEngine)), None)
+    if engine is None:
+        return None
+    produced = list(produced)
+    return {
+        "model": engine.provider.label,
+        "threshold": engine.threshold,
+        "questions": [
+            _question_info(
+                question, engine.instructions, engine.threshold, produced, subject_thumb
+            )
+            for question in engine.questions
+        ],
+    }
 
 
 def choice_type_labels(agent: Agent) -> dict[str, str]:
@@ -87,12 +117,27 @@ def choice_type_labels(agent: Agent) -> dict[str, str]:
     return {name: "◆ " + " | ".join(refs) for name, refs in handles.items()}
 
 
+def decision_label(payload: Mapping[str, Any]) -> str | None:
+    """Edge label of a decision: the option, qualified for yes/no and scale
+    questions (``Urgent.yes``), whose options mean little on their own."""
+    choice = payload.get("choice")
+    if choice is None or payload.get("kind", "choice") == "choice":
+        return choice
+    return f"{payload.get('question')}.{choice}"
+
+
 def decision_view(
-    payload: Mapping[str, Any], subject_thumb: str | None = None
+    payload: Mapping[str, Any],
+    subject_thumb: str | None = None,
+    levels: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Decision fields for the dashboard's decision artifact view."""
+    """Decision fields for the dashboard's decision artifact view.
+
+    ``levels`` are the ordered options of a scale question.
+    """
     view = {
         "question": payload.get("question"),
+        "kind": payload.get("kind", "choice"),
         "choice": payload.get("choice"),
         "bestGuess": payload.get("best_guess"),
         "probabilities": dict(payload.get("probabilities") or {}),
@@ -100,10 +145,20 @@ def decision_view(
         "threshold": payload.get("threshold"),
         "model": payload.get("model"),
         "latencyMs": payload.get("latency_ms"),
+        "score": payload.get("score"),
+        "refused": bool(payload.get("refused")),
     }
+    if levels:
+        view["levels"] = levels
     if subject_thumb:
         view["subjectThumb"] = subject_thumb
     return view
 
 
-__all__ = ["choice_type_labels", "decider_info", "decision_view", "is_decision_type"]
+__all__ = [
+    "choice_type_labels",
+    "decider_info",
+    "decision_label",
+    "decision_view",
+    "is_decision_type",
+]

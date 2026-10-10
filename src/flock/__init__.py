@@ -102,7 +102,7 @@ from flock.core.visibility import (
 # =============================================================================
 # Decisions - Typed choices answered by decision models
 # =============================================================================
-from flock.decisions import Choice, Decision
+from flock.decisions import Choice, Decision, Scale, YesNo
 
 # =============================================================================
 # Engines - DSPy engine and adapters
@@ -176,6 +176,7 @@ __all__ = [
     "OrchestratorComponentConfig",
     "PrivateVisibility",
     "PublicVisibility",
+    "Scale",
     "ScheduleSpec",
     "ServerComponent",
     "ServerComponentConfig",
@@ -190,6 +191,7 @@ __all__ = [
     "WorkflowResult",
     "WorkflowStatus",
     "XMLAdapter",
+    "YesNo",
     # Logging
     "configure_logging",
     "flock_tool",

@@ -95,7 +95,7 @@ async def test_decider_lanes_hold_thumbnails_per_option(sorted_swatches):
     graph = await snapshot(sorted_swatches, "agent")
 
     painter = next(n for n in graph.nodes if n.id == "painter")
-    samples = painter.data["decision"]["samples"]
+    samples = painter.data["decision"]["questions"][0]["samples"]
     assert [round(s["p"], 2) for s in samples["red"]] == [0.97, 0.97]
     assert [round(s["p"], 2) for s in samples["blue"]] == [0.96]
     assert [round(s["p"], 2) for s in samples["UNSURE"]] == [0.5]

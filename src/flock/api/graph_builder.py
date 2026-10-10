@@ -6,6 +6,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 
 from flock.api.collector import AgentSnapshot, DashboardEventCollector
+from flock.api.thumbnails import compact, first_thumbnail, image_summaries
 from flock.components.server.models.graph import (
     GraphAgentMetrics,
     GraphArtifact,
@@ -31,15 +32,17 @@ from flock.core.store import (
 from flock.core.store import (
     ArtifactEnvelope as StoreArtifactEnvelope,
 )
-from flock.api.thumbnails import compact, first_thumbnail, image_summaries
 from flock.decisions.choice import UNSURE
 from flock.decisions.graph import (
     choice_type_labels,
     decider_info,
+    decision_label,
     decision_view,
     is_decision_type,
 )
+from flock.decisions.models import choice_of
 from flock.logging.auto_trace import AutoTracedMeta
+from flock.registry import RegistryError, type_registry
 
 
 class GraphAssembler(metaclass=AutoTracedMeta):
@@ -427,6 +430,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 node_data["decision"] = decision_view(
                     artifact.payload,
                     subject_thumb=self._subject_thumbnail(artifacts, artifact.payload),
+                    levels=self._scale_levels(artifact.artifact_type),
                 )
 
             nodes.append(
@@ -440,6 +444,17 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             )
 
         return nodes
+
+    @staticmethod
+    def _scale_levels(type_name: str) -> list[str] | None:
+        """Ordered levels of the Scale question a decision type answers."""
+        try:
+            question = choice_of(type_registry.resolve(type_name))
+        except RegistryError:
+            return None
+        if question is None or question.__kind__ != "scale":
+            return None
+        return list(question.__options__)
 
     @staticmethod
     def _subject_thumbnail(
@@ -466,7 +481,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             message_type = artifact.artifact_type
             # Decisions get one edge per chosen option, labelled by the option
             choice = (
-                artifact.payload.get("choice")
+                decision_label(artifact.payload)
                 if is_decision_type(message_type)
                 else None
             )
@@ -509,7 +524,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             }
             if choice is not None:
                 data["decisionChoice"] = choice
-                data["decisionUnsure"] = choice == UNSURE
+                data["decisionUnsure"] = choice.endswith(UNSURE)
             edges.append(
                 GraphEdge(
                     id=edge_id,
