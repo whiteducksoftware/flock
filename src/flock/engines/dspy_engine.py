@@ -138,6 +138,22 @@ def _ensure_live_crop_above() -> None:
     _live_patch_applied = True
 
 
+_OPENAI_API_HOST = "api.openai.com"
+
+
+def _targets_openai_api(model_name: str, lm_kwargs: dict[str, Any]) -> bool:
+    """``openai/`` models served by OpenAI itself, not by a compatible server."""
+    if not model_name.startswith("openai/"):
+        return False
+    base_url = (
+        lm_kwargs.get("api_base")
+        or lm_kwargs.get("base_url")
+        or os.getenv("OPENAI_BASE_URL")
+        or os.getenv("OPENAI_API_BASE")
+    )
+    return not base_url or _OPENAI_API_HOST in base_url
+
+
 class DSPyEngine(EngineComponent):
     """Execute a minimal DSPy program backed by a hosted LLM.
 
@@ -158,7 +174,9 @@ class DSPyEngine(EngineComponent):
             "Upper bound for generated tokens sent as ``max_completion_tokens`` "
             "instead of ``max_tokens``. Required by reasoning models whose "
             "deployment name DSPy/LiteLLM cannot recognise (e.g. custom Azure "
-            "deployment names). When set, ``max_tokens`` is not sent."
+            "deployment names). When set, ``max_tokens`` is not sent. The "
+            "OpenAI API itself (``openai/`` without a custom base URL) always "
+            "gets ``max_completion_tokens``, with ``max_tokens`` as the default."
         ),
     )
     max_tool_calls: int = 100
@@ -508,8 +526,17 @@ class DSPyEngine(EngineComponent):
     def _create_lm(
         self, dspy_mod: Any, model_name: str, extra_kwargs: dict[str, Any]
     ) -> Any:
-        """Create the ``dspy.LM`` with exactly one output-token limit."""
-        if self.max_completion_tokens is None:
+        """Create the ``dspy.LM`` with exactly one output-token limit.
+
+        The OpenAI API itself gets ``max_completion_tokens``: OpenAI deprecated
+        ``max_tokens`` and newer models reject it, while DSPy only renames it for
+        model names it knows. OpenAI-compatible servers (``openai/`` with another
+        base URL) keep ``max_tokens``.
+        """
+        completion_limit = self.max_completion_tokens
+        if completion_limit is None and _targets_openai_api(model_name, extra_kwargs):
+            completion_limit = self.max_tokens
+        if completion_limit is None:
             return dspy_mod.LM(
                 model=model_name,
                 temperature=self.temperature,
@@ -518,7 +545,10 @@ class DSPyEngine(EngineComponent):
                 num_retries=self.max_retries,
                 **extra_kwargs,
             )
-        if "max_tokens" in self.model_fields_set:
+        if (
+            self.max_completion_tokens is not None
+            and "max_tokens" in self.model_fields_set
+        ):
             raise ValueError(
                 "Set either max_tokens or max_completion_tokens on DSPyEngine, not both."
             )
@@ -533,7 +563,7 @@ class DSPyEngine(EngineComponent):
         # DSPy maps max_tokens itself only for model names it recognises as
         # reasoning models; set the completion limit explicitly and never send both.
         lm.kwargs.pop("max_tokens", None)
-        lm.kwargs["max_completion_tokens"] = self.max_completion_tokens
+        lm.kwargs["max_completion_tokens"] = completion_limit
         return lm
 
     def _build_lm_kwargs(self) -> dict[str, Any]:

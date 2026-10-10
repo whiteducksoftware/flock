@@ -57,6 +57,7 @@ search:
 
 ### 🐛 Fixes
 
+- **New OpenAI models work with the default DSPy engine.** For the OpenAI API (`openai/` without a custom base URL) the engine now sends its token limit as `max_completion_tokens`; `gpt-6-luna` and other new models rejected `max_tokens` with HTTP 400. OpenAI-compatible servers behind `openai/` keep `max_tokens`.
 - **No more `Type mismatch for field` warnings from DSPy agents.** The DSPy engine passed validated inputs as dicts while the signature types them as Pydantic models; DSPy 3.2 checks this and warned on every run. Inputs are now passed as the validated models; prompts are unchanged.
 - **Test runs no longer crash agent output rendering.** A CLI helper test removed `rich` from `sys.modules` without restoring it, so later tests ran with two copies of rich's classes. Rich's own type checks then failed (`Text.append() takes from 2 to 3 positional arguments but 7 were given`), output rendering crashed and agent runs were marked failed in every full run. The test now restores the original modules.
 - **No dashboard build in the repository.** The dashboard is built locally on the first `serve(dashboard=True)`; the unused committed build in `src/flock/api/static_files/` and the stale `scripts/build_dashboard.py` were removed. The context-provider guide's redaction example is now a working sketch instead of a link to a removed example.

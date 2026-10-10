@@ -1449,6 +1449,63 @@ class TestCompletionTokenLimit:
         assert lm.kwargs["max_tokens"] == 32000
         assert "max_completion_tokens" not in lm.kwargs
 
+    @pytest.mark.parametrize("model", ["openai/gpt-6-luna", "openai/gpt-4.1"])
+    @pytest.mark.parametrize("base_url", [None, "https://api.openai.com/v1"])
+    def test_the_openai_api_gets_max_completion_tokens(
+        self, model, base_url, monkeypatch
+    ):
+        """OpenAI deprecated max_tokens; newer models reject it (HTTP 400)."""
+        import dspy
+
+        monkeypatch.delenv("OPENAI_API_BASE", raising=False)
+        if base_url is None:
+            monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+        else:
+            monkeypatch.setenv("OPENAI_BASE_URL", base_url)
+
+        lm = DSPyEngine()._create_lm(dspy, model, {})
+
+        assert lm.kwargs["max_completion_tokens"] == 32000
+        assert "max_tokens" not in lm.kwargs
+
+    def test_an_explicit_max_tokens_is_sent_under_the_new_name(self, monkeypatch):
+        import dspy
+
+        monkeypatch.delenv("OPENAI_API_BASE", raising=False)
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+        lm = DSPyEngine(max_tokens=2000)._create_lm(dspy, "openai/gpt-6-luna", {})
+
+        assert lm.kwargs["max_completion_tokens"] == 2000
+        assert "max_tokens" not in lm.kwargs
+
+    @pytest.mark.parametrize("variable", ["OPENAI_BASE_URL", "OPENAI_API_BASE"])
+    def test_openai_compatible_servers_keep_max_tokens(self, variable, monkeypatch):
+        """llama.cpp, vLLM or LM Studio behind openai/ may not know the new name."""
+        import dspy
+
+        monkeypatch.delenv("OPENAI_API_BASE", raising=False)
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+        monkeypatch.setenv(variable, "http://localhost:8080/v1")
+
+        lm = DSPyEngine()._create_lm(dspy, "openai/qwen3-4b-instruct", {})
+
+        assert lm.kwargs["max_tokens"] == 32000
+        assert "max_completion_tokens" not in lm.kwargs
+
+    def test_an_api_base_in_lm_kwargs_keeps_max_tokens(self, monkeypatch):
+        import dspy
+
+        monkeypatch.delenv("OPENAI_API_BASE", raising=False)
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+        lm = DSPyEngine()._create_lm(
+            dspy, "openai/qwen3-4b-instruct", {"api_base": "http://localhost:1234/v1"}
+        )
+
+        assert lm.kwargs["max_tokens"] == 32000
+        assert "max_completion_tokens" not in lm.kwargs
+
     def test_setting_both_limits_is_rejected(self):
         import dspy
 
