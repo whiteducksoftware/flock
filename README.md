@@ -284,12 +284,12 @@ Semantic subscriptions compare embeddings locally. [Decision models](#decision-m
 
 ```python
 flock.agent("health").schedule(every=timedelta(seconds=30)).publishes(HealthStatus)
-flock.agent("daily").schedule(at=time(hour=17)).publishes(DailyReport)
-flock.agent("workdays").schedule(cron="0 9 * * 1-5").publishes(WorkdayReport)
-flock.agent("errors").schedule(every=timedelta(minutes=5)).consumes(LogEntry, where=lambda e: e.level == "ERROR").publishes(ErrorReport)
+flock.agent("daily").schedule(at=time(hour=17)).publishes(DailyReport)        # 17:00 UTC
+flock.agent("workdays").schedule(cron="0 9 * * 1-5").publishes(WorkdayReport)  # cron in UTC
+flock.agent("errors").schedule(every=timedelta(minutes=5)).with_context(ErrorLogs()).publishes(ErrorReport)
 ```
 
-Timer runs see `ctx.trigger_type == "timer"`, `ctx.timer_iteration` and `ctx.fire_time`.
+A timer run sees the blackboard as context; a [context provider](#visibility-and-context) such as `ErrorLogs()` above narrows it. Engines can read `ctx.trigger_type == "timer"`, `ctx.timer_iteration` and `ctx.fire_time`.
 
 📖 [Scheduling guide](https://whiteducksoftware.github.io/flock/guides/scheduling/)
 
