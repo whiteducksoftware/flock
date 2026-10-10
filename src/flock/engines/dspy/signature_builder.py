@@ -475,13 +475,18 @@ class DSPySignatureBuilder:
         self,
         schema: type[BaseModel] | None,
         payload: Mapping[str, Any] | None,
-    ) -> dict[str, Any]:
-        """Validate and normalize input payload against schema."""
+    ) -> BaseModel | dict[str, Any]:
+        """Validate an input payload against its schema.
+
+        Returns the model instance, which is the type the signature declares for
+        the field (DSPy checks inputs against it); a payload that does not
+        validate is passed on as data.
+        """
         data = dict(payload or {})
         if schema is None:
             return data
         try:
-            return schema(**data).model_dump()
+            return schema(**data)
         except Exception:
             return data
 

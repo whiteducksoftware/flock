@@ -888,7 +888,10 @@ class TestPayloadPreparation:
         assert "description" in payload
         assert "task" in payload
         assert payload["description"] == "Generate report from task"
-        assert payload["task"] == {"description": "Build prototype", "priority": 1}
+        assert payload["task"].model_dump() == {
+            "description": "Build prototype",
+            "priority": 1,
+        }
 
     @pytest.mark.asyncio
     async def test_payload_multi_input_join(self):
@@ -933,8 +936,14 @@ class TestPayloadPreparation:
         assert "description" in payload
         assert "task" in payload
         assert "topic" in payload
-        assert payload["task"] == {"description": "Build prototype", "priority": 1}
-        assert payload["topic"] == {"name": "AI Safety", "category": "Research"}
+        assert payload["task"].model_dump() == {
+            "description": "Build prototype",
+            "priority": 1,
+        }
+        assert payload["topic"].model_dump() == {
+            "name": "AI Safety",
+            "category": "Research",
+        }
 
     @pytest.mark.asyncio
     async def test_payload_batched_input_pluralized(self):
@@ -988,9 +997,18 @@ class TestPayloadPreparation:
         assert "tasks" in payload  # Plural!
         assert isinstance(payload["tasks"], list)
         assert len(payload["tasks"]) == 3
-        assert payload["tasks"][0] == {"description": "Task 1", "priority": 1}
-        assert payload["tasks"][1] == {"description": "Task 2", "priority": 2}
-        assert payload["tasks"][2] == {"description": "Task 3", "priority": 3}
+        assert payload["tasks"][0].model_dump() == {
+            "description": "Task 1",
+            "priority": 1,
+        }
+        assert payload["tasks"][1].model_dump() == {
+            "description": "Task 2",
+            "priority": 2,
+        }
+        assert payload["tasks"][2].model_dump() == {
+            "description": "Task 3",
+            "priority": 3,
+        }
 
     @pytest.mark.asyncio
     async def test_payload_with_context_history(self):
@@ -1072,7 +1090,7 @@ class TestPayloadPreparation:
         # Validate payload structure
         assert "description" in payload
         assert "meeting_transcript" in payload  # snake_case!
-        assert payload["meeting_transcript"] == {
+        assert payload["meeting_transcript"].model_dump() == {
             "content": "Meeting notes...",
             "participants": ["Alice", "Bob"],
         }
