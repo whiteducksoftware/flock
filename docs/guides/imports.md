@@ -299,6 +299,7 @@ agent.schedule(every=timedelta(minutes=5))
 |--------|-------------|------------|
 | `Choice` | A closed option set (the question); options become subscription handles | [Decision Models Guide](decisions.md) |
 | `Decision` | Decision artifact base; `Decision.of(Route)` is the artifact type of one Choice | [Decision Models Guide](decisions.md) |
+| `Image` | An image inside an artifact (base64 data URL); `Image.from_file()` downscales and strips EXIF | [Decision Models Guide](decisions.md#images) |
 
 ```python
 from flock import Choice, Decision
