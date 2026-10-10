@@ -405,5 +405,31 @@ describe('MessageNode', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  it('should name how many candidates a restricted decision chose among', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Control',
+              kind: 'choice',
+              choice: 'sup_05',
+              bestGuess: 'sup_05',
+              probabilities: { sup_05: 0.9, acc_01: 0.06, phy_03: 0.04 },
+              candidates: ['acc_01', 'phy_03', 'sup_05'],
+              confidence: 0.9,
+              threshold: null,
+              model: 'azure/decision-1',
+              latencyMs: 150,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText(/among 3 candidates/)).toBeInTheDocument();
+  });
 });
 
