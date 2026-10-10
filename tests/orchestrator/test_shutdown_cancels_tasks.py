@@ -139,3 +139,26 @@ async def test_task_outliving_grace_cannot_schedule_downstream_work():
 
     assert ran == []
     assert not flock._scheduler.accepting
+
+
+@pytest.mark.asyncio
+async def test_sqlite_store_stays_open_while_a_task_outlives_grace(tmp_path):
+    """Closing would let the late publication reopen the store after shutdown (#519)."""
+    from flock.core.store import SQLiteBlackboardStore
+
+    store = SQLiteBlackboardStore(str(tmp_path / "late.db"))
+    flock = Flock(no_output=True, store=store)
+    flock.agent("stubborn").consumes(ShutdownInput).publishes(
+        ShutdownOutput
+    ).with_engines(StubbornEngine())
+    try:
+        await flock.publish(ShutdownInput(value="x"))
+        await asyncio.sleep(0.05)
+        connection = store._connection
+
+        await flock.shutdown(cancel_grace=0.1)
+        await asyncio.sleep(0.5)  # the stubborn task publishes meanwhile
+
+        assert store._connection is connection
+    finally:
+        await store.close()

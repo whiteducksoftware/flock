@@ -491,3 +491,63 @@ async def test_store_persists_payloads_with_non_json_values(store):
 
     (restored,) = await store.get_by_type(StoreRichPayload)
     assert restored == original
+
+
+_UNCLOSED_SQLITE_SCRIPT = """
+import asyncio, sys
+from pydantic import BaseModel
+from flock import Flock, flock_type
+from flock.core.store import SQLiteBlackboardStore
+
+@flock_type
+class ExitNote(BaseModel):
+    text: str
+
+async def main():
+    flock = Flock(store=SQLiteBlackboardStore(sys.argv[1]))
+    await flock.publish(ExitNote(text="hi"))
+    await flock.run_until_idle()
+
+asyncio.run(main())
+"""
+
+
+def test_process_exits_without_closing_the_sqlite_store(tmp_path):
+    """An open aiosqlite connection must not keep the interpreter alive (#519)."""
+    import subprocess
+    import sys
+
+    script = tmp_path / "unclosed.py"
+    script.write_text(_UNCLOSED_SQLITE_SCRIPT)
+
+    result = subprocess.run(
+        [sys.executable, str(script), str(tmp_path / "unclosed.db")],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr[-2000:]
+
+
+@pytest.mark.asyncio
+async def test_full_shutdown_closes_the_sqlite_store_and_it_reopens(tmp_path):
+    """shutdown() closes the connection; the store reconnects on the next use (#519)."""
+    from flock import Flock
+
+    store = SQLiteBlackboardStore(str(tmp_path / "shutdown.db"))
+    flock = Flock(store=store)
+    try:
+        await flock.publish(
+            Artifact(type="TypeA", payload={"data": "kept"}, produced_by="agent1")
+        )
+        await flock.run_until_idle()
+        assert store._connection is not None  # run_until_idle keeps it open
+
+        await flock.shutdown()
+        assert store._connection is None
+
+        assert [a.payload["data"] for a in await store.list()] == ["kept"]
+    finally:
+        await store.close()
