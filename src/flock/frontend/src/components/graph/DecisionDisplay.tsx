@@ -17,7 +17,7 @@ export interface DecisionSample {
   p: number;
 }
 
-export type QuestionKind = 'choice' | 'yesno' | 'scale';
+export type QuestionKind = 'choice' | 'yesno' | 'scale' | 'checklist';
 
 export interface DeciderQuestion {
   name: string;
@@ -27,6 +27,8 @@ export interface DeciderQuestion {
   counts: Record<string, number>;
   refused?: number;
   meanScore?: number; // scale: mean probability-weighted level
+  itemStats?: number[][]; // checklist: [yes, no, unsure] per item, in item order
+  descriptions?: Record<string, string>; // checklist: item -> requirement
   samples?: Record<string, DecisionSample[]>;
 }
 
@@ -52,6 +54,9 @@ export interface DecisionInfo {
   levels?: string[]; // scale: ordered levels, lowest first
   score?: number | null; // scale: probability-weighted level
   refused?: boolean;
+  items?: string[]; // checklist: items in order
+  results?: Record<string, string>; // checklist: yes | no | UNSURE per item
+  refusedItems?: string[];
   confidence: number | null;
   threshold: number | null;
   model: string;
@@ -113,7 +118,8 @@ const ThumbLane = memo(
 );
 ThumbLane.displayName = 'ThumbLane';
 
-const KIND_GLYPH: Record<QuestionKind, string> = { choice: '◆', yesno: '✓✗', scale: '▂▄▆' };
+const KIND_GLYPH: Record<QuestionKind, string> = { choice: '◆', yesno: '✓✗', scale: '▂▄▆', checklist: '☑' };
+const FAILED_COLOR = 'rgba(244, 63, 94, 0.85)';
 const NO_COLOR = 'rgba(148, 163, 184, 0.55)';
 const pct = (value: number) => `${Math.round(value * 1000) / 10}%`;
 
@@ -332,6 +338,93 @@ const ScaleCounts = memo(({ question }: { question: DeciderQuestion }) => {
 });
 ScaleCounts.displayName = 'ScaleCounts';
 
+/** Checklist: outcomes, a strip with every item's answers across artifacts,
+ * and the items answered "no" most often. */
+const ChecklistCounts = memo(({ question }: { question: DeciderQuestion }) => {
+  const outcomes: [string, string][] = [
+    ['passed', DECISION_COLOR],
+    ['failed', FAILED_COLOR],
+    [UNSURE, 'var(--color-warning)'],
+  ];
+  const total = outcomes.reduce((sum, [option]) => sum + (question.counts[option] ?? 0), 0);
+  const stats = question.itemStats ?? [];
+  const gaps = question.options
+    .map((item, index) => ({ item, no: stats[index]?.[1] ?? 0 }))
+    .filter((gap) => gap.no > 0)
+    .sort((a, b) => b.no - a.no)
+    .slice(0, 3);
+  return (
+    <>
+      <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: 'rgba(148, 163, 184, 0.15)' }}>
+        {outcomes.map(([option, color]) => (
+          <span
+            key={option}
+            data-testid="checklist-outcome"
+            data-option={option}
+            title={`${option}: ${question.counts[option] ?? 0}`}
+            style={{ width: `${total ? ((question.counts[option] ?? 0) / total) * 100 : 0}%`, background: color, transition: 'width 0.3s ease' }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '8px', fontSize: '10px', fontWeight: 700, fontFamily: 'var(--font-family-mono)' }}>
+        {outcomes.map(([option, color]) => (
+          <span key={option} style={{ color }}>
+            {option} {question.counts[option] ?? 0}
+          </span>
+        ))}
+      </div>
+      <div
+        title="Answers per item across all decisions: yes (violet), unsure (amber), no (empty)"
+        style={{ display: 'flex', alignItems: 'flex-end', gap: '1px', height: '22px', marginTop: '2px' }}
+      >
+        {question.options.map((item, index) => {
+          const [yes = 0, no = 0, unsure = 0] = stats[index] ?? [];
+          const n = Math.max(1, yes + no + unsure);
+          const description = question.descriptions?.[item];
+          return (
+            <span
+              key={item}
+              data-testid="checklist-item-stat"
+              title={`${item}: ${yes} yes · ${no} no · ${unsure} unsure${description ? ` — ${description}` : ''}`}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column-reverse',
+                background: 'rgba(148, 163, 184, 0.18)',
+                borderRadius: '1px',
+                overflow: 'hidden',
+              }}
+            >
+              <span style={{ height: `${(yes / n) * 100}%`, background: DECISION_COLOR }} />
+              <span style={{ height: `${(unsure / n) * 100}%`, background: 'var(--color-warning)' }} />
+            </span>
+          );
+        })}
+      </div>
+      {gaps.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'var(--font-family-mono)' }}>
+          <span style={{ color: 'var(--color-text-tertiary)' }}>most often no:</span>
+          {gaps.map((gap) => (
+            <span
+              key={gap.item}
+              data-testid="checklist-gap"
+              data-item={gap.item}
+              title={question.descriptions?.[gap.item]}
+              style={{ padding: '0 5px', borderRadius: '999px', border: `1px solid ${FAILED_COLOR}`, color: 'var(--color-text-secondary)' }}
+            >
+              {gap.item} {gap.no}
+            </span>
+          ))}
+        </div>
+      )}
+      {question.samples && <SampleLanes question={{ ...question, options: ['passed', 'failed'] }} />}
+    </>
+  );
+});
+ChecklistCounts.displayName = 'ChecklistCounts';
+
 /** Questions of a decision agent with how often each answer was given. */
 export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
   const titled = decider.questions.length > 1;
@@ -366,7 +459,9 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
               <span>{question.name}</span>
             </div>
           )}
-          {question.kind === 'yesno' ? (
+          {question.kind === 'checklist' ? (
+            <ChecklistCounts question={question} />
+          ) : question.kind === 'yesno' ? (
             <YesNoCounts question={question} />
           ) : question.kind === 'scale' ? (
             <ScaleCounts question={question} />
@@ -612,24 +707,90 @@ const ScaleBars = memo(({ decision }: { decision: DecisionInfo }) => {
 });
 ScaleBars.displayName = 'ScaleBars';
 
+const NO_CELL = '#d6d3d1';
+const CELL_COLOR: Record<string, string> = { yes: DECISION_COLOR, no: NO_CELL, UNSURE: AMBER };
+
+/** Checklist: one cell per item, in item order. */
+const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
+  const results = decision.results ?? {};
+  const items = decision.items ?? Object.keys(results);
+  const refused = new Set(decision.refusedItems ?? []);
+  const legend: [string, string][] = [
+    ['yes', DECISION_COLOR],
+    ['no', NO_CELL],
+    ['unsure', AMBER],
+  ];
+  return (
+    <>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+      {items.map((item) => {
+        const result = results[item] ?? UNSURE;
+        const p = decision.probabilities[item];
+        const title = refused.has(item)
+          ? `${item} · refused`
+          : `${item} · ${result}${p !== undefined ? ` · p ${p.toFixed(2)}` : ''}`;
+        return (
+          <span
+            key={item}
+            data-testid="checklist-cell"
+            data-result={result}
+            title={title}
+            style={{
+              width: '13px',
+              height: '13px',
+              borderRadius: '3px',
+              background: refused.has(item) ? 'transparent' : CELL_COLOR[result] ?? STONE,
+              border: refused.has(item) ? `1.5px dashed ${AMBER}` : '1px solid rgba(0,0,0,0.06)',
+              boxSizing: 'border-box',
+            }}
+          />
+        );
+      })}
+    </div>
+    <div style={{ display: 'flex', gap: '10px', fontSize: '10px', color: '#78716c', fontFamily: 'monospace' }}>
+      {legend.map(([label, color]) => (
+        <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: color }} />
+          {label}
+        </span>
+      ))}
+      {refused.size > 0 && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', border: `1.5px dashed ${AMBER}`, boxSizing: 'border-box' }} />
+          refused
+        </span>
+      )}
+    </div>
+    </>
+  );
+});
+ChecklistGrid.displayName = 'ChecklistGrid';
+
 /** One decision: its answer drawn by question kind, with model and threshold. */
 export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
   const kind = decision.kind ?? 'choice';
   const unsure = decision.choice === UNSURE;
   const answer = decision.refused
     ? 'refused'
-    : unsure
+    : unsure && kind !== 'checklist'
       ? `UNSURE (best guess ${decision.bestGuess})`
       : decision.choice;
-  const score = kind === 'scale' && !decision.refused && decision.score != null ? ` · score ${decision.score.toFixed(2)}` : '';
+  let detail = kind === 'scale' && !decision.refused && decision.score != null ? ` · score ${decision.score.toFixed(2)}` : '';
+  if (kind === 'checklist') {
+    const values = Object.values(decision.results ?? {});
+    const count = (result: string) => values.filter((value) => value === result).length;
+    detail = ` · ${count('yes')} yes · ${count('no')} no · ${count(UNSURE)} unsure`;
+  }
   const amber = unsure || decision.refused;
 
   const bars = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: '12px', fontWeight: 700, color: amber ? '#b45309' : VIOLET_TEXT }}>
-        {`◆ ${decision.question}: ${answer}${score}`}
+      <div style={{ fontSize: '12px', fontWeight: 700, color: amber ? '#b45309' : kind === 'checklist' && decision.choice === 'failed' ? '#be123c' : VIOLET_TEXT }}>
+        {`◆ ${decision.question}: ${answer}${detail}`}
       </div>
-      {decision.refused ? (
+      {kind === 'checklist' ? (
+        <ChecklistGrid decision={decision} />
+      ) : decision.refused ? (
         <div style={{ fontSize: '11px', color: '#78716c' }}>The model declined to answer; the decision routes to UNSURE.</div>
       ) : kind === 'yesno' ? (
         <YesNoBar decision={decision} />

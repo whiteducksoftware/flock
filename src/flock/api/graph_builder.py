@@ -447,12 +447,12 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
     @staticmethod
     def _scale_levels(type_name: str) -> list[str] | None:
-        """Ordered levels of the Scale question a decision type answers."""
+        """Ordered levels (Scale) or items (Checklist) a decision type answers."""
         try:
             question = choice_of(type_registry.resolve(type_name))
         except RegistryError:
             return None
-        if question is None or question.__kind__ != "scale":
+        if question is None or question.__kind__ not in ("scale", "checklist"):
             return None
         return list(question.__options__)
 

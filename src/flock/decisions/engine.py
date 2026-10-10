@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import TYPE_CHECKING, Any
@@ -12,7 +13,7 @@ from flock.components.agent import EngineComponent
 from flock.core.artifacts import Artifact
 from flock.core.image import Image
 from flock.core.visibility import Visibility, ensure_visibility
-from flock.decisions.choice import UNSURE, Question
+from flock.decisions.choice import FAILED, PASSED, UNSURE, Question
 from flock.decisions.models import Decision
 from flock.decisions.providers import (
     DecisionAnswer,
@@ -76,15 +77,17 @@ def inherited_visibility(artifacts: list[Artifact]) -> Visibility:
 
 
 class DecisionEngine(EngineComponent):
-    """Answers :class:`Choice`, :class:`YesNo` and :class:`Scale` questions
-    about the agent's inputs, all in one provider request.
+    """Answers :class:`Choice`, :class:`YesNo`, :class:`Scale` and
+    :class:`Checklist` questions about the agent's inputs.
 
-    Publishes one ``Decision.of(question)`` artifact per question and
-    execution. Below ``threshold`` a decision's ``choice`` is ``UNSURE``;
-    ``best_guess`` keeps the model's pick either way. A refused question is
-    ``UNSURE`` with ``refused=True``. Decisions inherit their inputs'
-    visibility unless ``visibility`` is set. ``instructions`` replaces the
-    docstring of a single question.
+    All questions go to the provider together, split into concurrent requests
+    of at most ``questions_per_request`` questions (a checklist counts one
+    question per item). Publishes one ``Decision.of(question)`` artifact per
+    question and execution. Below ``threshold`` a decision's ``choice`` is
+    ``UNSURE``; ``best_guess`` keeps the model's pick either way. A refused
+    question is ``UNSURE`` with ``refused=True``. Decisions inherit their
+    inputs' visibility unless ``visibility`` is set. ``instructions`` replaces
+    the docstring of a single question.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -94,6 +97,7 @@ class DecisionEngine(EngineComponent):
     threshold: float | None = None
     instructions: str | None = None
     visibility: Visibility | None = None
+    questions_per_request: int = Field(default=100, ge=1)
     enable_context: bool = Field(
         default=False, description="Decisions are made on the inputs only"
     )
@@ -111,15 +115,7 @@ class DecisionEngine(EngineComponent):
             if self.visibility is not None
             else inherited_visibility(inputs.artifacts)
         )
-        questions = [
-            DecisionQuestion(
-                name=question.__name__,
-                instructions=self.instructions or question.__question__,
-                options=question.__options__,
-                kind=question.__kind__,
-            )
-            for question in self.questions
-        ]
+        wire = self._wire_questions()
 
         state, images = prepare_state(inputs.artifacts)
         if images and not self.provider.supports_images:
@@ -129,14 +125,32 @@ class DecisionEngine(EngineComponent):
                 "model) for inputs with Image fields."
             )
 
+        size = self.questions_per_request
+        chunks = [wire[i : i + size] for i in range(0, len(wire), size)]
         started = time.perf_counter()
-        answers = await self.provider.decide_many(state, questions, images)
+        replies = await asyncio.gather(
+            *(self.provider.decide_many(state, chunk, images) for chunk in chunks)
+        )
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
+        answers = {name: answer for reply in replies for name, answer in reply.items()}
 
         subject_ids = [str(a.id) for a in inputs.artifacts]
         artifacts = []
         for question in self.questions:
             model = Decision.of(question)
+            if question.__kind__ == "checklist":
+                decision = self._checklist_decision(
+                    question, wire, answers, subject_ids, latency_ms
+                )
+                artifacts.append(
+                    Artifact(
+                        type=type_registry.name_for(model),
+                        payload=decision.model_dump(mode="json"),
+                        produced_by=agent.name,
+                        visibility=visibility.model_copy(deep=True),
+                    )
+                )
+                continue
             answer = answers[question.__name__]
             decision = model(
                 choice=answer.choice if self._firm(answer) else UNSURE,
@@ -159,6 +173,94 @@ class DecisionEngine(EngineComponent):
                 )
             )
         return EvalResult(artifacts=artifacts)
+
+    def _wire_questions(self) -> list[DecisionQuestion]:
+        """The questions sent to the provider; a checklist becomes one yes/no
+        question per item."""
+        wire = []
+        for question in self.questions:
+            prompt = self.instructions or question.__question__
+            if question.__kind__ != "checklist":
+                wire.append(
+                    DecisionQuestion(
+                        name=question.__name__,
+                        instructions=prompt,
+                        options=question.__options__,
+                        kind=question.__kind__,
+                    )
+                )
+                continue
+            for index, (item, text) in enumerate(question.__options__.items()):
+                wire.append(
+                    DecisionQuestion(
+                        name=f"{question.__name__}_{index}",
+                        instructions=f"{prompt}\n{text}" if text else prompt,
+                        options={"yes": "", "no": ""},
+                        kind="yesno",
+                        group=question.__name__,
+                        item=item,
+                    )
+                )
+        return wire
+
+    def _item_result(self, p_yes: float) -> str:
+        if self.threshold is None:
+            return "yes" if p_yes >= 0.5 else "no"
+        if p_yes >= self.threshold:
+            return "yes"
+        if p_yes <= 1.0 - self.threshold:
+            return "no"
+        return UNSURE
+
+    def _checklist_decision(
+        self,
+        question: type[Question],
+        wire: list[DecisionQuestion],
+        answers: dict[str, DecisionAnswer],
+        subject_ids: list[str],
+        latency_ms: float,
+    ) -> Decision:
+        results: dict[str, str] = {}
+        probabilities: dict[str, float] = {}
+        refused: list[str] = []
+        models: list[str] = []
+        for item_question in wire:
+            if item_question.group != question.__name__:
+                continue
+            item = item_question.item
+            answer = answers[item_question.name]
+            if answer.model:
+                models.append(answer.model)
+            if answer.refused or answer.choice is None:
+                results[item] = UNSURE
+                refused.append(item)
+                continue
+            probabilities[item] = answer.probabilities.get("yes", 0.0)
+            results[item] = self._item_result(probabilities[item])
+
+        if "no" in results.values():
+            outcome = FAILED
+        elif UNSURE in results.values():
+            outcome = UNSURE
+        else:
+            outcome = PASSED
+        best_guess = None
+        if probabilities:
+            best_guess = (
+                FAILED if any(p < 0.5 for p in probabilities.values()) else PASSED
+            )
+        return Decision.of(question)(
+            choice=outcome,
+            best_guess=best_guess,
+            probabilities=probabilities,
+            results=results,
+            refused_items=refused,
+            refused=len(refused) == len(results),
+            threshold=self.threshold,
+            subject_ids=subject_ids,
+            model=models[0] if models else self.provider.label,
+            latency_ms=latency_ms,
+        )
 
     def _firm(self, answer: DecisionAnswer) -> bool:
         if answer.refused or answer.choice is None:

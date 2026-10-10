@@ -1,8 +1,9 @@
-"""Decision models: typed choices and choice-based subscriptions."""
+"""Decision models: typed questions and answer-based subscriptions."""
 
 from flock.decisions.choice import (
     ANY_OPTION,
     UNSURE,
+    Checklist,
     Choice,
     ChoiceRef,
     Question,
@@ -20,6 +21,7 @@ from flock.decisions.providers import (
 __all__ = [
     "ANY_OPTION",
     "UNSURE",
+    "Checklist",
     "Choice",
     "ChoiceRef",
     "Decision",

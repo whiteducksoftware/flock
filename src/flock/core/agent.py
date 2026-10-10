@@ -702,11 +702,14 @@ class AgentBuilder:
         threshold: float | None = None,
         instructions: str | None = None,
         visibility: Visibility | None = None,
+        questions_per_request: int = 100,
     ) -> AgentBuilder:
         """Answer questions about each input with a decision model.
 
-        Every question is a ``Choice``, ``YesNo`` or ``Scale`` subclass; all of
-        them go to the model in one request. Publishes one
+        Every question is a ``Choice``, ``YesNo``, ``Scale`` or ``Checklist``
+        subclass; all of them go to the model together, split into concurrent
+        requests of at most ``questions_per_request`` questions (a checklist
+        counts one question per item). Publishes one
         ``Decision.of(question)`` artifact per question and execution. Other
         agents subscribe with ``.consumes(Route.billing)``,
         ``.consumes(Urgent.yes)`` or ``.consumes(Anger.angry.or_higher)``.
@@ -723,6 +726,7 @@ class AgentBuilder:
                 docstring.
             visibility: Readership of the decisions. By default they inherit the
                 inputs' visibility, and inputs with different visibilities fail.
+            questions_per_request: Most questions sent in one provider request.
 
         Returns:
             self for method chaining
@@ -749,7 +753,7 @@ class AgentBuilder:
                 and question.__options__
             ):
                 raise TypeError(
-                    ".decides() expects Choice, YesNo or Scale subclasses, "
+                    ".decides() expects Choice, YesNo, Scale or Checklist subclasses, "
                     f"got {question!r}"
                 )
         names = [question.__name__ for question in questions]
@@ -764,6 +768,10 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': instructions= replaces the text of a "
                 "single question; with several questions, put each question in "
                 "its class docstring."
+            )
+        if questions_per_request < 1:
+            raise ValueError(
+                f"questions_per_request must be at least 1, got {questions_per_request}"
             )
         if threshold is not None and not 0.0 < threshold <= 1.0:
             raise ValueError(f"threshold must be in (0, 1], got {threshold}")
@@ -786,6 +794,7 @@ class AgentBuilder:
                 threshold=threshold,
                 instructions=instructions,
                 visibility=visibility,
+                questions_per_request=questions_per_request,
             )
         )
         self.publishes(*(Decision.of(question) for question in questions))

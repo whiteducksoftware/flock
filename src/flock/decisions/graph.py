@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
-from flock.decisions.choice import UNSURE, Question
+from flock.decisions.choice import FAILED, PASSED, UNSURE, Question
 from flock.decisions.models import Decision
 from flock.registry import RegistryError, type_registry
 
@@ -33,9 +33,14 @@ def _question_info(
     subject_thumb: Callable[[Mapping[str, Any]], str | None] | None,
 ) -> dict[str, Any]:
     type_name = type_registry.name_for(Decision.of(question))
-    counts = dict.fromkeys(question.__options__, 0)
-    if threshold is not None:
-        counts[UNSURE] = 0
+    checklist = question.__kind__ == "checklist"
+    if checklist:
+        counts = dict.fromkeys([PASSED, FAILED, UNSURE], 0)
+        item_stats = {item: [0, 0, 0] for item in question.__options__}
+    else:
+        counts = dict.fromkeys(question.__options__, 0)
+        if threshold is not None:
+            counts[UNSURE] = 0
     refused = 0
     scores: list[float] = []
     samples: dict[str, list[dict[str, Any]]] = {}
@@ -47,6 +52,10 @@ def _question_info(
         refused += bool(payload.get("refused"))
         if payload.get("score") is not None:
             scores.append(payload["score"])
+        if checklist:
+            for item, result in (payload.get("results") or {}).items():
+                if item in item_stats:
+                    item_stats[item][("yes", "no", UNSURE).index(result)] += 1
         thumb = subject_thumb(payload) if subject_thumb else None
         if thumb:
             probabilities = payload.get("probabilities") or {}
@@ -65,6 +74,10 @@ def _question_info(
         info["refused"] = refused
     if question.__kind__ == "scale" and scores:
         info["meanScore"] = sum(scores) / len(scores)
+    if checklist:
+        # [yes, no, unsure] per item, in item order; descriptions for tooltips
+        info["itemStats"] = [item_stats[item] for item in question.__options__]
+        info["descriptions"] = dict(question.__options__)
     if samples:
         info["samples"] = {
             option: items[-SAMPLES_PER_OPTION:][::-1]
@@ -133,7 +146,8 @@ def decision_view(
 ) -> dict[str, Any]:
     """Decision fields for the dashboard's decision artifact view.
 
-    ``levels`` are the ordered options of a scale question.
+    ``levels`` are the ordered options of a scale question or the items of a
+    checklist.
     """
     view = {
         "question": payload.get("question"),
@@ -148,7 +162,11 @@ def decision_view(
         "score": payload.get("score"),
         "refused": bool(payload.get("refused")),
     }
-    if levels:
+    if view["kind"] == "checklist":
+        view["items"] = levels or list(payload.get("results") or {})
+        view["results"] = dict(payload.get("results") or {})
+        view["refusedItems"] = list(payload.get("refused_items") or [])
+    elif levels:
         view["levels"] = levels
     if subject_thumb:
         view["subjectThumb"] = subject_thumb

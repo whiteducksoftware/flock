@@ -1,0 +1,502 @@
+[
+ {
+  "id": "gov_01",
+  "domain": "Governance",
+  "text": "An information security policy is approved by management and published to all staff"
+ },
+ {
+  "id": "gov_02",
+  "domain": "Governance",
+  "text": "The security policies are reviewed at least once a year"
+ },
+ {
+  "id": "gov_03",
+  "domain": "Governance",
+  "text": "Security roles and responsibilities, including a CISO, are assigned"
+ },
+ {
+  "id": "gov_04",
+  "domain": "Governance",
+  "text": "Conflicting duties are segregated"
+ },
+ {
+  "id": "gov_05",
+  "domain": "Governance",
+  "text": "Management receives regular reports on the security status"
+ },
+ {
+  "id": "gov_06",
+  "domain": "Governance",
+  "text": "Contacts with authorities and the responsible CSIRT are defined"
+ },
+ {
+  "id": "gov_07",
+  "domain": "Governance",
+  "text": "Information security is part of project management"
+ },
+ {
+  "id": "gov_08",
+  "domain": "Governance",
+  "text": "Legal, regulatory and contractual security requirements are identified in a register"
+ },
+ {
+  "id": "risk_01",
+  "domain": "Risk management",
+  "text": "A documented risk assessment methodology is defined"
+ },
+ {
+  "id": "risk_02",
+  "domain": "Risk management",
+  "text": "Information security risk assessments are performed at least annually"
+ },
+ {
+  "id": "risk_03",
+  "domain": "Risk management",
+  "text": "A risk treatment plan with owners and deadlines exists"
+ },
+ {
+  "id": "risk_04",
+  "domain": "Risk management",
+  "text": "Residual risks are formally accepted by management"
+ },
+ {
+  "id": "risk_05",
+  "domain": "Risk management",
+  "text": "A risk register is maintained"
+ },
+ {
+  "id": "risk_06",
+  "domain": "Risk management",
+  "text": "Threat intelligence is collected and used"
+ },
+ {
+  "id": "asset_01",
+  "domain": "Asset management",
+  "text": "An inventory of information assets is maintained"
+ },
+ {
+  "id": "asset_02",
+  "domain": "Asset management",
+  "text": "Every asset has an owner"
+ },
+ {
+  "id": "asset_03",
+  "domain": "Asset management",
+  "text": "Rules for the acceptable use of IT resources are defined"
+ },
+ {
+  "id": "asset_04",
+  "domain": "Asset management",
+  "text": "Assets are returned when employment ends"
+ },
+ {
+  "id": "asset_05",
+  "domain": "Asset management",
+  "text": "Information is classified by protection need"
+ },
+ {
+  "id": "asset_06",
+  "domain": "Asset management",
+  "text": "Classified information is labelled"
+ },
+ {
+  "id": "acc_01",
+  "domain": "Access control",
+  "text": "An access control policy is defined"
+ },
+ {
+  "id": "acc_02",
+  "domain": "Access control",
+  "text": "Users have unique accounts; shared accounts are not used"
+ },
+ {
+  "id": "acc_03",
+  "domain": "Access control",
+  "text": "Multi-factor authentication is required for remote and privileged access"
+ },
+ {
+  "id": "acc_04",
+  "domain": "Access control",
+  "text": "Access rights are reviewed periodically"
+ },
+ {
+  "id": "acc_05",
+  "domain": "Access control",
+  "text": "Access of leavers is revoked promptly"
+ },
+ {
+  "id": "acc_06",
+  "domain": "Access control",
+  "text": "Privileged accounts are separate and restricted"
+ },
+ {
+  "id": "acc_07",
+  "domain": "Access control",
+  "text": "Password rules require strong passwords"
+ },
+ {
+  "id": "acc_08",
+  "domain": "Access control",
+  "text": "Access follows least privilege and need-to-know"
+ },
+ {
+  "id": "acc_09",
+  "domain": "Access control",
+  "text": "Granting and changing access is approved"
+ },
+ {
+  "id": "acc_10",
+  "domain": "Access control",
+  "text": "Sessions are locked after inactivity"
+ },
+ {
+  "id": "acc_11",
+  "domain": "Access control",
+  "text": "Service accounts are inventoried and have owners"
+ },
+ {
+  "id": "acc_12",
+  "domain": "Access control",
+  "text": "Emergency access is controlled and logged"
+ },
+ {
+  "id": "cry_01",
+  "domain": "Cryptography",
+  "text": "Sensitive data is encrypted at rest"
+ },
+ {
+  "id": "cry_02",
+  "domain": "Cryptography",
+  "text": "Data in transit is encrypted with current protocols"
+ },
+ {
+  "id": "cry_03",
+  "domain": "Cryptography",
+  "text": "Cryptographic keys are managed over their lifecycle"
+ },
+ {
+  "id": "cry_04",
+  "domain": "Cryptography",
+  "text": "Certificates are inventoried and renewed in time"
+ },
+ {
+  "id": "cry_05",
+  "domain": "Cryptography",
+  "text": "Approved cryptographic algorithms are defined"
+ },
+ {
+  "id": "phy_01",
+  "domain": "Physical security",
+  "text": "The premises have a physical perimeter with badge access"
+ },
+ {
+  "id": "phy_02",
+  "domain": "Physical security",
+  "text": "Visitors are registered and accompanied"
+ },
+ {
+  "id": "phy_03",
+  "domain": "Physical security",
+  "text": "Access to the data centre is restricted and logged"
+ },
+ {
+  "id": "phy_04",
+  "domain": "Physical security",
+  "text": "IT rooms are protected against fire and power failure"
+ },
+ {
+  "id": "phy_05",
+  "domain": "Physical security",
+  "text": "Clear desk and clear screen rules apply"
+ },
+ {
+  "id": "phy_06",
+  "domain": "Physical security",
+  "text": "Storage media are disposed of securely"
+ },
+ {
+  "id": "ops_01",
+  "domain": "Operations",
+  "text": "Operating procedures are documented"
+ },
+ {
+  "id": "ops_02",
+  "domain": "Operations",
+  "text": "Changes follow a change management process with approval"
+ },
+ {
+  "id": "ops_03",
+  "domain": "Operations",
+  "text": "Capacity is monitored and planned"
+ },
+ {
+  "id": "ops_04",
+  "domain": "Operations",
+  "text": "Development, test and production environments are separated"
+ },
+ {
+  "id": "ops_05",
+  "domain": "Operations",
+  "text": "Endpoints are protected against malware"
+ },
+ {
+  "id": "ops_06",
+  "domain": "Operations",
+  "text": "Security events are logged centrally"
+ },
+ {
+  "id": "ops_07",
+  "domain": "Operations",
+  "text": "Log retention periods are defined"
+ },
+ {
+  "id": "ops_08",
+  "domain": "Operations",
+  "text": "Logs are protected against tampering"
+ },
+ {
+  "id": "ops_09",
+  "domain": "Operations",
+  "text": "System clocks are synchronised"
+ },
+ {
+  "id": "ops_10",
+  "domain": "Operations",
+  "text": "Security events are monitored around the clock"
+ },
+ {
+  "id": "ops_11",
+  "domain": "Operations",
+  "text": "Systems are hardened according to configuration baselines"
+ },
+ {
+  "id": "ops_12",
+  "domain": "Operations",
+  "text": "Installing software is restricted"
+ },
+ {
+  "id": "vul_01",
+  "domain": "Vulnerability management",
+  "text": "Systems are scanned for vulnerabilities regularly"
+ },
+ {
+  "id": "vul_02",
+  "domain": "Vulnerability management",
+  "text": "Critical security patches are applied within a defined time"
+ },
+ {
+  "id": "vul_03",
+  "domain": "Vulnerability management",
+  "text": "Penetration tests are performed at least annually"
+ },
+ {
+  "id": "vul_04",
+  "domain": "Vulnerability management",
+  "text": "Vulnerabilities are tracked until closure"
+ },
+ {
+  "id": "vul_05",
+  "domain": "Vulnerability management",
+  "text": "End-of-life software is identified and replaced"
+ },
+ {
+  "id": "vul_06",
+  "domain": "Vulnerability management",
+  "text": "External vulnerability reports can be submitted and are handled"
+ },
+ {
+  "id": "net_01",
+  "domain": "Network security",
+  "text": "The network is segmented"
+ },
+ {
+  "id": "net_02",
+  "domain": "Network security",
+  "text": "Firewall rules are reviewed regularly"
+ },
+ {
+  "id": "net_03",
+  "domain": "Network security",
+  "text": "Remote access is only possible through a secured VPN"
+ },
+ {
+  "id": "net_04",
+  "domain": "Network security",
+  "text": "Wireless networks are secured and guests are separated"
+ },
+ {
+  "id": "net_05",
+  "domain": "Network security",
+  "text": "Internet-facing services are protected against DDoS"
+ },
+ {
+  "id": "net_06",
+  "domain": "Network security",
+  "text": "Web and DNS traffic is filtered"
+ },
+ {
+  "id": "net_07",
+  "domain": "Network security",
+  "text": "A current network plan exists"
+ },
+ {
+  "id": "dev_01",
+  "domain": "Secure development",
+  "text": "A secure development lifecycle is defined"
+ },
+ {
+  "id": "dev_02",
+  "domain": "Secure development",
+  "text": "Secure coding guidelines are defined"
+ },
+ {
+  "id": "dev_03",
+  "domain": "Secure development",
+  "text": "Code is reviewed before it is merged"
+ },
+ {
+  "id": "dev_04",
+  "domain": "Secure development",
+  "text": "Security tests run in the build pipeline"
+ },
+ {
+  "id": "dev_05",
+  "domain": "Secure development",
+  "text": "Third-party dependencies are scanned"
+ },
+ {
+  "id": "dev_06",
+  "domain": "Secure development",
+  "text": "Secrets are not stored in source code"
+ },
+ {
+  "id": "dev_07",
+  "domain": "Secure development",
+  "text": "Test data contains no production personal data"
+ },
+ {
+  "id": "sup_01",
+  "domain": "Suppliers",
+  "text": "Suppliers are assessed for security before onboarding"
+ },
+ {
+  "id": "sup_02",
+  "domain": "Suppliers",
+  "text": "Security requirements are part of supplier contracts"
+ },
+ {
+  "id": "sup_03",
+  "domain": "Suppliers",
+  "text": "Suppliers are reviewed periodically"
+ },
+ {
+  "id": "sup_04",
+  "domain": "Suppliers",
+  "text": "Cloud services are assessed before use"
+ },
+ {
+  "id": "sup_05",
+  "domain": "Suppliers",
+  "text": "Supplier access is restricted and time-limited"
+ },
+ {
+  "id": "sup_06",
+  "domain": "Suppliers",
+  "text": "Supply chain security risks are considered"
+ },
+ {
+  "id": "inc_01",
+  "domain": "Incident management",
+  "text": "An incident response plan exists"
+ },
+ {
+  "id": "inc_02",
+  "domain": "Incident management",
+  "text": "Incidents are reported internally within a defined time"
+ },
+ {
+  "id": "inc_03",
+  "domain": "Incident management",
+  "text": "Significant incidents are reported to the authority within 24 hours"
+ },
+ {
+  "id": "inc_04",
+  "domain": "Incident management",
+  "text": "Incidents are classified by severity"
+ },
+ {
+  "id": "inc_05",
+  "domain": "Incident management",
+  "text": "Lessons learned are captured after incidents"
+ },
+ {
+  "id": "inc_06",
+  "domain": "Incident management",
+  "text": "Evidence is collected and preserved"
+ },
+ {
+  "id": "inc_07",
+  "domain": "Incident management",
+  "text": "Incident response is exercised"
+ },
+ {
+  "id": "bcm_01",
+  "domain": "Business continuity",
+  "text": "A business impact analysis has been performed"
+ },
+ {
+  "id": "bcm_02",
+  "domain": "Business continuity",
+  "text": "A business continuity plan exists"
+ },
+ {
+  "id": "bcm_03",
+  "domain": "Business continuity",
+  "text": "Continuity plans are exercised at least annually"
+ },
+ {
+  "id": "bcm_04",
+  "domain": "Business continuity",
+  "text": "Backups are performed regularly"
+ },
+ {
+  "id": "bcm_05",
+  "domain": "Business continuity",
+  "text": "Backups are encrypted and stored offline or off-site"
+ },
+ {
+  "id": "bcm_06",
+  "domain": "Business continuity",
+  "text": "Restores from backup are tested"
+ },
+ {
+  "id": "hr_01",
+  "domain": "People",
+  "text": "Background checks are performed before hiring"
+ },
+ {
+  "id": "hr_02",
+  "domain": "People",
+  "text": "Employees sign confidentiality agreements"
+ },
+ {
+  "id": "hr_03",
+  "domain": "People",
+  "text": "Security awareness training is held regularly"
+ },
+ {
+  "id": "hr_04",
+  "domain": "People",
+  "text": "Phishing simulations are carried out"
+ },
+ {
+  "id": "hr_05",
+  "domain": "People",
+  "text": "A disciplinary process for security violations exists"
+ },
+ {
+  "id": "hr_06",
+  "domain": "People",
+  "text": "Security duties continue after termination"
+ }
+]
