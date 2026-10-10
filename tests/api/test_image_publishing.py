@@ -271,3 +271,19 @@ def test_a_request_without_content_length_is_refused(setup):
     )
 
     assert response.status_code == 411
+
+
+def test_a_field_name_and_its_alias_count_as_one_field(setup):
+    _, client = setup
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        data={"type": "UploadAliased", "payload": json.dumps({"caption": "x"})},
+        files=[
+            ("picture", ("a.png", _png_bytes(), "image/png")),
+            ("photo", ("b.png", _png_bytes(), "image/png")),
+        ],
+    )
+
+    assert response.status_code == 400
+    assert "one image" in response.text

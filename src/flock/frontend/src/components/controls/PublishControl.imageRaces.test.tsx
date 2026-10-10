@@ -92,4 +92,39 @@ describe('PublishControl image conversions that finish late', () => {
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect(publishedContent().picture.url).toBe('data:image/png;base64,U0VDT05E');
   });
+
+  it('waits for a pending conversion before publishing', async () => {
+    const pending = deferred();
+    vi.mocked(fileToImageUrl).mockReturnValueOnce(pending.promise);
+    await openForm('Photo');
+    fireEvent.change(screen.getByLabelText(/picture/i), { target: { files: [file('slow.png')] } });
+
+    const submit = screen.getByRole('button', { name: /processing pictures/i });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(mockFetch).toHaveBeenCalledTimes(1); // only the artifact types
+
+    await act(async () => pending.resolve('data:image/png;base64,U0xPVw=='));
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correlation_id: 'c' }) });
+    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    expect(publishedContent().picture.url).toBe('data:image/png;base64,U0xPVw==');
+  });
+
+  it('ignores the failure of a conversion that a newer picture replaced', async () => {
+    let rejectFirst!: (error: Error) => void;
+    const first = new Promise<string>((_, reject) => (rejectFirst = reject));
+    vi.mocked(fileToImageUrl)
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce('data:image/png;base64,TkVX');
+    await openForm('Photo');
+    const picker = screen.getByLabelText(/picture/i);
+
+    fireEvent.change(picker, { target: { files: [file('broken.png')] } });
+    fireEvent.change(picker, { target: { files: [file('new.png')] } });
+    await waitFor(() => expect(screen.getByAltText('new.png')).toBeInTheDocument());
+    await act(async () => rejectFirst(new Error('unreadable')));
+
+    expect(screen.queryByText(/could not read/i)).not.toBeInTheDocument();
+  });
 });

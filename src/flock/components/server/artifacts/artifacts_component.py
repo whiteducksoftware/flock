@@ -327,7 +327,8 @@ class ArtifactsComponent(ServerComponent):
                     image_uploads.check_image_field(model, name)
                     data = await value.read(image_uploads.MAX_IMAGE_BYTES + 1)
                     await value.close()
-                    images.setdefault(name, []).append(
+                    key = image_uploads.payload_key(model, name)  # name or alias
+                    images.setdefault(key, []).append(
                         image_uploads.image_from_upload(name, data)
                     )
                 payload = image_uploads.place_images(model, payload, images)

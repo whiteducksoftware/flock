@@ -34,6 +34,7 @@ const PublishControl: React.FC = () => {
   // only if no newer choice (or another artifact type) replaced it meanwhile
   const typeGeneration = useRef(0);
   const fieldGeneration = useRef<Record<string, number>>({});
+  const [pendingPictures, setPendingPictures] = useState(0); // conversions in progress
 
   const setShowControls = useSettingsStore((state) => state.setShowControls);
 
@@ -190,6 +191,11 @@ const PublishControl: React.FC = () => {
     setSuccessMessage('');
     setErrorMessage('');
 
+    // A picture still being converted would be missing from the request
+    if (pendingPictures > 0) {
+      return;
+    }
+
     // Validate form
     if (!validateForm()) {
       return;
@@ -315,13 +321,16 @@ const PublishControl: React.FC = () => {
         const typeAtStart = typeGeneration.current;
         const fieldAtStart = (fieldGeneration.current[key] ?? 0) + 1;
         fieldGeneration.current[key] = fieldAtStart;
+        // Another artifact type, or (for a single picture) a newer choice, won
+        const isStale = () =>
+          typeGeneration.current !== typeAtStart ||
+          (imageKind === 'one' && fieldGeneration.current[key] !== fieldAtStart);
+        setPendingPictures((count) => count + 1);
         try {
           const picked = await Promise.all(
             files.map(async (file) => ({ name: file.name, url: await fileToImageUrl(file) }))
           );
-          // Another artifact type, or (for a single picture) a newer choice, won
-          const replaced = imageKind === 'one' && fieldGeneration.current[key] !== fieldAtStart;
-          if (typeGeneration.current !== typeAtStart || replaced) return;
+          if (isStale()) return;
           setFormData((previous) => ({
             ...previous,
             [key]: imageKind === 'many' ? [...(previous[key] ?? []), ...picked] : picked[0],
@@ -332,7 +341,10 @@ const PublishControl: React.FC = () => {
             return next;
           });
         } catch {
+          if (isStale()) return;
           setErrors((previous) => ({ ...previous, [key]: `Could not read the picture for ${key}` }));
+        } finally {
+          setPendingPictures((count) => count - 1);
         }
       };
 
@@ -668,10 +680,10 @@ const PublishControl: React.FC = () => {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={loading || loadingTypes}
+          disabled={loading || loadingTypes || pendingPictures > 0}
           className="publish-control__submit"
         >
-          {loading ? 'Publishing...' : 'Publish Artifact'}
+          {pendingPictures > 0 ? 'Processing pictures…' : loading ? 'Publishing...' : 'Publish Artifact'}
         </button>
 
         {/* Success Message */}
