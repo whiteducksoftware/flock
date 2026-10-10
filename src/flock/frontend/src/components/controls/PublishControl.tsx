@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchArtifactTypes, publishArtifact, ArtifactType } from '../../services/api';
 import { useFilterStore } from '../../store/filterStore';
 import { useSettingsStore } from '../../store/settingsStore';
+import { IMAGE_ACCEPT, fileToImageUrl, imageFieldKind } from '../../utils/imageFields';
 import './PublishControl.css';
 
 interface ValidationErrors {
@@ -11,6 +12,12 @@ interface ValidationErrors {
 
 interface FormData {
   [key: string]: any;
+}
+
+/** A picture chosen in the form: shown as a preview, published as an Image. */
+interface PickedImage {
+  name: string;
+  url: string;
 }
 
 const PublishControl: React.FC = () => {
@@ -57,7 +64,10 @@ const PublishControl: React.FC = () => {
         const initialData: FormData = {};
         Object.keys(artifactType.schema.properties).forEach((key) => {
           const prop = artifactType.schema.properties[key];
-          if (prop.type === 'boolean') {
+          const imageKind = imageFieldKind(prop, artifactType.schema);
+          if (imageKind) {
+            initialData[key] = imageKind === 'many' ? [] : null;
+          } else if (prop.type === 'boolean') {
             initialData[key] = false;
           } else if (prop.type === 'array') {
             // Represent arrays (e.g. list[str] / list[int]) as a newline-separated string in the UI.
@@ -110,6 +120,16 @@ const PublishControl: React.FC = () => {
 
         const isExplicitlyRequired = requiredFields.includes(key);
         const hasDefault = prop.default !== undefined;
+
+        // Image fields: a picture must be chosen unless the field is optional
+        const imageKind = imageFieldKind(prop, artifactType.schema);
+        if (imageKind) {
+          const missing = imageKind === 'many' ? !(value?.length > 0) : !value;
+          if (missing && (isExplicitlyRequired || (!hasDefault && imageKind === 'one'))) {
+            newErrors[key] = `${key} is required`;
+          }
+          return;
+        }
 
         // Required heuristic:
         // - If schema.required lists the field, it's required.
@@ -179,7 +199,13 @@ const PublishControl: React.FC = () => {
       if (artifactType && artifactType.schema.properties) {
         Object.entries(formData).forEach(([key, value]) => {
           const prop = artifactType.schema.properties[key];
-          if (prop.type === 'number' || prop.type === 'integer') {
+          const imageKind = imageFieldKind(prop, artifactType.schema);
+          if (imageKind === 'many') {
+            processedData[key] = (value as PickedImage[]).map((image) => ({ url: image.url }));
+          } else if (imageKind === 'one') {
+            // An optional picture that was not chosen keeps the schema default
+            if (value) processedData[key] = { url: (value as PickedImage).url };
+          } else if (prop.type === 'number' || prop.type === 'integer') {
             processedData[key] = Number(value);
           } else if (prop.type === 'boolean') {
             processedData[key] = Boolean(value);
@@ -255,7 +281,7 @@ const PublishControl: React.FC = () => {
   };
 
   // Helper to render form field based on schema property type
-  const renderField = (key: string, prop: any) => {
+  const renderField = (key: string, prop: any, schema: any) => {
     const value = formData[key] ?? '';
     const hasError = !!errors[key];
 
@@ -267,6 +293,96 @@ const PublishControl: React.FC = () => {
         setErrors(newErrors);
       }
     };
+
+    const imageKind = imageFieldKind(prop, schema);
+    if (imageKind) {
+      const images: PickedImage[] =
+        imageKind === 'many' ? (formData[key] ?? []) : formData[key] ? [formData[key]] : [];
+
+      const addFiles = async (files: File[]) => {
+        if (files.length === 0) return;
+        try {
+          const picked = await Promise.all(
+            files.map(async (file) => ({ name: file.name, url: await fileToImageUrl(file) }))
+          );
+          setFormData((previous) => ({
+            ...previous,
+            [key]: imageKind === 'many' ? [...(previous[key] ?? []), ...picked] : picked[0],
+          }));
+          setErrors((previous) => {
+            const next = { ...previous };
+            delete next[key];
+            return next;
+          });
+        } catch {
+          setErrors((previous) => ({ ...previous, [key]: `Could not read the picture for ${key}` }));
+        }
+      };
+
+      const removeImage = (index: number) => {
+        setFormData((previous) => ({
+          ...previous,
+          [key]:
+            imageKind === 'many'
+              ? (previous[key] as PickedImage[]).filter((_, i) => i !== index)
+              : null,
+        }));
+      };
+
+      // $ref fields carry no title in the schema: fall back to the field name
+      const title = prop.title || key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+      return (
+        <div key={key} className="publish-control__field">
+          <label htmlFor={`field-${key}`} className="publish-control__label">
+            {title}
+            {prop.description && (
+              <span className="publish-control__field-hint"> — {prop.description}</span>
+            )}
+            <span className="publish-control__field-hint"> — scaled to 1024 px</span>
+          </label>
+          <input
+            type="file"
+            id={`field-${key}`}
+            accept={IMAGE_ACCEPT}
+            multiple={imageKind === 'many'}
+            disabled={loading}
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              e.target.value = '';
+              void addFiles(files);
+            }}
+            className="publish-control__file-input"
+          />
+          <button
+            type="button"
+            onClick={() => document.getElementById(`field-${key}`)?.click()}
+            disabled={loading}
+            className={`publish-control__file-button ${hasError ? 'publish-control__input--error' : ''}`}
+          >
+            {imageKind === 'many' ? 'Add images…' : images.length ? 'Replace image…' : 'Choose image…'}
+          </button>
+          {images.length > 0 && (
+            <div className="publish-control__images">
+              {images.map((image, index) => (
+                <figure key={`${image.name}-${index}`} className="publish-control__image">
+                  <img src={image.url} alt={image.name} />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    disabled={loading}
+                    aria-label={`Remove ${image.name}`}
+                    className="publish-control__image-remove"
+                  >
+                    ×
+                  </button>
+                </figure>
+              ))}
+            </div>
+          )}
+          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+        </div>
+      );
+    }
 
     if (prop.type === 'boolean') {
       return (
@@ -505,7 +621,7 @@ const PublishControl: React.FC = () => {
           const artifactType = artifactTypes.find((t) => t.name === selectedType);
           if (artifactType && artifactType.schema.properties) {
             return Object.entries(artifactType.schema.properties).map(([key, prop]) =>
-              renderField(key, prop)
+              renderField(key, prop, artifactType.schema)
             );
           }
           return (

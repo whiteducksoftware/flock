@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 if TYPE_CHECKING:
@@ -72,6 +72,9 @@ def _check_pixels(data: bytes) -> None:
 
 class Image(BaseModel):
     """An image stored inline as a base64 data URL."""
+
+    # Lets the dashboard recognise image fields in artifact schemas
+    model_config = ConfigDict(json_schema_extra={"x-flock-image": True})
 
     url: str
 

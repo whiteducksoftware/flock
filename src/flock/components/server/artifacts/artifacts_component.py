@@ -1,5 +1,6 @@
 """ServerComponent used to interact with artifacts on the Blackboard."""
 
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
@@ -7,8 +8,10 @@ from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Query
 from pydantic import Field
+from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.requests import Request
 
+from flock.api import image_uploads
 from flock.components.server.artifacts.models import (
     ArtifactListResponse,
     ArtifactPublishRequest,
@@ -261,6 +264,58 @@ class ArtifactsComponent(ServerComponent):
                     partition_key=body.partition_key,
                 )
             except Exception as exc:  # pragma: no cover - FastAPI converts
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            return ArtifactPublishResponse(status="accepted")
+
+        @app.post(
+            self._join_path(self.config.prefix, "artifacts/upload"),
+            response_model=ArtifactPublishResponse,
+            tags=self.config.tags,
+        )
+        async def publish_artifact_upload(request: Request) -> ArtifactPublishResponse:
+            """Publish an artifact whose ``Image`` fields are uploaded as files.
+
+            ``multipart/form-data`` with ``type`` (the artifact type), an optional
+            ``payload`` (JSON object with the other fields) and one file part per
+            ``Image`` field, named after the field; repeat the name for a
+            ``list[Image]`` field. Files must be JPEG, PNG, GIF, WebP or BMP; they
+            are re-encoded like ``Image.from_bytes``.
+            """
+            form = await request.form()
+            artifact_type = form.get("type")
+            if not isinstance(artifact_type, str) or not artifact_type:
+                raise HTTPException(status_code=400, detail="'type' is required.")
+            try:
+                payload = json.loads(str(form.get("payload") or "{}"))
+            except json.JSONDecodeError as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"'payload' is not valid JSON: {exc}"
+                ) from exc
+            if not isinstance(payload, dict):
+                raise HTTPException(
+                    status_code=400, detail="'payload' must be a JSON object."
+                )
+            try:
+                model = type_registry.resolve(type_registry.resolve_name(artifact_type))
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+            files: dict[str, list[bytes]] = {}
+            for field_name, value in form.multi_items():
+                if isinstance(value, StarletteUploadFile):
+                    data = await value.read(image_uploads.MAX_IMAGE_BYTES + 1)
+                    files.setdefault(field_name, []).append(data)
+            try:
+                payload = image_uploads.apply_uploads(model, payload, files)
+                await orchestrator.publish(
+                    {"type": artifact_type, "payload": payload},
+                    correlation_id=str(uuid4()),
+                )
+            except image_uploads.UploadError as exc:
+                raise HTTPException(
+                    status_code=exc.status_code, detail=str(exc)
+                ) from exc
+            except Exception as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             return ArtifactPublishResponse(status="accepted")
 
