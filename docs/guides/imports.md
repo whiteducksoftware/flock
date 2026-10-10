@@ -298,20 +298,26 @@ agent.schedule(every=timedelta(minutes=5))
 | Import | Description | Learn More |
 |--------|-------------|------------|
 | `Choice` | A closed option set (the question); options become subscription handles | [Decision Models Guide](decisions.md) |
-| `Decision` | Decision artifact base; `Decision.of(Route)` is the artifact type of one Choice | [Decision Models Guide](decisions.md) |
+| `YesNo` | A yes/no question; handles `.yes`, `.no` | [Decision Models Guide](decisions.md#yesno) |
+| `Scale` | Ordered levels (2-10); handles `.<level>`, `.<level>.or_higher`, `.<level>.or_lower` | [Decision Models Guide](decisions.md#scale) |
+| `Decision` | Decision artifact base; `Decision.of(Route)` is the artifact type of one question | [Decision Models Guide](decisions.md) |
 | `Image` | An image inside an artifact (base64 data URL); `Image.from_file()` downscales and strips EXIF | [Decision Models Guide](decisions.md#images) |
 
 ```python
-from flock import Choice, Decision
+from flock import Choice, Decision, Scale, YesNo
 
 class Route(Choice):
     """Which team should handle this ticket?"""
     billing = "Charges, invoices, refunds"
     tech = "Bugs, crashes, login problems"
 
-agent.consumes(Ticket).decides(Route, model="azure/decision-1", threshold=0.8)
+class Urgent(YesNo):
+    """Does the customer need an answer today?"""
+
+agent.consumes(Ticket).decides(Route, Urgent, model="azure/decision-1", threshold=0.8)
 other.consumes(Route.billing)          # receives the Ticket
-auditor.consumes(Decision.of(Route))   # receives every decision itself
+pager.consumes(Urgent.yes)             # receives the Ticket
+auditor.consumes(Decision.of(Route))   # receives every Route decision itself
 ```
 
 [:octicons-arrow-right-24: Decision Models](decisions.md){ .md-button }

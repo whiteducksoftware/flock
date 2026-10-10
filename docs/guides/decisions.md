@@ -3,12 +3,12 @@ tags:
   - decisions
   - subscriptions
   - routing
-description: Route workflows with decision models - typed Choice options, .decides() and choice subscriptions
+description: Route workflows with decision models - Choice, YesNo and Scale questions, .decides() and choice subscriptions
 ---
 
 # Decision Models
 
-A **decision model** reads a state plus a typed question and returns a calibrated probability for every option of a closed set, in one forward pass and without generating text. Examples are TypeSafe Jev, Cloudflare Clef (open weights) and Microsoft-Decision-1. For routing, classification and gating they are one to two orders of magnitude cheaper and faster than an LLM call.
+A **decision model** reads a state plus typed questions (one of N options, yes/no, an ordered scale) and returns a calibrated probability for every answer, in one forward pass and without generating text. Examples are TypeSafe Jev, Cloudflare Clef (open weights) and Microsoft-Decision-1. For routing, classification and gating they are one to two orders of magnitude cheaper and faster than an LLM call.
 
 In Flock a decision is a **shared fact on the blackboard**: one agent decides once and publishes the decision. Other agents subscribe to an **option** of that decision.
 
@@ -51,45 +51,112 @@ flock.agent("tech").consumes(Route.tech).publishes(Reply)
 flock.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)
 ```
 
-## Choice types
+## Question types
 
-A `Choice` subclass is the question and its option set:
+A question class is the question and its answers; its **docstring** is the question sent to the model. The three kinds map to the native question types of the decision APIs:
 
-- The **docstring** is the question sent to the model.
+| Class | Answers | systemone | OpenAI Decisions | Subscription handles |
+|---|---|---|---|---|
+| `Choice` | one of 2-255 options | `choice` | `choice` | `Route.billing`, `Route.UNSURE`, `Route.ANY` |
+| `YesNo` | `yes` or `no` | `noul` | `predicate` | `Urgent.yes`, `Urgent.no`, `Urgent.UNSURE`, `Urgent.ANY` |
+| `Scale` | 2-10 ordered levels | `score` | `score` | `Anger.angry`, `Anger.angry.or_higher`, `Anger.annoyed.or_lower`, `Anger.UNSURE`, `Anger.ANY` |
+
+`UNSURE` and `ANY` are reserved names.
+
+### Choice
+
 - Every **string attribute** is an option. Its value describes the option and is sent as the option's criteria. Good descriptions matter as much as good prompts.
 - Options are static. A Choice needs at least two and at most 255 options.
-- `UNSURE` and `ANY` are reserved names.
 
-After class creation each option is a subscription handle: `Route.billing`, `Route.tech`, plus `Route.UNSURE` and `Route.ANY`.
+### YesNo
+
+```python
+from flock import YesNo
+
+
+class Urgent(YesNo):
+    """Does the customer need an answer today?"""
+
+
+class Refund(YesNo):
+    """Does the customer ask for a refund?"""
+
+    yes = "They want money back"   # optional: what each answer means
+    no = "No refund request"
+```
+
+The model returns the probability of yes; the decision carries `probabilities = {"yes": p, "no": 1 - p}`. systemone models receive the descriptions as `noul` criteria. OpenAI predicates take no descriptions, so Flock appends them to the instructions. A YesNo accepts no other attributes.
+
+Ask a yes/no question as `YesNo` rather than as a two-option `Choice`: the native yes/no head of a decision model and its choice head can disagree on the same item.
+
+### Scale
+
+```python
+from flock import Scale
+
+
+class Anger(Scale):
+    """How angry is the customer?"""
+
+    calm = "Calm and polite"            # lowest level first
+    annoyed = "Annoyed but civil"
+    angry = "Angry, complaining strongly"
+    furious = "Furious, threatening to leave"
+```
+
+A Scale has 2-10 levels in declaration order, lowest first. The decision carries the probability per level, the most probable level as `choice` and the probability-weighted `score`: 0 is the lowest level, 3 the highest here, and 2.2 lies between `angry` and `furious`.
+
+- `Anger.angry` triggers when the most probable level is `angry` (and clears the threshold).
+- `Anger.angry.or_higher` triggers when `score >= 2`, `Anger.annoyed.or_lower` when `score <= 1`. These compare the score and ignore the threshold: a decision split between `angry` (0.55) and `furious` (0.45) is `UNSURE` as a level, but its score of 2.45 is clearly "angry or higher".
 
 ## Deciding: `.decides()`
 
 ```python
 .decides(
-    Route,
+    Route, Urgent, Anger,       # one or more question classes, asked in one request
     model="azure/decision-1",   # or a DecisionProvider; default: DEFAULT_DECISION_MODEL
-    threshold=0.8,              # optional; below it the decision is UNSURE
-    instructions=None,          # optional; overrides the Choice docstring
+    threshold=0.8,              # optional, for every question; below it a decision is UNSURE
+    instructions=None,          # optional, single question only; overrides the docstring
     visibility=None,            # optional; overrides visibility inheritance
 )
 ```
 
-`.decides()` sets the agent's engine to a `DecisionEngine` and makes the agent publish `Decision.of(Route)`. Utilities, guards and tracing work as for any other agent. It cannot be combined with `.with_engines()`, and batch subscriptions are not supported.
+`.decides()` sets the agent's engine to a `DecisionEngine` and makes the agent publish one `Decision.of(<question>)` per question. Utilities, guards and tracing work as for any other agent. It cannot be combined with `.with_engines()`, and batch subscriptions are not supported.
 
 The model sees the agent's inputs as its state, one line per input: `Ticket: {"subject": "...", "body": "..."}`.
 
-Every execution publishes one `Decision.of(Route)` artifact:
+### Several questions in one call
+
+With several questions the model answers all of them in **one request**, in one pass over the state, and every execution publishes one decision per question about the same subject. Each question routes on its own:
+
+```python
+triage = flock.agent("triage").consumes(Ticket).decides(Route, Urgent, Anger)
+
+flock.agent("billing").consumes(Route.billing).publishes(Reply)
+flock.agent("pager").consumes(Urgent.yes).publishes(Page)
+flock.agent("deescalation").consumes(Anger.angry.or_higher).publishes(Reply)
+```
+
+A ticket that is about billing, urgent and furious runs all three agents, each with the ticket as input. The question classes of one decider need distinct class names.
+
+### The decision artifact
+
+Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(Route)`:
 
 | Field | Meaning |
 |---|---|
-| `choice` | The selected option, or `UNSURE` when its probability is below `threshold` |
-| `best_guess` | The model's pick, also when unsure |
-| `probabilities` | Probability per option |
+| `question` | Name of the question class |
+| `kind` | `choice`, `yesno` or `scale` |
+| `choice` | The selected option, or `UNSURE` when its probability is below `threshold` or the model refused |
+| `best_guess` | The model's pick, also when unsure; `None` when the model refused |
+| `probabilities` | Probability per option (per level for a Scale, `yes`/`no` for a YesNo) |
+| `score` | Scale only: the probability-weighted level, 0 = lowest |
+| `refused` | The model refused to answer this question |
 | `confidence` | Confidence as reported by the model |
 | `threshold` | The threshold that applied |
 | `subject_ids` | Ids of the artifacts the decision is about |
 | `model` | The model that answered (as reported by the provider) |
-| `latency_ms` | Round trip of the decision request |
+| `latency_ms` | Round trip of the decision request (shared by all questions of the request) |
 
 ## Routing: choice subscriptions
 
@@ -124,11 +191,31 @@ A choice handle must be the only type in its `.consumes()` call. `where=` predic
 
 With `threshold=0.8` the decision is firm only when the chosen option's probability is at least 0.8. Otherwise `choice` is `UNSURE` and only `Route.UNSURE` subscribers run, typically an LLM agent or a human-in-the-loop step. This is a confidence-gated cascade: keep the confident verdicts, escalate the rest.
 
+A **refused** question (OpenAI's Decisions API can refuse a question and still answer the others) becomes a decision with `choice=UNSURE`, `refused=True`, `best_guess=None` and no probabilities, so it lands in the `UNSURE` branch instead of failing the execution.
+
 Calibration is per task, not global. Pick each decider's threshold on that decider's own data. Recorded decisions (persistent store, traces) make it cheap to replay inputs against another model before switching.
 
 ## Visibility
 
 A decision inherits the visibility of its subject, so routing never widens who can read data. Agents that may not see the ticket do not see its decision either and are not triggered. If a decider consumes several inputs with different visibilities, it fails instead of guessing; pass `visibility=` to `.decides()` to choose the decision's readership explicitly.
+
+## Dashboard
+
+A decider node shows every question it asks, drawn by kind: option bars for a `Choice`, one bar split into yes, no and `UNSURE` for a `YesNo`, and a histogram of the levels in order for a `Scale`, with a marker at the mean weighted score. Edges carry the answer, qualified for yes/no and scale questions (`Urgent.yes`, `Anger.angry`):
+
+<p align="center">
+  <img alt="A decider asking a choice, a yes/no and a scale question, and the agents subscribed to the answers" src="../../assets/images/decisions/decision-types-agent-view.png" width="900">
+</p>
+
+In the Blackboard View each decision shows its answer the same way. A yes/no decision is one bar from yes (left) to no (right); the hatched zone between the two threshold markers is where neither answer is firm. A scale decision shows its levels in order, the threshold as a dashed line and the weighted score as a dot on the axis:
+
+<p align="center">
+  <img alt="One ticket, its three decisions and the agents they triggered" src="../../assets/images/decisions/decision-types-blackboard.png" width="900">
+</p>
+
+<p align="center">
+  <img alt="A scale decision below the threshold: UNSURE with best guess angry and score 1.57" src="../../assets/images/decisions/decision-types-scale-unsure.png" width="360">
+</p>
 
 ## Images
 
@@ -209,7 +296,7 @@ Provider failures (unreachable server, HTTP errors, answers with unknown options
 
 ## Testing
 
-`FakeDecider` answers with fixed probabilities or with a function of the state and records every call:
+`FakeDecider` answers with fixed probabilities or with a function of the state and records every request:
 
 ```python
 from flock.decisions import FakeDecider
@@ -221,6 +308,19 @@ await flock.publish(ticket)
 await flock.run_until_idle()
 
 state, question = decider.calls[0]
+```
+
+For a decider with several questions, give the probabilities per question name. `refuse=` makes it refuse questions; `decider.requests` holds every request with all its questions:
+
+```python
+decider = FakeDecider(
+    {
+        "Route": {"billing": 0.9, "tech": 0.1},
+        "Urgent": {"yes": 0.8, "no": 0.2},
+        "Anger": {"calm": 0.1, "annoyed": 0.2, "angry": 0.6, "furious": 0.1},
+    },
+    refuse={"Urgent"},  # optional
+)
 ```
 
 ## Decision models or semantic subscriptions?
@@ -241,4 +341,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request.
