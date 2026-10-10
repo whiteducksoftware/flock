@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -455,7 +455,7 @@ class TimeWindowContextProvider(BaseContextProvider):
         self.hours = hours
 
     async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
-        """Query all artifacts and filter by time window.
+        """Query the artifacts created within the last ``hours`` (UTC).
 
         Visibility filtering is enforced by BaseContextProvider automatically.
 
@@ -465,15 +465,14 @@ class TimeWindowContextProvider(BaseContextProvider):
         Returns:
             Artifacts within time window (will be visibility-filtered by base class)
         """
-        cutoff = datetime.now() - timedelta(hours=self.hours)
+        # created_at is UTC, so the window is computed in UTC too
+        cutoff = datetime.now(UTC) - timedelta(hours=self.hours)
 
         artifacts, _ = await request.store.query_artifacts(
-            FilterConfig(),
-            limit=-1,  # Get all artifacts
+            FilterConfig(start=cutoff),
+            limit=-1,  # Every artifact in the window
         )
-
-        # Filter by time window
-        return [artifact for artifact in artifacts if artifact.created_at >= cutoff]
+        return artifacts
 
 
 class EmptyContextProvider(BaseContextProvider):
