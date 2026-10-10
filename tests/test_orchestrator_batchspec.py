@@ -667,7 +667,8 @@ async def test_batchspec_performance_batching_overhead():
     """
     GIVEN: Agent with BatchSpec
     WHEN: 100 artifacts published in 10 batches
-    THEN: Batching costs no more than handling the artifacts one by one
+    THEN: Batching is not clearly slower than handling the artifacts one by one
+          (at most 1.5x the one-by-one time; in practice it is faster)
 
     Measured against an unbatched run in the same process rather than an
     absolute limit: branch coverage triples the time and CI runners are slower
