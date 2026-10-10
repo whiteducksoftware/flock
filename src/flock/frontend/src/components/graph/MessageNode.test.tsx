@@ -123,4 +123,52 @@ describe('MessageNode', () => {
     expect(options.every((o) => o.dataset.chosen === 'false')).toBe(true);
     expect(options[0]?.dataset.bestGuess).toBe('true');
   });
+
+  it('should show image thumbnails for image fields', () => {
+    const data: MessageNodeData = {
+      artifactType: 'Swatch',
+      payload: { name: 'red one', photo: '🖼 image/jpeg · 4 KB' },
+      producedBy: 'external',
+      consumedBy: [],
+      timestamp: Date.now(),
+      images: [{ path: 'photo', mime: 'image/jpeg', bytes: 4096, thumb: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' }],
+    };
+
+    render(
+      <ReactFlowProvider>
+        <MessageNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByAltText('photo')).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+    expect(screen.getByText(/photo · image\/jpeg · 4 KB/)).toBeInTheDocument();
+  });
+
+  it('should show the decided image next to the probability bars', () => {
+    const data: MessageNodeData = {
+      artifactType: 'Decision[__main__.Color]',
+      payload: { choice: 'red' },
+      producedBy: 'painter',
+      consumedBy: [],
+      timestamp: Date.now(),
+      decision: {
+        question: 'Color',
+        choice: 'red',
+        bestGuess: 'red',
+        probabilities: { red: 0.97, blue: 0.03 },
+        confidence: 0.97,
+        threshold: 0.8,
+        model: 'openai/gpt-6-luna',
+        latencyMs: 300,
+        subjectThumb: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <MessageNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByAltText('decided image')).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+    expect(screen.getAllByTestId('decision-option')).toHaveLength(2);
+  });
 });

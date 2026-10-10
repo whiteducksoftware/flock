@@ -146,4 +146,36 @@ describe('AgentNode', () => {
     expect(screen.getByText('◆ Route.billing')).toBeInTheDocument();
     expect(screen.queryByText('Decision[__main__.Route]')).not.toBeInTheDocument();
   });
+
+  it('should show thumbnail lanes of decided images per option', () => {
+    const thumb = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const data: AgentNodeData = {
+      name: 'painter',
+      status: 'idle',
+      subscriptions: ['Swatch'],
+      sentCount: 4,
+      recvCount: 4,
+      decision: {
+        question: 'Color',
+        options: ['red', 'blue'],
+        threshold: 0.8,
+        model: 'openai/gpt-6-luna',
+        counts: { red: 9, blue: 1, UNSURE: 1 },
+        samples: {
+          red: [{ thumb, p: 0.97 }, { thumb, p: 0.95 }],
+          UNSURE: [{ thumb, p: 0.5 }],
+        },
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getAllByAltText(/^red · p 0\.9/)).toHaveLength(2);
+    expect(screen.getByAltText('UNSURE · p 0.50')).toBeInTheDocument();
+    expect(screen.getByText('+7')).toBeInTheDocument();
+    expect(screen.queryAllByAltText(/^blue/)).toHaveLength(0);
+  });
 });

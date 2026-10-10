@@ -12,6 +12,11 @@ const DECISION_BG = 'rgba(139, 92, 246, 0.12)';
 const DECISION_BORDER = 'rgba(139, 92, 246, 0.4)';
 const UNSURE = 'UNSURE';
 
+export interface DecisionSample {
+  thumb: string;
+  p: number;
+}
+
 export interface DeciderInfo {
   question: string;
   instructions?: string;
@@ -19,6 +24,14 @@ export interface DeciderInfo {
   threshold: number | null;
   model: string;
   counts: Record<string, number>;
+  samples?: Record<string, DecisionSample[]>;
+}
+
+export interface ImageSummary {
+  path: string;
+  mime: string;
+  bytes: number;
+  thumb: string;
 }
 
 export interface DecisionInfo {
@@ -30,7 +43,62 @@ export interface DecisionInfo {
   threshold: number | null;
   model: string;
   latencyMs: number | null;
+  subjectThumb?: string;
 }
+
+// Hover zoom for thumbnails (inline styles cannot express :hover)
+const THUMB_CSS = `
+  .decision-thumb { transition: transform 0.15s ease, box-shadow 0.15s ease; transform-origin: center; }
+  .decision-thumb:hover { transform: scale(3.2); z-index: 1000; position: relative; opacity: 1 !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.6), 0 8px 24px rgba(0,0,0,0.55); }
+`;
+
+/** The latest images that landed in one option, newest first. */
+const ThumbLane = memo(
+  ({ option, samples, total }: { option: string; samples: DecisionSample[]; total: number }) => {
+    const unsure = option === UNSURE;
+    const color = unsure ? 'var(--color-warning)' : DECISION_COLOR;
+    const hidden = total - samples.length;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', margin: '2px 0 4px 0' }}>
+        {samples.map((sample, index) => {
+          const label = `${option} · p ${sample.p.toFixed(2)}`;
+          return (
+            <img
+              key={index}
+              className="decision-thumb nodrag"
+              src={sample.thumb}
+              alt={label}
+              title={label}
+              style={{
+                width: '26px',
+                height: '26px',
+                objectFit: 'cover',
+                borderRadius: '5px',
+                border: `1.5px solid ${color}`,
+                opacity: unsure ? 0.8 : 1,
+              }}
+            />
+          );
+        })}
+        {hidden > 0 && (
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              color,
+              padding: '1px 5px',
+              borderRadius: '999px',
+              border: `1px solid ${color}`,
+            }}
+          >
+            +{hidden}
+          </span>
+        )}
+      </div>
+    );
+  }
+);
+ThumbLane.displayName = 'ThumbLane';
 
 export const DecisionBadge = memo(({ question, compact }: { question: string; compact: boolean }) => (
   <span
@@ -74,12 +142,15 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
         borderRadius: 'var(--radius-md)',
       }}
     >
+      {decider.samples && <style>{THUMB_CSS}</style>}
       {rows.map((option) => {
         const count = decider.counts[option] ?? 0;
         const unsure = option === UNSURE;
         const color = unsure ? 'var(--color-warning)' : DECISION_COLOR;
+        const samples = decider.samples?.[option] ?? [];
         return (
-          <div key={option} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div key={option}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span
               style={{
                 width: '84px',
@@ -109,6 +180,8 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
               {count}
             </span>
           </div>
+          {samples.length > 0 && <ThumbLane option={option} samples={samples} total={count} />}
+          </div>
         );
       })}
       <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
@@ -125,8 +198,8 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
   const options = Object.entries(decision.probabilities).sort((a, b) => b[1] - a[1]);
   const unsure = decision.choice === UNSURE;
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+  const bars = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: '12px', fontWeight: 700, color: unsure ? '#b45309' : '#6d28d9' }}>
         ◆ {decision.question}: {unsure ? `UNSURE (best guess ${decision.bestGuess})` : decision.choice}
       </div>
@@ -195,5 +268,53 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
       </div>
     </div>
   );
+
+  if (!decision.subjectThumb) {
+    return <div style={{ marginBottom: '10px' }}>{bars}</div>;
+  }
+  // The decided image next to its probabilities
+  return (
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '10px' }}>
+      <img
+        src={decision.subjectThumb}
+        alt="decided image"
+        style={{
+          width: '88px',
+          height: '88px',
+          objectFit: 'cover',
+          borderRadius: '8px',
+          border: `3px solid ${unsure ? '#f59e0b' : DECISION_COLOR}`,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          flexShrink: 0,
+        }}
+      />
+      {bars}
+    </div>
+  );
 });
 DecisionBars.displayName = 'DecisionBars';
+
+/** Thumbnails of the image fields of an artifact. */
+export const ImageStrip = memo(({ images }: { images: ImageSummary[] }) => (
+  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
+    {images.map((image) => (
+      <figure key={image.path} style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <img
+          src={image.thumb}
+          alt={image.path}
+          style={{
+            maxWidth: '160px',
+            maxHeight: '160px',
+            borderRadius: '8px',
+            border: '1px solid #e7e5e4',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          }}
+        />
+        <figcaption style={{ fontSize: '10px', color: '#a8a29e', fontFamily: 'monospace' }}>
+          {image.path} · {image.mime} · {Math.max(1, Math.round(image.bytes / 1024))} KB
+        </figcaption>
+      </figure>
+    ))}
+  </div>
+));
+ImageStrip.displayName = 'ImageStrip';

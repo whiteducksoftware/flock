@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ConfigDict, Field
 
 from flock.components.agent import EngineComponent
 from flock.core.artifacts import Artifact
+from flock.core.image import Image
 from flock.core.visibility import Visibility, ensure_visibility
 from flock.decisions.choice import UNSURE, Choice
 from flock.decisions.models import Decision
@@ -23,17 +24,37 @@ if TYPE_CHECKING:
     from flock.utils.runtime import Context, EvalInputs
 
 
-def render_state(artifacts: list[Artifact]) -> str:
-    """One line per input: ``<TypeName>: <payload as JSON>``."""
+def _extract_images(value: Any, images: list[Image]) -> Any:
+    """Replace image data in a payload with ``<image N>`` and collect the images."""
+    if isinstance(value, dict):
+        url = value.get("url")
+        if len(value) == 1 and isinstance(url, str) and url.startswith("data:image/"):
+            images.append(Image(url=url))
+            return f"<image {len(images)}>"
+        return {key: _extract_images(item, images) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_extract_images(item, images) for item in value]
+    return value
+
+
+def prepare_state(artifacts: list[Artifact]) -> tuple[str, list[Image]]:
+    """The text state, one line per input (``<TypeName>: <payload as JSON>``),
+    and the images found in the inputs, in order of appearance."""
     lines = []
+    images: list[Image] = []
     for artifact in artifacts:
         try:
             name = type_registry.resolve(artifact.type).__name__
         except RegistryError:
             name = artifact.type
-        payload = json.dumps(artifact.payload, ensure_ascii=False, default=str)
-        lines.append(f"{name}: {payload}")
-    return "\n".join(lines)
+        payload = _extract_images(artifact.payload, images)
+        lines.append(f"{name}: {json.dumps(payload, ensure_ascii=False, default=str)}")
+    return "\n".join(lines), images
+
+
+def render_state(artifacts: list[Artifact]) -> str:
+    """The text state of ``artifacts`` (images replaced by placeholders)."""
+    return prepare_state(artifacts)[0]
 
 
 def inherited_visibility(artifacts: list[Artifact]) -> Visibility:
@@ -89,8 +110,16 @@ class DecisionEngine(EngineComponent):
             options=self.choice.__options__,
         )
 
+        state, images = prepare_state(inputs.artifacts)
+        if images and not self.provider.supports_images:
+            raise ValueError(
+                f"Decision model '{self.provider.label}' does not accept images; "
+                "use a provider with image support (openai/, local/ with a vision "
+                "model) for inputs with Image fields."
+            )
+
         started = time.perf_counter()
-        answer = await self.provider.decide(render_state(inputs.artifacts), question)
+        answer = await self.provider.decide(state, question, images)
         latency_ms = (time.perf_counter() - started) * 1000
 
         top = answer.probabilities.get(answer.choice, answer.confidence)
@@ -115,4 +144,4 @@ class DecisionEngine(EngineComponent):
         return EvalResult(artifacts=[artifact])
 
 
-__all__ = ["DecisionEngine", "inherited_visibility", "render_state"]
+__all__ = ["DecisionEngine", "inherited_visibility", "prepare_state", "render_state"]

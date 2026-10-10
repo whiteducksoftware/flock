@@ -31,6 +31,7 @@ from flock.core.store import (
 from flock.core.store import (
     ArtifactEnvelope as StoreArtifactEnvelope,
 )
+from flock.api.thumbnails import compact, first_thumbnail, image_summaries
 from flock.decisions.choice import UNSURE
 from flock.decisions.graph import (
     choice_type_labels,
@@ -267,8 +268,13 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 agent,
                 (
                     (artifact.artifact_type, artifact.payload)
-                    for artifact in artifacts.values()
+                    for artifact in sorted(
+                        artifacts.values(), key=lambda a: a.published_at
+                    )
                     if artifact.produced_by == agent.name
+                ),
+                subject_thumb=lambda payload: self._subject_thumbnail(
+                    artifacts, payload
                 ),
             )
             if decision:
@@ -398,13 +404,16 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         nodes: list[GraphNode] = []
 
         for artifact in artifacts.values():
-            payload_preview = self._payload_preview(artifact.payload)
+            # Image data is shipped as thumbnails; the JSON view gets a description
+            images = image_summaries(artifact.payload)
+            payload = compact(artifact.payload) if images else artifact.payload
+            payload_preview = self._payload_preview(payload)
             timestamp_ms = int(artifact.published_at.timestamp() * 1000)
 
             node_data = {
                 "artifactType": artifact.artifact_type,
                 "payloadPreview": payload_preview,
-                "payload": artifact.payload,
+                "payload": payload,
                 "producedBy": artifact.produced_by,
                 "consumedBy": list(artifact.consumed_by),
                 "timestamp": timestamp_ms,
@@ -412,8 +421,13 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "visibilityKind": artifact.visibility_kind or "Unknown",
                 "correlationId": artifact.correlation_id,
             }
+            if images:
+                node_data["images"] = images
             if is_decision_type(artifact.artifact_type):
-                node_data["decision"] = decision_view(artifact.payload)
+                node_data["decision"] = decision_view(
+                    artifact.payload,
+                    subject_thumb=self._subject_thumbnail(artifacts, artifact.payload),
+                )
 
             nodes.append(
                 GraphNode(
@@ -426,6 +440,19 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             )
 
         return nodes
+
+    @staticmethod
+    def _subject_thumbnail(
+        artifacts: Mapping[str, GraphArtifact], decision_payload: Mapping
+    ) -> str | None:
+        """Thumbnail of the first image in a decision's subjects that are in view."""
+        for subject_id in decision_payload.get("subject_ids") or []:
+            subject = artifacts.get(str(subject_id))
+            if subject is not None:
+                thumb = first_thumbnail(subject.payload)
+                if thumb:
+                    return thumb
+        return None
 
     def _derive_agent_edges(
         self,

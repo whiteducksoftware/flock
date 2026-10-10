@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.720"
+version = "0.5.721"
 description = "Flock: A declrative framework for building and orchestrating AI agents."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -29,6 +29,7 @@ dependencies = [
  "croniter==6.0.0",
  "python-dotenv==1.2.2",
  "starlette==1.3.1",
+ "pillow==12.3.0",
 ]
 
 [project.optional-dependencies]

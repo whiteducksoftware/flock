@@ -15,6 +15,7 @@ search:
 
 ### 🎉 New Features
 
+- **Images in artifacts and decisions** (`flock.Image`) - an image field holds the picture as a base64 data URL; `Image.from_file()` / `from_bytes()` / `from_pil()` downscale (default 1024 px) and strip EXIF. Decision models that accept images (`openai/`, vision-enabled `local/` servers) receive every `Image` of a decider's inputs; text-only providers refuse them with a clear error. The dashboard shows image thumbnails, lanes of the latest images per decision option, and the decided image next to its probabilities. Pillow is now a base dependency. See [Decision Models](../guides/decisions.md#images) and `examples/15-decisions/03_color_sorter.py`.
 - **Decision models** - an agent answers a typed `Choice` question with a decision model (calibrated probabilities over a closed option set, no generated text) and publishes a `Decision`; other agents subscribe to an option and receive the artifact that was decided on:
 
     ```python

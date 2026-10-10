@@ -1070,7 +1070,7 @@ wheels = [
 
 [[package]]
 name = "flock-core"
-version = "0.5.720"
+version = "0.5.721"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -1088,6 +1088,7 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-instrumentation-logging" },
     { name = "opentelemetry-sdk" },
+    { name = "pillow" },
     { name = "poethepoet" },
     { name = "pydantic", extra = ["email"] },
     { name = "python-dotenv" },
@@ -1171,6 +1172,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.43.0,<2" },
     { name = "opentelemetry-instrumentation-logging", specifier = ">=0.64b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.43.0,<2" },
+    { name = "pillow", specifier = "==12.3.0" },
     { name = "poethepoet", specifier = "==0.37.0" },
     { name = "pydantic", extras = ["email"], specifier = "==2.12.5" },
     { name = "python-dotenv", specifier = "==1.2.2" },

@@ -130,6 +130,56 @@ Calibration is per task, not global. Pick each decider's threshold on that decid
 
 A decision inherits the visibility of its subject, so routing never widens who can read data. Agents that may not see the ticket do not see its decision either and are not triggered. If a decider consumes several inputs with different visibilities, it fails instead of guessing; pass `visibility=` to `.decides()` to choose the decision's readership explicitly.
 
+## Images
+
+Decision models that accept images can decide about pictures. Put the picture into the artifact as a `flock.Image` field:
+
+```python
+from flock import Choice, Flock, Image, flock_type
+
+
+@flock_type
+class ProductPhoto(BaseModel):
+    sku: str
+    photo: Image
+
+
+class Condition(Choice):
+    """Is the product in the photo damaged?"""
+
+    intact = "No visible damage"
+    damaged = "Cracks, dents, tears or broken parts"
+
+
+flock.agent("inspector").consumes(ProductPhoto).decides(Condition, model="openai/gpt-6-luna")
+
+await flock.publish(ProductPhoto(sku="A-17", photo=Image.from_file("a17.jpg")))
+```
+
+- `Image` holds the picture as a base64 `data:image/...` URL, so it round-trips through stores, the REST API and the dashboard. Only inline data is accepted: Flock never fetches an image from a URL or a file path named in an artifact.
+- `Image.from_file()`, `Image.from_bytes()` and `Image.from_pil()` scale the picture down to `max_side` (default 1024 px) and re-encode it as JPEG (PNG when it has transparency). Re-encoding drops EXIF metadata such as GPS positions. Smaller images are faster: a local Clef model took 1.3 s for a 108 KB photo and 11 s for 1 MB.
+- The decider sends every `Image` in its inputs (also nested, in order) to the model; the text state shows `<image 1>`, `<image 2>`, ... in their place.
+- A text-only provider refuses image inputs with a clear error instead of dropping the images.
+
+| Provider | Images |
+|---|---|
+| `openai/<model>` | yes (`input_image` parts) |
+| `local/<name>` | yes, if the served model has vision support (top-level `images`, raw base64) |
+| `azure/<deployment>` (Microsoft-Decision-1) | no |
+| `jev/<model>` | no |
+
+In the dashboard, a decider's options show lanes with thumbnails of the latest images sorted into each option, and a decision artifact shows the decided image next to its probabilities. Image fields render as thumbnails instead of base64 text.
+
+<p align="center">
+  <img alt="A decider's option lanes filling with sorted images" src="../../assets/images/decisions/decision-lanes.gif" width="360">
+</p>
+
+In the Blackboard View every image artifact shows its thumbnail, and each decision shows the image it decided on, its probabilities and the threshold:
+
+<p align="center">
+  <img alt="Image artifacts, decisions with the decided image, and the bins they routed to" src="../../assets/images/decisions/decision-blackboard.png" width="900">
+</p>
+
 ## Providers
 
 | Model string | Protocol | Configuration |
@@ -191,4 +241,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images.

@@ -398,6 +398,11 @@ flock.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)  # below the t
 - ✅ **Safe by default** - decisions inherit the visibility of what they decided on
 - ✅ **Visible** - the dashboard labels edges by option and shows each decision's probabilities
 - ✅ **Pluggable** - `azure/`, `openai/`, `jev/` or any local `/v1/systemone` server (`local/`)
+- ✅ **Images too** - put a `flock.Image` field into an artifact and image-capable models (`openai/`, vision `local/` servers) decide about the picture
+
+<p align="center">
+  <img alt="A decider sorting images into option lanes in the dashboard" src="docs/assets/images/decisions/decision-lanes.gif" width="340">
+</p>
 
 **📖 [Decision Models Guide →](docs/guides/decisions.md)**
 
