@@ -33,15 +33,18 @@ uv add flock-core[semantic]
 pip install flock-core[semantic]
 ```
 
-This installs `sentence-transformers` (~90MB) with the `all-MiniLM-L6-v2` model for local embedding generation.
+This installs [fastembed](https://github.com/qdrant/fastembed), which runs the `all-MiniLM-L6-v2` model on ONNX Runtime for local embedding generation. No PyTorch, no GPU, no API key.
 
 ### Dependency Information
 
-- **Package**: `sentence-transformers`
-- **Model**: `all-MiniLM-L6-v2`
-- **Model Size**: ~90MB download
+- **Package**: `fastembed` (ONNX Runtime)
+- **Model**: `all-MiniLM-L6-v2` (ONNX export, 384 dimensions)
+- **Model Size**: ~90MB, downloaded on first use to `~/.cache/flock/fastembed` (override with `FASTEMBED_CACHE_PATH`)
 - **License**: Apache 2.0
-- **Runtime**: CPU-optimized (no GPU required)
+- **Runtime**: CPU (no GPU required)
+
+!!! note "Upgrade note: fastembed replaces sentence-transformers"
+    Earlier versions computed the same embeddings with `sentence-transformers`, which pulled in PyTorch. The model is unchanged and similarity scores are identical (checked on 450 query/text pairs: largest difference below 0.00001, no decision changed at thresholds 0.3-0.7), so existing `semantic_match` thresholds keep their meaning. The model is downloaded once more into the new cache directory.
 
 ## Core Concepts
 
@@ -488,7 +491,7 @@ class MonitoringEngine(EngineComponent):
 
 ## Graceful Degradation
 
-If `sentence-transformers` is not installed:
+If the `semantic` extra (`fastembed`) is not installed:
 
 - Semantic predicates are **ignored** (fall back to type matching)
 - `SemanticContextProvider.get_context()` returns **empty list**
@@ -569,7 +572,7 @@ else:
 
 ### Import Errors
 
-**Symptom**: `ImportError: sentence-transformers not found`
+**Symptom**: `ImportError: Semantic features require fastembed`
 
 **Solution**:
 ```bash
@@ -699,4 +702,4 @@ Additional examples in `examples/08-semantic/`:
 
 ## License
 
-Semantic subscriptions use `sentence-transformers`, which is Apache 2.0 licensed.
+Semantic subscriptions use `fastembed` (Apache 2.0) on ONNX Runtime (MIT); the `all-MiniLM-L6-v2` model is Apache 2.0.

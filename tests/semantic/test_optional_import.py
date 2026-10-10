@@ -4,15 +4,15 @@ import pytest
 
 
 def test_embedding_service_imports_when_available():
-    """EmbeddingService should import when sentence-transformers installed."""
+    """EmbeddingService should import when fastembed is installed."""
     try:
         from flock.semantic import EmbeddingService
 
         # If we get here, import succeeded
         assert EmbeddingService is not None
     except ImportError as e:
-        # If sentence-transformers not installed, should have clear message
-        assert "sentence-transformers" in str(e) or "semantic" in str(e)
+        # If fastembed is not installed, should have clear message
+        assert "fastembed" in str(e) or "semantic" in str(e)
 
 
 def test_embedding_service_raises_clear_error_when_missing():
@@ -30,7 +30,7 @@ def test_embedding_service_raises_clear_error_when_missing():
 
         # Should have helpful error message
         error_msg = str(exc_info.value).lower()
-        assert "semantic" in error_msg or "sentence-transformers" in error_msg
+        assert "semantic" in error_msg or "fastembed" in error_msg
     else:
         # If library is installed, just verify import works
         from flock.semantic import EmbeddingService

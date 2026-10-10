@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 
 
-# Skip all tests if sentence-transformers not available
-pytest.importorskip("sentence_transformers")
+# Skip all tests if fastembed (the semantic extra) is not available
+pytest.importorskip("fastembed")
 
 
 class TestSingletonPattern:
@@ -75,11 +75,6 @@ class TestCachingBehavior:
         # Reset and create with small cache
         EmbeddingService._instance = None
 
-        monkeypatch.setattr(
-            "sentence_transformers.SentenceTransformer",
-            lambda model_name: mock_embedding_model,
-        )
-
         service = EmbeddingService.get_instance(cache_size=3)
         service._model = mock_embedding_model
 
@@ -142,3 +137,49 @@ class TestErrorHandling:
         long_text = "word " * 10000
         embedding = embedding_service.embed(long_text)  # Should not raise
         assert embedding.shape == (384,)
+
+
+class TestFastEmbedBackend:
+    """The service computes all-MiniLM-L6-v2 embeddings through fastembed (ONNX)."""
+
+    def test_loads_minilm_through_fastembed(self, monkeypatch, tmp_path):
+        import numpy as np
+
+        from flock.semantic import embedding_service as module
+
+        created = {}
+
+        class FakeTextEmbedding:
+            def __init__(self, model_name, cache_dir=None):
+                created["model_name"] = model_name
+                created["cache_dir"] = cache_dir
+
+            def embed(self, texts):
+                for i, _ in enumerate(texts):
+                    yield np.full(384, i + 1, dtype=np.float32)
+
+        monkeypatch.setattr("fastembed.TextEmbedding", FakeTextEmbedding)
+        monkeypatch.setenv("FASTEMBED_CACHE_PATH", str(tmp_path))
+        service = module.EmbeddingService(cache_size=10)
+
+        single = service.embed("hello")
+        batch = service.embed_batch(["a", "b"])
+
+        assert created == {
+            "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+            "cache_dir": str(tmp_path),
+        }
+        assert single.shape == (384,)
+        assert single.dtype == np.float32
+        assert [v[0] for v in batch] == [1.0, 2.0]
+
+    def test_model_cache_defaults_to_a_persistent_directory(self, monkeypatch):
+        from pathlib import Path
+
+        from flock.semantic import embedding_service as module
+
+        monkeypatch.delenv("FASTEMBED_CACHE_PATH", raising=False)
+
+        assert module.model_cache_dir() == str(
+            Path.home() / ".cache" / "flock" / "fastembed"
+        )
