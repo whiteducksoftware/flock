@@ -592,7 +592,9 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 - [ ] Add circuit breaker for exporters
 - [ ] Add loading indicators for refreshes
 
-### 🚀 Future Enhancements (v1.0)
+### 🚀 Future Enhancement Ideas
+
+Ideas, not scheduled; planned work is in the [roadmap](../../about/roadmap.md).
 
 - [ ] Cost tracking (token usage + API costs)
 - [ ] Time-travel debugging (checkpoint/restore)
@@ -684,19 +686,19 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 
 1. **Cost Tracking**
    - Langfuse, Helicone, LiteLLM: Token usage + API costs per operation
-   - **Flock:** Not yet implemented (planned for v1.0)
+   - **Flock:** Not yet implemented
 
 2. **Time-Travel Debugging**
    - LangGraph: Checkpoint and restart from any point
-   - **Flock:** Not yet implemented (planned for v1.0)
+   - **Flock:** Not yet implemented
 
 3. **Alerts/Notifications**
    - Datadog, New Relic: SLO violations trigger alerts
-   - **Flock:** No alerting (planned for v1.0)
+   - **Flock:** No alerting
 
 4. **Multi-Environment Comparison**
    - Standard in observability platforms
-   - **Flock:** Single database, no env tagging (planned for v1.0)
+   - **Flock:** Single database, no env tagging
 
 ---
 
@@ -862,7 +864,9 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 6. Add VACUUM after TTL cleanup
 7. Restrict CORS to specific origins
 
-### Long-Term Enhancements (v1.0)
+### Long-Term Enhancement Ideas
+
+Ideas, not scheduled; planned work is in the [roadmap](../../about/roadmap.md).
 
 1. Cost tracking (token usage + API costs)
 2. Time-travel debugging
