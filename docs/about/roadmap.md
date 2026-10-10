@@ -11,7 +11,7 @@ search:
 
 # 🗺️ Flock Roadmap to 1.0
 
-Flock 0.5 is the current release line (`flock-core` on PyPI). The open backlog below is planned for **Flock 1.0 in Q4 2026**. Every item links to its GitHub issue, which holds the scope and the current state.
+Flock 0.5 is the current release line (`flock-core` on PyPI). The open backlog below is planned for **Q4 2026**: the Flock 1.0 release scope, and integrations that are qualified separately from it. Every item links to its GitHub issue, which holds the scope and the current state.
 
 ---
 
@@ -52,15 +52,23 @@ Flock 0.5 is the current release line (`flock-core` on PyPI). The open backlog b
 - Decision networks: escalation, ensembles, aggregation, calibration, shadow mode and human review ([#474](https://github.com/whiteducksoftware/flock/issues/474)).
 - Serialization of blackboard state and agents ([#274](https://github.com/whiteducksoftware/flock/issues/274)).
 
-### Reliability and deployment
-- Advanced retries and dead-letter queues, Dapr store hardening ([#277](https://github.com/whiteducksoftware/flock/issues/277), [#415](https://github.com/whiteducksoftware/flock/issues/415)).
-- Kafka event backbone and Kubernetes deployment tooling ([#278](https://github.com/whiteducksoftware/flock/issues/278), [#279](https://github.com/whiteducksoftware/flock/issues/279)).
-
 ### Quality and release
 - Application-factory entry point and deterministic onboarding ([#439](https://github.com/whiteducksoftware/flock/issues/439)).
-- Benchmarking suite, evaluation harness and production pilots ([#275](https://github.com/whiteducksoftware/flock/issues/275), [#276](https://github.com/whiteducksoftware/flock/issues/276), [#285](https://github.com/whiteducksoftware/flock/issues/285)).
+- Benchmarking suite and evaluation harness ([#275](https://github.com/whiteducksoftware/flock/issues/275), [#276](https://github.com/whiteducksoftware/flock/issues/276)).
 - Release qualification and operating guidance ([#451](https://github.com/whiteducksoftware/flock/issues/451), [#452](https://github.com/whiteducksoftware/flock/issues/452)).
 - DSPy 3.4 upgrade once the upstream fix is released ([#499](https://github.com/whiteducksoftware/flock/issues/499)).
+
+The 1.0 release is qualified for a single process with the SQLite store. Interrupted runs are shown after a restart but not resumed automatically.
+
+---
+
+## 🔌 Alongside 1.0 (Q4 2026, qualified separately)
+
+These are planned for the same time frame but are not part of the 1.0 release scope; each is qualified on its own.
+
+- **Reliability:** advanced retries and dead-letter queues ([#277](https://github.com/whiteducksoftware/flock/issues/277)).
+- **Deployment:** Dapr store hardening, Kafka event backbone, Kubernetes deployment tooling ([#415](https://github.com/whiteducksoftware/flock/issues/415), [#278](https://github.com/whiteducksoftware/flock/issues/278), [#279](https://github.com/whiteducksoftware/flock/issues/279)).
+- **Production pilots** with launch partners ([#285](https://github.com/whiteducksoftware/flock/issues/285)): a program goal, not a release gate.
 
 ---
 
