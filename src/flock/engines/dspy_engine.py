@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, field_serializer
 from flock.components.agent import EngineComponent
 from flock.core.artifacts import Artifact
 from flock.engines.dspy.artifact_materializer import DSPyArtifactMaterializer
+from flock.engines.dspy.image_inputs import ensure_vision_support
 from flock.engines.dspy.signature_builder import DSPySignatureBuilder
 from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor
 from flock.logging.logging import get_logger
@@ -393,8 +394,13 @@ class DSPyEngine(EngineComponent):
             return EvalResult(artifacts=[], state=dict(inputs.state))
 
         model_name = self._resolve_model_name()
-        dspy_mod = self._import_dspy()
         extra_kwargs = self._build_lm_kwargs()
+        ensure_vision_support(
+            model_name,
+            inputs,
+            openai_api=_targets_openai_api(model_name, extra_kwargs),
+        )
+        dspy_mod = self._import_dspy()
 
         lm = self._create_lm(dspy_mod, model_name, extra_kwargs)
 

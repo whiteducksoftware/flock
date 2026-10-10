@@ -1228,6 +1228,48 @@ agent = (
 
 ---
 
+## Image Inputs
+
+An agent that consumes an artifact with `flock.Image` fields sends the pictures to the model as images:
+
+```python
+from pydantic import BaseModel
+
+from flock import Flock, Image, flock_type
+
+
+@flock_type
+class Drawing(BaseModel):
+    caption: str
+    picture: Image
+
+
+@flock_type
+class CaptionCheck(BaseModel):
+    seen: str
+    caption_is_correct: bool
+
+
+flock = Flock("openai/gpt-4.1")  # a model with vision support
+flock.agent("fact_checker").description(
+    "Check whether the caption describes the picture."
+).consumes(Drawing).publishes(CaptionCheck)
+
+await flock.publish(Drawing(caption="a red circle", picture=Image.from_file("circle.png")))
+```
+
+- **How it works:** DSPy turns a field into image content only when the signature types it as `dspy.Image`. For each input model that contains images, the engine builds a copy whose `Image` fields are `dspy.Image` and passes the inputs as instances of it. Images may sit at any depth: `Image`, `Image | None`, `list[Image]`, tuples and nested models, including models that refer to themselves. Models without images are passed on unchanged.
+- **Batches and joins:** every input field is converted, so batched agents (`list[Drawing]`) and joins with several input types receive their images as well.
+- **Context:** images in conversation context (`ctx.artifacts`) are described, for example `🖼 image/jpeg · 42 KB`, instead of being inlined. Each image would otherwise add its full base64 text to every prompt.
+- **Vision support:** if an input actually contains a picture and the model is an OpenAI API model that LiteLLM lists as text-only (for example `openai/gpt-3.5-turbo`), the agent fails before any request. The error names the model and the image fields. Elsewhere a model name can be a deployment alias (Azure, gateways, local servers), so the provider decides.
+- **Creating images:** `Image.from_file()`, `from_bytes()` and `from_pil()` scale pictures down to 1024 px by default. The [decision models guide](decisions.md#images) covers the limits.
+
+![Blackboard view: a drawing with its thumbnail and the fact checker's verdict](../assets/images/image-inputs/image-inputs-wrong-caption.png)
+
+The blackboard view shows each image as a thumbnail and describes it in the JSON view; the agent's output sits next to it.
+
+Example: [`examples/01-getting-started/19_image_agent.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/01-getting-started/19_image_agent.py).
+
 ## Provider-specific LM Configuration
 
 ### `lm_kwargs` passthrough

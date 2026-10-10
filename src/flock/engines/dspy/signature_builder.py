@@ -12,6 +12,11 @@ from typing import TYPE_CHECKING, Any
 
 from flock.core.artifacts import Artifact
 from flock.core.fan_out import FanOutRange
+from flock.engines.dspy.image_inputs import (
+    describe_context_images,
+    dspy_input_model,
+    to_dspy_input,
+)
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
 from flock.utils.runtime import EvalInputs
@@ -250,15 +255,18 @@ class DSPySignatureBuilder:
             for input_model, artifacts_of_type in input_types_seen.items():
                 field_name = self._type_to_field_name(input_model)
 
+                # Image fields reach the model as images (dspy.Image), not text
+                prompt_model = dspy_input_model(input_model)
+
                 # Handle batching: pluralize field name and use list[Type]
                 if batched:
                     field_name = self._pluralize(field_name)
-                    input_type = list[input_model]
+                    input_type = list[prompt_model]
                     desc = f"Batch of {input_model.__name__} instances to process"
                     fields[field_name] = (input_type, dspy_mod.InputField(desc=desc))
                 else:
                     # Single input: use singular field name
-                    input_type = input_model
+                    input_type = prompt_model
                     fields[field_name] = (input_type, dspy_mod.InputField())
 
                 used_field_names.add(field_name)
@@ -375,9 +383,9 @@ class DSPySignatureBuilder:
         """
         payload = {"description": sys_desc}
 
-        # Add context if present
+        # Add context if present (image data is described, not inlined)
         if has_context and context_history:
-            payload["context"] = context_history
+            payload["context"] = describe_context_images(context_history)
 
         # Build semantic input fields
         if inputs.artifacts:
@@ -396,7 +404,10 @@ class DSPySignatureBuilder:
 
                 # Validate and prepare payloads
                 validated_payloads = [
-                    self._validate_input_payload(input_model, art.payload)
+                    to_dspy_input(
+                        self._validate_input_payload(input_model, art.payload),
+                        input_model,
+                    )
                     for art in artifacts_of_type
                 ]
 
