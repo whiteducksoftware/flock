@@ -111,20 +111,27 @@ class TestTimerComponentCoverage:
         pass
 
     @pytest.mark.asyncio
-    async def test_wait_for_next_fire_one_time_datetime(self):
-        """Test _wait_for_next_fire with one-time datetime (lines 355-363)."""
+    async def test_wait_for_next_fire_one_time_datetime(self, monkeypatch):
+        """Test _wait_for_next_fire with one-time datetime (lines 355-363).
+
+        Checks the requested wait, not elapsed wall time, which a busy event
+        loop or a stepping wall clock would make flaky.
+        """
+        from flock.components.orchestrator.scheduling import timer as timer_module
+
+        sleeps: list[float] = []
+
+        async def record(seconds: float) -> None:
+            sleeps.append(seconds)
+
+        monkeypatch.setattr(timer_module.asyncio, "sleep", record)
         component = TimerComponent()
+        spec = ScheduleSpec(at=datetime.now(UTC) + timedelta(seconds=30))
 
-        # Schedule for 0.1 seconds in the future
-        future_dt = datetime.now(UTC) + timedelta(seconds=0.1)
-        spec = ScheduleSpec(at=future_dt)
-
-        start = datetime.now(UTC)
         await component._wait_for_next_fire(spec)
-        elapsed = (datetime.now(UTC) - start).total_seconds()
 
-        # Should have waited approximately 0.1 seconds
-        assert 0.05 <= elapsed <= 0.2
+        (wait,) = sleeps
+        assert 28.0 < wait <= 30.0
 
     @pytest.mark.asyncio
     async def test_wait_for_next_fire_cron(self):

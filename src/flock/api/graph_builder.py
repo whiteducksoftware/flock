@@ -6,6 +6,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 
 from flock.api.collector import AgentSnapshot, DashboardEventCollector
+from flock.api.thumbnails import compact, first_thumbnail, image_summaries
 from flock.components.server.models.graph import (
     GraphAgentMetrics,
     GraphArtifact,
@@ -31,7 +32,17 @@ from flock.core.store import (
 from flock.core.store import (
     ArtifactEnvelope as StoreArtifactEnvelope,
 )
+from flock.decisions.choice import UNSURE
+from flock.decisions.graph import (
+    choice_type_labels,
+    decider_info,
+    decision_label,
+    decision_view,
+    is_decision_type,
+)
+from flock.decisions.models import choice_of
 from flock.logging.auto_trace import AutoTracedMeta
+from flock.registry import RegistryError, type_registry
 
 
 class GraphAssembler(metaclass=AutoTracedMeta):
@@ -255,6 +266,26 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "isOpenClawAgent": is_openclaw_agent,
             }
 
+            # Decision agents and choice subscribers
+            decision = decider_info(
+                agent,
+                (
+                    (artifact.artifact_type, artifact.payload)
+                    for artifact in sorted(
+                        artifacts.values(), key=lambda a: a.published_at
+                    )
+                    if artifact.produced_by == agent.name
+                ),
+                subject_thumb=lambda payload: self._subject_thumbnail(
+                    artifacts, payload
+                ),
+            )
+            if decision:
+                node_data["decision"] = decision
+            type_labels = choice_type_labels(agent)
+            if type_labels:
+                node_data["typeLabels"] = type_labels
+
             # Add schedule data if present
             if schedule_spec_data:
                 node_data["scheduleSpec"] = schedule_spec_data
@@ -376,13 +407,17 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         nodes: list[GraphNode] = []
 
         for artifact in artifacts.values():
-            payload_preview = self._payload_preview(artifact.payload)
+            # Image data is shipped as thumbnails; the JSON view gets a description,
+            # also for images that yield no thumbnail
+            images = image_summaries(artifact.payload)
+            payload = compact(artifact.payload)
+            payload_preview = self._payload_preview(payload)
             timestamp_ms = int(artifact.published_at.timestamp() * 1000)
 
             node_data = {
                 "artifactType": artifact.artifact_type,
                 "payloadPreview": payload_preview,
-                "payload": artifact.payload,
+                "payload": payload,
                 "producedBy": artifact.produced_by,
                 "consumedBy": list(artifact.consumed_by),
                 "timestamp": timestamp_ms,
@@ -390,6 +425,14 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "visibilityKind": artifact.visibility_kind or "Unknown",
                 "correlationId": artifact.correlation_id,
             }
+            if images:
+                node_data["images"] = images
+            if is_decision_type(artifact.artifact_type):
+                node_data["decision"] = decision_view(
+                    artifact.payload,
+                    subject_thumb=self._subject_thumbnail(artifacts, artifact.payload),
+                    levels=self._scale_levels(artifact.artifact_type),
+                )
 
             nodes.append(
                 GraphNode(
@@ -403,6 +446,30 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
         return nodes
 
+    @staticmethod
+    def _scale_levels(type_name: str) -> list[str] | None:
+        """Ordered levels (Scale) or items (Checklist) a decision type answers."""
+        try:
+            question = choice_of(type_registry.resolve(type_name))
+        except RegistryError:
+            return None
+        if question is None or question.__kind__ not in ("scale", "checklist"):
+            return None
+        return list(question.__options__)
+
+    @staticmethod
+    def _subject_thumbnail(
+        artifacts: Mapping[str, GraphArtifact], decision_payload: Mapping
+    ) -> str | None:
+        """Thumbnail of the first image in a decision's subjects that are in view."""
+        for subject_id in decision_payload.get("subject_ids") or []:
+            subject = artifacts.get(str(subject_id))
+            if subject is not None:
+                thumb = first_thumbnail(subject.payload)
+                if thumb:
+                    return thumb
+        return None
+
     def _derive_agent_edges(
         self,
         artifacts: Mapping[str, GraphArtifact],
@@ -413,14 +480,23 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         for artifact in artifacts.values():
             producer = artifact.produced_by or "external"
             message_type = artifact.artifact_type
+            # Decisions get one edge per chosen option, labelled by the option
+            choice = (
+                decision_label(artifact.payload)
+                if is_decision_type(message_type)
+                else None
+            )
             for consumer in artifact.consumed_by:
                 edge_id = f"{producer}__{consumer}__{message_type}"
+                if choice is not None:
+                    edge_id = f"{edge_id}__{choice}"
                 payload = edge_payloads.setdefault(
                     edge_id,
                     {
                         "source": producer,
                         "target": consumer,
                         "message_type": message_type,
+                        "choice": choice,
                         "artifact_ids": [],
                         "latest_timestamp": artifact.published_at,
                     },
@@ -438,7 +514,22 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         for edge_id, payload in edge_payloads.items():
             message_type = payload["message_type"]
             artifact_ids = payload["artifact_ids"]
-            label = f"{message_type} ({len(artifact_ids)})"
+            choice = payload["choice"]
+            label = f"{choice or message_type} ({len(artifact_ids)})"
+            data = {
+                "messageType": message_type,
+                "messageCount": len(artifact_ids),
+                "artifactIds": artifact_ids,
+                "latestTimestamp": payload["latest_timestamp"].isoformat(),
+                "labelOffset": offsets.get(edge_id, 0.0),
+            }
+            if choice is not None:
+                data["decisionChoice"] = choice
+                # "UNSURE", "Anger.UNSURE" or "Controls.mfa.UNSURE", not an
+                # option that merely ends in UNSURE
+                data["decisionUnsure"] = choice == UNSURE or choice.endswith(
+                    f".{UNSURE}"
+                )
             edges.append(
                 GraphEdge(
                     id=edge_id,
@@ -446,13 +537,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     target=payload["target"],
                     type="message_flow",
                     label=label,
-                    data={
-                        "messageType": message_type,
-                        "messageCount": len(artifact_ids),
-                        "artifactIds": artifact_ids,
-                        "latestTimestamp": payload["latest_timestamp"].isoformat(),
-                        "labelOffset": offsets.get(edge_id, 0.0),
-                    },
+                    data=data,
                     marker_end=GraphMarker(),
                     hidden=False,
                 )

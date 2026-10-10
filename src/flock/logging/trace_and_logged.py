@@ -70,8 +70,14 @@ def _serialize_value(value, max_depth=10, current_depth=0):
         if value is None:
             return None
 
+        # Image data is described, not copied into every span
+        if isinstance(value, str):
+            from flock.core.image import describe_image_data
+
+            return describe_image_data(value) or value
+
         # Handle primitives - these are already JSON-serializable
-        if isinstance(value, (str, int, float, bool)):
+        if isinstance(value, (int, float, bool)):
             return value
 
         # Handle lists/tuples

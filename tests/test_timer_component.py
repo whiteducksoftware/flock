@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from flock.components.orchestrator.scheduling import timer as timer_module
 from flock.components.orchestrator.scheduling.timer import TimerComponent
 from flock.core.subscription import ScheduleSpec
 from flock.models.system_artifacts import TimerTick
@@ -565,137 +566,91 @@ class TestTimerLoop:
 
 
 class TestWaitForNextFire:
-    """Tests for _wait_for_next_fire scheduling logic."""
+    """Tests for _wait_for_next_fire scheduling logic.
+
+    The tests check the wait the component asks for, not the elapsed wall
+    time: a busy event loop or a wall clock that steps (VM time sync, NTP)
+    would make elapsed-time bounds flaky.
+    """
+
+    @pytest.fixture
+    def sleeps(self, monkeypatch) -> list[float]:
+        """Record the timer's sleeps instead of waiting."""
+        recorded: list[float] = []
+
+        async def record(seconds: float) -> None:
+            recorded.append(seconds)
+
+        monkeypatch.setattr(timer_module.asyncio, "sleep", record)
+        return recorded
 
     @pytest.mark.asyncio
-    async def test_wait_for_next_fire_interval(self):
-        """Test interval-based scheduling sleeps for interval duration."""
-        from datetime import UTC
-
-        # Arrange
+    async def test_wait_for_next_fire_interval(self, sleeps):
+        """Interval scheduling sleeps for the interval."""
         component = TimerComponent()
-        spec = ScheduleSpec(interval=timedelta(seconds=0.1))
 
-        # Act
-        start = datetime.now(UTC)
-        await component._wait_for_next_fire(spec)
-        elapsed = (datetime.now(UTC) - start).total_seconds()
+        await component._wait_for_next_fire(
+            ScheduleSpec(interval=timedelta(seconds=0.1))
+        )
 
-        # Assert - Should sleep for approximately 0.1 seconds
-        assert elapsed >= 0.09  # Allow small tolerance
-        assert elapsed < 0.15  # Not too much longer
+        assert sleeps == [0.1]
 
     @pytest.mark.asyncio
-    async def test_wait_for_next_fire_time_future_today(self):
-        """Test time-based scheduling calculates wait for future time today."""
+    async def test_wait_for_next_fire_time_future_today(self, sleeps):
+        """A time of day later today waits until then."""
         from datetime import UTC, time
 
-        # Arrange
         component = TimerComponent()
-        now = datetime.now(UTC)
-        # Set target time to be 2-3 seconds in the future, but with cleared microseconds
-        # to match how time objects work
-        future_moment = now + timedelta(seconds=2)
-        future_time = time(
-            hour=future_moment.hour,
-            minute=future_moment.minute,
-            second=future_moment.second,
+        # 30 s ahead, whole seconds like a time-of-day schedule; at midnight
+        # the target rolls over to tomorrow, still 29-30 s away
+        target = datetime.now(UTC) + timedelta(seconds=30)
+        spec = ScheduleSpec(
+            at=time(hour=target.hour, minute=target.minute, second=target.second)
         )
-        spec = ScheduleSpec(at=future_time)
 
-        # Act - Calculate expected wait time
-        # The implementation will use now.replace(hour=..., minute=..., second=..., microsecond=0)
-        expected_target = now.replace(
-            hour=future_time.hour,
-            minute=future_time.minute,
-            second=future_time.second,
-            microsecond=0,
-        )
-        expected_wait = (expected_target - now).total_seconds()
-
-        start = datetime.now(UTC)
         await component._wait_for_next_fire(spec)
-        elapsed = (datetime.now(UTC) - start).total_seconds()
 
-        # Assert - Should sleep for approximately the expected wait time
-        # Allow 0.5s tolerance for execution overhead and timing variance in CI
-        assert elapsed >= expected_wait - 0.5
-        assert elapsed < expected_wait + 0.5
+        (wait,) = sleeps
+        assert 28.0 < wait <= 30.0
 
     @pytest.mark.asyncio
-    async def test_wait_for_next_fire_time_past_today(self):
-        """Test time-based scheduling wraps to tomorrow for past time."""
+    async def test_wait_for_next_fire_time_past_today(self, sleeps):
+        """A time of day that has passed today waits until tomorrow."""
         from datetime import UTC
 
-        # Arrange
         component = TimerComponent()
-        now = datetime.now(UTC)
-        # Set target time 2 seconds in the PAST
-        past_time = (now - timedelta(seconds=2)).time()
-        spec = ScheduleSpec(at=past_time)
+        past_time = (datetime.now(UTC) - timedelta(seconds=30)).time()
 
-        # Act
-        start = datetime.now(UTC)
-        # Create task with timeout to avoid waiting 24 hours
-        wait_task = asyncio.create_task(component._wait_for_next_fire(spec))
+        await component._wait_for_next_fire(ScheduleSpec(at=past_time))
 
-        # Give it a moment to calculate the wait time
-        await asyncio.sleep(0.01)
-
-        # Cancel the task (we don't want to wait 24 hours)
-        wait_task.cancel()
-
-        try:
-            await wait_task
-        except asyncio.CancelledError:
-            pass
-
-        # Assert - Should have calculated wait time close to 24 hours
-        # We can't easily test this without mocking, so we verify it started waiting
-        # and didn't complete immediately
-        elapsed = (datetime.now(UTC) - start).total_seconds()
-        assert elapsed < 1.0  # Should not have slept the full time (we cancelled)
+        (wait,) = sleeps
+        day = timedelta(days=1).total_seconds()
+        assert day - 32.0 < wait <= day - 29.0
 
     @pytest.mark.asyncio
-    async def test_wait_for_next_fire_datetime_future(self):
-        """Test datetime-based scheduling waits until specific future datetime."""
+    async def test_wait_for_next_fire_datetime_future(self, sleeps):
+        """A future datetime waits until then."""
         from datetime import UTC
 
-        # Arrange
         component = TimerComponent()
-        now = datetime.now(UTC)
-        # Set target datetime 0.2 seconds in the future
-        future_dt = now + timedelta(seconds=0.2)
-        spec = ScheduleSpec(at=future_dt)
+        spec = ScheduleSpec(at=datetime.now(UTC) + timedelta(seconds=30))
 
-        # Act
-        start = datetime.now(UTC)
         await component._wait_for_next_fire(spec)
-        elapsed = (datetime.now(UTC) - start).total_seconds()
 
-        # Assert - Should sleep for approximately 0.2 seconds
-        assert elapsed >= 0.19
-        assert elapsed < 0.3
+        (wait,) = sleeps
+        assert 28.0 < wait <= 30.0
 
     @pytest.mark.asyncio
-    async def test_wait_for_next_fire_datetime_past(self):
-        """Test datetime-based scheduling handles past datetime appropriately."""
+    async def test_wait_for_next_fire_datetime_past(self, sleeps):
+        """A datetime in the past does not wait."""
         from datetime import UTC
 
-        # Arrange
         component = TimerComponent()
-        now = datetime.now(UTC)
-        # Set target datetime in the PAST
-        past_dt = now - timedelta(seconds=5)
-        spec = ScheduleSpec(at=past_dt)
+        spec = ScheduleSpec(at=datetime.now(UTC) - timedelta(seconds=5))
 
-        # Act
-        start = datetime.now(UTC)
         await component._wait_for_next_fire(spec)
-        elapsed = (datetime.now(UTC) - start).total_seconds()
 
-        # Assert - Should return immediately (or very quickly) for past datetime
-        assert elapsed < 0.1  # Should not sleep
+        assert sleeps == []
 
     def test_cron_next_fire_basic(self):
         """Cron next-fire helper computes a reasonable next timestamp (UTC)."""

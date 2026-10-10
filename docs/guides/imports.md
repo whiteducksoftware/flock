@@ -293,6 +293,39 @@ agent.schedule(every=timedelta(minutes=5))
 
 ---
 
+### Decisions
+
+| Import | Description | Learn More |
+|--------|-------------|------------|
+| `Choice` | A closed option set (the question); options become subscription handles | [Decision Models Guide](decisions.md) |
+| `YesNo` | A yes/no question; handles `.yes`, `.no` | [Decision Models Guide](decisions.md#yesno) |
+| `Scale` | Ordered levels (2-10); handles `.<level>`, `.<level>.or_higher`, `.<level>.or_lower` | [Decision Models Guide](decisions.md#scale) |
+| `Checklist` | Many yes/no items answered as one decision; `Checklist.from_items()` builds one from a catalog | [Decision Models Guide](decisions.md#checklist) |
+| `Tournament` | Asks a large Choice in rounds of groups: `.decides(Big, tournament=Tournament(group_size=20, keep=3))` | [Decision Models Guide](decisions.md#tournaments-for-large-choices) |
+| `Decision` | Decision artifact base; `Decision.of(Route)` is the artifact type of one question | [Decision Models Guide](decisions.md) |
+| `Image` | An image inside an artifact (base64 data URL); `Image.from_file()` downscales and strips EXIF | [Decision Models Guide](decisions.md#images) |
+
+```python
+from flock import Checklist, Choice, Decision, Scale, Tournament, YesNo
+
+class Route(Choice):
+    """Which team should handle this ticket?"""
+    billing = "Charges, invoices, refunds"
+    tech = "Bugs, crashes, login problems"
+
+class Urgent(YesNo):
+    """Does the customer need an answer today?"""
+
+agent.consumes(Ticket).decides(Route, Urgent, model="azure/decision-1", threshold=0.8)
+other.consumes(Route.billing)          # receives the Ticket
+pager.consumes(Urgent.yes)             # receives the Ticket
+auditor.consumes(Decision.of(Route))   # receives every Route decision itself
+```
+
+[:octicons-arrow-right-24: Decision Models](decisions.md){ .md-button }
+
+---
+
 ### Filtering
 
 | Import | Description | Learn More |

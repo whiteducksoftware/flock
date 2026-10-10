@@ -72,6 +72,11 @@ from flock.core.artifacts import Artifact
 from flock.core.conditions import Until, When
 
 # =============================================================================
+# Images - inline image data for artifacts
+# =============================================================================
+from flock.core.image import Image
+
+# =============================================================================
 # Store - Filtering and storage
 # =============================================================================
 from flock.core.store import FilterConfig
@@ -93,6 +98,11 @@ from flock.core.visibility import (
     TenantVisibility,
     Visibility,
 )
+
+# =============================================================================
+# Decisions - Typed choices answered by decision models
+# =============================================================================
+from flock.decisions import Checklist, Choice, Decision, Scale, Tournament, YesNo
 
 # =============================================================================
 # Engines - DSPy engine and adapters
@@ -139,9 +149,13 @@ __all__ = [
     # Subscriptions
     "BatchSpec",
     "ChatAdapter",
+    # Decisions
+    "Checklist",
+    "Choice",
     # Runtime
     "Context",
     "DSPyEngine",
+    "Decision",
     "EngineComponent",
     "EvalInputs",
     "EvalResult",
@@ -150,6 +164,8 @@ __all__ = [
     # Core
     "Flock",
     "FlockApplication",
+    # Images
+    "Image",
     # Integrations - OpenClaw
     "GatewayConfig",
     "JSONAdapter",
@@ -161,10 +177,12 @@ __all__ = [
     "OrchestratorComponentConfig",
     "PrivateVisibility",
     "PublicVisibility",
+    "Scale",
     "ScheduleSpec",
     "ServerComponent",
     "ServerComponentConfig",
     "TenantVisibility",
+    "Tournament",
     "TwoStepAdapter",
     # Conditions
     "Until",
@@ -175,6 +193,7 @@ __all__ = [
     "WorkflowResult",
     "WorkflowStatus",
     "XMLAdapter",
+    "YesNo",
     # Logging
     "configure_logging",
     "flock_tool",

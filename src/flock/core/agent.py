@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -24,11 +25,16 @@ from flock.core.artifacts import Artifact, ArtifactSpec
 from flock.core.fan_out import FanOutRange, FanOutSpec, normalize_fan_out
 from flock.core.subscription import BatchSpec, JoinSpec, ScheduleSpec, Subscription
 from flock.core.visibility import AgentIdentity, Visibility, ensure_visibility
+from flock.decisions import ChoiceRef, Decision, Question
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
 from flock.models.system_artifacts import TimerTick
 from flock.registry import function_registry, type_registry
 from flock.utils.runtime import Context, EvalInputs, EvalResult
+
+
+# How long several choice handles wait for decisions about the same subject
+SUBJECT_JOIN_WINDOW = timedelta(minutes=10)
 
 
 logger = get_logger(__name__)
@@ -52,6 +58,8 @@ class AgentOutput:
         Callable[[BaseModel], bool] | list[tuple[Callable, str]] | None
     ) = None  # Validation logic
     group_description: str | None = None  # Group description override
+    # Keep the visibility the engine set (decisions inherit their subject's)
+    inherit_visibility: bool = False
 
     def __post_init__(self):
         """Validate field constraints and normalize fan-out."""
@@ -534,7 +542,7 @@ class AgentBuilder:
 
     def consumes(
         self,
-        *types: type[BaseModel],
+        *types: type[BaseModel] | ChoiceRef,
         where: Callable[[BaseModel], bool]
         | Sequence[Callable[[BaseModel], bool]]
         | None = None,
@@ -558,7 +566,10 @@ class AgentBuilder:
         Supports type-based matching, conditional filters, batching, and joins.
 
         Args:
-            *types: Artifact types (Pydantic models) to consume
+            *types: Artifact types (Pydantic models) to consume, or exactly one
+                Choice handle (``Route.billing``, ``Route.UNSURE``, ``Route.ANY``).
+                A Choice handle triggers on matching decisions and delivers the
+                decision's subject; the decision is available as ``ctx.decision``.
             where: Optional filter predicate(s). Agent only executes if predicate returns True.
                 Can be a single callable or sequence of callables (all must pass).
             semantic_match: Optional semantic similarity filter. Matches artifacts based on
@@ -621,7 +632,38 @@ class AgentBuilder:
             ...     UserStory,
             ...     activation=When.correlation(UserStory).count_at_least(5),
             ... )
+
+            >>> # Decision routing: run on tickets the triage agent routed to billing
+            >>> agent.consumes(Route.billing)
+
+            >>> # Several handles: AND about the same subject (the ticket is delivered
+            >>> # once, all decisions are in ctx.decisions)
+            >>> agent.consumes(Route.billing, Urgent.yes)
         """
+        choice_refs: list[ChoiceRef] = []
+        if any(isinstance(t, ChoiceRef) for t in types):
+            if not all(isinstance(t, ChoiceRef) for t in types):
+                raise ValueError(
+                    "Choice handles cannot be mixed with types in one .consumes(); "
+                    "a handle delivers the decided artifact itself. Use separate "
+                    ".consumes() calls."
+                )
+            choice_refs = list(types)
+            questions = [ref.choice for ref in choice_refs]
+            if len(set(questions)) != len(questions):
+                raise ValueError(
+                    "Handles of the same question cannot be combined in one "
+                    ".consumes(): there is one decision per subject. Chain "
+                    ".consumes() calls for OR, e.g. "
+                    ".consumes(Route.billing).consumes(Route.shipping)."
+                )
+            types = tuple(Decision.of(question) for question in questions)
+            if len(choice_refs) > 1 and join is None:
+                # AND about the same subject: join the decisions on their subjects
+                from flock.decisions.routing import same_subject
+
+                join = JoinSpec(by=same_subject, within=SUBJECT_JOIN_WINDOW)
+
         predicates: Sequence[Callable[[BaseModel], bool]] | None
         if where is None:
             predicates = None
@@ -670,9 +712,206 @@ class AgentBuilder:
             mode=mode,
             priority=priority,
             activation=activation,
+            choices=choice_refs,
         )
+        # A decision consumed directly must not be swapped for its subject just
+        # because the same agent also routes on that question.
+        subscriptions = self._agent.subscriptions
+        routed = {name for s in subscriptions for name in s.choices}
+        direct = {name for s in subscriptions if not s.choices for name in s.type_names}
+        clash = (
+            set(subscription.choices) & direct
+            if subscription.choices
+            else subscription.type_names & routed
+        )
+        if clash:
+            raise ValueError(
+                f"Agent '{self._agent.name}': choice handles and their decision type "
+                f"({', '.join(sorted(clash))}) cannot be consumed by the same agent. "
+                "A handle delivers the decided artifact, the type delivers the "
+                "decision; use separate agents."
+            )
         self._agent.subscriptions.append(subscription)
         return self
+
+    def decides(
+        self,
+        *questions: type[Question],
+        model: str | Any | None = None,
+        threshold: float | None = None,
+        instructions: str | None = None,
+        visibility: Visibility | None = None,
+        questions_per_request: int = 100,
+        tournament: Any | None = None,
+        options: Callable[[Context], Iterable[str]] | None = None,
+    ) -> AgentBuilder:
+        """Answer questions about each input with a decision model.
+
+        Every question is a ``Choice``, ``YesNo``, ``Scale`` or ``Checklist``
+        subclass; all of them go to the model together, split into concurrent
+        requests of at most ``questions_per_request`` questions (a checklist
+        counts one question per item). Publishes one
+        ``Decision.of(question)`` artifact per question and execution. Other
+        agents subscribe with ``.consumes(Route.billing)``,
+        ``.consumes(Urgent.yes)`` or ``.consumes(Anger.angry.or_higher)``.
+
+        Args:
+            *questions: Question classes to answer about each input
+            model: Decision model string (``"jev/jev-latest"``,
+                ``"local/clef-flash"``) or a ``DecisionProvider``. Defaults to
+                ``Flock(decision_model=...)``, then to the
+                ``DEFAULT_DECISION_MODEL`` environment variable.
+            threshold: Minimum probability of the chosen option, for every
+                question; below it the decision is ``UNSURE`` and routes to
+                ``<Question>.UNSURE``.
+            instructions: Question text of a single question; defaults to its
+                docstring.
+            visibility: Readership of the decisions. By default they inherit the
+                inputs' visibility, and inputs with different visibilities fail.
+            questions_per_request: Most questions sent in one provider request.
+            tournament: A ``Tournament`` to ask one large Choice in rounds of
+                groups; required for choices with more than 255 options.
+            options: Restricts the single Choice or Checklist to a subset of its
+                options for each execution: a callable that receives the
+                context (``ctx.decisions`` holds the decisions that triggered
+                the agent) and returns option names. The decision records them,
+                in declared order, as ``candidates``.
+
+        Returns:
+            self for method chaining
+
+        Examples:
+            >>> triage = (
+            ...     flock.agent("triage")
+            ...     .consumes(Ticket)
+            ...     .decides(Route, model="jev/jev-latest", threshold=0.8)
+            ... )
+            >>> flock.agent("billing").consumes(Route.billing).publishes(Reply)
+            >>> # Several questions, one request
+            >>> triage.decides(Route, Urgent, Anger, model="azure/decision-1")
+        """
+        from flock.decisions.engine import DecisionEngine
+        from flock.decisions.providers import resolve_provider
+
+        if not questions:
+            raise TypeError(".decides() needs at least one question class.")
+        for question in questions:
+            if not (
+                isinstance(question, type)
+                and issubclass(question, Question)
+                and question.__options__
+            ):
+                raise TypeError(
+                    ".decides() expects Choice, YesNo, Scale or Checklist subclasses, "
+                    f"got {question!r}"
+                )
+        names = [question.__name__ for question in questions]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(
+                f"Agent '{self._agent.name}': questions of one decider need distinct "
+                f"class names; {', '.join(duplicates)} appears more than once."
+            )
+        from flock.decisions.choice import MAX_OPTIONS
+
+        if tournament is not None:
+            if len(questions) != 1 or questions[0].__kind__ != "choice":
+                raise ValueError(
+                    f"Agent '{self._agent.name}': tournament= asks exactly one Choice "
+                    "question; use a separate decider for other questions."
+                )
+        elif options is None:  # with options=, the runtime subset is checked
+            for question in questions:
+                if (
+                    question.__kind__ == "choice"
+                    and len(question.__options__) > MAX_OPTIONS
+                ):
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': {question.__name__} has "
+                        f"{len(question.__options__)} options; decision models accept "
+                        f"at most {MAX_OPTIONS} options per question. Pass "
+                        "tournament=Tournament(...) to ask it in rounds."
+                    )
+        if options is not None and (
+            len(questions) != 1 or questions[0].__kind__ not in ("choice", "checklist")
+        ):
+            raise ValueError(
+                f"Agent '{self._agent.name}': options= restricts a single Choice or "
+                "Checklist question."
+            )
+        # Checklist items go to the provider as <Checklist>_<index>
+        item_names = {
+            f"{question.__name__}_{index}"
+            for question in questions
+            if question.__kind__ == "checklist"
+            for index in range(len(question.__options__))
+        }
+        clashes = sorted(item_names & {question.__name__ for question in questions})
+        if clashes:
+            raise ValueError(
+                f"Agent '{self._agent.name}': {', '.join(clashes)} is also the name "
+                "of a checklist item's request; rename the question or ask it in a "
+                "separate decider."
+            )
+        if instructions is not None and len(questions) > 1:
+            raise ValueError(
+                f"Agent '{self._agent.name}': instructions= replaces the text of a "
+                "single question; with several questions, put each question in "
+                "its class docstring."
+            )
+        if questions_per_request < 1:
+            raise ValueError(
+                f"questions_per_request must be at least 1, got {questions_per_request}"
+            )
+        if threshold is not None and not 0.0 < threshold <= 1.0:
+            raise ValueError(f"threshold must be in (0, 1], got {threshold}")
+        if self._agent.engines:
+            raise ValueError(
+                f"Agent '{self._agent.name}': .decides() sets the agent's engine; "
+                "it cannot be combined with .with_engines()."
+            )
+        if self._agent.output_groups:
+            raise ValueError(
+                f"Agent '{self._agent.name}': a decision agent publishes only its "
+                "decisions; .decides() cannot be combined with .publishes()."
+            )
+        model = (
+            model
+            or getattr(self._orchestrator, "decision_model", None)
+            or os.getenv("DEFAULT_DECISION_MODEL")
+        )
+        if not model:
+            raise ValueError(
+                f"Agent '{self._agent.name}': pass model= to .decides(), set "
+                "Flock(decision_model=...) or set DEFAULT_DECISION_MODEL."
+            )
+
+        provider = resolve_provider(model)
+        budget = self._orchestrator._decision_budget(provider.label)
+        if budget is not None:
+            # A copy: a provider instance may be shared by several flocks
+            provider = copy.copy(provider)
+            provider.budget = budget
+        engine = DecisionEngine(
+            questions=list(questions),
+            provider=provider,
+            threshold=threshold,
+            instructions=instructions,
+            visibility=visibility,
+            questions_per_request=questions_per_request,
+            tournament=tournament,
+            options=options,
+        )
+        self.publishes(*(Decision.of(question) for question in questions))
+        for output in self._agent.output_groups[-1].outputs:
+            output.inherit_visibility = True
+        self._agent.engines.append(engine)  # last: later .publishes() checks it
+        return self
+
+    def _is_decider(self) -> bool:
+        from flock.decisions.engine import DecisionEngine
+
+        return any(isinstance(e, DecisionEngine) for e in self._agent.engines)
 
     def schedule(
         self,
@@ -810,6 +1049,11 @@ class AgentBuilder:
             - TenantVisibility: Multi-tenant isolation
             - LabelledVisibility: Role-based access control
         """
+        if self._is_decider():
+            raise ValueError(
+                f"Agent '{self._agent.name}': a decision agent publishes only its "
+                "decisions; .decides() cannot be combined with .publishes()."
+            )
         # Normalize fan_out specification to FanOutRange (or None)
         fan_out_range = normalize_fan_out(fan_out) if fan_out is not None else None
 
@@ -931,6 +1175,11 @@ class AgentBuilder:
             - DSPyEngine: Default LLM-based evaluation
             - EngineComponent: Base class for custom engines
         """
+        if self._is_decider():
+            raise ValueError(
+                f"Agent '{self._agent.name}': .decides() sets the agent's engine; "
+                "it cannot be combined with .with_engines()."
+            )
         self._agent.engines.extend(engines)
         return self
 

@@ -11,6 +11,7 @@ Supports BatchSpec-based batching:
 
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -35,7 +36,10 @@ class BatchAccumulator:
         created_at: datetime,
     ):
         self.batch_spec = batch_spec
-        self.created_at = created_at  # When first artifact arrived
+        self.created_at = created_at  # When first artifact arrived (for display)
+        # Timeouts run on the monotonic clock: wall-clock steps (VM time sync,
+        # NTP, daylight saving) would flush batches late or early.
+        self._started = time.monotonic()
         self.artifacts: list[Artifact] = []
 
     def add_artifact(self, artifact: Artifact) -> bool:
@@ -59,8 +63,8 @@ class BatchAccumulator:
         if self.batch_spec.timeout is None:
             return False
 
-        elapsed = datetime.now() - self.created_at
-        return elapsed >= self.batch_spec.timeout
+        elapsed = time.monotonic() - self._started
+        return elapsed >= self.batch_spec.timeout.total_seconds()
 
     def get_artifacts(self) -> list[Artifact]:
         """Get all artifacts in batch."""

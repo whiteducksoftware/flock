@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { NodeProps, Handle, Position } from '@xyflow/react';
 import JsonView from '@uiw/react-json-view';
+import { DecisionBars, DecisionInfo, ImageStrip, ImageSummary } from './DecisionDisplay';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
 // Message/artifact-specific properties populated by backend snapshot
@@ -12,6 +13,8 @@ const MessageNode = memo(({ id, data, selected }: NodeProps) => {
   const timestamp = nodeData.timestamp;
   const isStreaming = nodeData.isStreaming || false;
   const streamingText = nodeData.streamingText || '';
+  const decision = nodeData.decision as DecisionInfo | undefined; // Decision artifact view
+  const images = nodeData.images as ImageSummary[] | undefined; // Thumbnails of Image fields
 
   // Phase 6: Show artifact ID for debugging/verification
   const artifactId = id; // Node ID is the artifact ID
@@ -103,10 +106,13 @@ const MessageNode = memo(({ id, data, selected }: NodeProps) => {
             `}</style>
           </div>
         ) : (
-          /* Complete: Show beautiful JSON */
+          /* Complete: Show beautiful JSON (decisions: bars first, JSON collapsed) */
+          <>
+          {decision && <DecisionBars decision={decision} />}
+          {images && images.length > 0 && <ImageStrip images={images} />}
           <JsonView
             value={payload}
-            collapsed={false}
+            collapsed={decision ? true : false}
             displayDataTypes={false}
             shortenTextAfterLength={0}
             style={{
@@ -118,6 +124,7 @@ const MessageNode = memo(({ id, data, selected }: NodeProps) => {
               '--w-rjv-info-color': '#a8a29e',
             } as React.CSSProperties}
           />
+          </>
         )}
       </div>
     </div>

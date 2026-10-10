@@ -15,6 +15,7 @@ from flock.registry import type_registry
 if TYPE_CHECKING:
     from flock.core import Flock
     from flock.core.artifacts import Artifact
+    from flock.decisions.choice import ChoiceRef
 
 
 # Use Protocol for forward reference to avoid circular import
@@ -194,6 +195,8 @@ class Subscription:
         mode: str = "both",
         priority: int = 0,
         activation: RunCondition | None = None,
+        choice: ChoiceRef | None = None,
+        choices: Sequence[ChoiceRef] | None = None,
     ) -> None:
         if not types:
             raise ValueError("Subscription must declare at least one type.")
@@ -225,6 +228,21 @@ class Subscription:
         self.mode = mode
         self.priority = priority
         self.activation = activation
+        # Choice handles (.consumes(Route.billing), .consumes(Route.billing, Urgent.yes)):
+        # decision type name -> the handle its decisions must match
+        refs = list(choices or ([] if choice is None else [choice]))
+        self.choices: dict[str, ChoiceRef] = {}
+        for ref in refs:
+            from flock.decisions.models import Decision
+
+            self.choices[type_registry.register(Decision.of(ref.choice))] = ref
+
+    @property
+    def choice(self) -> ChoiceRef | None:
+        """The handle of a single-handle choice subscription."""
+        if len(self.choices) == 1:
+            return next(iter(self.choices.values()))
+        return None
 
     def _parse_semantic_match_parameter(
         self, semantic_match: str | list[str | dict[str, Any]] | dict[str, Any] | None
@@ -285,6 +303,9 @@ class Subscription:
         # Evaluate where predicates on typed payloads
         model_cls = type_registry.resolve(artifact.type)
         payload = model_cls(**artifact.payload)
+        ref = self.choices.get(artifact.type)
+        if ref is not None and not ref.matches(payload):
+            return False
         for predicate in self.where:
             try:
                 if not predicate(payload):
