@@ -64,7 +64,7 @@ Pre-commit hooks run Ruff and other checks; a pre-push hook (`scripts/check_vers
 | `src/flock/frontend/` | React/TypeScript dashboard (Vite) |
 | `tests/`, `examples/`, `docs/` | Tests, runnable examples (numbered folders), MkDocs site |
 
-Never put new files in the repository root. Tests go to `tests/` (`test_<module>.py`; frontend tests next to the component as `*.test.tsx`), examples to the matching `examples/NN-topic/` folder, docs to `docs/guides/` (and the nav in `mkdocs.yml`).
+Do not put code, tests, examples or docs in the repository root; it holds project metadata and configuration only (`pyproject.toml`, `README.md`, `AGENTS.md`, `CLAUDE.md`, ...). Tests go to `tests/` (`test_<module>.py`; frontend tests next to the component as `*.test.tsx`), examples to the matching `examples/NN-topic/` folder, docs to `docs/guides/` (and the nav in `mkdocs.yml`).
 
 ---
 
@@ -107,7 +107,7 @@ pitches = await flock.store.get_by_type(Pitch)  # list[Pitch]
 - **Context providers** (`flock.core.context_provider`):
   - Built in: `DefaultContextProvider`, `FilteredContextProvider(FilterConfig(...))`, `CorrelatedContextProvider`, `RecentContextProvider`, `TimeWindowContextProvider`, `EmptyContextProvider`. `SemanticContextProvider` lives in `flock.semantic`.
   - Set them globally with `Flock(..., context_provider=)` or per agent with `.with_context(provider)`.
-  - Custom providers extend `BaseContextProvider`, which enforces visibility.
+  - Custom providers should extend `BaseContextProvider`, which enforces visibility; a provider that implements the `ContextProvider` protocol directly must filter by visibility itself.
 - **Scheduling:**
   - `.schedule(every=timedelta | at=time | at=datetime | cron="0 9 * * 1-5", after=, max_repeats=)`.
   - Timer runs see `ctx.trigger_type == "timer"`, `ctx.timer_iteration` and `ctx.fire_time` on `flock.Context`.

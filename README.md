@@ -189,7 +189,7 @@ host.run()  # Foundry's Responses protocol on $PORT or 8088
 ```
 
 - **Official host:** the adapter uses Microsoft's `azure-ai-agentserver-responses` host. Streaming, background mode, polling and cancellation map onto Flock workflows.
-- **Identity:** each Foundry user becomes the workflow's principal, so visibility rules apply per user.
+- **Identity:** each Foundry user becomes the workflow's principal. By default, public outputs reach every caller; outputs with `TenantVisibility(tenant_id=...)` reach only the user it names, and agent-private outputs reach no caller.
 - **Lean install:** `pip install "flock-core[foundry]"`. Without the extra, no Azure package is installed or imported.
 - **Deployable sample:** [`examples/14-foundry/incident-triage`](examples/14-foundry/incident-triage) follows the official Foundry layout and has been deployed and tested as a hosted agent.
 
@@ -304,7 +304,7 @@ agent.publishes(IntelReport, visibility=LabelledVisibility(required_labels={"cle
 flock.agent("analyst").labels("clearance:secret").consumes(IntelReport)
 ```
 
-Context providers shape what an agent sees beyond its trigger, for example only recent, correlated or tagged artifacts. Every provider extends `BaseContextProvider`, which applies visibility filtering, so a custom provider cannot leak what an agent may not read.
+Context providers shape what an agent sees beyond its trigger, for example only recent, correlated or tagged artifacts. The built-in providers extend `BaseContextProvider`, which applies visibility filtering. Custom providers that extend it get the same guarantee; a provider that implements the protocol directly must filter by visibility itself.
 
 ```python
 from flock import FilterConfig
