@@ -57,6 +57,7 @@ search:
 
 ### 🐛 Fixes
 
+- **Scripts using the SQLite store exit.** The aiosqlite connection ran on a non-daemon thread, so a process whose `SQLiteBlackboardStore` was never closed hung after `asyncio.run()` returned, and `flock.shutdown()` did not close the store. The connection thread no longer keeps the process alive, and a full `flock.shutdown()` closes a SQLite store, which reconnects if used again. Other stores are not closed.
 - **New models work through Azure and gateways too.** When an API rejects `max_tokens` and asks for `max_completion_tokens` (an Azure deployment of `gpt-6-luna`, for example), the DSPy engine retries that request once with `max_completion_tokens` and remembers the model and endpoint for the rest of the process. The retry happens per LM request, so the agent's program and streaming are not re-run; other errors are not retried.
 - **Timers and batches conflict in either order.** `.schedule()` rejected an existing batch subscription, but `.schedule().consumes(..., batch=...)` was accepted. Both orders now raise the same `ValueError`.
 - **`TimeWindowContextProvider` works.** It compared a naive local `datetime.now()` with the UTC `created_at` of artifacts, so every agent using it failed with `TypeError: can't compare offset-naive and offset-aware datetimes`. The window is now computed in UTC and filtered by the store (`FilterConfig(start=...)`) instead of loading every artifact.

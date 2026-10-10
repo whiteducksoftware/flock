@@ -858,9 +858,14 @@ class SQLiteBlackboardStore(BlackboardStore):
         async with self._connection_lock:
             if self._connection is None:
                 self._db_path.parent.mkdir(parents=True, exist_ok=True)
-                conn = await aiosqlite.connect(
+                connection = aiosqlite.connect(
                     str(self._db_path), timeout=self._timeout, isolation_level=None
                 )
+                # aiosqlite runs the connection on its own thread; as a daemon it
+                # cannot keep the process alive when the store is never closed.
+                # WAL with autocommit keeps the database consistent at exit.
+                connection.daemon = True
+                conn = await connection
                 conn.row_factory = aiosqlite.Row
                 await conn.execute("PRAGMA journal_mode=WAL;")
                 await conn.execute("PRAGMA synchronous=NORMAL;")
