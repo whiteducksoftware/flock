@@ -284,6 +284,7 @@ if __name__ == "__main__":
 # ------------------------------------
 # Use timer context in a custom engine (flock.Context):
 #   from flock.components.agent import EngineComponent
+#   from flock.utils.runtime import EvalResult
 #
 #   class MetricsEngine(EngineComponent):
 #     async def evaluate(self, agent, ctx, inputs, output_group):

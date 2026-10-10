@@ -57,6 +57,8 @@ search:
 
 ### 🐛 Fixes
 
+- **Test runs no longer crash agent output rendering.** A CLI helper test removed `rich` from `sys.modules` without restoring it, so later tests ran with two copies of rich's classes. Rich's own type checks then failed (`Text.append() takes from 2 to 3 positional arguments but 7 were given`), output rendering crashed and agent runs were marked failed in every full run. The test now restores the original modules.
+- **No dashboard build in the repository.** The dashboard is built locally on the first `serve(dashboard=True)`; the unused committed build in `src/flock/api/static_files/` and the stale `scripts/build_dashboard.py` were removed. The context-provider guide's redaction example is now a working sketch instead of a link to a removed example.
 - **Decision models, review fixes** (found in code review of the decision model PRs before release):
     - Providers reject answers with probabilities that are not finite or outside 0-1, instead of turning them into firm decisions; rounding just outside 0-1 is clamped. Scale scores must be finite and within the levels, since `.or_higher` and `.or_lower` route on them; a refused question has no score and matches no level.
     - A decision agent publishes only its decisions: `.decides()` with `.with_engines()` or `.publishes()` fails in either order. One agent cannot consume a question's handles and its decision type.

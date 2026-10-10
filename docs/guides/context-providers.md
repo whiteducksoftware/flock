@@ -674,6 +674,7 @@ Flock does not ship a redaction provider, but one takes a few lines. This provid
 ```python
 import re
 
+from flock import FilterConfig, Flock
 from flock.core.artifacts import Artifact
 from flock.core.context_provider import BaseContextProvider, ContextRequest
 
@@ -698,7 +699,8 @@ class RedactingContextProvider(BaseContextProvider):
     """Context with secrets masked; visibility is still enforced by the base class."""
 
     async def get_artifacts(self, request: ContextRequest) -> list[Artifact]:
-        artifacts, _ = await request.store.query_artifacts(limit=100)
+        # Everything, as the default provider does (visibility is applied afterwards)
+        artifacts, _ = await request.store.query_artifacts(FilterConfig(), limit=-1)
         return [a.model_copy(update={"payload": redact(a.payload)}) for a in artifacts]
 
 
