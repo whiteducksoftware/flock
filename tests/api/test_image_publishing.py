@@ -210,13 +210,14 @@ def test_two_files_for_a_single_image_field_are_rejected(setup):
     assert response.status_code == 400
 
 
-async def test_files_can_use_a_field_alias(setup):
+@pytest.mark.parametrize("part_name", ["photo", "picture"])
+async def test_files_can_use_a_field_alias_or_its_name(setup, part_name):
     flock, client = setup
 
     response = client.post(
         "/api/v1/artifacts/upload",
         data={"type": "UploadAliased", "payload": json.dumps({"caption": "x"})},
-        files={"photo": ("red.png", _png_bytes(), "image/png")},
+        files={part_name: ("red.png", _png_bytes(), "image/png")},
     )
 
     assert response.status_code == 200, response.text

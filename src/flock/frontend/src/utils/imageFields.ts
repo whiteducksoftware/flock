@@ -35,6 +35,11 @@ export function imageFieldKind(prop: any, schema: any): ImageFieldKind | null {
   return null;
 }
 
+/** PNG for formats that can be transparent (as `Image.from_pil` keeps alpha), else JPEG. */
+export function outputType(fileType: string): 'image/png' | 'image/jpeg' {
+  return ['image/png', 'image/gif', 'image/webp'].includes(fileType) ? 'image/png' : 'image/jpeg';
+}
+
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -64,8 +69,7 @@ export async function fileToImageUrl(file: File, maxSide: number = MAX_SIDE): Pr
     if (!context) return original;
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     bitmap.close?.();
-    const type = file.type === 'image/png' || file.type === 'image/gif' ? 'image/png' : 'image/jpeg';
-    return canvas.toDataURL(type, 0.9);
+    return canvas.toDataURL(outputType(file.type), 0.9);
   } catch {
     return original;
   }

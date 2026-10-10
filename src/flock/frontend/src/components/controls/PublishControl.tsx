@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fetchArtifactTypes, publishArtifact, ArtifactType } from '../../services/api';
 import { useFilterStore } from '../../store/filterStore';
 import { useSettingsStore } from '../../store/settingsStore';
@@ -30,6 +30,10 @@ const PublishControl: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [autoSetFilter, setAutoSetFilter] = useState(false); // Default: unchecked (user can opt-in to auto-filter)
+  // Picture conversions finish asynchronously: these counters let a result land
+  // only if no newer choice (or another artifact type) replaced it meanwhile
+  const typeGeneration = useRef(0);
+  const fieldGeneration = useRef<Record<string, number>>({});
 
   const setShowControls = useSettingsStore((state) => state.setShowControls);
 
@@ -57,6 +61,8 @@ const PublishControl: React.FC = () => {
 
   // Reset form data when artifact type changes
   useEffect(() => {
+    typeGeneration.current += 1;
+    fieldGeneration.current = {};
     if (selectedType) {
       const artifactType = artifactTypes.find((t) => t.name === selectedType);
       if (artifactType && artifactType.schema.properties) {
@@ -199,6 +205,7 @@ const PublishControl: React.FC = () => {
       if (artifactType && artifactType.schema.properties) {
         Object.entries(formData).forEach(([key, value]) => {
           const prop = artifactType.schema.properties[key];
+          if (!prop) return; // not a field of this type
           const imageKind = imageFieldKind(prop, artifactType.schema);
           if (imageKind === 'many') {
             const images = value as PickedImage[];
@@ -305,10 +312,16 @@ const PublishControl: React.FC = () => {
 
       const addFiles = async (files: File[]) => {
         if (files.length === 0) return;
+        const typeAtStart = typeGeneration.current;
+        const fieldAtStart = (fieldGeneration.current[key] ?? 0) + 1;
+        fieldGeneration.current[key] = fieldAtStart;
         try {
           const picked = await Promise.all(
             files.map(async (file) => ({ name: file.name, url: await fileToImageUrl(file) }))
           );
+          // Another artifact type, or (for a single picture) a newer choice, won
+          const replaced = imageKind === 'one' && fieldGeneration.current[key] !== fieldAtStart;
+          if (typeGeneration.current !== typeAtStart || replaced) return;
           setFormData((previous) => ({
             ...previous,
             [key]: imageKind === 'many' ? [...(previous[key] ?? []), ...picked] : picked[0],

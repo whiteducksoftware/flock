@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { imageFieldKind, fileToImageUrl } from './imageFields';
+import { imageFieldKind, fileToImageUrl, outputType } from './imageFields';
 
 const schema = {
   $defs: {
@@ -39,5 +39,15 @@ describe('fileToImageUrl', () => {
     const url = await fileToImageUrl(file);
 
     expect(url.startsWith('data:image/png;base64,')).toBe(true);
+  });
+});
+
+describe('outputType', () => {
+  it('keeps formats that can be transparent as PNG', () => {
+    expect(outputType('image/png')).toBe('image/png');
+    expect(outputType('image/gif')).toBe('image/png');
+    expect(outputType('image/webp')).toBe('image/png');
+    expect(outputType('image/jpeg')).toBe('image/jpeg');
+    expect(outputType('image/bmp')).toBe('image/jpeg');
   });
 });

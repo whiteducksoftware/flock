@@ -109,15 +109,25 @@ def image_from_upload(field_name: str, data: bytes) -> Image:
 def place_images(
     model: type[BaseModel], payload: dict[str, Any], images: dict[str, list[Image]]
 ) -> dict[str, Any]:
-    """``payload`` with the uploaded images in their fields (under the part name)."""
+    """``payload`` with the uploaded images in their fields."""
     result = dict(payload)
     for name, uploaded in images.items():
         slot = image_slot(model, name)
         if slot == "one" and len(uploaded) != 1:
             raise UploadError(f"'{name}' takes one image, got {len(uploaded)}.")
         dumped = [image.model_dump() for image in uploaded]
-        result[name] = dumped if slot == "many" else dumped[0]
+        result[_payload_key(model, name)] = dumped if slot == "many" else dumped[0]
     return result
+
+
+def _payload_key(model: type[BaseModel], name: str) -> str:
+    """The key validation accepts for the field a part names: its alias, if any."""
+    for field_name, field in model.model_fields.items():
+        if name in (field_name, field.alias, field.validation_alias):
+            if isinstance(field.validation_alias, str):
+                return field.validation_alias
+            return field.alias or field_name
+    return name
 
 
 __all__ = [
