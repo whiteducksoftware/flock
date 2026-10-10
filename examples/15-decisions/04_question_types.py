@@ -112,13 +112,16 @@ class LogHandler(EngineComponent):
         )
 
 
-flock = Flock(no_output=True)  # the handlers print one line each
+# decision_model= is the default for every .decides() in this flock
+flock = Flock(
+    decision_model=DECISION_MODEL, no_output=True
+)  # handlers print one line each
 
 triage = (
     flock.agent("triage")
     .description("Answers three questions about every ticket in one request")
     .consumes(SupportTicket)
-    .decides(Team, Urgent, Anger, model=DECISION_MODEL, threshold=THRESHOLD)
+    .decides(Team, Urgent, Anger, threshold=THRESHOLD)
 )
 
 for name, handle in (

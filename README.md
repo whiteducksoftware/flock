@@ -397,7 +397,7 @@ flock.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)  # below the t
 - ✅ **Calibrated** - every decision carries per-option probabilities; `Route.UNSURE` turns low confidence into its own branch
 - ✅ **Safe by default** - decisions inherit the visibility of what they decided on
 - ✅ **Visible** - the dashboard labels edges by option and shows each decision's probabilities
-- ✅ **Pluggable** - `azure/`, `openai/`, `jev/` or any local `/v1/systemone` server (`local/`)
+- ✅ **Pluggable** - `azure/`, `openai/`, `jev/` or any local `/v1/systemone` server (`local/`); set it once with `Flock("openai/gpt-4.1", decision_model="azure/decision-1")`
 - ✅ **Images too** - put a `flock.Image` field into an artifact and image-capable models (`openai/`, vision `local/` servers) decide about the picture
 - ✅ **Yes/no and scales** - `YesNo` and `Scale` questions next to `Choice`, several per request: `.decides(Route, Urgent, Anger)`, then `.consumes(Urgent.yes)` or `.consumes(Anger.angry.or_higher)`
 - ✅ **Checklists** - check a document against 100 controls in one decision: `Checklist.from_items("Controls", catalog)`, then `.consumes(Controls.failed)` or `.consumes(Controls.backup.no)`

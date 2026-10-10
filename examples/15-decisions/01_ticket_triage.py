@@ -15,7 +15,8 @@ This example routes support tickets:
 
 🎯 Key Concepts:
 - `Choice` types: options as attributes, the docstring is the question
-- `.decides(Route, model=..., threshold=...)` on the deciding agent
+- `Flock(decision_model=...)`: the decision model for every decider
+- `.decides(Route, threshold=...)` on the deciding agent
 - `.consumes(Route.billing)` / `.consumes(Route.UNSURE)` on downstream agents
 - `ctx.decision` carries the decision for custom engines
 
@@ -73,13 +74,14 @@ class Route(Choice):
     tech = "Bugs, crashes, login problems"
 
 
-flock = Flock()
+# decision_model= is the default for every .decides() in this flock
+flock = Flock(decision_model=DECISION_MODEL)
 
 triage = (
     flock.agent("triage")
     .description("Routes support tickets to a team")
     .consumes(SupportTicket)
-    .decides(Route, model=DECISION_MODEL, threshold=THRESHOLD)
+    .decides(Route, threshold=THRESHOLD)
 )
 
 billing_team = (
