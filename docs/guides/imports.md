@@ -300,11 +300,12 @@ agent.schedule(every=timedelta(minutes=5))
 | `Choice` | A closed option set (the question); options become subscription handles | [Decision Models Guide](decisions.md) |
 | `YesNo` | A yes/no question; handles `.yes`, `.no` | [Decision Models Guide](decisions.md#yesno) |
 | `Scale` | Ordered levels (2-10); handles `.<level>`, `.<level>.or_higher`, `.<level>.or_lower` | [Decision Models Guide](decisions.md#scale) |
+| `Checklist` | Many yes/no items answered as one decision; `Checklist.from_items()` builds one from a catalog | [Decision Models Guide](decisions.md#checklist) |
 | `Decision` | Decision artifact base; `Decision.of(Route)` is the artifact type of one question | [Decision Models Guide](decisions.md) |
 | `Image` | An image inside an artifact (base64 data URL); `Image.from_file()` downscales and strips EXIF | [Decision Models Guide](decisions.md#images) |
 
 ```python
-from flock import Choice, Decision, Scale, YesNo
+from flock import Checklist, Choice, Decision, Scale, YesNo
 
 class Route(Choice):
     """Which team should handle this ticket?"""

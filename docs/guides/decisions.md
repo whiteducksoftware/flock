@@ -3,12 +3,12 @@ tags:
   - decisions
   - subscriptions
   - routing
-description: Route workflows with decision models - Choice, YesNo and Scale questions, .decides() and choice subscriptions
+description: Route workflows with decision models - Choice, YesNo, Scale and Checklist questions, .decides() and answer subscriptions
 ---
 
 # Decision Models
 
-A **decision model** reads a state plus typed questions (one of N options, yes/no, an ordered scale) and returns a calibrated probability for every answer, in one forward pass and without generating text. Examples are TypeSafe Jev, Cloudflare Clef (open weights) and Microsoft-Decision-1. For routing, classification and gating they are one to two orders of magnitude cheaper and faster than an LLM call.
+A **decision model** reads a state plus typed questions (one of N options, yes/no, an ordered scale, a checklist) and returns a calibrated probability for every answer, in one forward pass and without generating text. Examples are TypeSafe Jev, Cloudflare Clef (open weights) and Microsoft-Decision-1. For routing, classification and gating they are one to two orders of magnitude cheaper and faster than an LLM call.
 
 In Flock a decision is a **shared fact on the blackboard**: one agent decides once and publishes the decision. Other agents subscribe to an **option** of that decision.
 
@@ -60,13 +60,15 @@ A question class is the question and its answers; its **docstring** is the quest
 | `Choice` | one of 2-255 options | `choice` | `choice` | `Route.billing`, `Route.UNSURE`, `Route.ANY` |
 | `YesNo` | `yes` or `no` | `noul` | `predicate` | `Urgent.yes`, `Urgent.no`, `Urgent.UNSURE`, `Urgent.ANY` |
 | `Scale` | 2-10 ordered levels | `score` | `score` | `Anger.angry`, `Anger.angry.or_higher`, `Anger.annoyed.or_lower`, `Anger.UNSURE`, `Anger.ANY` |
+| `Checklist` | yes/no per item, any number of items, one decision | `noul` per item | `predicate` per item | `Controls.passed`, `Controls.failed`, `Controls.mfa`, `Controls.mfa.no`, `Controls.mfa.UNSURE`, `Controls.UNSURE`, `Controls.ANY` |
 
-`UNSURE` and `ANY` are reserved names.
+`UNSURE` and `ANY` are reserved names, and so are `passed` and `failed` in a Checklist.
 
 ### Choice
 
 - Every **string attribute** is an option. Its value describes the option and is sent as the option's criteria. Good descriptions matter as much as good prompts.
 - Options are static. A Choice needs at least two and at most 255 options.
+- `Choice.from_options("Route", {"billing": "...", "tech": "..."}, question="...")` builds a Choice from data, for example a catalog loaded at startup.
 
 ### YesNo
 
@@ -109,6 +111,50 @@ A Scale has 2-10 levels in declaration order, lowest first. The decision carries
 - `Anger.angry` triggers when the most probable level is `angry` (and clears the threshold).
 - `Anger.angry.or_higher` triggers when `score >= 2`, `Anger.annoyed.or_lower` when `score <= 1`. These compare the score and ignore the threshold: a decision split between `angry` (0.55) and `furious` (0.45) is `UNSURE` as a level, but its score of 2.45 is clearly "angry or higher".
 
+### Checklist
+
+A Checklist asks the same yes/no question for every item and publishes **one** decision with an answer per item. It is made for checking an artifact against a catalog: a document against security controls, a contract against required clauses, a release against a definition of done.
+
+```python
+from flock import Checklist
+
+
+class Controls(Checklist):
+    """Does the document show that this control is implemented?"""
+
+    mfa = "Multi-factor authentication is required for remote access"
+    backup = "Backups are performed daily"
+    restore_test = "Restores from backup are tested"
+
+
+# or from a catalog; ids need not be identifiers ("ORP.1.A1" works, via getattr)
+Controls = Checklist.from_items(
+    "Controls",
+    {control["id"]: control["text"] for control in catalog},
+    question="Does the document show that this control is implemented?",
+)
+```
+
+Every item becomes a yes/no question whose instructions are the docstring plus the item text. With `threshold=0.8` an item is `yes` at a probability of yes of at least 0.8, `no` at 0.2 or below, and `UNSURE` in between. The decision carries:
+
+- `results`: `yes`, `no` or `UNSURE` per item; `probabilities`: the probability of yes per item;
+- `choice`, the outcome: `failed` as soon as one item is `no`, `UNSURE` if no item is `no` but some are unsure, `passed` if every item is `yes`;
+- `refused_items`: items the model refused (their result is `UNSURE`).
+
+Subscribe to the outcome (`Controls.failed`), to one item (`Controls.restore_test.no`), or put a `where=` predicate on the decision: `.consumes(Controls.ANY, where=lambda d: "UNSURE" in d.results.values())` routes every document with unsure items to a review, also when the outcome is already `failed`.
+
+Use a Checklist, not a `Choice`, when several items can apply at once. A Choice asks which **one** option applies and spreads the probability over all options: with a policy text that satisfies 11 of 20 controls, Microsoft-Decision-1 put 0.40 on the best control and no option cleared a threshold of 0.8.
+
+Many items are cheap, because the artifact is sent once as the state and each item is a question about it:
+
+| Questions in one request (Microsoft-Decision-1) | Latency |
+|---|---|
+| 1 | 167 ms |
+| 20 | 253 ms |
+| 100 | 560 ms |
+
+`.decides(..., questions_per_request=100)` (the default) splits larger checklists into requests of at most that many questions and sends them concurrently. On the example data below (24 documents, 100 controls each, threshold 0.8), Microsoft-Decision-1 found every implemented control (recall 1.00) at a precision of 0.75, about 600 ms per document. Many of the extra "yes" answers are arguable, such as a procedure document counted as documentation of operating procedures.
+
 ## Deciding: `.decides()`
 
 ```python
@@ -118,6 +164,7 @@ A Scale has 2-10 levels in declaration order, lowest first. The decision carries
     threshold=0.8,              # optional, for every question; below it a decision is UNSURE
     instructions=None,          # optional, single question only; overrides the docstring
     visibility=None,            # optional; overrides visibility inheritance
+    questions_per_request=100,  # optional; larger sets are split into concurrent requests
 )
 ```
 
@@ -152,6 +199,7 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `probabilities` | Probability per option (per level for a Scale, `yes`/`no` for a YesNo) |
 | `score` | Scale only: the probability-weighted level, 0 = lowest |
 | `refused` | The model refused to answer this question |
+| `results`, `refused_items` | Checklist only: answer per item, items the model refused |
 | `confidence` | Confidence as reported by the model |
 | `threshold` | The threshold that applied |
 | `subject_ids` | Ids of the artifacts the decision is about |
@@ -215,6 +263,14 @@ In the Blackboard View each decision shows its answer the same way. A yes/no dec
 
 <p align="center">
   <img alt="A scale decision below the threshold: UNSURE with best guess angry and score 1.57" src="../../assets/images/decisions/decision-types-scale-unsure.png" width="360">
+</p>
+
+A checklist decider shows its outcomes, a strip with one column per item (the share of `yes` in violet and of unsure answers in amber across all decisions) and the items answered "no" most often. A checklist decision shows one cell per item:
+
+<p align="center">
+  <img alt="A checklist decider over 100 controls with its outcome bar, item strip and most frequent gaps" src="../../assets/images/decisions/decision-checklist-decider.png" width="360">
+  &nbsp;&nbsp;
+  <img alt="A checklist decision: one cell per control, yes, no or unsure" src="../../assets/images/decisions/decision-checklist-card.png" width="460">
 </p>
 
 ## Images
@@ -323,6 +379,12 @@ decider = FakeDecider(
 )
 ```
 
+For a checklist, map its name to the probability of yes per item (or to a function of the state returning that); refuse single items as `"Controls.restore_test"`:
+
+```python
+decider = FakeDecider({"Controls": {"mfa": 0.97, "backup": 0.95, "restore_test": 0.1}})
+```
+
 ## Decision models or semantic subscriptions?
 
 Both route artifacts by meaning, at different costs and guarantees:
@@ -341,4 +403,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth.

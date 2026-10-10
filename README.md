@@ -400,6 +400,7 @@ flock.agent("supervisor").consumes(Route.UNSURE).publishes(Reply)  # below the t
 - ✅ **Pluggable** - `azure/`, `openai/`, `jev/` or any local `/v1/systemone` server (`local/`)
 - ✅ **Images too** - put a `flock.Image` field into an artifact and image-capable models (`openai/`, vision `local/` servers) decide about the picture
 - ✅ **Yes/no and scales** - `YesNo` and `Scale` questions next to `Choice`, several per request: `.decides(Route, Urgent, Anger)`, then `.consumes(Urgent.yes)` or `.consumes(Anger.angry.or_higher)`
+- ✅ **Checklists** - check a document against 100 controls in one decision: `Checklist.from_items("Controls", catalog)`, then `.consumes(Controls.failed)` or `.consumes(Controls.backup.no)`
 
 <p align="center">
   <img alt="A decider sorting images into option lanes in the dashboard" src="docs/assets/images/decisions/decision-lanes.gif" width="340">
