@@ -626,6 +626,20 @@ The reviewed decision has the chosen option with probability 1.0, the reviewer a
 
 The control API offers the same: `POST /api/control/decisions/{id}/review` with `{"choice": "tech", "reviewer": "lead"}` (both optional). In the Blackboard View, an unsure decision shows review buttons, the most probable options first; a click publishes the review. A reviewed decision then shows its review, and the review names the decision it replaces. Reviewed decisions are labels: they record what a person decided where the model was not sure, which is the data needed to calibrate thresholds.
 
+<p align="center">
+  <img alt="An unsure decision with review buttons, the most probable option first" src="../../assets/images/decisions/decision-review-buttons.png" width="300">
+  &nbsp;
+  <img alt="The same decision after a click: reviewed as tech by human" src="../../assets/images/decisions/decision-reviewed.png" width="300">
+  &nbsp;
+  <img alt="The review: a decision by human, tech at 100 percent, review of the unsure decision" src="../../assets/images/decisions/decision-review-by-human.png" width="300">
+</p>
+
+The reviewer appears as a producer in the Agent View, and the review routes the ticket like any decision:
+
+<p align="center">
+  <img alt="human publishes a Route decision that reaches the tech agent" src="../../assets/images/decisions/decision-review-agent-view.png" width="800">
+</p>
+
 In [`13_human_review.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/13_human_review.py), Microsoft-Decision-1 routes two of five tickets at threshold 0.95; a support lead reviews the other three in code (one override, two confirmations), and each ticket reaches the team the lead chose.
 
 ## Visibility
