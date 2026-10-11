@@ -177,7 +177,7 @@ export class WebSocketClient {
       // Update real-time status (fast, local)
       useGraphStore.getState().updateAgentStatus(data.agent_name, 'running');
       // What this run works on: the edges carrying these types are in flight
-      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, data.consumed_types ?? []);
+      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, data.consumed_types ?? [], data.consumed_artifacts ?? []);
 
       // Schedule debounced refresh (batches within 500ms, then fetches backend snapshot)
       this.scheduleGraphRefresh();
@@ -284,7 +284,10 @@ export class WebSocketClient {
     this.on('agent_error', (data) => {
       // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
       // for FAST real-time updates without backend calls
-      useGraphStore.getState().updateAgentStatus(data.agent_name, data.agent_status ?? 'error');
+      const status = data.agent_status ?? 'error';
+      useGraphStore.getState().updateAgentStatus(data.agent_name, status);
+      // A failed run's tokens are not the next run's; another run of it keeps the ticker
+      if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
       // The snapshot says what failed (lastError)
       this.scheduleGraphRefresh();

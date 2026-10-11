@@ -30,6 +30,35 @@ describe('WebSocketClient agent status', () => {
     expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
   });
 
+  it('drops the ticker of a run that failed, unless another run goes on', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+    useGraphStore.setState({ streamingTokens: new Map([['billing', ['we have']]]) });
+
+    receive(client, 'agent_error', { agent_name: 'billing', agent_status: 'running' });
+    expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual(['we have']);
+
+    receive(client, 'agent_error', { agent_name: 'billing', agent_status: 'error' });
+    expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
+  });
+
+  it('remembers what a starting run consumed', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_activated', {
+      agent_name: 'billing',
+      run_id: 'r-1',
+      consumed_types: ['Decision[app.Route]'],
+      consumed_artifacts: ['d-1'],
+    });
+    expect(useGraphStore.getState().inFlight.get('r-1')).toEqual({
+      agent: 'billing',
+      types: ['Decision[app.Route]'],
+      artifacts: ['d-1'],
+    });
+  });
+
   it('reloads the board when an agent ends failed, which says what failed', () => {
     vi.useFakeTimers();
     vi.spyOn(console, 'log').mockImplementation(() => {});

@@ -80,6 +80,27 @@ describe('contractOf', () => {
     });
   });
 
+  it('takes the subjects of every decider that brings the handle, and none of a reviewer', () => {
+    const nodes = [
+      node('mail_triage', { subscriptions: ['app.Email'], outputTypes: ['Decision[app.Route]'] }),
+      node('ticket_triage', { subscriptions: ['app.SupportTicket'], outputTypes: ['Decision[app.Route]'] }),
+      node('lead', { outputTypes: [] }),
+      node('billing_team', {
+        subscriptions: ['Decision[app.Route]'],
+        typeLabels: { 'Decision[app.Route]': '◆ Route.billing' },
+      }),
+    ];
+    const brings = (source: string) => ({ source, target: 'billing_team', data: { messageType: 'Decision[app.Route]', decisionChoice: 'billing' } });
+
+    // Both deciders feed it: both subjects
+    const both = contractOf('billing_team', nodes, schemas, [brings('ticket_triage'), brings('mail_triage')]).consumes[0]!;
+    expect(both.subjects?.map((subject) => subject.label)).toEqual(['SupportTicket', 'Email']);
+
+    // A reviewed decision comes from the reviewer: the deciders say what it brings
+    const reviewed = contractOf('billing_team', nodes, schemas, [brings('lead')]).consumes[0]!;
+    expect(reviewed.subjects?.map((subject) => subject.label)).toEqual(['Email', 'SupportTicket']);
+  });
+
   it('shows each subject\'s fields when a decider decides about several types', () => {
     const nodes = [
       node('triage', { subscriptions: ['app.SupportTicket', 'app.TeamReply'], outputTypes: ['Decision[app.Route]'] }),

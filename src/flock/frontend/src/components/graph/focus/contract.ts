@@ -96,13 +96,18 @@ export function contractOf(
   const consumes = [...new Set(data.subscriptions ?? [])].map((type): ContractEntry => {
     const handle = labels[type]?.startsWith('◆') ? labels[type]!.replace(/^◆\s*/, '') : null;
     if (handle && DECISION.test(type)) {
-      // The decider whose edge brings the handle; else one that publishes the decision
-      const source = edges.find(
-        (edge) => edge.target === id && (edge.data as { messageType?: string } | undefined)?.messageType === type,
-      )?.source;
-      const decider =
-        nodes.find((node) => node.id === source) ?? nodes.find((node) => (dataOf(node).outputTypes ?? []).includes(type));
-      const subjects = (dataOf(decider).subscriptions ?? []).filter((subject) => !DECISION.test(subject));
+      // The deciders whose edges bring the handle; a reviewer's edge (a person
+      // decides, reading nothing) leaves it to every decider of the question
+      const isDecider = (node: Node | undefined): node is Node => (dataOf(node).subscriptions ?? []).length > 0;
+      const bringing = edges
+        .filter((edge) => edge.target === id && (edge.data as { messageType?: string } | undefined)?.messageType === type)
+        .map((edge) => nodes.find((node) => node.id === edge.source))
+        .filter(isDecider);
+      const deciders =
+        bringing.length > 0 ? bringing : nodes.filter((node) => (dataOf(node).outputTypes ?? []).includes(type) && isDecider(node));
+      const subjects = [
+        ...new Set(deciders.flatMap((decider) => (dataOf(decider).subscriptions ?? []).filter((subject) => !DECISION.test(subject)))),
+      ];
       return {
         type,
         label: handle,

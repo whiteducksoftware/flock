@@ -5,6 +5,7 @@ import { TypeLabel } from '../unfold/HistoryTab';
 import LiveTab from '../unfold/LiveTab';
 import type { Message } from '../unfold/messageHistory';
 import styles from './Focus.module.css';
+import { useRunInput } from './runInput';
 
 /** The first fields of a payload, as text. */
 const fieldsOf = (payload: unknown, limit = 6): [string, string][] =>
@@ -14,10 +15,11 @@ const fieldsOf = (payload: unknown, limit = 6): [string, string][] =>
         .map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])
     : [];
 
-const MessageCard: React.FC<{ title: string; message: Message | undefined; status?: React.ReactNode }> = ({
+const MessageCard: React.FC<{ title: string; message: Message | undefined; status?: React.ReactNode; empty?: string }> = ({
   title,
   message,
   status,
+  empty = 'None yet',
 }) => (
   <div className={styles.card}>
     <div className={styles.cardHead}>
@@ -39,7 +41,7 @@ const MessageCard: React.FC<{ title: string; message: Message | undefined; statu
         ))}
       </div>
     ) : (
-      <span className={styles.faint}>None yet</span>
+      <span className={styles.faint}>{empty}</span>
     )}
   </div>
 );
@@ -56,7 +58,9 @@ interface FocusLiveProps {
 
 /** The stream on the left; on the right what the agent works on, its output so far and earlier runs. */
 const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, tokens, onRuns }) => {
-  const input = messages?.find((message) => message.direction === 'consumed');
+  // While it runs, the running run's input; the history has it only once the run has published
+  const runInput = useRunInput(agent);
+  const input = running ? (runInput ?? undefined) : messages?.find((message) => message.direction === 'consumed');
   const output = messages?.find((message) => message.direction === 'published');
   const earlier = (runs ?? []).filter((run) => run.status !== 'active').slice(0, 3);
 
@@ -66,7 +70,11 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
         <LiveTab agent={agent} running={running} />
       </section>
       <aside className={styles.aside}>
-        <MessageCard title="Input" message={input} />
+        <MessageCard
+          title="Input"
+          message={input}
+          empty={!running ? 'None yet' : runInput === undefined ? 'Loading…' : 'Not known for this run'}
+        />
         {running ? (
           // This run's output only; an earlier run's is not this one's
           <div className={styles.card}>
