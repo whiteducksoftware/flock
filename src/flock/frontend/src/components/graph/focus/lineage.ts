@@ -33,6 +33,13 @@ interface FlowData {
   decisionChoice?: string;
 }
 
+interface NodeData {
+  outputTypes?: string[];
+  sentByType?: Record<string, number>;
+  /** `◆ Route.billing` for the decision types it takes through a handle */
+  typeLabels?: Record<string, string>;
+}
+
 const DECISION = /^(?:.*\.)?Decision\[(.+)\]$/;
 
 /** The question a decision type answers: `Decision[app.Route]` -> `Route`. */
@@ -49,10 +56,13 @@ const flowsOf = (edges: Edge[]) =>
 /**
  * Where `id` sits in the flow. Upstream lists the producers of what it reads;
  * a decision handle reaches one step further, to the producers of the subject
- * the decider decided about, since that is what the handle delivers.
+ * the decider decided about, since that is what the handle delivers. A
+ * consumer of the decision itself (`Decision.of(Route)`) gets the decision.
  */
 export function lineageOf(id: string, nodes: Node[], edges: Edge[]): Lineage {
   const flows = flowsOf(edges);
+  const data = nodes.find((node) => node.id === id)?.data as NodeData | undefined;
+  const handles = data?.typeLabels ?? {};
   const upstream: Upstream[] = [];
   const add = (entry: Upstream) => {
     if (!upstream.some((known) => known.node === entry.node && known.label === entry.label)) upstream.push(entry);
@@ -60,7 +70,8 @@ export function lineageOf(id: string, nodes: Node[], edges: Edge[]): Lineage {
 
   for (const edge of flows.filter((flow) => flow.target === id)) {
     const question = questionOf(edge.data.messageType);
-    if (question && edge.data.decisionChoice !== undefined) {
+    // Decision edges carry the option whoever reads them; only a handle delivers the subject
+    if (question && edge.data.decisionChoice !== undefined && handles[edge.data.messageType]?.startsWith('◆')) {
       // The subject the decider read comes first
       flows
         .filter((flow) => flow.target === edge.source && !questionOf(flow.data.messageType))
@@ -69,15 +80,14 @@ export function lineageOf(id: string, nodes: Node[], edges: Edge[]): Lineage {
       // yes/no, scale and checklist labels come qualified (`Escalate.yes`)
       const choice = edge.data.decisionChoice;
       add({ node: edge.source, label: choice.startsWith(`${question}.`) ? choice : `${question}.${choice}`, decision: true });
+    } else if (question) {
+      add({ node: edge.source, label: question, decision: true });
     } else {
       add({ node: edge.source, label: shortTypeName(edge.data.messageType), decision: false });
     }
   }
 
   // Declared outputs, and what it sent (a source such as `external` declares none)
-  const data = nodes.find((node) => node.id === id)?.data as
-    | { outputTypes?: string[]; sentByType?: Record<string, number> }
-    | undefined;
   const declared = [...(data?.outputTypes ?? []), ...Object.keys(data?.sentByType ?? {})];
   const published = flows.filter((flow) => flow.source === id);
   const types = [...new Set([...declared, ...published.map((flow) => flow.data.messageType)])];
