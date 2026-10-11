@@ -153,7 +153,7 @@ Many items are cheap, because the artifact is sent once as the state and each it
 | 20 | 253 ms |
 | 100 | 560 ms |
 
-`.decides(..., questions_per_request=100)` (the default) splits larger checklists into requests of at most that many questions and sends them concurrently. On the example data below (24 documents, 100 controls each, threshold 0.8), Microsoft-Decision-1 found every implemented control (recall 1.00) at a precision of 0.75, about 600 ms per document. Many of the extra "yes" answers are arguable, such as a procedure document counted as documentation of operating procedures.
+`.decides(..., questions_per_request=100)` (the default) splits larger checklists into requests of at most that many questions and sends them concurrently. On the example data below (24 documents, 100 controls each, threshold 0.8), Microsoft-Decision-1 found 99 % of the implemented controls (recall 0.99; an unsure answer counts as missed) at a precision of 0.75, about 600 ms per document. Many of the extra "yes" answers are arguable, such as a procedure document counted as documentation of operating procedures.
 
 ## Deciding: `.decides()`
 
@@ -390,7 +390,7 @@ With `combine="any"` (default) an item is yes if any artifact shows it and no on
 
 Coverage is published per decision. Concurrent executions can store them out of order, so the coverage with the highest `revision` is a group's current one. The groups live in the agent and are also filled from its context (the decisions its subscriptions would receive). With the default context provider, which shows the agent every visible artifact, a restart with a persistent store loses nothing; a narrower provider set with `.with_context()` or `Flock(context_provider=...)` narrows what a restarted agent recovers; updates run one at a time, so the last coverage holds every decision. A coverage keeps the group's common visibility; for groups with different visibilities, `visibility=` on `.aggregates()` sets the readership. `.aggregates()` needs subscriptions to the handles of one Checklist only, and cannot be combined with `.publishes()`, `.with_engines()` or batch subscriptions.
 
-On the 24 documents of 12 organisations from the compliance example ([`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py), Microsoft-Decision-1, threshold 0.8), the coverage per organisation agrees with the ground truth on 80 to 91 of the decided controls; "shown" has recall 1.00 and precision 0.79, and 110 of the 1,200 controls stay unsure.
+On the 24 documents of 12 organisations from the compliance example ([`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py), Microsoft-Decision-1, threshold 0.8), the coverage per organisation agrees with the ground truth on 80 to 92 of the decided controls; "shown" has recall 0.99 (an unsure control counts as missed) and precision 0.78, and 104 of the 1,200 controls stay unsure.
 
 In the dashboard, the aggregating agent counts its groups by the outcome of their highest revision among the coverages in view (the view's filters and limit apply, as for a decider's counts), and a coverage shows as a checklist grid for its group. No organisation shows all 100 controls, so every coverage fails; the grid shows which controls each organisation covers:
 
@@ -422,8 +422,10 @@ Use sections for documents that do not fit, or when the evidence has to be locat
 
 | Decider | Requests | Precision of "yes" | Recall |
 |---|---|---|---|
-| whole manual | 12 | 0.87 | 0.98 |
-| sections of at most 800 characters | 51 | 0.74 | 1.00 |
+| whole manual | 12 | 0.87 | 0.96 |
+| sections of at most 800 characters | 51 | 0.75 | 0.99 |
+
+Recall counts an unsure answer about a shown control as missed: the whole manual leaves more shown controls unsure, so sections find a few more of them.
 
 In the dashboard, a decision names the number of sections and, for a single question, the section that answered; a checklist cell names the section of its item in its tooltip:
 
