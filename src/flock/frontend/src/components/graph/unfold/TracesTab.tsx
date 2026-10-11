@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { duration, shortId } from './format';
-import { RunTrace, runTraces, Span } from './traces';
+import { RunTrace, runTraces, Span, TRACED_RUNS } from './traces';
 import styles from './Unfolded.module.css';
 
 const NS_PER_MS = 1_000_000;
@@ -16,7 +16,8 @@ const TracesTab: React.FC<{ agent: string; onOpenTrace: (correlationId: string) 
 
   useEffect(() => {
     let current = true;
-    fetch('/api/traces')
+    // The agent's latest runs only; the trace database can be large
+    fetch(`/api/traces/agents/${encodeURIComponent(agent)}?runs=${TRACED_RUNS}`)
       .then((response) => {
         if (!response.ok) throw new Error(`The traces could not be read (${response.status})`);
         return response.json();

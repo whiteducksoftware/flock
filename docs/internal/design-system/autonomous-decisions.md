@@ -102,16 +102,16 @@ Each entry says what was decided, why, and where it landed.
   - the unfolded node keeps its top-left corner, so it opens where it was clicked;
   - folding puts every node back, animated like the unfolding.
   - the board then pans as little as it takes to show all of the unfolded node (24 px margin, no zoom); a card at the edge used to unfold under the header.
-- **Positions while a node is unfolded are not saved,** and snapshot refreshes keep them (they win over the saved ones). Moving a node meanwhile lasts until the node folds. Nodes that arrive meanwhile wait for the fold, which then lays the board out anew.
+- **Positions while a node is unfolded are not saved,** and snapshot refreshes keep them (they win over the saved ones). Moving a node meanwhile lasts until the node folds. A layout that comes due meanwhile (new nodes or edges) waits for the fold, which then lays the board out anew; choosing a layout from the menu folds the node first and lays the board out in that mode.
 - **Keys:**
   - Space and Ctrl+Shift+D unfold or fold the focused agent, else the selected one, else the unfolded one; Space is left to buttons, fields, tabs and dialogs that have the focus.
-  - Esc folds the unfolded node once the panels are closed (it used to close the detail windows).
+  - Esc folds the unfolded node once the panels are closed (it used to close the detail windows), and leaves an Esc that a dialog already handled.
   - Space no longer pans the board (`panActivationKeyCode`); dragging the board pans it.
 - **Artifact detail windows stay** until artifact cards unfold in the Blackboard view (#565); they open with a double-click and are no longer saved.
 - **Removed with the agent windows:** the three tabs, the stream store, and their tests, which tested mock components defined in the test files rather than the tabs.
 - **Tabs:**
   - Live starts from the server's streaming history on every opening and adds live events it does not have yet, so reopening never repeats output (the old tab appended the history again each time); it follows the end while scrolled there, without a switch.
-  - History reloads when the agent's counts change; Runs and the Overview reload when its status changes.
+  - History reloads when the agent's counts change; Runs and the Overview reload when its status or counts change, and every 3 s while it runs, since a busy agent's runs start and end while it stays `running`.
   - The Overview sums tokens and cost over the runs the server lists (the latest 50, labelled so); unpriced runs add tokens, not cost.
-  - Traces reads `/api/traces` like the trace viewer and keeps the agent's latest five runs (`Agent.execute` spans by `agent.name`, `task_id` as the run); "Open in the trace viewer" stays until the timeline dock (#564).
+  - Traces reads the agent's latest five runs from a new endpoint, `/api/traces/agents/{name}` (`Agent.execute` spans by `agent.name` and the spans below them, #597, PR #598), since `/api/traces` returns the whole trace database; "Open in the trace viewer" stays until the timeline dock (#564).
 - **Not yet:** the focus button (#562) and the decider's review queue (#566). Until the decision kit, a decider's model shows both under its name and in its answers.

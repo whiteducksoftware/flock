@@ -58,9 +58,9 @@ const UnfoldedAgent: React.FC<UnfoldedAgentProps> = ({
   onOpenTrace,
 }) => {
   const [tab, setTab] = useState<UnfoldTab>('overview');
-  const { runs, error } = useAgentRuns(id, agent.status);
-  const tabIds = useId();
   const messages = (agent.recvCount ?? 0) + (agent.sentCount ?? 0);
+  const { runs, error } = useAgentRuns(id, agent.status, messages);
+  const tabIds = useId();
   const model = decider
     ? [decider.model, decider.threshold !== null ? `threshold ${decider.threshold.toFixed(2)}` : null].filter(Boolean).join(' · ')
     : agent.model;

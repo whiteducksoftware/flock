@@ -137,8 +137,9 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         return;
       }
 
-      // Esc: Close windows/dialogs/panels
+      // Esc: Close windows/dialogs/panels, unless a dialog already handled it
       if (event.key === 'Escape') {
+        if (event.defaultPrevented) return;
         if (config.onCloseWindows) {
           config.onCloseWindows();
         } else {

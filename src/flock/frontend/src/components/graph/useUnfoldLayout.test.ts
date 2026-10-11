@@ -18,6 +18,7 @@ const positions = () => Object.fromEntries(useGraphStore.getState().nodes.map((n
 describe('useUnfoldLayout', () => {
   const relayout = vi.fn();
   const reveal = vi.fn();
+  const layoutDue = { current: false };
   const render = () =>
     renderHook(() =>
       useUnfoldLayout({
@@ -25,6 +26,7 @@ describe('useUnfoldLayout', () => {
         collectDimensions: () => Object.fromEntries(useGraphStore.getState().nodes.map((node) => [node.id, CARD])),
         relayout,
         reveal,
+        layoutDue,
       }),
     );
 
@@ -36,6 +38,7 @@ describe('useUnfoldLayout', () => {
     board().forEach((node) => cardSizes.set(node.id, CARD));
     relayout.mockReset();
     reveal.mockReset();
+    layoutDue.current = false;
   });
 
   afterEach(() => {
@@ -95,6 +98,17 @@ describe('useUnfoldLayout', () => {
     act(() => useUIStore.getState().fold());
 
     expect(relayout).toHaveBeenCalledOnce();
+  });
+
+  it('lays the board out on folding when a layout came due meanwhile, such as for a new edge', () => {
+    render();
+    act(() => useUIStore.getState().unfold('triage'));
+    layoutDue.current = true;
+
+    act(() => useUIStore.getState().fold());
+
+    expect(relayout).toHaveBeenCalledOnce();
+    expect(layoutDue.current).toBe(false);
   });
 
   it('folds without moving anything when the node leaves the board', () => {

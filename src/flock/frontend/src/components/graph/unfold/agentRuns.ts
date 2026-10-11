@@ -40,30 +40,45 @@ const toRun = (run: ApiRun): AgentRun => ({
   errorMessage: run.error_message ?? null,
 });
 
-/** The agent's runs, read again whenever its status changes (a run starts or ends). */
-export function useAgentRuns(agent: string, status?: string): { runs: AgentRun[] | null; error: string | null } {
+/** How often the runs are read again while the agent runs. */
+export const RUNS_POLL_MS = 3000;
+
+/**
+ * The agent's runs, read again when its status or `revision` (its message
+ * counts) change, and every few seconds while it runs: runs of a busy agent
+ * start and end while its status stays `running`.
+ */
+export function useAgentRuns(
+  agent: string,
+  status?: string,
+  revision?: number,
+): { runs: AgentRun[] | null; error: string | null } {
   const [runs, setRuns] = useState<AgentRun[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let current = true;
-    fetch(`/api/agents/${encodeURIComponent(agent)}/runs`)
-      .then((response) => {
-        if (!response.ok) throw new Error(`The runs could not be read (${response.status})`);
-        return response.json();
-      })
-      .then((data: { runs?: ApiRun[] }) => {
-        if (!current) return;
-        setRuns((data.runs ?? []).map(toRun));
-        setError(null);
-      })
-      .catch((reason: unknown) => {
-        if (current) setError(reason instanceof Error ? reason.message : String(reason));
-      });
+    const read = () =>
+      fetch(`/api/agents/${encodeURIComponent(agent)}/runs`)
+        .then((response) => {
+          if (!response.ok) throw new Error(`The runs could not be read (${response.status})`);
+          return response.json();
+        })
+        .then((data: { runs?: ApiRun[] }) => {
+          if (!current) return;
+          setRuns((data.runs ?? []).map(toRun));
+          setError(null);
+        })
+        .catch((reason: unknown) => {
+          if (current) setError(reason instanceof Error ? reason.message : String(reason));
+        });
+    read();
+    const timer = status === 'running' ? window.setInterval(read, RUNS_POLL_MS) : undefined;
     return () => {
       current = false;
+      window.clearInterval(timer);
     };
-  }, [agent, status]);
+  }, [agent, status, revision]);
 
   return { runs, error };
 }

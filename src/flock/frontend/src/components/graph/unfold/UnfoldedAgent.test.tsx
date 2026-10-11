@@ -172,6 +172,22 @@ describe('UnfoldedAgent', () => {
     expect(runs.textContent).toContain('The CRM did not answer');
   });
 
+  it('reads the runs again while the agent runs, as runs start and end', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetch = serve({ '/api/agents/billing_team/runs': RUNS });
+    renderAgent();
+    await screen.findByRole('tab', { name: 'Runs 3' });
+    const reads = () => fetch.mock.calls.filter(([url]) => url === '/api/agents/billing_team/runs').length;
+    const before = reads();
+
+    await act(async () => {
+      vi.advanceTimersByTime(3100);
+    });
+
+    expect(reads()).toBe(before + 1);
+    vi.useRealTimers();
+  });
+
   it('shows the history, newest first, and opens a payload', async () => {
     serve({
       '/api/agents/billing_team/runs': RUNS,
@@ -262,7 +278,7 @@ describe('UnfoldedAgent', () => {
     const MS = 1_000_000;
     serve({
       '/api/agents/billing_team/runs': RUNS,
-      '/api/traces': [
+      '/api/traces/agents/billing_team?runs=5': [
         {
           name: 'Agent.execute',
           context: { trace_id: 't', span_id: 'a' },

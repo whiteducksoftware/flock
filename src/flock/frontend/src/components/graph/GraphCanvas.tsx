@@ -85,6 +85,8 @@ const GraphCanvas: React.FC = () => {
   const previousEdgeIdsRef = useRef<Set<string> | null>(null);
   const previousModeRef = useRef(mode);
   const latestAutoLayoutModeRef = useRef(autoLayoutMode);
+  // A layout that came due while a node is unfolded; folding runs it
+  const layoutDueRef = useRef(false);
 
   // Persistence hook - loads positions on mount and handles debounced drag saves
   const { saveNodePosition: saveNodePositionDebounced } = usePersistence();
@@ -202,6 +204,19 @@ const GraphCanvas: React.FC = () => {
         setAutoLayoutMode(layoutType);
       }
 
+      // A node is unfolded: fold it, and the fold lays the board out in this mode
+      if (useUIStore.getState().unfoldedNodeId) {
+        latestAutoLayoutModeRef.current = layoutType;
+        layoutDueRef.current = true;
+        useUIStore.getState().fold();
+        if (closeMenus) {
+          setContextMenu(null);
+          setShowModuleSubmenu(false);
+          setShowLayoutSubmenu(false);
+        }
+        return;
+      }
+
       // Get the React Flow pane element to find its actual center
       const pane = document.querySelector('.react-flow__pane');
       let viewportCenter = { x: 0, y: 0 };
@@ -300,14 +315,21 @@ const GraphCanvas: React.FC = () => {
     previousNodeIdsRef.current = currentNodeIds;
     previousEdgeIdsRef.current = currentEdgeIds;
 
-    // While a node is unfolded the board waits; folding lays it out anew if nodes came
-    if (!autoLayoutEnabled || (!hasNewNodes && !hasNewEdges) || useUIStore.getState().unfoldedNodeId) {
+    if (!autoLayoutEnabled || (!hasNewNodes && !hasNewEdges)) {
+      return;
+    }
+    // While a node is unfolded the board waits; folding lays it out
+    if (useUIStore.getState().unfoldedNodeId) {
+      layoutDueRef.current = true;
       return;
     }
 
     scheduleDebouncedAutoLayout(autoLayoutDebounceRef, () => {
       // A node unfolded meanwhile: the fold lays the board out
-      if (useUIStore.getState().unfoldedNodeId) return;
+      if (useUIStore.getState().unfoldedNodeId) {
+        layoutDueRef.current = true;
+        return;
+      }
       applyLayout(latestAutoLayoutModeRef.current, {
         closeMenus: false,
         // Auto-layout should not overwrite the user's last explicit mode selection.
@@ -353,6 +375,7 @@ const GraphCanvas: React.FC = () => {
   // Neighbors make room while a node is unfolded
   useUnfoldLayout({
     reveal,
+    layoutDue: layoutDueRef,
     mode: autoLayoutMode,
     nodeSpacing,
     rankSpacing,

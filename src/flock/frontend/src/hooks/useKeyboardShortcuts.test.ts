@@ -56,6 +56,18 @@ describe('useKeyboardShortcuts: unfolding', () => {
     expect(useUIStore.getState().unfoldedNodeId).toBeNull();
   });
 
+  it('leaves Esc to a dialog that handled it', () => {
+    useUIStore.getState().unfold('intake');
+    // As the image and help dialogs do: on window, in the capture phase
+    const dialog = (event: KeyboardEvent) => event.key === 'Escape' && event.preventDefault();
+    window.addEventListener('keydown', dialog, true);
+
+    press('Escape');
+
+    window.removeEventListener('keydown', dialog, true);
+    expect(useUIStore.getState().unfoldedNodeId).toBe('intake');
+  });
+
   it('folds the unfolded node with Esc once the panels are closed', () => {
     useUIStore.getState().unfold('intake');
     useSettingsStore.getState().setShowSettings(true);

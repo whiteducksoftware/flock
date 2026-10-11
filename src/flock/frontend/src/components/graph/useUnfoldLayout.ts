@@ -22,6 +22,8 @@ interface UnfoldLayoutOptions {
   relayout: () => void;
   /** Moves the board so this box (flow coordinates) is in view */
   reveal?: (box: { x: number; y: number; width: number; height: number }) => void;
+  /** Set while a node is unfolded when a layout came due (new nodes or edges, a layout chosen); folding runs it */
+  layoutDue?: { current: boolean };
 }
 
 export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
@@ -46,8 +48,13 @@ export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
       setTransientPositions(null);
       if (!restore) return;
       const same = nodes.length === restore.size && nodes.every((node) => restore.has(node.id));
-      if (same) moveTo(restore);
-      else latest.current.relayout();
+      const due = latest.current.layoutDue;
+      if (same && !due?.current) {
+        moveTo(restore);
+        return;
+      }
+      if (due) due.current = false;
+      latest.current.relayout();
       return;
     }
 
