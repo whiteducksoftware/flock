@@ -9,7 +9,7 @@ interface RunStatusEntry {
   runId: string;
   startTime: number;
   endTime: number;
-  duration: number;
+  duration?: number; // not yet known while the run is active
   status: 'idle' | 'processing' | 'error';
   metrics: {
     tokensUsed?: number;
@@ -49,11 +49,12 @@ const RunStatusTab: React.FC<RunStatusTabProps> = ({ nodeId, nodeType: _nodeType
           runId: run.run_id,
           startTime: new Date(run.start_time).getTime(),
           endTime: new Date(run.end_time).getTime(),
-          duration: run.duration_ms,
+          duration: run.duration_ms ?? undefined,
           status: run.status === 'completed' ? 'idle' : run.status === 'active' ? 'processing' : 'error',
           metrics: {
             tokensUsed: run.metrics?.tokens_used,
-            costUsd: run.metrics?.cost_usd,
+            // null: a model of the run has no price
+            costUsd: run.metrics?.cost_usd ?? undefined,
             artifactsProduced: run.metrics?.artifacts_produced,
           },
           errorMessage: run.error_message,
@@ -287,7 +288,7 @@ const RunStatusTab: React.FC<RunStatusTabProps> = ({ nodeId, nodeType: _nodeType
                     color: 'var(--color-text-secondary)',
                   }}
                 >
-                  {formatDuration(run.duration)}
+                  {run.duration === undefined ? '—' : formatDuration(run.duration)}
                 </td>
                 <td
                   data-testid={`run-status-${run.runId}`}

@@ -15,6 +15,7 @@ data.
 - `urgency` decides Urgent.
 - `billing_team`, `shipping_team`, `tech_support` and `supervisor` (on
   Route.UNSURE) stream a TeamReply.
+- Every run reports tokens and a cost at demo prices (MODEL_PRICES).
 - `pager` pages for urgent tech tickets (Route.tech AND Urgent.yes).
 - `follow_up_desk` joins a reply with the customer's follow-up by ticket ID;
   every second ticket gets one, so joins wait or expire.
@@ -35,6 +36,7 @@ import argparse
 import asyncio
 import itertools
 import re
+from dataclasses import replace
 from datetime import timedelta
 from typing import Any
 from uuid import uuid4
@@ -61,6 +63,9 @@ TICKET_SECONDS = 4.0  # between two tickets
 FOLLOW_UP_SECONDS = 20.0  # until a customer follows up
 TOKEN_SECONDS = 0.05  # between two streamed tokens
 DECIDE_SECONDS = 0.8  # a decision model's think time
+SCRIPTED_MODEL = "demo/scripted-llm"  # what the scripted replies bill as
+# Demo prices in USD per million tokens, so runs show a cost
+MODEL_PRICES = {SCRIPTED_MODEL: (2.0, 8.0), "demo-decider": (0.5, 0.0)}
 # ============================================================================
 
 
@@ -251,7 +256,10 @@ class ThinkingDecider(FakeDecider):
         self.requests.clear()
         self.calls.clear()
         self.received_images.clear()
-        return await super().decide_many(state, questions, images)
+        answers = await super().decide_many(state, questions, images)
+        # Like a decision model's API: the request's input tokens, on every answer
+        tokens = len(state) // 4
+        return {name: replace(a, input_tokens=tokens) for name, a in answers.items()}
 
 
 class ScriptedReplyEngine(EngineComponent):
@@ -289,6 +297,13 @@ class ScriptedReplyEngine(EngineComponent):
             await asyncio.sleep(self.token_seconds)
         await sink.on_final(reply, len(tokens))
         await sink.flush()
+        # What an LLM would have reported: the prompt and the streamed tokens
+        usage = {
+            SCRIPTED_MODEL: {
+                "prompt_tokens": 180 + len(ticket.body) // 4,
+                "completion_tokens": len(tokens),
+            }
+        }
         return EvalResult(
             artifacts=[
                 Artifact(
@@ -297,7 +312,8 @@ class ScriptedReplyEngine(EngineComponent):
                     payload=reply.model_dump(),
                     produced_by=agent.name,
                 )
-            ]
+            ],
+            metrics={"usage": usage},
         )
 
 
@@ -374,6 +390,7 @@ def build_flock(
         max_agent_iterations=10**9,
         # Agents read their inputs only; history would make every run slower
         context_provider=EmptyContextProvider(),
+        model_prices=MODEL_PRICES,
     )
     decider = ThinkingDecider(
         {"Route": route, "Urgent": urgent}, label="demo-decider", seconds=decide_seconds

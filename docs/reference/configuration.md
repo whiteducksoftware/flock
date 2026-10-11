@@ -129,6 +129,45 @@ For detailed configuration options, see:
 - [Installation Guide](../getting-started/installation.md) for environment setup
 - [.envtemplate](https://github.com/whiteducksoftware/flock/blob/main/.envtemplate) for all available options
 
+## Token usage and cost
+
+Every agent run reports the tokens its models used and what they cost:
+
+- **LLM agents:** the DSPy engine records the usage LiteLLM reports for every request of a run, also when it streams.
+- **Decision agents:** each request to a decision model counts its input tokens once, whatever the number of questions in it, including escalation tiers, votes, sections and the shadow. A shadow request cancelled at `shadow_timeout` returns no usage and is not counted. Decision models generate no text, so they have no output tokens.
+
+The run's metrics (`ctx.state["metrics"]`, the dashboard's Run Status, `AgentCompletedEvent.metrics`) carry:
+
+- `prompt_tokens`, `completion_tokens` and `tokens_used`;
+- `usage`, the tokens per model;
+- `cost_usd`;
+- `unpriced_models`.
+
+The run's trace gets `flock.usage.tokens` and `flock.usage.cost_usd`. A failed run reports the requests it made before it failed.
+
+A custom engine reports usage, as model -> tokens, in one of two ways:
+
+- `report_usage({"my/model": {"prompt_tokens": 120, "completion_tokens": 40}})` from `flock.utils.usage`, as soon as the model answers, which counts even if the engine fails afterwards;
+- the same mapping in `EvalResult.metrics["usage"]`, counted when the engine returns.
+
+Costs come from LiteLLM's price table. For models it does not know, such as a decision model deployment or a local model, give prices in USD per million tokens:
+
+```python
+flock = Flock(
+    "azure/gpt-4.1",
+    decision_model="azure/decision-1",
+    model_prices={"azure/decision-1": (0.5, 0.0)},  # (input, output) per million tokens
+)
+```
+
+Configured prices win over LiteLLM's. A run that used a model without a price reports its tokens, `cost_usd` None and the model in `unpriced_models`. Cached LLM answers cost nothing and are not counted.
+
+The dashboard's Run Status lists each run of an agent with its tokens and cost (`GET /api/agents/{name}/runs`); the [dashboard demo](https://github.com/whiteducksoftware/flock/blob/main/examples/04-misc/10_dashboard_triage_demo.py) reports both at demo prices:
+
+<p align="center">
+  <img alt="Run Status of billing_team: three runs of about 1.4 s with 215 to 223 tokens, $0.0006 each" src="../../assets/images/run-status-usage.png" width="600">
+</p>
+
 ## Storage Backends
 
 Flock can run with different blackboard backends:

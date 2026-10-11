@@ -63,7 +63,9 @@ class EvalInputs(BaseModel):
 class EvalResult(BaseModel):
     artifacts: list[Artifact] = Field(default_factory=list)
     state: dict[str, Any] = Field(default_factory=dict)
-    metrics: dict[str, float] = Field(default_factory=dict)
+    metrics: dict[str, Any] = Field(
+        default_factory=dict
+    )  # numbers, and "usage" per model
     logs: list[str] = Field(default_factory=list)
 
     @classmethod

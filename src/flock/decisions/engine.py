@@ -28,6 +28,7 @@ from flock.decisions.tournament import Tournament
 from flock.logging.logging import get_logger
 from flock.registry import RegistryError, type_registry
 from flock.utils.runtime import EvalResult
+from flock.utils.usage import report_usage
 
 
 if TYPE_CHECKING:
@@ -168,6 +169,19 @@ def _attempt(label: str, answer: DecisionAnswer) -> dict[str, Any]:
         "confidence": answer.confidence,
         "refused": answer.refused,
     }
+
+
+def _report_request_usage(
+    provider: DecisionProvider, answers: dict[str, DecisionAnswer]
+) -> None:
+    """Count the input tokens of one request once, for the agent run, as soon
+    as it is answered: its answers all carry them. Every request of a decision
+    (sections, escalation tiers, votes, the shadow) goes through here."""
+    tokens = next(
+        (a.input_tokens for a in answers.values() if a.input_tokens is not None), None
+    )
+    if tokens is not None:
+        report_usage({provider.label: {"prompt_tokens": tokens}})
 
 
 class DecisionEngine(EngineComponent):
@@ -487,9 +501,12 @@ class DecisionEngine(EngineComponent):
             section: str, chunk: list[DecisionQuestion]
         ) -> dict[str, DecisionAnswer]:
             if limit is None:
-                return await provider.decide_many(section, chunk, images)
-            async with limit:
-                return await provider.decide_many(section, chunk, images)
+                answers = await provider.decide_many(section, chunk, images)
+            else:
+                async with limit:
+                    answers = await provider.decide_many(section, chunk, images)
+            _report_request_usage(provider, answers)
+            return answers
 
         requests = [
             asyncio.ensure_future(request(section, chunk))
