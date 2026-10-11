@@ -101,6 +101,23 @@ describe('contractOf', () => {
     expect(reviewed.subjects?.map((subject) => subject.label)).toEqual(['Email', 'SupportTicket']);
   });
 
+  it('follows a screening network back to the subject its handles deliver', () => {
+    const nodes = [
+      node('screen', { subscriptions: ['app.SupportTicket'], outputTypes: ['Decision[app.Screen]'] }),
+      node('ranker', {
+        subscriptions: ['Decision[app.Screen]'],
+        typeLabels: { 'Decision[app.Screen]': '◆ Screen.pass' },
+        outputTypes: ['Decision[app.Rank]'],
+      }),
+      node('desk', { subscriptions: ['Decision[app.Rank]'], typeLabels: { 'Decision[app.Rank]': '◆ Rank.top' } }),
+    ];
+
+    expect(contractOf('desk', nodes, schemas).consumes[0]).toMatchObject({
+      note: 'decision handle · receives the SupportTicket',
+      fields: fieldsOf(schemas['app.SupportTicket']),
+    });
+  });
+
   it('shows each subject\'s fields when a decider decides about several types', () => {
     const nodes = [
       node('triage', { subscriptions: ['app.SupportTicket', 'app.TeamReply'], outputTypes: ['Decision[app.Route]'] }),

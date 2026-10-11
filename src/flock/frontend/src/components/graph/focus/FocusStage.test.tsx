@@ -72,14 +72,14 @@ const serve = () =>
         },
         '/api/streaming-history/billing_team': { events: [] },
         // The running run took a decision; the handle delivers its subject
-        '/api/v1/artifacts/d-1': {
+        '/api/v1/artifacts/d-1?images=thumbnails': {
           id: 'd-1',
           type: 'flock.decisions.Decision[app.Route]',
           payload: { choice: 'billing', subject_ids: ['t-2'] },
           created_at: '2026-10-11T12:01:10Z',
           correlation_id: '5d21bbbb',
         },
-        '/api/v1/artifacts/t-2': {
+        '/api/v1/artifacts/t-2?images=thumbnails': {
           id: 't-2',
           type: 'app.SupportTicket',
           payload: { subject: 'Charged twice' },
