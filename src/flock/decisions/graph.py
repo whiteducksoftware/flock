@@ -285,8 +285,8 @@ def aggregator_info(
 ) -> dict[str, Any] | None:
     """Checklist, grouping and outcome counts of an aggregating agent, else None.
 
-    ``produced`` yields ``(type_name, payload)``; the coverage with the highest
-    revision of each group counts.
+    ``produced`` yields ``(type_name, payload)`` of the artifacts in view; the
+    coverage with the highest revision of each group counts.
     """
     from flock.decisions.coverage import AggregateEngine, Coverage
 

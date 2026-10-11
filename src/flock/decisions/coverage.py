@@ -141,8 +141,10 @@ class AggregateEngine(EngineComponent):
     """Combines a checklist's decisions per group into :class:`Coverage`.
 
     Every execution adds its decision to the group, merges the decisions in
-    the visible history (so a restart with a persistent store loses nothing)
-    and publishes the group's coverage. Groups are updated one at a time.
+    its context that its subscriptions would receive (with the default context
+    provider all visible ones, so a restart with a persistent store loses
+    nothing) and publishes the group's coverage. Groups are updated one at a
+    time.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
