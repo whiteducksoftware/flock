@@ -70,6 +70,13 @@ def test_a_paragraph_longer_than_the_limit_is_split():
 
 def test_a_trailing_space_makes_no_empty_section():
     assert split_sections("aa ", max_chars=2) == [(0, 2)]
+    assert split_sections("aa  ", max_chars=2) == [(0, 2)]
+    assert split_sections("aa   bb", max_chars=2) == [(0, 2), (5, 7)]
+
+
+def test_split_sections_needs_a_positive_limit():
+    with pytest.raises(ValueError, match="max_chars"):
+        split_sections("text", max_chars=0)
 
 
 async def test_a_refused_section_keeps_an_item_from_being_no():
