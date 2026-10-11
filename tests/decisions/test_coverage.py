@@ -228,3 +228,13 @@ def test_an_aggregator_cannot_publish_or_take_engines_or_batches_later():
         builder.with_engines(DSPyEngine())
     with pytest.raises(ValueError, match="batch"):
         builder.consumes(CovControls.failed, batch=BatchSpec(size=2))
+
+
+def test_only_handles_of_the_same_checklist_can_be_added_later():
+    builder = Flock().agent("x").consumes(CovControls.ANY).aggregates(by="org")
+
+    builder.consumes(CovControls.failed)  # the same checklist: fine
+    with pytest.raises(ValueError, match="handle"):
+        builder.consumes(CovDocument)
+    with pytest.raises(ValueError, match="handle"):
+        builder.consumes(CovRoute.a)

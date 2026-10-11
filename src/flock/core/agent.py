@@ -713,11 +713,22 @@ class AgentBuilder:
                 "decisions at a time; add only decision handle subscriptions "
                 "without batch=, e.g. .consumes(Route.UNSURE)."
             )
-        if batch is not None and self._is_aggregator():
-            raise ValueError(
-                f"Agent '{self._agent.name}': .aggregates() adds one decision at "
-                "a time; batch subscriptions are not supported."
+        if self._is_aggregator():
+            from flock.decisions.coverage import AggregateEngine
+
+            (aggregator,) = (
+                e for e in self._agent.engines if isinstance(e, AggregateEngine)
             )
+            if (
+                batch is not None
+                or not choice_refs
+                or any(ref.choice is not aggregator.question for ref in choice_refs)
+            ):
+                raise ValueError(
+                    f"Agent '{self._agent.name}': .aggregates() adds one decision "
+                    "at a time; add only handle subscriptions of "
+                    f"{aggregator.question.__name__} without batch=."
+                )
         # Semantic matching: pass semantic_match parameter to Subscription
         # which will parse it into TextPredicate objects
         subscription = Subscription(
