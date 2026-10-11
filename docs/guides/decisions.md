@@ -524,7 +524,17 @@ On eight support tickets with Microsoft-Decision-1 at threshold 0.95 ([`10_expla
 > The subject and the reference to a "return label" support shipping, whose scope includes returns. However, "from the website gives an error when I print it" also suggests a technical bug, supporting tech as an alternative. [...]
 > *Would settle it:* the exact error message and whether the failure occurs while generating the label on the website or while printing a downloaded one.
 
-In the dashboard, an explanation shows as text instead of JSON, and the explained decision shows the explanation on its card.
+In the dashboard, an explanation shows as text instead of JSON, and the explained decision shows the start of the explanation on its card (the whole text on hover). The screenshots come from a second run, in which two tickets were unsure:
+
+<p align="center">
+  <img alt="Triage routes eight tickets; the explainer consumes Route.UNSURE and published two explanations" src="../../assets/images/decisions/decision-explain-agent-view.png" width="800">
+</p>
+
+<p align="center">
+  <img alt="An UNSURE decision with the start of its explanation" src="../../assets/images/decisions/decision-explained-card.png" width="440">
+  &nbsp;&nbsp;
+  <img alt="An explanation: why the ticket sits between shipping and tech, and what would settle it" src="../../assets/images/decisions/decision-explanation-card.png" width="440">
+</p>
 
 ## Visibility
 
