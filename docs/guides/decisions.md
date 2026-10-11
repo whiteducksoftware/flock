@@ -392,7 +392,7 @@ Coverage is published per decision. Concurrent executions can store them out of 
 
 On the 24 documents of 12 organisations from the compliance example ([`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py), Microsoft-Decision-1, threshold 0.8), the coverage per organisation agrees with the ground truth on 80 to 92 of the decided controls; "shown" has recall 0.99 (an unsure control counts as missed) and precision 0.78, and 104 of the 1,200 controls stay unsure.
 
-In the dashboard, the aggregating agent counts its groups by the outcome of their highest revision among the coverages in view (the view's filters and limit apply, as for a decider's counts), and a coverage shows as a checklist grid for its group. No organisation shows all 100 controls, so every coverage fails; the grid shows which controls each organisation covers:
+In the dashboard, the aggregating agent counts the groups in view by the outcome of their newest revision, also when that revision is outside the view (which groups count follows the view's filters and limit, as for a decider's counts), and a coverage shows as a checklist grid for its group. No organisation shows all 100 controls, so every coverage fails; the grid shows which controls each organisation covers:
 
 <p align="center">
   <img alt="audit decides a checklist per document; coverage combines them by organisation: 12 groups, all failed" src="../../assets/images/decisions/decision-coverage-agent-view.png" width="900">
@@ -639,7 +639,7 @@ On eight support tickets with Microsoft-Decision-1 at threshold 0.95 ([`10_expla
 > The subject and the reference to a "return label" support shipping, whose scope includes returns. However, "from the website gives an error when I print it" also suggests a technical bug, supporting tech as an alternative. [...]
 > *Would settle it:* the exact error message and whether the failure occurs while generating the label on the website or while printing a downloaded one.
 
-In the dashboard, an explanation shows as text instead of JSON, and the explained decision shows the start of the explanation on its card; its **more** button (click or keyboard) opens the whole text and what would settle it. The screenshots come from a second run, in which two tickets were unsure:
+In the dashboard, an explanation shows as text instead of JSON, and the explained decision shows the start of the explanation on its card, also when the explanation is outside the view; its **more** button (click or keyboard) opens the whole text and what would settle it. The screenshots come from a second run, in which two tickets were unsure:
 
 <p align="center">
   <img alt="Triage routes eight tickets; the explainer consumes Route.UNSURE and published two explanations" src="../../assets/images/decisions/decision-explain-agent-view.png" width="800">
@@ -667,7 +667,7 @@ await flock.review(other_id)  # without choice: confirm the best guess
 
 The reviewed decision has the chosen option with probability 1.0, the reviewer as `model` and producer, `review_of` set to the reviewed decision's id, and the original's subjects, correlation and visibility; a scale review sets the score of the chosen level, so range handles match. Choice, yes/no and scale decisions can be reviewed; checklists cannot yet. An unknown id raises `LookupError`; an option the question does not have, or a reviewer named like one of the flock's agents (agents do not consume their own outputs, so the review would not reach that agent), raises `ValueError`.
 
-The control API offers the same: `POST /api/control/decisions/{id}/review` with `{"choice": "tech", "reviewer": "lead"}` (both optional). In the Blackboard View, an unsure decision shows review buttons, the most probable options first; a click publishes the review. A reviewed decision then shows its review, and the review names the decision it replaces. Like the other dashboard data, the review state comes from the artifacts in view: with filters, or more artifacts than the view's limit, a review outside the view does not show on its decision. Reviewed decisions are labels: they record what a person decided where the model was not sure, which is the data needed to calibrate thresholds.
+The control API offers the same: `POST /api/control/decisions/{id}/review` with `{"choice": "tech", "reviewer": "lead"}` (both optional). In the Blackboard View, an unsure decision shows review buttons, the most probable options first; a click publishes the review. A reviewed decision then shows its review, and the review names the decision it replaces. A decision in view shows its review also when the review itself is outside the view, for example filtered out by producer. Reviewed decisions are labels: they record what a person decided where the model was not sure, which is the data needed to calibrate thresholds.
 
 <p align="center">
   <img alt="An unsure decision with review buttons, the most probable option first" src="../../assets/images/decisions/decision-review-buttons.png" width="300">

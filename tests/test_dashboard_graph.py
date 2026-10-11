@@ -16,7 +16,7 @@ from flock.components.server.control.control_routes_component import (
     ControlRoutesComponent,
     ControlRoutesComponentConfig,
 )
-from flock.components.server.models.graph import GraphRequest
+from flock.components.server.models.graph import GraphRequest, GraphRequestOptions
 from flock.core import Agent, Flock
 from flock.core.artifacts import Artifact
 from flock.core.store import ConsumptionRecord
@@ -107,6 +107,76 @@ async def test_recent_presets_show_artifacts_stamped_after_the_request(orchestra
 
     assert snapshot.filters.time_range.preset == "last10min"
     assert [node.id for node in snapshot.nodes] == [str(ahead.id)]
+
+
+@pytest.mark.asyncio
+async def test_a_full_view_shows_the_newest_artifacts(orchestrator):
+    """With more artifacts than the limit, a (live) view shows the newest ones."""
+    start = datetime.now(UTC) - timedelta(seconds=30)
+    ideas = [
+        Artifact(
+            type="Idea",
+            payload={"topic": f"idea {n}"},
+            produced_by="producer_agent",
+            created_at=start + timedelta(seconds=n),
+        )
+        for n in range(3)
+    ]
+    for idea in ideas:
+        await orchestrator.store.publish(idea)
+    collector = DashboardEventCollector(store=orchestrator.store)
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+
+    snapshot = await assembler.build_snapshot(
+        GraphRequest(view_mode="blackboard", options=GraphRequestOptions(limit=2))
+    )
+
+    assert sorted(node.id for node in snapshot.nodes) == sorted(
+        str(idea.id) for idea in ideas[1:]
+    )
+    assert (snapshot.total_artifacts, snapshot.truncated) == (3, True)
+
+
+@pytest.mark.asyncio
+async def test_a_full_view_includes_artifacts_published_while_it_is_read(
+    orchestrator, monkeypatch
+):
+    start = datetime.now(UTC) - timedelta(seconds=30)
+    for n in range(3):
+        await orchestrator.store.publish(
+            Artifact(
+                type="Idea",
+                payload={"topic": f"idea {n}"},
+                produced_by="producer_agent",
+                created_at=start + timedelta(seconds=n),
+            )
+        )
+    late = Artifact(
+        type="Idea",
+        payload={"topic": "late"},
+        produced_by="producer_agent",
+        created_at=start + timedelta(seconds=10),
+    )
+    fetch = orchestrator.store.fetch_graph_artifacts
+
+    async def publish_after_counting(*args, **kwargs):
+        found = await fetch(*args, **kwargs)
+        if kwargs.get("offset") == 0:  # the read that counts the matches
+            await orchestrator.store.publish(late)
+        return found
+
+    monkeypatch.setattr(
+        orchestrator.store, "fetch_graph_artifacts", publish_after_counting
+    )
+    collector = DashboardEventCollector(store=orchestrator.store)
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+
+    snapshot = await assembler.build_snapshot(
+        GraphRequest(view_mode="blackboard", options=GraphRequestOptions(limit=2))
+    )
+
+    assert str(late.id) in {node.id for node in snapshot.nodes}
+    assert (len(snapshot.nodes), snapshot.total_artifacts) == (2, 4)
 
 
 @pytest.mark.asyncio

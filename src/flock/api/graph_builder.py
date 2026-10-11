@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from flock.api.collector import AgentSnapshot, DashboardEventCollector
 from flock.api.thumbnails import compact, first_thumbnail, image_summaries
@@ -52,6 +53,12 @@ from flock.logging.auto_trace import AutoTracedMeta
 from flock.registry import RegistryError, type_registry
 
 
+# What belongs to an artifact (a review, an explanation, a newer coverage
+# revision) is published after it; the margin covers a wall clock that stepped
+# back in between
+_CLOCK_MARGIN = timedelta(minutes=1)
+
+
 class GraphAssembler(metaclass=AutoTracedMeta):
     """Build graph snapshots for dashboard consumption."""
 
@@ -75,6 +82,17 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             limit=limit,
             offset=0,
         )
+        if total_available > limit:
+            # A full view shows the newest artifacts (the store orders oldest
+            # first), so a live dashboard keeps showing what was just published.
+            # Reading from the last page on without a limit also gets what was
+            # published since the count; page and total come from one query
+            envelopes, total_available = await self._store.fetch_graph_artifacts(
+                filter_config,
+                limit=0,
+                offset=total_available - limit,
+            )
+            envelopes = envelopes[-limit:]
 
         graph_state: GraphState = await self._collector.snapshot_graph_state()
         agent_snapshots = await self._collector.snapshot_agent_registry()
@@ -93,13 +111,15 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 consumed_metrics,
                 graph_state,
                 agent_snapshots,
+                await self._current_coverages(artifacts, filter_config),
             )
             edges = self._derive_agent_edges(artifacts)
             # Phase 1.5: Add pending edges for artifacts waiting in correlation/batch
             pending_edges = self._derive_pending_edges(artifacts)
             edges.extend(pending_edges)
         else:
-            nodes = self._build_message_nodes(artifacts)
+            reviews, explanations = await self._decision_links(artifacts, filter_config)
+            nodes = self._build_message_nodes(artifacts, reviews, explanations)
             edges = self._derive_blackboard_edges(artifacts, graph_state)
 
         statistics = None
@@ -124,6 +144,80 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             total_artifacts=total_available,
             truncated=total_available > len(artifacts),
         )
+
+    async def _published_since(
+        self,
+        type_names: set[str],
+        since: datetime,
+        filters: FilterConfig,
+        produced_by: set[str] | None = None,
+    ) -> list[Artifact]:
+        """Artifacts of ``type_names`` from ``since`` on, whatever the view's limit
+        and its type, producer, tag and correlation filters; its visibility
+        filter applies."""
+        found, _ = await self._store.query_artifacts(
+            FilterConfig(
+                type_names=type_names,
+                produced_by=produced_by,
+                visibility=filters.visibility,
+                start=since - _CLOCK_MARGIN,
+            ),
+            limit=0,  # all of them
+        )
+        return [item for item in found if isinstance(item, Artifact)]
+
+    async def _decision_links(
+        self, artifacts: Mapping[str, GraphArtifact], filters: FilterConfig
+    ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+        """Reviews and explanations of the decisions in view, by decision id,
+        also those outside the view."""
+        from flock.decisions.explain import Explanation
+
+        decisions = [a for a in artifacts.values() if is_decision_type(a.artifact_type)]
+        if not decisions:
+            return {}, {}
+        later = await self._published_since(
+            {a.artifact_type for a in decisions}
+            | {type_registry.name_for(Explanation)},
+            min(a.published_at for a in decisions),
+            filters,
+        )
+        in_view = {a.artifact_id for a in decisions}
+        reviews = reviews_by_decision(
+            (a.payload, a.produced_by) for a in later if is_decision_type(a.type)
+        )
+        explanations = explanations_by_decision(
+            (a.payload, a.produced_by) for a in later if is_explanation_type(a.type)
+        )
+        return (
+            {k: v for k, v in reviews.items() if k in in_view},
+            {k: v for k, v in explanations.items() if k in in_view},
+        )
+
+    async def _current_coverages(
+        self, artifacts: Mapping[str, GraphArtifact], filters: FilterConfig
+    ) -> dict[str, list[tuple[str, Mapping[str, Any]]]]:
+        """Aggregating agent -> ``(type, payload)`` of its coverages in view and
+        of the newer revisions of their groups, also those outside the view."""
+        in_view: dict[str, list[GraphArtifact]] = defaultdict(list)
+        for artifact in artifacts.values():
+            if is_coverage_type(artifact.artifact_type):
+                in_view[artifact.produced_by].append(artifact)
+        current: dict[str, list[tuple[str, Mapping[str, Any]]]] = {}
+        for agent_name, coverages in in_view.items():
+            groups = {str(c.payload.get("group")) for c in coverages}
+            later = await self._published_since(
+                {c.artifact_type for c in coverages},
+                min(c.published_at for c in coverages),
+                filters,
+                produced_by={agent_name},
+            )
+            current[agent_name] = [(c.artifact_type, c.payload) for c in coverages] + [
+                (a.type, a.payload)
+                for a in later
+                if str(a.payload.get("group")) in groups
+            ]
+        return current
 
     def _convert_envelopes_to_artifacts(
         self,
@@ -202,6 +296,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         consumed_metrics: Mapping[str, GraphAgentMetrics],
         graph_state: GraphState,
         agent_snapshots: Mapping[str, AgentSnapshot],
+        coverages: Mapping[str, Sequence[tuple[str, Mapping[str, Any]]]],
     ) -> list[GraphNode]:
         nodes: list[GraphNode] = []
         agent_status = graph_state.agent_status
@@ -290,14 +385,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             if decision:
                 node_data["decision"] = decision
             # Order does not matter: each group's highest revision counts
-            coverage = aggregator_info(
-                agent,
-                (
-                    (artifact.artifact_type, artifact.payload)
-                    for artifact in artifacts.values()
-                    if artifact.produced_by == agent.name
-                ),
-            )
+            coverage = aggregator_info(agent, coverages.get(agent.name, ()))
             if coverage:
                 node_data["coverage"] = coverage
             type_labels = choice_type_labels(agent)
@@ -421,18 +509,10 @@ class GraphAssembler(metaclass=AutoTracedMeta):
     def _build_message_nodes(
         self,
         artifacts: Mapping[str, GraphArtifact],
+        reviewed: Mapping[str, dict[str, Any]],
+        explained: Mapping[str, dict[str, Any]],
     ) -> list[GraphNode]:
         nodes: list[GraphNode] = []
-        explained = explanations_by_decision(
-            (artifact.payload, artifact.produced_by)
-            for artifact in artifacts.values()
-            if is_explanation_type(artifact.artifact_type)
-        )
-        reviewed = reviews_by_decision(
-            (artifact.payload, artifact.produced_by)
-            for artifact in sorted(artifacts.values(), key=lambda a: a.published_at)
-            if is_decision_type(artifact.artifact_type)
-        )
 
         for artifact in artifacts.values():
             # Image data is shipped as thumbnails; the JSON view gets a description,

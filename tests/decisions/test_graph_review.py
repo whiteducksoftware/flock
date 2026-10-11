@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from flock.api.collector import DashboardEventCollector
 from flock.api.graph_builder import GraphAssembler
-from flock.components.server.models.graph import GraphRequest
+from flock.components.server.models.graph import GraphFilters, GraphRequest
 from flock.core import Flock
 from flock.decisions import Choice, Decision, FakeDecider
 from flock.registry import flock_type, type_registry
@@ -63,3 +63,28 @@ async def test_a_decision_view_lists_the_options_a_person_can_choose():
     # A refusal has no probabilities; the options still allow a review
     assert view["probabilities"] == {}
     assert view["options"] == ["billing", "tech"]
+
+
+async def test_a_decision_shows_its_review_when_the_view_leaves_it_out():
+    flock = Flock()
+    flock.is_dashboard = True
+    flock.agent("triage").consumes(GraphRevTicket).decides(
+        GraphRevRoute, model=FakeDecider({"billing": 0.55, "tech": 0.45}), threshold=0.8
+    )
+    collector = DashboardEventCollector(store=flock.store)
+    await flock.publish(GraphRevTicket(text="crash, then a charge"))
+    await flock.run_until_idle()
+    name = type_registry.name_for(Decision.of(GraphRevRoute))
+    (unsure,) = [a for a in await flock.store.list() if a.type == name]
+    await flock.review(unsure.id, choice="tech", reviewer="alice")
+
+    # Only the decider's artifacts in view: the reviewer's review is filtered out
+    assembler = GraphAssembler(flock.store, collector, flock)
+    request = GraphRequest(
+        view_mode="blackboard", filters=GraphFilters(producers=["triage"])
+    )
+    blackboard = await assembler.build_snapshot(request)
+
+    views = {n.id: n.data["decision"] for n in blackboard.nodes if "decision" in n.data}
+    assert list(views) == [str(unsure.id)]
+    assert views[str(unsure.id)]["review"] == {"choice": "tech", "by": "alice"}

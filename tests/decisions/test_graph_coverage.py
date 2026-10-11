@@ -80,3 +80,45 @@ async def test_aggregator_and_coverage_views():
         "probabilities": {},
         "refusedItems": [],
     }
+
+
+async def test_a_group_counts_with_its_newest_revision_outside_the_view():
+    flock = Flock()
+    flock.is_dashboard = True
+    flock.agent("audit").consumes(GraphCovDocument).decides(
+        GraphCovControls,
+        model=FakeDecider({"GraphCovControls": by_text}),
+        threshold=0.9,
+    )
+    flock.agent("coverage").consumes(GraphCovControls.ANY).aggregates(by="org")
+    collector = DashboardEventCollector(store=flock.store)
+    for text in ("policy", "runbook"):  # acme fails (revision 1), then passes
+        await flock.publish(GraphCovDocument(org="acme", text=text))
+        await flock.run_until_idle()
+    revisions = {
+        a.payload["revision"]: a
+        for a in await flock.store.list()
+        if a.produced_by == "coverage"
+    }
+
+    # The first document's workflow in view: revision 2 belongs to the second
+    request = GraphRequest(
+        view_mode="agent",
+        filters=GraphFilters(
+            correlation_id=str(revisions[1].correlation_id),
+            time_range=GraphTimeRange(preset="all"),
+        ),
+    )
+    agent_view = await GraphAssembler(flock.store, collector, flock).build_snapshot(
+        request
+    )
+
+    coverage_node = next(n for n in agent_view.nodes if n.id == "coverage")
+    assert revisions[1].payload["choice"] == "failed"
+    assert revisions[2].payload["choice"] == "passed"
+    assert revisions[2].correlation_id != revisions[1].correlation_id
+    assert coverage_node.data["coverage"]["groups"] == {
+        "passed": 1,
+        "failed": 0,
+        UNSURE: 0,
+    }
